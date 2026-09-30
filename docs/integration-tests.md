@@ -30,6 +30,6 @@ trap 'git -C "$root" worktree remove --force "$wt"; git -C "$root" branch -D "$b
 
 Run it as a script (so the `trap` fires) or, if invoking step-by-step, always finish with `git worktree remove --force "$wt" && git branch -D "$br"` even when the run fails. `git worktree list` afterward must not show a leftover `in-itest-*`. This worktree-on-a-temp-branch flow is the **sole exception** to the "never create/switch branches in this checkout" strict rule — it branches inside an isolated sibling worktree, never the main checkout.
 
-Stable widget keys (`login_submit`, `lock_unlock`, `lock_sign_out`) keep assertions locale-independent. Add similar keys when extending the test.
+Stable widget keys (`login_continue`, `login_submit`, the `login_*` field keys — `login_url`, `login_email`, `login_password`, `login_otp`, `login_secret` — and `lock_unlock`, `lock_sign_out`) keep assertions locale-independent. Login is two steps: enter `login_email`, tap `login_continue`, wait for `login_password`, then tap `login_submit`. Find fields by key, never by position — which optional fields step 2 shows depends on the server's `/login/precheck` answer. Add similar keys when extending the test.
 
 When adding scenarios, mock both `/api/v1/login` and `/api/v1/refresh` if the flow authenticates — `_persistAndActivate` calls refresh after a successful login, and `restore()` fires a best-effort refresh too. The shared `_silentNetwork()` helper returns a 500-MockClient for scenarios that don't care about the wire.

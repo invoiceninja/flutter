@@ -223,9 +223,9 @@ void main() {
     await _pumpUntilFound(tester, find.byType(LoginScreen));
 
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.byKey(const ValueKey('login_submit')), findsOneWidget);
-    // Email + password (and the optional OTP) — at least the first two.
-    expect(find.byType(TextField), findsAtLeastNWidgets(2));
+    // Two-step login: step 1 is the email and Continue.
+    expect(find.byKey(const ValueKey('login_continue')), findsOneWidget);
+    expect(find.byType(TextField), findsAtLeastNWidgets(1));
   });
 
   testWidgets(
@@ -545,12 +545,17 @@ void main() {
     await _pumpUntilFound(tester, find.byType(LoginScreen));
     expect(find.byType(LoginScreen), findsOneWidget);
 
-    // The login form has email + password + OTP fields in order. Enter
-    // creds into the first two; the OTP field is optional and stays blank.
-    final fields = find.byType(TextField);
-    expect(fields, findsAtLeastNWidgets(2));
-    await tester.enterText(fields.at(0), 'me@example.com');
-    await tester.enterText(fields.at(1), 'hunter2');
+    // Two-step login: the email and Continue, then the password. The mock
+    // answers `/login/precheck` with a 500, which the form treats as "no
+    // answer" and moves on with the optional OTP field shown (left blank).
+    Finder input(String key) => find.descendant(
+      of: find.byKey(ValueKey(key)),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(input('login_email'), 'me@example.com');
+    await tester.tap(find.byKey(const ValueKey('login_continue')));
+    await _pumpUntilFound(tester, input('login_password'));
+    await tester.enterText(input('login_password'), 'hunter2');
     await tester.tap(find.byKey(const ValueKey('login_submit')));
     await _pumpUntilFound(tester, find.byType(DashboardScreen));
 

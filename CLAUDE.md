@@ -268,7 +268,7 @@ FormSaveScope(
 )
 ```
 
-Reusable field widgets read the scope automatically (see `OverridableTextField`, `ClientEditField`). Raw `TextField`s with `maxLines == 1` should read `FormSaveScope.maybeOf(context)`, set `textInputAction: TextInputAction.done`, and pipe `onSubmitted` to `scope.trySubmit()`. Dialogs with a single text input + primary action: wrap the dialog body in `FormSaveScope` so Enter fires the primary action (login's password field is wired explicitly in `_PasswordField`, `lib/ui/features/auth/views/login_screen.dart`).
+Reusable field widgets read the scope automatically (see `OverridableTextField`, `ClientEditField`). Raw `TextField`s with `maxLines == 1` should read `FormSaveScope.maybeOf(context)`, set `textInputAction: TextInputAction.done`, and pipe `onSubmitted` to `scope.trySubmit()`. Dialogs with a single text input + primary action: wrap the dialog body in `FormSaveScope` so Enter fires the primary action (login's fields wire `onSubmitted` explicitly in `lib/ui/features/auth/views/login_screen.dart` — on step 2, Enter moves to an empty *required* field before it submits).
 
 ### Empty for blank numeric fields
 

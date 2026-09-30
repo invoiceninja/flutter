@@ -111,13 +111,13 @@ Notable members of `Services`:
 
 ## 4. Code flow — Login
 
-What happens when the user enters email + password and taps "Sign in":
+What happens when the user enters their email, taps Continue, then enters the password and taps Login:
 
-1. **Login screen.** `lib/ui/features/auth/views/login_screen.dart:72` — `_onEmailSubmit` calls `vm.submit()`. The submit button (key `login_submit`) is at line 232; password field's `onSubmitted` (Enter to submit) is wired through `FormSaveScope` at line 220.
+1. **Login screen.** `lib/ui/features/auth/views/login_screen.dart` — two steps, mirroring React. Continue (key `login_continue`) calls `vm.continueToCredentials()`, which asks `POST /api/v1/login/precheck` which optional fields (TOTP, API secret) step 2 needs. Login (key `login_submit`) calls `_onLogin` → `vm.submit()`. Enter is wired explicitly through each field's `onSubmitted` (not `FormSaveScope`): on step 2 it moves to an empty *required* field first, otherwise submits.
 
-2. **ViewModel.** `lib/ui/features/auth/view_models/login_view_model.dart:131` — `LoginViewModel.submit()` flips `_busy = true`, calls `auth.login(...)` at line 144, and on exception sets `_errorKey`/`_errorMessage` for the screen to render.
+2. **ViewModel.** `lib/ui/features/auth/view_models/login_view_model.dart` — `LoginViewModel.submit()` marks `LoginAction.login` busy, calls `auth.login(...)`, and on exception sets either a request-level `errorKey`/`errorMessage` (toasted) or a field-level error (rendered under the field).
 
-3. **Repository.** `lib/data/repositories/auth_repository.dart:124` — `AuthRepository.login()` calls the auth service, then runs `_persistAndActivate(response)` at line 138.
+3. **Repository.** `lib/data/repositories/auth_repository.dart` — `AuthRepository.login()` calls the auth service, then runs `_persistAndActivate(response)`.
 
 4. **HTTP request.** `lib/data/services/api_client.dart:208` builds the headers (`X-API-Token`, version header, Accept) via `_buildHeaders` at line 631. The auth service issues `POST /api/v1/login` with email + password (and optional MFA code).
 
@@ -220,7 +220,7 @@ Each row points to the one file to open if you want to learn more. Details live 
   Widget-bearing column registry. Keeping that boundary is what lets a data-layer test
   compile ~140 files instead of ~1,395. See CLAUDE.md § Strict rules for the history.
 - **Repository contract harness**: `test/data/repositories/_base_entity_repository_contract.dart`. Every per-entity repo test registers the fixture and inherits a dozen-plus shared tests (offline create + id-remap, save dirty flag, delete, applyCreateResponse, conflicts, etc.). Look at `test/data/repositories/product_repository_test.dart` for the canonical invocation.
-- **Integration tests**: `integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` against in-memory Drift + `MockClient`. **CI only** — don't run them locally; they steal focus from the dev's session. Stable widget keys (`login_submit`, `lock_unlock`, `lock_sign_out`) keep assertions locale-independent.
+- **Integration tests**: `integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` against in-memory Drift + `MockClient`. **CI only** — don't run them locally; they steal focus from the dev's session. Stable widget keys (`login_continue`, `login_submit`, the `login_*` field keys, `lock_unlock`, `lock_sign_out`) keep assertions locale-independent.
 - **Widget previews**: `@Preview` annotations on `lib/ui/core/widgets/` light up Flutter Widget Preview in the IDE — useful for the design-system widgets (`EmptyState`, `ErrorView`, `StatusPill`, `LinkText`). Feature screens depend on `Services` and aren't preview-friendly.
 
 ---

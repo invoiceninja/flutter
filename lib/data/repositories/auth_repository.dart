@@ -311,22 +311,18 @@ class AuthRepository {
     }
   }
 
-  /// Ask the server which credentials [email] needs before showing the form's
-  /// optional fields. Pure read — touches no session state. Returns null when
-  /// the precheck can't be answered (older server, offline, rate-limited);
-  /// callers must fall back to showing every field. See
+  /// Ask the server which credentials [email] needs — the login screen's
+  /// Continue step. Pure read — touches no session state. Returns null when
+  /// the server can't answer the question (older server, rate-limited, a
+  /// malformed body); callers must fall back to showing every field. Throws
+  /// [NetworkException] when the server can't be reached at all and
+  /// [ValidationException] when it rejects the address. See
   /// [AuthService.precheck].
   Future<LoginPrecheck?> precheckLogin({
     required String baseUrl,
     required bool isHosted,
     required String email,
-    String? secret,
-  }) => _auth.precheck(
-    baseUrl: baseUrl,
-    isHosted: isHosted,
-    email: email,
-    secret: secret,
-  );
+  }) => _auth.precheck(baseUrl: baseUrl, isHosted: isHosted, email: email);
 
   /// Hot login. Calls `/api/v1/login`, persists everything, and primes
   /// [credentials] so subsequent API calls work.
@@ -654,6 +650,33 @@ class AuthRepository {
     isHosted: isHosted,
     email: email,
     secret: secret,
+  );
+
+  /// Lost-authenticator reset, step 1: text a code to the phone on file for
+  /// [email]. Pre-auth; no session is created. See
+  /// [AuthService.sendTwoFactorResetCode].
+  Future<String?> sendTwoFactorResetCode({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+  }) => _auth.sendTwoFactorResetCode(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+  );
+
+  /// Lost-authenticator reset, step 2: verify the texted [code], which
+  /// disables 2FA on the account. See [AuthService.confirmTwoFactorReset].
+  Future<String?> confirmTwoFactorReset({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    required String code,
+  }) => _auth.confirmTwoFactorReset(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+    code: code,
   );
 
   /// Switch the active company. Updates [credentials] so the next API call

@@ -93,10 +93,13 @@ Flutter's own defaults: `EntityEditField` (`keyboardType`,
 `OverridableTextField` / `SettingsTextField` (the same minus `obscureText`,
 which the first has as `obscureToggle`). `AuthField` / `AuthPasswordField`
 supplied the `autocorrect`-follows-`obscureText` idiom but is **not** a fourth
-member: it exposes `keyboardType`, `obscureText` and `autofillHints` only, and
-hard-codes `autocorrect: !obscureText` — fine for the auth screens, whose only
-non-obscured field is an email (whose keyboard suppresses autocorrect anyway),
-but it cannot take a `textCapitalization`. A local one-off wrapper
+member: of the input-type hooks it exposes `keyboardType`, `obscureText` and
+`autofillHints` only, and hard-codes `autocorrect: !obscureText` — fine for the
+auth screens, whose only non-obscured fields are an email, a URL and a TOTP
+code (keyboards that suppress autocorrect anyway), but it cannot take a
+`textCapitalization`. (Its other parameters — `readOnly`, `autofocus`,
+`focusNode`, `textInputAction`, `onEditingComplete`, `labelTrailing` — serve
+the two-step login's focus and layout, not input types.) A local one-off wrapper
 (`_OnboardingField`, `_SmtpTextField`, `_LabeledField`, `client_locations_tab`'s
 `_field`) needs the same hooks rather than hard-coding.
 

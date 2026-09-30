@@ -75,7 +75,9 @@ the honest default.
 | OAuth — Microsoft / Azure | ✅ | ✅ | ❌ |  | |
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
-| Login precheck (hide OTP / API-secret fields unless the server needs them) | ❌ | ❌ | ✅ | | |
+| Two-step login (email → Continue → only the credentials the account needs, via `/login/precheck`) | ✅ | ❌ | ✅ | | |
+| Passkey login | ✅ | ❌ | ❌ | | |
+| Disable 2FA from login (SMS reset for a lost authenticator) | ✅ | ✅ | ✅ | | |
 | Two-factor SMS verification | ✅ | ✅ | ✅ | ✅ | |
 | Password reset / recovery email | ✅ | ✅ | ✅ | ✅ | |
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |

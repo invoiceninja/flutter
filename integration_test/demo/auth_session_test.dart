@@ -42,19 +42,24 @@ void main() {
     await pumpUntilFound(tester, find.byType(LoginScreen));
     expect(find.byType(LoginScreen), findsOneWidget);
 
-    // Switch to the self-hosted tab so the server-URL field appears, then
-    // fill URL + email + password (field order on self-hosted is
-    // [url, email, password, otp]).
+    // Two-step login. Step 1: switch to self-hosted so the server-URL field
+    // appears, fill URL + email, Continue (which asks `/login/precheck`).
+    // Step 2: the password. Fields are found by key, never by position —
+    // the precheck decides which optional fields step 2 shows.
+    Finder input(String key) => find.descendant(
+      of: find.byKey(ValueKey(key)),
+      matching: find.byType(TextField),
+    );
     await tester.tap(find.text('Self-Hosted'));
     await tester.pumpAndSettle();
 
-    final fields = find.byType(TextField);
-    await pumpUntilFound(tester, fields);
-    expect(fields, findsAtLeastNWidgets(3));
-    await tester.enterText(fields.at(0), kDemoBaseUrl);
-    await tester.enterText(fields.at(1), kDemoEmail);
-    await tester.enterText(fields.at(2), kDemoPassword);
+    await pumpUntilFound(tester, input('login_url'));
+    await tester.enterText(input('login_url'), kDemoBaseUrl);
+    await tester.enterText(input('login_email'), kDemoEmail);
+    await tester.tap(find.byKey(const ValueKey('login_continue')));
 
+    await pumpUntilFound(tester, input('login_password'));
+    await tester.enterText(input('login_password'), kDemoPassword);
     await tester.tap(find.byKey(const ValueKey('login_submit')));
     // demo user is owner/admin with view_dashboard → /dashboard.
     await pumpUntilFound(tester, find.byType(DashboardScreen));

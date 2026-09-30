@@ -75,8 +75,14 @@ class AuthField extends StatefulWidget {
     this.obscureText = false,
     this.onChanged,
     this.onSubmitted,
+    this.onEditingComplete,
     this.suffix,
     this.autofillHints,
+    this.readOnly = false,
+    this.autofocus = false,
+    this.focusNode,
+    this.textInputAction,
+    this.labelTrailing,
   });
 
   final String label;
@@ -87,8 +93,32 @@ class AuthField extends StatefulWidget {
   final bool obscureText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+
+  /// Passed straight to the `TextField`. A field whose [textInputAction] is
+  /// `next` but whose [onSubmitted] decides where focus goes must pass a
+  /// no-op here: without it the framework runs its own `nextFocus()` *before*
+  /// `onSubmitted`, which from a password field lands on the reveal button.
+  final VoidCallback? onEditingComplete;
   final Widget? suffix;
   final Iterable<String>? autofillHints;
+
+  /// Read-only fields still take part in the surrounding `AutofillGroup` with
+  /// their current value (so a password manager sees the username on a
+  /// two-step login's second page), but reject text an autofill tries to
+  /// write into them.
+  final bool readOnly;
+  final bool autofocus;
+  final FocusNode? focusNode;
+
+  /// Keep this fixed for the field's lifetime: `EditableText` only pushes a
+  /// new configuration to the platform when `obscureText` or `keyboardType`
+  /// changes, so a `textInputAction` that flips while the keyboard is up
+  /// never reaches it.
+  final TextInputAction? textInputAction;
+
+  /// Right-aligned on the label row (e.g. "Forgot your password?"). When the
+  /// label and this widget don't fit on one line, this one wraps beneath.
+  final Widget? labelTrailing;
 
   @override
   State<AuthField> createState() => _AuthFieldState();
@@ -111,34 +141,56 @@ class _AuthFieldState extends State<AuthField> {
 
   @override
   Widget build(BuildContext context) {
+    final label = Text(
+      widget.label,
+      maxLines: widget.labelTrailing == null ? null : 1,
+      overflow: widget.labelTrailing == null ? null : TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: context.inTheme.ink3,
+      ),
+    );
+    final trailing = widget.labelTrailing;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: context.inTheme.ink3,
-            ),
-          ),
+          child: trailing == null
+              ? label
+              // Label left, trailing widget right; when the two don't fit on
+              // one line the trailing one wraps beneath instead of either
+              // being ellipsized. A `Wrap` (not a `LayoutBuilder`) so the
+              // field still reports intrinsic sizes — an `AlertDialog` lays
+              // its content out under `IntrinsicWidth`.
+              : Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: InSpacing.sm,
+                  runSpacing: 2,
+                  children: [label, trailing],
+                ),
         ),
         TextField(
           controller: _controller,
+          focusNode: widget.focusNode,
+          autofocus: widget.autofocus,
+          readOnly: widget.readOnly,
           decoration: InputDecoration(
             hintText: widget.hint,
             errorText: widget.errorText,
             suffixIcon: widget.suffix,
           ),
           keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
           obscureText: widget.obscureText,
           autocorrect: !widget.obscureText,
           enableSuggestions: !widget.obscureText,
           autofillHints: widget.autofillHints,
           onChanged: widget.onChanged,
           onSubmitted: widget.onSubmitted,
+          onEditingComplete: widget.onEditingComplete,
         ),
       ],
     );
@@ -153,7 +205,12 @@ class AuthPasswordField extends StatefulWidget {
     this.errorText,
     this.onChanged,
     this.onSubmitted,
+    this.onEditingComplete,
     this.autofillHints = const [AutofillHints.password],
+    this.autofocus = false,
+    this.focusNode,
+    this.textInputAction,
+    this.labelTrailing,
   });
 
   final String label;
@@ -161,6 +218,17 @@ class AuthPasswordField extends StatefulWidget {
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+
+  /// See [AuthField.onEditingComplete].
+  final VoidCallback? onEditingComplete;
+  final bool autofocus;
+  final FocusNode? focusNode;
+
+  /// See [AuthField.textInputAction].
+  final TextInputAction? textInputAction;
+
+  /// See [AuthField.labelTrailing].
+  final Widget? labelTrailing;
 
   /// Autofill hints for the obscured field. Defaults to the account-password
   /// hint (the common case). Pass `null` for an obscured field that isn't the
@@ -186,8 +254,13 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       errorText: widget.errorText,
       obscureText: _obscured,
       autofillHints: widget.autofillHints,
+      autofocus: widget.autofocus,
+      focusNode: widget.focusNode,
+      textInputAction: widget.textInputAction,
+      labelTrailing: widget.labelTrailing,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
+      onEditingComplete: widget.onEditingComplete,
       suffix: IconButton(
         tooltip: _obscured
             ? context.tr('show_password')
@@ -199,6 +272,37 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
         ),
         onPressed: () => setState(() => _obscured = !_obscured),
       ),
+    );
+  }
+}
+
+// ─── "── or ──" divider ──────────────────────────────────────────────────
+
+/// Separates an email form from the social sign-in buttons below it. Shared
+/// by the login and signup screens.
+class AuthOrDivider extends StatelessWidget {
+  const AuthOrDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Row(
+      children: [
+        Expanded(child: Divider(color: tokens.border)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
+          // Upper-cased like React's `OrDivider` (CSS `uppercase`).
+          child: Text(
+            context.tr('or').toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              letterSpacing: 0.5,
+              color: tokens.ink3,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: tokens.border)),
+      ],
     );
   }
 }

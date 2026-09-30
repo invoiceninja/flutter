@@ -31,6 +31,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
 - App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
+- `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
 
 **Shipped since this file was written** (kept for the record, no action left):
@@ -684,6 +685,23 @@ current `status_order`. **O.** If you later add a `task_statuses/sort` route
 mirroring `TaskController::sort` (`{status_ids}` → renumber), the client
 could batch a multi-move into one request; until then per-move PUTs are
 correct and sufficient (status counts are tiny).
+
+### H2. `POST /login/precheck` reports `secret_required` in hosted mode — **O** (client works around it)
+
+`LoginController::precheck` returns `'secret_required' => (bool) config('ninja.api_secret')`,
+but `ApiSecretCheck::handle` passes every request through when `Ninja::isHosted()`, whatever
+`API_SECRET` is set to. So a hosted server with `API_SECRET` configured reports a secret that
+none of its routes will check. The React client never notices (it only shows the secret field
+when it is itself self-hosted); the v2 login's step 2 does, when a user reaches the hosted server
+through the Self-Hosted toggle.
+
+**Client-side (no PR required):** the v2 login uses `secret_required` to hide the API secret
+field when false, and when true only to *label* it required and move focus to it on Enter — it
+never blocks a login on it (it does block on a confirmed-but-empty TOTP code, which comes from
+the user's own record). A wrong or
+missing secret comes back from `/login` as the 403 "Invalid secret". **O.** Report
+`secret_required` as `config('ninja.api_secret') && !Ninja::isHosted()`, mirroring the
+middleware.
 
 ### G. Hygiene — highest leverage
 

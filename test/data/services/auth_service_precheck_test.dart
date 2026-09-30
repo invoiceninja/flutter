@@ -1,19 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/auth_service.dart';
 
-/// Pins the `POST /api/v1/login/precheck` contract and — more importantly —
-/// its **fail-open** guarantee.
+/// Pins the `POST /api/v1/login/precheck` contract and its **fail-open**
+/// guarantee.
 ///
-/// The login form hides its optional TOTP / API-secret fields based on this
-/// answer, so a precheck that threw, or that reported "nothing required" when
-/// it actually failed, would hide a field the user needs and lock them out.
-/// Every failure path must therefore surface as `null`, which the ViewModel
-/// reads as "show everything".
+/// The login screen's Continue asks this before showing step 2, and step 2
+/// hides the TOTP / API-secret fields based on the answer. Self-hosted
+/// servers run any version, so every "the server can't answer" path — an
+/// older server that 404s the route, a rate limit, a 5xx, a malformed body —
+/// must surface as `null`, which the ViewModel reads as "show everything".
+///
+/// Exactly two answers are *not* fail-open, because both mean "fix step 1
+/// first" and a login would fail the same way: an unreachable server
+/// ([NetworkException], including no answer within
+/// [AuthService.interactiveTimeout]) and a rejected address
+/// ([ValidationException]).
 ///
 /// Shape verified live against `demo.invoiceninja.com` (2026-07-24):
 /// `{"methods":["password"],"secret_required":false}`. Server side:
@@ -86,7 +94,7 @@ void main() {
     });
   });
 
-  group('AuthService.precheck — fails open (returns null, never throws)', () {
+  group('AuthService.precheck — fails open (returns null)', () {
     test('404 from a server without the endpoint', () async {
       final svc = serviceReturning((_) => json({'message': 'Not found'}, 404));
       expect(await run(svc), isNull);
@@ -112,31 +120,104 @@ void main() {
       expect(await run(svc), isNull);
     });
 
-    test('transport failure (offline / bad host)', () async {
+    test('405 from a server whose router only knows GET there', () async {
+      final svc = serviceReturning(
+        (_) => http.Response('Method Not Allowed', 405),
+      );
+      expect(await run(svc), isNull);
+    });
+
+    test('a 200 without a methods list is no answer', () async {
+      // Reading it as "no methods" would hide the OTP field of an account
+      // that has TOTP — and the answer is cached per (server, email).
+      final svc = serviceReturning((_) => json({'secret_required': true}));
+      expect(await run(svc), isNull);
+    });
+  });
+
+  group('AuthService.precheck — the two answers that keep step 1', () {
+    test('transport failure (offline / bad host) → NetworkException', () {
       final svc = AuthService(
         httpClient: MockClient(
           (_) async => throw http.ClientException('no route to host'),
         ),
       );
-      expect(await run(svc), isNull);
+      expect(run(svc), throwsA(isA<NetworkException>()));
+    });
+
+    testWidgets('no answer within the timeout → NetworkException', (
+      tester,
+    ) async {
+      // Production builds AuthService on a plain `http.Client()` with no
+      // connect timeout, so without this an unanswered self-hosted URL spins
+      // Continue for the OS timeout (~75 s on Apple platforms).
+      final never = Completer<http.Response>();
+      final svc = AuthService(httpClient: MockClient((_) => never.future));
+      Object? error;
+      unawaited(run(svc).then<void>((_) {}, onError: (Object e) => error = e));
+
+      await tester.pump(
+        AuthService.interactiveTimeout - const Duration(seconds: 1),
+      );
+      expect(error, isNull);
+      await tester.pump(const Duration(seconds: 2));
+      // Not `TimeoutException.message`, which `Future.timeout` always sets to
+      // "Future not completed" — that would reach the user verbatim.
+      expect(
+        error,
+        isA<NetworkException>().having(
+          (e) => e.message,
+          'message',
+          'Request timed out after ${AuthService.interactiveTimeout.inSeconds}s',
+        ),
+      );
+    });
+
+    test('any other transport throw (TLS handshake) → NetworkException', () {
+      // `IOClient` wraps only SocketException / HttpException, so a
+      // `HandshakeException` (an untrusted self-hosted certificate) arrives
+      // raw. It must still read as "can't reach the server".
+      final svc = AuthService(
+        httpClient: MockClient(
+          (_) async =>
+              throw Exception('HandshakeException: CERTIFICATE_VERIFY_FAILED'),
+        ),
+      );
+      expect(
+        run(svc),
+        throwsA(
+          isA<NetworkException>().having(
+            (e) => e.message,
+            'message',
+            contains('CERTIFICATE_VERIFY_FAILED'),
+          ),
+        ),
+      );
+    });
+
+    test('422 → ValidationException carrying the field errors', () {
+      final svc = serviceReturning(
+        (_) => json({
+          'message': 'The email is invalid.',
+          'errors': {
+            'email': ['The email is invalid.'],
+          },
+        }, 422),
+      );
+      expect(
+        run(svc),
+        throwsA(
+          isA<ValidationException>().having(
+            (e) => e.fieldErrors['email'],
+            'fieldErrors[email]',
+            ['The email is invalid.'],
+          ),
+        ),
+      );
     });
   });
 
   group('AuthService.precheck — tolerant decoding', () {
-    test(
-      'missing methods key yields no OTP requirement, not a throw',
-      () async {
-        final svc = serviceReturning((_) => json({'secret_required': true}));
-
-        final result = await run(svc);
-
-        expect(result, isNotNull);
-        expect(result!.methods, isEmpty);
-        expect(result.requiresOtp, isFalse);
-        expect(result.secretRequired, isTrue);
-      },
-    );
-
     test('non-string entries in methods are skipped', () async {
       final svc = serviceReturning(
         (_) => json({
@@ -161,5 +242,16 @@ void main() {
 
       expect((await run(svc))!.secretRequired, isFalse);
     });
+  });
+
+  test('withoutOtp drops only totp and keeps the secret flag', () {
+    const answer = LoginPrecheck(
+      methods: {'password', 'totp'},
+      secretRequired: true,
+    );
+    final after = answer.withoutOtp();
+    expect(after.methods, {'password'});
+    expect(after.requiresOtp, isFalse);
+    expect(after.secretRequired, isTrue);
   });
 }

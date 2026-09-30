@@ -10,10 +10,12 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/signup_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
 
-/// In-app account creation. Hosted-only (the login screen only routes here
-/// when "Hosted" is selected; self-hosted keeps the external link). On
-/// success the session activates and the router's auth-page redirect lands
-/// the now-logged-in user on the post-login route automatically.
+/// In-app account creation. Hosted-only: the login screen offers its "Create
+/// your account" link only when "Hosted" is selected, matching React's
+/// hosted-only `/register` link — self-hosted accounts are created on the
+/// server. On success the session activates and the router's auth-page
+/// redirect lands the now-logged-in user on the post-login route
+/// automatically.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -175,7 +177,7 @@ class _SignupBody extends StatelessWidget {
                   ),
                   if (vm.appleEnabled || vm.googleEnabled) ...[
                     SizedBox(height: InSpacing.md(context)),
-                    const _OrDivider(),
+                    const AuthOrDivider(),
                     SizedBox(height: InSpacing.md(context)),
                   ],
                   if (vm.appleEnabled)
@@ -224,30 +226,6 @@ class _SignupBody extends StatelessWidget {
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// "── or ──" between the email form and the social buttons. The terms
-/// checkbox above it gates both.
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Row(
-      children: [
-        Expanded(child: Divider(color: tokens.border)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
-          child: Text(
-            context.tr('or'),
-            style: TextStyle(fontSize: 13, color: tokens.ink3),
-          ),
-        ),
-        Expanded(child: Divider(color: tokens.border)),
       ],
     );
   }

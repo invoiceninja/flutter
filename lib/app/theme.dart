@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 
 /// External URLs the login screen needs.
-const String kSignupUrl = 'https://invoiceninja.com';
 const String kStatusUrl = 'https://status.invoiceninja.com';
+
+/// The documentation site's root — React's login links here too. Not
+/// `…/docs`: that base 404s.
+const String kDocsUrl = 'https://invoiceninja.github.io';
 
 /// Builds the v2 design-system [ThemeData] for the given palette.
 ///
@@ -178,6 +181,11 @@ ThemeData buildInTheme(InTheme baseTokens, {Color? accentOverride}) {
       style: TextButton.styleFrom(
         foregroundColor: tokens.ink2,
         textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
+        // M3 defaults a TextButton's highlight to a stadium (pill); the design
+        // system is rounded rectangles only (CLAUDE.md § Design system).
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(InRadii.r2),
+        ),
       ),
     ),
 

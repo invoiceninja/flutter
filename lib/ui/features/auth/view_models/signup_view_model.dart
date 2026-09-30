@@ -12,7 +12,7 @@ import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 ///
 /// Hosted-only by construction: the base URL is always [Env.hostedApiUrl]
 /// (self-hosted in-app signup is not a validated path — the login screen
-/// keeps the external link there). Mirrors [LoginViewModel]'s busy / error /
+/// offers its signup link only when "Hosted" is selected, like React). Mirrors [LoginViewModel]'s busy / error /
 /// fieldErrors machinery so the screen surfaces server validation inline.
 class SignupViewModel extends ChangeNotifier {
   SignupViewModel({required this.auth});

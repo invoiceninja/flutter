@@ -26,17 +26,39 @@ class AuthService {
   /// escape every `on …Exception` catch in the login / signup / recover
   /// ViewModels and the user gets a spinner that just stops with no error
   /// at all. Mirrors `ApiClient`'s identical mapping for post-login calls.
+  ///
+  /// [timeout] bounds the request. It is applied *inside* the `try` so a stall
+  /// surfaces as the same [NetworkException]; chaining `.timeout()` at a call
+  /// site would let a raw [TimeoutException] escape. Production hands this
+  /// service a plain `http.Client()` with no connect timeout of its own, so an
+  /// unanswered self-hosted URL would otherwise spin for the OS timeout
+  /// (~75 s on Apple platforms).
   Future<http.Response> _post(
     Uri url, {
     required Map<String, String> headers,
     Object? body,
+    Duration? timeout,
   }) async {
     try {
-      return await _http.post(url, headers: headers, body: body);
-    } on TimeoutException catch (e) {
-      throw NetworkException(e.message ?? 'Request timed out');
+      final request = _http.post(url, headers: headers, body: body);
+      return await (timeout == null ? request : request.timeout(timeout));
+    } on TimeoutException {
+      // Not `e.message`: `Future.timeout` always sets it to "Future not
+      // completed", which would reach the user verbatim.
+      throw NetworkException(
+        timeout == null
+            ? 'Request timed out'
+            : 'Request timed out after ${timeout.inSeconds}s',
+      );
     } on http.ClientException catch (e) {
       throw NetworkException(e.message);
+    } catch (e) {
+      // Everything else `post` can throw is transport too: `IOClient` wraps
+      // only `SocketException` / `HttpException`, so a TLS
+      // `HandshakeException` (a self-hosted certificate the device doesn't
+      // trust) would otherwise escape every `on ApiException` catch. Mirrors
+      // `ApiClient`'s catch-all.
+      throw NetworkException(e.toString());
     }
   }
 
@@ -72,50 +94,118 @@ class AuthService {
     return LoginResponseApi.fromJson(json);
   }
 
+  /// Bound on the interactive pre-auth calls the login screen waits on with
+  /// its controls locked — Continue ([precheck]), "Forgot your password?"
+  /// ([recoverPassword]) and the SMS-reset dialogs — so a server that never
+  /// answers fails with a [NetworkException] instead of spinning. `login`
+  /// itself is deliberately unbounded, as it always was.
+  static const Duration interactiveTimeout = Duration(seconds: 15);
+
   /// POST `/api/v1/login/precheck` — asks the server which credentials this
-  /// email actually needs, so the login form can hide the fields that don't
-  /// apply instead of labelling them "(optional)" and making the user guess.
+  /// email actually needs, so the login form's second step shows only the
+  /// fields that apply.
   ///
   /// Body `{email}`; response `{methods: ['password'|'totp', …],
   /// secret_required: bool}`. The server pads the response to a constant time
   /// floor and returns a uniform payload for unknown accounts, so this leaks
   /// no account-existence signal.
   ///
-  /// **Fails open.** Every failure path — older server (404), rate limit,
-  /// offline, malformed body — returns null, and the caller falls back to
-  /// showing both optional fields. This must never be able to block a login.
+  /// **Fails open, except for two answers that mean "fix step 1 first":**
+  ///  * the server can't be reached (offline, a typo'd self-hosted URL, or no
+  ///    answer within [interactiveTimeout]) → throws [NetworkException];
+  ///  * the server rejects the address (422) → throws [ValidationException].
+  ///
+  /// Every other failure — an older server that 404s / 405s the route, a rate
+  /// limit, a 5xx, a malformed body, a body without a `methods` list —
+  /// returns null, and the caller falls back to showing every optional field.
+  /// Self-hosted servers run any version, so an unanswerable precheck must
+  /// never be able to block a login.
+  ///
+  /// Takes no API secret: the route sits outside `api_secret_check`.
   Future<LoginPrecheck?> precheck({
     required String baseUrl,
     required bool isHosted,
     required String email,
-    String? secret,
   }) async {
+    final response = await _post(
+      Uri.parse(baseUrl).resolve('/api/v1/login/precheck'),
+      headers: _headers(isHosted: isHosted, contentTypeJson: true),
+      body: jsonEncode({'email': email}),
+      timeout: interactiveTimeout,
+    );
+    if (response.statusCode == 422) _raiseIfError(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
     try {
-      final response = await _post(
-        Uri.parse(baseUrl).resolve('/api/v1/login/precheck'),
-        headers: _headers(
-          isHosted: isHosted,
-          contentTypeJson: true,
-          secret: secret,
-        ),
-        body: jsonEncode({'email': email}),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) return null;
       final json = jsonDecode(response.body);
       if (json is! Map<String, dynamic>) return null;
       final methods = json['methods'];
+      // No list = no answer. Reading it as "no methods" would hide the OTP
+      // field for an account that has TOTP, and the answer is cached per
+      // (server, email), so there would be no way back to the field.
+      if (methods is! List) return null;
       return LoginPrecheck(
         methods: <String>{
-          if (methods is List)
-            for (final m in methods)
-              if (m is String) m,
+          for (final m in methods)
+            if (m is String) m,
         },
         secretRequired: json['secret_required'] == true,
       );
     } catch (_) {
-      // Deliberately swallows everything (see the fail-open contract above).
+      // A non-JSON body (an HTML error page from a proxy) is "no answer".
       return null;
     }
+  }
+
+  /// POST `/api/v1/sms_reset` — texts a 2FA reset code to the phone on file
+  /// for [email]. Pre-auth (no token, no `api_secret_check` on the server),
+  /// throttled `daily-verify`. Returns the server's message.
+  ///
+  /// This is the lost-authenticator path offered from the login screen; the
+  /// settings screen's phone verification uses the same endpoint through the
+  /// authenticated `TwoFactorApi` instead.
+  Future<String?> sendTwoFactorResetCode({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+  }) async {
+    final response = await _post(
+      Uri.parse(baseUrl).resolve('/api/v1/sms_reset'),
+      headers: _headers(isHosted: isHosted, contentTypeJson: true),
+      body: jsonEncode({'email': email}),
+      timeout: interactiveTimeout,
+    );
+    _raiseIfError(response);
+    return _messageOf(response);
+  }
+
+  /// POST `/api/v1/sms_reset/confirm` — verifies the texted code and, because
+  /// no `validate_only` query is sent, **disables 2FA** on the account
+  /// (`TwilioController::confirm2faResetCode` nulls `google_2fa_secret`).
+  /// Returns the server's message.
+  Future<String?> confirmTwoFactorReset({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    required String code,
+  }) async {
+    final response = await _post(
+      Uri.parse(baseUrl).resolve('/api/v1/sms_reset/confirm'),
+      headers: _headers(isHosted: isHosted, contentTypeJson: true),
+      body: jsonEncode({'email': email, 'code': code}),
+      timeout: interactiveTimeout,
+    );
+    _raiseIfError(response);
+    return _messageOf(response);
+  }
+
+  String? _messageOf(http.Response response) {
+    try {
+      final json = jsonDecode(response.body);
+      if (json is Map<String, dynamic>) return json['message']?.toString();
+    } catch (_) {
+      /* non-JSON body */
+    }
+    return null;
   }
 
   /// POST `/api/v1/refresh` authenticated by an explicit API token rather
@@ -246,6 +336,10 @@ class AuthService {
         secret: secret,
       ),
       body: jsonEncode({'email': email}),
+      // The login screen's "Forgot your password?" link waits on this with
+      // every other control disabled — bound it like the other interactive
+      // pre-auth calls.
+      timeout: interactiveTimeout,
     );
     _raiseIfError(response);
   }
@@ -311,8 +405,8 @@ class AuthService {
 /// Result of [AuthService.precheck] — what the server says this email needs.
 ///
 /// A null result (never an instance with everything false) means the precheck
-/// itself failed; callers must treat that as "show everything", not as
-/// "nothing required". See the fail-open contract on [AuthService.precheck].
+/// could not be answered; callers must treat that as "show everything", not
+/// as "nothing required". See the fail-open contract on [AuthService.precheck].
 class LoginPrecheck {
   const LoginPrecheck({required this.methods, required this.secretRequired});
 
@@ -326,4 +420,11 @@ class LoginPrecheck {
 
   /// Whether the account has TOTP two-factor enabled.
   bool get requiresOtp => methods.contains('totp');
+
+  /// The same answer with TOTP removed — after the login screen's SMS reset
+  /// has disabled 2FA on the account.
+  LoginPrecheck withoutOtp() => LoginPrecheck(
+    methods: methods.difference(const {'totp'}),
+    secretRequired: secretRequired,
+  );
 }

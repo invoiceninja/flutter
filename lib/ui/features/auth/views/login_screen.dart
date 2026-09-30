@@ -1,19 +1,40 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
+import 'package:admin/ui/features/auth/widgets/disable_two_factor_dialogs.dart';
 
+/// The two-step login, mirroring React's `Login.tsx` (invoiceninja forum
+/// #23570): the email first, then only the credentials that account needs.
+///
+/// Where this deliberately differs from React:
+///  * the Hosted / Self-Hosted toggle and the server URL sit on step 1 — React
+///    is served by its own server and never needs them; we need them before
+///    the precheck can be asked;
+///  * a precheck the server can't answer moves on with every optional field
+///    shown instead of stopping (see [LoginViewModel.continueToCredentials]);
+///  * "Forgot your password?" emails the address already on screen rather
+///    than opening a separate page;
+///  * errors on a request are toasts, like the rest of the app; errors on a
+///    field render under that field and are never also toasted;
+///  * the self-hosted secret is labelled "API secret" (React: "Secret" with
+///    an "(optional)" placeholder), and shows — as optional — whenever the
+///    precheck couldn't say whether it is needed;
+///  * no "Login with a Passkey" button (passkeys are deferred: the server
+///    binds them to the React app's domain) and no Microsoft sign-in (never
+///    implemented in v2) — both tracked in FEATURES.md.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,6 +45,16 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   late final LoginViewModel _vm;
 
+  final _emailFocus = FocusNode(debugLabel: 'login_email');
+  final _passwordFocus = FocusNode(debugLabel: 'login_password');
+  final _otpFocus = FocusNode(debugLabel: 'login_otp');
+  final _secretFocus = FocusNode(debugLabel: 'login_secret');
+
+  /// Set by "Change" so the re-mounted email field takes focus. Not on first
+  /// load: a keyboard popping over the platform toggle before the user has
+  /// looked at the screen is worse than one tap.
+  bool _returnedToEmail = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,103 +63,161 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _otpFocus.dispose();
+    _secretFocus.dispose();
     _vm.dispose();
     super.dispose();
   }
 
+  // ── Handlers ────────────────────────────────────────────────────────
+
+  /// Toast the request-level error, if there is one. Field-level errors are
+  /// already on screen, so a failure that set only those stays silent here.
+  void _toastRequestError() {
+    final key = _vm.errorKey;
+    final msg = key != null
+        ? context.tr(key, _vm.errorParams)
+        : _vm.errorMessage;
+    if (msg != null) Notify.error(context, msg);
+  }
+
+  void _announce(String message) {
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      message,
+      Directionality.of(context),
+    );
+  }
+
+  Future<void> _onContinue() async {
+    final ok = await _vm.continueToCredentials();
+    if (!mounted) return;
+    if (ok) {
+      _announce('${context.tr('password')} · ${_vm.email}');
+    } else {
+      _toastRequestError();
+    }
+  }
+
+  void _onChangeEmail() {
+    if (_vm.busy) return;
+    _returnedToEmail = true;
+    _vm.backToEmail();
+    _announce(context.tr('email_address'));
+  }
+
+  Future<void> _onLogin() async {
+    final ok = await _vm.submit();
+    if (!mounted || ok) return;
+    _toastRequestError();
+    if (_vm.otpErrorKey != null ||
+        _vm.fieldErrors.containsKey('one_time_password')) {
+      _otpFocus.requestFocus();
+    }
+  }
+
+  /// Enter moves to the first *required* field still empty, otherwise logs
+  /// in — so a certain-to-fail login doesn't spend hosted's login throttle,
+  /// while the common account (no 2FA, no secret) still submits on Enter. An
+  /// optional field (precheck unanswered) never holds the submit back.
+  void _onPasswordSubmitted() {
+    if (_vm.otpConfirmed && _vm.oneTimePassword.isEmpty) {
+      _otpFocus.requestFocus();
+    } else if (_secretRequired && _vm.secret.isEmpty) {
+      _secretFocus.requestFocus();
+    } else {
+      _onLogin();
+    }
+  }
+
+  void _onOtpSubmitted() {
+    if (_secretRequired && _vm.secret.isEmpty) {
+      _secretFocus.requestFocus();
+    } else {
+      _onLogin();
+    }
+  }
+
+  bool get _secretRequired => !_vm.isHosted && _vm.secretIsRequired;
+
+  Future<void> _onRecover() async {
+    final ok = await _vm.recover();
+    if (!mounted) return;
+    if (ok) {
+      Notify.success(context, context.tr('password_reset_link_sent'));
+      return;
+    }
+    _toastRequestError();
+  }
+
+  Future<void> _onGoogle() async {
+    final ok = await _vm.submitGoogle();
+    // A dismissed chooser returns false with no error — say nothing.
+    if (mounted && !ok) _toastRequestError();
+  }
+
+  Future<void> _onApple() async {
+    final ok = await _vm.submitApple();
+    if (mounted && !ok) _toastRequestError();
+  }
+
+  Future<void> _onDisableTwoFactor() async {
+    final sentTo = await showSendTwoFactorResetCodeDialog(context, vm: _vm);
+    if (sentTo == null || !mounted) return;
+    final disabled = await showConfirmTwoFactorResetDialog(
+      context,
+      vm: _vm,
+      email: sentTo,
+    );
+    // The OTP field and this link are gone when the reset was for this
+    // form's address; give focus somewhere that certainly still exists.
+    if (disabled && mounted) _passwordFocus.requestFocus();
+  }
+
+  /// Hosted → in-app signup screen. Self-hosted doesn't offer it at all,
+  /// matching React's hosted-only `/register` link.
+  void _onSignup() => context.go('/signup');
+
+  // ── Build ───────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.inTheme.bg,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: InSpacing.xl,
-            vertical: InSpacing.xxl,
-          ),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: ListenableBuilder(
-                  listenable: _vm,
-                  builder: (context, _) => _LoginBody(vm: _vm),
-                ),
+    return ListenableBuilder(
+      listenable: _vm,
+      builder: (context, _) => PopScope(
+        // Android back on step 2 returns to step 1 rather than leaving the
+        // app. `/login` sits outside the shell, so `SystemBackGate` isn't
+        // involved; go_router's `popRoute` → `maybePop` reaches this.
+        canPop: _vm.step == LoginStep.email,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _onChangeEmail();
+        },
+        child: Scaffold(
+          backgroundColor: context.inTheme.bg,
+          body: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: InSpacing.xl,
+                vertical: InSpacing.xxl,
               ),
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: _buildBody(context),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _LoginBody extends StatelessWidget {
-  const _LoginBody({required this.vm});
-
-  final LoginViewModel vm;
-
-  String? _resolveError(BuildContext context) {
-    if (vm.errorKey != null) return context.tr(vm.errorKey!, vm.errorParams);
-    return vm.errorMessage;
-  }
-
-  Future<void> _onEmailSubmit(BuildContext context) async {
-    final ok = await vm.submit();
-    if (!context.mounted) return;
-    final msg = _resolveError(context);
-    if (!ok) {
-      // Never end on silence — unlike the OAuth paths, a false here always
-      // means a real failure (there is no "user dismissed the sheet" case), so
-      // a missing message is a bug, not a cancellation. `_onRecover` already
-      // guards this way.
-      Notify.error(context, msg ?? context.tr('an_error_occurred'));
-    }
-  }
-
-  Future<void> _onAppleSubmit(BuildContext context) async {
-    final ok = await vm.submitApple();
-    if (!context.mounted) return;
-    final msg = _resolveError(context);
-    if (!ok && msg != null) {
-      Notify.error(context, msg);
-    }
-  }
-
-  Future<void> _onGoogleSubmit(BuildContext context) async {
-    final ok = await vm.submitGoogle();
-    if (!context.mounted) return;
-    final msg = _resolveError(context);
-    if (!ok && msg != null) {
-      Notify.error(context, msg);
-    }
-  }
-
-  Future<void> _onRecover(BuildContext context) async {
-    final ok = await vm.recover();
-    if (!context.mounted) return;
-    if (ok) {
-      Notify.success(context, context.tr('password_reset_link_sent'));
-    } else {
-      Notify.error(context, _resolveError(context) ?? context.tr('failed'));
-    }
-  }
-
-  Future<void> _openExternal(String url) => launchExternalUri(Uri.parse(url));
-
-  /// Hosted → in-app signup screen. Self-hosted → external web page
-  /// (in-app signup isn't a validated self-hosted path; mirrors React's
-  /// hosted-only `/register` gating).
-  void _onSignup(BuildContext context) {
-    if (vm.isHosted) {
-      context.go('/signup');
-    } else {
-      _openExternal(kSignupUrl);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildBody(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tokens = context.inTheme;
     return Column(
@@ -144,242 +233,418 @@ class _LoginBody extends StatelessWidget {
         AuthSurfaceCard(
           shadow: tokens.shadow2,
           padding: const EdgeInsets.all(InSpacing.xl),
-          child: _LoginForm(
-            vm: vm,
-            onEmailSubmit: () => _onEmailSubmit(context),
-            onAppleSubmit: () => _onAppleSubmit(context),
-            onGoogleSubmit: () => _onGoogleSubmit(context),
-            onSignup: () => _onSignup(context),
+          // One group for both steps, never keyed or rebuilt per step: its
+          // default `onDisposeAction` is `commit`, so a group torn down on
+          // "Change" would pop the OS "save password" prompt over a
+          // half-typed password. It stays mounted until login leaves the
+          // screen, which is exactly when the save prompt should fire.
+          child: AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.tr('login'),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: tokens.ink),
+                ),
+                SizedBox(height: InSpacing.lg(context)),
+                if (_vm.step == LoginStep.email)
+                  ..._emailStep(context)
+                else
+                  ..._credentialsStep(context),
+                if (_vm.isHosted) ...[
+                  const SizedBox(height: InSpacing.sm),
+                  TextButton(
+                    key: const ValueKey('login_signup'),
+                    // Leaving mid-request would strand a login that still
+                    // lands a session behind the signup screen.
+                    onPressed: _vm.busy ? null : _onSignup,
+                    child: Text(
+                      context.tr('register_label'),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-        SizedBox(height: InSpacing.md(context)),
-        AuthSurfaceCard(
-          shadow: tokens.shadow1,
-          padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
-          child: _RecoverStatusActions(
-            onRecover: vm.busy ? null : () => _onRecover(context),
-            onStatus: () => _openExternal(kStatusUrl),
+        if (_vm.isHosted) ...[
+          SizedBox(height: InSpacing.md(context)),
+          AuthSurfaceCard(
+            shadow: tokens.shadow1,
+            padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
+            child: const _HostedLinks(),
           ),
+        ],
+        SizedBox(height: InSpacing.lg(context)),
+        Text(
+          'v${AppVersion.kClientVersion}',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: tokens.ink3),
         ),
       ],
     );
   }
-}
 
-class _LoginForm extends StatelessWidget {
-  const _LoginForm({
-    required this.vm,
-    required this.onEmailSubmit,
-    required this.onAppleSubmit,
-    required this.onGoogleSubmit,
-    required this.onSignup,
-  });
-
-  final LoginViewModel vm;
-  final VoidCallback onEmailSubmit;
-  final VoidCallback onAppleSubmit;
-  final VoidCallback onGoogleSubmit;
-  final VoidCallback onSignup;
-
-  @override
-  Widget build(BuildContext context) {
-    final method = vm.method;
-    final isApple = method == LoginMethod.apple;
-    final isGoogle = method == LoginMethod.google;
-    final isEmail = method == LoginMethod.email;
-    final tokens = context.inTheme;
-    // Wrap the form in AutofillGroup so the OS / password manager treats the
-    // email + password (+ OTP) as a connected login form and offers to save
-    // / fill them together. Without this, the hints below still work but the
-    // pair isn't correlated, so "save password" prompts don't fire.
-    return AutofillGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AuthEyebrowLabel(context.tr('select_platform').toUpperCase()),
-          _SegmentedToggle<bool>(
-            value: vm.isHosted,
-            segments: [
-              _Segment(value: true, label: context.tr('hosted')),
-              _Segment(value: false, label: context.tr('self_hosted')),
-            ],
-            onChanged: vm.setHosted,
-          ),
-          if (vm.isHosted) ...[
-            SizedBox(height: InSpacing.lg(context)),
-            AuthEyebrowLabel(context.tr('select_method').toUpperCase()),
-            _SegmentedToggle<LoginMethod>(
-              value: vm.method,
-              segments: [
-                _Segment(value: LoginMethod.email, label: context.tr('email')),
-                if (vm.appleEnabled)
-                  _Segment(
-                    value: LoginMethod.apple,
-                    label: context.tr('apple'),
-                  ),
-                if (vm.googleEnabled)
-                  _Segment(
-                    value: LoginMethod.google,
-                    label: context.tr('google'),
-                  ),
-              ],
-              onChanged: vm.setMethod,
-            ),
-          ],
-          SizedBox(height: InSpacing.lg(context)),
-          if (!vm.isHosted) ...[
-            AuthField(
-              label: context.tr('server_url'),
-              hint: 'https://invoice.example.com  ·  http://192.168.0.10:8080',
-              initialValue: vm.urlOverride,
-              keyboardType: TextInputType.url,
-              autofillHints: const [AutofillHints.url],
-              onChanged: vm.setUrlOverride,
-            ),
-            SizedBox(height: InSpacing.md(context)),
-            // X-API-SECRET for self-hosted servers that set API_SECRET.
-            // Obscured + reveal (config secrets are usually pasted). autofillHints
-            // null excludes it from the login AutofillGroup so iOS/macOS won't
-            // offer the saved account password here. No Enter submit — the
-            // password field below stays the submit trigger.
-            //
-            // `/login/precheck` reports whether the server actually has a
-            // secret configured: hidden when it says no, and shown without the
-            // "(optional)" qualifier when it says yes. Before the server
-            // answers (and whenever the precheck fails) it stays visible and
-            // optional — the pre-precheck behavior.
-            if (vm.showSecretField) ...[
-              AuthPasswordField(
-                label: vm.secretIsRequired
-                    ? context.tr('api_secret')
-                    : '${context.tr('api_secret')} (${context.tr('optional')})',
-                initialValue: vm.secret,
-                autofillHints: null,
-                onChanged: vm.setSecret,
-              ),
-              SizedBox(height: InSpacing.md(context)),
-            ],
-          ],
-          if (isEmail) ...[
-            // Blur triggers `/login/precheck`, which decides whether the
-            // optional TOTP / API-secret fields are shown at all. Deliberately
-            // fire-and-forget: `runPrecheck` swallows every failure, so this
-            // can never delay or block a login.
-            Focus(
-              // Keyed so this element survives a rebuild that changes the
-              // Column's child list. The API-secret block above and the OTP
-              // block below are both precheck-driven and a single answer
-              // routinely drops both at once, which strands the email and
-              // password fields in the unkeyed middle range — Flutter then
-              // discards and re-inflates them, and the user loses focus (and
-              // the OTP field's text) mid-typing. Keys let the keyed
-              // middle-range match reuse them instead.
-              key: const ValueKey('login_email'),
-              // Observe-only: without `skipTraversal` this wrapper is itself a
-              // focus-traversal stop (`Focus` defaults `canRequestFocus: true`
-              // / `skipTraversal: false`, and the policy filter is exactly
-              // `canRequestFocus && !skipTraversal`), so Tab would land on an
-              // invisible node before reaching the email input. `hasFocus`
-              // still reports descendant focus, so `onFocusChange` is
-              // unaffected.
-              skipTraversal: true,
-              onFocusChange: (hasFocus) {
-                if (!hasFocus) unawaited(vm.runPrecheck());
-              },
-              child: AuthField(
-                label: context.tr('email'),
-                initialValue: vm.email,
-                keyboardType: TextInputType.emailAddress,
-                errorText: vm.fieldErrors['email']?.first,
-                autofillHints: const [
-                  AutofillHints.username,
-                  AutofillHints.email,
-                ],
-                onChanged: vm.setEmail,
-              ),
-            ),
-            SizedBox(height: InSpacing.md(context)),
-            AuthPasswordField(
-              key: const ValueKey('login_password'),
-              label: context.tr('password'),
-              initialValue: vm.password,
-              errorText: vm.fieldErrors['password']?.first,
-              onChanged: vm.setPassword,
-              onSubmitted: vm.busy ? null : (_) => onEmailSubmit(),
-            ),
-            // Hidden once `/login/precheck` confirms this account has no TOTP.
-            // Until the server answers — and on any precheck failure — this
-            // stays visible, so an older or unreachable server behaves exactly
-            // as it did before precheck existed.
-            if (vm.showOtpField) ...[
-              SizedBox(height: InSpacing.md(context)),
-              AuthField(
-                key: const ValueKey('login_otp'),
-                label: context.tr('two_factor_otp_optional'),
-                // Seeded like every other field: without it a rebuild that
-                // re-inflates this element renders an empty box while the VM
-                // still holds the typed code, so an expired value gets
-                // submitted for a field the user sees as blank.
-                initialValue: vm.oneTimePassword,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                onChanged: vm.setOneTimePassword,
-              ),
-            ],
-          ],
-          const SizedBox(height: InSpacing.xl),
-          FilledButton.icon(
-            key: const ValueKey('login_submit'),
-            onPressed: vm.busy
-                ? null
-                : (isApple
-                      ? onAppleSubmit
-                      : isGoogle
-                      ? onGoogleSubmit
-                      : onEmailSubmit),
-            icon: vm.busy
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(
-                        // Spinner matches the button's foreground.
-                        isApple ? tokens.surface : Colors.white,
-                      ),
-                    ),
-                  )
-                : Icon(
-                    isApple
-                        ? Icons.apple
-                        : isGoogle
-                        ? Icons.account_circle_outlined
-                        : Icons.mail_outline,
-                    size: 18,
-                  ),
-            label: Text(
-              isApple
-                  ? context.tr('sign_in_with_apple')
-                  : isGoogle
-                  ? context.tr('sign_in_with_google')
-                  : context.tr('login_with_email'),
-            ),
-            style: FilledButton.styleFrom(
-              // Apple HIG: black-on-light, white-on-dark. `ink` already
-              // inverts with brightness, so the button flips for free.
-              // Google + email share the accent treatment.
-              backgroundColor: isApple ? tokens.ink : tokens.accent,
-              foregroundColor: isApple ? tokens.surface : Colors.white,
+  /// Step 1: where to sign in, and who.
+  List<Widget> _emailStep(BuildContext context) {
+    final vm = _vm;
+    final busy = vm.busy;
+    final showSocial = vm.isHosted && (vm.googleEnabled || vm.appleEnabled);
+    return [
+      AuthEyebrowLabel(context.tr('select_platform').toUpperCase()),
+      _SegmentedToggle<bool>(
+        value: vm.isHosted,
+        segments: [
+          _Segment(value: true, label: context.tr('hosted')),
+          _Segment(value: false, label: context.tr('self_hosted')),
+        ],
+        // Locked while Continue is in flight, so the answer can't land for a
+        // server the user has already switched away from.
+        onChanged: busy ? null : vm.setHosted,
+      ),
+      SizedBox(height: InSpacing.lg(context)),
+      if (!vm.isHosted) ...[
+        AuthField(
+          key: const ValueKey('login_url'),
+          label: context.tr('server_url'),
+          hint: 'https://invoice.example.com  ·  http://192.168.0.10:8080',
+          initialValue: vm.urlOverride,
+          // Read-only rather than disabled while Continue is in flight: a
+          // disabled field drops focus and doesn't give it back.
+          readOnly: busy,
+          keyboardType: TextInputType.url,
+          autofillHints: const [AutofillHints.url],
+          errorText: vm.urlErrorKey == null
+              ? null
+              : context.tr(vm.urlErrorKey!),
+          textInputAction: TextInputAction.next,
+          onChanged: vm.setUrlOverride,
+          // Enter moves on to the email rather than submitting a form whose
+          // email is still empty.
+          onEditingComplete: () {},
+          onSubmitted: (_) => _emailFocus.requestFocus(),
+        ),
+        SizedBox(height: InSpacing.md(context)),
+      ],
+      AuthField(
+        key: const ValueKey('login_email'),
+        label: context.tr('email_address'),
+        focusNode: _emailFocus,
+        autofocus: _returnedToEmail,
+        initialValue: vm.email,
+        keyboardType: TextInputType.emailAddress,
+        errorText: vm.emailErrorKey != null
+            ? context.tr(vm.emailErrorKey!)
+            : vm.fieldErrors['email']?.first,
+        autofillHints: const [AutofillHints.username, AutofillHints.email],
+        // `next`, not `done`: Continue leads straight to the password field,
+        // so the keyboard should stay up rather than close and reopen. The
+        // no-op keeps the framework's own `nextFocus()` out of the way.
+        textInputAction: TextInputAction.next,
+        onEditingComplete: () {},
+        onChanged: vm.setEmail,
+        onSubmitted: (_) => _onContinue(),
+      ),
+      const SizedBox(height: InSpacing.xl),
+      _PrimaryButton(
+        buttonKey: const ValueKey('login_continue'),
+        label: context.tr('continue'),
+        spinning: vm.busyAction == LoginAction.continueToCredentials,
+        onPressed: busy ? null : _onContinue,
+      ),
+      if (showSocial) ...[
+        SizedBox(height: InSpacing.lg(context)),
+        const AuthOrDivider(),
+        SizedBox(height: InSpacing.lg(context)),
+        // Google first, then Apple — React's order.
+        if (vm.googleEnabled)
+          OutlinedButton.icon(
+            key: const ValueKey('login_google'),
+            onPressed: busy ? null : _onGoogle,
+            icon: vm.busyAction == LoginAction.google
+                ? const _Spinner()
+                : const Icon(Icons.account_circle_outlined, size: 18),
+            label: Text(context.tr('sign_in_with_google')),
+            style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(InRadii.r2),
               ),
             ),
           ),
-          const SizedBox(height: InSpacing.sm),
-          TextButton(
-            onPressed: onSignup,
-            child: Text(context.tr('create_your_account')),
+        if (vm.googleEnabled && vm.appleEnabled)
+          SizedBox(height: InSpacing.md(context)),
+        if (vm.appleEnabled)
+          FilledButton.icon(
+            key: const ValueKey('login_apple'),
+            onPressed: busy ? null : _onApple,
+            icon: vm.busyAction == LoginAction.apple
+                ? _Spinner(color: context.inTheme.surface)
+                : const Icon(Icons.apple, size: 18),
+            label: Text(context.tr('sign_in_with_apple')),
+            style: FilledButton.styleFrom(
+              // Apple HIG: black-on-light, white-on-dark. `ink` already
+              // inverts with brightness, so the button flips for free.
+              backgroundColor: context.inTheme.ink,
+              foregroundColor: context.inTheme.surface,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(InRadii.r2),
+              ),
+            ),
+          ),
+      ],
+    ];
+  }
+
+  /// Step 2: only the credentials this account needs.
+  List<Widget> _credentialsStep(BuildContext context) {
+    final vm = _vm;
+    final busy = vm.busy;
+    final showOtp = vm.showOtpField;
+    final showSecret = !vm.isHosted && vm.showSecretField;
+    // `textInputAction` is fixed by which fields are *present*, never by what
+    // they contain: EditableText only re-sends its configuration when
+    // `obscureText` / `keyboardType` change, so an action that flipped while
+    // the keyboard was up would never reach it. `next` only where a required
+    // field follows; Enter then decides in `onSubmitted`.
+    final passwordAction = (vm.otpConfirmed || _secretRequired)
+        ? TextInputAction.next
+        : TextInputAction.done;
+    final otpAction = _secretRequired
+        ? TextInputAction.next
+        : TextInputAction.done;
+    final otpLabel = '2FA - ${context.tr('one_time_password')}';
+    return [
+      // The address being signed in to, read-only. Still an autofill
+      // participant, so the password manager pairs the password with this
+      // username on save and fill — but `readOnly` rejects text an autofill
+      // tries to write, the password-manager bug React fixed with a hidden
+      // input (react 4beee0754).
+      AuthField(
+        key: const ValueKey('login_email_confirmed'),
+        label: context.tr('email_address'),
+        initialValue: vm.email,
+        readOnly: true,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.username, AutofillHints.email],
+        errorText: vm.fieldErrors['email']?.first,
+        suffix: Padding(
+          padding: const EdgeInsetsDirectional.only(end: InSpacing.xs),
+          child: Tooltip(
+            message: context.tr('change_email'),
+            child: _LinkButton(
+              buttonKey: const ValueKey('login_change'),
+              label: context.tr('change'),
+              onPressed: busy ? null : _onChangeEmail,
+            ),
+          ),
+        ),
+      ),
+      SizedBox(height: InSpacing.md(context)),
+      AuthPasswordField(
+        key: const ValueKey('login_password'),
+        label: context.tr('password'),
+        focusNode: _passwordFocus,
+        autofocus: true,
+        initialValue: vm.password,
+        errorText: vm.fieldErrors['password']?.first,
+        textInputAction: passwordAction,
+        // `onSubmitted` owns what Enter does. Without the no-op the framework
+        // acts first: `next` runs `nextFocus()` (from here, the reveal
+        // button) and `done` unfocuses, so a failed login would leave the
+        // user typing into nothing.
+        onEditingComplete: () {},
+        onChanged: vm.setPassword,
+        onSubmitted: (_) => _onPasswordSubmitted(),
+        labelTrailing: _LinkButton(
+          buttonKey: const ValueKey('login_forgot_password'),
+          label: context.tr('forgot_password'),
+          spinning: vm.busyAction == LoginAction.recover,
+          onPressed: busy ? null : _onRecover,
+        ),
+      ),
+      if (showOtp) ...[
+        SizedBox(height: InSpacing.md(context)),
+        AuthField(
+          key: const ValueKey('login_otp'),
+          // "(Optional)" only while the server hasn't said either way.
+          label: vm.otpConfirmed
+              ? otpLabel
+              : '$otpLabel (${context.tr('optional')})',
+          focusNode: _otpFocus,
+          initialValue: vm.oneTimePassword,
+          keyboardType: TextInputType.number,
+          autofillHints: const [AutofillHints.oneTimeCode],
+          errorText: vm.otpErrorKey != null
+              ? context.tr(vm.otpErrorKey!)
+              : vm.fieldErrors['one_time_password']?.first,
+          textInputAction: otpAction,
+          // See the password field.
+          onEditingComplete: () {},
+          onChanged: vm.setOneTimePassword,
+          onSubmitted: (_) => _onOtpSubmitted(),
+        ),
+        if (vm.isHosted && vm.otpConfirmed)
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Padding(
+              padding: const EdgeInsets.only(top: InSpacing.xs),
+              child: _LinkButton(
+                buttonKey: const ValueKey('login_disable_2fa'),
+                label: context.tr('disable_2fa'),
+                onPressed: busy ? null : _onDisableTwoFactor,
+              ),
+            ),
+          ),
+      ],
+      if (showSecret) ...[
+        SizedBox(height: InSpacing.md(context)),
+        // X-API-SECRET for self-hosted servers that set API_SECRET. Obscured
+        // + reveal (config secrets are usually pasted). autofillHints null
+        // excludes it from the login AutofillGroup so iOS/macOS won't offer
+        // the saved account password here. Labelled required once the
+        // precheck says so, "(Optional)" while it hasn't — but never blocked
+        // client-side (see `LoginViewModel._missingRequiredOtp`).
+        AuthPasswordField(
+          key: const ValueKey('login_secret'),
+          label: vm.secretIsRequired
+              ? context.tr('api_secret')
+              : '${context.tr('api_secret')} (${context.tr('optional')})',
+          focusNode: _secretFocus,
+          initialValue: vm.secret,
+          autofillHints: null,
+          textInputAction: TextInputAction.done,
+          // See the password field.
+          onEditingComplete: () {},
+          onChanged: vm.setSecret,
+          onSubmitted: (_) => _onLogin(),
+        ),
+      ],
+      const SizedBox(height: InSpacing.xl),
+      _PrimaryButton(
+        buttonKey: const ValueKey('login_submit'),
+        label: context.tr('login'),
+        spinning: vm.busyAction == LoginAction.login,
+        onPressed: busy ? null : _onLogin,
+      ),
+    ];
+  }
+}
+
+// ─── Buttons ─────────────────────────────────────────────────────────────
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.buttonKey,
+    required this.label,
+    required this.spinning,
+    required this.onPressed,
+  });
+
+  final Key buttonKey;
+  final String label;
+  final bool spinning;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return FilledButton(
+      key: buttonKey,
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: tokens.accent,
+        foregroundColor: tokens.onAccent,
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(InRadii.r2),
+        ),
+      ),
+      child: spinning ? _Spinner(color: tokens.onAccent) : Text(label),
+    );
+  }
+}
+
+class _Spinner extends StatelessWidget {
+  const _Spinner({this.color, this.size = 16});
+
+  final Color? color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: color == null ? null : AlwaysStoppedAnimation(color),
+      ),
+    );
+  }
+}
+
+/// A text link that is a real button (reachable by Tab, activatable by a
+/// screen reader) — "Change", "Forgot your password?", "Disable 2FA".
+///
+/// Sized for the input device (docs/touch-targets.md): on touch it is laid
+/// out at the app's 44 px floor ([InSizes.touchTarget]) — `shrinkWrap`, or
+/// the `padded` theme would lay it out at 48; with a pointer it shrink-wraps
+/// to its label so the label row it sits on stays one text line tall.
+class _LinkButton extends StatelessWidget {
+  const _LinkButton({
+    required this.buttonKey,
+    required this.label,
+    required this.onPressed,
+    this.spinning = false,
+  });
+
+  final Key buttonKey;
+  final String label;
+  final VoidCallback? onPressed;
+
+  /// Shows a small spinner before the label while this link's own request is
+  /// in flight — every control is disabled then, so without it the tap looks
+  /// like it did nothing.
+  final bool spinning;
+
+  @override
+  Widget build(BuildContext context) {
+    final touch = Env.isTouchPrimary;
+    return TextButton(
+      key: buttonKey,
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: context.inTheme.accentInk,
+        // Derived from the theme, never a bare `TextStyle`: a button's
+        // `textStyle` replaces the theme's outright, so a bare one drops the
+        // app font family and the label falls back to the platform font.
+        textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        padding: touch
+            ? const EdgeInsets.symmetric(horizontal: InSpacing.sm)
+            : const EdgeInsets.symmetric(horizontal: InSpacing.xs),
+        minimumSize: touch
+            ? const Size(InSizes.touchTarget, InSizes.touchTarget)
+            : Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: touch ? VisualDensity.standard : VisualDensity.compact,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (spinning) ...[
+            _Spinner(size: 12, color: context.inTheme.accentInk),
+            const SizedBox(width: InSpacing.xs),
+          ],
+          Flexible(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),
@@ -387,38 +652,36 @@ class _LoginForm extends StatelessWidget {
   }
 }
 
-// ─── Recover / Status actions ────────────────────────────────────────────
+// ─── Hosted links ────────────────────────────────────────────────────────
 
-class _RecoverStatusActions extends StatelessWidget {
-  const _RecoverStatusActions({
-    required this.onRecover,
-    required this.onStatus,
-  });
-
-  final VoidCallback? onRecover;
-  final VoidCallback onStatus;
+/// React's `HostedLinks` card, less "Applications" — the user is already in
+/// one.
+class _HostedLinks extends StatelessWidget {
+  const _HostedLinks();
 
   @override
   Widget build(BuildContext context) {
-    final recover = TextButton.icon(
-      onPressed: onRecover,
-      icon: const Icon(Icons.lock_outline, size: 16),
-      label: Text(context.tr('recover_password')),
-    );
     final status = TextButton.icon(
-      onPressed: onStatus,
+      key: const ValueKey('login_check_status'),
+      onPressed: () => openExternalUrl(context, kStatusUrl),
       icon: const Icon(Icons.shield_outlined, size: 16),
       label: Text(context.tr('check_status')),
+    );
+    final docs = TextButton.icon(
+      key: const ValueKey('login_documentation'),
+      onPressed: () => openExternalUrl(context, kDocsUrl),
+      icon: const Icon(Icons.menu_book_outlined, size: 16),
+      label: Text(context.tr('documentation')),
     );
     if (Breakpoints.isGlobalNavVisible(context)) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [recover, status],
+        children: [status, docs],
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [recover, status],
+      children: [status, docs],
     );
   }
 }
@@ -440,11 +703,14 @@ class _SegmentedToggle<T> extends StatelessWidget {
 
   final T value;
   final List<_Segment<T>> segments;
-  final ValueChanged<T> onChanged;
+
+  /// Null disables the toggle.
+  final ValueChanged<T>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final onChanged = this.onChanged;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -459,7 +725,7 @@ class _SegmentedToggle<T> extends StatelessWidget {
               child: _SegmentButton(
                 label: s.label,
                 selected: s.value == value,
-                onTap: () => onChanged(s.value),
+                onTap: onChanged == null ? null : () => onChanged(s.value),
               ),
             ),
         ],
@@ -477,7 +743,7 @@ class _SegmentButton extends StatelessWidget {
 
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

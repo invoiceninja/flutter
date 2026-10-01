@@ -5,10 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
@@ -27,6 +26,8 @@ import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.d
 import 'package:admin/ui/features/billing_shared/email/email_preview_binding.dart';
 import 'package:admin/ui/features/billing_shared/email/labeled_field.dart';
 import 'package:admin/ui/features/billing_shared/email/schedule_email_picker.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_state.dart';
 import 'package:admin/ui/features/billing_shared/email/template_variable_values_controller.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
@@ -83,6 +84,8 @@ class BillingDocEmailScreen extends StatefulWidget {
     required this.clientId,
     required this.vendorId,
     required this.isHosted,
+    this.canCcEmail = true,
+    this.canCustomizeEmail = true,
     required this.formatter,
     required this.onSend,
     this.onSchedule,
@@ -107,6 +110,17 @@ class BillingDocEmailScreen extends StatefulWidget {
   final String vendorId;
 
   final bool isHosted;
+
+  /// Whether a CC reaches anyone: the server ignores `cc_email` unless the
+  /// install is self-hosted or the hosted account is premium
+  /// (`EmailController::send`, React #3285). `AuthSession.canCcEmail`.
+  final bool canCcEmail;
+
+  /// Whether a custom subject / body is honoured — a hosted account that
+  /// isn't paid has both stripped server-side (`SendEmailRequest`).
+  /// `AuthSession.canCustomizeEmail`.
+  final bool canCustomizeEmail;
+
   final Formatter? formatter;
 
   final SendEmailCallback onSend;
@@ -177,8 +191,11 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   /// line.
   String? _renderedSubject;
 
-  StreamSubscription<Map<String, ({String label, String email})>>? _contactsSub;
-  Map<String, ({String label, String email})> _contacts = const {};
+  StreamSubscription<Map<String, EmailContact>?>? _contactsSub;
+
+  /// The client's / vendor's contacts once loaded; null while loading and
+  /// when the party isn't in the local cache at all.
+  Map<String, EmailContact>? _contacts;
 
   /// True once the contacts stream has emitted at least once. Distinguishes
   /// "still loading" (show no hint) from "loaded, but no deliverable email"
@@ -191,6 +208,9 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   /// Set on blur, not per keystroke — an address is malformed right up until
   /// the moment it isn't, so validating as you type flags every prefix.
   bool _ccInvalid = false;
+
+  /// Which complaint [_ccInvalid] is: too many addresses, rather than a typo.
+  bool _ccOverLimit = false;
 
   /// Both fields show the server's template until the user changes it, so
   /// "edited" is **derived from the value**, never latched. The editor emits
@@ -212,14 +232,17 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   bool get _dirty => _editedSubject || _editedBody || _editedCc;
   bool get _isTmp => widget.entityId.startsWith('tmp_');
 
-  /// At least one recipient has a real (non-empty) email — an invitation can
-  /// point at a contact with a blank address, which is not deliverable.
-  bool get _hasDeliverable => widget.invitations.any((inv) {
-    final id = inv.clientContactId.isNotEmpty
-        ? inv.clientContactId
-        : inv.vendorContactId;
-    return (_contacts[id]?.email ?? '').isNotEmpty;
-  });
+  /// Whether the send reaches anyone — see [recipientEmailState]. Unknown
+  /// (still loading, or the party isn't cached offline) never blocks: the old
+  /// test read a missing client as "no email" and disabled Send outright.
+  RecipientEmailState get _emailState => !_contactsLoaded
+      ? RecipientEmailState.unknown
+      : recipientEmailState(
+          invitations: widget.invitations,
+          contacts: _contacts,
+        );
+
+  bool get _hasDeliverable => _emailState != RecipientEmailState.none;
 
   /// Every recipient previously bounced / errored — resending just bounces
   /// again until they're reactivated from the History tab.
@@ -237,6 +260,19 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   bool get _ccHasTypo =>
       splitAddressList(_cc.text).any((a) => !isLikelyEmailAddress(a));
 
+  /// The server keeps the first four CC addresses and drops the rest without
+  /// a word (`SendEmailRequest::prepareForValidation` → `slice(0, 4)`).
+  static const int _kMaxCcEmails = 4;
+
+  bool get _ccTooMany => splitAddressList(_cc.text).length > _kMaxCcEmails;
+
+  bool get _ccAllowed => widget.canCcEmail;
+
+  bool get _customAllowed => widget.canCustomizeEmail;
+
+  /// The CC sent with the email — none when the server would discard it.
+  String? get _ccToSend => _ccAllowed ? _trimOrNull(_cc) : null;
+
   /// A CC typo is otherwise invisible: the field posts whatever it holds, the
   /// server drops what it can't parse without telling anyone, and the screen
   /// pops saying "Email queued".
@@ -251,8 +287,15 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
 
   /// Returns false when the field is unusable, having shown the error.
   bool _validateCc() {
-    final invalid = _ccHasTypo;
-    if (invalid != _ccInvalid) setState(() => _ccInvalid = invalid);
+    if (!_ccAllowed) return true;
+    final tooMany = _ccTooMany;
+    final invalid = _ccHasTypo || tooMany;
+    if (invalid != _ccInvalid || tooMany != _ccOverLimit) {
+      setState(() {
+        _ccInvalid = invalid;
+        _ccOverLimit = tooMany;
+      });
+    }
     return !invalid;
   }
 
@@ -449,60 +492,42 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
 
   // ---- contacts ----------------------------------------------------------
 
-  Stream<Map<String, ({String label, String email})>> _contactsStream() {
+  Stream<Map<String, EmailContact>?> _contactsStream() {
     if (widget.clientId.isNotEmpty) {
       return widget.services.clients
           .watch(companyId: widget.companyId, id: widget.clientId)
-          .map(_fromClient);
+          .map(emailContactsOfClient);
     }
     if (widget.vendorId.isNotEmpty) {
       return widget.services.vendors
           .watch(companyId: widget.companyId, id: widget.vendorId)
-          .map(_fromVendor);
+          .map(emailContactsOfVendor);
     }
-    return Stream.value(const {});
+    return Stream.value(const <String, EmailContact>{});
   }
 
-  static Map<String, ({String label, String email})> _fromClient(
-    Client? client,
-  ) {
-    if (client == null) return const {};
-    return {
-      for (final c in client.contacts)
-        c.id: (label: '${c.firstName} ${c.lastName}'.trim(), email: c.email),
-    };
-  }
+  static String _contactText(Iterable<EmailContact> contacts) => [
+    for (final c in contacts)
+      if (c.label.isNotEmpty || c.email.isNotEmpty)
+        c.label.isEmpty
+            ? c.email
+            : c.email.isEmpty
+            ? c.label
+            : '${c.label} • ${c.email}',
+  ].join(', ');
 
-  static Map<String, ({String label, String email})> _fromVendor(
-    Vendor? vendor,
-  ) {
-    if (vendor == null) return const {};
-    return {
-      for (final c in vendor.contacts)
-        c.id: (label: '${c.firstName} ${c.lastName}'.trim(), email: c.email),
-    };
-  }
+  /// "To": the invited contacts — minus CC-only ones, which the server copies
+  /// on every send rather than addressing (React #3280).
+  String _recipientText() => _contactText(
+    invitedContacts(
+      widget.invitations,
+      _contacts ?? const {},
+    ).where((c) => !c.ccOnly),
+  );
 
-  String _recipientText() {
-    final parts = <String>[];
-    for (final inv in widget.invitations) {
-      final id = inv.clientContactId.isNotEmpty
-          ? inv.clientContactId
-          : inv.vendorContactId;
-      final c = _contacts[id];
-      final label = (c?.label ?? '').trim();
-      final email = (c?.email ?? '').trim();
-      if (label.isEmpty && email.isEmpty) continue;
-      parts.add(
-        label.isEmpty
-            ? email
-            : email.isEmpty
-            ? label
-            : '$label • $email',
-      );
-    }
-    return parts.join(', ');
-  }
+  /// "CC": the client's CC-only contacts — added to every send server-side
+  /// (`Client::cc_contacts`), so they belong on screen next to "To".
+  List<EmailContact> get _ccOnly => ccOnlyContacts(_contacts ?? const {});
 
   // ---- send / schedule / close ------------------------------------------
 
@@ -546,7 +571,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
         template: _template,
         subject: _subjectOrNull(),
         body: body,
-        ccEmail: _trimOrNull(_cc),
+        ccEmail: _ccToSend,
       );
       if (!mounted) return;
       Notify.success(context, context.tr('email_queued'), messenger: messenger);
@@ -603,7 +628,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
         sendAt: sendAt,
         subject: _subjectOrNull(),
         body: body,
-        ccEmail: _trimOrNull(_cc),
+        ccEmail: _ccToSend,
       );
       if (!mounted) return;
       Notify.success(
@@ -919,10 +944,21 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
           child: TextField(
             controller: _cc,
             focusNode: _ccFocus,
+            // Disabled rather than hidden, with the reason — a field that
+            // accepts input the server then throws away is the bug.
+            enabled: _ccAllowed,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               hintText: 'name@example.com',
-              errorText: _ccInvalid ? context.tr('email_is_invalid') : null,
+              helperText: _ccAllowed
+                  ? null
+                  : context.tr('cc_email_not_available'),
+              helperMaxLines: 2,
+              errorText: !_ccInvalid
+                  ? null
+                  : _ccOverLimit
+                  ? context.tr('cc_email_limit', {'count': '$_kMaxCcEmails'})
+                  : context.tr('email_is_invalid'),
             ),
             onChanged: (_) {
               setState(() {
@@ -996,6 +1032,13 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
           ),
         ),
         _renderedSubjectLine(context, wide: wide),
+        if (!_customAllowed) ...[
+          const SizedBox(height: InSpacing.xs),
+          Text(
+            context.tr('email_customization_paid_only'),
+            style: TextStyle(color: context.inTheme.ink3, fontSize: 12),
+          ),
+        ],
         SizedBox(height: InSpacing.md(context)),
         // No `LabeledField`: the editor draws its own label row (label +
         // "Default" badge + Insert variable + `labelTrailing`), and two label
@@ -1135,16 +1178,14 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   Widget _toLine(BuildContext context) {
     final tokens = context.inTheme;
     final text = _recipientText();
-    // Once contacts resolve, explain a disabled Send when the recipient(s)
-    // have no email — otherwise the button looks broken.
-    final noEmail =
-        _contactsLoaded && widget.invitations.isNotEmpty && !_hasDeliverable;
-    return LabeledField(
-      label: context.tr('to'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
+    final cc = _ccOnly;
+    final ccText = _contactText(cc);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LabeledField(
+          label: context.tr('to'),
+          child: Semantics(
             label: '${context.tr('recipients')}: ${text.isEmpty ? '—' : text}',
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1156,14 +1197,131 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
               ),
             ),
           ),
-          if (noEmail)
-            Text(
-              context.tr('no_email_on_file'),
-              style: TextStyle(color: tokens.ink3, fontSize: 12),
+        ),
+        if (cc.isNotEmpty)
+          LabeledField(
+            label: context.tr('cc'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(ccText, style: TextStyle(color: tokens.ink)),
             ),
+          ),
+        // Once contacts resolve, explain a disabled Send when the recipient
+        // has no email — and offer the fix in place, so what the user has
+        // already written survives (invoiceninja/ui#3400).
+        if (_emailState == RecipientEmailState.none &&
+            widget.invitations.isNotEmpty) ...[
+          SizedBox(height: InSpacing.sm),
+          _noEmailBanner(context),
+        ],
+      ],
+    );
+  }
+
+  bool get _isVendorDoc =>
+      widget.clientId.isEmpty && widget.vendorId.isNotEmpty;
+
+  Widget _noEmailBanner(BuildContext context) {
+    final tokens = context.inTheme;
+    final contacts = _contacts ?? const <String, EmailContact>{};
+    final canAdd =
+        !_isTmp && contactToAddEmailTo(widget.invitations, contacts) != null;
+    return Container(
+      key: const Key('no_email_banner'),
+      padding: EdgeInsets.all(InSpacing.md(context)),
+      decoration: BoxDecoration(
+        color: tokens.overdueSoft,
+        borderRadius: BorderRadius.circular(InRadii.r2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 18,
+                color: tokens.overdue,
+              ),
+              SizedBox(width: InSpacing.sm),
+              Expanded(
+                child: Text(
+                  context.tr(
+                    _isVendorDoc
+                        ? 'vendor_email_not_set'
+                        : 'client_email_not_set',
+                  ),
+                  style: TextStyle(color: tokens.overdue, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: InSpacing.sm),
+          Wrap(
+            spacing: InSpacing.sm,
+            runSpacing: InSpacing.sm,
+            alignment: WrapAlignment.end,
+            children: [
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(64, 40),
+                ),
+                onPressed: _inFlight ? null : _editParty,
+                child: Text(
+                  context.tr(_isVendorDoc ? 'edit_vendor' : 'edit_client'),
+                ),
+              ),
+              if (canAdd)
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                  ),
+                  onPressed: _inFlight ? null : _addEmail,
+                  child: Text(context.tr('add_email')),
+                ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  /// Leaves the compose screen for the client / vendor editor — a `go`, which
+  /// `PopScope` never sees, so the discard prompt [_handleClose] shows is
+  /// asked here too before a drafted subject / body / CC is thrown away.
+  Future<void> _editParty() async {
+    if (_inFlight) return;
+    _bodyFlush.flush();
+    if (_dirty && !(await showDiscardChangesDialog(context))) return;
+    if (!mounted) return;
+    goEntityEdit(
+      context,
+      _isVendorDoc ? '/vendors' : '/clients',
+      _isVendorDoc ? widget.vendorId : widget.clientId,
+    );
+  }
+
+  /// Writes an address onto the invited contact in place. The contacts
+  /// stream re-emits once the local save lands, which clears the banner and
+  /// enables Send; the outbox delivers the contact update before the email.
+  Future<void> _addEmail() async {
+    final contacts = _contacts;
+    if (contacts == null) return;
+    final ok = await addMissingRecipientEmail(
+      context,
+      widget.services,
+      companyId: widget.companyId,
+      clientId: widget.clientId,
+      vendorId: widget.vendorId,
+      invitations: widget.invitations,
+      contacts: contacts,
+    );
+    if (ok && mounted) {
+      Notify.success(
+        context,
+        context.tr(_isVendorDoc ? 'updated_vendor' : 'updated_client'),
+      );
+    }
   }
 
   Widget _bounceWarning(BuildContext context) {

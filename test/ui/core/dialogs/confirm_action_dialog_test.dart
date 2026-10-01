@@ -84,6 +84,23 @@ void main() {
     expect(find.text('Are you sure?'), findsNothing);
   });
 
+  // `cancel_invoice` / `cancel_quote` both read "Cancel", and the confirm
+  // button restates the title — so the two buttons used to read
+  // [Cancel] [Cancel], one of which cancelled the invoice.
+  testWidgets('a Cancel action gets a Go Back dismiss, not a second Cancel', (
+    tester,
+  ) async {
+    await _open(tester, title: 'Cancel');
+
+    expect(find.widgetWithText(FilledButton, 'Cancel'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Cancel'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Go Back'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Go Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Are you sure?'), findsNothing);
+  });
+
   testWidgets('subject names the record under the message', (tester) async {
     await _open(tester, subject: 'Acme Corp');
     expect(find.text('Acme Corp'), findsOneWidget);

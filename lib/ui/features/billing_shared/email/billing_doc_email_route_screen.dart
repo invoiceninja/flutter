@@ -159,6 +159,9 @@ class _BillingDocEmailRouteScreenState
     clientId: clientId,
     vendorId: vendorId,
     isHosted: _isHosted,
+    // Fail open before the session has loaded — the server is the backstop.
+    canCcEmail: _services.auth.session.value?.canCcEmail ?? true,
+    canCustomizeEmail: _services.auth.session.value?.canCustomizeEmail ?? true,
     formatter: _formatter,
     onSend: onSend,
     onSchedule: onSchedule,

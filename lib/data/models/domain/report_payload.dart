@@ -105,7 +105,7 @@ class ReportPayload {
   final String? categories;
   final String? projects;
 
-  /// CSV of tag ids (task / project reports → `tag_ids`).
+  /// CSV of tag ids → `tag_ids` (every tag-bearing report).
   final String? tags;
   final String? status;
 

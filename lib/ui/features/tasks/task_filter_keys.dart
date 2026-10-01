@@ -11,6 +11,7 @@ import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
@@ -44,6 +45,14 @@ List<FilterKey> buildTaskFilterKeys({
   ProjectFilterKey(projects: projects, companyId: companyId),
   StatusFilterKey(statuses: statuses, companyId: companyId),
   TagFilterKey(tags: tags, companyId: companyId, entityType: 'task'),
+  // Window only: the task API filters due dates by `due_date_range` alone
+  // (React #3380); `TaskDao.watchPage` mirrors it locally.
+  const DateColumnFilterKey(
+    id: 'due_date',
+    serverKey: 'due_date',
+    labelKey: 'due_date',
+    windowOnly: true,
+  ),
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(
       columnIndex: i,

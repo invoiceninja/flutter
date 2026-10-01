@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/schedule_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
@@ -162,7 +163,7 @@ class _ScheduleRow extends StatelessWidget {
       children: [
         ListTile(
           leading: Icon(_iconFor(schedule.template), color: tokens.accent),
-          title: Text(title),
+          title: _ScheduleTitle(schedule: schedule, summary: title),
           subtitle: subtitle == null ? null : Text(subtitle),
           trailing: _buildTrailing(context, tokens, theme, relative),
           onTap: () => context.go('/settings/schedules/${schedule.id}'),
@@ -237,6 +238,81 @@ class _ScheduleRow extends StatelessWidget {
           pieces[i],
         ],
       ],
+    );
+  }
+}
+
+/// The row's sentence, plus the document it is about for a schedule that
+/// sends or bills one record (React #3309) — "Email Invoice #0012" rather
+/// than a bare "Email Invoice" that could be any of them. Text only: the row
+/// already has its one destination (the schedule), so the number names the
+/// record rather than linking to it.
+class _ScheduleTitle extends StatelessWidget {
+  const _ScheduleTitle({required this.schedule, required this.summary});
+
+  final Schedule schedule;
+  final String summary;
+
+  /// `(entity, id)` of the record this schedule is about, or null.
+  static (String, String)? _record(Schedule s) => switch (s.template) {
+    kScheduleTemplateEmailRecord when s.recordEntityId.isNotEmpty => (
+      s.recordEntityType,
+      s.recordEntityId,
+    ),
+    kScheduleTemplatePaymentSchedule
+        when s.paymentScheduleInvoiceId.isNotEmpty =>
+      ('invoice', s.paymentScheduleInvoiceId),
+    _ => null,
+  };
+
+  static Stream<String?>? _numberOf(
+    Services services,
+    String companyId,
+    (String, String) record,
+  ) {
+    final (entity, id) = record;
+    return switch (entity) {
+      'invoice' =>
+        services.invoices
+            .watch(companyId: companyId, id: id)
+            .map((d) => d?.number),
+      'quote' =>
+        services.quotes
+            .watch(companyId: companyId, id: id)
+            .map((d) => d?.number),
+      'credit' =>
+        services.credits
+            .watch(companyId: companyId, id: id)
+            .map((d) => d?.number),
+      'purchase_order' =>
+        services.purchaseOrders
+            .watch(companyId: companyId, id: id)
+            .map((d) => d?.number),
+      _ => null,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final record = _record(schedule);
+    if (record == null) return Text(summary);
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    final numbers = _numberOf(services, companyId, record);
+    if (numbers == null) return Text(summary);
+    return WatchBuilder<String?>(
+      cacheKey: (companyId, record),
+      create: () => numbers,
+      builder: (context, snap) {
+        final number = (snap.data ?? '').trim();
+        if (number.isEmpty) return Text(summary);
+        final noun =
+            record.$1 == 'invoice' &&
+                schedule.template == kScheduleTemplatePaymentSchedule
+            ? ' · ${context.tr('invoice')}'
+            : '';
+        return Text('$summary$noun #$number');
+      },
     );
   }
 }

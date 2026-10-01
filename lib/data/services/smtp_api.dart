@@ -29,4 +29,18 @@ class SmtpApi {
     }
     return '';
   }
+
+  /// `POST /api/v1/mailer/check` — the same probe for the API and OAuth
+  /// mailers (Gmail / Microsoft / Brevo / Mailgun / Postmark / SES, React
+  /// #3357). [payload] is built by `buildMailerCheckPayload`. Admin-only and
+  /// throttled to 10 a minute server-side; a failed send is a **400** with a
+  /// generic message, so the caller shows its own copy with that as detail.
+  Future<String> checkMailer({required Map<String, dynamic> payload}) async {
+    final raw = await client.postJson('/api/v1/mailer/check', body: payload);
+    if (raw is Map<String, dynamic>) {
+      final message = raw['message'];
+      if (message is String && message.isNotEmpty) return message;
+    }
+    return '';
+  }
 }

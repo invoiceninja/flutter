@@ -130,6 +130,9 @@ Future<ShellFixture> buildFixture({
   String plan = 'pro',
   int hostedCompanyCount = 10,
   bool online = false,
+  // Every fixture session is hosted unless a test says otherwise — the
+  // self-hosted case (server-version gates, `ServerFeatures`) passes false.
+  bool isHosted = true,
   // Override the HTTP client to program specific responses (e.g. a 412 on a
   // destructive mutation). Defaults to the fail-fast offline client so the
   // bulk of widget tests never touch the network.
@@ -204,7 +207,7 @@ Future<ShellFixture> buildFixture({
     jsonEncode({for (final c in companies) c.id: c.token}),
   );
   await storage.write('invoiceninja.base_url.v1', 'https://example.com');
-  await storage.write('invoiceninja.is_hosted.v1', 'true');
+  await storage.write('invoiceninja.is_hosted.v1', '$isHosted');
   await storage.write(
     'invoiceninja.current_company.v1',
     currentCompanyId ?? companies.first.id,

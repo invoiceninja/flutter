@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/invoices_api.dart';
 import 'package:admin/data/services/password_cache.dart';
 
@@ -128,6 +129,75 @@ void main() {
       final r = await api.validateEInvoice('inv1');
       expect(r.passes, isTrue);
       expect(r.messages, isEmpty);
+    });
+  });
+
+  // The server answers a FAILED check with 422 and the checker's own map —
+  // singular keys, `{field, label}` items (Peppol `EntityLevel`). It used to
+  // be thrown away as a generic error, so the user saw "An error occurred"
+  // exactly when there was something to fix.
+  group('422 failed-check result', () {
+    InvoicesApi apiReturning(int status, Map<String, dynamic> json) =>
+        InvoicesApi(
+          ApiClient(
+            credentials: _creds(),
+            passwordCache: PasswordCache(),
+            onUnauthorized: () async {},
+            httpClient: MockClient(
+              (_) async => http.Response(
+                jsonEncode(json),
+                status,
+                headers: const {'content-type': 'application/json'},
+              ),
+            ),
+          ),
+        );
+
+    test('is parsed as a result, singular keys included', () async {
+      final api = apiReturning(422, {
+        'passes': false,
+        'invoice': ['cvc-complex-type.2.4.b: content is not complete'],
+        'client': [
+          {'field': 'vat_number', 'label': 'VAT Number'},
+        ],
+        'company': [
+          {'field': 'country_id', 'label': 'Country'},
+        ],
+      });
+
+      final r = await api.validateEInvoice('inv1');
+
+      expect(r.passes, isFalse);
+      expect(r.messages, [
+        'cvc-complex-type.2.4.b: content is not complete',
+        'VAT Number',
+        'Country',
+      ]);
+    });
+
+    test('a credit check reads its `credit` key', () {
+      final r = parseEInvoiceValidation({
+        'passes': false,
+        'invoice': <Object>[],
+        'credit': ['Missing billing reference'],
+        'client': <Object>[],
+        'company': <Object>[],
+      });
+      expect(r.messages, ['Missing billing reference']);
+    });
+
+    test('a 422 that is not a check result still throws', () async {
+      final api = apiReturning(422, {
+        'message': 'The given data was invalid.',
+        'errors': {
+          'entity_id': ['The selected entity id is invalid.'],
+        },
+      });
+
+      expect(
+        () => api.validateEInvoice('nope'),
+        throwsA(isA<ValidationException>()),
+      );
     });
   });
 }

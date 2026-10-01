@@ -8,6 +8,7 @@ import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
+import 'package:admin/domain/quickbooks/quickbooks_invoice.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -281,6 +282,84 @@ void main() {
         'product': false,
         'invoice': true,
       });
+    });
+  });
+
+  // invoiceninja/ui#3284 — an invoice's QuickBooks tab.
+  group('QuickbooksRepository.invoiceAction', () {
+    late List<(String, Object?)> calls;
+    late List<(String, String)> refetched;
+
+    QuickbooksRepository repo(http.Response Function(http.Request) reply) {
+      calls = [];
+      refetched = [];
+      final apiClient = ApiClient(
+        credentials: auth.credentials,
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient((req) async {
+          calls.add((req.url.path, jsonDecode(req.body)));
+          return reply(req);
+        }),
+      );
+      auth.apiClient = apiClient;
+      return QuickbooksRepository(
+        apiClient: apiClient,
+        auth: auth,
+        refreshInvoice: (companyId, id) async => refetched.add((companyId, id)),
+      );
+    }
+
+    test('check_record posts the action and returns the report', () async {
+      final quickbooks = repo(
+        (_) => http.Response(
+          jsonEncode({
+            'data': {'id': 'inv1', 'number': 'INV-1'},
+            'meta': {
+              'quickbooks_check': {
+                'outcome': 'linkable',
+                'linked': false,
+                'message': '',
+                'quickbooks': {'id': '55'},
+                'comparison': null,
+                'recommended_actions': ['force_link'],
+              },
+            },
+          }),
+          200,
+        ),
+      );
+
+      final check = await quickbooks.invoiceAction(
+        companyId: 'co_a',
+        invoiceId: 'inv1',
+        action: QuickbooksInvoiceAction.checkRecord,
+      );
+
+      expect(calls.single.$1, '/api/v1/quickbooks/action');
+      expect(calls.single.$2, {
+        'entity': 'invoice',
+        'id': 'inv1',
+        'action': 'check_record',
+      });
+      expect(check!.outcome, 'linkable');
+      expect(check.quickbooksId, '55');
+      expect(check.recommendedActions, ['force_link']);
+      // The response's invoice comes from a bare `transform()` with no
+      // invitations — never applied; the invoice is re-fetched instead.
+      expect(refetched, [('co_a', 'inv1')]);
+    });
+
+    test('a force action answers 204 and returns no report', () async {
+      final quickbooks = repo((_) => http.Response('', 204));
+      final check = await quickbooks.invoiceAction(
+        companyId: 'co_a',
+        invoiceId: 'inv1',
+        action: QuickbooksInvoiceAction.forcePush,
+      );
+      expect(check, isNull);
+      expect((calls.single.$2! as Map)['action'], 'force_push');
+      expect(refetched, [('co_a', 'inv1')]);
     });
   });
 }

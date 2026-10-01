@@ -193,6 +193,7 @@ class EntityListBulkAction {
     required this.pluralSuccessKey,
     required this.nothingKey,
     this.prepare,
+    this.preflight,
     this.onSelection,
     this.successKeysFor,
   });
@@ -215,6 +216,17 @@ class EntityListBulkAction {
 
   /// One-shot prep dialog run before the per-id loop. `null` value cancels.
   final Future<Object?> Function(BuildContext context)? prepare;
+
+  /// Checks the eligible selection **before** any confirm, password or
+  /// [prepare] step, so nobody composes an email for documents that can't be
+  /// sent. Returns the items to go ahead with — the rest are dropped, having
+  /// told the user why, and are counted as skipped in the result toast — or
+  /// null to cancel. Items arrive as `List<Object?>` (covariant).
+  final Future<List<Object?>?> Function(
+    BuildContext context,
+    List<Object?> eligible,
+  )?
+  preflight;
 
   /// Locale key shown when exactly one row was affected (e.g. `archived_client`).
   final String singleSuccessKey;
@@ -653,8 +665,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         ),
   ];
 
+  /// A bulk preflight is running. It can await the network (loading each
+  /// party's contacts) with no modal up, before `bulkInFlight` is raised — so
+  /// without this a second tap would start a second run.
+  bool _preflighting = false;
+
   Future<void> _onBulk(EntityListBulkAction action) async {
-    if (_vm.bulkInFlight) return;
+    if (_vm.bulkInFlight || _preflighting) return;
 
     final bulk = _vm.bulkActionById(action.actionId);
     if (bulk == null) return;
@@ -669,12 +686,40 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // re-arms the list and clears it). Re-reading afterwards is what made a
     // bulk delete answer "Nothing to delete" and leave the row in place
     // (invoiceninja/flutter#89).
-    final eligibleIds = _vm.eligibleSelectedIds(bulk);
-    final eligibleCount = eligibleIds.length;
-    if (eligibleCount == 0) {
+    var eligibleIds = _vm.eligibleSelectedIds(bulk);
+    if (eligibleIds.isEmpty) {
       Notify.info(context, context.tr(action.nothingKey));
       return;
     }
+
+    // Drop what can't be acted on before any dialog asks about it — e.g. a
+    // bulk email to documents whose client has no address.
+    var preflightSkipped = 0;
+    if (action.preflight != null) {
+      final items = [
+        for (final i in _vm.items)
+          if (eligibleIds.contains(_vm.idOf(i))) i,
+      ];
+      final List<Object?>? kept;
+      _preflighting = true;
+      try {
+        kept = await action.preflight!(context, items);
+      } finally {
+        _preflighting = false;
+      }
+      if (!mounted || kept == null) return;
+      final checked = {for (final i in items) _vm.idOf(i)};
+      final keptIds = {
+        for (final k in kept) _vm.idOf(k as T),
+        // An eligible id not among the loaded items was never checked;
+        // leave it to the apply, as before.
+        ...eligibleIds.where((id) => !checked.contains(id)),
+      };
+      preflightSkipped = eligibleIds.length - keptIds.length;
+      eligibleIds = keptIds;
+      if (eligibleIds.isEmpty) return;
+    }
+    final eligibleCount = eligibleIds.length;
 
     // "Are you sure?" for the risky verbs, when the user has Confirm actions
     // on. Only reachable for a `bulk.confirm` action, which by construction
@@ -775,7 +820,11 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         singleKey: successKeys.$1,
         pluralKey: successKeys.$2,
         nothingKey: action.nothingKey,
-        result: result,
+        result: (
+          ok: result.ok,
+          skipped: result.skipped + preflightSkipped,
+          failed: result.failed,
+        ),
       ),
       action: undo,
     );

@@ -28,6 +28,7 @@ void main() {
     'hide_unverified_users': PrefScope.account,
     'hide_empty_panels': PrefScope.account,
     'sidebar_collapsed': PrefScope.device,
+    'default_items_tab': PrefScope.account,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

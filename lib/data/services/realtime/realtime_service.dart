@@ -25,9 +25,34 @@ class RealtimeRefresh {
   final DateTime at;
 }
 
+/// A file the server finished preparing for this user — a bulk PDF / ZIP
+/// download or a company export (`App\Events\Socket\DownloadAvailable`).
+/// [message] arrives already translated and names the content; [url] is the
+/// signed download link.
+@immutable
+class DownloadReady {
+  const DownloadReady({required this.message, required this.url});
+
+  final String message;
+  final String url;
+}
+
+/// The server's download-ready event — Laravel broadcasts the event class's
+/// full name when it has no `broadcastAs`.
+const String kDownloadAvailableEvent = r'App\Events\Socket\DownloadAvailable';
+
+/// The slot the per-user channel rides in on the connection.
+const String kUserChannelSlot = 'user';
+
 /// Hosted real-time updates: listens on the server's broadcast channel for the
 /// active company and, when anything is announced, schedules the ordinary
 /// `/refresh` delta ([RefreshScheduler.requestSoon]).
+///
+/// It also listens on the signed-in user's own channel
+/// (`private-user-{account_key}-{user_id}`), which is where the server says a
+/// requested download is ready (React #3340). That event is the one exception
+/// to the doorbell rule below: it changes no entity, so it triggers no
+/// refresh — it is surfaced on [downloads] for the shell to show.
 ///
 /// **A push never writes an entity.** The events carry full records, but
 /// applying them would be a second write path around every guard the delta
@@ -97,6 +122,16 @@ class RealtimeService {
 
   final ValueNotifier<RealtimeRefresh?> _lastRefresh = ValueNotifier(null);
 
+  /// The user channel currently carried, or null.
+  String? _userChannel;
+
+  final StreamController<DownloadReady> _downloads =
+      StreamController<DownloadReady>.broadcast();
+
+  /// Downloads the server finished preparing for this user. `lib/data` can't
+  /// show a toast; the shell listens.
+  Stream<DownloadReady> get downloads => _downloads.stream;
+
   /// Bumped after each push-driven delta refresh lands cleanly.
   ValueListenable<RealtimeRefresh?> get lastRefresh => _lastRefresh;
 
@@ -129,6 +164,7 @@ class RealtimeService {
     unawaited(_eventSub.cancel());
     _connection.dispose();
     _lastRefresh.dispose();
+    unawaited(_downloads.close());
   }
 
   bool _eligible(ApiCredentials? creds) =>
@@ -145,15 +181,29 @@ class RealtimeService {
     final target = _eligible(creds) ? creds!.companyId : null;
     // Credentials are reassigned on every refresh with identity equality, so
     // most notifications change nothing.
-    if (target == _companyId) return;
+    if (target == _companyId) {
+      // The account key can land after the company did (a session refresh),
+      // so the user channel is reconciled on every notification.
+      _reconcileUserChannel();
+      return;
+    }
     _companyId = target;
     unawaited(_keySub?.cancel());
     _keySub = null;
-    _connection.unsubscribe();
     if (target == null) {
+      _connection.unsubscribe();
+      _userChannel = null;
       _connection.disconnect();
       return;
     }
+    // A company switch moves the company channel only. The user channel's
+    // name doesn't involve the company and the server authorizes it on the
+    // account key and user id alone (`routes/channels.php`), so it stays —
+    // dropping and re-joining it would lose a download notice landing in
+    // between. It is re-pointed at the new company's signing for the next
+    // reconnect.
+    _connection.unsubscribe(slot: kDefaultChannelSlot);
+    _reconcileUserChannel(reauthorize: true);
     if (_foreground) _connection.connect();
     // On a first login the credentials can land before the company row does,
     // and `companyKey` defaults to '' — wait for the real one.
@@ -166,6 +216,31 @@ class RealtimeService {
         (socketId, channel) => _authorize(target, socketId, channel),
       );
     });
+  }
+
+  /// Carry the signed-in user's channel while a company is active — signed
+  /// in that company's scope like the company channel. [reauthorize] re-hands
+  /// an unchanged channel the active company's authorizer (a company switch);
+  /// [PusherConnection.subscribe] then swaps only the signer, no re-join.
+  void _reconcileUserChannel({bool reauthorize = false}) {
+    final companyId = _companyId;
+    final session = _auth.session.value;
+    final accountKey = session?.accountKey ?? '';
+    final userId = session?.userId ?? '';
+    final wanted = companyId == null || accountKey.isEmpty || userId.isEmpty
+        ? null
+        : 'private-user-$accountKey-$userId';
+    if (wanted == _userChannel && !(reauthorize && wanted != null)) return;
+    _userChannel = wanted;
+    if (wanted == null) {
+      _connection.unsubscribe(slot: kUserChannelSlot);
+      return;
+    }
+    _connection.subscribe(
+      wanted,
+      (socketId, channel) => _authorize(companyId!, socketId, channel),
+      slot: kUserChannelSlot,
+    );
   }
 
   /// `POST /broadcasting/auth` — at the server root, not under `/api/v1` — in
@@ -194,6 +269,17 @@ class RealtimeService {
     final companyId = _companyId;
     if (companyId == null) return;
     _log.fine('realtime ${event.event}');
+    if (event.event == kDownloadAvailableEvent) {
+      final data = event.data;
+      final url = data is Map ? data['url'] : null;
+      final message = data is Map ? data['message'] : null;
+      if (url is String && url.isNotEmpty && !_downloads.isClosed) {
+        _downloads.add(
+          DownloadReady(message: message is String ? message : '', url: url),
+        );
+      }
+      return;
+    }
     final pending = _scheduler.requestSoon();
     // A burst of events shares one pending refresh — follow it once.
     if (identical(pending, _awaiting)) return;

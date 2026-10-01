@@ -109,10 +109,16 @@ class ToastController extends ChangeNotifier {
   // Convenience variants — used by callers that captured the controller
   // before an `await` (via `Notify.capture`) so they can show a toast after
   // the gap without a stale `BuildContext`.
-  void success(String message, {String? detail, NotifyAction? action}) => show(
+  void success(
+    String message, {
+    String? detail,
+    NotifyAction? action,
+    Duration? atLeast,
+  }) => show(
     variant: NotifyVariant.success,
     message: message,
     detail: detail,
+    atLeast: atLeast,
     action: action,
   );
 
@@ -145,6 +151,10 @@ class ToastController extends ChangeNotifier {
     required String message,
     String? detail,
     NotifyAction? action,
+    // Keeps the toast up at least this long — for a notice that arrives
+    // unasked, while the user is busy elsewhere (a download that just became
+    // ready), where the usual few seconds would let it slip past unseen.
+    Duration? atLeast,
   }) {
     var text = _normalizeMessage(message);
     var sub = _normalizeDetail(detail);
@@ -190,7 +200,7 @@ class ToastController extends ChangeNotifier {
       id: id,
       variant: variant,
       message: text,
-      duration: _durationFor(variant, act),
+      duration: _atLeast(_durationFor(variant, act), atLeast),
       detail: sub,
       action: act,
     );
@@ -244,6 +254,9 @@ class ToastController extends ChangeNotifier {
   // An actionable toast (Undo / Retry / View …) gets at least this long so the
   // user can read it and act before it auto-dismisses.
   static const Duration _kActionableMin = Duration(seconds: 6);
+
+  static Duration _atLeast(Duration d, Duration? floor) =>
+      (floor != null && floor > d) ? floor : d;
 
   Duration _durationFor(NotifyVariant variant, NotifyAction? action) {
     final base = variant.duration;

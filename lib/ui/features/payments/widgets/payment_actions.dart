@@ -14,6 +14,7 @@ import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
 
 /// Action set surfaced for a payment. Apply intentionally lives inline on the
 /// detail screen (not the action menu) since it's a one-tap/two-tap flow.
@@ -153,7 +154,9 @@ class PaymentActions {
         context: context,
         subject: _confirmSubject(payment),
         kind: PaymentAction.delete,
-        canDelete: !payment.isDeleted,
+        // The server refuses while a linked invoice is deleted
+        // (`deleted_invoices_exist`) — a queued delete would only dead-letter.
+        canDelete: !payment.isDeleted && !payment.hasDeletedInvoice,
         onTap: () => onTap(PaymentAction.delete),
       ),
     ];
@@ -173,6 +176,18 @@ class PaymentActions {
         if (!requireSynced(context, payment.id)) return;
         context.go('/payments/${payment.id}/refund');
       case PaymentAction.sendEmail:
+        // The receipt goes to the client's primary contact (`EmailPayment`);
+        // with no address there it goes nowhere (invoiceninja/ui#3400).
+        if (!await ensureRecipientEmail(
+          context,
+          services,
+          companyId: companyId,
+          clientId: payment.clientId,
+          invitations: null,
+        )) {
+          return;
+        }
+        if (!context.mounted) return;
         // Re-save with sendEmail=true so the server fires off a receipt. The
         // outbox handles the round-trip; no extra endpoint needed.
         await services.payments.save(
@@ -229,6 +244,16 @@ class PaymentActions {
         );
       case PaymentAction.delete:
         if (!requireSynced(context, payment.id)) return;
+        // `hasDeletedInvoice` hides the action for most cases, but a cached
+        // payment row predating the `is_deleted` read — or an invoice deleted
+        // on this device since — only shows up in the local invoices table.
+        if (await _linkedInvoiceDeleted(services, companyId, payment)) {
+          if (context.mounted) {
+            Notify.error(context, context.tr('deleted_invoices_exist'));
+          }
+          return;
+        }
+        if (!context.mounted) return;
         await StandardEntityActions.delete(
           context: context,
           wireName: 'payment',
@@ -238,5 +263,26 @@ class PaymentActions {
               services.payments.restore(companyId: companyId, id: payment.id),
         );
     }
+  }
+
+  /// Whether any invoice [payment] is applied to is deleted — from the
+  /// payment's own `invoices` include first, then the local invoices table.
+  static Future<bool> _linkedInvoiceDeleted(
+    Services services,
+    String companyId,
+    Payment payment,
+  ) async {
+    if (payment.hasDeletedInvoice) return true;
+    final ids = {
+      for (final i in payment.invoices) i.id,
+      for (final pa in payment.paymentables) pa.invoiceId,
+    }..remove('');
+    for (final id in ids) {
+      final invoice = await services.invoices
+          .watchByRealId(companyId: companyId, id: id)
+          .first;
+      if (invoice?.isDeleted ?? false) return true;
+    }
+    return false;
   }
 }

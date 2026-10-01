@@ -108,6 +108,10 @@ abstract class PaymentInvoiceRefApi with _$PaymentInvoiceRefApi {
     @Default('0') Object amount,
     @Default('0') Object balance,
     @JsonKey(name: 'paid_to_date') @Default('0') Object paidToDate,
+    // The relation is `withTrashed()`, so a deleted invoice still comes back
+    // here — and the server refuses to delete a payment linked to one
+    // (`deleted_invoices_exist`). Read so the Delete action can stand down.
+    @JsonKey(name: 'is_deleted') @Default(false) bool isDeleted,
   }) = _PaymentInvoiceRefApi;
 
   factory PaymentInvoiceRefApi.fromJson(Map<String, dynamic> json) =>

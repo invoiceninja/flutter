@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
@@ -144,6 +145,12 @@ class _TaskListTileState extends State<TaskListTile> {
   Widget _narrow(BuildContext context, InTheme tokens) {
     final w = widget;
     final t = w.task;
+    // Past due and still unbilled — the same rule as the Overdue tab.
+    final due = t.dueDate;
+    final overdueOn =
+        (due != null && t.invoiceId.isEmpty && due.compareTo(Date.today()) < 0)
+        ? due
+        : null;
     final identity = t.description.isEmpty
         ? (t.number.isEmpty ? '—' : '#${t.number}')
         : t.description;
@@ -187,13 +194,38 @@ class _TaskListTileState extends State<TaskListTile> {
               // is legible on the line it lands on. Both still ellipsize
               // against the Wrap's own max width, so a long custom status or
               // client name can't overflow the tile.
-              if (t.statusId.isNotEmpty || t.clientId.isNotEmpty) ...[
+              if (t.statusId.isNotEmpty ||
+                  t.clientId.isNotEmpty ||
+                  overdueOn != null) ...[
                 const SizedBox(height: 2),
                 Wrap(
                   spacing: 6,
                   runSpacing: 2,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // The Overdue tab's "how overdue?" — the due date is an
+                    // opt-in column the phone doesn't have (React #3380).
+                    if (overdueOn != null)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.event_busy_outlined,
+                            size: 12,
+                            color: tokens.overdue,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            w.formatter?.date(overdueOn.toIso()) ??
+                                overdueOn.toIso(),
+                            style: TextStyle(
+                              color: tokens.overdue,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     if (t.statusId.isNotEmpty)
                       TaskStatusPill(
                         statusId: t.statusId,

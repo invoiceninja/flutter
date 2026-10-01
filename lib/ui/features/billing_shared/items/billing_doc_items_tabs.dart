@@ -271,21 +271,46 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     );
   }
 
-  /// The tab to open on: the one this document last showed (the narrow
-  /// layout's `TabBarView` rebuilds this widget whenever the user comes back
-  /// from another tab), else Tasks for a document that bills only hours —
-  /// admin-portal's rule — else Products. Mount-time only: deleting the last
-  /// product line later must not yank the user across to Tasks.
+  /// The tab to open on, in order (React #3355):
+  ///
+  ///  1. the one this document last showed (the narrow layout's
+  ///     `TabBarView` rebuilds this widget whenever the user comes back from
+  ///     another tab);
+  ///  2. whichever visible tab holds the most lines, so a timesheet invoice
+  ///     opens on its hours. React counts expense lines as products because
+  ///     it has no Expenses tab; this app does, so they count for their own —
+  ///     otherwise task + expense lines would open on an empty Products tab;
+  ///  3. on no lines or a tie for the most, the user's Device Settings →
+  ///     Default tab;
+  ///  4. Products.
+  ///
+  /// Tasks only when the Tasks tab is shown. Mount-time only: deleting the
+  /// last product line later must not yank the user across to Tasks.
   _LineKind _initialKind() {
     final remembered = _LineKind.values.asNameMap()[widget.vm.itemsTab];
     if (remembered != null) {
       if (_tabs.contains(remembered)) return remembered;
       _restoreOnCompany = remembered;
     }
-    if (_hasTasks && !widget.lineItems.any(_isProductLine)) {
-      return _LineKind.tasks;
+    final tasksTab = _tabs.contains(_LineKind.tasks)
+        ? _LineKind.tasks
+        : _LineKind.products;
+    final counts = _countByKind(widget.lineItems);
+    final ranked = [
+      for (final kind in _tabs) (kind: kind, lines: counts[kind] ?? 0),
+    ]..sort((a, b) => b.lines.compareTo(a.lines));
+    if (ranked.isNotEmpty &&
+        ranked.first.lines > 0 &&
+        (ranked.length == 1 || ranked.first.lines > ranked[1].lines)) {
+      return ranked.first.kind;
     }
-    return _LineKind.products;
+    if (!context.read<Services>().defaultItemsTab.prefersTasks) {
+      return _LineKind.products;
+    }
+    // The Tasks tab may only appear once the company's "Show Tasks Table"
+    // arrives — honour the default then, as a remembered tab is.
+    if (tasksTab != _LineKind.tasks) _restoreOnCompany ??= _LineKind.tasks;
+    return tasksTab;
   }
 
   void _listenToCompany() {

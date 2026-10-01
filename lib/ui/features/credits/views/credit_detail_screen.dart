@@ -37,6 +37,7 @@ import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
 import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/billing/billing_doc_totals.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_kpi_strip.dart';
@@ -110,12 +111,24 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
       emptyAction: entityListEmptyAction(context, EntityType.credit),
       emptyIcon: Icons.assignment_return_outlined,
       emptyTitle: context.tr('credit_not_found'),
-      actionsForItem: (context, credit) => EntityDetailActionsRow<CreditAction>(
-        items: CreditActions.itemsFor(
-          context,
-          credit,
-          (a) =>
-              CreditActions.dispatch(context, _services, _companyId, credit, a),
+      // The company's e-invoice type gates Validate (a cheap local watch),
+      // the same way the invoice detail resolves it.
+      actionsForItem: (context, credit) => WatchBuilder<Company?>(
+        cacheKey: _companyId,
+        create: () => _services.company.watchCompany(_companyId),
+        builder: (context, companySnap) => EntityDetailActionsRow<CreditAction>(
+          items: CreditActions.itemsFor(
+            context,
+            credit,
+            (a) => CreditActions.dispatch(
+              context,
+              _services,
+              _companyId,
+              credit,
+              a,
+            ),
+            eInvoiceType: companySnap.data?.settings.eInvoiceType,
+          ),
         ),
       ),
       bodyBuilder: (context, credit) {

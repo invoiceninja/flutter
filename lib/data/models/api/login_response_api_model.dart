@@ -651,6 +651,15 @@ abstract class AccountEnvelopeApi with _$AccountEnvelopeApi {
     // a declared field so `toJson()` carries it into the persisted
     // `features_json` blob the session-build reads.
     @JsonKey(name: 'report_errors') @Default(false) bool reportErrors,
+    // Hosted, paid, out of trial and older than a month
+    // (`Account::isPremium`). The server silently drops a send-email
+    // `cc_email` unless the account is self-hosted or premium
+    // (`EmailController`), so the email screen gates its CC field on this.
+    @JsonKey(name: 'is_premium') @Default(false) bool isPremium,
+    // The account's key — names the per-user realtime channel
+    // (`private-user-{account_key}-{user_id}`) the server pushes
+    // download-ready events on.
+    @Default('') String key,
   }) = _AccountEnvelopeApi;
 
   factory AccountEnvelopeApi.fromJson(Map<String, dynamic> json) =>

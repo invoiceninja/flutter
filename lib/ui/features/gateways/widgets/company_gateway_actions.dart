@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
@@ -66,17 +67,38 @@ class CompanyGatewayActions {
     final isAnyStripe =
         gateway.gatewayKey == kGatewayStripe ||
         gateway.gatewayKey == kGatewayStripeConnect;
+    // The server's Stripe routes are admin-only (`DisconnectStripeRequest`,
+    // `StripeController::verify`) — offering them to anyone else is a 403
+    // toast. Disconnect additionally needs a hosted Connect gateway that is
+    // actually connected: the server blanks `account_id` on disconnect and
+    // throws "not configured" when there is none (React #3353 gates the
+    // same way). Verify on an unconnected Connect gateway fails the same way.
+    final session = context.read<Services>().auth.session.value;
+    final me = session?.currentCompany;
+    final isAdmin = (me?.isAdmin ?? false) || (me?.isOwner ?? false);
+    final accountId = gateway.stripeAccountId;
+    final isConnected = accountId.isNotEmpty;
+    final canDisconnect =
+        isStripeConnect &&
+        isAdmin &&
+        isConnected &&
+        (session?.isHosted ?? false);
+    final canVerify =
+        isAnyStripe && isAdmin && (!isStripeConnect || isConnected);
     return [
       editActionItem(
         context: context,
         kind: CompanyGatewayAction.edit,
         onTap: () => onTap(CompanyGatewayAction.edit),
       ),
-      if (isStripeConnect)
+      if (canDisconnect)
         EntityActionItem(
           kind: CompanyGatewayAction.disconnect,
           confirm: true,
-          confirmSubject: _confirmSubject(gateway),
+          isDestructive: true,
+          // Name the Stripe account, not the gateway label — the account is
+          // what is being cut loose, and a company can hold more than one.
+          confirmSubject: accountId,
           icon: Icons.link_off_outlined,
           label: context.tr('disconnect'),
           enabled: true,
@@ -92,13 +114,14 @@ class CompanyGatewayActions {
           enabled: true,
           onTap: () => onTap(CompanyGatewayAction.importCustomers),
         ),
-        EntityActionItem(
-          kind: CompanyGatewayAction.verifyCustomers,
-          icon: Icons.fact_check_outlined,
-          label: context.tr('verify_customers'),
-          enabled: true,
-          onTap: () => onTap(CompanyGatewayAction.verifyCustomers),
-        ),
+        if (canVerify)
+          EntityActionItem(
+            kind: CompanyGatewayAction.verifyCustomers,
+            icon: Icons.fact_check_outlined,
+            label: context.tr('verify_customers'),
+            enabled: true,
+            onTap: () => onTap(CompanyGatewayAction.verifyCustomers),
+          ),
       ],
       EntityActionItem(
         kind: CompanyGatewayAction.clone,
@@ -190,7 +213,10 @@ class CompanyGatewayActions {
             context,
             services,
             () async {
-              await services.companyGateways.disconnectStripe(id: gateway.id);
+              await services.companyGateways.disconnectStripe(
+                companyId: companyId,
+                id: gateway.id,
+              );
               return true;
             },
           );
@@ -206,7 +232,7 @@ class CompanyGatewayActions {
         );
       case CompanyGatewayAction.verifyCustomers:
         {
-          // Verify hits the same password-gated `/stripe/verify` endpoint.
+          // Verify hits the same password-gated `stripe/verify` endpoint.
           final counts = await _withPasswordRetry(
             context,
             services,

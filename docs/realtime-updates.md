@@ -23,14 +23,14 @@ Probed against production on 2026-09-28 with a throwaway `dart:io` script (scrat
   - The route is **registered twice**: once by `BroadcastServiceProvider::boot` (token_auth only) and once in `routes/web.php:69`, *inside the `web` group, which runs `VerifyCsrfToken`*. The probe got a 200 from a non-browser client, so today the provider's registration is the one answering. If a server change ever flips that, the symptom is a 419 and a `realtime channel auth failed` warning in the diagnostics log, and the app quietly falls back to the poll.
 - **Channels** (`routes/channels.php`):
   - `private-company-{company_key}`: the token's company must own the key. **This is the one the app joins.**
-  - `private-user-{account_key}-{user_id}`: carries `RefetchEntity {entity, entity_id}`, today only from the recurring-invoice update job. Not joined: `account.key` isn't modelled (`AccountEnvelopeApi` has no `key`), and the company channel already covers what users watch for.
+  - `private-user-{account_key}-{user_id}` (`user_id` is the hashed id): carries `RefetchEntity {entity, entity_id}` from the recurring-invoice update job, and **`App\Events\Socket\DownloadAvailable {message, url}`** when a bulk PDF / ZIP download or a company export the user requested is ready (React #3340). **Joined** since the download notice landed: `PusherConnection` now carries one channel per named *slot* (`subscribe(…, slot:)` replaces only its own slot), the company channel in the default slot and this one in `kUserChannelSlot`, signed in the active company's scope. `account.key` arrives on the account envelope (`AccountEnvelopeApi.key` → `AuthSession.accountKey`); until it does, only the company channel is carried.
 - **Events on the company channel:**
   - `InvoiceWasPaid`, `InvoiceWasViewed`, `InvoiceWasCreated`
   - `PaymentWasUpdated`
   - `CreditWasCreated`, `CreditWasUpdated`
   - `ClientWasArchived`
 
-  Each arrives under its class name (`App\Events\Invoice\InvoiceWasPaid`). The app doesn't switch on the name: any non-protocol event on the channel is a reason to refresh.
+  Each arrives under its class name (`App\Events\Invoice\InvoiceWasPaid`). The app switches on the name for one event only: **`DownloadAvailable` refreshes nothing** — it changes no entity — and is surfaced on `RealtimeService.downloads`, which the shell's `SyncEventListener` turns into a long-lived success toast with a Download action (the URL is checked by `openExternalUrl` / `isSafeWebUrl`). Every other non-protocol event, on either channel, is a reason to refresh.
 - **Hosted only**, like React (`isHosted()` gates its private subscription). A self-hosted server may run no socket at all, and the app has no way to know where one would be.
 
 ## Who opens the socket

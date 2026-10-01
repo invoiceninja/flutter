@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -109,6 +110,11 @@ class _DashboardTaskCalendarCardState extends State<DashboardTaskCalendarCard>
     // `didChangeDependencies`, which is the only place `MaterialLocalizations`
     // is reachable.
     firstDayOfWeek: widget.formatter.settings.firstDayOfWeek,
+    useActivityDates: ServerFeatures.supports(
+      _services.serverVersion.value,
+      ServerFeatures.taskActivityDates,
+      isHosted: _services.auth.session.value?.isHosted ?? false,
+    ),
   );
 
   @override

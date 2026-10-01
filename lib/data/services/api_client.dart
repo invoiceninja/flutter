@@ -737,7 +737,7 @@ class ApiClient {
     }
     final minClient = response.headers['x-minimum-client-version'];
     if (minClient != null &&
-        _compareSemver(AppVersion.kClientVersion, minClient) < 0) {
+        compareSemver(AppVersion.kClientVersion, minClient) < 0) {
       // Surface a global signal first so the shell can redirect to the
       // "please update" screen regardless of which screen made the call.
       _onClientTooOld?.call((
@@ -1012,7 +1012,7 @@ class ApiClient {
             }
           }
         }
-        throw ValidationException(message, fieldErrors);
+        throw ValidationException(message, fieldErrors, body: json);
       case 429:
         final retryAfterHeader = response.headers['retry-after'];
         Duration? retryAfter;
@@ -1091,18 +1091,6 @@ class ApiClient {
       );
     }
     return c;
-  }
-
-  /// Compare two semver-ish strings (`a.b.c[-pre]`). Returns -1, 0, 1.
-  static int _compareSemver(String a, String b) {
-    final aParts = a.split('-').first.split('.').map(int.tryParse).toList();
-    final bParts = b.split('-').first.split('.').map(int.tryParse).toList();
-    for (var i = 0; i < 3; i++) {
-      final av = (i < aParts.length ? aParts[i] : null) ?? 0;
-      final bv = (i < bParts.length ? bParts[i] : null) ?? 0;
-      if (av != bv) return av.compareTo(bv);
-    }
-    return 0;
   }
 
   // Bodies at or under this size decode synchronously on the main isolate.

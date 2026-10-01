@@ -30,6 +30,9 @@ abstract class PurchaseOrder with _$PurchaseOrder implements BillingDocFields {
     required String projectId,
     required String expenseId,
     required String invoiceId,
+    // Payload-only, like [invoiceId] — no Drift column (no list sorts or
+    // filters on it).
+    @Default('') String quoteId,
     required String designId,
     required String assignedUserId,
     required String userId,
@@ -87,6 +90,7 @@ abstract class PurchaseOrder with _$PurchaseOrder implements BillingDocFields {
     projectId: a.projectId,
     expenseId: a.expenseId,
     invoiceId: a.invoiceId,
+    quoteId: a.quoteId,
     designId: a.designId,
     assignedUserId: a.assignedUserId,
     userId: a.userId,
@@ -175,6 +179,7 @@ extension PurchaseOrderPayload on PurchaseOrder {
       'project_id': projectId,
       'expense_id': expenseId,
       'invoice_id': invoiceId,
+      'quote_id': quoteId,
       'design_id': designId,
       'assigned_user_id': assignedUserId,
       'user_id': userId,

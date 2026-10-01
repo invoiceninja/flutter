@@ -87,16 +87,39 @@ class _FakeConnection implements PusherConnection {
   @override
   void disconnect() => disconnects++;
 
+  /// The user channel (download-ready notices), in its own slot.
+  String? userChannel;
+  ChannelAuthorizer? userAuthorizer;
+  int userUnsubscribes = 0;
+
   @override
-  void subscribe(String channel, ChannelAuthorizer authorize) {
+  void subscribe(
+    String channel,
+    ChannelAuthorizer authorize, {
+    String slot = kDefaultChannelSlot,
+  }) {
+    if (slot != kDefaultChannelSlot) {
+      userChannel = channel;
+      userAuthorizer = authorize;
+      return;
+    }
     this.channel = channel;
     authorizer = authorize;
   }
 
   @override
-  void unsubscribe() {
+  void unsubscribe({String? slot}) {
+    if (slot != null && slot != kDefaultChannelSlot) {
+      userChannel = null;
+      userUnsubscribes++;
+      return;
+    }
     unsubscribes++;
     channel = null;
+    if (slot == null && userChannel != null) {
+      userChannel = null;
+      userUnsubscribes++;
+    }
   }
 
   @override
@@ -105,6 +128,8 @@ class _FakeConnection implements PusherConnection {
   void push(String event) => _events.add(
     PusherEvent(channel: channel ?? '', event: event, data: null),
   );
+
+  void pushEvent(PusherEvent event) => _events.add(event);
 
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -302,5 +327,77 @@ void main() {
     expect(conn.connects, 2);
     service.onOnline();
     expect(conn.connects, 3);
+  });
+
+  // React #3340 — the per-user channel carries "your download is ready".
+  group('the user channel', () {
+    AuthSession session({String accountKey = 'ACCT', String userId = 'u1'}) =>
+        AuthSession(
+          baseUrl: 'https://invoicing.co',
+          isHosted: true,
+          accountId: 'a1',
+          companies: const [],
+          currentCompanyId: 'co1',
+          userId: userId,
+          accountKey: accountKey,
+        );
+
+    test('is carried once the account key is known', () {
+      build();
+      auth.creds.value = _hosted('co1');
+      expect(conn.userChannel, isNull);
+
+      auth.sess.value = session();
+      expect(conn.userChannel, 'private-user-ACCT-u1');
+    });
+
+    test('a download-ready event is surfaced, and refreshes nothing', () async {
+      final service = build();
+      auth.sess.value = session();
+      auth.creds.value = _hosted('co1');
+      final got = <DownloadReady>[];
+      final sub = service.downloads.listen(got.add);
+      addTearDown(sub.cancel);
+
+      conn.pushEvent(
+        PusherEvent(
+          channel: 'private-user-ACCT-u1',
+          event: kDownloadAvailableEvent,
+          data: {
+            'message': 'Your Download is now ready! [ Invoices ]',
+            'url': 'https://invoicing.co/download/x',
+          },
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(got.single.url, 'https://invoicing.co/download/x');
+      expect(got.single.message, contains('Invoices'));
+      expect(scheduler.requests, 0);
+    });
+
+    test('a company switch keeps it, signed by the new company', () async {
+      build();
+      auth.sess.value = session();
+      auth.creds.value = _hosted('co1');
+      expect(conn.userChannel, 'private-user-ACCT-u1');
+
+      auth.creds.value = _hosted('co2');
+
+      expect(conn.userChannel, 'private-user-ACCT-u1');
+      expect(conn.userUnsubscribes, 0);
+      await conn.userAuthorizer!('1.1', 'private-user-ACCT-u1');
+      expect(api.posts.last.$3, 'co2');
+    });
+
+    test('signing out drops it with the company channel', () {
+      build();
+      auth.sess.value = session();
+      auth.creds.value = _hosted('co1');
+      expect(conn.userChannel, isNotNull);
+
+      auth.creds.value = null;
+      expect(conn.userChannel, isNull);
+    });
   });
 }

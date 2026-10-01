@@ -693,7 +693,7 @@ as int,
 /// @nodoc
 mixin _$PaymentInvoiceRef {
 
- String get id; String get number; Decimal get amount; Decimal get balance; Decimal get paidToDate;
+ String get id; String get number; Decimal get amount; Decimal get balance; Decimal get paidToDate; bool get isDeleted;
 /// Create a copy of PaymentInvoiceRef
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -704,16 +704,16 @@ $PaymentInvoiceRefCopyWith<PaymentInvoiceRef> get copyWith => _$PaymentInvoiceRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate);
+int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate,isDeleted);
 
 @override
 String toString() {
-  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate)';
+  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -724,7 +724,7 @@ abstract mixin class $PaymentInvoiceRefCopyWith<$Res>  {
   factory $PaymentInvoiceRefCopyWith(PaymentInvoiceRef value, $Res Function(PaymentInvoiceRef) _then) = _$PaymentInvoiceRefCopyWithImpl;
 @useResult
 $Res call({
- String id, String number, Decimal amount, Decimal balance, Decimal paidToDate
+ String id, String number, Decimal amount, Decimal balance, Decimal paidToDate, bool isDeleted
 });
 
 
@@ -741,14 +741,15 @@ class _$PaymentInvoiceRefCopyWithImpl<$Res>
 
 /// Create a copy of PaymentInvoiceRef
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as Decimal,balance: null == balance ? _self.balance : balance // ignore: cast_nullable_to_non_nullable
 as Decimal,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate // ignore: cast_nullable_to_non_nullable
-as Decimal,
+as Decimal,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -833,10 +834,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate,  bool isDeleted)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRef() when $default != null:
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   return orElse();
 
 }
@@ -854,10 +855,10 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate,  bool isDeleted)  $default,) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRef():
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -874,10 +875,10 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  Decimal amount,  Decimal balance,  Decimal paidToDate,  bool isDeleted)?  $default,) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRef() when $default != null:
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   return null;
 
 }
@@ -889,7 +890,7 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 
 
 class _PaymentInvoiceRef implements PaymentInvoiceRef {
-  const _PaymentInvoiceRef({this.id = '', this.number = '', required this.amount, required this.balance, required this.paidToDate});
+  const _PaymentInvoiceRef({this.id = '', this.number = '', required this.amount, required this.balance, required this.paidToDate, this.isDeleted = false});
   
 
 @override@JsonKey() final  String id;
@@ -897,6 +898,7 @@ class _PaymentInvoiceRef implements PaymentInvoiceRef {
 @override final  Decimal amount;
 @override final  Decimal balance;
 @override final  Decimal paidToDate;
+@override@JsonKey() final  bool isDeleted;
 
 /// Create a copy of PaymentInvoiceRef
 /// with the given fields replaced by the non-null parameter values.
@@ -908,16 +910,16 @@ _$PaymentInvoiceRefCopyWith<_PaymentInvoiceRef> get copyWith => __$PaymentInvoic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate);
+int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate,isDeleted);
 
 @override
 String toString() {
-  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate)';
+  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -928,7 +930,7 @@ abstract mixin class _$PaymentInvoiceRefCopyWith<$Res> implements $PaymentInvoic
   factory _$PaymentInvoiceRefCopyWith(_PaymentInvoiceRef value, $Res Function(_PaymentInvoiceRef) _then) = __$PaymentInvoiceRefCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String number, Decimal amount, Decimal balance, Decimal paidToDate
+ String id, String number, Decimal amount, Decimal balance, Decimal paidToDate, bool isDeleted
 });
 
 
@@ -945,14 +947,15 @@ class __$PaymentInvoiceRefCopyWithImpl<$Res>
 
 /// Create a copy of PaymentInvoiceRef
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
   return _then(_PaymentInvoiceRef(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as Decimal,balance: null == balance ? _self.balance : balance // ignore: cast_nullable_to_non_nullable
 as Decimal,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate // ignore: cast_nullable_to_non_nullable
-as Decimal,
+as Decimal,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

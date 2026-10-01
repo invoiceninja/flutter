@@ -1,6 +1,28 @@
 import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/domain/entity_type.dart';
 
+/// Report → the tag type its rows carry (React #3251). Every report listed
+/// here offers the Tags filter (`tag_ids`, which the server applies to every
+/// export — `BaseExport`); line-item reports take their document's tags.
+const Map<String, String> kReportTagEntityTypes = {
+  'client': 'client',
+  'invoice': 'invoice',
+  'invoice_item': 'invoice',
+  'quote': 'quote',
+  'quote_item': 'quote',
+  'credit': 'credit',
+  'payment': 'payment',
+  'expense': 'expense',
+  'task': 'task',
+  'product': 'product',
+  'vendor': 'vendor',
+  'purchase_order': 'purchase_order',
+  'purchase_order_item': 'purchase_order',
+  'recurring_invoice': 'recurring_invoice',
+  'recurring_invoice_item': 'recurring_invoice',
+  'project': 'project',
+};
+
 /// The 28 reports we mirror from React (`useReports.ts`). Each entry carries
 /// its endpoint, `supportsPreview`, the server-side `filterFields` the settings
 /// panel renders, and `defaultFilterValues`. Field visibility mirrors
@@ -28,6 +50,7 @@ const kReportDefinitions = <ReportDefinition>[
     requiredPermission: 'view_client',
     filterFields: [
       ReportFilterField.dateRange,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {
@@ -73,6 +96,7 @@ const kReportDefinitions = <ReportDefinition>[
       // Entity reports honor only single `client_id` server-side (BaseExport);
       // a CSV `clients` is a silent no-op. Matches React. See S1 in review.
       ReportFilterField.clientSingle,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'created_at'},
@@ -103,6 +127,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.vendorsMulti,
       ReportFilterField.categoriesMulti,
       ReportFilterField.projectsMulti,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'date'},
@@ -121,6 +146,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.template,
       ReportFilterField.pdfEmailAttachment,
       ReportFilterField.documentEmailAttachment,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'date'},
@@ -136,6 +162,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.clientSingle,
       ReportFilterField.productKey,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -151,6 +178,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.status,
       ReportFilterField.vendorsMulti,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -166,6 +194,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.vendorsMulti,
       ReportFilterField.productKey,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -181,6 +210,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -196,6 +226,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.clientSingle,
       ReportFilterField.productKey,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -211,6 +242,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -226,6 +258,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.clientSingle,
       ReportFilterField.productKey,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -241,6 +274,7 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'date'},
@@ -255,6 +289,7 @@ const kReportDefinitions = <ReportDefinition>[
     requiredPermission: 'view_product',
     filterFields: [
       ReportFilterField.dateRange,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -301,6 +336,7 @@ const kReportDefinitions = <ReportDefinition>[
     requiredPermission: 'view_vendor',
     filterFields: [
       ReportFilterField.dateRange,
+      ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},

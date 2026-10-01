@@ -14,6 +14,7 @@ class TagEditViewModel extends GenericEditViewModel<Tag> {
     required this.repo,
     required this.companyId,
     required String entityType,
+    required this.commasNotAllowedMessage,
     Tag? existing,
     super.sync,
     super.connectivity,
@@ -27,8 +28,19 @@ class TagEditViewModel extends GenericEditViewModel<Tag> {
   final TagRepository repo;
   final String companyId;
 
+  /// Localized `commas_not_allowed`, surfaced inline on `name`.
+  final String commasNotAllowedMessage;
+
   @override
   bool draftIsNonEmpty() => draft.name.isNotEmpty;
+
+  /// The server rejects a tag name containing a comma (React #3371 — tags
+  /// travel as comma-joined lists elsewhere). Blocked here so the save never
+  /// reaches the outbox to dead-letter.
+  @override
+  Map<String, List<String>> validate() => {
+    if (draft.name.contains(',')) 'name': [commasNotAllowedMessage],
+  };
 
   @override
   Future<SaveResult<Tag>> performSave() async {
@@ -44,7 +56,16 @@ class TagEditViewModel extends GenericEditViewModel<Tag> {
     return repo.save(companyId: companyId, tag: draft);
   }
 
-  void setName(String v) => updateDraft(draft.copyWith(name: v));
+  /// Re-validates as the user types once a comma is involved, so the error
+  /// shows the moment the comma lands — and clears the moment it goes —
+  /// rather than only on Save.
+  void setName(String v) {
+    updateDraft(draft.copyWith(name: v));
+    if (v.contains(',') || fieldErrorFor('name') != null) {
+      validateAndPublish();
+    }
+  }
+
   void setColor(String v) => updateDraft(draft.copyWith(color: v));
 }
 

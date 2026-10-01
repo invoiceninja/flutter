@@ -163,5 +163,7 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
     archive: (id) => repo.archive(companyId: companyId, id: id),
     restore: (id) => repo.restore(companyId: companyId, id: id),
     delete: (id) => repo.delete(companyId: companyId, id: id),
+    // Server: `deleted_invoices_exist` — see `Payment.hasDeletedInvoice`.
+    canDelete: (p) => !p.hasDeletedInvoice,
   );
 }

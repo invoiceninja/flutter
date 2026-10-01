@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
@@ -130,8 +131,12 @@ class _StubAuth implements AuthRepository {
 }
 
 class _FakeServices implements Services {
-  _FakeServices(this.company);
+  _FakeServices(this.company, {bool prefersTasks = false})
+    : defaultItemsTab = _ProductsFirst(prefersTasks: prefersTasks);
 
+  // The tab a document opens on when its lines don't decide (React #3355).
+  @override
+  final DefaultItemsTabController defaultItemsTab;
   @override
   final AuthRepository auth = _StubAuth();
 
@@ -202,6 +207,7 @@ void main() {
     double minHeight = 0,
     InvoiceEditViewModel? reuse,
     bool settle = true,
+    bool prefersTasks = false,
   }) async {
     tester.view.physicalSize = Size(width + 200, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -214,7 +220,7 @@ void main() {
 
     await tester.pumpWidget(
       Provider<Services>.value(
-        value: _FakeServices(repo),
+        value: _FakeServices(repo, prefersTasks: prefersTasks),
         child: MaterialApp(
           theme: buildInTheme(InTheme.light),
           localizationsDelegates: kTestLocalizationsDelegates,
@@ -328,6 +334,76 @@ void main() {
       vm.replaceLineItems([_hourly()]);
       await tester.pump();
       expect(activeTab(tester), 0);
+      await unmount(tester);
+    });
+
+    // React #3355: the lines decide by majority — counted per visible tab
+    // (this app, unlike React, has an Expenses tab); a tie or no lines falls
+    // to Device Settings → Default tab.
+    testWidgets('a document that mostly bills hours opens on Tasks', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company()),
+        lines: [_hourly(), _hourly(), _product()],
+      );
+      expect(activeTab(tester), 1);
+      await unmount(tester);
+    });
+
+    testWidgets('task and expense lines never open an empty Products tab', (
+      tester,
+    ) async {
+      LineItem expense(String id) => emptyLineItem().copyWith(
+        productKey: 'Taxi',
+        cost: Decimal.fromInt(30),
+        expenseId: id,
+      );
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company()),
+        lines: [
+          _hourly(),
+          _hourly(),
+          expense('e1'),
+          expense('e2'),
+          expense('e3'),
+        ],
+      );
+      // Products / Tasks / Expenses — the expenses hold the most lines.
+      expect(find.text('Expenses (3)'), findsOneWidget);
+      expect(activeTab(tester), 2);
+      await unmount(tester);
+    });
+
+    testWidgets('a new document opens on the default tab', (tester) async {
+      await pump(tester, repo: _CompanyRepo(_company()), prefersTasks: true);
+      expect(activeTab(tester), 1);
+      await unmount(tester);
+    });
+
+    testWidgets('a tie falls through to the default tab', (tester) async {
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company()),
+        lines: [_hourly(), _product()],
+        prefersTasks: true,
+      );
+      expect(activeTab(tester), 1);
+      await unmount(tester);
+    });
+
+    testWidgets('the default never opens a Tasks tab that is not shown', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company(showTasksTable: false)),
+        lines: [_product()],
+        prefersTasks: true,
+      );
+      expect(find.byType(TabBar), findsNothing);
       await unmount(tester);
     });
 
@@ -602,4 +678,15 @@ void main() {
       'hourly note',
     ]);
   });
+}
+
+class _ProductsFirst implements DefaultItemsTabController {
+  _ProductsFirst({this.prefersTasks = false});
+
+  @override
+  final bool prefersTasks;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
 }

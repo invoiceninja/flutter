@@ -23,6 +23,7 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/utils/file_names.dart';
 
@@ -371,6 +372,22 @@ class RecurringInvoiceActions {
 
       case RecurringInvoiceAction.sendNow:
         if (tmpGate()) return;
+        // Send Now creates the invoice AND emails it; with no address on the
+        // client the email half silently goes nowhere (invoiceninja/ui#3400).
+        // Runs after the item's confirmation, so it is a fix-up step — add an
+        // address and carry on, go and edit the client, or send anyway (the
+        // invoice is still created) — never a refusal.
+        if (!await ensureRecipientEmail(
+          context,
+          services,
+          companyId: companyId,
+          clientId: ri.clientId,
+          invitations: ri.invitations,
+          allowProceed: true,
+        )) {
+          return;
+        }
+        if (!context.mounted) return;
         await services.recurringInvoices.sendNow(
           companyId: companyId,
           id: ri.id,

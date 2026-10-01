@@ -123,6 +123,10 @@ void main() {
         // and `invoice_id`. `TaskListViewModel` tops the local cache up by
         // `calculated_start_date` instead of relying on the auto-chain alone.
         (EntityType.task, 'upcoming'),
+        // `TaskFilters::overdue` compares against today in the COMPANY
+        // timezone; the local predicate can only use the device's day, so a
+        // device ahead of the company would get a server SUBSET of the rows.
+        (EntityType.task, 'overdue'),
         (EntityType.purchaseOrder, 'sent'),
         // `QuoteFilters::client_status` has no `rejected` branch and
         // `status_id` is invoice-only, so both params hit the silent-no-op and

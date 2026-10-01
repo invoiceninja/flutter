@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcuts/key_binding.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
@@ -120,6 +121,10 @@ final Map<PrefKey<Object>, _Probe> _probes = {
   DevicePrefKeys.sidebarCollapsed: _Probe(
     (s) => s.sidebar.set(true),
     (s) => !s.sidebar.value,
+  ),
+  DevicePrefKeys.defaultItemsTab: _Probe(
+    (s) => s.defaultItemsTab.set(kItemsTabTasks),
+    (s) => s.defaultItemsTab.value == kItemsTabProducts,
   ),
 };
 

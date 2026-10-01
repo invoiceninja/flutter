@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/quote.dart';
@@ -23,6 +24,7 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
+import 'package:admin/ui/features/billing_shared/convert_to_purchase_order_action.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/utils/file_names.dart';
 
@@ -41,6 +43,7 @@ enum QuoteAction {
   approve,
   convertToInvoice,
   convertToProject,
+  convertToPurchaseOrder,
   cloneGroup,
   clone,
   cloneToInvoice,
@@ -92,6 +95,7 @@ class QuoteActions {
       case QuoteAction.cloneToCredit:
       case QuoteAction.cloneToRecurring:
       case QuoteAction.cloneToPurchaseOrder:
+      case QuoteAction.convertToPurchaseOrder:
       case QuoteAction.archive:
       case QuoteAction.restore:
       case QuoteAction.delete:
@@ -164,6 +168,14 @@ class QuoteActions {
     // whole request unless every id reads as STATUS_SENT. The server cannot
     // reverse a quote cancellation (unlike an invoice's).
     final canCancel = canEdit && quote.isSent && !quote.isExpired;
+    // Quote cancel shipped after the v5.13.43 release — on an older server the
+    // bulk request 422s (`action` not in its `in:` list) into a dead outbox
+    // row, so the action isn't offered there at all.
+    final serverCancels = ServerFeatures.supports(
+      context.read<Services>().serverVersion.value,
+      ServerFeatures.quoteCancel,
+      isHosted: context.read<Services>().auth.session.value?.isHosted ?? false,
+    );
 
     return [
       if (canEdit)
@@ -248,19 +260,31 @@ class QuoteActions {
           enabled: canConvertToProject && quote.projectId.isEmpty,
           onTap: () => onTap(QuoteAction.convertToProject),
         ),
-      EntityActionItem(
-        kind: QuoteAction.cancel,
-        confirm: true,
-        // Confirmed but not `isDestructive` — the red button is for data loss
-        // (§ Action confirmations), and this destroys nothing. Irreversible,
-        // but so is a status change; archive is the analogue and it is not red
-        // either.
-        confirmSubject: _confirmSubject(quote),
-        icon: Icons.block_outlined,
-        label: context.tr('cancel_quote'),
-        enabled: canCancel,
-        onTap: () => onTap(QuoteAction.cancel),
-      ),
+      // What was quoted → what to buy (React #3370): product cost, blank
+      // notes, a link back to this quote.
+      if ((me?.moduleEnabled(EntityType.purchaseOrder) ?? false) &&
+          (me?.can('create_purchase_order') ?? false))
+        EntityActionItem(
+          kind: QuoteAction.convertToPurchaseOrder,
+          icon: Icons.shopping_cart_checkout_outlined,
+          label: context.tr('convert_to_purchase_order'),
+          enabled: !quote.isDeleted,
+          onTap: () => onTap(QuoteAction.convertToPurchaseOrder),
+        ),
+      if (serverCancels)
+        EntityActionItem(
+          kind: QuoteAction.cancel,
+          confirm: true,
+          // Confirmed but not `isDestructive` — the red button is for data loss
+          // (§ Action confirmations), and this destroys nothing. Irreversible,
+          // but so is a status change; archive is the analogue and it is not red
+          // either.
+          confirmSubject: _confirmSubject(quote),
+          icon: Icons.block_outlined,
+          label: context.tr('cancel_quote'),
+          enabled: canCancel,
+          onTap: () => onTap(QuoteAction.cancel),
+        ),
       if (canCreate)
         cloneGroupActionItem(
           context: context,
@@ -452,6 +476,16 @@ class QuoteActions {
         );
         if (!context.mounted) return;
         Notify.success(context, context.tr('converted_to_project'));
+
+      case QuoteAction.convertToPurchaseOrder:
+        if (tmpGate()) return;
+        await openConvertedPurchaseOrder(
+          context,
+          services,
+          companyId: companyId,
+          data: billingCloneFromQuote(quote),
+          quoteId: quote.id,
+        );
 
       case QuoteAction.cancel:
         if (tmpGate()) return;

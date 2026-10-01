@@ -72,6 +72,12 @@ class MasterDetailNavController {
     return (i < 0 || i >= _items.length) ? null : _items[i];
   }
 
+  /// The list's visible row ids, in display order, as of its last rebuild.
+  List<String> get itemIds => _itemIds;
+
+  /// Index-aligned with [itemIds] — see [update].
+  List<Object?> get items => _items;
+
   String? nextId() {
     if (_itemIds.isEmpty) return null;
     if (_selectedId == null) return _itemIds.first;

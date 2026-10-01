@@ -9,10 +9,13 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
+import 'package:admin/domain/custom_field_pdf_offer.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/custom_fields_view_model.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/clients_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/company_screen.dart';
+import 'package:admin/ui/features/settings/views/advanced/custom_fields/custom_fields_pdf_offer_dialog.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/expenses_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/invoices_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/payments_screen.dart';
@@ -299,6 +302,14 @@ class _LoadedShellState extends State<_LoadedShell>
   void _bindVm() {
     void listener() {
       if (!mounted) return;
+      // A save that labelled new printable fields — offer to put them on
+      // the PDF (React #3360). Taken here so a rebuild can't ask twice.
+      if (widget.vm.pendingPdfOffers.isNotEmpty) {
+        final offers = widget.vm.takePdfOffers();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _offerPdfFields(offers);
+        });
+      }
       final slug = _slugForFieldErrors(widget.vm.fieldErrors);
       if (slug == null) return;
       final index = _indexForSlug(slug);
@@ -308,6 +319,27 @@ class _LoadedShellState extends State<_LoadedShell>
 
     widget.vm.addListener(listener);
     _vmListener = listener;
+  }
+
+  Future<void> _offerPdfFields(List<PdfFieldOffer> offers) async {
+    final vm = widget.vm;
+    final choice = await showCustomFieldsPdfOfferDialog(context, offers);
+    if (choice == null || choice.chosen.isEmpty || !mounted) return;
+    final router = GoRouter.of(context);
+    final saved = await vm.addFieldsToPdf(choice.chosen);
+    if (!mounted) return;
+    if (saved == null) {
+      Notify.error(
+        context,
+        context.tr('could_not_save'),
+        detail: vm.submitError,
+      );
+      return;
+    }
+    Notify.success(context, context.tr('updated_settings'));
+    if (choice.reorder) {
+      router.go('/settings/invoice_design/${choice.chosen.first.section}');
+    }
   }
 
   /// Map the first field-error key to its tab slug. Keys arrive in the form

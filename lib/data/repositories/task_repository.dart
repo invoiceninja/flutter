@@ -56,6 +56,21 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   @override
   String get entityTypeName => 'task';
 
+  /// The `due_date_range` chip as an ISO `(start, end)` window — the wire is
+  /// `due_date,<start>,<end>` (or the legacy 2-part `<start>,<end>`); the last
+  /// two parts are the bounds, as `DateColumnFilterKey.parseWindow` reads them.
+  static ({String start, String end})? _dueDateWindow(
+    Map<String, Set<String>> extraFilters,
+  ) {
+    final wire = extraFilters['due_date_range']?.firstOrNull?.trim() ?? '';
+    final parts = wire.split(',');
+    if (parts.length < 2) return null;
+    final start = parts[parts.length - 2].trim();
+    final end = parts[parts.length - 1].trim();
+    if (start.isEmpty || end.isEmpty) return null;
+    return (start: start, end: end);
+  }
+
   /// Paginated list view. The list screen calls this; the kanban board
   /// uses [watchAllForKanban] instead.
   ///
@@ -106,6 +121,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
+          dueDateWindow: _dueDateWindow(extraFilters),
         )
         .map((rows) {
           final items = rows.map(_fromRow);

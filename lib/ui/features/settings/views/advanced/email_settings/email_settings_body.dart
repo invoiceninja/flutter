@@ -7,6 +7,8 @@ import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
+import 'package:admin/ui/features/settings/views/advanced/email_settings/mailer_check.dart';
+import 'package:admin/ui/features/settings/views/advanced/email_settings/widgets/mailer_check_button.dart';
 import 'package:admin/ui/features/settings/views/advanced/email_settings/widgets/oauth_user_picker.dart';
 import 'package:admin/ui/features/settings/views/advanced/email_settings/widgets/smtp_mail_driver_card.dart';
 import 'package:admin/ui/features/settings/view_models/email_settings_view_model.dart';
@@ -348,14 +350,35 @@ class EmailSettingsBody extends StatelessWidget {
     required bool isProOrEnterprise,
   }) {
     final host = context.watch<SettingsDraftHost>();
+    // "Send Test Email" for every non-SMTP mailer (React #3357) — company
+    // level and admins only, as the server allows (`CheckMailerRequest`).
+    final me = context.read<Services>().auth.session.value?.currentCompany;
+    final canCheck =
+        isCompanyScope &&
+        ((me?.isAdmin ?? false) || (me?.isOwner ?? false)) &&
+        supportsMailerCheck(method) &&
+        !Env.demoMode;
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+    final Widget? checkTrailing = canCheck && !narrow
+        ? MailerCheckButton(method: method)
+        : null;
+    final checkTail = <Widget>[
+      if (canCheck && narrow)
+        Padding(
+          padding: EdgeInsets.only(top: InSpacing.md(context)),
+          child: MailerCheckButton(method: method, expand: true),
+        ),
+    ];
     if (method == 'gmail' || method == 'office365' || method == 'microsoft') {
       return [
         FormSection(
           title: context.tr('configuration'),
+          trailing: checkTrailing,
           children: [
             OauthUserPicker(
               provider: method == 'gmail' ? 'google' : 'microsoft',
             ),
+            ...checkTail,
           ],
         ),
       ];
@@ -364,6 +387,7 @@ class EmailSettingsBody extends StatelessWidget {
       return [
         FormSection(
           title: context.tr('configuration'),
+          trailing: checkTrailing,
           children: [
             OverridableTextField(
               label: context.tr('api_token'),
@@ -373,6 +397,7 @@ class EmailSettingsBody extends StatelessWidget {
               // keyboard hardened, autofillHints deliberately unset.
               keyboardType: TextInputType.visiblePassword,
             ),
+            ...checkTail,
           ],
         ),
       ];
@@ -381,6 +406,7 @@ class EmailSettingsBody extends StatelessWidget {
       return [
         FormSection(
           title: context.tr('configuration'),
+          trailing: checkTrailing,
           children: [
             OverridableTextField(
               label: context.tr('api_key'),
@@ -413,6 +439,7 @@ class EmailSettingsBody extends StatelessWidget {
               onChanged: (v) =>
                   host.updateSettings((s) => s.copyWith(mailgunEndpoint: v)),
             ),
+            ...checkTail,
           ],
         ),
       ];
@@ -421,6 +448,7 @@ class EmailSettingsBody extends StatelessWidget {
       return [
         FormSection(
           title: context.tr('configuration'),
+          trailing: checkTrailing,
           children: [
             OverridableTextField(
               label: context.tr('secret'),
@@ -430,6 +458,7 @@ class EmailSettingsBody extends StatelessWidget {
               // keyboard hardened, autofillHints deliberately unset.
               keyboardType: TextInputType.visiblePassword,
             ),
+            ...checkTail,
           ],
         ),
       ];
@@ -438,6 +467,7 @@ class EmailSettingsBody extends StatelessWidget {
       return [
         FormSection(
           title: context.tr('configuration'),
+          trailing: checkTrailing,
           children: [
             OverridableTextField(
               label: context.tr('secret_key'),
@@ -467,6 +497,7 @@ class EmailSettingsBody extends StatelessWidget {
               apiKey: 'ses_topic_arn',
               autocorrect: false,
             ),
+            ...checkTail,
           ],
         ),
       ];

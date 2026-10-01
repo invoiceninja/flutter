@@ -69,13 +69,41 @@ class PusherEvent {
 typedef ChannelAuthorizer =
     Future<String> Function(String socketId, String channel);
 
-/// A client for the Pusher protocol (v7) over one websocket, holding at most
-/// one channel — all the app needs. Hand-rolled rather than a package: the
+/// The slot [PusherConnection.subscribe] uses unless told otherwise — the
+/// company channel.
+const String kDefaultChannelSlot = 'default';
+
+/// One channel the connection should carry, and where its subscribe stands.
+class _Slot {
+  _Slot(this.channel, this.authorize);
+
+  final String channel;
+  ChannelAuthorizer? authorize;
+
+  /// The server confirmed it on the current socket.
+  bool subscribed = false;
+
+  /// Its auth is in flight, or its frame is sent and not yet confirmed.
+  bool subscribing = false;
+  Timer? retryTimer;
+  int retries = 0;
+
+  void reset() {
+    subscribing = false;
+    retryTimer?.cancel();
+    retryTimer = null;
+    retries = 0;
+  }
+}
+
+/// A client for the Pusher protocol (v7) over one websocket, carrying one
+/// channel per named slot — the company channel, and the signed-in user's
+/// (download-ready notices). Hand-rolled rather than a package: the
 /// protocol surface used here is a handshake, subscribe, ping/pong and close
 /// codes, and owning it keeps web, native and the F-Droid build identical.
 ///
 /// State is *desired* state: [connect] / [disconnect] say whether a socket
-/// should exist and [subscribe] which channel it should carry. A dropped socket
+/// should exist and [subscribe] which channel each slot should carry. A dropped socket
 /// reconnects on its own with backoff and resubscribes; a close code in
 /// 4000–4099 (the server refusing us for good — bad key, app disabled) stops
 /// until the next [connect].
@@ -112,34 +140,37 @@ class PusherConnection {
   final StreamController<PusherEvent> _events =
       StreamController<PusherEvent>.broadcast();
 
-  /// Events on the subscribed channel.
+  /// Events on any subscribed channel — [PusherEvent.channel] says which.
   Stream<PusherEvent> get events => _events.stream;
 
   bool _wanted = false;
-  String? _channel;
-  ChannelAuthorizer? _authorize;
+  final Map<String, _Slot> _slots = {};
 
   RealtimeSocket? _socket;
   StreamSubscription<dynamic>? _sub;
   String? _socketId;
-  bool _subscribed = false;
 
   Timer? _reconnectTimer;
   Timer? _watchdog;
   int _attempt = 0;
 
-  /// A subscribe is under way: its auth is in flight, or its frame is sent and
-  /// the server hasn't confirmed it yet.
-  bool _subscribing = false;
-  Timer? _subscribeRetryTimer;
-  int _subscribeRetries = 0;
-
   /// The server's `activity_timeout` — how long a quiet connection waits
   /// before pinging. 120 s is the protocol default; the handshake overrides it.
   Duration _activityTimeout = const Duration(seconds: 120);
 
-  /// Whether the server has confirmed the current channel on this socket.
-  bool get isSubscribed => _subscribed;
+  /// Whether the server has confirmed the default slot's channel on this
+  /// socket.
+  bool get isSubscribed => isSubscribedTo(kDefaultChannelSlot);
+
+  /// Whether the server has confirmed [slot]'s channel on this socket.
+  bool isSubscribedTo(String slot) => _slots[slot]?.subscribed ?? false;
+
+  _Slot? _slotFor(Object? channel) {
+    for (final slot in _slots.values) {
+      if (slot.channel == channel) return slot;
+    }
+    return null;
+  }
 
   /// Want a socket. Opens one now if there isn't one, cutting short any
   /// backoff wait — callers use this on resume and on regaining the network,
@@ -148,12 +179,12 @@ class PusherConnection {
   void connect() {
     _wanted = true;
     if (_socket != null) {
-      if (_socketId != null &&
-          !_subscribed &&
-          !_subscribing &&
-          _subscribeRetryTimer == null) {
-        _subscribeRetries = 0;
-        _subscribeCurrent();
+      if (_socketId == null) return;
+      for (final slot in _slots.values) {
+        if (!slot.subscribed && !slot.subscribing && slot.retryTimer == null) {
+          slot.retries = 0;
+          _subscribeSlot(slot);
+        }
       }
       return;
     }
@@ -172,31 +203,42 @@ class PusherConnection {
     _drop();
   }
 
-  /// Carry [channel] — a `private-` one is signed by [authorize]. Replaces the
-  /// previous channel, unsubscribing it on a live socket.
-  void subscribe(String channel, ChannelAuthorizer authorize) {
-    _authorize = authorize;
-    if (_channel == channel) return;
-    unsubscribe();
-    _channel = channel;
-    _subscribeCurrent();
+  /// Carry [channel] in [slot] — a `private-` one is signed by [authorize].
+  /// Replaces the slot's previous channel, unsubscribing it on a live socket;
+  /// other slots are untouched.
+  void subscribe(
+    String channel,
+    ChannelAuthorizer authorize, {
+    String slot = kDefaultChannelSlot,
+  }) {
+    final existing = _slots[slot];
+    if (existing != null && existing.channel == channel) {
+      existing.authorize = authorize;
+      return;
+    }
+    unsubscribe(slot: slot);
+    final next = _Slot(channel, authorize);
+    _slots[slot] = next;
+    _subscribeSlot(next);
   }
 
-  /// Carry no channel.
-  void unsubscribe() {
-    final previous = _channel;
-    _channel = null;
-    _subscribed = false;
-    _resetSubscribeState();
-    if (previous != null && _socketId != null) {
-      _send('pusher:unsubscribe', {'channel': previous});
+  /// Stop carrying [slot]'s channel — every slot's when [slot] is null.
+  void unsubscribe({String? slot}) {
+    final names = slot == null ? _slots.keys.toList() : [slot];
+    for (final name in names) {
+      final previous = _slots.remove(name);
+      if (previous == null) continue;
+      previous.subscribed = false;
+      previous.reset();
+      if (_socketId != null) {
+        _send('pusher:unsubscribe', {'channel': previous.channel});
+      }
     }
   }
 
   void dispose() {
     disconnect();
-    _channel = null;
-    _authorize = null;
+    _slots.clear();
     unawaited(_events.close());
   }
 
@@ -249,21 +291,25 @@ class PusherConnection {
           _activityTimeout = Duration(seconds: timeout.toInt());
         }
         _attempt = 0;
-        _subscribed = false;
-        _resetSubscribeState();
         _arm(_activityTimeout, _ping);
-        _subscribeCurrent();
+        for (final slot in _slots.values) {
+          slot.subscribed = false;
+          slot.reset();
+          _subscribeSlot(slot);
+        }
       case 'pusher:ping':
         _send('pusher:pong', const {});
       case 'pusher_internal:subscription_succeeded':
-        if (channel == _channel) {
-          _subscribed = true;
-          _resetSubscribeState();
+        final slot = _slotFor(channel);
+        if (slot != null) {
+          slot.subscribed = true;
+          slot.reset();
         }
       case 'pusher:subscription_error':
-        if (channel != _channel) return;
-        _subscribing = false;
-        _subscribeFailed('realtime subscription refused: $data');
+        final slot = _slotFor(channel);
+        if (slot == null) return;
+        slot.subscribing = false;
+        _subscribeFailed(slot, 'realtime subscription refused: $data');
       case 'pusher:error':
         // The close that follows carries the same code and decides what
         // happens next; this frame only explains it.
@@ -273,37 +319,39 @@ class PusherConnection {
             event.startsWith('pusher_internal:')) {
           return;
         }
-        if (channel is! String || channel != _channel) return;
+        if (channel is! String || _slotFor(channel) == null) return;
         _events.add(PusherEvent(channel: channel, event: event, data: data));
     }
   }
 
-  void _subscribeCurrent() {
-    _subscribeRetryTimer?.cancel();
-    _subscribeRetryTimer = null;
-    final channel = _channel;
-    final authorize = _authorize;
+  bool _isLive(_Slot slot) => _slots.values.any((s) => identical(s, slot));
+
+  void _subscribeSlot(_Slot slot) {
+    slot.retryTimer?.cancel();
+    slot.retryTimer = null;
+    final channel = slot.channel;
+    final authorize = slot.authorize;
     final socketId = _socketId;
     final socket = _socket;
-    if (channel == null || socketId == null || socket == null) return;
+    if (socketId == null || socket == null) return;
     if (!channel.startsWith('private-')) {
-      _subscribing = true;
+      slot.subscribing = true;
       _send('pusher:subscribe', {'channel': channel});
       return;
     }
     if (authorize == null) return;
-    _subscribing = true;
+    slot.subscribing = true;
     authorize(socketId, channel).then(
       (auth) {
-        // The socket or the channel moved on while the auth was in flight;
+        // The socket or the slot moved on while the auth was in flight;
         // whatever replaced it keeps its own state.
-        if (!identical(socket, _socket) || channel != _channel) return;
+        if (!identical(socket, _socket) || !_isLive(slot)) return;
         _send('pusher:subscribe', {'channel': channel, 'auth': auth});
       },
       onError: (Object e, StackTrace st) {
-        if (!identical(socket, _socket) || channel != _channel) return;
-        _subscribing = false;
-        _subscribeFailed('realtime channel auth failed', e, st);
+        if (!identical(socket, _socket) || !_isLive(slot)) return;
+        slot.subscribing = false;
+        _subscribeFailed(slot, 'realtime channel auth failed', e, st);
       },
     );
   }
@@ -313,23 +361,20 @@ class PusherConnection {
   /// unsubscribed would otherwise be dead for as long as the server keeps it
   /// open, which on desktop and web is the rest of the session. Bounded,
   /// because a refusal (403) would only be refused again.
-  void _subscribeFailed(String what, [Object? error, StackTrace? stack]) {
-    if (_subscribeRetries >= maxAuthRetries) {
+  void _subscribeFailed(
+    _Slot slot,
+    String what, [
+    Object? error,
+    StackTrace? stack,
+  ]) {
+    if (slot.retries >= maxAuthRetries) {
       _log.warning('$what; giving up until the next connection', error, stack);
       return;
     }
     _log.fine(what, error, stack);
-    _subscribeRetryTimer = Timer(
-      _backoff(_subscribeRetries++),
-      _subscribeCurrent,
-    );
-  }
-
-  void _resetSubscribeState() {
-    _subscribing = false;
-    _subscribeRetryTimer?.cancel();
-    _subscribeRetryTimer = null;
-    _subscribeRetries = 0;
+    slot.retryTimer = Timer(_backoff(slot.retries++), () {
+      if (_isLive(slot)) _subscribeSlot(slot);
+    });
   }
 
   void _onClosed(RealtimeSocket socket) {
@@ -382,8 +427,10 @@ class PusherConnection {
     _socket?.close();
     _socket = null;
     _socketId = null;
-    _subscribed = false;
-    _resetSubscribeState();
+    for (final slot in _slots.values) {
+      slot.subscribed = false;
+      slot.reset();
+    }
   }
 
   void _arm(Duration after, void Function() then) {

@@ -213,6 +213,9 @@ class ScheduleEditViewModel extends GenericEditViewModel<Schedule> {
   void setReportCategoriesCsv(List<String> ids) =>
       _patchParameters({'categories': ids.join(',')});
 
+  void setReportTagsCsv(List<String> ids) =>
+      _patchParameters({'tag_ids': ids.join(',')});
+
   void setReportTemplateId(String v) => _patchParameters({'template_id': v});
 
   void setReportGroupBy(String v) => _patchParameters({'group_by': v});

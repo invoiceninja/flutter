@@ -72,6 +72,39 @@ void main() {
     },
   );
 
+  // React #3380: the task list's due-date window (`due_date_range`) has a
+  // local mirror, or the chip would narrow the server page while the Drift
+  // window still showed every cached task.
+  test('watchPage mirrors the due_date_range window, inclusive', () async {
+    final repo = makeRepo();
+    for (final (n, due) in [
+      ('before', Date(2026, 8, 31)),
+      ('first', Date(2026, 9, 1)),
+      ('last', Date(2026, 9, 30)),
+      ('after', Date(2026, 10, 1)),
+    ]) {
+      await repo.create(
+        companyId: 'co',
+        draft: task().copyWith(description: n, dueDate: due),
+      );
+    }
+    await repo.create(
+      companyId: 'co',
+      draft: task().copyWith(description: 'undated'),
+    );
+
+    final rows = await repo
+        .watchPage(
+          companyId: 'co',
+          extraFilters: const {
+            'due_date_range': {'due_date,2026-09-01,2026-09-30'},
+          },
+        )
+        .first;
+
+    expect(rows.map((t) => t.description).toSet(), {'first', 'last'});
+  });
+
   group('startTimer vs. a booking (flutter#149)', () {
     TimeEntry block(DateTime start, Duration length) =>
         TimeEntry(start: start, stop: start.add(length));

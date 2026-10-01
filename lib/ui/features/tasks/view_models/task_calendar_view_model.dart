@@ -46,6 +46,7 @@ class TaskCalendarViewModel extends ChangeNotifier with TaskFiltersMixin {
     int firstDayOfWeek = 0,
     Date? focusMonth,
     DateTime Function() now = DateTime.now,
+    this.useActivityDates = false,
   }) : _firstDayOfWeek = firstDayOfWeek,
        _now = now,
        _month = focusMonth == null
@@ -58,6 +59,13 @@ class TaskCalendarViewModel extends ChangeNotifier with TaskFiltersMixin {
   final TaskRepository repo;
   final String companyId;
   final DateTime Function() _now;
+
+  /// The server has `GET /tasks?activity_dates=start,end`
+  /// (`ServerFeatures.taskActivityDates`): tasks whose activity overlaps the
+  /// window, however long ago they were opened. The month fetch then asks for
+  /// exactly the grid instead of reaching back [kTaskMonthLookbackDays] on
+  /// `calculated_start_date` and hoping.
+  final bool useActivityDates;
 
   int _firstDayOfWeek;
   Date _month; // day-of-month is irrelevant — always the 1st.
@@ -119,7 +127,13 @@ class TaskCalendarViewModel extends ChangeNotifier with TaskFiltersMixin {
   /// mixin's setters would have to invalidate.
   Map<Date, List<Task>> tasksByDayFiltered() {
     final src = filtersActive ? _tasks.where(matchesFilters) : _tasks;
-    final map = tasksByDay(src);
+    final grid = gridDays;
+    final map = tasksByActiveDay(
+      src,
+      from: grid.first,
+      to: grid.last,
+      now: _now(),
+    );
     for (final list in map.values) {
       list.sort((a, b) {
         final sa = a.earliestStart;
@@ -199,7 +213,8 @@ class TaskCalendarViewModel extends ChangeNotifier with TaskFiltersMixin {
     // whatever the local cache happened to hold, which is the one claim this
     // panel must never make by accident.
     return (
-      firstOfMonth.addDays(-kTaskMonthLookbackDays),
+      // The grid never starts more than 6 days before the 1st.
+      firstOfMonth.addDays(useActivityDates ? -6 : -kTaskMonthLookbackDays),
       firstOfMonth.addDays(41),
     );
   }
@@ -225,11 +240,15 @@ class TaskCalendarViewModel extends ChangeNotifier with TaskFiltersMixin {
           // since that is what `refreshAll` fetches anyway, but it means an old
           // self-hosted install without `calculated_start_date` simply pages
           // the newest tasks instead, with nothing observable client-side.
-          extraFilters: {
-            'date_range': {
-              'calculated_start_date,${from.toIso()},${to.toIso()}',
-            },
-          },
+          extraFilters: useActivityDates
+              ? {
+                  'activity_dates': {'${from.toIso()},${to.toIso()}'},
+                }
+              : {
+                  'date_range': {
+                    'calculated_start_date,${from.toIso()},${to.toIso()}',
+                  },
+                },
           // A non-empty `extraFilters` already makes this a narrowed fetch, so
           // the shared task delta cursor is neither read nor advanced. Explicit
           // anyway: the intent must not rest on `isNarrowedFetch` keeping that

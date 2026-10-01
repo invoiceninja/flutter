@@ -7,6 +7,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/tasks_table.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'task_dao.g.dart';
@@ -109,6 +110,17 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
       tasks.isRunning.equals(false) &
           tasks.invoiceId.equals('') &
           _startsInTheFuture(),
+    // Due before today and not yet billed. `due_date` has no column here,
+    // so it is read out of the payload (`substr` to the day, so a
+    // timestamp-shaped value still compares as one). "Today" is the
+    // DEVICE's date — like every date-sensitive badge (see
+    // `docs/entity-lists.md`) — which is why the tab stays local-only: the
+    // server's `overdue=true` uses the company timezone's date, and a device
+    // ahead of it would get a server page that is a subset of these rows.
+    'overdue' =>
+      tasks.invoiceId.equals('') &
+          _dueDay.isNotValue('') &
+          _dueDay.isSmallerThanValue(Date.today().toIso()),
     // Time logged but not yet billed: the backlog to invoice.
     'uninvoiced' => tasks.invoiceId.equals(''),
     // No `assigned_user_id` column on this table — read it out of the payload.
@@ -168,6 +180,15 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     );
   }
 
+  /// The task's `due_date` as `YYYY-MM-DD` (or `''`), from the payload.
+  /// Guarded by `json_valid` like [_startsInTheFuture]: `json_extract` on a
+  /// malformed payload aborts the whole query, not just the row.
+  static const Expression<String> _dueDay = CustomExpression<String>(
+    'CASE WHEN json_valid(payload) THEN '
+    "substr(COALESCE(json_extract(payload, '\$.due_date'), ''), 1, 10) "
+    "ELSE '' END",
+  );
+
   Stream<List<TaskRow>> watchPage({
     required String companyId,
     required int offset,
@@ -186,6 +207,7 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
     String? badgeModeId,
+    ({String start, String end})? dueDateWindow,
   }) {
     final q = select(tasks)..where((t) => t.companyId.equals(companyId));
     // Status-tab strip (#98): the SAME predicate the tab's count uses, so
@@ -246,6 +268,18 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     }
     if (customValues4.isNotEmpty) {
       q.where((t) => t.customValue4.isIn(customValues4.toList()));
+    }
+    // `due_date_range` mirror (`QueryFilters::due_date_range` — inclusive
+    // BETWEEN on the DATE column). No `due_date` column here, so it is read
+    // out of the payload; the first ten characters, so a timestamp-shaped
+    // value still compares as its day. A task with no due date never matches.
+    if (dueDateWindow != null) {
+      q.where(
+        (_) =>
+            _dueDay.isNotValue('') &
+            _dueDay.isBiggerOrEqualValue(dueDateWindow.start) &
+            _dueDay.isSmallerOrEqualValue(dueDateWindow.end),
+      );
     }
 
     if (states.isNotEmpty) {
@@ -453,6 +487,13 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
   /// Active, non-deleted tasks belonging to one project. Used by the
   /// Project detail's Tasks card. Excludes archived rows — they belong on
   /// the parent Task list, not in a project's overview.
+  ///
+  /// Newest first, with an unsynced create (`created_at` 0 until the server
+  /// stamps it) LEADING rather than sinking to the bottom: the card's
+  /// quick-add row sits at the top, and a task typed there has to appear right
+  /// under it, not jump from last to first when it syncs. Same mapping as
+  /// `InvoiceDao._tieBreakExpression`. Local creates order among themselves by
+  /// `updated_at`, which the quick-add stamps.
   Stream<List<TaskRow>> watchForProject({
     required String companyId,
     required String projectId,
@@ -466,7 +507,14 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
             t.archivedAt.isNull(),
       )
       ..orderBy([
-        (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
+        (t) => OrderingTerm(
+          expression: const CustomExpression<int>(
+            'CASE created_at WHEN 0 THEN 9223372036854775807 '
+            'ELSE created_at END',
+          ),
+          mode: OrderingMode.desc,
+        ),
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
         (t) => OrderingTerm(expression: t.id),
       ]);
     return q.watch().distinctRows();

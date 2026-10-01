@@ -35,6 +35,7 @@ import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
+import 'package:admin/ui/features/shell/widgets/plan_expired_footer.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
 import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
@@ -751,6 +752,7 @@ class _InSidebarState extends State<InSidebar> {
                   // Management -> Plan. (The two are mutually exclusive anyway
                   // — hosted vs self-hosted — so at most one ever renders.)
                   TrialFooter(compact: collapsed),
+                  PlanExpiredFooter(compact: collapsed),
                   if (showsUpsell) WhiteLabelFooter(compact: collapsed),
                   // Nothing goes below this line. The sidebar's bottom inset is
                   // the outer SafeArea's (see its comment above), so a widget

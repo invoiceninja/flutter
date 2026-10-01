@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -286,5 +288,140 @@ void main() {
     // `token_search_field.dart` documents — which would reopen the list.
     await tester.pump();
     expect(find.text('urgent'), findsNothing);
+  });
+
+  // invoiceninja/ui#3371: the server rejects a tag name with a comma, and an
+  // inline-created tag rides the parent record's save — so a comma is a
+  // delimiter here, never part of a name.
+  group('a comma commits the text before it', () {
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+    testWidgets('picks an existing tag and keeps typing after it', (
+      tester,
+    ) async {
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: [_tag('t1', 'urgent')],
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'Urgent, bil');
+      await tester.pumpAndSettle();
+
+      expect(emitted, [
+        ['t1'],
+      ]);
+      expect(fieldText(tester), 'bil');
+    });
+
+    testWidgets('a pasted list selects every tag in ONE change', (
+      tester,
+    ) async {
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: [_tag('t1', 'urgent'), _tag('t2', 'billable')],
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'urgent,billable,');
+      await tester.pumpAndSettle();
+
+      // One emission carrying both — two would each rebuild from the same
+      // stale selection and drop the first.
+      expect(emitted, [
+        ['t1', 't2'],
+      ]);
+      expect(fieldText(tester), isEmpty);
+    });
+
+    testWidgets('creates an unknown name, once, even when repeated', (
+      tester,
+    ) async {
+      final created = <String>[];
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: const [],
+        onCreate: (name) async {
+          created.add(name);
+          return _tag('new_$name', name);
+        },
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'vip, vip, gold');
+      await tester.pumpAndSettle();
+
+      expect(created, ['vip']);
+      expect(emitted, [
+        ['new_vip'],
+      ]);
+      expect(fieldText(tester), 'gold');
+    });
+
+    testWidgets('a second commit queued behind a create keeps what the first '
+        'added', (tester) async {
+      // The parent here never rebuilds — the worst case: both commits land
+      // before `selectedIds` catches up.
+      final gate = Completer<void>();
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: [_tag('t1', 'urgent')],
+        onCreate: (name) async {
+          await gate.future;
+          return _tag('new_$name', name);
+        },
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'vip,');
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'urgent,');
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(emitted.last, ['new_vip', 't1']);
+    });
+
+    testWidgets('a create that throws does not wedge later commits', (
+      tester,
+    ) async {
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: [_tag('t1', 'urgent')],
+        onCreate: (name) async => throw StateError('boom'),
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'vip,');
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'urgent,');
+      await tester.pumpAndSettle();
+
+      expect(emitted.last, ['t1']);
+    });
+
+    testWidgets('without create rights the name stays, minus the comma', (
+      tester,
+    ) async {
+      final emitted = <List<String>>[];
+      await pumpPicker(
+        tester,
+        available: [_tag('t1', 'urgent')],
+        onChanged: emitted.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'nope,');
+      await tester.pumpAndSettle();
+
+      expect(emitted, isEmpty);
+      expect(fieldText(tester), 'nope');
+    });
   });
 }

@@ -68,3 +68,29 @@ LineItem expenseInvoiceLineItem(
     taxRate3: rateFor(expense.taxRate3, expense.taxAmount3),
   );
 }
+
+/// Whether [e] can go on an invoice from a bulk selection (the expense list's
+/// Invoice / Add to invoice, React #3382): marked to be invoiced and not yet
+/// invoiced (`should_be_invoiced && !invoice_id`), not deleted, and not a
+/// `tmp_` row a line couldn't reference.
+bool isBulkBillableExpense(Expense e) =>
+    !e.id.startsWith('tmp_') &&
+    !e.isDeleted &&
+    e.invoiceId.isEmpty &&
+    e.shouldBeInvoiced;
+
+/// The billable part of a bulk selection ([isBulkBillableExpense]), and
+/// whether it spans more than one client — expenses of two clients can't
+/// share an invoice. The client count is over the billable rows only, so an
+/// already-invoiced expense of another client in the selection doesn't block
+/// the rest.
+({List<Expense> billable, bool multipleClients}) bulkBillableSelection(
+  Iterable<Expense> expenses,
+) {
+  final billable = expenses.where(isBulkBillableExpense).toList();
+  final clients = {
+    for (final e in billable)
+      if (e.clientId.isNotEmpty) e.clientId,
+  };
+  return (billable: billable, multipleClients: clients.length > 1);
+}

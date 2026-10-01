@@ -1144,11 +1144,10 @@ class _FilterControl extends StatelessWidget {
           onChanged: (csv) => vm.setPayload(p.copyWith(projects: () => csv)),
         );
       case ReportFilterField.tagsMulti:
-        // Only the task + project reports expose this field; scope the tag
-        // pool to the matching entity type.
-        final tagEntityType = vm.reportIdentifier == 'task'
-            ? 'task'
-            : 'project';
+        // Scope the tag pool to the type the report's rows carry (line-item
+        // reports take their document's tags) — `kReportTagEntityTypes`.
+        final tagEntityType =
+            kReportTagEntityTypes[vm.reportIdentifier] ?? 'invoice';
         return _MultiEntityField(
           label: context.tr('tags'),
           csv: p.tags,

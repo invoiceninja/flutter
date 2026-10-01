@@ -1,31 +1,45 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:admin/data/services/upload_source.dart';
-
 import 'package:admin/data/models/api/invoice_api_model.dart';
+import 'package:admin/data/services/api_client.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/base_entity_api.dart';
+import 'package:admin/data/services/upload_source.dart';
 
 /// Result of `POST /api/v1/einvoice/validateEntity`. [passes] is the
 /// server's overall verdict; [messages] flattens the per-entity issue
 /// arrays into readable lines (empty when valid).
 typedef EInvoiceValidation = ({bool passes, List<String> messages});
 
-/// Parse the probe-verified validateEntity shape:
-/// `{passes:bool, invoices:[], recurring_invoices:[], clients:[],
-/// companies:[]}`. The issue-array *element* shape can't be confirmed
-/// (the demo invoice passes — empty arrays), so extract a readable string
-/// defensively: prefer a `message`/`label`/`field` key on a map, else
-/// JSON-encode the element. Pure + unit-tested.
+/// Parse a `validateEntity` result. Two shapes reach here:
+///
+///  * **200, passes** (or e-invoicing not PEPPOL/VERIFACTU) — plural keys,
+///    empty: `{passes:true, invoices:[], credits:[], recurring_invoices:[],
+///    clients:[], companies:[]}`.
+///  * **422, fails** — the Peppol `EntityLevel` checker's own map, with
+///    SINGULAR keys: `{passes:false, invoice:[...], client:[...],
+///    company:[...]}` (`credit` for a credit). Client/company issues are
+///    `{field, label}`; invoice issues are XSD/stylesheet strings.
+///
+/// Only the plural shape was ever read, and the 422 was thrown away as a
+/// generic error — so "Validate" said "An error occurred" exactly when there
+/// was something to fix. Both key spellings are read; a map element yields its
+/// `message` / `label` / `field`, else JSON. Pure + unit-tested.
 EInvoiceValidation parseEInvoiceValidation(Object? raw) {
   if (raw is! Map) return (passes: false, messages: const <String>[]);
   final passes = raw['passes'] == true;
   final messages = <String>[];
   for (final group in const [
     'invoices',
+    'invoice',
+    'credits',
+    'credit',
     'recurring_invoices',
     'clients',
+    'client',
     'companies',
+    'company',
   ]) {
     final list = raw[group];
     if (list is! List) continue;
@@ -41,6 +55,30 @@ EInvoiceValidation parseEInvoiceValidation(Object? raw) {
     }
   }
   return (passes: passes, messages: messages);
+}
+
+/// `POST /api/v1/einvoice/validateEntity` for [entity] (`invoices` /
+/// `credits`). The server answers a FAILED check with **422** and the
+/// checker's result as the body (`EInvoiceController::validateEntity`), so a
+/// [ValidationException] carrying `passes` is a result, not an error. A 422
+/// without it (an unknown id) still throws.
+Future<EInvoiceValidation> validateEInvoiceEntity(
+  ApiClient client, {
+  required String entity,
+  required String id,
+}) async {
+  try {
+    final raw = await client.postJson(
+      '/api/v1/einvoice/validateEntity',
+      body: {'entity': entity, 'entity_id': id},
+      readOnly: true,
+    );
+    return parseEInvoiceValidation(raw);
+  } on ValidationException catch (e) {
+    final body = e.body;
+    if (body == null || !body.containsKey('passes')) rethrow;
+    return parseEInvoiceValidation(body);
+  }
 }
 
 /// Concrete API for `/api/v1/invoices`. The base class handles list/get/
@@ -259,17 +297,9 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
 
   /// `POST /api/v1/einvoice/validateEntity` `{entity:'invoices',
   /// entity_id}` — pre-flight validation (no transmission). `readOnly` —
-  /// it validates, it doesn't submit. Probe-verified response shape:
-  /// `{passes:bool, invoices:[], recurring_invoices:[], clients:[],
-  /// companies:[]}` (issue arrays empty when valid).
-  Future<EInvoiceValidation> validateEInvoice(String id) async {
-    final raw = await client.postJson(
-      '/api/v1/einvoice/validateEntity',
-      body: {'entity': 'invoices', 'entity_id': id},
-      readOnly: true,
-    );
-    return parseEInvoiceValidation(raw);
-  }
+  /// it validates, it doesn't submit. See [validateEInvoiceEntity].
+  Future<EInvoiceValidation> validateEInvoice(String id) =>
+      validateEInvoiceEntity(client, entity: 'invoices', id: id);
 
   /// `GET /api/v1/invoices/{id}?show_schedule=true` — the only fetch that
   /// embeds the read-only `invoice.schedule[]` payment-schedule projection

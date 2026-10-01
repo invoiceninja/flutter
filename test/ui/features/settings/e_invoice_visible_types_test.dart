@@ -37,10 +37,29 @@ void main() {
       );
     });
 
-    test('shown for France with Enterprise access (regression — was omitted '
-        'from kPeppolCountries, blocking French PEPPOL onboarding)', () {
+    test('shown for France with Enterprise access on hosted (regression — '
+        'was omitted from kPeppolCountries, blocking French PEPPOL '
+        'onboarding)', () {
+      expect(
+        visible(countryId: france, hasEnterpriseAccess: true, isHosted: true),
+        contains(kEInvoiceTypePEPPOL),
+      );
+    });
+
+    // invoiceninja/ui#3305: a self-hosted French company can't register on
+    // the PEPPOL network.
+    test('hidden for France on self-hosted', () {
       expect(
         visible(countryId: france, hasEnterpriseAccess: true),
+        isNot(contains(kEInvoiceTypePEPPOL)),
+      );
+      // Still offered when already saved, so the user can switch away.
+      expect(
+        visible(
+          countryId: france,
+          hasEnterpriseAccess: true,
+          selectedType: kEInvoiceTypePEPPOL,
+        ),
         contains(kEInvoiceTypePEPPOL),
       );
     });

@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_edit_view_model.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_list_view_model.dart';
@@ -151,13 +152,32 @@ class RecurringInvoiceListScreen extends StatelessWidget {
           pluralSuccessKey: 'deleted_recurring_invoices',
           nothingKey: 'nothing_to_delete',
         ),
-        const EntityListBulkAction(
+        EntityListBulkAction(
           actionId: 'send_now',
           icon: Icons.send_outlined,
           tooltipKey: 'send_now',
           singleSuccessKey: 'sent_now_recurring_invoice',
           pluralSuccessKey: 'sent_now_recurring_invoices',
           nothingKey: 'nothing_to_send',
+          // Send Now emails the invoice it creates — but creates it either
+          // way, so the ones whose client has no address are named, not
+          // dropped (invoiceninja/ui#3400).
+          preflight: (ctx, eligible) =>
+              preflightRecipientEmails<RecurringInvoice>(
+                ctx,
+                ctx.read<Services>(),
+                companyId: ctx
+                    .read<Services>()
+                    .auth
+                    .session
+                    .value!
+                    .currentCompanyId,
+                eligible: eligible,
+                clientIdOf: (d) => d.clientId,
+                invitationsOf: (d) => d.invitations,
+                numberOf: (d) => d.number,
+                keepUnaddressed: true,
+              ),
         ),
         const EntityListBulkAction(
           actionId: 'start',

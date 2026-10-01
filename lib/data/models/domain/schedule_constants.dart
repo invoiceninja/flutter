@@ -149,6 +149,10 @@ enum EmailReportField {
   vendors,
   projects,
   categories,
+  // `tag_ids` — offered on every report whose rows carry tags
+  // (`kReportTagEntityTypes`, React #3251); added at render time rather than
+  // listed per report here.
+  tags,
   templateId,
   groupBy,
   reportKeys,

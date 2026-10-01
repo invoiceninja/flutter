@@ -81,4 +81,31 @@ void main() {
       },
     );
   });
+
+  test('checkMailer POSTs the payload to /api/v1/mailer/check', () async {
+    http.Request? captured;
+    final client = ApiClient(
+      credentials: ValueNotifier<ApiCredentials?>(
+        const ApiCredentials(baseUrl: 'https://test', token: 't'),
+      ),
+      passwordCache: PasswordCache(),
+      onUnauthorized: () async {},
+      httpClient: MockClient((req) async {
+        captured = req;
+        return http.Response(
+          jsonEncode({'message': 'Successfully sent email', 'mailer': 'gmail'}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final message = await SmtpApi(
+      client,
+    ).checkMailer(payload: const {'mailer': 'gmail'});
+
+    expect(message, 'Successfully sent email');
+    expect(captured!.url.path, '/api/v1/mailer/check');
+    expect(jsonDecode(captured!.body), {'mailer': 'gmail'});
+  });
 }

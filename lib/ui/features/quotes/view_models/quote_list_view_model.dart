@@ -176,6 +176,19 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
       apply: (id) => repo.convertToInvoice(companyId: companyId, id: id),
     ),
     BulkAction<Quote>(
+      // Irreversible server-side (a quote cancel can't be undone, unlike an
+      // invoice's). Eligibility mirrors the single-quote gate in
+      // `quote_actions.dart`: `BulkActionQuoteRequest` 422s the whole request
+      // unless every id reads as Sent, and a lapsed Sent quote reads Expired.
+      // The list screen offers this only on a server that has quote cancel
+      // (`ServerFeatures.quoteCancel`).
+      confirm: true,
+      id: 'cancel',
+      labelKey: 'cancel_quote',
+      eligible: (q) => q.isSent && !q.isExpired && !isDeleted(q),
+      apply: (id) => repo.cancel(companyId: companyId, id: id),
+    ),
+    BulkAction<Quote>(
       id: 'email',
       labelKey: 'email',
       // `!isCancelled` mirrors the single-record Send Email gate.

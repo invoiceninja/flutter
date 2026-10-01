@@ -57,6 +57,8 @@ class _OverviewCard extends StatelessWidget {
         if (gateway.label.isNotEmpty)
           _KeyValue(labelKey: 'label', value: gateway.label),
         _KeyValue(labelKey: 'gateway_type', value: providerName),
+        if (gateway.stripeAccountId.isNotEmpty)
+          _KeyValue(labelKey: 'account_id', value: gateway.stripeAccountId),
         _KeyValue(
           labelKey: 'test_mode',
           value: gateway.testMode ? context.tr('enabled') : context.tr('off'),

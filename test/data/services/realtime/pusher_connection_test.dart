@@ -348,4 +348,49 @@ void main() {
 
     expect(authCalls, hasLength(1));
   });
+
+  // The company channel and the user's own (download-ready notices) share one
+  // socket, each in its own slot.
+  connTest('two slots: both subscribed, both delivered, removed apart', (
+    tester,
+  ) async {
+    final events = <PusherEvent>[];
+    final sub = conn.events.listen(events.add);
+    conn.subscribe('private-company-abc', authorize);
+    conn.subscribe('private-user-K-u1', authorize, slot: 'user');
+    conn.connect();
+    sockets.single.handshake(socketId: '7.7');
+    await tester.pump();
+
+    expect(authCalls.map((c) => c.$2).toSet(), {
+      'private-company-abc',
+      'private-user-K-u1',
+    });
+    for (final ch in ['private-company-abc', 'private-user-K-u1']) {
+      sockets.single.serverSends(
+        'pusher_internal:subscription_succeeded',
+        channel: ch,
+      );
+    }
+    await tester.pump();
+    expect(conn.isSubscribed, isTrue);
+    expect(conn.isSubscribedTo('user'), isTrue);
+
+    sockets.single.serverSends(
+      r'App\Events\Socket\DownloadAvailable',
+      channel: 'private-user-K-u1',
+      data: {'url': 'https://x.test/d'},
+    );
+    await tester.pump();
+    expect(events.single.channel, 'private-user-K-u1');
+
+    conn.unsubscribe(slot: 'user');
+    expect(conn.isSubscribedTo('user'), isFalse);
+    expect(conn.isSubscribed, isTrue, reason: 'the company slot is untouched');
+    expect(sockets.single.sent.last, {
+      'event': 'pusher:unsubscribe',
+      'data': {'channel': 'private-user-K-u1'},
+    });
+    unawaited(sub.cancel());
+  });
 }

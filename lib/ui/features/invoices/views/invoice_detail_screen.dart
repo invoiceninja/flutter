@@ -14,6 +14,7 @@ import 'package:admin/data/db/app_database.dart' show OutboxRow;
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/domain/quickbooks/quickbooks_invoice.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/domain/sync/mutation.dart';
@@ -45,6 +46,7 @@ import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart
 import 'package:admin/ui/features/invoices/view_models/invoice_detail_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_lock_banner.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_reminders_summary.dart';
+import 'package:admin/ui/features/invoices/widgets/detail/invoice_quickbooks_tab.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_unapplied_payments_section.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_payment_schedule_tab.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
@@ -373,122 +375,152 @@ class _Body extends StatelessWidget {
                 hostWireName: 'invoice',
                 onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
-              EntityDetailTabs(
-                initialIndex: 2,
-                selectTab: selectTab,
-                tabs: [
-                  EntityDetailTab(
-                    label: context.tr('comments'),
-                    icon: Icons.comment_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: FormatterScope.maybeOf(context),
-                      actions: notes,
-                      commentsOnly: true,
-                      hostWireName: 'invoice',
+              WatchBuilder<Company?>(
+                cacheKey: companyId,
+                // Seeded: the QuickBooks tab hangs off this, and a first frame
+                // without it would mount one tab fewer — `EntityDetailTabs`
+                // then drops the tab the user was on (it restores by count).
+                initialData: services.company.peek(
+                  companyId: companyId,
+                  id: companyId,
+                ),
+                create: () => services.company.watchCompany(companyId),
+                builder: (context, companySnap) => EntityDetailTabs(
+                  initialIndex: 2,
+                  selectTab: selectTab,
+                  tabs: [
+                    EntityDetailTab(
+                      label: context.tr('comments'),
+                      icon: Icons.comment_outlined,
+                      bodyBuilder: (_) => EntityActivityTab(
+                        vm: activityVm,
+                        formatter: FormatterScope.maybeOf(context),
+                        actions: notes,
+                        commentsOnly: true,
+                        hostWireName: 'invoice',
+                      ),
                     ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: FormatterScope.maybeOf(context),
-                      actions: notes,
-                      hostWireName: 'invoice',
-                      reveal: revealActivity,
+                    EntityDetailTab(
+                      label: context.tr('activity'),
+                      icon: Icons.history_outlined,
+                      bodyBuilder: (_) => EntityActivityTab(
+                        vm: activityVm,
+                        formatter: FormatterScope.maybeOf(context),
+                        actions: notes,
+                        hostWireName: 'invoice',
+                        reveal: revealActivity,
+                      ),
                     ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('overview'),
-                    icon: Icons.dashboard_outlined,
-                    bodyBuilder: (_) => Padding(
-                      padding: EdgeInsets.all(InSpacing.lg(context)),
-                      child: _Overview(invoice: invoice),
+                    EntityDetailTab(
+                      label: context.tr('overview'),
+                      icon: Icons.dashboard_outlined,
+                      bodyBuilder: (_) => Padding(
+                        padding: EdgeInsets.all(InSpacing.lg(context)),
+                        child: _Overview(invoice: invoice),
+                      ),
                     ),
-                  ),
-                  buildDocumentHistoryTab(
-                    context: context,
-                    services: services,
-                    companyId: companyId,
-                    basePath: services.invoices.api.basePath,
-                    entityId: invoice.id,
-                    currentAmount: invoice.amount,
-                    currentUpdatedAt: invoice.updatedAt,
-                    formatter: FormatterScope.maybeOf(context),
-                    clientId: invoice.clientId,
-                    selection: selectedVersion,
-                    // Only wide drives the pane; narrow navigates, so
-                    // nothing there is ever "selected".
-                    showSelection: wide,
-                    onOpenVersion: (String? activityId) {
-                      // Wide keeps the record on screen and swaps the pane;
-                      // narrow has no pane, so it routes.
-                      if (wide) {
-                        selectedVersion.value = activityId;
-                      } else if (requireSynced(context, invoice.id)) {
-                        context.go(
-                          '/invoices/${invoice.id}/pdf'
-                          '${activityId == null ? '' : '?activity_id=$activityId'}',
-                        );
-                      }
-                    },
-                  ),
-                  buildStandardDocumentsTab(
-                    context: context,
-                    companyId: companyId,
-                    entityId: invoice.id,
-                    documents: invoice.documents,
-                    repo: services.invoices,
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('email_history'),
-                    icon: Icons.outgoing_mail,
-                    bodyBuilder: (_) => BillingDocSendsTab(
+                    buildDocumentHistoryTab(
+                      context: context,
                       services: services,
                       companyId: companyId,
-                      entityWireName: 'invoice',
+                      basePath: services.invoices.api.basePath,
                       entityId: invoice.id,
-                      invitations: invoice.invitations,
-                      isDirty: invoice.isDirty,
+                      currentAmount: invoice.amount,
+                      currentUpdatedAt: invoice.updatedAt,
+                      formatter: FormatterScope.maybeOf(context),
                       clientId: invoice.clientId,
-                      isHosted: services.auth.session.value?.isHosted ?? false,
-                      onReactivate: (messageId) =>
-                          services.invoices.reactivateInvitationEmail(
-                            companyId: companyId,
-                            id: invoice.id,
-                            messageId: messageId,
-                          ),
+                      selection: selectedVersion,
+                      // Only wide drives the pane; narrow navigates, so
+                      // nothing there is ever "selected".
+                      showSelection: wide,
+                      onOpenVersion: (String? activityId) {
+                        // Wide keeps the record on screen and swaps the pane;
+                        // narrow has no pane, so it routes.
+                        if (wide) {
+                          selectedVersion.value = activityId;
+                        } else if (requireSynced(context, invoice.id)) {
+                          context.go(
+                            '/invoices/${invoice.id}/pdf'
+                            '${activityId == null ? '' : '?activity_id=$activityId'}',
+                          );
+                        }
+                      },
                     ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('unapplied_payments'),
-                    icon: Icons.account_balance_wallet_outlined,
-                    bodyBuilder: (_) => InvoiceUnappliedPaymentsSection(
-                      invoice: invoice,
-                      services: services,
+                    buildStandardDocumentsTab(
+                      context: context,
                       companyId: companyId,
+                      entityId: invoice.id,
+                      documents: invoice.documents,
+                      repo: services.invoices,
                     ),
-                  ),
-                  if (invoiceSupportsPaymentSchedule(
-                    invoice,
-                    canViewOrEdit:
+                    EntityDetailTab(
+                      label: context.tr('email_history'),
+                      icon: Icons.outgoing_mail,
+                      bodyBuilder: (_) => BillingDocSendsTab(
+                        services: services,
+                        companyId: companyId,
+                        entityWireName: 'invoice',
+                        entityId: invoice.id,
+                        invitations: invoice.invitations,
+                        isDirty: invoice.isDirty,
+                        clientId: invoice.clientId,
+                        isHosted:
+                            services.auth.session.value?.isHosted ?? false,
+                        onReactivate: (messageId) =>
+                            services.invoices.reactivateInvitationEmail(
+                              companyId: companyId,
+                              id: invoice.id,
+                              messageId: messageId,
+                            ),
+                      ),
+                    ),
+                    EntityDetailTab(
+                      label: context.tr('unapplied_payments'),
+                      icon: Icons.account_balance_wallet_outlined,
+                      bodyBuilder: (_) => InvoiceUnappliedPaymentsSection(
+                        invoice: invoice,
+                        services: services,
+                        companyId: companyId,
+                      ),
+                    ),
+                    if (invoiceSupportsPaymentSchedule(
+                      invoice,
+                      canViewOrEdit:
+                          (services.auth.session.value?.currentCompany?.can(
+                                'edit_invoice',
+                              ) ??
+                              false) ||
+                          (services.auth.session.value?.currentCompany?.can(
+                                'view_invoice',
+                              ) ??
+                              false),
+                    ))
+                      EntityDetailTab(
+                        label: context.tr('payment_schedule'),
+                        icon: Icons.event_repeat_outlined,
+                        bodyBuilder: (_) =>
+                            InvoicePaymentScheduleTab(invoice: invoice),
+                      ),
+                    // Last, so adding it never moves a tab the user is on
+                    // (invoiceninja/ui#3284). React gates it on a connection
+                    // and on being able to edit the invoice.
+                    if (quickbooksConnected(companySnap.data?.quickbooks) &&
                         (services.auth.session.value?.currentCompany?.can(
                               'edit_invoice',
                             ) ??
-                            false) ||
-                        (services.auth.session.value?.currentCompany?.can(
-                              'view_invoice',
-                            ) ??
-                            false),
-                  ))
-                    EntityDetailTab(
-                      label: context.tr('payment_schedule'),
-                      icon: Icons.event_repeat_outlined,
-                      bodyBuilder: (_) =>
-                          InvoicePaymentScheduleTab(invoice: invoice),
-                    ),
-                ],
+                            false))
+                      EntityDetailTab(
+                        label: context.tr('quickbooks'),
+                        icon: Icons.sync_alt_outlined,
+                        bodyBuilder: (_) => InvoiceQuickbooksTab(
+                          invoice: invoice,
+                          services: services,
+                          companyId: companyId,
+                          quickbooks: companySnap.data?.quickbooks,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -47,6 +47,7 @@ class TagsEditScreen extends StatelessWidget {
         repo: repo,
         companyId: companyId,
         entityType: entityType,
+        commasNotAllowedMessage: context.tr('commas_not_allowed'),
         existing: existing,
         sync: services.sync,
         connectivity: services.connectivity,

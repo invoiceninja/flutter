@@ -10,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
 import 'package:admin/ui/features/billing_shared/actions/billing_doc_bulk_pdf.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart';
@@ -185,6 +186,23 @@ class PurchaseOrderListScreen extends StatelessWidget {
           singleSuccessKey: 'emailed_purchase_order',
           pluralSuccessKey: 'emailed_purchase_orders',
           nothingKey: 'nothing_to_email',
+          // Before the compose sheet: nobody writes an email for documents
+          // whose recipient has no address (invoiceninja/ui#3400).
+          preflight: (ctx, eligible) => preflightRecipientEmails<PurchaseOrder>(
+            ctx,
+            ctx.read<Services>(),
+            companyId: ctx
+                .read<Services>()
+                .auth
+                .session
+                .value!
+                .currentCompanyId,
+            eligible: eligible,
+            clientIdOf: (_) => '',
+            vendorIdOf: (d) => d.vendorId,
+            invitationsOf: (d) => d.invitations,
+            numberOf: (d) => d.number,
+          ),
           // A scheduled batch was not emailed. Both branches come back
           // through the same `applyArg`, so the message has to follow the
           // result rather than the action.

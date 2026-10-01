@@ -71,6 +71,54 @@ List<({Task task, TimeEntry entry})> entriesOnDay(
   return out;
 }
 
+/// Group [tasks] by EVERY local day one of their time entries touches
+/// (React #3378) — the month calendar's placement. A task worked on the 3rd
+/// and again on the 17th sits on both cells; one entry that runs past midnight
+/// sits on both of its days. Built per entry, never as the first-to-last span:
+/// a task touched on the 1st and the 28th must not paint the whole month. A
+/// running entry runs to [now]. Days outside [from]..[to] (inclusive) are
+/// skipped, so a long-lived task can't fill every cell it ever touched.
+///
+/// The per-day load (`task_day_load.dart`) still counts an entry on its start
+/// day only — a total of hours, not a list of where the work happened.
+Map<Date, List<Task>> tasksByActiveDay(
+  Iterable<Task> tasks, {
+  required Date from,
+  required Date to,
+  DateTime? now,
+}) {
+  final out = <Date, List<Task>>{};
+  final at = now ?? DateTime.now();
+  for (final task in tasks) {
+    final days = <Date>{};
+    for (final e in task.timeLog) {
+      final start = e.start?.toLocal();
+      if (start == null) continue;
+      final stop = (e.stop ?? (e.isRunning ? at : start)).toLocal();
+      var d = Date(start.year, start.month, start.day);
+      // The stop is an exclusive end: an entry ending at 00:00 did no work on
+      // the day it ends on. A stop before its start (bad data) still shows on
+      // its start day rather than nowhere.
+      final end0 = stop.isAfter(start)
+          ? stop.subtract(const Duration(microseconds: 1))
+          : start;
+      final last = Date(end0.year, end0.month, end0.day);
+      // Bounded walk: clamp to the window before iterating, so a years-long
+      // running entry costs the window, not its lifetime.
+      if (d.compareTo(from) < 0) d = from;
+      final end = last.compareTo(to) > 0 ? to : last;
+      while (d.compareTo(end) <= 0) {
+        days.add(d);
+        d = d.addDays(1);
+      }
+    }
+    for (final d in days) {
+      out.putIfAbsent(d, () => <Task>[]).add(task);
+    }
+  }
+  return out;
+}
+
 /// Group [tasks] by their [TaskDay.day]. Tasks with no day are dropped.
 Map<Date, List<Task>> tasksByDay(Iterable<Task> tasks) {
   final out = <Date, List<Task>>{};

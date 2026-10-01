@@ -707,7 +707,10 @@ as int,
 /// @nodoc
 mixin _$PaymentInvoiceRefApi {
 
- String get id; String get number; Object get amount; Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;
+ String get id; String get number; Object get amount; Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;// The relation is `withTrashed()`, so a deleted invoice still comes back
+// here — and the server refuses to delete a payment linked to one
+// (`deleted_invoices_exist`). Read so the Delete action can stand down.
+@JsonKey(name: 'is_deleted') bool get isDeleted;
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -720,16 +723,16 @@ $PaymentInvoiceRefApiCopyWith<PaymentInvoiceRefApi> get copyWith => _$PaymentInv
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate));
+int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),isDeleted);
 
 @override
 String toString() {
-  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate)';
+  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -740,7 +743,7 @@ abstract mixin class $PaymentInvoiceRefApiCopyWith<$Res>  {
   factory $PaymentInvoiceRefApiCopyWith(PaymentInvoiceRefApi value, $Res Function(PaymentInvoiceRefApi) _then) = _$PaymentInvoiceRefApiCopyWithImpl;
 @useResult
 $Res call({
- String id, String number, Object amount, Object balance,@JsonKey(name: 'paid_to_date') Object paidToDate
+ String id, String number, Object amount, Object balance,@JsonKey(name: 'paid_to_date') Object paidToDate,@JsonKey(name: 'is_deleted') bool isDeleted
 });
 
 
@@ -757,11 +760,12 @@ class _$PaymentInvoiceRefApiCopyWithImpl<$Res>
 
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
-as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate ,
+as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate ,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -846,10 +850,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate, @JsonKey(name: 'is_deleted')  bool isDeleted)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRefApi() when $default != null:
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   return orElse();
 
 }
@@ -867,10 +871,10 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate, @JsonKey(name: 'is_deleted')  bool isDeleted)  $default,) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRefApi():
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -887,10 +891,10 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  Object amount,  Object balance, @JsonKey(name: 'paid_to_date')  Object paidToDate, @JsonKey(name: 'is_deleted')  bool isDeleted)?  $default,) {final _that = this;
 switch (_that) {
 case _PaymentInvoiceRefApi() when $default != null:
-return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate);case _:
+return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDate,_that.isDeleted);case _:
   return null;
 
 }
@@ -902,7 +906,7 @@ return $default(_that.id,_that.number,_that.amount,_that.balance,_that.paidToDat
 @JsonSerializable()
 
 class _PaymentInvoiceRefApi implements PaymentInvoiceRefApi {
-  const _PaymentInvoiceRefApi({this.id = '', this.number = '', this.amount = '0', this.balance = '0', @JsonKey(name: 'paid_to_date') this.paidToDate = '0'});
+  const _PaymentInvoiceRefApi({this.id = '', this.number = '', this.amount = '0', this.balance = '0', @JsonKey(name: 'paid_to_date') this.paidToDate = '0', @JsonKey(name: 'is_deleted') this.isDeleted = false});
   factory _PaymentInvoiceRefApi.fromJson(Map<String, dynamic> json) => _$PaymentInvoiceRefApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -910,6 +914,10 @@ class _PaymentInvoiceRefApi implements PaymentInvoiceRefApi {
 @override@JsonKey() final  Object amount;
 @override@JsonKey() final  Object balance;
 @override@JsonKey(name: 'paid_to_date') final  Object paidToDate;
+// The relation is `withTrashed()`, so a deleted invoice still comes back
+// here — and the server refuses to delete a payment linked to one
+// (`deleted_invoices_exist`). Read so the Delete action can stand down.
+@override@JsonKey(name: 'is_deleted') final  bool isDeleted;
 
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
@@ -924,16 +932,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate));
+int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),isDeleted);
 
 @override
 String toString() {
-  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate)';
+  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -944,7 +952,7 @@ abstract mixin class _$PaymentInvoiceRefApiCopyWith<$Res> implements $PaymentInv
   factory _$PaymentInvoiceRefApiCopyWith(_PaymentInvoiceRefApi value, $Res Function(_PaymentInvoiceRefApi) _then) = __$PaymentInvoiceRefApiCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String number, Object amount, Object balance,@JsonKey(name: 'paid_to_date') Object paidToDate
+ String id, String number, Object amount, Object balance,@JsonKey(name: 'paid_to_date') Object paidToDate,@JsonKey(name: 'is_deleted') bool isDeleted
 });
 
 
@@ -961,11 +969,12 @@ class __$PaymentInvoiceRefApiCopyWithImpl<$Res>
 
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
   return _then(_PaymentInvoiceRefApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
-as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate ,
+as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate ,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

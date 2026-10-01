@@ -134,11 +134,36 @@ class ExpenseListViewModel extends GenericListViewModel<Expense> {
   Future<void> refreshAll() => repo.refreshAll(companyId: companyId);
 
   @override
-  Iterable<BulkAction<Expense>> get bulkActions => standardCrudBulkActions(
-    isArchived: isArchived,
-    isDeleted: isDeleted,
-    archive: (id) => repo.archive(companyId: companyId, id: id),
-    restore: (id) => repo.restore(companyId: companyId, id: id),
-    delete: (id) => repo.delete(companyId: companyId, id: id),
-  );
+  Iterable<BulkAction<Expense>> get bulkActions => [
+    ...standardCrudBulkActions(
+      isArchived: isArchived,
+      isDeleted: isDeleted,
+      archive: (id) => repo.archive(companyId: companyId, id: id),
+      restore: (id) => repo.restore(companyId: companyId, id: id),
+      delete: (id) => repo.delete(companyId: companyId, id: id),
+    ),
+    // Selection-level (React #3382): the list screen's `onSelection` builds
+    // one invoice from the whole selection; `eligible` drives the
+    // empty-selection guard and the count handed to it.
+    BulkAction<Expense>(
+      id: 'invoice_expense',
+      labelKey: 'invoice_expense',
+      // Deliberately wide: the handler (`ExpenseActions.invoiceExpenses`)
+      // narrows to the billable rows itself and says how many it left out —
+      // a selection-level action only ever sees the eligible rows, so a
+      // narrow predicate here would skip them without a word.
+      eligible: (e) => !e.isDeleted,
+      apply: (_) async {},
+    ),
+    BulkAction<Expense>(
+      id: 'add_to_invoice',
+      // `action_add_to_invoice`: `add_to_invoice` is "Add to invoice :invoice"
+      // and nothing here can fill the token (invoiceninja/flutter#35).
+      labelKey: 'action_add_to_invoice',
+      // Wide for the same reason; the handler needs a client too — the
+      // invoice picker is client-scoped.
+      eligible: (e) => !e.isDeleted,
+      apply: (_) async {},
+    ),
+  ];
 }

@@ -172,6 +172,15 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// Which items tab (`products` / `tasks`) a billing document opens on when
+  /// its lines don't decide (React #3355's `default_tab`). The user's habit,
+  /// so it follows the account.
+  static const defaultItemsTab = PrefKey<String>(
+    'default_items_tab',
+    PrefCodec.string,
+    PrefScope.account,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -191,6 +200,7 @@ abstract final class DevicePrefKeys {
     hideUnverifiedUsers,
     hideEmptyPanels,
     sidebarCollapsed,
+    defaultItemsTab,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

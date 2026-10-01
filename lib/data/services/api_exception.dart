@@ -48,8 +48,14 @@ class PlanRequiredException extends ApiException {
 
 /// 422 — validation failure. [fieldErrors] is `{ fieldName: [msg, ...] }`.
 class ValidationException extends ApiException {
-  const ValidationException(super.message, this.fieldErrors);
+  const ValidationException(super.message, this.fieldErrors, {this.body});
   final Map<String, List<String>> fieldErrors;
+
+  /// The decoded 422 envelope, for the few endpoints whose 422 is a *result*
+  /// rather than a field-error map — `einvoice/validateEntity` answers a
+  /// failed check with `{passes: false, invoice: [...], client: [...]}` and no
+  /// `errors` key at all, so [fieldErrors] alone loses every message.
+  final Map<String, dynamic>? body;
 }
 
 class ConflictException extends ApiException {

@@ -1,9 +1,11 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
@@ -18,9 +20,12 @@ import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
+    show emptyTask;
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -315,43 +320,171 @@ class _TasksCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     final tokens = context.inTheme;
+    final me = services.auth.session.value?.currentCompany;
+    // Quick add (invoiceninja/ui#3383): only where a task could be created
+    // at all, and not on an archived / deleted project.
+    final canQuickAdd =
+        (me?.can('create_task') ?? false) &&
+        project.archivedAt == null &&
+        !project.isDeleted &&
+        !project.id.startsWith('tmp_');
     return DashboardCardShell(
       title: context.tr('tasks'),
       trailing: DashboardCardFooterLink(
         label: context.tr('add_task'),
         onTap: () => context.go('/tasks/new?project=${project.id}'),
       ),
-      child: WatchBuilder<List<Task>>(
-        cacheKey: (companyId, project.id),
-        create: () => services.tasks.watchForProject(
-          companyId: companyId,
-          projectId: project.id,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (canQuickAdd) ...[
+            _QuickAddTaskRow(project: project, companyId: companyId),
+            const SizedBox(height: 8),
+          ],
+          WatchBuilder<List<Task>>(
+            cacheKey: (companyId, project.id),
+            create: () => services.tasks.watchForProject(
+              companyId: companyId,
+              projectId: project.id,
+            ),
+            builder: (context, snapshot) {
+              final tasks = snapshot.data ?? const <Task>[];
+              if (tasks.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    context.tr('no_tasks_for_project'),
+                    style: TextStyle(
+                      color: tokens.ink3,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < tasks.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(top: i == 0 ? 0 : 6, bottom: 6),
+                      child: _TaskRow(task: tasks[i]),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Type a description, press Enter, get a task on this project
+/// (invoiceninja/ui#3383). Built for rapid entry: focus stays in the field
+/// after each create, Escape clears it, and there is no toast — the new task
+/// appearing right under the field is the feedback (`watchForProject` sorts an
+/// unsynced create first). The "Add task" link stays for the full form.
+class _QuickAddTaskRow extends StatefulWidget {
+  const _QuickAddTaskRow({required this.project, required this.companyId});
+
+  final Project project;
+  final String companyId;
+
+  @override
+  State<_QuickAddTaskRow> createState() => _QuickAddTaskRowState();
+}
+
+class _QuickAddTaskRowState extends State<_QuickAddTaskRow> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    final description = _controller.text.trim();
+    if (description.isEmpty || _busy) return;
+    final services = context.read<Services>();
+    final p = widget.project;
+    setState(() => _busy = true);
+    try {
+      // The company's first status (board order), never blank: a blank
+      // status puts the task in no kanban column until the server assigns
+      // one — offline, never (see `create_task_from_line_item_sheet.dart`).
+      final statuses = await services.taskStatuses
+          .watchAll(companyId: widget.companyId)
+          .first;
+      await services.tasks.create(
+        companyId: widget.companyId,
+        draft: emptyTask().copyWith(
+          description: description,
+          projectId: p.id,
+          clientId: p.clientId,
+          rate: p.taskRate,
+          statusId: statuses.isEmpty ? '' : statuses.first.id,
+          // Orders this create among other unsynced ones — see
+          // `TaskDao.watchForProject`.
+          updatedAt: DateTime.now().toUtc(),
         ),
-        builder: (context, snapshot) {
-          final tasks = snapshot.data ?? const <Task>[];
-          if (tasks.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                context.tr('no_tasks_for_project'),
-                style: TextStyle(
-                  color: tokens.ink3,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < tasks.length; i++)
-                Padding(
-                  padding: EdgeInsets.only(top: i == 0 ? 0 : 6, bottom: 6),
-                  child: _TaskRow(task: tasks[i]),
-                ),
-            ],
-          );
+      );
+      if (!mounted) return;
+      _controller.clear();
+      _focus.requestFocus();
+    } catch (e) {
+      if (mounted) {
+        Notify.error(context, context.tr('could_not_save'), error: e);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          _controller.clear();
+          _focus.unfocus();
         },
+      },
+      child: TextField(
+        key: const Key('project_quick_add_task'),
+        controller: _controller,
+        focusNode: _focus,
+        textInputAction: TextInputAction.done,
+        textCapitalization: TextCapitalization.sentences,
+        onSubmitted: (_) => _create(),
+        // Keep focus (and the soft keyboard) up between creates.
+        onEditingComplete: () {},
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: context.tr('new_task'),
+          prefixIcon: Icon(Icons.add, size: 18, color: tokens.ink3),
+          // The app's Enter glyph, on a keyboard-first device only — it says
+          // "press Enter" to someone who has one.
+          suffixIcon: Env.isTouchPrimary
+              ? null
+              : ExcludeSemantics(
+                  child: Center(
+                    widthFactor: 1,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Text('↵', style: TextStyle(color: tokens.ink3)),
+                      ),
+                    ),
+                  ),
+                ),
+          border: const OutlineInputBorder(),
+        ),
       ),
     );
   }

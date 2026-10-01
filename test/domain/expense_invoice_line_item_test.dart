@@ -156,4 +156,69 @@ void main() {
       },
     );
   });
+
+  // invoiceninja/ui#3382 — the bulk Invoice / Add to invoice selection rule.
+  group('isBulkBillableExpense', () {
+    Expense e({
+      String id = 'e1',
+      bool shouldBeInvoiced = true,
+      String invoiceId = '',
+      bool deleted = false,
+    }) => Expense.fromApi(
+      ExpenseApi(
+        id: id,
+        shouldBeInvoiced: shouldBeInvoiced,
+        invoiceId: invoiceId,
+        isDeleted: deleted,
+      ),
+    );
+
+    test('marked to be invoiced and not yet invoiced', () {
+      expect(isBulkBillableExpense(e()), isTrue);
+    });
+
+    test('not when it is not marked to be invoiced', () {
+      expect(isBulkBillableExpense(e(shouldBeInvoiced: false)), isFalse);
+    });
+
+    test('not when already invoiced, deleted, or unsynced', () {
+      expect(isBulkBillableExpense(e(invoiceId: 'inv1')), isFalse);
+      expect(isBulkBillableExpense(e(deleted: true)), isFalse);
+      expect(isBulkBillableExpense(e(id: 'tmp_1')), isFalse);
+    });
+  });
+
+  group('bulkBillableSelection', () {
+    Expense e(String id, {String clientId = 'c1', String invoiceId = ''}) =>
+        Expense.fromApi(
+          ExpenseApi(
+            id: id,
+            clientId: clientId,
+            shouldBeInvoiced: true,
+            invoiceId: invoiceId,
+          ),
+        );
+
+    test('keeps the billable rows; the rest are what the toast reports', () {
+      final s = bulkBillableSelection([e('a'), e('b', invoiceId: 'inv1')]);
+      expect(s.billable.map((x) => x.id), ['a']);
+      expect(s.multipleClients, isFalse);
+    });
+
+    test('an invoiced row of another client does not block the rest', () {
+      final s = bulkBillableSelection([
+        e('a'),
+        e('b', clientId: 'c2', invoiceId: 'inv1'),
+      ]);
+      expect(s.multipleClients, isFalse);
+      expect(s.billable.map((x) => x.id), ['a']);
+    });
+
+    test('two clients among the billable rows can not share an invoice', () {
+      expect(
+        bulkBillableSelection([e('a'), e('b', clientId: 'c2')]).multipleClients,
+        isTrue,
+      );
+    });
+  });
 }

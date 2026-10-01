@@ -19,10 +19,12 @@ import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/data/models/domain/report_schedule_seed.dart';
 import 'package:admin/data/models/domain/schedule.dart';
+import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/data/models/domain/schedule_constants.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/reports/report_filter_options.dart';
+import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
@@ -576,8 +578,22 @@ class _EmailReportSectionState extends State<_EmailReportSection> {
   Widget build(BuildContext context) {
     final vm = widget.vm;
     final reportName = vm.draft.reportName;
-    final fields =
+    final base =
         kEmailReportFieldsByReport[reportName] ?? kDefaultEmailReportFields;
+    // Tags ride along on every tag-bearing report, just ahead of the design
+    // picker, as on the Reports screen (React #3251).
+    final fields = kReportTagEntityTypes.containsKey(reportName)
+        ? [
+            for (final f in base)
+              if (f == EmailReportField.templateId) ...[
+                EmailReportField.tags,
+                f,
+              ] else
+                f,
+            if (!base.contains(EmailReportField.templateId))
+              EmailReportField.tags,
+          ]
+        : base.toList();
     final options = _reportOptions(context);
 
     return FormSection(
@@ -774,6 +790,18 @@ class _EmailReportSectionState extends State<_EmailReportSection> {
           idOf: (c) => c.id,
           displayString: (c) => c.name.isEmpty ? c.id : c.name,
           onChanged: vm.setReportCategoriesCsv,
+        );
+      case EmailReportField.tags:
+        return _RepoMultiPicker<Tag>(
+          labelKey: 'tags',
+          streamFactory: () => services.tags.watchAll(
+            companyId: companyId,
+            entityType: kReportTagEntityTypes[vm.draft.reportName] ?? 'invoice',
+          ),
+          selectedIds: vm.draft.reportTags,
+          idOf: (t) => t.id,
+          displayString: (t) => t.name.isEmpty ? t.id : t.name,
+          onChanged: vm.setReportTagsCsv,
         );
       case EmailReportField.templateId:
         return _RepoSinglePicker<Design>(

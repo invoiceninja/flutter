@@ -1421,6 +1421,8 @@ class AuthRepository {
     var hasIapPlan = false;
     var eInvoicingToken = '';
     var reportErrors = false;
+    var isPremium = false;
+    var accountKey = '';
     final featuresRaw = account.featuresJson;
     if (featuresRaw != null && featuresRaw.isNotEmpty) {
       try {
@@ -1445,6 +1447,8 @@ class AuthRepository {
           hasIapPlan = decoded['has_iap_plan'] == true;
           eInvoicingToken = asStr(decoded['e_invoicing_token']);
           reportErrors = decoded['report_errors'] == true;
+          isPremium = decoded['is_premium'] == true;
+          accountKey = asStr(decoded['key']);
         }
       } catch (_) {
         /* fall through to defaults */
@@ -1570,6 +1574,8 @@ class AuthRepository {
       biometricEnabled: biometricEnabled,
       eInvoicingToken: eInvoicingToken,
       reportErrors: reportErrors,
+      isPremium: isPremium,
+      accountKey: accountKey,
     );
     final storedToken = tokensMap[session.currentCompanyId];
     final String activeToken;
@@ -2408,6 +2414,8 @@ class AuthRepository {
       ninjaPortalUrl: response.data.first.ninjaPortalUrl,
       eInvoicingToken: firstAccount.eInvoicingToken,
       reportErrors: firstAccount.reportErrors,
+      isPremium: firstAccount.isPremium,
+      accountKey: firstAccount.key,
     );
     _credentials.value = ApiCredentials(
       baseUrl: baseUrl,

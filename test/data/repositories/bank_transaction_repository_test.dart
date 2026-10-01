@@ -112,8 +112,45 @@ void main() {
         );
         expect(row.payload, contains('"vendor_id":"v1"'));
         expect(row.payload, contains('"ninja_category_id":"c1"'));
+        // Nothing billed, and the company default left in charge.
+        expect(row.payload, isNot(contains('project_id')));
+        expect(row.payload, isNot(contains('client_id')));
+        expect(row.payload, isNot(contains('should_be_invoiced')));
       },
     );
+
+    // invoiceninja/ui#3397. The server takes the client from the project, so
+    // a project wins and the client isn't sent alongside it.
+    test('matchToExpense bills a project, or else a client', () async {
+      final repo = makeRepo();
+      await repo.matchToExpense(
+        companyId: 'co',
+        transactionId: 'tx_1',
+        vendorId: 'v1',
+        categoryId: '',
+        projectId: 'p1',
+        clientId: 'cl1',
+        shouldBeInvoiced: true,
+      );
+      await repo.matchToExpense(
+        companyId: 'co',
+        transactionId: 'tx_2',
+        vendorId: 'v1',
+        categoryId: '',
+        clientId: 'cl2',
+        shouldBeInvoiced: false,
+      );
+      final rows = (await db.outboxDao.watchAll('co').first)
+          .where((r) => r.mutationKind == MutationKind.matchToExpense.wireName)
+          .toList();
+      final project = rows.firstWhere((r) => r.payload.contains('tx_1'));
+      expect(project.payload, contains('"project_id":"p1"'));
+      expect(project.payload, isNot(contains('client_id')));
+      expect(project.payload, contains('"should_be_invoiced":true'));
+      final client = rows.firstWhere((r) => r.payload.contains('tx_2'));
+      expect(client.payload, contains('"client_id":"cl2"'));
+      expect(client.payload, contains('"should_be_invoiced":false'));
+    });
 
     test('linkToExpense payload carries expense_id', () async {
       final repo = makeRepo();

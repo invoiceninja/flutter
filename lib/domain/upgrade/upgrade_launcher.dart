@@ -10,6 +10,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/domain/upgrade/purchase_service.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/features/auth/widgets/name_required_dialog.dart';
 
 /// The single platform-conditional upgrade entry point. **Every** upgrade
 /// surface (the `PlanGateBanner` CTA, the Plan screen's "Upgrade / Change
@@ -25,6 +26,13 @@ import 'package:admin/ui/core/utils/external_url.dart';
 /// - iOS / Android, free/trial → the in-app store purchase sheet.
 Future<void> launchUpgrade(BuildContext context) async {
   final services = context.read<Services>();
+  // Hosted billing needs the user's first and last name (React #3341): ask
+  // before checkout — required here, where elsewhere it's only a nudge — and
+  // wait for the save to reach the server.
+  if (needsUserName(services.auth.session.value)) {
+    final saved = await promptForUserName(context, services, required: true);
+    if (!saved || !context.mounted) return;
+  }
   final session = services.auth.session.value;
   final portalUrl = session?.ninjaPortalUrl ?? '';
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
@@ -107,6 +108,9 @@ class _StubAuth implements AuthRepository {
 }
 
 class _FakeServices implements Services {
+  // The tab a document opens on when its lines don't decide (React #3355).
+  @override
+  final DefaultItemsTabController defaultItemsTab = _ProductsFirst();
   @override
   final AuthRepository auth = _StubAuth();
 
@@ -227,4 +231,13 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
+}
+
+class _ProductsFirst implements DefaultItemsTabController {
+  @override
+  bool get prefersTasks => false;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
 }

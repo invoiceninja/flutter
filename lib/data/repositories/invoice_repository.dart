@@ -919,7 +919,13 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       schedule: Value(
         jsonEncode(i.schedule.map((s) => s.toApiJson()).toList()),
       ),
-      payload: jsonEncode(i.toApiJson(preserveTempId: true)),
+      payload: jsonEncode({
+        ...i.toApiJson(preserveTempId: true),
+        // Read-only QuickBooks state, kept in the stored row only — the wire
+        // body is `toApiJson`, which leaves it off. Without this a locally
+        // saved invoice reads back as never checked against QuickBooks.
+        if (i.sync != null) 'sync': i.sync,
+      }),
     );
   }
 

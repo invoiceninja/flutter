@@ -87,6 +87,7 @@ _InvoiceApi _$InvoiceApiFromJson(Map<String, dynamic> json) => _InvoiceApi(
   eInvoice: json['e_invoice'] as Map<String, dynamic>?,
   backup: json['backup'] as Map<String, dynamic>?,
   taxInfo: json['tax_info'] as Map<String, dynamic>?,
+  sync: json['sync'] as Map<String, dynamic>?,
   modifiedInvoiceId: json['modified_invoice_id'] as String?,
   reason: json['reason'] as String?,
   schedule: (json['schedule'] as List<dynamic>?)
@@ -169,6 +170,7 @@ Map<String, dynamic> _$InvoiceApiToJson(_InvoiceApi instance) =>
       'e_invoice': instance.eInvoice,
       'backup': instance.backup,
       'tax_info': instance.taxInfo,
+      'sync': instance.sync,
       'modified_invoice_id': instance.modifiedInvoiceId,
       'reason': instance.reason,
       'schedule': instance.schedule,

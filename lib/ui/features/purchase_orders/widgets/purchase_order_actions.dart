@@ -518,6 +518,10 @@ class PurchaseOrderActions {
           exchangeRate: Decimal.one,
           projectId: '',
           expenseId: '',
+          // A clone is its own order — not the one converted from that
+          // invoice / quote.
+          invoiceId: '',
+          quoteId: '',
           invitations: po.invitations.map((i) => i.freshClone()).toList(),
           eInvoice: null,
           // Sanitise the rows: drop the links back to the source task /

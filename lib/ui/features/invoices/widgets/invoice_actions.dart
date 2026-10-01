@@ -26,11 +26,15 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
+import 'package:admin/ui/features/billing_shared/convert_to_purchase_order_action.dart';
+import 'package:admin/ui/features/billing_shared/einvoice_validation_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/mark_paid_confirm_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_locked_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/rectify_invoice.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
+import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_constants.dart'
+    show kEInvoiceTypePEPPOL;
 import 'package:admin/utils/file_names.dart';
 
 /// Action set surfaced for an invoice.
@@ -79,6 +83,7 @@ enum InvoiceAction {
   cloneToCredit,
   cloneToRecurring,
   cloneToPurchaseOrder,
+  convertToPurchaseOrder,
   runTemplate,
   cancel,
   rectify,
@@ -129,6 +134,7 @@ class InvoiceActions {
       case InvoiceAction.cloneToCredit:
       case InvoiceAction.cloneToRecurring:
       case InvoiceAction.cloneToPurchaseOrder:
+      case InvoiceAction.convertToPurchaseOrder:
       case InvoiceAction.archive:
       case InvoiceAction.restore:
       case InvoiceAction.delete:
@@ -421,6 +427,17 @@ class InvoiceActions {
               ),
           ],
         ),
+      // What was sold → what to buy: product cost, blank notes, a link back
+      // (React #3370). Not a clone, so not in the clone group.
+      if ((me?.moduleEnabled(EntityType.purchaseOrder) ?? false) &&
+          (me?.can('create_purchase_order') ?? false))
+        EntityActionItem(
+          kind: InvoiceAction.convertToPurchaseOrder,
+          icon: Icons.shopping_cart_checkout_outlined,
+          label: context.tr('convert_to_purchase_order'),
+          enabled: !invoice.isDeleted,
+          onTap: () => onTap(InvoiceAction.convertToPurchaseOrder),
+        ),
       if (canEditInvoice) ...[
         EntityActionItem(
           kind: InvoiceAction.runTemplate,
@@ -683,6 +700,8 @@ class InvoiceActions {
           subscriptionId: '',
           eInvoice: null,
           backup: null,
+          // The source's QuickBooks link — a fresh draft has none.
+          sync: null,
           // Drop the source's per-send lifecycle state — see
           // `InvitationClone.freshClone`. Without this the fresh draft shows
           // the original's sent/viewed timestamps and bounce error, and its
@@ -727,45 +746,7 @@ class InvoiceActions {
             invoice.id,
           );
           if (!context.mounted) return;
-          await showDialog<void>(
-            context: context,
-            builder: (d) {
-              final flat = result.messages.where((s) => s.isNotEmpty).toList();
-              final ok = result.passes && flat.isEmpty;
-              return AlertDialog(
-                title: Text(d.tr('validate')),
-                content: ok
-                    ? Text(d.tr('validation_passed'))
-                    : SizedBox(
-                        width: 420,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              for (final m in flat)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 2,
-                                  ),
-                                  child: Text('• $m'),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                actions: [
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
-                    onPressed: () => Navigator.of(d).pop(),
-                    child: Text(d.tr('close')),
-                  ),
-                ],
-              );
-            },
-          );
+          await showEInvoiceValidationDialog(context, result);
         } catch (e) {
           if (context.mounted) {
             Notify.error(context, context.tr('an_error_occurred'), error: e);
@@ -847,10 +828,31 @@ class InvoiceActions {
         );
 
       case InvoiceAction.cloneToCredit:
-        goEntityCreateFullWidth(
+        var credit = cloneToCredit(billingCloneFromInvoice(invoice));
+        // On PEPPOL a credit note must reference the invoice it reverses —
+        // fill it in rather than leave the user to find the invoice again
+        // (React #3290).
+        final company = await services.company.watchCompany(companyId).first;
+        if (!context.mounted) return;
+        if (company?.settings.eInvoiceType == kEInvoiceTypePEPPOL &&
+            invoice.number.isNotEmpty) {
+          credit = credit.copyWith(
+            eInvoice: peppolCreditBillingReference(
+              invoiceNumber: invoice.number,
+              issueDate: invoice.date?.toIso() ?? '',
+            ),
+          );
+        }
+        goEntityCreateFullWidth(context, '/credits', extra: credit);
+
+      case InvoiceAction.convertToPurchaseOrder:
+        if (tmpGate()) return;
+        await openConvertedPurchaseOrder(
           context,
-          '/credits',
-          extra: cloneToCredit(billingCloneFromInvoice(invoice)),
+          services,
+          companyId: companyId,
+          data: billingCloneFromInvoice(invoice),
+          invoiceId: invoice.id,
         );
 
       case InvoiceAction.cloneToRecurring:

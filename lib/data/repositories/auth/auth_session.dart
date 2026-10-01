@@ -16,6 +16,27 @@ const int kMaxCompaniesPerAccount = 10;
 /// `kFlutterDemoUrl`.
 const String kDemoBaseUrl = 'https://demo.invoiceninja.com';
 
+/// Whether a hosted `plan_expires` (a `YYYY-MM-DD` DATE column) has run out
+/// at [now].
+///
+/// The date is a **UTC calendar day**, and the plan is paid through the end of
+/// it — matching React's `isAccountPlanExpired` (#3375) and the server's own
+/// paid check, which keeps a plan live until `plan_expires < now − 23h`
+/// (`Account::isPaidHostedClient`). A bare `DateTime.tryParse` reads the date
+/// as *local* midnight, which east of UTC is the previous UTC day: a Pro user
+/// in Sydney lost Pro features, and got the renew banner, ~10 hours before the
+/// server stopped treating them as paid — and a whole day before React did.
+///
+/// Only the leading `YYYY-MM-DD` is read, so a timestamp-shaped value behaves
+/// the same. Blank or unparseable → false.
+bool hostedPlanDateExpired(String planExpires, DateTime now) {
+  final raw = planExpires.trim();
+  if (raw.length < 10) return false;
+  final day = DateTime.tryParse('${raw.substring(0, 10)}T00:00:00Z');
+  if (day == null) return false;
+  return !now.toUtc().isBefore(day.add(const Duration(days: 1)));
+}
+
 /// Why "New Company" is unavailable, or `ok` if it is. The picker renders
 /// the matching reason as an inline subtitle on the disabled row.
 enum CanAddCompanyResult { ok, notOwner, capReached, hostedPlanLimit, demoMode }
@@ -55,6 +76,8 @@ class AuthSession {
     this.ninjaPortalUrl = '',
     this.eInvoicingToken = '',
     this.reportErrors = false,
+    this.isPremium = false,
+    this.accountKey = '',
   });
 
   final String baseUrl;
@@ -182,6 +205,25 @@ class AuthSession {
   /// "drop unless true" gate). Read by `main.dart`'s Sentry `beforeSend`.
   final bool reportErrors;
 
+  /// `account.is_premium` — hosted, paid, out of trial, older than a month.
+  /// Only meaningful on hosted; see [canCcEmail].
+  final bool isPremium;
+
+  /// `account.key`. Names the per-user realtime channel
+  /// (`private-user-{accountKey}-{userId}`). Blank until the account envelope
+  /// has carried it.
+  final String accountKey;
+
+  /// Whether a send-email `cc_email` reaches anyone: the server drops it
+  /// unless the install is self-hosted or the hosted account is premium
+  /// (`EmailController::send`, React #3285).
+  bool get canCcEmail => isSelfHosted || isPremium;
+
+  /// Whether a send-email custom subject / body is honoured: a hosted account
+  /// that isn't paid has both stripped server-side (`SendEmailRequest`) and
+  /// gets the saved template instead.
+  bool get canCustomizeEmail => isSelfHosted || isPaidAccount;
+
   AuthCompany? get currentCompany {
     for (final c in companies) {
       if (c.id == currentCompanyId) return c;
@@ -204,17 +246,13 @@ class AuthSession {
   /// admin-portal's `isSelfHosted` and React's `isSelfHosted()` short-circuit.
   bool get isSelfHosted => !isHosted;
 
-  /// Hosted plan whose `plan_expires` is in the past. False when empty
+  /// Hosted plan whose `plan_expires` day is over. False when empty
   /// (free / never-paid) or unparseable, false unconditionally on
   /// self-hosted. Used by the feature-access getters below so an expired
-  /// hosted Pro account behaves like Free.
-  bool get isPlanExpired {
-    if (!isHosted) return false;
-    if (planExpires.isEmpty) return false;
-    final dt = DateTime.tryParse(planExpires);
-    if (dt == null) return false;
-    return dt.isBefore(DateTime.now());
-  }
+  /// hosted Pro account behaves like Free. See [hostedPlanDateExpired] for
+  /// why the date is read as a UTC day, not a local instant.
+  bool get isPlanExpired =>
+      isHosted && hostedPlanDateExpired(planExpires, DateTime.now());
 
   /// Paid hosted slugs that unlock Pro-tier features. `premium_business_plus`
   /// and `white_label` are top tiers — they unlock everything Pro does (and
@@ -301,8 +339,9 @@ class AuthSession {
   /// `year() > 2000` test before rendering the date (`Plan.tsx:56`), which is
   /// what tipped us off that the server really does emit such values.
   ///
-  /// Only [isWhiteLabelLapsed] routes through this today. [isPlanExpired] and
-  /// the Plan / Overview expiry rows deliberately still parse raw: a licensed
+  /// Only [isWhiteLabelLapsed] routes through this today. [isPlanExpired]
+  /// (via [hostedPlanDateExpired]) and the Plan / Overview expiry rows
+  /// deliberately skip the year guard: a licensed
   /// account always receives a real date from the claim, so their exposure is
   /// theoretical, and widening the guard would change hosted behaviour for no
   /// observed defect. If display parity with React is ever wanted, the
@@ -443,6 +482,8 @@ class AuthSession {
     ninjaPortalUrl: ninjaPortalUrl,
     eInvoicingToken: eInvoicingToken,
     reportErrors: reportErrors,
+    isPremium: isPremium,
+    accountKey: accountKey,
   );
 }
 

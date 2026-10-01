@@ -150,6 +150,15 @@ abstract class CompanyGateway with _$CompanyGateway {
     }
   }
 
+  /// The connected Stripe account (`acct_…`) a Stripe Connect gateway was
+  /// authorized against, or `''` when it was never connected / has been
+  /// disconnected — the server's `disconnect` blanks this field and keeps the
+  /// row, so it is the only "is this connected" signal there is.
+  String get stripeAccountId {
+    final raw = parsedConfig['account_id'];
+    return raw is String ? raw.trim() : '';
+  }
+
   /// Re-encode [parsedConfig]-shaped `next` back into the `config` string.
   /// Always sorts keys for deterministic output (helps diff readability +
   /// equality comparisons on the dirty-tracking path).

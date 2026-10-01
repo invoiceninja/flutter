@@ -120,18 +120,78 @@ void main() {
     });
 
     test('true when in the past, false when in the future', () {
-      final yesterday = DateTime.now()
-          .subtract(const Duration(days: 1))
+      // Whole days clear of today on purpose: the expiry day itself is
+      // still paid (see `hostedPlanDateExpired`), so "yesterday" would be
+      // timezone-dependent.
+      final past = DateTime.now()
+          .subtract(const Duration(days: 3))
           .toIso8601String();
-      final tomorrow = DateTime.now()
-          .add(const Duration(days: 1))
+      final future = DateTime.now()
+          .add(const Duration(days: 3))
           .toIso8601String();
-      expect(_session(planExpires: yesterday).isPlanExpired, isTrue);
-      expect(_session(planExpires: tomorrow).isPlanExpired, isFalse);
+      expect(_session(planExpires: past).isPlanExpired, isTrue);
+      expect(_session(planExpires: future).isPlanExpired, isFalse);
     });
 
     test('false on malformed date string (defensive)', () {
       expect(_session(planExpires: 'not-a-date').isPlanExpired, isFalse);
+    });
+  });
+
+  group('hostedPlanDateExpired', () {
+    // `plan_expires` arrives as a bare DATE; the plan is paid through the
+    // end of that UTC day (React #3375, server `isPaidHostedClient`).
+    const expires = '2026-07-15';
+
+    test('the whole expiry day (UTC) is still paid', () {
+      expect(
+        hostedPlanDateExpired(expires, DateTime.utc(2026, 7, 15)),
+        isFalse,
+      );
+      expect(
+        hostedPlanDateExpired(expires, DateTime.utc(2026, 7, 15, 23, 59, 59)),
+        isFalse,
+      );
+    });
+
+    test('expired from midnight UTC after the expiry day', () {
+      expect(hostedPlanDateExpired(expires, DateTime.utc(2026, 7, 16)), isTrue);
+      expect(
+        hostedPlanDateExpired(expires, DateTime.utc(2026, 8, 1, 12)),
+        isTrue,
+      );
+    });
+
+    test('east of UTC the expiry day is not cut short', () {
+      // 08:00 on Jul 16 in Sydney (UTC+10) is still Jul 15 22:00 UTC —
+      // the old local-midnight parse called this expired since 14:00 UTC
+      // the day before.
+      expect(
+        hostedPlanDateExpired(expires, DateTime.utc(2026, 7, 15, 22)),
+        isFalse,
+      );
+    });
+
+    test('a non-UTC clock is compared as its UTC instant', () {
+      final instant = DateTime.utc(2026, 7, 16, 1);
+      expect(hostedPlanDateExpired(expires, instant.toLocal()), isTrue);
+    });
+
+    test('reads only the date part of a timestamp-shaped value', () {
+      expect(
+        hostedPlanDateExpired(
+          '2026-07-15 00:00:00',
+          DateTime.utc(2026, 7, 15, 12),
+        ),
+        isFalse,
+      );
+    });
+
+    test('blank or malformed → not expired', () {
+      final now = DateTime.utc(2026, 7, 16);
+      expect(hostedPlanDateExpired('', now), isFalse);
+      expect(hostedPlanDateExpired('2026', now), isFalse);
+      expect(hostedPlanDateExpired('not-a-date', now), isFalse);
     });
   });
 

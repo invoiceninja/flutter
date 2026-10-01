@@ -714,6 +714,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
                   'amount': i.amount.toString(),
                   'balance': i.balance.toString(),
                   'paid_to_date': i.paidToDate.toString(),
+                  'is_deleted': i.isDeleted,
                 },
               )
               .toList(),

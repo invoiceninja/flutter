@@ -45,8 +45,12 @@ void main() {
     Quote quote, {
     bool isAdmin = true,
     String permissions = '',
+    // A server that has quote cancel — see `ServerFeatures.quoteCancel`.
+    String? serverVersion = '5.13.44',
+    bool isHosted = true,
   }) async {
     final fixture = await buildFixture(
+      isHosted: isHosted,
       companies: [
         FakeCompany(
           id: 'co1',
@@ -58,6 +62,7 @@ void main() {
       ],
     );
     addTearDown(fixture.dispose);
+    fixture.services.serverVersion.value = serverVersion;
 
     late List<EntityActionItem<QuoteAction>> items;
     await tester.pumpWidget(
@@ -261,6 +266,41 @@ void main() {
       // The red button is for data loss (§ Action confirmations); cancelling
       // destroys nothing. `archive` is the analogue and is likewise not red.
       expect(cancel.isDestructive, isFalse);
+    });
+
+    // The released 5.13.43 server has no quote `cancel` action: the bulk
+    // request 422s, which would park a dead outbox row.
+    testWidgets(
+      'absent on a self-hosted server older than the cancel release',
+      (tester) async {
+        final sent = _quote(status: QuoteStatus.sent);
+
+        final old = await resolveItems(
+          tester,
+          sent,
+          serverVersion: '5.13.43',
+          isHosted: false,
+        );
+        expect(present(old, QuoteAction.cancel), isFalse);
+
+        final unknown = await resolveItems(
+          tester,
+          sent,
+          serverVersion: null,
+          isHosted: false,
+        );
+        expect(present(unknown, QuoteAction.cancel), isFalse);
+      },
+    );
+
+    // Hosted runs current code but its `x-app-version` lags (invoicing.co
+    // reported 5.13.32): a version gate there hid Cancel from every user.
+    testWidgets('always offered on hosted, whatever version it reports', (
+      tester,
+    ) async {
+      final sent = _quote(status: QuoteStatus.sent);
+      final items = await resolveItems(tester, sent, serverVersion: '5.13.32');
+      expect(present(items, QuoteAction.cancel), isTrue);
     });
 
     testWidgets('a past-due Sent quote is not cancellable', (tester) async {

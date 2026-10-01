@@ -563,6 +563,13 @@ class _Header extends StatelessWidget {
                     labelKey: 'view_invoice',
                     route: '/invoices/${purchaseOrder.invoiceId}',
                   ),
+                // …or the quote it was converted from (React #3370).
+                if (purchaseOrder.quoteId.isNotEmpty)
+                  _RecordLink(
+                    captionKey: 'quote',
+                    labelKey: 'view_quote',
+                    route: '/quotes/${purchaseOrder.quoteId}',
+                  ),
               ],
             ),
           ),
@@ -746,9 +753,9 @@ class _LabelValue extends StatelessWidget {
 }
 
 /// A captioned header field rendered as a tappable link to a related record,
-/// instead of a raw id. Two users today, each mounted only when its id is set:
-/// the converted **expense** (`expenseId`), and the **invoice** this PO was
-/// cloned from (`invoiceId`, set by the server's `clone_to_purchase_order`).
+/// instead of a raw id. Three users today, each mounted only when its id is
+/// set: the converted **expense** (`expenseId`), and the **invoice** or
+/// **quote** this PO was converted from (`invoiceId` / `quoteId`).
 class _RecordLink extends StatelessWidget {
   const _RecordLink({
     required this.captionKey,

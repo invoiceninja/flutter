@@ -29,8 +29,17 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     required this.serverKey,
     required String labelKey,
     String hintKey = 'created_filter_hint',
+    this.windowOnly = false,
   }) : _labelKey = labelKey,
        _hintKey = hintKey;
+
+  /// Only the date-window comparator ([FilterOp.between]) — for an entity
+  /// whose server filters this column by `<col>_range` alone, with no
+  /// single-date comparable twin. Tasks are one: `TaskFilters` has no
+  /// `due_date` method, only the base `due_date_range`, so a `>= date` chip
+  /// would narrow nothing server-side. A single date typed here becomes the
+  /// one-day window.
+  final bool windowOnly;
 
   @override
   final String id;
@@ -58,17 +67,19 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
   FilterValueType get valueType => FilterValueType.date;
 
   @override
-  List<FilterOp> get supportedOps => const [
-    FilterOp.gt,
-    FilterOp.gte,
-    FilterOp.lt,
-    FilterOp.lte,
-    FilterOp.eq,
-    FilterOp.between,
-  ];
+  List<FilterOp> get supportedOps => windowOnly
+      ? const [FilterOp.between]
+      : const [
+          FilterOp.gt,
+          FilterOp.gte,
+          FilterOp.lt,
+          FilterOp.lte,
+          FilterOp.eq,
+          FilterOp.between,
+        ];
 
   @override
-  FilterOp get defaultOp => FilterOp.gte;
+  FilterOp get defaultOp => windowOnly ? FilterOp.between : FilterOp.gte;
 
   @override
   String? hintForValueMode(BuildContext context) => context.tr(_hintKey);
@@ -162,6 +173,11 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
 
   @override
   Future<void> addValue(GenericListViewModel<dynamic> vm, String rawValue) {
+    if (windowOnly && !isWindowWire(rawValue)) {
+      final day = parseWire(rawValue).$1.trim();
+      if (day.isEmpty) return Future.value();
+      return addValue(vm, canonicalWindow(day, day));
+    }
     if (isWindowWire(rawValue)) {
       final (start, end) = parseWindow(rawValue);
       if (start.isEmpty || end.isEmpty) return Future.value();

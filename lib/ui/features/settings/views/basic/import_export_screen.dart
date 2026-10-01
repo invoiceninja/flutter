@@ -75,7 +75,14 @@ const _kExportHasDocuments = <String>{
 };
 
 /// `date_range` identifier → localization key. Ported from React `Export.tsx`.
+///
+/// `all_time` leads and is the default once a date column is picked (React
+/// #3373; the server reads it as "no bound", `BaseExport`). Choosing a date
+/// column used to narrow the export silently to the last 7 days — picking
+/// *which* date to filter on is not a request to filter by a week.
+const _kDefaultExportDateRange = 'all_time';
 const _kDateRanges = <(String, String)>[
+  ('all_time', 'all_time'),
   ('last7', 'last_7_days'),
   ('last30', 'last_30_days'),
   ('this_month', 'this_month'),
@@ -165,7 +172,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   // CSV-export date filter (mirrors React Export.tsx). Null key = no filter.
   String? _exportDateKey;
-  String _exportDateRange = 'last7';
+  String _exportDateRange = _kDefaultExportDateRange;
   DateTime? _exportStart;
   DateTime? _exportEnd;
   // CSV-export option toggles (old-Flutter parity). `_exportDocuments` is only
@@ -458,7 +465,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                   _exportType = v ?? _exportType;
                   // Reset the date filter when the entity changes (React parity).
                   _exportDateKey = null;
-                  _exportDateRange = 'last7';
+                  _exportDateRange = _kDefaultExportDateRange;
                   _exportStart = null;
                   _exportEnd = null;
                   // Drop a stale "attach documents" choice when switching to a
@@ -489,7 +496,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ? null
                 : (v) => setState(() {
                     _exportDateKey = v;
-                    if (v != null) _exportDateRange = 'last7';
+                    if (v != null) _exportDateRange = _kDefaultExportDateRange;
                   }),
             items: [
               DropdownMenuItem(value: null, child: Text(context.tr('all'))),
@@ -501,6 +508,10 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         if (_exportDateKey != null) ...[
           SizedBox(height: InSpacing.md(context)),
           DropdownButtonFormField<String>(
+            // Re-created per date column: `initialValue` is read once, so a
+            // switch between two columns would otherwise keep showing the
+            // old range while the reset one is what gets sent.
+            key: ValueKey(_exportDateKey),
             initialValue: _exportDateRange,
             isExpanded: true,
             decoration: InputDecoration(

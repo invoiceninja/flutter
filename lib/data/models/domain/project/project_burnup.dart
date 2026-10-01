@@ -34,6 +34,8 @@ class ProjectBurnup {
     required this.budgetedAmount,
     required this.dueDate,
     required this.series,
+    this.taskEstimatedHours = 0,
+    this.unestimatedTaskCount = 0,
   });
 
   final Date? startDate;
@@ -52,6 +54,14 @@ class ProjectBurnup {
 
   /// Vertical marker line.
   final Date? dueDate;
+
+  /// Horizontal marker: the sum of the tasks' estimates, in hours (React
+  /// #3380). 0 when nothing is estimated — or on a server that predates task
+  /// estimates — and then no line is drawn.
+  final double taskEstimatedHours;
+
+  /// Tasks with no estimate, so the estimate line isn't read as complete.
+  final int unestimatedTaskCount;
 
   final List<ProjectBurnupPoint> series;
 
@@ -95,6 +105,12 @@ class ProjectBurnup {
           for (final row in rawSeries)
             if (row is Map) ProjectBurnupPoint.fromJson(_asMap(row)),
       ],
+      taskEstimatedHours: _double(
+        markers['task_estimated_hours'] ?? project['task_estimated_hours'],
+      ),
+      unestimatedTaskCount: _int(
+        _asMap(json['metadata'])['unestimated_task_count'],
+      ),
     );
   }
 }
@@ -162,4 +178,10 @@ Decimal _money(Object? v) {
 double _double(Object? v) {
   if (v is num) return v.toDouble();
   return double.tryParse(v?.toString() ?? '') ?? 0;
+}
+
+int _int(Object? v) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v?.toString() ?? '') ?? 0;
 }

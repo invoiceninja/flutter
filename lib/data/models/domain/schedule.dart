@@ -209,6 +209,9 @@ extension EmailReportParametersAccess on Schedule {
 
   List<String> get reportCategories => _csvOrList(parameters['categories']);
 
+  /// `tag_ids` — CSV on the wire, like the report screen's `ReportPayload`.
+  List<String> get reportTags => _csvOrList(parameters['tag_ids']);
+
   /// Report-design template id (NOT the email template — that's
   /// `recordEmailTemplate` on email_record).
   String get reportTemplateId => (parameters['template_id'] as String?) ?? '';

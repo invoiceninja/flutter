@@ -21,12 +21,20 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 /// requires `X-API-PASSWORD-BASE64` for destructive ops — and that password
 /// sheet *is* its confirmation, which is why only Archive carries
 /// [BulkAction.confirm]. Restore is the reversal, so it isn't gated at all.
+///
+/// [canDelete] narrows Delete's eligibility beyond "not already deleted" for
+/// an entity the server refuses to delete in some state (a payment applied to
+/// a deleted invoice) — an ineligible row is left out exactly like an
+/// already-deleted one (not counted in the result toast), rather than queued
+/// to dead-letter. The per-row menu hides Delete for such a row and its
+/// dispatch explains why.
 List<BulkAction<T>> standardCrudBulkActions<T>({
   required bool Function(T) isArchived,
   required bool Function(T) isDeleted,
   required Future<void> Function(String id) archive,
   required Future<void> Function(String id) restore,
   required Future<void> Function(String id) delete,
+  bool Function(T)? canDelete,
 }) => [
   BulkAction<T>(
     id: 'archive',
@@ -44,7 +52,7 @@ List<BulkAction<T>> standardCrudBulkActions<T>({
   BulkAction<T>(
     id: 'delete',
     labelKey: 'delete',
-    eligible: (t) => !isDeleted(t),
+    eligible: (t) => !isDeleted(t) && (canDelete?.call(t) ?? true),
     apply: delete,
     requiresPassword: true,
   ),

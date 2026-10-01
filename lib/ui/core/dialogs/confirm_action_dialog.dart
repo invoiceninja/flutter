@@ -30,6 +30,15 @@ Future<bool> showConfirmActionDialog(
     context: context,
     builder: (ctx) {
       final tokens = ctx.inTheme;
+      final cancelLabel = ctx.tr('cancel');
+      // The confirm button restates the action's label — so for the Cancel
+      // verbs (`cancel_invoice` / `cancel_quote` both read "Cancel") the two
+      // buttons would read [Cancel] [Cancel], one of them cancelling the
+      // invoice. The dismiss button says "Go Back" there instead.
+      final dismissLabel =
+          title.trim().toLowerCase() == cancelLabel.trim().toLowerCase()
+          ? ctx.tr('go_back')
+          : cancelLabel;
       return AlertDialog(
         title: Text(title),
         content: Column(
@@ -67,7 +76,7 @@ Future<bool> showConfirmActionDialog(
             autofocus: true,
             style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(ctx.tr('cancel')),
+            child: Text(dismissLabel),
           ),
           PrimaryDialogAction(
             variant: destructive

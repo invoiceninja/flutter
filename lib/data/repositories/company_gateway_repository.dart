@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/company_gateway_dao.dart';
@@ -10,9 +11,12 @@ import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/services/company_gateways_api.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+
+final _log = Logger('CompanyGatewayRepository');
 
 /// Source of truth for CompanyGateway data. UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -217,11 +221,30 @@ class CompanyGatewayRepository
   Future<String> requestOAuthSetupHash() => api.requestOneTimeToken();
 
   /// Phase 2: disconnect a Stripe Connect gateway. The server keeps the
-  /// row but clears its `account_id`, so the gateway re-renders as
-  /// "not connected" in the list. Destructive enough that the API client
-  /// requires the active password.
-  Future<void> disconnectStripe({required String id}) =>
-      api.disconnectStripe(id: id);
+  /// row but clears its `config.account_id`. Destructive enough that the API
+  /// client requires the active password.
+  ///
+  /// The row is re-fetched afterwards: nothing else would tell the local copy
+  /// the account is gone, so every screen watching it would keep offering
+  /// Disconnect (a second tap fails "not configured") and keep the stale
+  /// `account_id` in the payload a later edit PUTs back. The re-fetch is
+  /// best-effort — the disconnect itself has already succeeded, and the next
+  /// refresh converges the row anyway.
+  Future<void> disconnectStripe({
+    required String companyId,
+    required String id,
+  }) async {
+    await api.disconnectStripe(id: id);
+    try {
+      final fresh = await RequestScope(
+        companyId,
+      ).run(() async => (await api.get(id)).data);
+      // One server record: through the echo guard, like any other.
+      await applyUpdateResponse(companyId: companyId, serverResponse: fresh);
+    } catch (e) {
+      _log.warning('Re-fetch after Stripe disconnect failed: $e');
+    }
+  }
 
   /// Phase 3: pull this Stripe gateway's customers into Invoice Ninja.
   Future<void> importStripeCustomers({required String id}) =>

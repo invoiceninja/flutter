@@ -88,7 +88,8 @@ List<String> visibleEInvoiceTypes({
   final isPeppolSelected = selectedType == kEInvoiceTypePEPPOL;
   final isVerifactuSelected = selectedType == kEInvoiceTypeVERIFACTU;
   final isPeppolCountry =
-      countryId != null && kPeppolCountries.contains(countryId);
+      countryId != null &&
+      isPeppolCountryAllowed(countryId, isHosted: isHosted);
   final isSpain = countryId == kEInvoiceCountryIdSpain;
   final verifactuVisible = verifactuFlagEnabled && isHosted && isSpain;
 
@@ -104,6 +105,14 @@ List<String> visibleEInvoiceTypes({
       })
       .toList(growable: false);
 }
+
+/// Whether a company in [countryId] may use PEPPOL: a PEPPOL-network country,
+/// except France ([kFranceCountryId]) on a self-hosted install — a
+/// self-hosted French company can't register on the network (React #3305,
+/// `isPeppolBlockedForCompany`).
+bool isPeppolCountryAllowed(String countryId, {required bool isHosted}) =>
+    kPeppolCountries.contains(countryId) &&
+    !(!isHosted && countryId == kFranceCountryId);
 
 const String kEQuoteTypeOrderX_Comfort = 'OrderX_Comfort';
 const String kEQuoteTypeOrderX_Basic = 'OrderX_Basic';

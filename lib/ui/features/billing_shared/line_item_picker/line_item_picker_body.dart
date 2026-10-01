@@ -20,11 +20,13 @@ import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_result.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_summary.dart';
+import 'package:admin/ui/features/billing_shared/line_item_picker/quick_product_dialog.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Tabbed multi-select picker body for the billing-doc edit screens.
@@ -121,6 +123,9 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
   /// this — they're preloaded once and filtered in-memory.
   final Map<String, Product> _selectedProductsById = <String, Product>{};
 
+  /// `create_product` — gates the inline "Create «name»" row.
+  bool _canCreateProducts = false;
+
   // Lookup name maps populated once at picker open via the lightweight
   // `watchActiveNames` streams (clients/projects/vendors) and the
   // `watchActive` stream (expense categories). Resolve in tens of ms for
@@ -162,6 +167,8 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
       if (tasksOn) _TabKind.tasks,
       if (expensesOn) _TabKind.expenses,
     ];
+    _canCreateProducts =
+        session?.currentCompany?.can('create_product') ?? false;
     _tabCtl = TabController(length: _tabs.length, vsync: this);
     _tabCtl.addListener(() => setState(() {}));
     _filterCtl.addListener(_onFilterChanged);
@@ -701,6 +708,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
               autocorrect: false,
               enableSuggestions: false,
               textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _onFilterSubmitted(),
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search, size: 20),
                 hintText: context.tr('filter'),
@@ -765,6 +773,54 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
     );
   }
 
+  /// Offer "Create «filter»" on the Products tab when the typed text names
+  /// no existing product (invoiceninja/ui#3384) — not only when the list is
+  /// empty: a search for "Web" that matches "Web Hosting" still wants a way
+  /// to make a product called "Web".
+  bool get _showCreateProduct {
+    final q = _filter.trim().toLowerCase();
+    if (!_canCreateProducts || q.isEmpty || _loadingProducts) return false;
+    return !_products.any((p) => p.productKey.trim().toLowerCase() == q);
+  }
+
+  Future<void> _createProduct() async {
+    final draft = await showQuickProductDialog(
+      context,
+      initialKey: _filter.trim(),
+      useCommaAsDecimalPlace:
+          widget.formatter?.settings.useCommaAsDecimalPlace ?? false,
+    );
+    if (draft == null || !mounted) return;
+    final services = context.read<Services>();
+    try {
+      final created = (await services.products.create(
+        companyId: widget.companyId,
+        draft: draft,
+      )).entity;
+      if (!mounted) return;
+      // Selected straight away — the picker is multi-select, so it stays
+      // open; the row turns up checked under the same search, and the footer
+      // count is the confirmation.
+      setState(() {
+        _selProducts.add(created.id);
+        _selectedProductsById[created.id] = created;
+      });
+    } catch (e) {
+      if (mounted) {
+        Notify.error(context, context.tr('could_not_save'), error: e);
+      }
+    }
+  }
+
+  /// Enter in the filter creates when the create row is the only option on
+  /// the Products tab — nothing else could be what the user meant.
+  void _onFilterSubmitted() {
+    final onProducts = _tabs[_tabCtl.index] == _TabKind.products;
+    if (onProducts && _showCreateProduct && _products.isEmpty) {
+      _createProduct();
+    }
+  }
+
   Map<_TabKind, int?> _tabCounts() {
     final f = _lower(_filter.trim());
     return {
@@ -815,6 +871,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
           }),
           onSelectAll: _selectAllOnActiveTab,
           onClearAll: _clearActiveTab,
+          onCreate: _showCreateProduct ? _createProduct : null,
         );
       case _TabKind.tasks:
         return _TasksTab(
@@ -1091,6 +1148,7 @@ class _ProductsTab extends StatelessWidget {
     required this.onToggle,
     required this.onSelectAll,
     required this.onClearAll,
+    this.onCreate,
   });
 
   final bool loading;
@@ -1111,16 +1169,56 @@ class _ProductsTab extends StatelessWidget {
   final VoidCallback onSelectAll;
   final VoidCallback onClearAll;
 
+  /// Non-null when the filter names no existing product and the user may
+  /// create one — renders the "Create «filter»" row, pinned above the list
+  /// (the bottom of the phone sheet sits under the keyboard).
+  final VoidCallback? onCreate;
+
+  Widget _createRow(BuildContext context) {
+    final tokens = context.inTheme;
+    return InkWell(
+      key: const Key('picker_create_product'),
+      onTap: onCreate,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // `accentInk`, not `accent` — see the desktop product cell.
+            Icon(Icons.add, size: 18, color: tokens.accentInk),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${context.tr('create')} "${filter.trim()}"',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: tokens.accentInk,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const _LoadingState();
     if (products.isEmpty) {
-      return _EmptyState(filter: filter, unfilteredEmpty: true);
+      final empty = _EmptyState(filter: filter, unfilteredEmpty: true);
+      if (onCreate == null) return empty;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [_createRow(context), empty],
+      );
     }
     final f = formatter;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (onCreate != null) _createRow(context),
         _TabToolbar(
           onSelectAll: onSelectAll,
           onClearAll: onClearAll,

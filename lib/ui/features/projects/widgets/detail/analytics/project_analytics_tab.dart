@@ -194,6 +194,10 @@ class _Cards extends StatelessWidget {
           ),
           gap,
         ],
+        if (a?.estimates != null) ...[
+          _EstimatesCard(estimates: a!.estimates!),
+          gap,
+        ],
         if (a?.invoiceProgress != null) ...[
           _InvoiceProgressCard(
             progress: a!.invoiceProgress!,
@@ -379,6 +383,55 @@ class _ProfitabilityCard extends StatelessWidget {
               valueColor: negative ? tokens.overdue : tokens.paid,
             ),
             _Kpi(context.tr('margin'), _percent(profit.marginRatio)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Task estimates against logged time (React #3380). Mounted only when some
+/// task carries an estimate — with none, every figure would be a zero meaning
+/// "not estimated", which the card would otherwise read as "nothing to do".
+class _EstimatesCard extends StatelessWidget {
+  const _EstimatesCard({required this.estimates});
+
+  final ProjectEstimates estimates;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final e = estimates;
+    return DashboardCardShell(
+      title: context.tr('estimated_hours'),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _KpiWrap(
+              cells: [
+                _Kpi(context.tr('estimated_hours'), _hours(e.estimatedHours)),
+                _Kpi(context.tr('logged_hours'), _hours(e.loggedHours)),
+                _Kpi(
+                  context.tr('remaining_estimated_hours'),
+                  _hours(e.remainingEstimatedHours),
+                ),
+                _Kpi(
+                  context.tr('tasks_over_estimate'),
+                  '${e.tasksOverEstimate}',
+                  valueColor: e.tasksOverEstimate > 0 ? tokens.overdue : null,
+                ),
+              ],
+            ),
+            // The caveat on every figure above: these tasks aren't counted.
+            if (e.unestimatedTasks > 0) ...[
+              SizedBox(height: InSpacing.md(context)),
+              Text(
+                '${context.tr('unestimated_tasks')}: ${e.unestimatedTasks}',
+                style: TextStyle(color: tokens.ink3, fontSize: 12),
+              ),
+            ],
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,7 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 
@@ -350,5 +352,145 @@ class ExpenseActions {
           extra: target.copyWith(lineItems: [...target.lineItems, addItem]),
         );
     }
+  }
+
+  // ─── Bulk (list selection) ───────────────────────────────────────────
+
+  /// The billable part of a selection, or null when it can't be used (the
+  /// user has been told why). Expenses for more than one client can't share
+  /// an invoice — counted over the billable rows only, so an already-invoiced
+  /// expense of another client in the selection doesn't block the rest.
+  static List<Expense>? _billableSelection(
+    BuildContext context,
+    List<Expense> expenses,
+  ) {
+    final selection = bulkBillableSelection(expenses);
+    if (selection.billable.isEmpty) {
+      Notify.info(context, context.tr('no_billable_expenses'));
+      return null;
+    }
+    if (selection.multipleClients) {
+      Notify.error(context, context.tr('multiple_client_error'));
+      return null;
+    }
+    return selection.billable;
+  }
+
+  /// Silently dropping rows from a bulk selection reads as a bug.
+  static void _reportSkipped(BuildContext context, int used, int selected) {
+    if (used >= selected) return;
+    Notify.info(
+      context,
+      context.tr('added_expense_items_partial', {
+        'count': '$used',
+        'total': '$selected',
+      }),
+    );
+  }
+
+  /// An expense recorded in another currency with no conversion lands on the
+  /// invoice at its own amount, in the wrong currency. Worth a warning when a
+  /// selection mixes them.
+  static void _warnMixedCurrencies(BuildContext context, List<Expense> items) {
+    String billedIn(Expense e) =>
+        e.invoiceCurrencyId.isNotEmpty && e.foreignAmount > Decimal.zero
+        ? e.invoiceCurrencyId
+        : e.currencyId;
+    if (items.map(billedIn).where((c) => c.isNotEmpty).toSet().length > 1) {
+      Notify.warning(context, context.tr('expense_currency_mismatch'));
+    }
+  }
+
+  /// "Invoice Expense" over a selection: one new invoice with a line per
+  /// expense (React #3382). The invoice takes the first expense's
+  /// inclusive-tax mode, and every line is costed for that same mode — a
+  /// mixed selection would otherwise read half its lines the wrong way.
+  /// Project and vendor carry over only when every expense agrees.
+  static Future<void> invoiceExpenses(
+    BuildContext context,
+    List<Expense> expenses,
+  ) async {
+    final billable = _billableSelection(context, expenses);
+    if (billable == null) return;
+    final inclusive = billable.first.usesInclusiveTaxes;
+    String shared(String Function(Expense) of) {
+      final values = billable.map(of).toSet();
+      return values.length == 1 ? values.single : '';
+    }
+
+    _warnMixedCurrencies(context, billable);
+    _reportSkipped(context, billable.length, expenses.length);
+    goEntityCreateFullWidth(
+      context,
+      '/invoices',
+      extra: emptyInvoice().copyWith(
+        clientId: billable
+            .map((e) => e.clientId)
+            .firstWhere((c) => c.isNotEmpty, orElse: () => ''),
+        projectId: shared((e) => e.projectId),
+        vendorId: shared((e) => e.vendorId),
+        usesInclusiveTaxes: inclusive,
+        lineItems: [
+          for (final e in billable)
+            expenseInvoiceLineItem(e, invoiceInclusive: inclusive),
+        ],
+      ),
+    );
+  }
+
+  /// "Add to invoice" over a selection: appends the expenses to one of the
+  /// client's open invoices, skipping any already on it.
+  static Future<void> addExpensesToInvoice(
+    BuildContext context,
+    Services services,
+    String companyId,
+    List<Expense> expenses,
+  ) async {
+    final billable = _billableSelection(context, expenses);
+    if (billable == null) return;
+    final clientId = billable
+        .map((e) => e.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    if (clientId.isEmpty) {
+      Notify.error(context, context.tr('please_select_a_client'));
+      return;
+    }
+    final formatter = await services.formatterFor(companyId);
+    if (!context.mounted) return;
+    final target = await showAddToInvoiceDialog(
+      context,
+      services: services,
+      companyId: companyId,
+      clientId: clientId,
+      formatter: formatter,
+    );
+    if (target == null || !context.mounted) return;
+    final existing = await InvoiceAppendContext.of(services, companyId, target);
+    if (!context.mounted) return;
+    final fresh = billable
+        .where((e) => !existing.expenseIds.contains(e.id))
+        .toList();
+    if (fresh.isEmpty) {
+      Notify.info(context, context.tr('no_billable_expenses'));
+      return;
+    }
+    _warnMixedCurrencies(context, fresh);
+    _reportSkipped(context, fresh.length, expenses.length);
+    // The target invoice's tax mode is fixed — cost every line for it.
+    goEntityEditWithDraft(
+      context,
+      '/invoices',
+      target.id,
+      target.copyWith(
+        lineItems: [
+          ...target.lineItems,
+          for (final e in fresh)
+            expenseInvoiceLineItem(
+              e,
+              invoiceInclusive: target.usesInclusiveTaxes,
+            ),
+        ],
+      ),
+    );
   }
 }

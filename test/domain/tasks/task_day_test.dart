@@ -145,4 +145,77 @@ void main() {
       );
     });
   });
+
+  // React #3378 — the month calendar places a task on every day it was
+  // worked. Local wall-clock fixtures, so the result is the same in every
+  // timezone (the helper converts each start to local).
+  group('tasksByActiveDay', () {
+    final from = Date(2026, 6, 1);
+    final to = Date(2026, 6, 30);
+
+    test('each entry\'s own day — never the first-to-last span', () {
+      final task = _t(
+        'a',
+        log: [
+          _e(DateTime(2026, 6, 3, 10), DateTime(2026, 6, 3, 12)),
+          _e(DateTime(2026, 6, 17, 10), DateTime(2026, 6, 17, 11)),
+        ],
+      );
+      final map = tasksByActiveDay([task], from: from, to: to);
+      expect(map.keys.toSet(), {Date(2026, 6, 3), Date(2026, 6, 17)});
+    });
+
+    test('an entry past midnight sits on both of its days', () {
+      final task = _t(
+        'a',
+        log: [_e(DateTime(2026, 6, 9, 22), DateTime(2026, 6, 10, 2))],
+      );
+      final map = tasksByActiveDay([task], from: from, to: to);
+      expect(map.keys.toSet(), {Date(2026, 6, 9), Date(2026, 6, 10)});
+    });
+
+    test('an entry ending exactly at midnight stays on its own day', () {
+      final task = _t(
+        'a',
+        log: [_e(DateTime(2026, 6, 9, 22), DateTime(2026, 6, 10))],
+      );
+      final map = tasksByActiveDay([task], from: from, to: to);
+      expect(map.keys.toSet(), {Date(2026, 6, 9)});
+    });
+
+    test('a stop before its start still shows on the start day', () {
+      final task = _t(
+        'a',
+        log: [_e(DateTime(2026, 6, 9, 14), DateTime(2026, 6, 9, 9))],
+      );
+      final map = tasksByActiveDay([task], from: from, to: to);
+      expect(map.keys.toSet(), {Date(2026, 6, 9)});
+    });
+
+    test(
+      'a running entry runs to now; days outside the window are dropped',
+      () {
+        final task = _t('a', log: [_e(DateTime(2026, 5, 30, 9), null)]);
+        final map = tasksByActiveDay(
+          [task],
+          from: from,
+          to: to,
+          now: DateTime(2026, 6, 2, 12),
+        );
+        expect(map.keys.toSet(), {Date(2026, 6, 1), Date(2026, 6, 2)});
+      },
+    );
+
+    test('a task worked twice on one day appears once on it', () {
+      final task = _t(
+        'a',
+        log: [
+          _e(DateTime(2026, 6, 5, 9), DateTime(2026, 6, 5, 10)),
+          _e(DateTime(2026, 6, 5, 14), DateTime(2026, 6, 5, 15)),
+        ],
+      );
+      final map = tasksByActiveDay([task], from: from, to: to);
+      expect(map[Date(2026, 6, 5)], hasLength(1));
+    });
+  });
 }

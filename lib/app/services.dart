@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/app/accent_color_controller.dart';
 import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/deep_link_router.dart';
@@ -313,6 +314,7 @@ class Services implements SidebarBadgeContext {
     required this.hideUnverifiedUsers,
     required this.tasksView,
     required this.hideEmptyPanels,
+    required this.defaultItemsTab,
     required this.phoneActions,
     required this.pendingCall,
     required this.contactsSync,
@@ -673,6 +675,10 @@ class Services implements SidebarBadgeContext {
   /// switch is flipped and its view model never notifies for a device
   /// preference.
   final HideEmptyPanelsController hideEmptyPanels;
+
+  /// Which items tab a billing document opens on when its lines don't decide
+  /// (React #3355) — Device Settings → Default tab.
+  final DefaultItemsTabController defaultItemsTab;
 
   /// Device-local "Phone numbers" preferences — tap-to-call, the optional
   /// in-app confirm, and the outside-business-hours warning window
@@ -1441,6 +1447,8 @@ class Services implements SidebarBadgeContext {
     final quickbooksRepo = QuickbooksRepository(
       apiClient: apiClient,
       auth: auth,
+      refreshInvoice: (companyId, id) =>
+          entities.invoices.refreshByIds(companyId: companyId, ids: [id]),
     );
     final calendarConnectionRepo = CalendarConnectionRepository(
       apiClient: apiClient,
@@ -1663,6 +1671,7 @@ class Services implements SidebarBadgeContext {
     );
     final tasksView = TasksViewController(prefs: devicePrefs);
     final hideEmptyPanels = HideEmptyPanelsController(prefs: devicePrefs);
+    final defaultItemsTab = DefaultItemsTabController(prefs: devicePrefs);
     final phoneActions = PhoneActionsController(prefs: devicePrefs);
     final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
@@ -1972,6 +1981,7 @@ class Services implements SidebarBadgeContext {
       hideUnverifiedUsers: hideUnverifiedUsers,
       tasksView: tasksView,
       hideEmptyPanels: hideEmptyPanels,
+      defaultItemsTab: defaultItemsTab,
       phoneActions: phoneActions,
       pendingCall: pendingCall,
       contactsSync: contactsSync,

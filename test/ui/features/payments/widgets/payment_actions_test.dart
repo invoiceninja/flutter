@@ -27,6 +27,7 @@ Payment _payment({
   String amount = '100',
   String refunded = '0',
   List<PaymentableApi> paymentables = const [],
+  List<PaymentInvoiceRefApi>? invoices,
   bool isDeleted = false,
   int archivedAt = 0,
 }) => Payment.fromApi(
@@ -36,6 +37,7 @@ Payment _payment({
     amount: amount,
     refunded: refunded,
     paymentables: paymentables,
+    invoices: invoices,
     isDeleted: isDeleted,
     archivedAt: archivedAt,
   ),
@@ -216,6 +218,36 @@ void main() {
 
       expect(present(items, PaymentAction.restore), isTrue);
       expect(present(items, PaymentAction.delete), isFalse);
+    });
+
+    testWidgets(
+      'applied to a deleted invoice → no delete (server: deleted_invoices_exist)',
+      (tester) async {
+        final items = await resolveItems(
+          tester,
+          _payment(
+            paymentables: const [_invoiceAllocation],
+            invoices: const [PaymentInvoiceRefApi(id: 'inv1', isDeleted: true)],
+          ),
+        );
+
+        expect(present(items, PaymentAction.delete), isFalse);
+        expect(present(items, PaymentAction.archive), isTrue);
+      },
+    );
+
+    testWidgets('applied to a live invoice → delete still offered', (
+      tester,
+    ) async {
+      final items = await resolveItems(
+        tester,
+        _payment(
+          paymentables: const [_invoiceAllocation],
+          invoices: const [PaymentInvoiceRefApi(id: 'inv1')],
+        ),
+      );
+
+      expect(present(items, PaymentAction.delete), isTrue);
     });
   });
 

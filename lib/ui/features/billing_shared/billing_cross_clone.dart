@@ -374,6 +374,26 @@ Quote cloneToQuote(BillingCloneData data) => emptyQuote().copyWith(
   invitations: data.invitations,
 );
 
+/// The PEPPOL `e_invoice` block a credit note needs to reference the invoice
+/// it reverses (React #3290): UBL `CreditNote.BillingReference[0]` carrying
+/// the invoice's document number and issue date — the same path the credit
+/// edit screen's [CreditBillingReferenceField] writes, so it shows filled in.
+Map<String, dynamic> peppolCreditBillingReference({
+  required String invoiceNumber,
+  required String issueDate,
+}) => {
+  'CreditNote': {
+    'BillingReference': [
+      {
+        'InvoiceDocumentReference': {
+          'ID': invoiceNumber,
+          'IssueDate': issueDate,
+        },
+      },
+    ],
+  },
+};
+
 Credit cloneToCredit(BillingCloneData data) => emptyCredit().copyWith(
   clientId: data.clientId,
   poNumber: data.poNumber,
@@ -445,6 +465,59 @@ RecurringInvoice cloneToRecurringInvoice(BillingCloneData data) =>
 
 /// PurchaseOrder is vendor-billed: copy content only, never the client or
 /// invitations — the user selects the vendor on the create screen.
+/// "Convert to purchase order" (React #3370) — a different thing from
+/// [cloneToPurchaseOrder], and kept separate on purpose. A clone copies the
+/// document as-is; a conversion turns what the client was sold into what you
+/// need to buy, mirroring the server's `Clone{Invoice,Quote}ToPurchaseOrder`
+/// factories field for field:
+///
+///  * each line is costed at its **product cost** (`cost = product_cost`) —
+///    the client's price has no place on an order to a supplier;
+///  * public notes, terms and footer start blank (they were written for the
+///    client); private notes carry over;
+///  * the client stays, and the source is linked back through [invoiceId] /
+///    [quoteId] — the server requires both to belong to that same client;
+///  * [designId] is the client-level `purchase_order_design_id`.
+///
+/// Built here and saved through the outbox like any create, rather than via
+/// the server's `convert_to_purchase_order` action: it works offline and on
+/// servers older than that action.
+PurchaseOrder convertToPurchaseOrder(
+  BillingCloneData data, {
+  String invoiceId = '',
+  String quoteId = '',
+  String designId = '',
+}) => emptyPurchaseOrder().copyWith(
+  clientId: data.clientId,
+  invoiceId: invoiceId,
+  quoteId: quoteId,
+  designId: designId,
+  poNumber: data.poNumber,
+  assignedUserId: data.assignedUserId,
+  discount: data.discount,
+  isAmountDiscount: data.isAmountDiscount,
+  taxName1: data.taxName1,
+  taxName2: data.taxName2,
+  taxName3: data.taxName3,
+  taxRate1: data.taxRate1,
+  taxRate2: data.taxRate2,
+  taxRate3: data.taxRate3,
+  usesInclusiveTaxes: data.usesInclusiveTaxes,
+  privateNotes: data.privateNotes,
+  publicNotes: '',
+  terms: '',
+  footer: '',
+  customValue1: data.customValue1,
+  customValue2: data.customValue2,
+  customValue3: data.customValue3,
+  customValue4: data.customValue4,
+  lineItems: [
+    // No hourly lines on a PO: the server prints no task table for one.
+    for (final line in clonedLineItems(data.lineItems, keepTaskType: false))
+      line.copyWith(cost: line.productCost),
+  ],
+);
+
 PurchaseOrder cloneToPurchaseOrder(BillingCloneData data) =>
     emptyPurchaseOrder().copyWith(
       poNumber: data.poNumber,

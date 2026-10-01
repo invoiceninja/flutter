@@ -703,6 +703,20 @@ missing secret comes back from `/login` as the 403 "Invalid secret". **O.** Repo
 `secret_required` as `config('ninja.api_secret') && !Ninja::isHosted()`, mirroring the
 middleware.
 
+### H3. Quote `cancel` exists on `v5-develop` only — **released in 5.13.44+** (client gates on it)
+
+`BulkActionQuoteRequest`'s `action` rule on the released 5.13.43 (`v5-stable`) has no `cancel`,
+so a quote Cancel there is a 422; `v5-develop` accepts it and logs activity 170 ("quote
+cancelled"). On **self-hosted**, the quote list's bulk Cancel and the single-quote action are
+offered only when the server reports a version ≥ 5.13.44 (`ServerFeatures.quoteCancel`,
+`lib/app/version.dart`); an unknown version counts as unsupported. **Hosted is exempt**: it runs
+current code (React offers Cancel there with no gate), but its `x-app-version` is set from an
+`APP_VERSION` env value that lags — `invoicing.co` sent `5.13.32` on 2026-10-01, which hid Cancel
+from every hosted user until the exemption. **O (hosted):** keep `APP_VERSION` in step with the
+deployed code, so the header can be trusted. Drop the self-hosted gate once every supported
+install is past 5.13.44. The same helper gates the task calendar's `activity_dates` month fetch
+at 5.13.43, with the same hosted exemption.
+
 ### G. Hygiene — highest leverage
 
 1. **R (non-breaking first).** Unknown filter param → surface in a

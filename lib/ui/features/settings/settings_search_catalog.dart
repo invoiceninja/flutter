@@ -71,6 +71,21 @@ import 'package:admin/ui/features/settings/views/basic/device_settings_screen.da
 /// constants. Editing a field and forgetting to update keys now requires
 /// editing the same file. Sections backed by placeholder screens keep their
 /// keys inline below until the real screens land.
+/// The public user guide.
+const String kDocsBaseUrl = 'https://invoiceninja.github.io/docs';
+
+/// The docs URL of the settings section titled [titleKey], or null. Keyed on
+/// the title because that is what every settings page hands its scaffold; a
+/// drill-in page (a user's edit screen) carries its own title and so gets no
+/// link. The slug matches too: Online Payments' page is titled
+/// `online_payments` while its section's sidebar label is `payment_settings`.
+String? settingsDocsUrlForTitle(String titleKey) {
+  for (final s in kSettingsSections) {
+    if (s.titleKey == titleKey || s.slug == titleKey) return s.docsUrl;
+  }
+  return null;
+}
+
 class SettingsSectionDef {
   const SettingsSectionDef({
     required this.slug,
@@ -81,7 +96,17 @@ class SettingsSectionDef {
     this.clientEditable = true,
     this.enabledBy,
     this.adminOnly = false,
+    this.docsPath,
   });
+
+  /// This section's page in the public user guide, relative to [kDocsBaseUrl]
+  /// (`user-guide/basic-settings#company_details`) — React's settings "Learn
+  /// more" map (invoiceninja/ui#3391). Every path and anchor was checked
+  /// against the live site; `settings_docs_links_test` pins the shape.
+  final String? docsPath;
+
+  /// The full docs URL, or null when the section has none.
+  String? get docsUrl => docsPath == null ? null : '$kDocsBaseUrl/$docsPath';
 
   /// Stable identifier; matches the leading path segment after `/settings/`.
   final String slug;
@@ -134,6 +159,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/company_details',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#company_details',
   ),
   SettingsSectionDef(
     slug: 'user_details',
@@ -142,6 +168,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/user_details',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#user_details',
   ),
   SettingsSectionDef(
     slug: 'localization',
@@ -149,6 +176,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.language_outlined,
     route: '/settings/localization',
     isBasic: true,
+    docsPath: 'user-guide/basic-settings#localization',
   ),
   SettingsSectionDef(
     slug: 'online_payments',
@@ -156,6 +184,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.payments_outlined,
     route: '/settings/online_payments',
     isBasic: true,
+    docsPath: 'user-guide/gateways',
   ),
   SettingsSectionDef(
     slug: 'tax_settings',
@@ -163,6 +192,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.percent_outlined,
     route: '/settings/tax_settings',
     isBasic: true,
+    docsPath: 'user-guide/taxes',
   ),
   SettingsSectionDef(
     slug: 'product_settings',
@@ -174,6 +204,7 @@ const kSettingsSections = <SettingsSectionDef>[
     // override (the screen uses `SettingsCompanyScopedHost`). Company-only,
     // like Company Details — matches the React app.
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#product_settings',
   ),
   SettingsSectionDef(
     slug: 'task_settings',
@@ -182,6 +213,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/task_settings',
     isBasic: true,
     enabledBy: [EnabledModule.tasks],
+    docsPath: 'user-guide/basic-settings#task_settings',
   ),
   // Tags span tasks + projects; company-level + admin-managed (the server
   // gates create/update to admins). The screen's toggle switches entity type.
@@ -194,6 +226,7 @@ const kSettingsSections = <SettingsSectionDef>[
     enabledBy: [EnabledModule.tasks, EnabledModule.projects],
     clientEditable: false,
     adminOnly: true,
+    docsPath: 'user-guide/basic-settings#tag_settings',
   ),
   SettingsSectionDef(
     slug: 'expense_settings',
@@ -207,6 +240,7 @@ const kSettingsSections = <SettingsSectionDef>[
     // at company scope here. Its per-client override lives in Online Payments →
     // Defaults, so hide this entry while editing in client/group scope.
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#expense_settings',
   ),
   SettingsSectionDef(
     slug: 'workflow_settings',
@@ -216,6 +250,7 @@ const kSettingsSections = <SettingsSectionDef>[
     isBasic: true,
     // Invoices + Quotes tabs — keep the section while either applies.
     enabledBy: [EnabledModule.invoices, EnabledModule.quotes],
+    docsPath: 'user-guide/advanced-settings#workflow_settings',
   ),
   SettingsSectionDef(
     slug: 'account_management',
@@ -224,6 +259,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/account_management',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#account_management',
   ),
   SettingsSectionDef(
     slug: 'backup_restore',
@@ -232,6 +268,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/backup_restore',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'advanced-topics/import-and-export#backup-function',
   ),
   SettingsSectionDef(
     slug: 'import_export',
@@ -240,6 +277,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/import_export',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'advanced-topics/import-and-export#import-data',
   ),
   SettingsSectionDef(
     slug: 'device_settings',
@@ -248,6 +286,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/device_settings',
     isBasic: true,
     clientEditable: false,
+    docsPath: 'user-guide/basic-settings#device_settings',
   ),
   SettingsSectionDef(
     slug: 'keyboard_shortcuts',
@@ -264,6 +303,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.design_services_outlined,
     route: '/settings/invoice_design',
     isBasic: false,
+    docsPath: 'user-guide/advanced-settings#invoice_design',
   ),
   SettingsSectionDef(
     slug: 'custom_fields',
@@ -274,6 +314,7 @@ const kSettingsSections = <SettingsSectionDef>[
     // Custom Fields are company-wide; hide the sidebar entry while the user
     // is editing in client scope (the scope banner doesn't apply here).
     clientEditable: false,
+    docsPath: 'user-guide/advanced-settings#custom_fields',
   ),
   SettingsSectionDef(
     slug: 'generated_numbers',
@@ -281,6 +322,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.format_list_numbered,
     route: '/settings/generated_numbers',
     isBasic: false,
+    docsPath: 'user-guide/advanced-settings#generated_numbers',
   ),
   SettingsSectionDef(
     slug: 'client_portal',
@@ -288,6 +330,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.web_outlined,
     route: '/settings/client_portal',
     isBasic: false,
+    docsPath: 'user-guide/client-portal',
   ),
   SettingsSectionDef(
     slug: 'e_invoice',
@@ -295,6 +338,10 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.electric_bolt_outlined,
     route: '/settings/e_invoice',
     isBasic: false,
+    // Company level only (React #3286): the standard, PEPPOL registration
+    // and certificates are the company's, not a per-client override.
+    clientEditable: false,
+    docsPath: 'user-guide/einvoicing',
   ),
   SettingsSectionDef(
     slug: 'email_settings',
@@ -302,6 +349,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.mail_outline,
     route: '/settings/email_settings',
     isBasic: false,
+    docsPath: 'user-guide/advanced-settings#email_settings',
   ),
   SettingsSectionDef(
     slug: 'templates_and_reminders',
@@ -309,6 +357,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.notifications_outlined,
     route: '/settings/templates_and_reminders',
     isBasic: false,
+    docsPath: 'user-guide/advanced-settings#templates_and_reminders',
   ),
   SettingsSectionDef(
     slug: 'bank_accounts',
@@ -316,6 +365,7 @@ const kSettingsSections = <SettingsSectionDef>[
     icon: Icons.account_balance_outlined,
     route: '/settings/bank_accounts',
     isBasic: false,
+    docsPath: 'user-guide/banking',
   ),
   SettingsSectionDef(
     slug: 'group_settings',
@@ -324,6 +374,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/group_settings',
     isBasic: false,
     clientEditable: false,
+    docsPath: 'user-guide/advanced-settings#group_settings',
   ),
   SettingsSectionDef(
     slug: 'payment_links',
@@ -340,6 +391,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/schedules',
     isBasic: false,
     clientEditable: false,
+    docsPath: 'advanced-topics/schedules',
   ),
   // Slug intentionally diverges from titleKey: the route is `users` but the
   // user-facing label is "User Management".
@@ -350,6 +402,7 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/users',
     isBasic: false,
     clientEditable: false,
+    docsPath: 'user-guide/advanced-settings#user_management',
   ),
   SettingsSectionDef(
     slug: 'system_logs',

@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -70,6 +71,11 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
       companyId: _companyId,
       firstDayOfWeek: _formatter?.settings.firstDayOfWeek ?? 0,
       focusMonth: widget.focusDate,
+      useActivityDates: ServerFeatures.supports(
+        _services.serverVersion.value,
+        ServerFeatures.taskActivityDates,
+        isHosted: _services.auth.session.value?.isHosted ?? false,
+      ),
     );
     _calVm = CalendarConnectionViewModel(repo: _services.calendarConnection);
     _vm.addListener(_onTaskVmChanged);
@@ -170,6 +176,11 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
         repo: _services.tasks,
         companyId: _companyId,
         firstDayOfWeek: _formatter?.settings.firstDayOfWeek ?? 0,
+        useActivityDates: ServerFeatures.supports(
+          _services.serverVersion.value,
+          ServerFeatures.taskActivityDates,
+          isHosted: _services.auth.session.value?.isHosted ?? false,
+        ),
       );
     });
     old.removeListener(_onTaskVmChanged);

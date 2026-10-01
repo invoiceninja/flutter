@@ -253,12 +253,21 @@ class BankTransactionRepository
     );
   }
 
-  /// DEBIT, create expense from vendor + category.
+  /// DEBIT, create expense from vendor + category — optionally billed to a
+  /// project or client, with its "should be invoiced" flag (React #3397).
+  ///
+  /// The server takes the client from the project when one is given
+  /// (`MatchBankTransactions`), so only one of the two is sent. Omitting
+  /// [shouldBeInvoiced] leaves the company's `mark_expenses_invoiceable`
+  /// default in charge.
   Future<void> matchToExpense({
     required String companyId,
     required String transactionId,
     required String vendorId,
     required String categoryId,
+    String projectId = '',
+    String clientId = '',
+    bool? shouldBeInvoiced,
   }) async {
     await enqueueMutation(
       companyId: companyId,
@@ -273,6 +282,11 @@ class BankTransactionRepository
             // vendor or category being set).
             if (vendorId.isNotEmpty) 'vendor_id': vendorId,
             if (categoryId.isNotEmpty) 'ninja_category_id': categoryId,
+            if (projectId.isNotEmpty)
+              'project_id': projectId
+            else if (clientId.isNotEmpty)
+              'client_id': clientId,
+            'should_be_invoiced': ?shouldBeInvoiced,
           },
         ],
       },

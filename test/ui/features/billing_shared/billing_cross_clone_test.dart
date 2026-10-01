@@ -64,6 +64,46 @@ void main() {
     expect(po.taxName1, 'GST');
   });
 
+  // React #3370 — the server's `CloneInvoiceToPurchaseOrderFactory`, field
+  // for field. Distinct from the clone above, which drops the client.
+  test('invoice→purchase_order CONVERT costs lines at product cost, keeps the '
+      'client, links back, and blanks the client-facing text', () {
+    final withCost = source.copyWith(
+      privateNotes: 'internal',
+      terms: 'client terms',
+      footer: 'client footer',
+      lineItems: [
+        emptyLineItem().copyWith(
+          productKey: 'WIDGET',
+          cost: Decimal.fromInt(20),
+          productCost: Decimal.fromInt(7),
+          quantity: Decimal.fromInt(3),
+        ),
+      ],
+    );
+
+    final po = convertToPurchaseOrder(
+      billingCloneFromInvoice(withCost),
+      invoiceId: 'inv_9',
+      designId: 'design_po',
+    );
+
+    expect(po.clientId, 'client_1');
+    expect(po.invoiceId, 'inv_9');
+    expect(po.quoteId, '');
+    expect(po.designId, 'design_po');
+    expect(po.statusId, PurchaseOrderStatus.draft);
+    expect(po.lineItems.single.cost, Decimal.fromInt(7));
+    expect(po.lineItems.single.quantity, Decimal.fromInt(3));
+    expect(po.publicNotes, '');
+    expect(po.terms, '');
+    expect(po.footer, '');
+    expect(po.privateNotes, 'internal');
+    expect(po.poNumber, 'PO-1');
+    expect(po.discount, Decimal.fromInt(5));
+    expect(po.usesInclusiveTaxes, isTrue);
+  });
+
   test('an hourly line stays hourly on an invoice, but not on a PO', () {
     // The server prints no task table on a purchase order, so a type-2 line
     // there would count in the totals and print nowhere.

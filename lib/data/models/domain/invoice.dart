@@ -104,6 +104,8 @@ abstract class Invoice with _$Invoice implements BillingDocPartialFields {
     Map<String, dynamic>? eInvoice,
     Map<String, dynamic>? backup,
     Map<String, dynamic>? taxInfo,
+    // Read-only, like `backup` / `taxInfo` — not part of `toApiJson`.
+    Map<String, dynamic>? sync,
     String? modifiedInvoiceId,
     String? reason,
     @Default(<ScheduleItem>[]) List<ScheduleItem> schedule,
@@ -187,6 +189,7 @@ abstract class Invoice with _$Invoice implements BillingDocPartialFields {
     eInvoice: a.eInvoice,
     backup: a.backup,
     taxInfo: a.taxInfo,
+    sync: a.sync,
     modifiedInvoiceId: a.modifiedInvoiceId,
     reason: a.reason,
     schedule: (a.schedule ?? const [])

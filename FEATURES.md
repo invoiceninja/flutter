@@ -191,6 +191,8 @@ the honest default.
 | Billing-doc edit — Products / Tasks line-item tabs: Settings → Task Settings → Show Tasks Table keeps Tasks on offer before any hourly line (invoice / quote / recurring); new Tasks rows are hourly (`type_id` 2, the PDF task table) with Service / Rate / Hours columns, and Hours takes `1:30` / `90m` | ✅ | ✅ | ✅ | | |
 | Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
+| Billing-doc edit — create a product from the items picker (`Create "<text>"`, prefilled dialog) | ✅ | — | ✅ | | |
+| Billing-doc edit — default items tab (Products / Tasks) as a device preference | ✅ | — | ✅ | | |
 | Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
 | Billing-doc detail — call the client/vendor from the header: one tap for a single number, a contact picker when there are several — invoice / quote / credit / recurring / PO | ❌ | ❌ | ✅ | | |
 | Billing-doc detail — who viewed it and when: a `Viewed <date>` line in the header on every status, and a `Viewed` pill that opens the Activity tab and flashes the entry — invoice / quote / credit / PO | ❌ | ❌ | ✅ | | |
@@ -200,6 +202,7 @@ the honest default.
 | Invoice — clone to new invoice | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — clone to quote | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — clone to credit | ✅ | ❌ | ✅ | ✅ | |
+| Invoice — clone to credit fills the PEPPOL credit note's billing reference | ✅ | — | ✅ | | |
 | Invoice — clone to recurring invoice | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — clone to purchase order | ✅ | ❌ | ✅ | ✅ | |
 | Invoice — mark sent | ✅ | ✅ | ✅ | ✅ | |
@@ -224,6 +227,7 @@ the honest default.
 | Invoice — unapplied payments view | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — e-invoice (UBL / Factur-X) | ✅ | ❌ | ✅ | ✅ | |
+| Invoice / credit — validate e-invoice (reads the server's 422 report; credits too) | ✅ | — | ✅ | | |
 | Invoice — Peppol delivery | ✅ | ❌ | ✅ | ✅ | |
 | Invoice — Verifactu (Spain) compliance | ✅ | ❌ | ✅ | ✅ | |
 | Invoice — archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
@@ -246,7 +250,8 @@ the honest default.
 | Quote — clone to invoice | ✅ | ✅ | ✅ | ✅ | |
 | Quote — convert / approve to invoice | ✅ | ✅ | ✅ | ✅ | |
 | Quote — mark sent | ✅ | ✅ | ✅ | ✅ | |
-| Quote — cancel (Sent only, irreversible) | — | — | ✅ | | |
+| Quote — cancel (Sent only, irreversible; hosted, or a self-hosted server ≥ 5.13.44 — 5.13.43 rejects it) | ✅ | — | ✅ | | |
+| Quote — bulk cancel from the list (skips non-Sent / expired; hosted, or self-hosted ≥ 5.13.44) | ✅ | — | ✅ | | |
 | Quote — email to client | ✅ | ✅ | ✅ | ✅ | |
 | Quote — schedule email | ✅ | ❌ | ✅ | ✅ | |
 | Quote — change template / design | ✅ | ✅ | ✅ | ✅ | |
@@ -341,10 +346,12 @@ the honest default.
 | Payment — apply to specific invoice | ✅ | ✅ | ✅ | ✅ | |
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |
+| Email — no address on file: inline Add email (writes the invited contact), bulk sends skip those documents; recurring Send Now offers Send anyway (the invoice is still created) | ✅ | — | ✅ | | |
 | Payment — view payment method / gateway used | ✅ | ✅ | ✅ | ✅ | |
 | Payment — activities / audit trail | ✅ | ✅ | ✅ | ✅ | |
 | Payment — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Payment — archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
+| Payment — delete hidden when it is applied to a deleted invoice (the server refuses it) | ✅ | — | ✅ | | |
 | Payment — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Payment — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Payment — custom fields | ✅ | ✅ | ✅ | ✅ | |
@@ -371,6 +378,8 @@ the honest default.
 | Project — budget / hours-worked tracking | ✅ | ✅ | ✅ | ✅ | |
 | Project — budgeted amount (money budget) | ❌ | ❌ | ✅ | | |
 | Project — analytics tab (server burn-up + budget/invoice/profit/health) — React splits it into Time / Expenses / Profit tabs with a forecast; v2 is one tab | ✅ | ❌ | 🟡 | | |
+| Project — estimated vs. logged hours card, and the estimate as a dashed burn-up line | ✅ | ❌ | ✅ | | |
+| Project — quick-add a task from the Tasks card (Enter adds, keeps focus; first status, project's client + rate) | ✅ | ❌ | ✅ | | |
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Project — activities | ✅ | ✅ | ✅ | ✅ | |
 | Project — custom fields | ✅ | ✅ | ✅ | ✅ | |
@@ -390,6 +399,7 @@ the honest default.
 | Task — daily view | ✅ | ❌ | ✅ |  | |
 | Task — weekly view | ✅ | ❌ | ✅ |  | |
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
+| Task — calendar places a task on every day one of its time entries touches (hosted, or self-hosted ≥ 5.13.43, fetches the month by `activity_dates`) | ✅ | ❌ | ✅ |  | |
 | Task — calendar month window fetched from the server (`date_range` on `calculated_start_date`), shared by the calendar view and the dashboard panel | — | — | ✅ |  | |
 | Task — remembers the chosen view (list / daily / weekly / calendar / kanban) | ❌ | 🟡 | ✅ |  | |
 | Task — connect Google/Microsoft calendar + convert event to task (hosted only; the native callback shipped server-side 2026-07-24) | ✅ | ❌ | ✅ |  | |
@@ -402,6 +412,8 @@ the honest default.
 | Task — timer resume from time log | ✅ | ✅ | ✅ | ✅ | |
 | Task — time-log entries (edit each row) | ✅ | ✅ | ✅ | ✅ | |
 | Task — due date (`tasks.due_date`) | ❌ | ❌ | ✅ |  | Server field added 2026-08-31 |
+| Task — `Overdue` status tab + sidebar counter (due date passed, not invoiced; local-only) | ✅ | ❌ | ✅ |  | |
+| Task — due-date range filter (`due_date:` → `due_date_range`) | ✅ | ❌ | ✅ |  | |
 | Task — estimated duration (`tasks.estimated_duration`) | ❌ | ❌ | ✅ |  | Allocated time, beside worked time on the detail strip |
 | Task — booked time vs. time worked (a future time-log block is a booking, not hours) | ❌ | ❌ | ✅ |  | flutter#149; billing counts worked time only |
 | Task — starting a booked job claims the booking instead of overlapping it | ❌ | ❌ | ✅ |  | The server rejects a running entry beside a future block |
@@ -476,6 +488,8 @@ the honest default.
 | Purchase order — convert to expense | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — view linked expense | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — view source invoice (`invoice_id`, set by `clone_to_purchase_order`) | — | — | ✅ | | |
+| Invoice / quote — convert to purchase order (keeps the client and links back; line cost from product cost; notes/terms blanked; PO design) | ✅ | — | ✅ | | |
+| Purchase order — view source quote (`quote_id`) | ✅ | — | ✅ | | |
 | Purchase order — add to inventory (→ received) | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — email to vendor | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — schedule email | ✅ | ❌ | ✅ | ✅ | |
@@ -517,6 +531,7 @@ the honest default.
 | Expense — link to vendor | ✅ | ✅ | ✅ | ✅ | |
 | Expense — link to project / client | ✅ | ✅ | ✅ | ✅ | |
 | Expense — convert / add to invoice | ✅ | ✅ | ✅ | ✅ | |
+| Expense — bulk invoice / add to invoice from the list (one client, billable + uninvoiced only; skipped rows and missing currency conversions reported) | ✅ | ✅ | ✅ | | |
 | Expense — run template | ✅ | ✅ | ✅ | ✅ | |
 | Expense — documents / receipts attachment | ✅ | ✅ | ✅ | ✅ | |
 | Expense — comments | ✅ | ✅ | ✅ | ✅ | |
@@ -566,6 +581,8 @@ the honest default.
 | Bank transaction — match to invoice (Create Payment) | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — link existing payment | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — match to expense | ✅ | ✅ | ✅ | ✅ | |
+| Bank transaction — Create Expense sets project, client and should-be-invoiced | ✅ | — | ✅ | | |
+| Bank transaction — after a conversion, move to the next unconverted row (wide); a queued conversion shows as pending | ✅ | — | ✅ | | |
 | Bank transaction — link existing expense | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — transaction rules (auto-match) | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — bulk archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
@@ -645,7 +662,7 @@ the honest default.
 | Report — product sales | ✅ | ✅ | ✅ | ✅ | |
 | Report — product inventory valuation total (stock value) | — | — | ✅ | | |
 | Report — task | ✅ | ✅ | ✅ | ✅ | |
-| Report — tag filter (task + project reports → `tag_ids`) | ✅ | — | ✅ | | |
+| Report — tag filter (every tag-bearing report, and scheduled reports → `tag_ids`) | ✅ | — | ✅ | | |
 | Report — vendor | ✅ | ✅ | ✅ | ✅ | |
 | Report — purchase order | ✅ | ✅ | ✅ | ✅ | |
 | Report — purchase order item | ✅ | 🟡 | ✅ | ✅ | |
@@ -749,6 +766,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Custom Field 2 (label + type) | ✅ | ✅ | ✅ | ✅ | |
 | Custom Field 3 (label + type) | ✅ | ✅ | ✅ | ✅ | |
 | Custom Field 4 (label + type) | ✅ | ✅ | ✅ | ✅ | |
+| Custom fields — offer to add newly labelled invoice / product / surcharge fields to the PDF | ✅ | — | ✅ | | |
 
 ### User Details
 
@@ -946,6 +964,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Round To Seconds (when "Custom" selected) | ✅ | ✅ | ✅ | ✅ | |
 | Configure Statuses (link) | ✅ | ✅ | ✅ | ✅ | |
 | Manage Tags (Settings → Tags; list / create / edit / recolor / archive, entity-type picker over all 14 tag-bearing types, admin-gated) | ✅ | — | ✅ | | |
+| Tags — a comma splits typed or pasted text into separate tags; a tag name can't contain one | ✅ | — | ✅ | | |
 | Show Tasks Table | ✅ | ✅ | ✅ | | |
 | Invoice Task Datelog | ✅ | ✅ | ✅ | ✅ | |
 | Invoice Task Timelog | ✅ | ✅ | ✅ | ✅ | |
@@ -1010,6 +1029,9 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Plan tier (Free / Pro / Enterprise) | ✅ | ✅ | ✅ | ✅ | |
 | Free trial banner | ✅ | ✅ | ✅ | ✅ | |
 | Plan expires-on date | ✅ | ✅ | ✅ | ✅ | |
+| Plan expiry read as the server does (UTC day + 23 h grace) — it read as expired a day early | ✅ | — | ✅ | | |
+| Plan expired — pay-now footer in the sidebar (hosted owners, once `plan_expires` passes; React ships its banner switched off) | ✅ | — | ✅ | | |
+| Hosted — ask for the user's first and last name (once per launch; required before upgrading) | ✅ | — | ✅ | | |
 | Days-left countdown | ✅ | ✅ | ✅ | ✅ | |
 | Change Plan (action) | ✅ | ✅ | ✅ | ✅ | |
 | Upgrade Plan (action) | ✅ | ✅ | ✅ | ✅ | |
@@ -1021,6 +1043,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Reports gated at Pro on hosted (banner + disabled Run/Export/Email) | ✅ | ✅ | ✅ | ✅ | |
 | Document/attachment upload gated at Enterprise on hosted | ✅ | ✅ | ✅ | ✅ | |
 | E-invoice settings gated at Enterprise on hosted | ✅ | — | ✅ | ✅ | |
+| E-invoicing settings at company level only; PEPPOL hidden for self-hosted companies in France | ✅ | — | ✅ | | |
 | State-aware upgrade copy (trial / trialing / expired-renew / upgrade) | ✅ | ✅ | ✅ | ✅ | |
 | Hosted upgrade via App Store / Play IAP (web/desktop → portal) | — | ✅ | 🟡 | ✅ | |
 | `premium_business_plus` / `white_label` treated as full paid tiers | — | — | ✅ | ✅ | |
@@ -1063,6 +1086,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Zapier integration | ✅ | ✅ | ✅ | ✅ | |
 | QuickBooks integration | ✅ | ❌ | ✅ | ✅ | |
 | QuickBooks — 10-entity sync directions + import + income/tax mapping | ✅ | ❌ | ✅ | | |
+| QuickBooks — invoice tab: sync status + Check Record / Force Link / Force Pull / Force Push | ✅ | — | ✅ | | |
 
 #### Account Management — Security
 
@@ -1115,6 +1139,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Import — third-party (FreshBooks / Invoice2Go / Invoicely / Wave / Zoho / QuickBooks) | ✅ | ✅ | ✅ | ✅ | |
 | Import — company migration (.zip / .json) | ✅ | ✅ | ✅ | ✅ | |
 | Export — CSV (per-entity, date-range filter) | ✅ | ✅ | ✅ | ✅ | |
+| Export — `All time` date range, the default once a date column is chosen | ✅ | — | ✅ | | |
 | Export — CSV options (attach documents, include deleted) | ❌ | ✅ | ✅ | ✅ | |
 
 ### Device Settings
@@ -1335,6 +1360,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Postmark API key | ✅ | ✅ | ✅ | ✅ | |
 | Mailgun API key + domain | ✅ | ✅ | ✅ | ✅ | |
 | SMTP server configuration | ✅ | ✅ | ✅ | ✅ | |
+| Send test email for Gmail / Microsoft / Postmark / Mailgun / SES (`/api/v1/mailer/check`) | ✅ | — | ✅ | | |
 | From Name | ✅ | ✅ | ✅ | ✅ | |
 | Reply To Email | ✅ | ✅ | ✅ | ✅ | |
 | Reply To Name | ✅ | ✅ | ✅ | ✅ | |
@@ -1363,6 +1389,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Template variables render as chips — friendly labels, tap to change / remove (with Undo), Insert variable, default template shown as muted chips until customised | — | — | ✅ | | |
 | Send Email — subject and body variables show the document's real values (server probe), unknown tokens flagged, rendered subject shown under the field | — | — | ✅ | | |
 | Send Email — CC address validated against the server's own list grammar (comma/space separated) before sending | — | — | ✅ | | |
+| Send Email — CC limited to 4 and off on hosted non-premium; custom subject/body noted as unused on unpaid hosted; CC-only contacts on their own line | ✅ | — | ✅ | | |
 | Send Email — live preview is its own tab beside PDF and History on every layout | — | — | ✅ | | |
 | First reminder rule (days before / after due + email) | ✅ | ✅ | ✅ | ✅ | |
 | Second reminder rule | ✅ | ✅ | ✅ | ✅ | |
@@ -1444,6 +1471,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Schedule list | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Create email schedule | ✅ | ✅ | ✅ | ✅ | |
 | Schedule frequency / timing | ✅ | ✅ | ✅ | ✅ | |
+| Schedule rows show the document number for email-record / payment-schedule schedules | ✅ | — | ✅ | | |
 | Report-delivery schedule | ✅ | ✅ | ✅ | ✅ | |
 | Email-record schedule (single invoice / quote / credit / PO) | ✅ | ✅ | ✅ | ✅ | |
 | Invoice-outstanding-tasks schedule | ✅ | ✅ | ✅ | ✅ | |
@@ -1523,7 +1551,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Gateway fees, limits & fee taxes (per payment type) | ✅ | ✅ | ✅ | ✅ | |
 | Gateway create / add | ✅ | ✅ | ✅ | ✅ | |
 | Duplicate-gateway warning on add | ✅ | ❌ | ✅ | ✅ | |
-| Gateway disconnect / deactivate | ✅ | ✅ | ✅ | ✅ | |
+| Gateway disconnect / deactivate (Stripe Connect: hosted admins with a connected account; `/api/v1/stripe/disconnect` — the old unprefixed path 404'd) | ✅ | ✅ | ✅ | | |
 | Gateway archive / restore | ✅ | ✅ | ✅ | ✅ | |
 | Gateway purge | ✅ | ✅ | ✅ | ✅ | |
 | Import customers from gateway | ✅ | ✅ | ✅ | ✅ | |
@@ -1572,6 +1600,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 |---|---|---|---|---|---|
 | Global search / command palette | ✅ | ✅ | ✅ | ✅ | |
 | Settings search | ✅ | ✅ | ✅ | ✅ | |
+| Settings — Learn more link to each section's user-guide page | ✅ | — | ✅ | | |
 | Dark mode / light mode toggle | ✅ | ✅ | ✅ | ✅ | |
 | Sidebar footer theme quick-switch (light/dark/system + settings shortcut) | — | — | ✅ | | |
 | Selectable sidebar counters (per-row: overdue / unpaid / draft / assigned-to-me / low stock / …, colour-coded, right-click or Settings → Device Settings) | — | — | ✅ | | |
@@ -1585,6 +1614,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Browser-style back/forward history (Cmd/Alt+←/→ · sidebar arrow buttons · mouse back/forward thumb buttons · Android system back gesture) | — | — | ✅ | ✅ | |
 | Recently-viewed entities (command palette "Recent" group, persisted, company-scoped) | ❌ | ✅ | ✅ | ✅ | |
 | Real-time WebSocket / Pusher notifications (v1's `web_socket_refresh.dart` returns before doing anything; v2 is hosted-only like React, and turns each event into a delta refresh — no in-app notification bell yet) | ✅ | ❌ | ✅ |  | |
+| Real-time — download-ready notice (bulk PDF / export) as a toast with a Download action, on the user's own channel | ✅ | ❌ | ✅ |  | |
 | Live UI refresh on server-side change (hosted: lists, detail screens and dashboard KPIs follow a broadcast change within seconds — docs/realtime-updates.md) | ✅ | ❌ | ✅ |  | |
 | Push notifications (FCM / APNs) | 🟡 | ❌ | ❌ |  | |
 | Deep links (open a record from a shared link — https or `invoiceninja://`) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |

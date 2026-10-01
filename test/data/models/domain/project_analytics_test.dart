@@ -317,4 +317,54 @@ void main() {
       expect(b.series.single.cumulativeLoggedHours, 3.0);
     });
   });
+
+  // React #3380 — task estimates.
+  group('task estimates', () {
+    test('estimated_vs_logged_hours parses the task-estimate half', () {
+      final a = ProjectAnalytics.fromJson({
+        'estimated_vs_logged_hours': [
+          {
+            'task_estimated_hours': 40.0,
+            'logged_hours': 12.5,
+            'remaining_estimated_hours': 30.0,
+            'unestimated_active_task_count': 3,
+            'active_tasks_over_estimate_count': 1,
+          },
+        ],
+      });
+      final e = a.estimates!;
+      expect(e.estimatedHours, 40.0);
+      expect(e.loggedHours, 12.5);
+      expect(e.remainingEstimatedHours, 30.0);
+      expect(e.unestimatedTasks, 3);
+      expect(e.tasksOverEstimate, 1);
+      expect(a.isEmpty, isFalse);
+    });
+
+    test('nothing estimated, or an older server, is no card at all', () {
+      final none = ProjectAnalytics.fromJson({
+        'estimated_vs_logged_hours': [
+          {'task_estimated_hours': 0, 'logged_hours': 5.0},
+        ],
+      });
+      expect(none.estimates, isNull);
+      final older = ProjectAnalytics.fromJson({
+        'estimated_vs_logged_hours': [
+          {'estimated_hours': 10.0, 'logged_hours': 5.0},
+        ],
+      });
+      expect(older.estimates, isNull);
+    });
+
+    test('burn-up reads the estimate marker and the unestimated count', () {
+      final b = ProjectBurnup.fromJson({
+        'markers': {'task_estimated_hours': 24.0},
+        'metadata': {'unestimated_task_count': 2},
+        'series': <Object>[],
+      });
+      expect(b.taskEstimatedHours, 24.0);
+      expect(b.unestimatedTaskCount, 2);
+      expect(ProjectBurnup.fromJson(const {}).taskEstimatedHours, 0);
+    });
+  });
 }

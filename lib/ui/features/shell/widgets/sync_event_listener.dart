@@ -7,13 +7,16 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/token_repository.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_destination.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/conflict_resolution_sheet.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/features/auth/widgets/name_required_dialog.dart';
 import 'package:admin/ui/features/tokens/widgets/token_created_dialog.dart';
 
 final _log = Logger('SyncEventListener');
@@ -39,6 +42,7 @@ class SyncEventListener extends StatefulWidget {
 class _SyncEventListenerState extends State<SyncEventListener> {
   StreamSubscription<SyncEvent>? _sub;
   StreamSubscription<FreshTokenSecret>? _secretSub;
+  StreamSubscription<DownloadReady>? _downloadSub;
   ValueNotifier<String?>? _switchRejected;
   bool _dialogOpen = false;
   bool _secretDialogShowing = false;
@@ -64,6 +68,21 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     super.didChangeDependencies();
     final services = context.read<Services>();
     _sub ??= services.sync.events.listen(_onEvent);
+    // A bulk download / export the server finished preparing (React #3340),
+    // pushed on the user's realtime channel. App-wide for the same reason as
+    // the token secret: it lands wherever the user happens to be.
+    _downloadSub ??= services.realtime.downloads.listen(_onDownloadReady);
+    // Hosted, with a first or last name missing: one dismissible nudge per
+    // user per launch (React #3341 asks every time; the hard stop is at
+    // upgrade, in `launchUpgrade`). This listener lives inside the
+    // authenticated shell, so it can never land over `/lock` or `/setup`.
+    // Listened to for the State's life, so a user who signs in later in the
+    // same launch is asked too.
+    if (_services == null) {
+      _services = services;
+      services.auth.session.addListener(_maybePromptForName);
+      _maybePromptForName();
+    }
     // Newly-minted API token secrets are shown app-wide (not tied to the
     // Tokens list screen) so they survive an offline create that drains while
     // the user is elsewhere. The broadcast is just a wake signal; the repo's
@@ -105,12 +124,87 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     );
   }
 
+  /// The user already asked this launch — process-wide, so a shell remount
+  /// doesn't ask again; per user, so the next person to sign in is asked.
+  /// Set only once the dialog actually opens.
+  static String? _namePromptedUserId;
+
+  /// A prompt is waiting for its frame or for another dialog to close, so a
+  /// session notification meanwhile doesn't schedule a second one.
+  bool _namePromptScheduled = false;
+
+  /// Kept for [dispose], where an inherited lookup is no longer safe.
+  Services? _services;
+
+  void _maybePromptForName() {
+    if (_namePromptScheduled || !mounted) return;
+    final session = context.read<Services>().auth.session.value;
+    if (!needsUserName(session)) return;
+    if (_namePromptedUserId == session!.userId) return;
+    _namePromptScheduled = true;
+    // After the frame: never push a dialog from inside a build.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNamePrompt());
+  }
+
+  /// Waits its turn behind any dialog already up — the launch's local-data
+  /// reset notice, a password or conflict sheet — rather than stacking on it,
+  /// and marks itself open so one arriving meanwhile waits for it in turn.
+  Future<void> _showNamePrompt() async {
+    _namePromptRetry = null;
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    if (_dialogOpen ||
+        _secretDialogShowing ||
+        (route != null && !route.isCurrent)) {
+      _namePromptRetry = Timer(const Duration(seconds: 2), _showNamePrompt);
+      return;
+    }
+    final services = context.read<Services>();
+    final session = services.auth.session.value;
+    // The session moved on while this waited (signed out, or the name landed).
+    if (!needsUserName(session)) {
+      _namePromptScheduled = false;
+      return;
+    }
+    _namePromptedUserId = session!.userId;
+    _dialogOpen = true;
+    try {
+      await promptForUserName(context, services);
+    } finally {
+      _namePromptScheduled = false;
+      if (mounted) {
+        _dialogOpen = false;
+        _replayDeferredEvents();
+      }
+    }
+  }
+
+  Timer? _namePromptRetry;
+
   @override
   void dispose() {
+    _services?.auth.session.removeListener(_maybePromptForName);
+    _namePromptRetry?.cancel();
     _sub?.cancel();
     _secretSub?.cancel();
+    _downloadSub?.cancel();
     _switchRejected?.removeListener(_onCompanySwitchRejected);
     super.dispose();
+  }
+
+  /// "Your download is ready" with a Download action. The server's message
+  /// arrives translated and names the content. It stays up far longer than an
+  /// ordinary toast: it arrives unasked, often minutes after the request, and
+  /// there is no notification centre to find it in afterwards.
+  void _onDownloadReady(DownloadReady ready) {
+    if (!mounted) return;
+    Notify.capture(context)?.success(
+      ready.message.trim().isEmpty ? context.tr('download') : ready.message,
+      action: NotifyAction(context.tr('download'), () {
+        if (mounted) unawaited(openExternalUrl(context, ready.url));
+      }),
+      atLeast: const Duration(seconds: 30),
+    );
   }
 
   Future<void> _onEvent(SyncEvent event) async {

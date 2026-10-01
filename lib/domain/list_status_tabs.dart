@@ -289,6 +289,11 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
         'client_status': {'is_running'},
       },
     ),
+    // Local-only on purpose: `overdue=true` compares against today in the
+    // COMPANY timezone, the badge predicate against the device's day, and a
+    // device ahead of the company would get a server subset of the local
+    // rows. Invoiced tasks are excluded here, which the server's would not.
+    ListStatusTabSpec('overdue'),
     ListStatusTabSpec(
       'uninvoiced',
       serverFilters: {

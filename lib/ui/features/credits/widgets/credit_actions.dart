@@ -24,6 +24,7 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
+import 'package:admin/ui/features/billing_shared/einvoice_validation_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/utils/file_names.dart';
@@ -48,6 +49,7 @@ enum CreditAction {
   cloneToInvoice,
   cloneToQuote,
   cloneToPurchaseOrder,
+  validateEInvoice,
   runTemplate,
   addComment,
   logCall,
@@ -122,8 +124,9 @@ class CreditActions {
   static List<EntityActionItem<CreditAction>> itemsFor(
     BuildContext context,
     Credit credit,
-    void Function(CreditAction) onTap,
-  ) {
+    void Function(CreditAction) onTap, {
+    String? eInvoiceType,
+  }) {
     final canArchive = credit.archivedAt == null && !credit.isDeleted;
     final canRestore = credit.archivedAt != null || credit.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
@@ -247,6 +250,18 @@ class CreditActions {
                 onTap: () => onTap(CreditAction.cloneToPurchaseOrder),
               ),
           ],
+        ),
+      // Read-only compliance pre-flight, as on invoices (React #3317): the
+      // server validates a credit with the same PEPPOL / Verifactu checker,
+      // reporting its issues under `credit`. Only where the detail screen
+      // resolves the company's e-invoice type.
+      if ((eInvoiceType ?? '').isNotEmpty && !credit.isDeleted)
+        EntityActionItem(
+          kind: CreditAction.validateEInvoice,
+          icon: Icons.fact_check_outlined,
+          label: context.tr('validate'),
+          enabled: true,
+          onTap: () => onTap(CreditAction.validateEInvoice),
         ),
       if (canEdit) ...[
         EntityActionItem(
@@ -525,6 +540,18 @@ class CreditActions {
           undoOp: () =>
               services.credits.restore(companyId: companyId, id: credit.id),
         );
+
+      case CreditAction.validateEInvoice:
+        if (tmpGate()) return;
+        try {
+          final result = await services.credits.api.validateEInvoice(credit.id);
+          if (!context.mounted) return;
+          await showEInvoiceValidationDialog(context, result);
+        } catch (e) {
+          if (context.mounted) {
+            Notify.error(context, context.tr('an_error_occurred'), error: e);
+          }
+        }
 
       case CreditAction.runTemplate:
         if (tmpGate()) return;

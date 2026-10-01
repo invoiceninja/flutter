@@ -28,6 +28,9 @@ abstract class PurchaseOrderApi with _$PurchaseOrderApi {
     // The invoice this PO was cloned from, via the 2026-09-05
     // `clone_to_purchase_order` action. Empty for a PO created directly.
     @JsonKey(name: 'invoice_id') @Default('') String invoiceId,
+    // The quote a "Convert to purchase order" came from (React #3370) — the
+    // quote-side twin of [invoiceId].
+    @JsonKey(name: 'quote_id') @Default('') String quoteId,
     @JsonKey(name: 'design_id') @Default('') String designId,
     @JsonKey(name: 'assigned_user_id') @Default('') String assignedUserId,
     @JsonKey(name: 'user_id') @Default('') String userId,

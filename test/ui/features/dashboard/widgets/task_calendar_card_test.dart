@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_grid_mini.dart';
@@ -63,10 +65,26 @@ class _FakeTaskRepo implements TaskRepository {
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
+class _FakeAuth implements AuthRepository {
+  @override
+  final ValueListenable<AuthSession?> session = ValueNotifier<AuthSession?>(
+    null,
+  );
+
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
 class _FakeServices implements Services {
   _FakeServices(this.tasks);
   @override
   final TaskRepository tasks;
+  // Unknown server version — the month fetch keeps its lookback window.
+  @override
+  final ValueNotifier<String?> serverVersion = ValueNotifier<String?>(null);
+  // The `activity_dates` gate reads the session's hosted flag.
+  @override
+  final AuthRepository auth = _FakeAuth();
   @override
   dynamic noSuchMethod(Invocation i) =>
       throw UnimplementedError(i.memberName.toString());

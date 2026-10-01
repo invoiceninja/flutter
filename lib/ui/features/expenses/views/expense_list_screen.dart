@@ -5,6 +5,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/dao/expense_dao.dart';
 import 'package:admin/data/models/domain/expense.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
@@ -46,6 +47,10 @@ class ExpenseListScreen extends StatelessWidget {
     final cid = clientId;
     final vid = vendorId;
     final pid = projectId;
+    final me = context.read<Services>().auth.session.value?.currentCompany;
+    final canInvoice =
+        (me?.moduleEnabled(EntityType.invoice) ?? false) &&
+        (me?.can('create_invoice') ?? false);
     return EntityListScreenScaffold<Expense, ExpenseListViewModel>(
       titleKey: 'expenses',
       newRoute: '/expenses/new',
@@ -134,8 +139,8 @@ class ExpenseListScreen extends StatelessWidget {
                 ),
         );
       },
-      bulkActions: const [
-        EntityListBulkAction(
+      bulkActions: [
+        const EntityListBulkAction(
           actionId: 'archive',
           icon: Icons.archive_outlined,
           tooltipKey: 'archive',
@@ -143,7 +148,7 @@ class ExpenseListScreen extends StatelessWidget {
           pluralSuccessKey: 'archived_expenses',
           nothingKey: 'nothing_to_archive',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'restore',
           icon: Icons.unarchive_outlined,
           tooltipKey: 'restore',
@@ -151,7 +156,7 @@ class ExpenseListScreen extends StatelessWidget {
           pluralSuccessKey: 'restored_expenses',
           nothingKey: 'nothing_to_restore',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'delete',
           icon: Icons.delete_outline,
           tooltipKey: 'delete',
@@ -159,6 +164,38 @@ class ExpenseListScreen extends StatelessWidget {
           pluralSuccessKey: 'deleted_expenses',
           nothingKey: 'nothing_to_delete',
         ),
+        // One invoice from the whole selection (React #3382) — only where an
+        // invoice could be created at all.
+        if (canInvoice) ...[
+          EntityListBulkAction(
+            actionId: 'invoice_expense',
+            icon: Icons.outbox_outlined,
+            tooltipKey: 'invoice_expense',
+            // Unused: `onSelection` handlers do their own toasting.
+            singleSuccessKey: 'invoice_expense',
+            pluralSuccessKey: 'invoice_expense',
+            nothingKey: 'nothing_to_invoice',
+            onSelection: (ctx, sel) =>
+                ExpenseActions.invoiceExpenses(ctx, sel.cast<Expense>()),
+          ),
+          EntityListBulkAction(
+            actionId: 'add_to_invoice',
+            icon: Icons.playlist_add,
+            tooltipKey: 'action_add_to_invoice',
+            singleSuccessKey: 'action_add_to_invoice',
+            pluralSuccessKey: 'action_add_to_invoice',
+            nothingKey: 'nothing_to_invoice',
+            onSelection: (ctx, sel) {
+              final services = ctx.read<Services>();
+              return ExpenseActions.addExpensesToInvoice(
+                ctx,
+                services,
+                services.auth.session.value!.currentCompanyId,
+                sel.cast<Expense>(),
+              );
+            },
+          ),
+        ],
       ],
     );
   }

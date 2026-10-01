@@ -4,6 +4,8 @@ import 'package:admin/data/services/upload_source.dart';
 
 import 'package:admin/data/models/api/credit_api_model.dart';
 import 'package:admin/data/services/base_entity_api.dart';
+import 'package:admin/data/services/invoices_api.dart'
+    show EInvoiceValidation, validateEInvoiceEntity;
 
 /// Concrete API for `/api/v1/credits`. Mirrors `QuotesApi` minus the
 /// `approve`/`convertToInvoice`/`convertToProject` quote-only actions.
@@ -22,6 +24,12 @@ class CreditsApi extends BaseEntityApi<CreditListApi, CreditItemApi> {
   @override
   CreditItemApi parseItem(Object json) =>
       CreditItemApi.fromJson(json as Map<String, dynamic>);
+
+  /// `POST /api/v1/einvoice/validateEntity` `{entity:'credits', entity_id}` —
+  /// the e-invoice pre-flight, issues reported under `credit`. See
+  /// [validateEInvoiceEntity].
+  Future<EInvoiceValidation> validateEInvoice(String id) =>
+      validateEInvoiceEntity(client, entity: 'credits', id: id);
 
   // State transitions / clones ride `POST /credits/bulk` ({action, ids:[id]})
   // — the per-id `/{id}/{action}` route is GET-only on the server.

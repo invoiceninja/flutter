@@ -225,6 +225,13 @@ const List<SidebarBadgeMode> kProjectBadgeModes = [
 
 const List<SidebarBadgeMode> kTaskBadgeModes = [
   _total,
+  // Past its due date and not yet billed (React #3380, which counts invoiced
+  // tasks too — an invoiced task is finished business, not overdue work).
+  SidebarBadgeMode(
+    'overdue',
+    labelKey: 'overdue',
+    tone: SidebarBadgeTone.danger,
+  ),
   // Booked work that hasn't started: a future `time_log` block with no timer
   // running (invoiceninja/flutter#149). Neutral, not `warning` — a count of
   // jobs on the calendar is information, not an alarm, and the row itself

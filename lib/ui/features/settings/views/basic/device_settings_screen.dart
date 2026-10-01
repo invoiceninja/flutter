@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
@@ -19,6 +20,7 @@ import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
+import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_menu_section.dart';
 import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart';
@@ -46,6 +48,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kAssignedUsersSearchKeys,
+  'default_tab',
   ...kDashboardPanelsSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarMenuSearchKeys,
@@ -122,6 +125,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // 14 rows, and a settings-search hit lands at the top of the
               // screen with no per-field anchor.
               const AssignedUsersSection(),
+              // Also about what a form offers — which items tab a billing
+              // document opens on (React #3355).
+              const _DefaultItemsTabSection(),
               // Dashboard chrome, ahead of the list / rail trio so it doesn't
               // split them — and, like the card above, well clear of Sidebar
               // counters: its default is for phones, where that is a long way
@@ -137,6 +143,35 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+/// "Default tab": which items tab (Products / Tasks) an invoice, quote or
+/// recurring invoice opens on when its own lines don't decide (React #3355).
+/// Two choices, so a radio (CLAUDE.md § Two-choice fields).
+class _DefaultItemsTabSection extends StatelessWidget {
+  const _DefaultItemsTabSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.read<Services>().defaultItemsTab;
+    return FormSection(
+      title: context.tr('default_tab'),
+      children: [
+        ValueListenableBuilder<String>(
+          valueListenable: controller,
+          builder: (context, value, _) => PlainRadioField<String>(
+            label: context.tr('default_tab_help'),
+            value: value,
+            options: [
+              (value: kItemsTabProducts, label: context.tr('products')),
+              (value: kItemsTabTasks, label: context.tr('tasks')),
+            ],
+            onChanged: controller.set,
+          ),
+        ),
+      ],
     );
   }
 }

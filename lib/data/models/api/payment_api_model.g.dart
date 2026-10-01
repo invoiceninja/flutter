@@ -131,6 +131,7 @@ _PaymentInvoiceRefApi _$PaymentInvoiceRefApiFromJson(
   amount: json['amount'] as Object? ?? '0',
   balance: json['balance'] as Object? ?? '0',
   paidToDate: json['paid_to_date'] as Object? ?? '0',
+  isDeleted: json['is_deleted'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$PaymentInvoiceRefApiToJson(
@@ -141,6 +142,7 @@ Map<String, dynamic> _$PaymentInvoiceRefApiToJson(
   'amount': instance.amount,
   'balance': instance.balance,
   'paid_to_date': instance.paidToDate,
+  'is_deleted': instance.isDeleted,
 };
 
 _PaymentCreditRefApi _$PaymentCreditRefApiFromJson(Map<String, dynamic> json) =>

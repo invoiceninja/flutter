@@ -150,6 +150,7 @@ abstract class PaymentInvoiceRef with _$PaymentInvoiceRef {
     required Decimal amount,
     required Decimal balance,
     required Decimal paidToDate,
+    @Default(false) bool isDeleted,
   }) = _PaymentInvoiceRef;
 
   factory PaymentInvoiceRef.fromApi(PaymentInvoiceRefApi a) =>
@@ -159,6 +160,7 @@ abstract class PaymentInvoiceRef with _$PaymentInvoiceRef {
         amount: parseMoney(a.amount),
         balance: parseMoney(a.balance),
         paidToDate: parseMoney(a.paidToDate),
+        isDeleted: a.isDeleted,
       );
 }
 
@@ -183,6 +185,12 @@ abstract class PaymentCreditRef with _$PaymentCreditRef {
 /// Computed status + derived money totals. Mirrors admin-portal
 /// `payment_model.dart` derivations so list + detail surfaces agree.
 extension PaymentStatusExt on Payment {
+  /// True when an invoice this payment was applied to has been deleted. The
+  /// server refuses to delete such a payment (`deleted_invoices_exist`,
+  /// `BulkActionPaymentRequest` / `DestroyPaymentRequest`) until the invoice
+  /// is restored, so Delete stands down rather than queue a doomed request.
+  bool get hasDeletedInvoice => invoices.any((i) => i.isDeleted);
+
   /// Returns the displayable status id, applying the two virtual states:
   ///   * `-2` partially unapplied  → some but not all applied
   ///   * `-1` unapplied             → nothing applied yet

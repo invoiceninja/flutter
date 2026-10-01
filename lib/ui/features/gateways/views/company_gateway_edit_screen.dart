@@ -169,11 +169,22 @@ class _CompanyGatewayEditScreenState extends State<CompanyGatewayEditScreen> {
       actionsBuilder: (ctx, vm, onTap, saveButton) =>
           EntityOverflowActionBar<CompanyGatewayAction>(
             leading: saveButton,
-            items: filterForEditScreen(
-              CompanyGatewayActions.itemsFor(ctx, vm.draft, (a) => onTap(a)),
-              isCreate: vm.isCreate,
-              isLifecycle: CompanyGatewayActions.isLifecycle,
-            ),
+            items:
+                filterForEditScreen(
+                      CompanyGatewayActions.itemsFor(
+                        ctx,
+                        vm.draft,
+                        (a) => onTap(a),
+                      ),
+                      isCreate: vm.isCreate,
+                      isLifecycle: CompanyGatewayActions.isLifecycle,
+                    )
+                    // An edit-screen action saves the draft first; that queued PUT
+                    // still carries the `account_id` a disconnect is about to blank,
+                    // and could land after it and reconnect the record. Disconnect
+                    // lives on the list row and detail screen, where no draft exists.
+                    .where((i) => i.kind != CompanyGatewayAction.disconnect)
+                    .toList(),
           ),
       onAfterSaveAction: (ctx, saved, a) {
         final services = ctx.read<Services>();

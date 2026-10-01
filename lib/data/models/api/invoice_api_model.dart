@@ -114,6 +114,9 @@ abstract class InvoiceApi with _$InvoiceApi {
     @JsonKey(name: 'e_invoice') Map<String, dynamic>? eInvoice,
     @JsonKey(name: 'backup') Map<String, dynamic>? backup,
     @JsonKey(name: 'tax_info') Map<String, dynamic>? taxInfo,
+    // Read-only QuickBooks sync state (`App\DataMapper\InvoiceSync`) —
+    // never sent back: the server ignores it on update and drops it on store.
+    @JsonKey(name: 'sync') Map<String, dynamic>? sync,
     // Rectification (Verifactu "factura rectificativa"): id of the original
     // invoice this one corrects + the user-supplied rectification reason.
     @JsonKey(name: 'modified_invoice_id') String? modifiedInvoiceId,

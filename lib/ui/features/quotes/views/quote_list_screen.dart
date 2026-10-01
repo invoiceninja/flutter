@@ -4,12 +4,14 @@ import 'package:uuid/uuid.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/db/dao/quote_dao.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
 import 'package:admin/ui/features/billing_shared/actions/billing_doc_bulk_pdf.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart';
@@ -171,6 +173,20 @@ class QuoteListScreen extends StatelessWidget {
           pluralSuccessKey: 'converted_quotes',
           nothingKey: 'nothing_to_update',
         ),
+        if (ServerFeatures.supports(
+          context.read<Services>().serverVersion.value,
+          ServerFeatures.quoteCancel,
+          isHosted:
+              context.read<Services>().auth.session.value?.isHosted ?? false,
+        ))
+          const EntityListBulkAction(
+            actionId: 'cancel',
+            icon: Icons.block_outlined,
+            tooltipKey: 'cancel_quote',
+            singleSuccessKey: 'cancelled_quote',
+            pluralSuccessKey: 'cancelled_quotes',
+            nothingKey: 'nothing_to_cancel',
+          ),
         EntityListBulkAction(
           actionId: 'email',
           icon: Icons.email_outlined,
@@ -178,6 +194,22 @@ class QuoteListScreen extends StatelessWidget {
           singleSuccessKey: 'emailed_quote',
           pluralSuccessKey: 'emailed_quotes',
           nothingKey: 'nothing_to_email',
+          // Before the compose sheet: nobody writes an email for documents
+          // whose recipient has no address (invoiceninja/ui#3400).
+          preflight: (ctx, eligible) => preflightRecipientEmails<Quote>(
+            ctx,
+            ctx.read<Services>(),
+            companyId: ctx
+                .read<Services>()
+                .auth
+                .session
+                .value!
+                .currentCompanyId,
+            eligible: eligible,
+            clientIdOf: (d) => d.clientId,
+            invitationsOf: (d) => d.invitations,
+            numberOf: (d) => d.number,
+          ),
           // A scheduled batch was not emailed. Both branches come back
           // through the same `applyArg`, so the message has to follow the
           // result rather than the action.

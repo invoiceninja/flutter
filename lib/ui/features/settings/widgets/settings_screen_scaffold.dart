@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/settings_scope_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_two_pane_scope.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -80,7 +84,18 @@ class SettingsScreenScaffold extends StatelessWidget {
         // settings page, and paint an arrow onto the one layout we deliberately
         // leave without one.
         automaticallyImplyLeading: false,
-        actions: actions,
+        actions: [
+          // "Learn more" (invoiceninja/ui#3391): the section's page in the
+          // user guide, ahead of the page's own actions so Save stays last.
+          if (settingsDocsUrlForTitle(titleKey) case final docsUrl?)
+            IconButton(
+              key: const ValueKey('settings_learn_more'),
+              tooltip: context.tr('learn_more'),
+              icon: const Icon(Icons.help_outline),
+              onPressed: () => unawaited(openExternalUrl(context, docsUrl)),
+            ),
+          ...?actions,
+        ],
         bottom: bottom,
       ),
       // Banner sits above the body so the user always sees the scope they're

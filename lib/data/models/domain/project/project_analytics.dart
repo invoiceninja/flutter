@@ -22,6 +22,7 @@ class ProjectAnalytics {
     this.invoiceProgress,
     this.profitability,
     this.health,
+    this.estimates,
   });
 
   final ProjectBudgetSummary? budgetSummary;
@@ -30,6 +31,11 @@ class ProjectAnalytics {
   final ProjectProfitability? profitability;
   final ProjectHealth? health;
 
+  /// Task-estimate figures (React #3380). Null on a server older than the
+  /// task `estimated_duration` field, and when nothing on the project is
+  /// estimated — see [ProjectEstimates.hasAny].
+  final ProjectEstimates? estimates;
+
   /// True when the server answered but every block we render came back empty —
   /// the signal to show an empty state rather than a grid of zeros.
   bool get isEmpty =>
@@ -37,7 +43,8 @@ class ProjectAnalytics {
       budgetVsActual == null &&
       invoiceProgress == null &&
       profitability == null &&
-      health == null;
+      health == null &&
+      estimates == null;
 
   static ProjectAnalytics fromJson(Map<String, dynamic> json) =>
       ProjectAnalytics(
@@ -58,7 +65,55 @@ class ProjectAnalytics {
           ProjectProfitability.fromJson,
         ),
         health: _firstRow(json['project_health'], ProjectHealth.fromJson),
+        estimates: _estimates(json['estimated_vs_logged_hours']),
       );
+
+  /// Only when the server sends the task-estimate fields at all — an older
+  /// server's `estimated_vs_logged_hours` row has none of them, and a card of
+  /// zeros would claim "nothing is estimated" about a server that can't say.
+  static ProjectEstimates? _estimates(Object? raw) {
+    final row = _firstRow(raw, (j) => j);
+    if (row == null || !row.containsKey('task_estimated_hours')) return null;
+    final estimates = ProjectEstimates.fromJson(row);
+    return estimates.hasAny ? estimates : null;
+  }
+}
+
+/// `estimated_vs_logged_hours[0]`'s task-estimate half: what the project's
+/// tasks were estimated at, against what has been logged.
+class ProjectEstimates {
+  const ProjectEstimates({
+    required this.estimatedHours,
+    required this.loggedHours,
+    required this.remainingEstimatedHours,
+    required this.unestimatedTasks,
+    required this.tasksOverEstimate,
+  });
+
+  /// Sum of the tasks' `estimated_duration`, in hours.
+  final double estimatedHours;
+  final double loggedHours;
+
+  /// Estimated hours still to go on active tasks.
+  final double remainingEstimatedHours;
+
+  /// Active tasks with no estimate — the caveat on every figure above.
+  final int unestimatedTasks;
+
+  /// Active tasks already past their estimate.
+  final int tasksOverEstimate;
+
+  /// Whether any task carries an estimate. With none, every figure here is a
+  /// zero that means "not estimated", not "no work left".
+  bool get hasAny => estimatedHours > 0;
+
+  static ProjectEstimates fromJson(Map<String, dynamic> j) => ProjectEstimates(
+    estimatedHours: _double(j['task_estimated_hours']),
+    loggedHours: _double(j['logged_hours']),
+    remainingEstimatedHours: _double(j['remaining_estimated_hours']),
+    unestimatedTasks: _int(j['unestimated_active_task_count']),
+    tasksOverEstimate: _int(j['active_tasks_over_estimate_count']),
+  );
 }
 
 /// `budget_summary[0]` — headline budget/utilization counters.

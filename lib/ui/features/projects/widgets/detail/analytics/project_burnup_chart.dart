@@ -94,12 +94,17 @@ class _Body extends StatelessWidget {
     final budgetLine = showMoney
         ? burnup.budgetedAmount.toDouble()
         : burnup.budgetedHours;
+    // The tasks' summed estimates (React #3380) — an hours figure, so only in
+    // the hours view, and only when the server sent one.
+    final estimateLine = showMoney ? 0.0 : burnup.taskEstimatedHours;
+    final estimateColor = scheme.secondary;
 
     final maxY = [
       ...actual.map((s) => s.y),
       ...secondary.map((s) => s.y),
       ...ideal.map((s) => s.y),
       budgetLine,
+      estimateLine,
     ].fold<double>(0, (a, b) => b > a ? b : a);
 
     final bars = <LineChartBarData>[
@@ -141,6 +146,8 @@ class _Body extends StatelessWidget {
           primary: scheme.primary,
           secondaryColor: scheme.tertiary,
           idealColor: tokens.ink3,
+          estimateColor: estimateLine > 0 ? estimateColor : null,
+          unestimatedTasks: estimateLine > 0 ? burnup.unestimatedTaskCount : 0,
         ),
         SizedBox(height: InSpacing.md(context)),
         SizedBox(
@@ -160,6 +167,13 @@ class _Body extends StatelessWidget {
                       color: tokens.ink2.withValues(alpha: 0.5),
                       strokeWidth: 1,
                       dashArray: const [3, 3],
+                    ),
+                  if (estimateLine > 0)
+                    HorizontalLine(
+                      y: estimateLine,
+                      color: estimateColor,
+                      strokeWidth: 1.5,
+                      dashArray: const [6, 3],
                     ),
                 ],
               ),
@@ -252,6 +266,8 @@ class _Legend extends StatelessWidget {
     required this.primary,
     required this.secondaryColor,
     required this.idealColor,
+    this.estimateColor,
+    this.unestimatedTasks = 0,
   });
 
   final bool showMoney;
@@ -259,6 +275,13 @@ class _Legend extends StatelessWidget {
   final Color primary;
   final Color secondaryColor;
   final Color idealColor;
+
+  /// Non-null when the task-estimate line is drawn.
+  final Color? estimateColor;
+
+  /// Tasks the estimate line leaves out — said beside it, so the line isn't
+  /// read as the whole job.
+  final int unestimatedTasks;
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +303,15 @@ class _Legend extends StatelessWidget {
           _LegendItem(
             color: idealColor,
             label: context.tr('ideal_pace'),
+            dashed: true,
+          ),
+        if (estimateColor != null)
+          _LegendItem(
+            color: estimateColor!,
+            label: unestimatedTasks > 0
+                ? '${context.tr('estimated_hours')} · '
+                      '${context.tr('unestimated_tasks')}: $unestimatedTasks'
+                : context.tr('estimated_hours'),
             dashed: true,
           ),
       ],

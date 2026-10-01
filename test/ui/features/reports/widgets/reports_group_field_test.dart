@@ -8,7 +8,9 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
@@ -48,10 +50,27 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
+class _FakeTags implements TagRepository {
+  @override
+  Stream<List<Tag>> watchAll({
+    required String companyId,
+    String? entityType,
+    bool includeArchived = false,
+    bool includeGlobal = true,
+  }) => Stream.value(const <Tag>[]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
 class _FakeServices implements Services {
   _FakeServices(this.auth);
   @override
   final AuthRepository auth;
+  // Every tag-bearing report offers the Tags filter (invoiceninja/ui#3251).
+  @override
+  final TagRepository tags = _FakeTags();
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());

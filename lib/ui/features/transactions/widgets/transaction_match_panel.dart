@@ -6,18 +6,24 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
+import 'package:admin/ui/core/widgets/client_picker_field.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/entity_picker_field.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/transactions/widgets/multi_pick_sheet.dart';
@@ -31,11 +37,28 @@ import 'package:admin/utils/formatting.dart';
 /// All four flows route through the existing
 /// `BankTransactionRepository.matchTo* / linkTo*` helpers — which enqueue
 /// the correct outbox rows with the right wire payloads.
+/// Runs one conversion (create / link a payment or expense) and reports it.
+/// [successKey] is the toast for a conversion that stays put; a host that
+/// moves on to the next transaction shows its own.
+typedef TransactionConversionRunner =
+    Future<void> Function(Future<void> Function() convert, String successKey);
+
+/// The outbox kinds that convert a transaction. While one is queued the
+/// transaction is converted as far as the user is concerned — its local
+/// status only changes when the server answers.
+const Set<MutationKind> _kConversionKinds = {
+  MutationKind.matchToPayment,
+  MutationKind.linkToPayment,
+  MutationKind.matchToExpense,
+  MutationKind.linkToExpense,
+};
+
 class TransactionMatchPanel extends StatefulWidget {
   const TransactionMatchPanel({
     super.key,
     required this.transaction,
     this.formatter,
+    this.runner,
   });
 
   final BankTransaction transaction;
@@ -44,13 +67,73 @@ class TransactionMatchPanel extends StatefulWidget {
   /// still resolving on a cold start (amounts fall back to raw fixed-2).
   final Formatter? formatter;
 
+  /// How a conversion runs — the detail screen supplies one that advances to
+  /// the next unconverted transaction (React #3396). Null: run it and toast.
+  final TransactionConversionRunner? runner;
+
   @override
   State<TransactionMatchPanel> createState() => _TransactionMatchPanelState();
 }
 
 class _TransactionMatchPanelState extends State<TransactionMatchPanel> {
+  late Stream<List<OutboxRow>> _pending;
+
+  @override
+  void initState() {
+    super.initState();
+    _pending = _watchPending();
+  }
+
+  @override
+  void didUpdateWidget(TransactionMatchPanel old) {
+    super.didUpdateWidget(old);
+    if (old.transaction.id != widget.transaction.id) _pending = _watchPending();
+  }
+
+  // Hoisted out of build: a per-build watch re-subscribes on every frame.
+  Stream<List<OutboxRow>> _watchPending() {
+    final services = context.read<Services>();
+    return services.db.outboxDao.watchPendingForEntity(
+      companyId: services.auth.session.value?.currentCompanyId ?? '',
+      entityType: 'bank_transaction',
+      entityId: widget.transaction.id,
+    );
+  }
+
+  Future<void> _defaultRun(
+    Future<void> Function() convert,
+    String successKey,
+  ) async {
+    await convert();
+    if (mounted) Notify.success(context, context.tr(successKey));
+  }
+
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<List<OutboxRow>>(
+      stream: _pending,
+      builder: (context, snap) {
+        // Nothing changes locally until the queued conversion syncs, so the
+        // panel used to stay live — offline, the same transaction could be
+        // converted twice. Hold it until the server has answered.
+        final converting = (snap.data ?? const <OutboxRow>[]).any(
+          (r) =>
+              _kConversionKinds.contains(MutationKind.tryParse(r.mutationKind)),
+        );
+        if (converting) {
+          return EmptyState(
+            key: const Key('transaction_conversion_pending'),
+            icon: Icons.cloud_upload_outlined,
+            title: context.tr('conversion_pending_sync'),
+          );
+        }
+        return _tabs(context);
+      },
+    );
+  }
+
+  Widget _tabs(BuildContext context) {
+    final run = widget.runner ?? _defaultRun;
     final tx = widget.transaction;
     // Hide the create/link flows when their target module is disabled. A
     // deposit reconciles to a payment (invoices module), a withdrawal to an
@@ -75,8 +158,12 @@ class _TransactionMatchPanelState extends State<TransactionMatchPanel> {
           bodyBuilder: (ctx) => Padding(
             padding: EdgeInsets.all(InSpacing.lg(ctx)),
             child: tx.isDeposit
-                ? _CreditCreateTab(transaction: tx, formatter: widget.formatter)
-                : _DebitCreateTab(transaction: tx),
+                ? _CreditCreateTab(
+                    transaction: tx,
+                    formatter: widget.formatter,
+                    run: run,
+                  )
+                : _DebitCreateTab(transaction: tx, run: run),
           ),
         ),
         EntityDetailTab(
@@ -85,8 +172,16 @@ class _TransactionMatchPanelState extends State<TransactionMatchPanel> {
           bodyBuilder: (ctx) => Padding(
             padding: EdgeInsets.all(InSpacing.lg(ctx)),
             child: tx.isDeposit
-                ? _CreditLinkTab(transaction: tx, formatter: widget.formatter)
-                : _DebitLinkTab(transaction: tx, formatter: widget.formatter),
+                ? _CreditLinkTab(
+                    transaction: tx,
+                    formatter: widget.formatter,
+                    run: run,
+                  )
+                : _DebitLinkTab(
+                    transaction: tx,
+                    formatter: widget.formatter,
+                    run: run,
+                  ),
           ),
         ),
       ],
@@ -99,8 +194,13 @@ class _TransactionMatchPanelState extends State<TransactionMatchPanel> {
 // ──────────────────────────────────────────────────────────────────────
 
 class _CreditCreateTab extends StatefulWidget {
-  const _CreditCreateTab({required this.transaction, this.formatter});
+  const _CreditCreateTab({
+    required this.transaction,
+    this.formatter,
+    required this.run,
+  });
   final BankTransaction transaction;
+  final TransactionConversionRunner run;
   final Formatter? formatter;
 
   @override
@@ -197,17 +297,18 @@ class _CreditCreateTabState extends State<_CreditCreateTab> {
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     setState(() => _submitting = true);
     try {
-      await services.bankTransactions.matchToPayment(
-        companyId: companyId,
-        transactionId: widget.transaction.id,
-        invoiceIds: _selectedInvoiceIds.toList(),
+      await widget.run(
+        () => services.bankTransactions.matchToPayment(
+          companyId: companyId,
+          transactionId: widget.transaction.id,
+          invoiceIds: _selectedInvoiceIds.toList(),
+        ),
+        'created_payment',
       );
       // The match dispatcher applies the server's updated transaction via
       // applyUpdateResponse, so the detail + list refresh reactively. No
       // manual refreshAll — it raced the outbox drain and a stale list GET
       // could revert the freshly-matched (non-dirty) row to "unmatched".
-      if (!mounted) return;
-      Notify.success(context, context.tr('created_payment'));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -305,8 +406,13 @@ class _CreditCreateTabState extends State<_CreditCreateTab> {
 // ──────────────────────────────────────────────────────────────────────
 
 class _CreditLinkTab extends StatefulWidget {
-  const _CreditLinkTab({required this.transaction, this.formatter});
+  const _CreditLinkTab({
+    required this.transaction,
+    this.formatter,
+    required this.run,
+  });
   final BankTransaction transaction;
+  final TransactionConversionRunner run;
   final Formatter? formatter;
 
   @override
@@ -324,14 +430,15 @@ class _CreditLinkTabState extends State<_CreditLinkTab> {
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     setState(() => _submitting = true);
     try {
-      await services.bankTransactions.linkToPayment(
-        companyId: companyId,
-        transactionId: widget.transaction.id,
-        paymentId: payment.id,
+      await widget.run(
+        () => services.bankTransactions.linkToPayment(
+          companyId: companyId,
+          transactionId: widget.transaction.id,
+          paymentId: payment.id,
+        ),
+        'linked_payment',
       );
       // Status flows in via applyUpdateResponse (see _CreditCreateTab).
-      if (!mounted) return;
-      Notify.success(context, context.tr('linked_payment'));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -409,8 +516,9 @@ class _CreditLinkTabState extends State<_CreditLinkTab> {
 // ──────────────────────────────────────────────────────────────────────
 
 class _DebitCreateTab extends StatefulWidget {
-  const _DebitCreateTab({required this.transaction});
+  const _DebitCreateTab({required this.transaction, required this.run});
   final BankTransaction transaction;
+  final TransactionConversionRunner run;
 
   @override
   State<_DebitCreateTab> createState() => _DebitCreateTabState();
@@ -422,11 +530,34 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
   bool _submitting = false;
   bool _seededFromRule = false;
 
+  // Who the expense is billed to (React #3397). A picked project decides the
+  // client — the server takes it from the project — so the client field
+  // locks rather than disappearing.
+  String _projectId = '';
+  String _clientId = '';
+
+  /// Null until the company has loaded, then its `mark_expenses_invoiceable`
+  /// default until the user flips it.
+  bool? _shouldBeInvoiced;
+
   @override
   void initState() {
     super.initState();
     // Seed once on mount — `context.read` is valid in initState (no listen).
     _seedFromRuleIfApplicable();
+    _seedShouldBeInvoiced();
+  }
+
+  void _seedShouldBeInvoiced() {
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    services.company.watchCompany(companyId).first.then((company) {
+      if (mounted && _shouldBeInvoiced == null) {
+        setState(
+          () => _shouldBeInvoiced = company?.markExpensesInvoiceable ?? false,
+        );
+      }
+    }, onError: (Object _) {});
   }
 
   /// Pre-fill from the matched transaction rule (if any). The rule already
@@ -471,15 +602,19 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     setState(() => _submitting = true);
     try {
-      await services.bankTransactions.matchToExpense(
-        companyId: companyId,
-        transactionId: widget.transaction.id,
-        vendorId: vendor?.id ?? '',
-        categoryId: cat?.id ?? '',
+      await widget.run(
+        () => services.bankTransactions.matchToExpense(
+          companyId: companyId,
+          transactionId: widget.transaction.id,
+          vendorId: vendor?.id ?? '',
+          categoryId: cat?.id ?? '',
+          projectId: _projectId,
+          clientId: _clientId,
+          shouldBeInvoiced: _shouldBeInvoiced,
+        ),
+        'created_expense',
       );
       // Status flows in via applyUpdateResponse (see _CreditCreateTab).
-      if (!mounted) return;
-      Notify.success(context, context.tr('created_expense'));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -489,6 +624,11 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    final projectsOn =
+        services.auth.session.value?.currentCompany?.moduleEnabled(
+          EntityType.project,
+        ) ??
+        false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -526,6 +666,55 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
             );
           },
         ),
+        if (projectsOn) ...[
+          const SizedBox(height: 12),
+          EntityPickerField<Project>(
+            label: context.tr('project'),
+            // Narrowed to the picked client, so the client is part of what
+            // invalidates the stream (as on the expense form).
+            cacheKey: (companyId, _projectId.isEmpty ? _clientId : ''),
+            selectedId: _projectId,
+            itemsStream: () => _clientId.isEmpty || _projectId.isNotEmpty
+                ? services.projects.watchPage(
+                    companyId: companyId,
+                    loadedPages: 100,
+                  )
+                : services.projects.watchForClient(
+                    companyId: companyId,
+                    clientId: _clientId,
+                  ),
+            watchById: (id) =>
+                services.projects.watch(companyId: companyId, id: id),
+            displayString: (p) => p.name.isEmpty ? p.id : p.name,
+            idOf: (p) => p.id,
+            onChanged: (p) => setState(() {
+              _projectId = p?.id ?? '';
+              if (p != null) _clientId = p.clientId;
+            }),
+          ),
+        ],
+        const SizedBox(height: 12),
+        if (_projectId.isNotEmpty)
+          // The project decides the client; clear the project to change it.
+          LockedClientFieldRow(
+            clientId: _clientId,
+            helperText: context.tr('project_drives_client'),
+            tappable: false,
+          )
+        else
+          ClientPickerField(
+            companyId: companyId,
+            selectedClientId: _clientId,
+            onSelected: (c) => setState(() => _clientId = c?.id ?? ''),
+          ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.tr('should_be_invoiced')),
+          value: _shouldBeInvoiced ?? false,
+          onChanged: _shouldBeInvoiced == null
+              ? null
+              : (v) => setState(() => _shouldBeInvoiced = v),
+        ),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -552,8 +741,13 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
 // ──────────────────────────────────────────────────────────────────────
 
 class _DebitLinkTab extends StatefulWidget {
-  const _DebitLinkTab({required this.transaction, this.formatter});
+  const _DebitLinkTab({
+    required this.transaction,
+    this.formatter,
+    required this.run,
+  });
   final BankTransaction transaction;
+  final TransactionConversionRunner run;
   final Formatter? formatter;
 
   @override
@@ -626,18 +820,19 @@ class _DebitLinkTabState extends State<_DebitLinkTab> {
       // entry, so we enqueue N mutations rather than a single bulk
       // call. `Future.wait` fires them in parallel — each call only
       // hits local Drift + the outbox, so there's no server contention.
-      await Future.wait([
-        for (final id in _selectedExpenseIds)
-          services.bankTransactions.linkToExpense(
-            companyId: companyId,
-            transactionId: widget.transaction.id,
-            expenseId: id,
-          ),
-      ]);
+      await widget.run(
+        () => Future.wait([
+          for (final id in _selectedExpenseIds)
+            services.bankTransactions.linkToExpense(
+              companyId: companyId,
+              transactionId: widget.transaction.id,
+              expenseId: id,
+            ),
+        ]),
+        'linked_expense',
+      );
       // Each linkToExpense applies its server response via applyUpdateResponse
       // (see _CreditCreateTab) — no manual refreshAll.
-      if (!mounted) return;
-      Notify.success(context, context.tr('linked_expense'));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

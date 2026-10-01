@@ -55,12 +55,18 @@ class CompanyGatewaysApi
     throw const ServerException(0, 'one_time_token response missing hash');
   }
 
-  /// `POST /stripe/disconnect/{id}` — note this is **not** under `/api/v1/`.
-  /// Requires the active password; the API client adds the right header when
+  /// `POST /api/v1/stripe/disconnect/{id}` — the route sits inside the
+  /// server's `api/v1` group (`routes/api.php`); only the OAuth *signup*
+  /// pages (`/stripe/signup/{hash}`) live at the web root. Admin-only and
+  /// password-gated; the API client adds the header when
   /// `requiresPassword: true` is set and the user has authed recently.
+  ///
+  /// A direct call, not an outbox mutation: it deauthorizes the Stripe
+  /// account synchronously and the UI needs the outcome before it can show
+  /// the gateway as disconnected — there is nothing to queue offline.
   Future<void> disconnectStripe({required String id}) async {
     await client.postJson(
-      '/stripe/disconnect/$id',
+      '/api/v1/stripe/disconnect/$id',
       body: const {},
       requiresPassword: true,
     );
@@ -74,13 +80,14 @@ class CompanyGatewaysApi
     await client.postJson('$basePath/$id/import_customers', body: const {});
   }
 
-  /// `POST /stripe/verify` — used by the "Verify customers" affordance to
-  /// reconcile Stripe's customer count against Invoice Ninja's. Returns
+  /// `POST /api/v1/stripe/verify` — used by the "Verify customers"
+  /// affordance to reconcile Stripe's customer count against Invoice
+  /// Ninja's. Admin-only on the server. Returns
   /// `{stripe_customer_count: int, stripe_customers: [...]}` so the dialog
   /// can show the two counts side-by-side.
   Future<({int stripeCount, int localCount})> verifyStripeCustomers() async {
     final raw = await client.postJson(
-      '/stripe/verify',
+      '/api/v1/stripe/verify',
       body: const {},
       requiresPassword: true,
     );

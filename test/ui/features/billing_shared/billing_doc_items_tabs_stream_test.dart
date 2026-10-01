@@ -1,3 +1,4 @@
+import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
@@ -60,6 +61,9 @@ class _CountingCompanyRepo implements CompanyRepository {
 
 class _FakeServices implements Services {
   _FakeServices(this.company);
+  // The tab a document opens on when its lines don't decide (React #3355).
+  @override
+  final DefaultItemsTabController defaultItemsTab = _ProductsFirst();
   @override
   final CompanyRepository company;
 
@@ -153,4 +157,13 @@ void main() {
       reason: 'rebuilds must not restart the company query',
     );
   });
+}
+
+class _ProductsFirst implements DefaultItemsTabController {
+  @override
+  bool get prefersTasks => false;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
 }

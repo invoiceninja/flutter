@@ -89,6 +89,9 @@ class _FakeServices implements Services {
   final HideEmptyPanelsController hideEmptyPanels;
   @override
   final TaskRepository tasks = _FakeTaskRepo();
+  // Unknown server version — the month fetch keeps its lookback window.
+  @override
+  final ValueNotifier<String?> serverVersion = ValueNotifier<String?>(null);
 
   // The Invoices & Quotes panel is the second Drift-backed one, and it renders
   // for either billing module — so these are reached by every test here that

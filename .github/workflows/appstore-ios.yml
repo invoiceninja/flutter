@@ -68,22 +68,30 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
           p12-password: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
 
-      # Install the App Store profile for com.invoiceninja.admin. It MUST embed
-      # the cert above AND the Sign in with Apple capability, or export fails.
+      # Install the App Store profiles: com.invoiceninja.admin's MUST embed the
+      # cert above AND the Sign in with Apple, Associated Domains and App Groups
+      # capabilities; the Share Extension's (com.invoiceninja.admin.ShareExtension,
+      # invoiceninja/flutter#173) the cert and App Groups — or the archive fails.
       # Mirrors the Android keystore-from-base64 injection: CI holds zero signing
-      # material until here; the decoded profile is wiped at the end.
-      - name: Install provisioning profile
+      # material until here; the decoded profiles are wiped at the end.
+      - name: Install provisioning profiles
         env:
           PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 }}
+          SHARE_EXTENSION_PROFILE_BASE64: ${{ secrets.IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
           if [ -z "${PROFILE_BASE64:-}" ]; then
             echo "::error::IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty — cannot sign for the App Store." >&2
             exit 1
           fi
+          if [ -z "${SHARE_EXTENSION_PROFILE_BASE64:-}" ]; then
+            echo "::error::IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty — the embedded Share Extension cannot be signed (docs/store-deployment-setup.md)." >&2
+            exit 1
+          fi
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
           echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/appstore.mobileprovision"
+          echo "$SHARE_EXTENSION_PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/appstore-share-extension.mobileprovision"
 
       # --config-only writes the build settings (incl. the IN_SENTRY_DSN
       # dart-define, baked into the AOT binary at compile time) WITHOUT building,
@@ -152,10 +160,22 @@ jobs:
             exit 1
           fi
 
-      # Archive with MANUAL signing overrides on the command line so the tracked
-      # pbxproj (Automatic / "Apple Development") is untouched. No
+      # Each signed target gets ITS OWN profile, pinned in the runner's copy of
+      # the project: a PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command
+      # line applies to every target, and would sign the Share Extension with the
+      # app's profile. The tracked pbxproj stays Automatic.
+      - name: Pin each target's provisioning profile
+        run: |
+          set -euo pipefail
+          # The xcodeproj gem ships with CocoaPods, which the runner has (and
+          # `flutter build ios` needs) — installed here only if that ever changes.
+          ruby -e 'require "xcodeproj"' 2>/dev/null || gem install xcodeproj --no-document
+          ruby tools/ci_ios_target_profiles.rb
+
+      # Archive with MANUAL signing on the command line (identity + team suit
+      # every target; the per-target profiles were pinned above). No
       # -allowProvisioningUpdates: its ABSENCE means xcodebuild never phones home
-      # and uses exactly the injected cert + profile.
+      # and uses exactly the injected cert + profiles.
       - name: Archive iOS app (signed for distribution)
         run: |
           set -euo pipefail
@@ -167,8 +187,7 @@ jobs:
             -archivePath build/ios/archive/Runner.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM=NPC44Y2C98 \
-            PROVISIONING_PROFILE_SPECIFIER="Invoice Ninja Admin App Store"
+            DEVELOPMENT_TEAM=NPC44Y2C98
 
       # Prove the compile-time values reached the shipped binary. The pre-action
       # above is exactly the kind of thing that drops them silently (it did),
@@ -208,8 +227,8 @@ jobs:
           done
 
       # Export a signed App Store .ipa via the committed secret-free
-      # ios/ExportOptions.plist (method=app-store, signingStyle=manual, the
-      # profile NAME). CFBundleVersion (pubspec +N) must strictly increase per
+      # ios/ExportOptions.plist (method=app-store, signingStyle=manual, each
+      # target's profile NAME). CFBundleVersion (pubspec +N) must strictly increase per
       # upload — bump pubspec before each dispatch.
       - name: Export App Store .ipa
         run: |
@@ -244,9 +263,11 @@ jobs:
           api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
 
-      # Best practice even on an ephemeral runner: wipe the decoded profile so it
+      # Best practice even on an ephemeral runner: wipe the decoded profiles so they
       # can't survive into a cache or an uploaded artifact. The temp keychain dies
       # with the runner; the .ipa under build/ is gitignored and not uploaded.
       - name: Remove signing material
         if: always()
-        run: rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/appstore.mobileprovision"
+        run: |
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/appstore.mobileprovision"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/appstore-share-extension.mobileprovision"

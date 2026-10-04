@@ -1,4 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:decimal/decimal.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:drift/drift.dart' show OrderingTerm;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,7 +15,12 @@ import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
+import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/expenses_api.dart';
+import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 
 /// First dedicated coverage for `ExpenseEditViewModel` — expenses were one of
@@ -27,6 +38,53 @@ import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.d
 class _FakeExpensesApi implements ExpensesApi {
   @override
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+/// A real engine whose `awaitRow` answers from [outcomes] instead of draining
+/// — the rejected Save a form meets on screen.
+class _ScriptedSync extends SyncRepository {
+  _ScriptedSync(AppDatabase db, this.outcomes)
+    : super(db: db, registry: EntityRegistry(const {}));
+
+  final List<SyncRowOutcome> outcomes;
+
+  @override
+  Future<SyncRowResult> awaitRow({
+    required int rowId,
+    required String companyId,
+    Duration timeout = const Duration(seconds: 30),
+    Duration pollInterval = const Duration(milliseconds: 200),
+    bool callerWillDisplayFailure = true,
+  }) async => SyncRowResult(
+    outcome: outcomes.removeAt(0),
+    statusCode: 422,
+    message: 'Rejected',
+  );
+}
+
+/// Holds the awaited row until [release] — a save still out — then answers
+/// with [result].
+class _HeldSync extends SyncRepository {
+  _HeldSync(AppDatabase db, this.result)
+    : super(db: db, registry: EntityRegistry(const {}));
+
+  final SyncRowResult Function(int rowId) result;
+  final entered = Completer<void>();
+  final _gate = Completer<void>();
+  void release() => _gate.complete();
+
+  @override
+  Future<SyncRowResult> awaitRow({
+    required int rowId,
+    required String companyId,
+    Duration timeout = const Duration(seconds: 30),
+    Duration pollInterval = const Duration(milliseconds: 200),
+    bool callerWillDisplayFailure = true,
+  }) async {
+    if (!entered.isCompleted) entered.complete();
+    await _gate.future;
+    return result(rowId);
+  }
 }
 
 void main() {
@@ -439,6 +497,431 @@ void main() {
       expect(vm.draft.paymentDate, isNull);
       expect(vm.draft.paymentTypeId, isEmpty);
       expect(vm.draft.transactionReference, isEmpty);
+    });
+  });
+
+  group('documents (invoiceninja/flutter#173)', () {
+    Future<List<OutboxRow>> all() =>
+        (db.select(db.outbox)..orderBy([(o) => OrderingTerm.asc(o.id)])).get();
+
+    Future<List<OutboxRow>> uploads() async => [
+      for (final r in await all())
+        if (r.mutationKind == MutationKind.documentUpload.wireName) r,
+    ];
+
+    List<Object?> pathsOf(List<OutboxRow> rows) => [
+      for (final r in rows) jsonDecode(r.payload)['local_path'],
+    ];
+
+    test('make a new form dirty — leaving asks before dropping them', () {
+      final vm = createVm();
+      addTearDown(vm.dispose);
+      expect(vm.isDirty, isFalse);
+      vm.addDocuments([BytesUploadSource(Uint8List(1), 'a.pdf')]);
+      expect(vm.isDirty, isTrue);
+    });
+
+    test('a create queues one upload per file against its tmp_ id, behind '
+        'the create', () async {
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [
+          fileUploadSource('/x/a.pdf'),
+          fileUploadSource('/x/b.jpg'),
+        ],
+      )..setVendorId('v1');
+      addTearDown(vm.dispose);
+
+      final saved = await vm.save();
+      expect(saved!.id, startsWith('tmp_'));
+
+      final queued = await all();
+      expect(queued.map((r) => r.mutationKind), [
+        MutationKind.create.wireName,
+        MutationKind.documentUpload.wireName,
+        MutationKind.documentUpload.wireName,
+      ]);
+      // The outbox holds an upload behind its record's create and rewrites
+      // the temp id once the create lands — so all three name the same id.
+      expect(queued.map((r) => r.entityId).toSet(), {saved.id});
+      expect(pathsOf(queued.skip(1).toList()), ['/x/a.pdf', '/x/b.jpg']);
+      expect(vm.documents, isEmpty, reason: 'saved for good');
+    });
+
+    test('an existing expense takes none and queues none — its documents '
+        'live on the detail screen', () async {
+      final existing = Expense.fromApi(
+        const ExpenseApi(id: 'e1', vendorId: 'v1', updatedAt: 1700000000),
+      );
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        existing: existing,
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+      );
+      addTearDown(vm.dispose);
+      expect(vm.documents, isEmpty);
+      vm.addDocuments([fileUploadSource('/x/b.pdf')]);
+      expect(vm.documents, isEmpty);
+
+      vm.setAmount('75');
+      await vm.save();
+      expect((await all()).map((r) => r.mutationKind), [
+        MutationKind.update.wireName,
+      ]);
+    });
+
+    test('Discard, remove and leaving unsaved hand their files back; a save '
+        'hands back none', () async {
+      final discarded = <String>[];
+      Future<void> discard(Iterable<String> paths) async =>
+          discarded.addAll(paths);
+
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+        discardFiles: discard,
+      );
+      vm.resetToEmpty();
+      expect(discarded, ['/x/a.pdf']);
+      expect(vm.documents, isEmpty);
+
+      final b = fileUploadSource('/x/b.pdf');
+      vm.addDocuments([b, fileUploadSource('/x/c.pdf')]);
+      vm.removeDocument(b);
+      expect(discarded, ['/x/a.pdf', '/x/b.pdf']);
+
+      vm.dispose();
+      expect(discarded, ['/x/a.pdf', '/x/b.pdf', '/x/c.pdf']);
+
+      discarded.clear();
+      final saving = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/d.pdf')],
+        discardFiles: discard,
+      )..setVendorId('v1');
+      await saving.save();
+      saving.dispose();
+      expect(discarded, isEmpty, reason: 'the outbox owns them now');
+    });
+
+    test('registers as the share target while open, for its own company, '
+        'and only in create mode', () {
+      bool Function(List<UploadSource>)? target;
+      String? targetCompany;
+      var unregistered = 0;
+      VoidCallback register(
+        String companyId,
+        bool Function(List<UploadSource>) attach,
+      ) {
+        targetCompany = companyId;
+        target = attach;
+        return () => unregistered++;
+      }
+
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        registerShareTarget: register,
+      );
+      expect(targetCompany, 'co');
+      expect(target!([fileUploadSource('/x/shared.pdf')]), isTrue);
+      expect(vm.documents.map((s) => s.fileName), ['shared.pdf']);
+      vm.dispose();
+      expect(unregistered, 1);
+
+      target = null;
+      final edit = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        existing: Expense.fromApi(
+          const ExpenseApi(id: 'e1', vendorId: 'v1', updatedAt: 1700000000),
+        ),
+        registerShareTarget: register,
+      );
+      addTearDown(edit.dispose);
+      expect(target, isNull);
+    });
+
+    group('a file shared in while the save is still out', () {
+      ExpenseEditViewModel holding(_HeldSync sync) => ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+        sync: sync,
+        connectivity: ConnectivityWatcher.fixed(online: true),
+      )..setVendorId('v1');
+
+      test('follows the record when the save lands', () async {
+        final sync = _HeldSync(
+          db,
+          (_) => const SyncRowResult(outcome: SyncRowOutcome.success),
+        );
+        final vm = holding(sync);
+        addTearDown(vm.dispose);
+        final saving = vm.save();
+        await sync.entered.future;
+
+        expect(vm.addDocuments([fileUploadSource('/x/late.pdf')]), isTrue);
+        sync.release();
+        final saved = await saving;
+
+        final queued = await uploads();
+        expect(pathsOf(queued), ['/x/a.pdf', '/x/late.pdf']);
+        expect(queued.map((r) => r.entityId).toSet(), {saved!.id});
+        expect(vm.documents, isEmpty);
+      });
+
+      test('stays on the form when the save is rejected, for the next '
+          'attempt', () async {
+        final sync = _HeldSync(
+          db,
+          (_) => const SyncRowResult(
+            outcome: SyncRowOutcome.validationFailed,
+            statusCode: 422,
+            message: 'Rejected',
+          ),
+        );
+        final vm = holding(sync);
+        addTearDown(vm.dispose);
+        final saving = vm.save();
+        await sync.entered.future;
+
+        vm.addDocuments([fileUploadSource('/x/late.pdf')]);
+        sync.release();
+        expect(await saving, isNull);
+
+        expect(pathsOf(await uploads()), ['/x/a.pdf']);
+        expect(vm.documents.map((s) => s.fileName), ['a.pdf', 'late.pdf']);
+      });
+
+      test('is queued behind an unconfirmed create — and after that the form '
+          'takes no more', () async {
+        final sync = _HeldSync(
+          db,
+          (rowId) => SyncRowResult(
+            outcome: SyncRowOutcome.unconfirmed,
+            unconfirmedRowId: rowId,
+            unconfirmedMutationKind: 'create',
+          ),
+        );
+        final vm = holding(sync);
+        addTearDown(vm.dispose);
+        final saving = vm.save();
+        await sync.entered.future;
+
+        vm.addDocuments([fileUploadSource('/x/late.pdf')]);
+        sync.release();
+        await saving;
+
+        expect(vm.unconfirmedRowId, isNotNull);
+        expect(pathsOf(await uploads()), ['/x/a.pdf', '/x/late.pdf']);
+        expect(vm.acceptsDocuments, isFalse);
+        expect(vm.addDocuments([fileUploadSource('/x/more.pdf')]), isFalse);
+        expect(vm.documents, hasLength(2));
+      });
+    });
+
+    test('a dispose while the create is being written still queues the '
+        'files, and hands none back', () async {
+      final discarded = <String>[];
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+        discardFiles: (paths) async => discarded.addAll(paths),
+      )..setVendorId('v1');
+
+      final saving = vm.save();
+      vm.dispose(); // a sign-out, or the `/new` route re-keyed
+      await saving;
+
+      expect(pathsOf(await uploads()), ['/x/a.pdf']);
+      expect(discarded, isEmpty);
+    });
+
+    test('a reset while a save is out hands no file back — that save\'s rows '
+        'name them', () async {
+      final discarded = <String>[];
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+        discardFiles: (paths) async => discarded.addAll(paths),
+      )..setVendorId('v1');
+      addTearDown(vm.dispose);
+
+      final saving = vm.save();
+      vm.resetToEmpty();
+      await saving;
+
+      expect(discarded, isEmpty);
+      expect(pathsOf(await uploads()), ['/x/a.pdf']);
+    });
+
+    test('a file removed after a failed attempt is handed back once the next '
+        'attempt drops its row', () async {
+      final discarded = <String>[];
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [
+          fileUploadSource('/x/a.pdf'),
+          fileUploadSource('/x/b.jpg'),
+        ],
+        discardFiles: (paths) async => discarded.addAll(paths),
+        sync: _ScriptedSync(db, [
+          SyncRowOutcome.validationFailed,
+          SyncRowOutcome.success,
+        ]),
+        connectivity: ConnectivityWatcher.fixed(online: true),
+      )..setVendorId('v1');
+      addTearDown(vm.dispose);
+      await vm.save();
+
+      // The ✕: handed back, but a row still names it, so the real
+      // `SharedIntakeFiles.delete` keeps it.
+      vm.removeDocument(vm.documents.first);
+      expect(discarded, ['/x/a.pdf']);
+
+      await vm.save();
+      expect(discarded, ['/x/a.pdf', '/x/a.pdf']);
+    });
+
+    test('an edit form re-sending a failed create moves the earlier '
+        'attempt\'s uploads behind it', () async {
+      final first = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        initialDocuments: [fileUploadSource('/x/a.pdf')],
+      )..setVendorId('v1');
+      final saved = (await first.save())!;
+      first.dispose();
+      for (final row in await all()) {
+        await db.outboxDao.markDead(id: row.id, error: 'rejected');
+      }
+      final failedCreate = (await all()).firstWhere(
+        (r) => r.mutationKind == MutationKind.create.wireName,
+      );
+
+      // Reopened from the Outbox: an edit form over the failed record.
+      final edit =
+          ExpenseEditViewModel(repo: repo, companyId: 'co', existing: saved)
+            ..applyFailedSync(
+              rowId: failedCreate.id,
+              errors: const {},
+              entityId: saved.id,
+              recreate: true,
+            );
+      addTearDown(edit.dispose);
+      expect(await edit.save(), isNotNull);
+
+      final create = (await all()).lastWhere(
+        (r) =>
+            r.mutationKind == MutationKind.create.wireName &&
+            r.state == 'pending',
+      );
+      final queued = await uploads();
+      expect(pathsOf(queued), ['/x/a.pdf']);
+      expect(queued.single.state, 'pending');
+      expect(queued.single.id, greaterThan(create.id));
+    });
+
+    group('after the server rejects the create', () {
+      ExpenseEditViewModel rejectedOnce(SyncRowOutcome first) =>
+          ExpenseEditViewModel(
+            repo: repo,
+            companyId: 'co',
+            initialDocuments: [
+              fileUploadSource('/x/a.pdf'),
+              fileUploadSource('/x/b.jpg'),
+            ],
+            sync: _ScriptedSync(db, [first, SyncRowOutcome.success]),
+            connectivity: ConnectivityWatcher.fixed(online: true),
+          )..setVendorId('v1');
+
+      test('the files stay on the form, every one still removable', () async {
+        final vm = rejectedOnce(SyncRowOutcome.validationFailed);
+        addTearDown(vm.dispose);
+
+        expect(await vm.save(), isNull);
+        expect(vm.documents.map((s) => s.fileName), ['a.pdf', 'b.jpg']);
+        expect(vm.isDirty, isTrue);
+      });
+
+      for (final (label, first, killUploads) in [
+        ('a 422 killed them', SyncRowOutcome.validationFailed, true),
+        (
+          'a transient failure left them pending',
+          SyncRowOutcome.serverError,
+          false,
+        ),
+      ]) {
+        test('the re-save queues each file once, behind the re-sent create '
+            '($label)', () async {
+          final vm = rejectedOnce(first);
+          addTearDown(vm.dispose);
+          await vm.save();
+          if (killUploads) {
+            // The engine's cascade when the create 422s.
+            for (final row in await all()) {
+              await db.outboxDao.markDead(id: row.id, error: 'rejected');
+            }
+          }
+
+          expect(await vm.save(), isNotNull);
+
+          final create = (await all()).lastWhere(
+            (r) =>
+                r.mutationKind == MutationKind.create.wireName &&
+                r.state == 'pending',
+          );
+          final queued = await uploads();
+          expect(queued, hasLength(2), reason: 'no duplicates');
+          expect(queued.every((r) => r.state == 'pending'), isTrue);
+          expect(queued.every((r) => r.id > create.id), isTrue);
+          expect(pathsOf(queued), ['/x/a.pdf', '/x/b.jpg']);
+          expect(vm.documents, isEmpty, reason: 'saved for good');
+        });
+      }
+
+      test('a file removed before the re-save is not sent', () async {
+        final vm = rejectedOnce(SyncRowOutcome.validationFailed);
+        addTearDown(vm.dispose);
+        await vm.save();
+        vm.removeDocument(vm.documents.first);
+
+        await vm.save();
+        expect(pathsOf(await uploads()), ['/x/b.jpg']);
+      });
+
+      test(
+        'the banner\'s Discard deletes the rows with the record, yet the '
+        'next Save still uploads every file — under the new temp id',
+        () async {
+          final vm = rejectedOnce(SyncRowOutcome.validationFailed);
+          addTearDown(vm.dispose);
+          await vm.save();
+          final firstTemp = vm.recoveryTempId!;
+          // What the banner's Discard does to a record the server never saw:
+          // its rows go with it (the ghost path), and the form forgets them.
+          await db.outboxDao.deleteAllForEntity(
+            companyId: 'co',
+            entityType: 'expense',
+            entityId: firstTemp,
+          );
+          vm.clearFailedSync();
+
+          final saved = await vm.save();
+          expect(saved!.id, isNot(firstTemp));
+          final queued = await uploads();
+          expect(queued.map((r) => r.entityId).toSet(), {saved.id});
+          expect(pathsOf(queued), ['/x/a.pdf', '/x/b.jpg']);
+        },
+      );
     });
   });
 }

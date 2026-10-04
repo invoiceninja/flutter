@@ -14,6 +14,7 @@ import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_amount_tax_
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_banking_section.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_currency_conversion_section.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_custom_fields_section.dart';
+import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_documents_section.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_identity_section.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_invoicing_section.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_notes_section.dart';
@@ -25,9 +26,12 @@ import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_payment_sec
 ///
 /// - ≥1000 px: two columns. Left (`Expanded`) holds Identity, Amount/Tax, and
 ///   Payment — the core transaction fields. Right (`_sidebarWidth` 360 px)
-///   holds Notes, Invoicing, and the three collapsible secondary sections
-///   (Currency conversion, Banking, Custom fields).
-/// - <1000 px: single centered column (≤820 px), pre-refactor order.
+///   holds Documents (create only, where the plan allows attachments —
+///   [showsExpenseDocumentsCard]), Notes, Invoicing, and the three
+///   collapsible secondary sections (Currency conversion, Banking, Custom
+///   fields).
+/// - <1000 px: single centered column (≤820 px), pre-refactor order, with
+///   Documents (create only) straight after Identity.
 class ExpenseEditLayout extends StatelessWidget {
   const ExpenseEditLayout({super.key, required this.vm});
 
@@ -44,11 +48,17 @@ class ExpenseEditLayout extends StatelessWidget {
           builder: (context, constraints) {
             final twoCol =
                 constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
+            final documents = showsExpenseDocumentsCard(
+              isCreate: vm.isCreate,
+              session: context.read<Services>().auth.session.value,
+            );
             return SingleChildScrollView(
               padding: EdgeInsets.all(InSpacing.lg(context)),
               child: twoCol
-                  ? _wide(context)
-                  : CenteredFormColumn(child: _narrow(context)),
+                  ? _wide(context, documents: documents)
+                  : CenteredFormColumn(
+                      child: _narrow(context, documents: documents),
+                    ),
             );
           },
         );
@@ -56,7 +66,7 @@ class ExpenseEditLayout extends StatelessWidget {
     );
   }
 
-  Widget _wide(BuildContext context) {
+  Widget _wide(BuildContext context, {required bool documents}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -78,6 +88,12 @@ class ExpenseEditLayout extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // First in the sidebar, so a receipt shared into the app is in
+              // view the moment New Expense opens.
+              if (documents) ...[
+                ExpenseEditDocumentsSection(vm: vm),
+                SizedBox(height: InSpacing.md(context)),
+              ],
               ExpenseEditNotesSection(vm: vm),
               SizedBox(height: InSpacing.md(context)),
               ExpenseEditInvoicingSection(vm: vm),
@@ -106,12 +122,16 @@ class ExpenseEditLayout extends StatelessWidget {
     );
   }
 
-  Widget _narrow(BuildContext context) {
+  Widget _narrow(BuildContext context, {required bool documents}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExpenseEditIdentitySection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
+        if (documents) ...[
+          ExpenseEditDocumentsSection(vm: vm),
+          SizedBox(height: InSpacing.md(context)),
+        ],
         ExpenseEditAmountTaxSection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         ExpenseEditPaymentSection(vm: vm),

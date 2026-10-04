@@ -104,8 +104,7 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
       services = null;
     }
     final session = services?.auth.session.value;
-    final planGated =
-        session != null && session.isHosted && !session.hasEnterpriseAccess;
+    final planGated = !(session?.canAttachDocuments ?? true);
     final readOnly = widget.readOnly || planGated;
     final sorted = [...widget.documents]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -157,36 +156,12 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
 
   Future<void> _validateAndUpload(List<UploadSource> sources) async {
     if (sources.isEmpty) return;
-    final good = <UploadSource>[];
-    bool sawWrongType = false;
-    bool sawTooLarge = false;
-    for (final s in sources) {
-      final result = await validateDocumentUpload(s);
-      if (result.isOk) {
-        good.add(s);
-      } else {
-        switch (result.issue) {
-          case DocumentUploadIssue.wrongExtension:
-            sawWrongType = true;
-          case DocumentUploadIssue.tooLarge:
-            sawTooLarge = true;
-          case DocumentUploadIssue.unreadable:
-            sawWrongType = true; // surface as generic reject
-          case null:
-            break;
-        }
-      }
-    }
+    final batch = await validateDocumentSources(sources);
     if (!mounted) return;
-    if (sawWrongType) {
-      Notify.warning(context, context.tr('dropzone_invalid_file_type'));
+    for (final notice in batch.rejectNotices) {
+      Notify.warning(context, context.tr(notice.key, notice.params));
     }
-    if (sawTooLarge) {
-      Notify.warning(
-        context,
-        context.tr('upload_too_large_with_size', {'size': '$kDocumentMaxMb'}),
-      );
-    }
+    final good = batch.accepted;
     if (good.isEmpty) return;
     try {
       await widget.onUpload(good);

@@ -52,10 +52,21 @@ enum DisposalReason {
 class LocalDataDisposer {
   /// [prefs] is the in-memory mirror of `device_prefs`; without it (tests of
   /// the wipe alone) only the rows are forgotten.
-  LocalDataDisposer(this._db, {DevicePrefsStore? prefs}) : _prefs = prefs;
+  ///
+  /// [onWipeAll] removes what the account keeps beside the database: the
+  /// copies of files shared into the app (`SharedIntakeFiles.purgeAll`), which
+  /// are receipts and invoices of the user being wiped. Not a database wipe,
+  /// so `local_data_disposal_test` has nothing to say about it.
+  LocalDataDisposer(
+    this._db, {
+    DevicePrefsStore? prefs,
+    Future<void> Function()? onWipeAll,
+  }) : _prefs = prefs,
+       _onWipeAll = onWipeAll;
 
   final AppDatabase _db;
   final DevicePrefsStore? _prefs;
+  final Future<void> Function()? _onWipeAll;
 
   /// Everything but the device's own preferences: `AppDatabase.wipe` keeps
   /// the device keys (theme, language, …) and forgets the account ones, and
@@ -65,6 +76,14 @@ class LocalDataDisposer {
     await _logWhatGoes(reason);
     await _db.wipe();
     _prefs?.forgetWiped();
+    // After the rows: a file an outbox row still pointed at is only safe to
+    // delete once that row is gone. Best-effort — files must never fail the
+    // wipe that the user asked for.
+    try {
+      await _onWipeAll?.call();
+    } catch (e, st) {
+      _log.warning('wipeAll: removing shared files failed', e, st);
+    }
   }
 
   Future<void> wipeCompany(String companyId, DisposalReason reason) async {

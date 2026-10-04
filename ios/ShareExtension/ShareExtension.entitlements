@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The container the extension hands shared files to the app through
+	     (invoiceninja/flutter#173). Same group as Runner.entitlements; it must
+	     be registered and enabled on both App IDs before a device or App Store
+	     build can be provisioned — docs/store-deployment-setup.md. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.invoiceninja.admin</string>
+	</array>
+</dict>
+</plist>

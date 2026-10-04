@@ -534,6 +534,7 @@ the honest default.
 | Expense — bulk invoice / add to invoice from the list (one client, billable + uninvoiced only; skipped rows and missing currency conversions reported) | ✅ | ✅ | ✅ | | |
 | Expense — run template | ✅ | ✅ | ✅ | ✅ | |
 | Expense — documents / receipts attachment | ✅ | ✅ | ✅ | ✅ | |
+| Expense — attach documents while creating (queued with the form, uploaded on save; works offline) — flutter#173 | — | — | ✅ | | |
 | Expense — comments | ✅ | ✅ | ✅ | ✅ | |
 | Expense — activities | ✅ | ✅ | ✅ | ✅ | |
 | Expense — custom fields | ✅ | ✅ | ✅ | ✅ | |
@@ -1677,6 +1678,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
 | Push notifications (FCM / APNs) | — | ❌ | ❌ |  | |
 | Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
+| Share files into the app → New Expense with them attached (Android share target, iOS Share Extension) — flutter#173 | — | — | ✅ | | images + PDFs; HEIC/HEIF etc. converted to JPEG; iOS needs the App Group + extension profile (`docs/store-deployment-setup.md` §3E) |
 | OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`, now the fallback behind the https form; v1 registers a scheme for Google OAuth only |
 | Universal / App Links (https) | — | ❌ | 🟡 | | client side done (`/app/` claim + shims); 🟡 until the server's `.well-known` routes deploy and the Apple capability is enabled — see `APP_LINKS.md` |
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |

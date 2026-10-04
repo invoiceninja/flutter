@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
@@ -45,7 +46,11 @@ class ExpenseEditScreen extends StatelessWidget {
         // screen on each stage so buildVm re-reads it. `cloneFrom` is the
         // edit-mode override.
         final seed = cloneFrom != null
-            ? (draft: cloneFrom!, isClone: true)
+            ? (
+                draft: cloneFrom!,
+                isClone: true,
+                attachments: const <UploadSource>[],
+              )
             : (existing == null
                   ? services.takeCreateSeed<Expense>('/expenses')
                   : null);
@@ -63,6 +68,12 @@ class ExpenseEditScreen extends StatelessWidget {
               false,
           sync: services.sync,
           connectivity: services.connectivity,
+          // Files staged with the seed — a receipt shared into the app from
+          // another one (`SharedFileIntake`).
+          initialDocuments: seed?.attachments ?? const [],
+          discardFiles: services.sharedIntakeFiles.delete,
+          // While this New Expense is open, a share joins it.
+          registerShareTarget: services.sharedFiles.registerAttachTarget,
         );
         // Embedded Project → Expenses-tab "New" stages a draft with a projectId
         // but no client; resolve the project to set clientId. Actions that bake

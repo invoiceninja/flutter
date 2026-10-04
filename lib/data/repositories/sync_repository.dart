@@ -770,8 +770,24 @@ class SyncRepository {
         await _failTmpDependents(companyId, dep.entityId, why);
       } else {
         // Said only for the active company: another company's rows are in
-        // its own Outbox, and the shell's View opens this one's.
-        await _markDead(dep, why.message, null, announce: _isActive(companyId));
+        // its own Outbox, and the shell's View opens this one's. Not for an
+        // upload of the parent record itself (a receipt attached on its create
+        // form, invoiceninja/flutter#173): the parent's own event already
+        // speaks for the record, and one modal per attachment on top of the
+        // form's inline error was a storm. The form re-queues them on its
+        // next Save (`BaseEntityRepository.replaceUnsentDocumentUploads`).
+        final ownUpload =
+            dep.entityId == parentTmpId &&
+            isDocumentUploadRow(
+              mutationKind: dep.mutationKind,
+              payload: dep.payload,
+            );
+        await _markDead(
+          dep,
+          why.message,
+          null,
+          announce: _isActive(companyId) && !ownUpload,
+        );
         // Recurse into a dead create's OWN tmp dependents (deeper levels).
         // The `!= parentTmpId` guard skips a same-entity update keyed to the
         // parent's tmp id (already handled above), so we never re-query the

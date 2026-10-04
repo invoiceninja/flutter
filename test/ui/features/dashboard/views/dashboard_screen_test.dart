@@ -19,6 +19,7 @@ import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
@@ -140,6 +141,7 @@ class _FakeServices implements Services {
     String basePath,
     Object? draft, {
     bool isClone = false,
+    List<UploadSource> attachments = const [],
   }) => staged.add((basePath, draft));
 
   @override

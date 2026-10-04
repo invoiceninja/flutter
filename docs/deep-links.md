@@ -57,6 +57,36 @@ commented out. Both are logged in `docs/upstream-workarounds.md`, and
 `test/lint/universal_links_test.dart` fails the build if either goes missing,
 along with the claim, the prefix and the flags.
 
+## Android delivers a link to a trampoline, never to MainActivity
+
+**No VIEW filter sits on MainActivity.** A link handed to it breaks the one-engine rule two ways
+(AOSP `ActivityStarter.complyActivityFlags`). From an app that doesn't add `NEW_TASK`, it starts
+the `singleTop` MainActivity inside *that* app's task — `singleTop` only reuses an instance on top
+of the same task — so a second Flutter engine opens the encrypted store beside the first
+(`holdStoreLock` is per isolate; the POSIX lock is per process). And one delivered to the live
+MainActivity becomes its task's base intent (`Task.setIntent` on the root), after which a launcher
+tap with a picker on top fails `isSameIntentFilter` and Android adds a second instance anyway.
+
+So both VIEW filters — the custom scheme for `app` / `calendar_connection`, and the https
+`autoVerify` one (verification is per app, not per activity) — sit on
+**`DeepLinkReceiverActivity`**: engine-free, translucent, `noHistory`, `excludeFromRecents`. It
+reads only the action, the data and the flags, puts the URI in `Handoff` behind a one-time token,
+and brings MainActivity forward with the same launcher-shaped intent the share target uses
+(`Handoff.launchIntent`; why that shape: `docs/sharing-files-into-the-app.md` § The forwarded
+intent is launcher-shaped, and carries only a token). MainActivity claims the token into a queue,
+and `AppDeepLinks` pulls it over `invoice_ninja/deep_links` (`takeLinks`) — at construction, on the
+`linksAvailable` ping, and on every resume — into the same `DeepLinkRouter.open`. Validation, the
+gate, the company switch and the calendar return (which comes back from the system browser) are
+unchanged. `CLEAR_TOP` closes whatever was above MainActivity, a picker included: a link is a "go
+there now".
+
+MainActivity is still exported, so an explicit VIEW intent can be sent to it: `app_links` hands
+that to `DeepLinkRouter`, which validates it as ever, and `flutter_deeplinking_enabled=false` keeps
+Flutter's own handling out. MainActivity also strips every extra before `FlutterFragmentActivity`
+reads one (`docs/sharing-files-into-the-app.md` § The forwarded intent…), so a forged `route`
+extra can't replace the restored location either. `universal_links_test.dart` pins the filters'
+home; `share_target_wiring_test.dart` the forward and the stripping.
+
 ## A link naming another instance is refused
 
 **A link that names another instance is refused, not followed.** Company hashids
@@ -95,9 +125,10 @@ Four pieces, deliberately split:
   choreography. Takes only the auth slice it needs (session + lock listenables
   + an `isAuthenticated` predicate) so it is testable with plain fakes, and
   `attach(go:, contextOf:)` wires navigation once `MaterialApp.router` exists.
-- `lib/app/app_deep_links.dart` — the platform bridge (`app_links`), which only
-  transports URIs into `deepLinks.open`, plus the web branch that reads the page
-  URL (§ On web the link is the page URL). The **command palette is the second
+- `lib/app/app_deep_links.dart` — the platform bridge (`app_links`, and on
+  Android the `invoice_ninja/deep_links` pull — § Android delivers a link to a
+  trampoline), which only transports URIs into `deepLinks.open`, plus the web
+  branch that reads the page URL (§ On web the link is the page URL). The **command palette is the second
   source**: paste a link into ⌘K and it routes through the same `open`. That is
   the only way to follow one on Linux, the only way to follow a *pasted* one on
   web (neither receives a link from the OS), and the fallback wherever a
@@ -110,9 +141,10 @@ Four pieces, deliberately split:
 Five things fail silently if you change this:
 
 1. **Every platform delivers a cold-start link twice — except iOS, which used to
-   deliver it not at all.** Android, macOS and Windows all replay the cached
-   `initialLink` into the stream on `onListen` *and* return it from
-   `getInitialLink()`, and the bridge subscribes to both. iOS under the scene
+   deliver it not at all.** macOS and Windows replay the cached `initialLink`
+   into the stream on `onListen` *and* return it from `getInitialLink()`, and
+   the bridge subscribes to both (Android did too, until links moved to the
+   trampoline: the pull hands each over once). iOS under the scene
    lifecycle delivered **zero** times until `SceneDelegate` started handing the
    launch URL over by hand (see above), which is also why cold-start links there
    were being handled by Flutter's built-in deep linking rather than by this

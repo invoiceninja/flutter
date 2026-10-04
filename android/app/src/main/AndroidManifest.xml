@@ -46,10 +46,11 @@
                  errorBuilder would replace the WHOLE app with the route-error
                  screen; NavStatePersister has no filter for error locations, so
                  that URL then gets restored on every later launch too.
-                 `app_links` receives the intent either way — cold through
-                 getIntent() in onAttachedToActivity, warm through onNewIntent,
-                 which is forwarded to plugins regardless of this flag — so
-                 turning it off costs no delivery.
+                 Deep links no longer reach this activity at all (they go to
+                 DeepLinkReceiverActivity below), but MainActivity is exported:
+                 an explicit VIEW intent can still be sent to it, and `app_links`
+                 hands that to DeepLinkRouter either way, so turning Flutter's
+                 handling off costs no delivery.
                  MUST sit on the ACTIVITY: shouldHandleDeeplinking() reads
                  ActivityInfo meta-data, and an <application> entry is silently
                  ignored. Pinned by test/lint/universal_links_test.dart. -->
@@ -61,7 +62,27 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- OS deep links, bridged into the router by `AppDeepLinks`. Two
+        </activity>
+        <!-- Deep links land here, never on MainActivity: a VIEW intent from an
+             app that doesn't add NEW_TASK would start a second singleTop
+             MainActivity in THAT app's task (a second Flutter engine on the
+             store), and one delivered to the live MainActivity becomes its
+             task's base intent, after which a launcher tap with a picker on top
+             adds a second instance anyway. This activity starts no engine: it
+             hands the URI over through a one-time token in the same
+             launcher-shaped intent as the share target, and finishes.
+             App Links verification is per app, so the autoVerify filter works
+             from here. See docs/deep-links.md. -->
+        <activity
+            android:name=".DeepLinkReceiverActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection|fontScale|colorMode|touchscreen|mcc|mnc"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <!-- OS deep links, forwarded to MainActivity through a Handoff token
+                 and bridged into the router by `AppDeepLinks`. Two
                  hosts, deliberately pinned rather than claiming the whole
                  scheme:
                    app                  - shared record links, e.g.
@@ -106,6 +127,39 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="invoicing.co" android:pathPrefix="/app/"/>
+            </intent-filter>
+        </activity>
+        <!-- The share target: "Share -> Invoice Ninja" opens New Expense with
+             the files attached (invoiceninja/flutter#173). NEVER put a SEND
+             filter on MainActivity: the share sheet starts its target in the
+             sender's task, so a singleTop MainActivity would get a second
+             instance there - a second Flutter engine in this process, opening
+             the store a second time. This activity starts no engine: it copies
+             the files while it holds their read grant, hands them to the
+             MainActivity it brings forward (through a one-time token, in a
+             launcher-shaped intent), and finishes.
+             `configChanges` because a recreation mid-copy would lose the share:
+             the new instance has nothing to copy, and the old one deletes what
+             it copied. See docs/sharing-files-into-the-app.md. -->
+        <activity
+            android:name=".ShareReceiverActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection|fontScale|colorMode|touchscreen|mcc|mnc"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+                <data android:mimeType="application/pdf"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+                <data android:mimeType="application/pdf"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

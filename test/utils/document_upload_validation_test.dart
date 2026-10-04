@@ -187,4 +187,32 @@ void main() {
       expect(result.issue, DocumentUploadIssue.wrongExtension);
     });
   });
+
+  group('validateDocumentSources', () {
+    test('sorts a batch and names one notice per kind of reject', () async {
+      final batch = await validateDocumentSources([
+        _source('a.pdf'),
+        _source('b.exe'),
+        _source('c.pdf', size: kDocumentMaxBytes + 1),
+        _source('d.png', readable: false),
+      ]);
+
+      expect(batch.accepted.map((s) => s.fileName), ['a.pdf']);
+      expect(batch.rejected.map((s) => s.fileName), [
+        'b.exe',
+        'c.pdf',
+        'd.png',
+      ]);
+      expect(batch.rejectNotices.map((n) => n.key), [
+        'dropzone_invalid_file_type',
+        'upload_too_large_with_size',
+      ]);
+      expect(batch.rejectNotices.last.params, {'size': '$kDocumentMaxMb'});
+    });
+
+    test('a clean batch has no notices', () async {
+      final batch = await validateDocumentSources([_source('a.pdf')]);
+      expect(batch.rejectNotices, isEmpty);
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/app_deep_links.dart';
+import 'package:admin/app/app_share_intake.dart';
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/boot_log.dart';
 import 'package:admin/app/design_tokens.dart';
@@ -593,6 +594,14 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
   // page was loaded with — there nothing delivers a link, it *is* the address.
   late final AppDeepLinks _appDeepLinks = AppDeepLinks(
     widget.services.deepLinks,
+    // The iOS Share Extension's `invoiceninja://share`: files are waiting.
+    onShareHandoff: () => unawaited(_appShareIntake.pull()),
+  );
+
+  // Bridges files shared into the app from other apps (Android share target,
+  // iOS Share Extension) into `services.sharedFiles` — invoiceninja/flutter#173.
+  late final AppShareIntake _appShareIntake = AppShareIntake(
+    widget.services.sharedFiles,
   );
 
   late final PasswordCacheLifecycleObserver _passwordCacheObserver =
@@ -628,7 +637,14 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
       go: _router.go,
       contextOf: () => _router.routerDelegate.navigatorKey.currentContext,
     );
+    // Same wiring, same reasons, for a file shared in from another app.
+    widget.services.sharedFiles.attach(
+      go: _router.go,
+      contextOf: () => _router.routerDelegate.navigatorKey.currentContext,
+    );
     _appDeepLinks;
+    _appShareIntake;
+    _sweepSharedFiles();
     // A wipe of the local data before the reset notice could show — a
     // sign-out, or a sign-in by someone else — makes its toast untrue: it
     // counts unsynced changes as kept. The lock screen's Sign out showed it on
@@ -655,6 +671,27 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     });
   }
 
+  /// Once per launch, off the boot path: delete copies of shared files that
+  /// no outbox upload references and that outlived the form they were
+  /// attached to (`SharedIntakeFiles.sweep`). Only the two platforms with a
+  /// share target ever write any.
+  void _sweepSharedFiles() {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return;
+    }
+    final services = widget.services;
+    unawaited(
+      services.db.outboxDao
+          .referencedLocalPaths()
+          .then(services.sharedIntakeFiles.sweep)
+          .catchError((Object e) {
+            Logger('SharedIntakeFiles').warning('boot sweep failed', e);
+          }),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(_idleTimeout);
@@ -667,6 +704,8 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     _navHistory.dispose();
     _appDeepLinks.dispose();
     widget.services.deepLinks.dispose();
+    _appShareIntake.dispose();
+    widget.services.sharedFiles.dispose();
     widget.services.auth.onBeforeDataWipe = _priorBeforeDataWipe;
     _localDataNoticeHold.dispose();
     super.dispose();

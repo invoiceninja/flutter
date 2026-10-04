@@ -1,0 +1,10 @@
+// The Share Extension's base configuration (invoiceninja/flutter#173).
+//
+// Only here for FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER, which Info.plist
+// uses so the extension's version always matches the app's — App Store
+// validation rejects a mismatch. Generated.xcconfig is written by
+// `flutter pub get` / `flutter build`; the `?` keeps a fresh checkout opening
+// in Xcode before it exists. Deliberately NOT Flutter/Release.xcconfig: that
+// pulls in the Pods-Runner configuration, which is the app's, not this
+// target's.
+#include? "../Flutter/Generated.xcconfig"

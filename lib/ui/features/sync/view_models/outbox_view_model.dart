@@ -158,11 +158,23 @@ class OutboxViewModel extends ChangeNotifier {
         );
         if (newest != null && newest.id > row.id) return false;
       }
-      final rearmed = await dao.retryDead(
-        id: row.id,
-        now: DateTime.now().millisecondsSinceEpoch,
-      );
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final rearmed = await dao.retryDead(id: row.id, now: now);
       if (!rearmed) return false;
+      // A rejected create took its record's uploads down with it (the
+      // receipts attached on its create form, invoiceninja/flutter#173).
+      // Retried from here rather than from the form, nothing else would bring
+      // them back: they'd land re-keyed and still dead. They were queued after
+      // the create, so the same pass sends them once it lands.
+      if (row.mutationKind == MutationKind.create.wireName &&
+          row.entityId.startsWith('tmp_')) {
+        await dao.retryDeadUploadsFor(
+          companyId: row.companyId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+          now: now,
+        );
+      }
       unawaited(sync.drainOnce(companyId: row.companyId));
       return true;
     } catch (e, st) {

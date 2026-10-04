@@ -16,7 +16,10 @@ import 'package:flutter_test/flutter_test.dart';
 ///   * outbox rows — the sync engine, where each delete is a delivered row, a
 ///     superseded save, a discard the user asked for, or a pruned one; and a
 ///     repository's own save superseding its pending row
-///     (`dedupPendingMutations`);
+///     (`dedupPendingMutations`), a re-sent create moving its never-sent
+///     uploads behind itself (`requeueUnsentDocumentUploads`), or a create
+///     form's Save replacing its record's never-sent uploads with the files the
+///     form holds now (`replaceUnsentDocumentUploads`);
 ///   * the table statements themselves — the outbox DAO.
 ///
 /// Adding an owner is a decision: add it here with the reason.
@@ -36,7 +39,12 @@ void main() {
       ),
       owners: {
         'lib/data/repositories/sync_repository.dart',
-        // `dedupPendingMutations`: a save replacing its own pending row.
+        // `dedupPendingMutations`: a save replacing its own pending row;
+        // `requeueUnsentDocumentUploads`: a re-sent create moving its
+        // never-sent uploads behind itself (each replaced by a fresh copy);
+        // and `replaceUnsentDocumentUploads`: a create form's Save replacing
+        // its record's never-sent uploads with the files it holds now — which
+        // also drops the rows of files the user removed from the form.
         'lib/data/repositories/base_entity_repository.dart',
       },
     ),

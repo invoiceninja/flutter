@@ -89,7 +89,7 @@ Plus two non-negotiables carried from admin-portal:
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Changing the desktop title bar, its drawn window buttons, or where the nav arrows live — including hiding them behind the browser's own | `docs/desktop-window-state.md` § Drawn window buttons · § The sidebar's history arrows hide behind the browser's own · `lib/ui/features/shell/widgets/window_frame.dart` · `lib/app/browser_chrome.dart` |
-| Sharing a link to a record, or handling an incoming one | § Deep links · `docs/deep-links.md` |
+| Sharing a link to a record, handling an incoming one, or a file shared into the app (→ New Expense) | § Deep links · `docs/deep-links.md` · `docs/sharing-files-into-the-app.md` |
 | Enabling https App Links / Universal Links (Apple capability, Play fingerprints, deploy order) | `APP_LINKS.md` |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
 | Surfacing a record's comments (the Comments card / tab), how a note renders, or a detail screen's tab order | `docs/comments-and-activity.md` · `lib/ui/features/billing_shared/activity/` |
@@ -686,6 +686,8 @@ invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq     <- fallback, still 
 - **Every detail screen passes `hydrate:` to `EntityDetailScaffold`, and `emptyAction:` gives a genuinely missing record a way onward — landing on an unopened record is the normal case.** → `docs/deep-links.md` § Landing on a record the recipient never opened
 - **Two registry notes: a settings-hosted entity must still declare `detailBuilder`, and a settings `:id` route needs its own id-keyed subtree.** → `docs/deep-links.md` § Two registry notes this depends on
 - **On web nothing delivers the link — it *is* the page URL, so `?company=` is honoured once at boot and stripped before it can persist.** → `docs/deep-links.md` § On web the link is the page URL
+- **On Android a share or a link never reaches MainActivity directly — an engine-free trampoline (`ShareReceiverActivity`, `DeepLinkReceiverActivity`) forwards a launcher-shaped intent carrying only a one-time token (else a second MainActivity opens the store twice), and MainActivity strips every extra before Flutter reads one.** → `docs/deep-links.md` § Android delivers a link to a trampoline, never to MainActivity
+- **A shared file reaches Flutter only as a native copy in `shared_intake/`, and only `SharedIntakeFiles` deletes one.** → `docs/sharing-files-into-the-app.md` § A shared file reaches Flutter only as a copy, and never through MainActivity
 
 **Adding an entity?** `test/lint/entity_copy_link_coverage_test.dart` fails the
 build unless its action enum declares `copyLink` — nothing in the type system

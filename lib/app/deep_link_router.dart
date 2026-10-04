@@ -4,11 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/arrival_gate.dart';
 import 'package:admin/app/entity_links.dart';
+import 'package:admin/app/localized_toast.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/domain/entity_registry.dart';
-import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
 
@@ -33,25 +34,19 @@ class DeepLinkRouter {
     required EntityRegistry registry,
     required ToastController toasts,
   }) : _session = session,
-       _credentials = credentials,
-       _locked = requiresBiometricUnlock,
+       _gate = ArrivalGate(
+         session: session,
+         credentials: credentials,
+         requiresBiometricUnlock: requiresBiometricUnlock,
+       ),
        _registry = registry,
        _toasts = toasts;
 
   // Deliberately the narrow slice of AuthRepository this needs, not the repo
-  // itself: the whole class is then exercisable with plain fakes.
-  //
-  // All three are *listenables*, and [credentials] in particular must not be
-  // reduced to an `isAuthenticated()` predicate: `AuthRepository` assigns
-  // `_session` BEFORE `_credentials` on both login (`_persistAndActivate`) and
-  // `restore()`, so a gate that reads credentials while listening only to the
-  // session wakes on the session edge, still sees `isAuthenticated == false`,
-  // and drops the held link — then replays it minutes later off an unrelated
-  // background refresh. `main.dart` merges `auth.credentials` first into the
-  // router's own `refreshListenable` for exactly this reason.
+  // itself: the whole class is then exercisable with plain fakes. Why the gate
+  // listens to all three — credentials especially — is on [ArrivalGate].
   final ValueListenable<AuthSession?> _session;
-  final ValueListenable<ApiCredentials?> _credentials;
-  final ValueListenable<bool> _locked;
+  final ArrivalGate _gate;
   final EntityRegistry _registry;
   final ToastController _toasts;
   final _log = Logger('DeepLinkRouter');
@@ -94,9 +89,8 @@ class DeepLinkRouter {
   int _generation = 0;
 
   /// A link that arrived while the app was signed out or biometric-locked,
-  /// waiting for the gate to clear. See [_gateIsOpen].
+  /// waiting for the gate to clear. See [ArrivalGate.isOpen].
   Uri? _deferred;
-  bool _listening = false;
 
   /// Wire navigation in once `MaterialApp.router` exists. [contextOf] supplies
   /// a `BuildContext` under the `MultiProvider` (the root navigator's), which
@@ -211,9 +205,9 @@ class DeepLinkRouter {
     // company-switch guards' dialogs over the lock screen — it is an ordinary
     // Scaffold, so nothing stops a `showDialog` landing on top of it — and
     // would switch the workspace behind a lock the user hasn't passed.
-    if (!_gateIsOpen) {
+    if (!_gate.isOpen) {
       _deferred = uri;
-      _listenForGate();
+      _gate.notifyWhenOpen(_replayDeferred);
       return;
     }
 
@@ -313,42 +307,6 @@ class DeepLinkRouter {
     return _hostOf(appLinkBaseFrom(uri.queryParameters['server']));
   }
 
-  /// Signed in, session materialised, and past the biometric lock. Reads all
-  /// three sources it listens to, so no assignment order can strand a link.
-  bool get _gateIsOpen =>
-      (_credentials.value?.isAuthenticated ?? false) &&
-      _session.value != null &&
-      !_locked.value;
-
-  void _listenForGate() {
-    if (_listening) return;
-    _listening = true;
-    _session.addListener(_onGateChanged);
-    _credentials.addListener(_onGateChanged);
-    _locked.addListener(_onGateChanged);
-  }
-
-  void _stopListeningForGate() {
-    if (!_listening) return;
-    _listening = false;
-    _session.removeListener(_onGateChanged);
-    _credentials.removeListener(_onGateChanged);
-    _locked.removeListener(_onGateChanged);
-  }
-
-  void _onGateChanged() {
-    if (!_gateIsOpen) return;
-    _stopListeningForGate();
-    // After the frame, not now: the router swaps the page the gate kept up
-    // (`/lock`, `/login`) out on the next frame, and a company switch's prompt
-    // pushed before then landed on that page and went with it — the switch
-    // read as cancelled and the link did nothing. The swap asks for that frame
-    // in the app; ask here too, so the replay never depends on it.
-    WidgetsBinding.instance
-      ..addPostFrameCallback((_) => _replayDeferred())
-      ..ensureVisualUpdate();
-  }
-
   void _replayDeferred() {
     final pending = _deferred;
     if (pending == null) return;
@@ -356,49 +314,20 @@ class DeepLinkRouter {
     unawaited(open(pending));
   }
 
-  /// Toast a localized key straight onto the context-free [ToastController]
-  /// (rather than `Notify`, which needs a context to find it).
-  ///
-  /// Skipped entirely — logged, not shown — when localization isn't reachable
-  /// yet. CLAUDE.md's context-free-toast rule is that the message must be
-  /// `tr()`-derived; rendering the raw snake_case key at the user would be
-  /// worse than saying nothing, and the only window where this can happen is
-  /// the sliver before the first frame.
+  /// See [showLocalizedToast]. `switched_to_company` carries `:company`, the
+  /// placeholder its assert exists for.
   void _toastKey(
     String key, {
     Map<String, String>? params,
     required bool isError,
-  }) {
-    final context = _contextOf?.call();
-    final loc = context == null ? null : Localization.of(context);
-    if (loc == null) {
-      _log.warning('deep link: no localization yet, dropping toast "$key"');
-      return;
-    }
-    // `no_unsubstituted_placeholders_test` only matches literal `tr('k')` /
-    // `lookup('k')` call forms, so a key routed through here is invisible to
-    // it — the exact case CLAUDE.md § Localization says needs the invariant
-    // asserted where the lookup actually happens. `switched_to_company`
-    // carries `:company`; a future caller that forgets its params would ship a
-    // raw token to the user instead of failing.
-    //
-    // Checked against the TEMPLATE, not the rendered string: a company legally
-    // named "Acme :test" would otherwise trip this on the substituted output.
-    assert(() {
-      final template = loc.lookup(key);
-      final unfilled = RegExp(r'(?<![A-Za-z0-9_/:]):([a-z][a-z0-9_]*)')
-          .allMatches(template)
-          .map((m) => m.group(1)!)
-          .where((name) => !(params?.containsKey(name) ?? false));
-      return unfilled.isEmpty;
-    }(), 'deep-link toast "$key" has placeholders with no params passed.');
-    final message = loc.lookup(key, params);
-    if (isError) {
-      _toasts.error(message);
-    } else {
-      _toasts.info(message);
-    }
-  }
+  }) => showLocalizedToast(
+    toasts: _toasts,
+    context: _contextOf?.call(),
+    key: key,
+    params: params,
+    kind: isError ? LocalizedToastKind.error : LocalizedToastKind.info,
+    log: _log,
+  );
 
   /// Drop any held link and stop waiting for the gate. Called on logout: a
   /// link captured for one account must not survive into the next one's
@@ -408,7 +337,7 @@ class DeepLinkRouter {
     _generation++;
     _deferred = null;
     _pending.clear();
-    _stopListeningForGate();
+    _gate.cancel();
   }
 
   void dispose() => reset();

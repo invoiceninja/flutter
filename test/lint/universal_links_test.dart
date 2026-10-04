@@ -26,6 +26,8 @@ import 'package:admin/app/env.dart';
 ///     ships believing Flutter's built-in handling is off while it is still
 ///     racing `DeepLinkRouter` and, for an https link, replacing the whole app
 ///     with go_router's route-error screen;
+///   * a VIEW filter moving back onto MainActivity, where a link can start a
+///     second MainActivity — a second Flutter engine on the store;
 ///   * either Swift shim being deleted, each of which is one line away from
 ///     killing iOS cold-start links or macOS universal links outright.
 void main() {
@@ -99,14 +101,22 @@ void main() {
       );
     });
 
+    /// The `<activity …>…</activity>` block named [name], matched by name
+    /// rather than position: the share target sits beside MainActivity.
+    String? activityNamed(String name) => RegExp(r'<activity .*?</activity>')
+        .allMatches(xml)
+        .map((m) => m.group(0)!)
+        .where((a) {
+          return a.contains('android:name="$name"');
+        })
+        .firstOrNull;
+
     test('flutter_deeplinking_enabled is false INSIDE the <activity>', () {
-      final activity = RegExp(
-        r'<activity .*?</activity>',
-      ).firstMatch(xml)?.group(0);
+      final activity = activityNamed('.MainActivity');
       expect(
         activity,
         isNotNull,
-        reason: 'the manifest should declare an activity',
+        reason: 'the manifest should declare MainActivity',
       );
       final meta = RegExp(
         r'<meta-data android:name="flutter_deeplinking_enabled"[^>]*/>',
@@ -119,6 +129,53 @@ void main() {
             'shouldHandleDeeplinking() reads ActivityInfo meta-data',
       );
       expect(meta, contains('android:value="false"'));
+    });
+
+    // A VIEW intent delivered to MainActivity can start a second one: in the
+    // sender's task when it lacks NEW_TASK, and on the next launcher tap with
+    // a picker on top otherwise (the link became the task's base intent).
+    // Only the engine-free trampoline may receive links.
+    test('only DeepLinkReceiverActivity receives deep links', () {
+      const view = 'android.intent.action.VIEW"';
+      final main = activityNamed('.MainActivity')!;
+      expect(main, isNot(contains(view)));
+
+      final link = activityNamed('.DeepLinkReceiverActivity');
+      expect(link, isNotNull, reason: 'the link target must be declared');
+      final linkFilters = filters.where(link!.contains).toList();
+      expect(linkFilters, hasLength(2), reason: 'custom scheme + App Links');
+      expect(linkFilters.every((f) => f.contains(view)), isTrue);
+      expect(link, contains('android:exported="true"'));
+      expect(link, contains('android:noHistory="true"'));
+      expect(link, contains('android:excludeFromRecents="true"'));
+      expect(link, contains('android:taskAffinity=""'));
+      expect(link, isNot(contains('flutter_deeplinking_enabled')));
+    });
+
+    // invoiceninja/flutter#173. The share sheet starts its target in the
+    // SENDER's task, so a SEND filter on singleTop MainActivity would start a
+    // second instance — a second Flutter engine opening the store twice. Only
+    // the engine-free trampoline may receive shares.
+    test('only ShareReceiverActivity receives shares', () {
+      const send = 'android.intent.action.SEND"';
+      const sendMultiple = 'android.intent.action.SEND_MULTIPLE"';
+      final main = activityNamed('.MainActivity')!;
+      expect(main, isNot(contains(send)));
+      expect(main, isNot(contains(sendMultiple)));
+
+      final share = activityNamed('.ShareReceiverActivity');
+      expect(share, isNotNull, reason: 'the share target must be declared');
+      expect(share, contains(send));
+      expect(share, contains(sendMultiple));
+      expect(share, contains('android:mimeType="image/*"'));
+      expect(share, contains('android:mimeType="application/pdf"'));
+      // A share must not leave a Recents entry that replays it.
+      expect(share, contains('android:noHistory="true"'));
+      expect(share, contains('android:excludeFromRecents="true"'));
+      // A recreation mid-copy (rotation, dark mode) would lose the share.
+      expect(share, contains('android:configChanges="orientation|screenSize'));
+      // What the launcher-shaped forward relies on to reach the live instance.
+      expect(main, contains('android:launchMode="singleTop"'));
     });
   });
 

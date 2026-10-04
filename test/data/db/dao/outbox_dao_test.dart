@@ -944,4 +944,97 @@ void main() {
       );
     });
   });
+
+  group('referencedLocalPaths', () {
+    // What `SharedIntakeFiles.sweep` must keep (invoiceninja/flutter#173):
+    // the file of every upload still in the outbox, whatever its state — a
+    // dead one can still be re-sent, and needs its file to be.
+    Future<void> upload(String path, String state, {String key = 'k'}) =>
+        db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'expense',
+            entityId: 'e1',
+            mutationKind: 'document_upload',
+            payload: jsonEncode({'entity_id': 'e1', 'local_path': path}),
+            idempotencyKey: key,
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: Value(state),
+          ),
+        );
+
+    test('every upload\'s file, in any state; nothing else', () async {
+      await upload('/s/a.pdf', 'pending', key: 'a');
+      await upload('/s/b.pdf', 'dead', key: 'b');
+      await upload('/s/c.pdf', 'unconfirmed', key: 'c');
+      await enqueue(kind: 'update', idempotencyKey: 'u');
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'expense',
+          entityId: 'e1',
+          mutationKind: 'document_upload',
+          payload: jsonEncode({'entity_id': 'e1', 'upload_bytes_b64': 'AA=='}),
+          idempotencyKey: 'bytes',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+
+      expect(await db.outboxDao.referencedLocalPaths(), {
+        '/s/a.pdf',
+        '/s/b.pdf',
+        '/s/c.pdf',
+      });
+    });
+  });
+
+  group('unsentUploadsForEntity', () {
+    // What a re-sent create moves behind itself
+    // (`BaseEntityRepository.requeueUnsentDocumentUploads`).
+    Future<int> row(
+      String entityId,
+      String kind,
+      String state, {
+      required String key,
+    }) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'expense',
+        entityId: entityId,
+        mutationKind: kind,
+        payload: jsonEncode({'entity_id': entityId, 'local_path': '/s/$key'}),
+        idempotencyKey: key,
+        nextAttemptAt: 0,
+        createdAt: 0,
+        state: Value(state),
+      ),
+    );
+
+    test(
+      'the record\'s pending and dead uploads, oldest first — never one '
+      'that may have reached the server, a save, or another record',
+      () async {
+        final dead = await row('tmp_e', 'document_upload', 'dead', key: 'a');
+        final pending = await row(
+          'tmp_e',
+          'document_upload',
+          'pending',
+          key: 'b',
+        );
+        await row('tmp_e', 'document_upload', 'unconfirmed', key: 'c');
+        await row('tmp_e', 'document_upload', 'in_flight', key: 'd');
+        await row('tmp_e', 'create', 'dead', key: 'e');
+        await row('tmp_other', 'document_upload', 'dead', key: 'f');
+
+        final rows = await db.outboxDao.unsentUploadsForEntity(
+          companyId: 'co',
+          entityType: 'expense',
+          entityId: 'tmp_e',
+        );
+        expect(rows.map((r) => r.id), [dead, pending]);
+      },
+    );
+  });
 }

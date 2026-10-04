@@ -256,6 +256,112 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     return id;
   }
 
+  /// Move the record's unsent document uploads behind a create of it that was
+  /// just re-sent under [tempId] (invoiceninja/flutter#173 — New Expense queues
+  /// its attached files under the record's temp id). Returns how many moved.
+  ///
+  /// A create the server rejected takes its uploads down with it
+  /// (`SyncRepository._failTmpDependents` marks them dead), and nothing brings
+  /// them back: the re-sent create's landing re-keys them to the real id but
+  /// leaves them dead (`rewriteTempIdInPayloads`, `deleteOlderDeadSaves`).
+  /// Re-arming them in place is not enough either: they are OLDER than the
+  /// re-sent create, so the drain pass reaches them first, defers them on the
+  /// unresolved temp id, and — one pass per kick — leaves them for whatever
+  /// triggers the next one. A transient failure leaves them `pending` with the
+  /// same problem. So each is replaced by a fresh row of the same payload,
+  /// queued after the create, which the same pass then sends.
+  ///
+  /// Safe to re-send: an upload naming an unresolved temp id has never been
+  /// dispatched. Nothing is dropped — every old row is replaced by its copy,
+  /// in one transaction. (This file is a listed owner of outbox deletes in
+  /// `test/lint/local_data_disposal_test.dart`.)
+  Future<int> requeueUnsentDocumentUploads({
+    required String companyId,
+    required String tempId,
+  }) async {
+    if (!tempId.startsWith('tmp_')) return 0;
+    var moved = 0;
+    await db.transaction(() async {
+      final rows = await _outbox.unsentUploadsForEntity(
+        companyId: companyId,
+        entityType: entityTypeName,
+        entityId: tempId,
+      );
+      for (final row in rows) {
+        final Map<String, dynamic> payload;
+        try {
+          payload = (jsonDecode(row.payload) as Map).cast<String, dynamic>();
+        } catch (_) {
+          continue; // Unreadable: leave the row for the user to see.
+        }
+        await enqueueMutation(
+          companyId: companyId,
+          entityId: tempId,
+          kind:
+              MutationKind.tryParse(row.mutationKind) ??
+              MutationKind.documentUpload,
+          payload: payload,
+        );
+        await _outbox.deleteRow(row.id);
+        moved++;
+      }
+    });
+    return moved;
+  }
+
+  /// Replace whatever uploads earlier create attempts of the record [tempId]
+  /// left unsent with the ones [enqueue] queues now, in one transaction
+  /// (invoiceninja/flutter#173). For a create form that holds its own
+  /// attachments (New Expense): the form's list is the truth for each attempt.
+  ///
+  /// The rows can't be: a rejected create's uploads die with it, the
+  /// save-failed banner's Discard deletes them with the record, a transient
+  /// failure leaves them parked ahead of the re-sent create — and the form may
+  /// have gained or lost files in between. Queued fresh, after the create, the
+  /// same drain pass sends them once it lands (see
+  /// [requeueUnsentDocumentUploads] for why an older row would wait).
+  ///
+  /// Never touches an `in_flight` or `unconfirmed` upload (it may have reached
+  /// the server); neither exists for an unresolved temp id. (This file is a
+  /// listed owner of outbox deletes in `test/lint/local_data_disposal_test.dart`.)
+  ///
+  /// Returns the `local_path` of every upload it replaced, so the caller can
+  /// hand back a file the user removed from the form after an earlier
+  /// attempt — which no row names any more.
+  Future<List<String>> replaceUnsentDocumentUploads({
+    required String companyId,
+    required String tempId,
+    required Future<void> Function() enqueue,
+  }) async {
+    final replaced = <String>[];
+    await db.transaction(() async {
+      if (tempId.startsWith('tmp_')) {
+        final rows = await _outbox.unsentUploadsForEntity(
+          companyId: companyId,
+          entityType: entityTypeName,
+          entityId: tempId,
+        );
+        for (final row in rows) {
+          final path = _localPathOf(row.payload);
+          if (path != null) replaced.add(path);
+          await _outbox.deleteRow(row.id);
+        }
+      }
+      await enqueue();
+    });
+    return replaced;
+  }
+
+  static String? _localPathOf(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      final path = decoded is Map ? decoded['local_path'] : null;
+      return path is String && path.isNotEmpty ? path : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
   /// Generate a fresh `tmp_<uuid>` id for an offline-created entity.
   String mintTempId() => 'tmp_${uuid.v4()}';
 

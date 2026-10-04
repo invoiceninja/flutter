@@ -102,36 +102,12 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
     List<UploadSource> sources,
   ) async {
     if (sources.isEmpty) return;
-    final good = <UploadSource>[];
-    var sawWrongType = false;
-    var sawTooLarge = false;
-    for (final s in sources) {
-      final result = await validateDocumentUpload(s);
-      if (result.isOk) {
-        good.add(s);
-      } else {
-        switch (result.issue) {
-          case DocumentUploadIssue.wrongExtension:
-            sawWrongType = true;
-          case DocumentUploadIssue.tooLarge:
-            sawTooLarge = true;
-          case DocumentUploadIssue.unreadable:
-            sawWrongType = true;
-          case null:
-            break;
-        }
-      }
-    }
+    final batch = await validateDocumentSources(sources);
     if (!context.mounted) return;
-    if (sawWrongType) {
-      Notify.warning(context, context.tr('dropzone_invalid_file_type'));
+    for (final notice in batch.rejectNotices) {
+      Notify.warning(context, context.tr(notice.key, notice.params));
     }
-    if (sawTooLarge) {
-      Notify.warning(
-        context,
-        context.tr('upload_too_large_with_size', {'size': '$kDocumentMaxMb'}),
-      );
-    }
+    final good = batch.accepted;
     if (good.isEmpty) return;
     try {
       for (final s in good) {

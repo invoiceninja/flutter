@@ -199,6 +199,39 @@ void main() {
     expect(sync.drains, ['co']);
   });
 
+  test('retrying a rejected create of a new record re-arms the uploads it '
+      'took down with it (invoiceninja/flutter#173)', () async {
+    const tmp = 'tmp_00000000-0000-4000-8000-00000000c0de';
+    await enqueue(
+      entityId: tmp,
+      idempotencyKey: 'create',
+      state: 'dead',
+      mutationKind: 'create',
+    );
+    final upload = await enqueue(
+      entityId: tmp,
+      idempotencyKey: 'upload',
+      state: 'dead',
+      mutationKind: 'document_upload',
+    );
+    final other = await enqueue(
+      entityId: 'tmp_other',
+      idempotencyKey: 'other',
+      state: 'dead',
+      mutationKind: 'document_upload',
+    );
+    final sync = _FakeSync(onDiscard: (_) async {});
+    final vm = build(sync);
+    addTearDown(vm.dispose);
+    await pumpEventQueue();
+
+    final create = vm.rows.singleWhere((r) => r.mutationKind == 'create');
+    expect(await vm.retry(create), isTrue);
+
+    expect((await db.outboxDao.byId(upload))!.state, 'pending');
+    expect((await db.outboxDao.byId(other))!.state, 'dead');
+  });
+
   test(
     'retry on a row that vanished reports failure, not a false start',
     () async {

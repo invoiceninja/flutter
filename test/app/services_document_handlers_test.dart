@@ -8,6 +8,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/documents_api.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
 /// Unit tests for the document-mutation-handlers factory.
@@ -78,6 +79,56 @@ void main() {
         isEmpty,
         reason: 'Upload closure must not fire when the file is missing',
       );
+    });
+
+    test('documentUpload sends — and reports as uploaded — the source '
+        'resolveSource finds when the queued path has moved', () async {
+      final moved = await File(
+        '${Directory.systemTemp.path}/svc-doc-handlers-moved-${DateTime.now().microsecondsSinceEpoch}.jpg',
+      ).create();
+      addTearDown(() async {
+        if (await moved.exists()) await moved.delete();
+      });
+      final sent = <String>[];
+      final reported = <String>[];
+      final handlers = documentMutationHandlers<String>(
+        documentsApi: _RecordingDocumentsApi(),
+        upload:
+            ({
+              required entityId,
+              required source,
+              required idempotencyKey,
+            }) async {
+              sent.add(source.toPayload()['local_path'] as String);
+              return 'inner-dto';
+            },
+        applyChanged:
+            ({
+              required companyId,
+              required entityId,
+              required document,
+            }) async {},
+        applyDeleted:
+            ({
+              required companyId,
+              required entityId,
+              required documentId,
+            }) async {},
+        onUploaded: (source) async =>
+            reported.add(source.toPayload()['local_path'] as String),
+        resolveSource: (source) async => fileUploadSource(moved.path),
+      );
+
+      await handlers[MutationKind.documentUpload]!(
+        row: _row(mutationKind: 'document_upload'),
+        payload: {
+          'entity_id': 'e7',
+          'local_path': '/old-container/shared_intake/s1/receipt.jpg',
+        },
+      );
+
+      expect(sent, [moved.path]);
+      expect(reported, [moved.path]);
     });
 
     test('documentUpload forwards entityId + localPath + idempotencyKey '

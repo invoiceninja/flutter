@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -20,34 +25,198 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
     super.sync,
     super.connectivity,
     super.useCommaAsDecimalPlace,
-  }) : super(
+    List<UploadSource> initialDocuments = const [],
+    Future<void> Function(Iterable<String> paths)? discardFiles,
+    VoidCallback Function(
+      String companyId,
+      bool Function(List<UploadSource>) attach,
+    )?
+    registerShareTarget,
+  }) : _documents = existing == null ? [...initialDocuments] : [],
+       _discardFiles = discardFiles,
+       super(
          initialDraft: cloneFrom ?? existing ?? emptyExpense(),
          original: existing,
          companyId: companyId,
          prefilled: existing == null && cloneFrom != null,
-       );
+       ) {
+    // While a new expense is open, a file shared into the app joins it rather
+    // than replacing it (`SharedFileIntake.registerAttachTarget`).
+    if (isCreate) {
+      _unregisterShareTarget = registerShareTarget?.call(
+        companyId,
+        addDocuments,
+      );
+    }
+  }
 
   final ExpenseRepository repo;
   final String companyId;
+
+  /// Files attached to a new expense before it exists — picked on the form,
+  /// or shared into the app from another one (invoiceninja/flutter#173).
+  ///
+  /// The list is the truth for every create attempt: each Save queues exactly
+  /// these as uploads of the record (under its `tmp_` id — the outbox holds
+  /// them behind the create and rewrites the id once it lands, so this works
+  /// offline too), replacing whatever an earlier attempt left unsent
+  /// (`BaseEntityRepository.replaceUnsentDocumentUploads`). The outbox rows
+  /// can't be the truth: a rejected create's uploads die with it, and the
+  /// save-failed banner's Discard deletes them with the record. Cleared only
+  /// when a save succeeds. Create mode only — an existing expense uploads from
+  /// its detail screen's Documents tab.
+  final List<UploadSource> _documents;
+
+  /// What the save in flight queued, and under which `tmp_` id — so a file
+  /// shared into the form while that save is still out ([save]) can follow it.
+  List<UploadSource>? _attemptBatch;
+  String? _attemptTempId;
+
+  /// Hands a file's app-owned copy back once the form lets go of it
+  /// (`SharedIntakeFiles.delete`, which ignores every path outside its own
+  /// folder and every copy an outbox row still names — so a picked file, or
+  /// one an earlier attempt queued, is never touched).
+  final Future<void> Function(Iterable<String> paths)? _discardFiles;
+
+  VoidCallback? _unregisterShareTarget;
+
+  List<UploadSource> get documents => List.unmodifiable(_documents);
+
+  /// Whether the form can take more files: a new expense whose create isn't
+  /// waiting on the user (unconfirmed — the card is locked) and hasn't already
+  /// been made (every later Save is refused, so a file added then would be
+  /// deleted on leave). A save in flight can: see [save].
+  bool get acceptsDocuments =>
+      isCreate &&
+      !isDisposed &&
+      unconfirmedRowId == null &&
+      !failedSaveAlreadyCreated;
+
+  /// Attach [sources]; false, with nothing attached, when the form can't take
+  /// them ([acceptsDocuments]). A share then opens a New Expense of its own.
+  bool addDocuments(Iterable<UploadSource> sources) {
+    if (!acceptsDocuments) return false;
+    if (sources.isEmpty) return true;
+    _documents.addAll(sources);
+    notifyListeners();
+    return true;
+  }
+
+  void removeDocument(UploadSource source) {
+    if (!_documents.remove(source)) return;
+    _discard([source]);
+    notifyListeners();
+  }
+
+  void _discard(Iterable<UploadSource> sources) {
+    final paths = sources.map(SharedIntakeFiles.localPathOf).nonNulls.toList();
+    if (paths.isEmpty) return;
+    unawaited(_discardFiles?.call(paths));
+  }
+
+  /// A save the server confirmed (or that went out optimistically) hands the
+  /// files to the record for good; a rejected one keeps them on the form, to
+  /// be queued again — the same list — by the next attempt.
+  ///
+  /// A file shared into the form while the save was out (up to the 30 s
+  /// online wait) missed that attempt's batch. It follows the record when the
+  /// attempt's create row stands — saved, or waiting on the user — and stays
+  /// on the form for the next attempt otherwise. Cleared with the rest, it
+  /// was never queued at all.
+  @override
+  Future<Expense?> save() async {
+    final saved = await super.save();
+    final batch = _attemptBatch;
+    final tempId = _attemptTempId;
+    _attemptBatch = null;
+    _attemptTempId = null;
+    if (batch != null &&
+        tempId != null &&
+        (saved != null || unconfirmedRowId != null)) {
+      final arrived = [
+        for (final source in _documents)
+          if (!batch.contains(source)) source,
+      ];
+      for (final source in arrived) {
+        await repo.uploadDocument(
+          companyId: companyId,
+          entityId: tempId,
+          source: source,
+        );
+      }
+    }
+    if (saved != null) _documents.clear();
+    return saved;
+  }
+
+  @override
+  void dispose() {
+    _unregisterShareTarget?.call();
+    // Left without saving: copies nothing queued belong to no record. Not
+    // mid-save — the rows being written would name them; the boot sweep
+    // collects anything that really was left behind.
+    if (!isSaving) _discard(_documents);
+    _documents.clear();
+    super.dispose();
+  }
 
   /// Dirty is "differs from what the untouched form held", for every field
   /// at once — the billing view models' rule. The hand-kept list this
   /// replaced missed the date, the number and the assignee, so a new expense
   /// holding only those left without the Discard prompt. A form opened on a
   /// staged draft (a clone, a "New expense" from a vendor) holds unsaved
-  /// content from the start.
+  /// content from the start, and so does one holding attached files.
   @override
-  bool draftIsNonEmpty() => draft != createBaseline || prefilled;
+  bool draftIsNonEmpty() =>
+      draft != createBaseline || prefilled || _documents.isNotEmpty;
 
   @override
   Future<SaveResult<Expense>> performSave() async {
     if (savesAsCreate) {
+      // Set when this re-sends a create that didn't land — after a rejected
+      // Save on this form, or on a failed record reopened from the Outbox.
+      // (Captured, not read after: [rememberCreateTempId] overwrites it.)
+      final retryingTempId = recoveryTempId;
+      // Snapshot before any await: a dispose meanwhile (a sign-out, the `/new`
+      // route re-keyed) clears the list, and a file shared meanwhile belongs
+      // to [save]'s follow-up, not to this batch.
+      final batch = isCreate ? List<UploadSource>.of(_documents) : null;
       final result = await repo.create(
         companyId: companyId,
         draft: draft,
         existingTempId: recoveryTempId,
       );
-      rememberCreateTempId(result.entity.id);
+      final tempId = result.entity.id;
+      rememberCreateTempId(tempId);
+      if (batch != null) {
+        final replaced = await repo.replaceUnsentDocumentUploads(
+          companyId: companyId,
+          tempId: tempId,
+          enqueue: () async {
+            for (final source in batch) {
+              await repo.uploadDocument(
+                companyId: companyId,
+                entityId: tempId,
+                source: source,
+              );
+            }
+          },
+        );
+        _attemptBatch = batch;
+        _attemptTempId = tempId;
+        // A file removed from the form after an earlier attempt: its row
+        // named it until now, so the ✕ couldn't hand it back then.
+        final kept = batch.map(SharedIntakeFiles.localPathOf).nonNulls.toSet();
+        final dropped = replaced.where((p) => !kept.contains(p)).toList();
+        if (dropped.isNotEmpty) unawaited(_discardFiles?.call(dropped));
+      } else if (retryingTempId != null) {
+        // An edit form re-sending a failed create holds no files of its own:
+        // move the earlier attempt's uploads behind this create.
+        await repo.requeueUnsentDocumentUploads(
+          companyId: companyId,
+          tempId: retryingTempId,
+        );
+      }
       return result;
     }
     return repo.save(companyId: companyId, expense: draft);
@@ -58,6 +227,9 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   @override
   void reset({required Expense emptyDraft}) {
     _userTouchedInclusive = false;
+    // As in [dispose]: a save in flight is writing rows that name them.
+    if (!isSaving) _discard(_documents);
+    _documents.clear();
     super.reset(emptyDraft: emptyDraft);
     // The only way a rebased blank draft carries a payment date is the
     // company's mark-paid default being re-applied, which follows the date.

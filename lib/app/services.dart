@@ -21,8 +21,10 @@ import 'package:admin/app/phone_actions_controller.dart';
 import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
+import 'package:admin/app/shared_file_intake.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
 import 'package:admin/app/shell_mounted_notifier.dart';
@@ -105,6 +107,7 @@ import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/refresh_scheduler.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/search_api.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/smtp_api.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/data/services/support_api.dart';
@@ -114,15 +117,18 @@ import 'package:admin/data/services/templates_api.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/token_storage_factory.dart';
 import 'package:admin/data/services/two_factor_api.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/data/services/user_settings_api.dart';
 import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
+import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -329,6 +335,7 @@ class Services implements SidebarBadgeContext {
     required this.unsavedChangesGuard,
     required this.debugCaptureStore,
     required this.debugPanelRevealed,
+    required this.sharedIntakeFiles,
     this.diagnosticsLog,
     required Map<EntityType, SidebarCountWatcher> countWatchers,
     required Map<EntityType, Future<bool> Function(String companyId)>
@@ -778,6 +785,47 @@ class Services implements SidebarBadgeContext {
     toasts: toasts,
   );
 
+  /// The app-owned copies of files shared into the app from other ones, and
+  /// the only code that deletes them.
+  final SharedIntakeFiles sharedIntakeFiles;
+
+  /// What a file shared into the app from another one does: open New Expense
+  /// with it attached (invoiceninja/flutter#173). Fed by `AppShareIntake`;
+  /// `late` for the same reason as [deepLinks] — the app state calls
+  /// `attach(...)` once the router exists.
+  late final SharedFileIntake sharedFiles = SharedFileIntake(
+    session: auth.session,
+    credentials: auth.credentials,
+    requiresBiometricUnlock: auth.requiresBiometricUnlock,
+    isSetupRequired: isCompanySetupRequired,
+    // The dashboard's create gate (create route, module, `create_expense`),
+    // so the share sheet and the `+` can't disagree about who may start one.
+    canCreateExpense: () {
+      final me = auth.session.value?.currentCompany;
+      return quickCreateEntities(
+        hasCreateRoute: (t) => entityRegistry[t]?.newRoute != null,
+        moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+        can: (p) => me?.can(p) ?? false,
+      ).contains(EntityType.expense);
+    },
+    expenseModuleOn: () =>
+        auth.session.value?.currentCompany?.moduleEnabled(EntityType.expense) ??
+        false,
+    canAttachDocuments: () => auth.session.value?.canAttachDocuments ?? true,
+    currentCompanyId: () => auth.session.value?.currentCompanyId,
+    confirmLeave: unsavedChangesGuard.confirmIfDirty,
+    // No files (a plan without attachments) is an ordinary blank New Expense;
+    // a staged draft would open as prefilled — dirty before a keystroke.
+    stageExpense: (attachments) => stageCreateDraft(
+      '/expenses',
+      attachments.isEmpty ? null : emptyExpense(),
+      attachments: attachments,
+    ),
+    deleteFiles: sharedIntakeFiles.delete,
+    ownsFile: sharedIntakeFiles.owns,
+    toasts: toasts,
+  );
+
   /// Registry + visibility for the hold-modifier shortcut hint bar, rendered
   /// by the global `ShortcutHintOverlay` in `main.dart`. Context-free +
   /// always-alive like [toasts]; `reset()` on logout.
@@ -832,6 +880,7 @@ class Services implements SidebarBadgeContext {
   Object? _stagedDraft;
   String? _stagedDraftBasePath;
   bool _stagedDraftIsClone = false;
+  List<UploadSource> _stagedAttachments = const [];
   final Map<String, int> _seedGen = {};
 
   /// Bumps whenever a create draft is staged. The `/new` route watches this so
@@ -850,14 +899,23 @@ class Services implements SidebarBadgeContext {
   /// prefilled new one ("New expense" from a vendor). A create screen that
   /// seeds company defaults skips them for a clone, which copies its source —
   /// read it back through [takeCreateSeed].
+  ///
+  /// [attachments]: files to queue as documents of the record once it is
+  /// saved — a receipt shared into the app from another one
+  /// (`SharedFileIntake`). Only a create screen that reads
+  /// [takeCreateSeed]'s `attachments` honours them (New Expense).
   void stageCreateDraft(
     String basePath,
     Object? draft, {
     bool isClone = false,
+    List<UploadSource> attachments = const [],
   }) {
     _stagedDraft = draft;
     _stagedDraftBasePath = draft == null ? null : basePath;
     _stagedDraftIsClone = draft != null && isClone;
+    _stagedAttachments = draft == null
+        ? const []
+        : List.unmodifiable(attachments);
     _seedGen[basePath] = (_seedGen[basePath] ?? 0) + 1;
     seedGenTick.value++;
   }
@@ -871,15 +929,32 @@ class Services implements SidebarBadgeContext {
   T? takeCreateDraft<T>(String basePath) => takeCreateSeed<T>(basePath)?.draft;
 
   /// [takeCreateDraft] plus whether the draft was staged as a clone
-  /// ([stageCreateDraft]'s `isClone`).
-  ({T draft, bool isClone})? takeCreateSeed<T>(String basePath) {
+  /// ([stageCreateDraft]'s `isClone`) and the files staged with it.
+  ({T draft, bool isClone, List<UploadSource> attachments})? takeCreateSeed<T>(
+    String basePath,
+  ) {
     final draft = _stagedDraft;
     if (_stagedDraftBasePath != basePath || draft is! T) return null;
     final isClone = _stagedDraftIsClone;
+    final attachments = _stagedAttachments;
     _stagedDraft = null;
     _stagedDraftBasePath = null;
     _stagedDraftIsClone = false;
-    return (draft: draft, isClone: isClone);
+    _stagedAttachments = const [];
+    return (draft: draft, isClone: isClone, attachments: attachments);
+  }
+
+  /// Forget a staged draft no create screen took — on sign-out, so the next
+  /// account's New Expense can't open on the last one's shared receipt — and
+  /// hand back its files' copies.
+  void clearStagedCreateDraft() {
+    final attachments = _stagedAttachments;
+    _stagedDraft = null;
+    _stagedDraftBasePath = null;
+    _stagedDraftIsClone = false;
+    _stagedAttachments = const [];
+    final paths = attachments.map(SharedIntakeFiles.localPathOf).nonNulls;
+    if (paths.isNotEmpty) unawaited(sharedIntakeFiles.delete(paths));
   }
 
   // -- SidebarBadgeContext -------------------------------------------------
@@ -1288,15 +1363,31 @@ class Services implements SidebarBadgeContext {
     final passwordCache = PasswordCache();
     final authService = AuthService(httpClient: httpClient);
     final tokenStore = tokenStorage ?? defaultTokenStorage();
+    // Built at the end of this factory and returned directly, so the closures
+    // below capture it via `late final` — they only run at runtime, long after
+    // assignment (mirrors the "instance doesn't exist yet in build" handling
+    // documented at the top of this file).
+    late final Services services;
     // Built before everything that reads a preference, and handed to the
     // disposer so a data wipe forgets the account preferences in memory too.
     final devicePrefs = DevicePrefsStore(db);
+    // Never deletes a copy an outbox upload still names.
+    final sharedIntakeFiles = SharedIntakeFiles(
+      referencedPaths: db.outboxDao.referencedLocalPaths,
+    );
     final auth = AuthRepository(
       db: db,
       authService: authService,
       tokenStorage: tokenStore,
       passwordCache: passwordCache,
-      disposer: LocalDataDisposer(db, prefs: devicePrefs),
+      disposer: LocalDataDisposer(
+        db,
+        prefs: devicePrefs,
+        // A wipe also takes the copies of files shared into the app — except
+        // a share still waiting for the sign-in that triggered the wipe.
+        onWipeAll: () =>
+            sharedIntakeFiles.purgeAll(except: services.sharedFiles.heldPaths),
+      ),
     );
     // Read at the moment a credential is needed, so a company switch or a
     // flipped "Require password with social login" applies to the next ask.
@@ -1386,6 +1477,11 @@ class Services implements SidebarBadgeContext {
         emailsApi: emailsApi,
         kickDrain: kickDrain,
         dispatchers: dispatchers,
+        onDocumentUploaded: (source) async {
+          final path = SharedIntakeFiles.localPathOf(source);
+          if (path != null) await sharedIntakeFiles.deleteUploaded(path);
+        },
+        resolveDocumentSource: sharedIntakeFiles.resolve,
       ),
     );
     // Bind every repo to the live active company. `ApiClient` resolves
@@ -1403,11 +1499,6 @@ class Services implements SidebarBadgeContext {
     // otherwise dispatch the old company's mutations under the new token.
     sync.activeCompanyId = liveCompanyId;
     final companiesApi = CompaniesApi(apiClient);
-    // Built at the end of this factory and returned directly, so the closures
-    // below capture it via `late final` — they only run at runtime, long after
-    // assignment (mirrors the "instance doesn't exist yet in build" handling
-    // documented at the top of this file).
-    late final Services services;
     final companyRepo = CompanyRepository(
       db: db,
       api: companiesApi,
@@ -1562,7 +1653,14 @@ class Services implements SidebarBadgeContext {
     // Clear app-lifetime per-session repo state on logout so a second user on
     // the same install never inherits it (e.g. the previous user's connected
     // calendar email — cross-user leak).
-    auth.onSessionReset = calendarConnectionRepo.resetSessionState;
+    auth.onSessionReset = () {
+      calendarConnectionRepo.resetSessionState();
+      // A deliberate sign-out: a share held at the gate, and a create draft
+      // staged but never opened, belonged to the account that just left.
+      // (The identity-change wipe doesn't run this — see `endSession`.)
+      services.sharedFiles.dropHeld();
+      services.clearStagedCreateDraft();
+    };
     // The calendar connection lives on `company_user.settings`, i.e. per
     // (user, company) — so it is stale after a company switch too, not just
     // after a logout. `connectionState` is an app-lifetime ValueNotifier and
@@ -1787,6 +1885,11 @@ class Services implements SidebarBadgeContext {
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
       services.deepLinks.reset();
+      // Abort a share being handled. One HELD at the gate survives: it was
+      // shared while signed out, so it belongs to whoever signs in next — and
+      // this hook also runs when a different identity signs in and the local
+      // data is wiped. A deliberate sign-out drops it in `onSessionReset`.
+      services.sharedFiles.endSession();
       // Per-record activity feeds are cached in memory on the ActivitiesApi
       // singleton, which outlives a logout. Those rows carry comment bodies,
       // author names and IP addresses — strictly more than the display names
@@ -1996,6 +2099,7 @@ class Services implements SidebarBadgeContext {
       unsavedChangesGuard: UnsavedChangesGuard(),
       debugCaptureStore: debugStore,
       debugPanelRevealed: debugPanelRevealed,
+      sharedIntakeFiles: sharedIntakeFiles,
       diagnosticsLog: diagnosticsLog,
       countWatchers: entities.countWatchers,
       firstPagePrefetchers: entities.firstPagePrefetchers,

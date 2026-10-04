@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
@@ -141,6 +143,49 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
   }
+
+  /// The `local_path` of every document upload still in the outbox, in ANY
+  /// state, across companies — the files `SharedIntakeFiles.sweep` must keep.
+  /// Dead and unconfirmed rows count: the user can still Resend one, and it
+  /// needs its file. Read-only; a malformed payload is skipped.
+  Future<Set<String>> referencedLocalPaths() async {
+    final rows =
+        await (select(outbox)..where(
+              (o) => _isDocumentUpload(o) & o.payload.contains('local_path'),
+            ))
+            .get();
+    final paths = <String>{};
+    for (final row in rows) {
+      try {
+        final path = (jsonDecode(row.payload) as Map)['local_path'];
+        if (path is String && path.isNotEmpty) paths.add(path);
+      } catch (_) {}
+    }
+    return paths;
+  }
+
+  /// The record's document uploads that were never sent — `pending` or
+  /// `dead`, oldest first. A re-sent create of a `tmp_` record moves these
+  /// behind itself (`BaseEntityRepository.requeueUnsentDocumentUploads`).
+  /// `in_flight` / `unconfirmed` are left out: those may have reached the
+  /// server. (Neither can exist for an unresolved temp id — the drain never
+  /// dispatches one — but the query must not be the thing that decides that.)
+  Future<List<OutboxRow>> unsentUploadsForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) =>
+      (select(outbox)
+            ..where(
+              (o) =>
+                  o.companyId.equals(companyId) &
+                  o.entityType.equals(entityType) &
+                  o.entityId.equals(entityId) &
+                  _isDocumentUpload(o) &
+                  o.state.isIn(const ['pending', 'dead']),
+            )
+            ..orderBy([(o) => OrderingTerm.asc(o.id)]))
+          .get();
 
   /// True when a `create` outbox row for [entityId] exists in ANY state —
   /// pending, in_flight, or dead. The tmp-ref defer branch uses this to
@@ -993,6 +1038,31 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             ),
           ) >
       0;
+
+  /// [retryDead] for every dead document upload of one record — the uploads a
+  /// rejected create of a `tmp_` record took down with it, when that create is
+  /// retried from the Outbox (`OutboxViewModel.retry`). Returns how many.
+  Future<int> retryDeadUploadsFor({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required int now,
+  }) =>
+      (update(outbox)..where(
+            (o) =>
+                o.companyId.equals(companyId) &
+                o.entityType.equals(entityType) &
+                o.entityId.equals(entityId) &
+                _isDocumentUpload(o) &
+                o.state.equals('dead'),
+          ))
+          .write(
+            OutboxCompanion(
+              state: const Value('pending'),
+              attempts: const Value(0),
+              nextAttemptAt: Value(now),
+            ),
+          );
 
   /// Delete `dead` rows whose `created_at` is older than [olderThanMs].
   /// Returns the number of rows removed.

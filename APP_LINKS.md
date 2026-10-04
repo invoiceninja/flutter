@@ -234,6 +234,10 @@ test from Messages or Notes.
   changed.
 - **No new Android permissions.** The App Links claim is an `<intent-filter>`,
   not a permission, and the share sheet uses `ACTION_SEND` through the plugin.
+  The filter sits on `DeepLinkReceiverActivity`, not MainActivity (a link
+  delivered to MainActivity can start a second one — `docs/deep-links.md`
+  § Android delivers a link to a trampoline); verification is per app, so
+  `assetlinks.json` is the same either way.
 - **Play Console reports verification per release** once a build with the filter
   is live — look there as well as on a device, since it reflects what Google's
   crawler saw rather than what one handset cached.
@@ -272,7 +276,7 @@ test from Messages or Notes.
 | Piece | Repo | File |
 |---|---|---|
 | Link building, parsing, the claimed host | this | `lib/app/entity_links.dart` |
-| Android claim + Flutter's own deep linking off | this | `android/app/src/main/AndroidManifest.xml` |
+| Android claim (on `DeepLinkReceiverActivity`) + Flutter's own deep linking off (on MainActivity) | this | `android/app/src/main/AndroidManifest.xml` |
 | Apple claim | this | `ios/Runner/Runner.entitlements`, `macos/Runner/Release.entitlements` |
 | Cold-start / macOS shims for `app_links` | this | `ios/Runner/SceneDelegate.swift`, `macos/Runner/AppDelegate.swift` |
 | Wiring guard | this | `test/lint/universal_links_test.dart` |

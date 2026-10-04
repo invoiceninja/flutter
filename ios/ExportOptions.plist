@@ -12,6 +12,8 @@
     <dict>
         <key>com.invoiceninja.admin</key>
         <string>Invoice Ninja Admin App Store</string>
+        <key>com.invoiceninja.admin.ShareExtension</key>
+        <string>Invoice Ninja Share Extension App Store</string>
     </dict>
     <key>uploadSymbols</key>
     <true/>

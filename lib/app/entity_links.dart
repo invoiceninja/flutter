@@ -85,6 +85,20 @@ const String kCalendarLinkHost = 'calendar_connection';
 /// In-app route for the calendar OAuth return.
 const String kCalendarCompleteRoute = '/calendar_connection/complete';
 
+/// What the iOS Share Extension opens (`invoiceninja://share`) to bring the
+/// app forward once it has copied a shared file into the App Group container
+/// (invoiceninja/flutter#173). It carries nothing: the files travel through
+/// the `invoice_ninja/share_intake` channel. iOS claims the whole scheme, so
+/// no plist change; Android never sees it (its share target is an activity).
+const String kShareHandoffHost = 'share';
+
+/// Whether [uri] is the Share Extension's hand-off rather than a link to
+/// follow — `AppDeepLinks` pulls the shared files for it, and must never hand
+/// it to `DeepLinkRouter.open`, which would toast `invalid_url`.
+bool isShareHandoffLink(Uri uri) =>
+    uri.scheme.toLowerCase() == kAppLinkScheme &&
+    uri.host.toLowerCase() == kShareHandoffHost;
+
 /// Pure decision for `goEntityRecord`'s target path. Extracted so the
 /// rule is unit-testable without a widget tree, and kept in this leaf
 /// (re-exported from `router.dart`) so link building doesn't have to import

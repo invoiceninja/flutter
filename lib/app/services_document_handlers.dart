@@ -41,11 +41,17 @@ documentMutationHandlers<TInner>({
     required String documentId,
   })
   applyDeleted,
+  Future<void> Function(UploadSource source)? onUploaded,
+  Future<UploadSource> Function(UploadSource source)? resolveSource,
 }) {
   return {
     MutationKind.documentUpload: ({required row, required payload}) async {
       final entityId = payload['entity_id'] as String;
-      final source = UploadSource.fromPayload(payload);
+      var source = UploadSource.fromPayload(payload);
+      // A queued path that moved under the row — the app-owned copy of a
+      // shared file after an iOS update moved the data container
+      // (`SharedIntakeFiles.resolve`).
+      if (resolveSource != null) source = await resolveSource(source);
       // Source moved/deleted between enqueue and dispatch. Dead-letter LOUDLY
       // instead of returning null: a null return is treated as terminal
       // SUCCESS by the dispatcher, so the queued attachment would silently
@@ -62,11 +68,18 @@ documentMutationHandlers<TInner>({
           'the record and attach it again.',
         );
       }
-      return upload(
+      final uploaded = await upload(
         entityId: entityId,
         source: source,
         idempotencyKey: row.idempotencyKey,
       );
+      // The file has done its job — e.g. the app-owned copy of a receipt
+      // shared into the app (`SharedIntakeFiles.deleteUploaded`). Best-effort:
+      // a file that won't delete must not fail an upload that succeeded.
+      try {
+        await onUploaded?.call(source);
+      } catch (_) {}
+      return uploaded;
     },
     MutationKind.documentDelete: ({required row, required payload}) async {
       final documentId = payload['document_id'] as String;

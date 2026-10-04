@@ -72,13 +72,20 @@ Accounts and **roles** that must exist before any credential can be minted. The 
 > the Play **app signing** SHA-256 from Play Console → Setup → App integrity.
 > Both, plus the order they go in, are in **`APP_LINKS.md`**.
 
+> **Sharing files into the app (invoiceninja/flutter#173) adds a second signed
+> iOS target**, the Share Extension, and an **App Group** both targets use. The
+> group must be registered and enabled on both App IDs before
+> `ios/Runner/Runner.entitlements` will sign, and the extension needs its own
+> App Store profile and secret — §3E steps 1 and 3. Until then every iOS App
+> Store dispatch fails at the profile step.
+
 The Play, Partner Center, and Snap Store **listings already exist** — you are wiring credentials to existing apps, not creating new ones. That matters for Google Play in particular: a brand-new package requires one manual bundle upload in the Console before the API will accept anything, and that is already satisfied here. **Confirm the Apple side yourself** — the iOS and macOS app records must exist on App Store Connect (§3E step 5); unlike Play, ASC then accepts the very first build over the API with no prior manual upload.
 
 ---
 
 ## 2. Master secret table
 
-All 21, plus the two optional Google client IDs, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting one.
+All 22, plus the two optional Google client IDs, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting one.
 
 ### Shared
 
@@ -128,6 +135,7 @@ All 21, plus the two optional Google client IDs, grouped by what they unlock. `I
 | `APPLE_DISTRIBUTION_CERT_P12_BASE64` | Apple Distribution cert + private key | `base64 -i dist.p12` |
 | `APPLE_DISTRIBUTION_CERT_PASSWORD` | The `.p12` export password | Whatever you set on export |
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile | `base64 -i profile.mobileprovision` |
+| `IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile for the Share Extension (`com.invoiceninja.admin.ShareExtension`) | `base64 -i share-extension.mobileprovision` |
 | `IN_GOOGLE_IOS_CLIENT_ID` | *Optional.* Google OAuth **iOS** client ID for `com.invoiceninja.admin` | `docs/setup.md` § Google Sign-In client IDs — its reversed form must also be in `ios/Runner/Info.plist`. Unset hides "Sign in with Google" on iOS. |
 
 ### Apple — macOS only
@@ -235,18 +243,21 @@ publisher_display_name: Invoice Ninja
 
 **Verify** — dispatch `Deploy to Microsoft Store`. Success means the submission is committed; certification typically takes hours. Watch it in Partner Center.
 
-### E. Apple — iOS + macOS, 9 secrets
+### E. Apple — iOS + macOS, 10 secrets
 
 The hardest of the six, and the one where order matters: **App ID capabilities → certificates → provisioning profiles → API key**. A profile is minted against the capabilities and certificates that exist *at that moment*, so doing this out of order means re-issuing profiles.
 
 #### Step 1 — App ID capabilities
 
-The App ID for `com.invoiceninja.admin` must have the capabilities the entitlements files declare, or `xcodebuild archive` fails on a mismatch:
+The App IDs must have the capabilities the entitlements files declare, or `xcodebuild archive` fails on a mismatch:
 
-| Target | Required capabilities | Declared in |
-|---|---|---|
-| iOS | **Sign in with Apple** | `ios/Runner/Runner.entitlements` |
-| macOS | **Sign in with Apple**, **App Sandbox**, **Keychain Sharing** | `macos/Runner/Release.entitlements` |
+| Target | App ID | Required capabilities | Declared in |
+|---|---|---|---|
+| iOS | `com.invoiceninja.admin` | **Sign in with Apple**, **Associated Domains** (`APP_LINKS.md`), **App Groups** → `group.com.invoiceninja.admin` | `ios/Runner/Runner.entitlements` |
+| iOS Share Extension | `com.invoiceninja.admin.ShareExtension` | **App Groups** → `group.com.invoiceninja.admin` | `ios/ShareExtension/ShareExtension.entitlements` |
+| macOS | `com.invoiceninja.admin` | **Sign in with Apple**, **App Sandbox**, **Keychain Sharing** | `macos/Runner/Release.entitlements` |
+
+For the Share Extension (invoiceninja/flutter#173): first register the App Group `group.com.invoiceninja.admin` (Identifiers → App Groups), then create the extension's App ID, then enable App Groups on both iOS App IDs and assign that group. **Do this before merging the Share Extension**, and then regenerate and re-upload **both** existing App Store profiles: changing an App ID's capabilities marks every profile minted against it Invalid, and the macOS app shares the `com.invoiceninja.admin` App ID (`macos/Runner/Configs/AppInfo.xcconfig`). The iOS archive fails outright with the old profile (`Runner.entitlements` now claims App Groups); regenerate the macOS one (`MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64`) too rather than find out at the next macOS release. A developer's first device build with Automatic signing registers the new App ID and group itself — which needs the Admin or App Manager role.
 
 #### Step 2 — Certificates
 
@@ -271,23 +282,26 @@ base64 -i certs.p12 | gh secret set MAC_DISTRIBUTION_CERTS_P12_BASE64
 
 #### Step 3 — Provisioning profiles
 
-Create **two** App Store profiles for `com.invoiceninja.admin` — one **iOS App Store**, one **Mac App Store** — each embedding the certificate from step 2.
+Create **three** App Store profiles, each embedding the certificate from step 2: **iOS App Store** and **Mac App Store** for `com.invoiceninja.admin`, and **iOS App Store** for `com.invoiceninja.admin.ShareExtension`. Mint them *after* step 1 — a profile carries the capabilities its App ID had at that moment.
 
 ```sh
-base64 -i profile.mobileprovision  | gh secret set IOS_APPSTORE_PROVISIONING_PROFILE_BASE64
-base64 -i profile.provisionprofile | gh secret set MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64
+base64 -i profile.mobileprovision         | gh secret set IOS_APPSTORE_PROVISIONING_PROFILE_BASE64
+base64 -i share-extension.mobileprovision | gh secret set IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64
+base64 -i profile.provisionprofile        | gh secret set MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64
 ```
 
 **The profile names must match what's committed.** The workflows and export options reference profiles by name:
 
 | File / setting | Expects |
 |---|---|
-| `ios/ExportOptions.plist` | `Invoice Ninja Admin App Store` |
+| `ios/ExportOptions.plist` | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store` |
 | `macos/ExportOptions.plist` | `Invoice Ninja macOS App Store` |
 | `appstore-macos.yml` `PROVISIONING_PROFILE_SPECIFIER` | `Invoice Ninja macOS App Store` |
-| `appstore-ios.yml` `PROVISIONING_PROFILE_SPECIFIER` | `Invoice Ninja Admin App Store` |
+| `tools/ci_ios_target_profiles.rb` (run by `appstore-ios.yml`) | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store` |
 
 Name the profiles exactly that in the portal, **or** edit those four places to match the names you used.
+
+> **Why iOS pins profiles per target.** A `PROVISIONING_PROFILE_SPECIFIER` on the `xcodebuild` command line applies to *every* target, and a profile is bound to one bundle id — so with the Share Extension embedded, the global override signed the extension with the app's profile and the archive failed. `tools/ci_ios_target_profiles.rb` sets each target's Release profile in the runner's copy of the project instead (the `xcodeproj` gem ships with CocoaPods).
 
 #### Step 4 — App Store Connect API key
 
@@ -310,7 +324,7 @@ Confirm the iOS and macOS apps exist on App Store Connect. Unlike Google Play, A
 
 **Verify** — dispatch `Deploy to TestFlight (iOS)`, then `Deploy to TestFlight (macOS)`. Success puts a build on TestFlight for testers. **Uploading to TestFlight does not submit for App Store review** — that's a separate manual action in App Store Connect.
 
-> Your local Xcode projects are untouched by any of this. Both still use Automatic signing with an Apple Development identity; CI forces manual signing via `xcodebuild` command-line overrides, so local development keeps working.
+> Your local Xcode projects are untouched by any of this. Both still use Automatic signing with an Apple Development identity (which also registers the Share Extension's App ID and the App Group on your first device build); CI forces manual signing via `xcodebuild` command-line overrides — plus, on iOS, the per-target profiles pinned on the runner — so local development keeps working.
 
 ---
 
@@ -370,10 +384,13 @@ Two exceptions:
 |---|---|
 | `ANDROID_KEYSTORE_BASE64 is empty — cannot produce a Play-signed bundle` | Secret not set. The workflow hard-fails deliberately: without it the build would silently fall back to **debug** signing, which Play rejects on upload. |
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty` / same for macOS | Same deliberate guard. Set the secret. |
+| `IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty` | The embedded Share Extension can't be signed without its own profile. §3E steps 1 and 3. |
+| Archive: *"…ShareExtension… requires a provisioning profile"* / *"doesn't match the bundle identifier"* / *"doesn't include the App Groups capability"* | The extension's profile is missing, named differently from `tools/ci_ios_target_profiles.rb`, or minted before App Groups was enabled on its App ID — re-issue it after §3E step 1. |
+| Archive: *"Runner… doesn't include the com.apple.security.application-groups entitlement"* (iOS), or the macOS release failing after the Share Extension merged | The app's own profile predates App Groups on the shared `com.invoiceninja.admin` App ID, which invalidated it — regenerate the iOS **and** macOS App Store profiles and re-upload both secrets (§3E step 1). |
 | Play: *"Version code N has already been used"* | You didn't bump. Run `tools/bump_client_version.sh`, commit, re-dispatch. |
 | Play: *"Changes cannot be sent for review automatically. Please set … changesNotSentForReview to true"* | Account/app-state dependent. Add `changesNotSentForReview: true` under the publish step in `playstore.yml`. Leave it unset by default — some accounts get the inverse error when it *is* set. |
 | ASC: *"the bundle version must be higher than the previously uploaded version"* | You didn't bump. iOS and macOS share the pubspec version. |
-| Archive fails on an entitlement mismatch | The App ID is missing a capability the entitlements declare — Sign in with Apple (both), App Sandbox + Keychain Sharing (macOS). See §3E step 1. |
+| Archive fails on an entitlement mismatch | The App ID is missing a capability the entitlements declare — Sign in with Apple (both), Associated Domains + App Groups (iOS), App Sandbox + Keychain Sharing (macOS). See §3E step 1. |
 | macOS: package rejected by App Store Connect | The combined `.p12` is missing the **Mac Installer Distribution** identity. Re-export both identities together. |
 | Apple upload auth fails | `APP_STORE_CONNECT_PRIVATE_KEY` was base64-encoded. It must be the **raw** `.p8` text. |
 | Store: upload validation rejects the package | `msix_config` `identity_name` / `publisher` / `publisher_display_name` in `pubspec.yaml` don't exactly match Partner Center → Product identity. |

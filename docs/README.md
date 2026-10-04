@@ -35,6 +35,7 @@ read-it-first orientation for a new developer.
 - [`row-actions-and-values.md`](row-actions-and-values.md) — **What a row shows, and what its actions do.** A narrow list row carries no labels, which changes what a tap means and what an empty value should render as.
 - [`settings-screens.md`](settings-screens.md) — **Settings screens.** The main file carries the 5-second decision tree, the three style names, and the User-Details anti-pattern.
 - [`setup.md`](setup.md) — **Setup.** .
+- [`sharing-files-into-the-app.md`](sharing-files-into-the-app.md) — **Sharing files into the app.** "Share → Invoice Ninja" opens New Expense with the files attached: why the Android target is an engine-free activity and never MainActivity, the iOS App Group hand-off, the pull channel, which images get converted, and who may delete the copies.
 - [`sidebar-and-shell.md`](sidebar-and-shell.md) — **The sidebar and the page shell.** The sidebar's own chrome — safe areas, ink, the upsell gate, the customisable menu and the pinned rows — plus which widget owns a full-page host.
 - [`store-deployment-setup.md`](store-deployment-setup.md) — **Store deployment — setup runbook.** **How to get the six publish workflows working from zero.** This is the *how*; `docs/setup.md` §§ Shipping to the stores → Windows / Microsoft Store is the *why* (rationale, design decisions, per-platform background).
 - [`sync.md`](sync.md) — **Sync — the non-obvious rules, with evidence.** The main file still states all 36 rules, one line each — it is the most-cited anchor in the repo.

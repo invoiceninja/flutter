@@ -1731,6 +1731,189 @@ void main() {
     );
   });
 
+  // invoiceninja/flutter#173: New Expense queues its attached files as uploads
+  // of the record before the record exists — under its `tmp_` id, right
+  // behind its create. Nothing else pinned that this chain works.
+  test('an upload queued against a record that does not exist yet waits for '
+      'its create, then goes under the real id', () async {
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000aa';
+    final dispatched = <String>[];
+    final engine = makeEngine(
+      _CallbackDispatcher((row) async {
+        dispatched.add('${row.mutationKind}:${row.entityId}');
+        if (row.mutationKind == MutationKind.create.wireName) {
+          await db.idRemapDao.remember(
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: 'real_aa',
+            now: 0,
+          );
+          await db.outboxDao.rewriteTempIdInPayloads(
+            companyId: 'co',
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: 'real_aa',
+          );
+        }
+      }),
+    );
+    await enqueueClient(
+      entityId: tmp,
+      kind: MutationKind.create,
+      idempotencyKey: 'create',
+    );
+    final upload = await db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: tmp,
+        mutationKind: MutationKind.documentUpload.wireName,
+        payload: jsonEncode({'entity_id': tmp, 'local_path': '/x/a.pdf'}),
+        idempotencyKey: 'upload',
+        nextAttemptAt: 0,
+        createdAt: 0,
+      ),
+    );
+
+    await engine.drainOnce(companyId: 'co');
+
+    expect(dispatched, [
+      '${MutationKind.create.wireName}:$tmp',
+      '${MutationKind.documentUpload.wireName}:real_aa',
+    ]);
+    expect(await db.outboxDao.byId(upload), isNull, reason: 'sent');
+  });
+
+  // The rejected-create path. A 422 on the create takes its queued uploads
+  // down with it (`_failTmpDependents`), and nothing brings them back on its
+  // own: re-keyed when the re-sent create lands, they stay dead. Re-armed in
+  // place they'd still be stuck — older than the re-sent create, the pass
+  // reaches them first and defers them. `requeueUnsentDocumentUploads` puts
+  // fresh copies behind the create instead.
+  test('a rejected create takes its uploads down; re-sent with them requeued '
+      'behind it, one pass sends the create, then both uploads under the real '
+      'id', () async {
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000ab';
+    var rejectCreate = true;
+    final dispatched = <String>[];
+    final engine = makeEngine(
+      _CallbackDispatcher((row) async {
+        if (row.mutationKind == MutationKind.create.wireName) {
+          if (rejectCreate) throw const ValidationException('bad', {});
+          await db.idRemapDao.remember(
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: 'real_ab',
+            now: 0,
+          );
+          await db.outboxDao.rewriteTempIdInPayloads(
+            companyId: 'co',
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: 'real_ab',
+          );
+        }
+        dispatched.add('${row.mutationKind}:${row.entityId}');
+      }),
+    );
+    Future<int> upload(String path, String key) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: tmp,
+        mutationKind: MutationKind.documentUpload.wireName,
+        payload: jsonEncode({'entity_id': tmp, 'local_path': path}),
+        idempotencyKey: key,
+        nextAttemptAt: 0,
+        createdAt: 0,
+      ),
+    );
+
+    await enqueueClient(
+      entityId: tmp,
+      kind: MutationKind.create,
+      idempotencyKey: 'create-1',
+    );
+    final a = await upload('/x/a.pdf', 'up-a');
+    final b = await upload('/x/b.pdf', 'up-b');
+
+    await engine.drainOnce(companyId: 'co');
+    expect((await db.outboxDao.byId(a))!.state, 'dead');
+    expect((await db.outboxDao.byId(b))!.state, 'dead');
+
+    // The fixed form re-sends the create under the same temp id, then moves
+    // the record's unsent uploads behind it.
+    rejectCreate = false;
+    await enqueueClient(
+      entityId: tmp,
+      kind: MutationKind.create,
+      idempotencyKey: 'create-2',
+    );
+    // On the engine's clock, as in the app — the copies are due at once.
+    final moved = await _TestRepo(
+      db: db,
+      now: () => DateTime.fromMillisecondsSinceEpoch(1000),
+    ).requeueUnsentDocumentUploads(companyId: 'co', tempId: tmp);
+    expect(moved, 2);
+    expect(await db.outboxDao.byId(a), isNull, reason: 'replaced by a copy');
+
+    await engine.drainOnce(companyId: 'co');
+    expect(dispatched, [
+      '${MutationKind.create.wireName}:$tmp',
+      '${MutationKind.documentUpload.wireName}:real_ab',
+      '${MutationKind.documentUpload.wireName}:real_ab',
+    ]);
+  });
+
+  test('a rejected create takes its uploads down quietly — the record\'s own '
+      'failure speaks for them, not one modal per attachment', () async {
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000ac';
+    final engine = makeEngine(
+      _CallbackDispatcher((row) async {
+        if (row.mutationKind == MutationKind.create.wireName) {
+          throw const ValidationException('bad', {});
+        }
+      }),
+    );
+    await enqueueClient(
+      entityId: tmp,
+      kind: MutationKind.create,
+      idempotencyKey: 'create',
+    );
+    for (final key in ['up-a', 'up-b']) {
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: tmp,
+          mutationKind: MutationKind.documentUpload.wireName,
+          payload: jsonEncode({'entity_id': tmp, 'local_path': '/x/$key'}),
+          idempotencyKey: key,
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+    }
+    final events = <SyncEvent>[];
+    final sub = engine.events.listen(events.add);
+
+    await engine.drainOnce(companyId: 'co');
+    await Future<void>.delayed(Duration.zero);
+    await sub.cancel();
+
+    final uploads = (await db.select(db.outbox).get()).where(
+      (r) => r.mutationKind == MutationKind.documentUpload.wireName,
+    );
+    expect(uploads.map((r) => r.state), ['dead', 'dead']);
+    expect(
+      events.whereType<DeadEvent>().where(
+        (e) => e.message.contains('could not be saved'),
+      ),
+      isEmpty,
+    );
+    expect(events.whereType<ValidationFailedEvent>(), hasLength(1));
+  });
+
   group('tmp_ dependency guard', () {
     // Ids minted by mintTempId() are tmp_<uuid-v4>; the guard matches that
     // exact shape.

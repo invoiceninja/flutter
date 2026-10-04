@@ -452,6 +452,18 @@ void main() {
     });
   });
 
+  group('AuthSession.canAttachDocuments', () {
+    // One rule for the Documents tab, New Expense's Documents card and the
+    // share sheet's intake (invoiceninja/flutter#173).
+    test('hosted free cannot; a trial, enterprise or self-hosted can', () {
+      expect(_session().canAttachDocuments, isFalse);
+      expect(_session(plan: 'pro').canAttachDocuments, isFalse);
+      expect(_session(trialDaysLeft: 5).canAttachDocuments, isTrue);
+      expect(_session(plan: 'enterprise').canAttachDocuments, isTrue);
+      expect(_session(isHosted: false).canAttachDocuments, isTrue);
+    });
+  });
+
   group('AuthSession.isEligibleForTrial', () {
     test('hosted, free slug, never trialed → eligible', () {
       expect(_session().isEligibleForTrial, isTrue);

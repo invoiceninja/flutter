@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -93,5 +94,27 @@ void main() {
       logged.last.message,
       allOf(contains('identityChanged'), contains('unconfirmed: 1')),
     );
+  });
+
+  test('wipeAll also removes the account\'s files beside the database — the '
+      'copies of shared receipts — after the rows', () async {
+    await queue('co1', 'pending');
+    var outboxAtHook = -1;
+    await LocalDataDisposer(
+      db,
+      onWipeAll: () async {
+        outboxAtHook = (await db.select(db.outbox).get()).length;
+      },
+    ).wipeAll(DisposalReason.sessionEnded);
+    expect(outboxAtHook, 0, reason: 'a row may still name a file until then');
+  });
+
+  test('a failing file hook never fails the wipe', () async {
+    await queue('co1', 'pending');
+    await LocalDataDisposer(
+      db,
+      onWipeAll: () async => throw const FileSystemException('denied'),
+    ).wipeAll(DisposalReason.sessionEnded);
+    expect(await db.select(db.outbox).get(), isEmpty);
   });
 }

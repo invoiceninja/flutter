@@ -97,6 +97,7 @@ import 'package:admin/data/services/tax_rates_api.dart';
 import 'package:admin/data/services/tokens_api.dart';
 import 'package:admin/data/services/transaction_rules_api.dart';
 import 'package:admin/data/services/vendors_api.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/data/services/webhooks_api.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/base_entity_sync_dispatcher.dart';
@@ -113,6 +114,8 @@ class EntityWiringContext {
     required this.emailsApi,
     required this.kickDrain,
     required this.dispatchers,
+    this.onDocumentUploaded,
+    this.resolveDocumentSource,
   });
 
   final ApiClient apiClient;
@@ -122,6 +125,17 @@ class EntityWiringContext {
   final EmailsApi emailsApi;
   final void Function(String companyId) kickDrain;
   final Map<EntityType, SyncDispatcher> dispatchers;
+
+  /// After a document upload succeeds — deletes the app-owned copy of a file
+  /// shared into the app (`SharedIntakeFiles.deleteUploaded`). Wired for
+  /// expenses, the one entity whose create form takes shared files.
+  final Future<void> Function(UploadSource source)? onDocumentUploaded;
+
+  /// Before a document upload is sent — re-finds the app-owned copy of a file
+  /// shared into the app when its queued path has moved
+  /// (`SharedIntakeFiles.resolve`). Wired for expenses, as above.
+  final Future<UploadSource> Function(UploadSource source)?
+  resolveDocumentSource;
 }
 
 /// Closure that mirrors a single bundled-entity upsert. Called once per
@@ -765,6 +779,8 @@ class _EntityWiring {
         upload: expensesApi.uploadDocument,
         applyChanged: expenseRepo.applyDocumentChanged,
         applyDeleted: expenseRepo.applyDocumentDeleted,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
       ),
     },
   );

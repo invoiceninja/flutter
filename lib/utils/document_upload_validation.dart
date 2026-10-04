@@ -82,3 +82,67 @@ Future<DocumentUploadValidation> validateDocumentUpload(
   }
   return DocumentUploadValidation.ok(name, size);
 }
+
+/// One warning to show for a batch's rejects: a localization key and its
+/// params. Kept as data rather than a toast so a caller without a
+/// `BuildContext` (`SharedFileIntake`) can render the same words.
+typedef DocumentRejectNotice = ({String key, Map<String, String>? params});
+
+/// The outcome of validating several files at once — what a picker, a drop,
+/// or a share hands over.
+class DocumentUploadBatch {
+  const DocumentUploadBatch({
+    required this.accepted,
+    required this.rejected,
+    required this.sawWrongType,
+    required this.sawTooLarge,
+  });
+
+  final List<UploadSource> accepted;
+  final List<UploadSource> rejected;
+
+  /// A file of a type the server won't take — or one that couldn't be read,
+  /// which reads the same to the user.
+  final bool sawWrongType;
+  final bool sawTooLarge;
+
+  /// One notice per kind of reject, in a fixed order: the type warning, then
+  /// the size one.
+  List<DocumentRejectNotice> get rejectNotices => [
+    if (sawWrongType) (key: 'dropzone_invalid_file_type', params: null),
+    if (sawTooLarge)
+      (key: 'upload_too_large_with_size', params: {'size': '$kDocumentMaxMb'}),
+  ];
+}
+
+/// [validateDocumentUpload] over a batch, sorting the files into accepted and
+/// rejected and noting which kinds of reject were seen — the loop every
+/// upload surface used to repeat.
+Future<DocumentUploadBatch> validateDocumentSources(
+  Iterable<UploadSource> sources,
+) async {
+  final accepted = <UploadSource>[];
+  final rejected = <UploadSource>[];
+  var sawWrongType = false;
+  var sawTooLarge = false;
+  for (final source in sources) {
+    final result = await validateDocumentUpload(source);
+    switch (result.issue) {
+      case null:
+        accepted.add(source);
+        continue;
+      case DocumentUploadIssue.wrongExtension:
+      case DocumentUploadIssue.unreadable:
+        sawWrongType = true;
+      case DocumentUploadIssue.tooLarge:
+        sawTooLarge = true;
+    }
+    rejected.add(source);
+  }
+  return DocumentUploadBatch(
+    accepted: accepted,
+    rejected: rejected,
+    sawWrongType: sawWrongType,
+    sawTooLarge: sawTooLarge,
+  );
+}

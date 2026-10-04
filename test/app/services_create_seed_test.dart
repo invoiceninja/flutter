@@ -6,6 +6,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 
 /// The create-draft staging carries whether the seed is a clone.
@@ -69,5 +70,34 @@ void main() {
     expect(services.takeCreateSeed<String>('/expenses'), isNull);
     // Still there for the right reader.
     expect(services.takeCreateSeed<Expense>('/expenses')?.isClone, isTrue);
+  });
+
+  test('attachments ride with the seed, once, and only with a draft', () {
+    final receipt = fileUploadSource('/x/shared_intake/u1/receipt.pdf');
+    services.stageCreateDraft(
+      '/expenses',
+      emptyExpense(),
+      attachments: [receipt],
+    );
+
+    final seed = services.takeCreateSeed<Expense>('/expenses');
+    expect(seed?.attachments, [receipt]);
+    // One-shot, attachments included.
+    expect(services.takeCreateSeed<Expense>('/expenses'), isNull);
+
+    // A blank create carries none.
+    services.stageCreateDraft('/expenses', null, attachments: [receipt]);
+    expect(services.takeCreateSeed<Expense>('/expenses'), isNull);
+  });
+
+  test('clearStagedCreateDraft forgets a seed no screen took — sign-out must '
+      'not hand the next account the last one\'s shared receipt', () {
+    services.stageCreateDraft(
+      '/expenses',
+      emptyExpense(),
+      attachments: [fileUploadSource('/x/shared_intake/u1/receipt.pdf')],
+    );
+    services.clearStagedCreateDraft();
+    expect(services.takeCreateSeed<Expense>('/expenses'), isNull);
   });
 }

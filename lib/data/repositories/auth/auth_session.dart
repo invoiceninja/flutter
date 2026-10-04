@@ -360,6 +360,13 @@ class AuthSession {
   /// Trial-aware Enterprise gate — the gating counterpart to [hasProAccess].
   bool get hasEnterpriseAccess => isEnterprisePlan || isTrial;
 
+  /// Whether documents can be attached: an Enterprise feature on hosted
+  /// (trial-aware — parity with admin-portal `document_grid.dart` and React
+  /// `Upload.tsx`), always on for self-hosted. The one copy of a rule the
+  /// Documents tab, New Expense's Documents card and the share sheet's intake
+  /// all apply.
+  bool get canAttachDocuments => !isHosted || hasEnterpriseAccess;
+
   /// True when the account can still start a free trial: hosted, on the free
   /// (empty) slug, and never started one. Drives the "Start free trial" vs
   /// "Upgrade" copy split. Mirrors admin-portal's

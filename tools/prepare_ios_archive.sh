@@ -73,6 +73,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# The Runner scheme pre-action (tools/xcode_inject_sentry_dsn.sh, sync_version)
+# resets the version to pubspec.yaml's at archive time, so an override passed
+# here would be gone before the archive is built.
+for arg in ${extra_args[@]+"${extra_args[@]}"}; do
+  case "$arg" in
+    --build-name|--build-name=*|--build-number|--build-number=*)
+      echo "ERROR: $arg has no effect on an Xcode archive — the version comes from pubspec.yaml." >&2
+      echo "       Change it there (tools/bump_client_version.sh, or edit the +BUILD by hand)." >&2
+      exit 1 ;;
+  esac
+done
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "ERROR: iOS archives are macOS-only; this is $(uname -s)." >&2
   exit 1

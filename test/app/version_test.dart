@@ -60,4 +60,20 @@ void main() {
     expect(pubspecVersion, isNotNull);
     expect(snapVersion, pubspecVersion);
   });
+
+  test('the pubspec version line is exactly MAJOR.MINOR.PATCH+BUILD — the '
+      'Xcode archive pre-action syncs the app version from it', () {
+    // `sync_version` in tools/xcode_inject_sentry_dsn.sh skips a line it can't
+    // parse with a warning nobody sees in Xcode, and the archive then ships
+    // whatever version the generated xcconfig last held. Anything after the
+    // build number — an inline comment, a pre-release tag — is that skip.
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final line = RegExp(
+      r'^version:.*$',
+      multiLine: true,
+    ).firstMatch(pubspec)?.group(0);
+
+    expect(line, isNotNull);
+    expect(line, matches(RegExp(r'^version:\s*\d+\.\d+\.\d+\+\d+\s*$')));
+  });
 }

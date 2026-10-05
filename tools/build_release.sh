@@ -72,6 +72,21 @@ if [[ -z "$platform" ]]; then
   fi
 fi
 
+# --- refuse version overrides on Apple builds ---
+# The Runner scheme pre-action (tools/xcode_inject_sentry_dsn.sh, sync_version)
+# resets the Xcode version to pubspec.yaml's on every Release build, so these
+# flags would vanish without a word and the upload would carry the old build.
+if [[ "$platform" == "ios" || "$platform" == "macos" ]]; then
+  for arg in ${extra_args[@]+"${extra_args[@]}"}; do
+    case "$arg" in
+      --build-name|--build-name=*|--build-number|--build-number=*)
+        echo "ERROR: $arg has no effect on $platform builds — the version comes from pubspec.yaml." >&2
+        echo "       Change it there (tools/bump_client_version.sh, or edit the +BUILD by hand)." >&2
+        exit 1 ;;
+    esac
+  done
+fi
+
 # --- resolve the Sentry DSN (env > dev.json > empty) ---
 dsn=""
 dsn_source=""

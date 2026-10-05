@@ -77,7 +77,7 @@ Plus two non-negotiables carried from admin-portal:
 | Email-template `$variables` as chips (T&R subject/body, Send Email subject/body), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets, "Sign in with Google" missing on iOS / Android | `docs/setup.md` (§ Google Sign-In client IDs) |
-| Building a release app / injecting the Sentry DSN, the F-Droid (FOSS) build, or a store-only SDK | `docs/fdroid.md` · `tools/prepare_foss.sh` · `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
+| Building a release app / injecting the Sentry DSN, an Xcode archive carrying an old version number, the F-Droid (FOSS) build, or a store-only SDK | `docs/fdroid.md` · `tools/prepare_foss.sh` · `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
 | iOS Product → Archive failing on a plugin's minimum platform version | `tools/prepare_ios_archive.sh` (run it first) · `docs/setup.md` § Release builds with Sentry · `docs/upstream-workarounds.md` § 8 |
 | Writing release notes for a new version | § Release Notes |
 | Setting up store deploys / CI signing secrets | `docs/store-deployment-setup.md` (runbook) · `docs/setup.md` § Shipping to the stores (reference) |

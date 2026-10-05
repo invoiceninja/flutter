@@ -9,7 +9,7 @@
          <ExecutionAction
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
-               title = "Inject Sentry DSN (Release archives)"
+               title = "Sync version + inject Sentry DSN (Release builds)"
                scriptText = "&quot;$SRCROOT/../tools/xcode_inject_sentry_dsn.sh&quot; macos&#10;">
                <EnvironmentBuildable>
                   <BuildableReference

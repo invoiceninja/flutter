@@ -22,7 +22,7 @@ Companion to CLAUDE.md § Rich text editing. `MarkdownTextField` is the shared W
 
 **It is a document walker, not `serializeDocumentToMarkdown` + `markdownToHtml`.** super_editor's markdown serializer escapes nothing (`document_to_markdown_serializer.dart:406-547`), so a paragraph whose plain text is `5 * 3 * 2`, `# 1 priority`, `- see below` or `a_b_c` serializes verbatim — and re-parsing that as markdown would promote the user's own words to emphasis, a heading or a list, then *persist* the result. Reading the document's node types and attributions directly means nothing in the text can become markup. It also keeps super_editor's private dialect (`¬underline¬`, `~strike~`, `:---:` alignment rows, `![a](u =100x50)` size notation) out of a value three other clients have to read. The inline writer mirrors `AttributedTextMarkdownSerializer` step for step — same visitor, same open/close ordering, link outside the style marks — plus a stack that closes and reopens tags around *partially* overlapping spans, which markdown tolerates as `**a*b**c*` and HTML does not.
 
-**Byte-stability across the server is not the invariant; the fixed point is.** `Purify::clean` reparses with `DOMDocument` and re-serializes with `saveHTML`, so `<br>` and attribute order are the server's call. What must hold is that `htmlFromEditorDocument(deserialize(markdownFromLegacyHtml(v)))` is stable — otherwise every open-and-save churns the record. `editor_html_test.dart` pins that over ~23 stored shapes, including the ones that degrade **once** and then hold: a `<pre>` block and a `<table>` both flatten, because the fold has no rule for them (documented at `legacy_html_markdown.dart:29-32`) and neither is reachable from this app's toolbar.
+**Byte-stability across the server is not the invariant; the fixed point is.** `Purify::clean` reparses with `DOMDocument` and re-serializes with `saveHTML`, so `<br>` and attribute order are the server's call. What must hold is that `htmlFromEditorDocument(deserialize(markdownFromLegacyHtml(v)))` is stable — otherwise every open-and-save churns the record. `editor_html_test.dart` pins that over ~23 stored shapes, including the ones that degrade **once** and then hold: a `<pre>` block flattens, because the fold has no rule for it and it is not reachable from this app's toolbar. A `<table>` flattens too if it gets this far — but in `MarkdownTextField` it no longer does: flattening turned out to be the *best* case of three, and a value containing a table is shown as its own HTML instead (§ A value the document cannot hold is shown as HTML source, below). The one place a table still reaches the fold is `htmlFromEditableValue`, i.e. the Custom gateway `text` field.
 
 Closing that loop needed four fixes on the inbound side, each of which was a leak before: `<img>` now maps to `![alt](src)` (it used to fall through as an unmapped inline tag and be painted at the user as raw markup); `<blockquote>` keeps its `>` marker (a quote used to degrade to a plain paragraph on the next save); an *interior* `<p></p>` asks for four newlines, which is exactly one empty `ParagraphNode` to `_EmptyLinePreservingParagraphSyntax`, so a blank line somebody typed survives; and a link destination's entities are decoded, since nothing downstream decodes inside one and `?a=1&amp;b=2` would otherwise gain an `&amp;` every trip.
 
@@ -108,3 +108,140 @@ trigger.
 `releaseBreaks()` now runs at all three closers. It is called **before** the closing `requestBreak` in
 the heading and blockquote arms, not after: those arms request their break unconditionally, and while
 the flag is still set that request is dropped too.
+
+## A value the document cannot hold is shown as HTML source
+
+**A value containing a table — or one the fold would delete text from — is shown as its own HTML,
+verbatim, in a plain source box; any other field can be switched to its source from the formatting
+toolbar, and back from the strip above the box (invoiceninja/flutter#174).**
+
+The report was a three-column company footer, written in the web app, that "appears empty" in
+Settings → Company Details → Defaults. The fold has no rule for a table and cannot have a faithful
+one, and what it did instead depended on who typed the markup. `test/_html_table_fixtures.dart`
+holds one of each:
+
+| Stored shape | What the editor showed | What the first keystroke stored |
+|---|---|---|
+| TipTap / TinyMCE output | three stacked paragraphs | `<p>` per cell — the table is gone |
+| Hand-written, cell text on its own indented line | one paragraph, then a code block | `<pre><code>` holding the rest |
+| A cell tag `kHtmlTagPattern` refuses — `<td nowrap>`, `style=width:33%; text-align:left`, `style=“width: 33%”` | **nothing** | `''` plus whatever was typed |
+
+The third row is the report. A refused tag is left as literal text at the start of its line;
+`markdown` 7.3.1's `HtmlBlockSyntax` takes that line through the next blank one as a raw HTML block
+(condition 6, and it can interrupt a paragraph); and super_editor's block visitor has a no-op
+`visitText`, so the block is dropped. When every cell opens with such a tag, every line goes. It is
+reachable from React without anyone doing anything odd: the source-code modal calls
+`onValueChange(htmlCode)` with the textarea's string (`TipTapEditor.tsx:1146`) and the sync effect
+then sets `currentValue` back to it, so pasted HTML is stored as typed until the user next edits in
+the WYSIWYG. Opening and saving untouched was always safe — nothing is emitted until a real edit —
+but an empty box invites the edit.
+
+**Why not a table in the document.** super_editor has a `TableBlockNode` and a GFM table syntax, and
+`editor_html.dart` can already write one. Neither carries a cell width, an alignment, a `colspan`, or
+block content inside a cell (`<td><p>…</p><p>…</p></td>` is what TipTap writes), so the footer would
+still be rewritten on the first edit — just into a prettier wrong thing. Every other client keeps
+the markup: React has a table menu and that source view, and the old Flutter app bound all of these
+fields to plain multi-line text boxes.
+
+**Two detectors, permissive on purpose.** `hasTableMarkup` (`lib/utils/html_source.dart`) matches a
+table-family tag on its **name alone**. `kHtmlTagPattern` is strict because it *rewrites* — matching
+prose eats the user's words — but this one only *routes*: a false positive opens a field as source
+with the value exactly as stored, a false negative hands a table to an editor that flattens it. So
+`<td nowrap>` is caught here even though the fold refuses it. (`<` must still abut the name:
+`qty < table rate > 10` is not a table.) `foldLeftRawHtmlBlock` (`legacy_html_markdown.dart`) is the
+other half and is not a table check: it asks whether a line of the fold's *output* still opens with
+a block-level tag, which is exactly the precondition for the deletion above —
+`<p hidden>Gone</p><p>Kept</p>` trips it, and a "did the document come out blank?" check alone would
+not, since "Kept" survives. It mirrors CommonMark condition 6 rather than "any `<`", because
+`<john@x.com>` at the start of a line is not a block to the parser and must not flip a plain note
+into source. `richEditorCannotHold` (`editor_html.dart`) combines them with two backstops — a blank
+document from a value that has words in it, and a deserialize that throws (which used to take the
+whole field down).
+
+**It is not a formatting check.** `<span style="color:red">`, `text-align`, a font size: still
+dropped on the first edit, still opening in the rich editor. Every one of those is a button on the
+web app's toolbar, and showing each such note as raw tags to people who have never seen one was
+judged worse than the loss. `<style>` / `<script>` blocks on their own are not caught either (the
+fold drops the tag and keeps the CSS as a paragraph). The manual toggle is the way to the source for
+all of these, and the choice lasts for the visit, not across visits — a value is not *forced* unless
+one of the detectors says so.
+
+**The source box holds the stored string, and so does the baseline.** In rich mode `_lastEmitted` is
+baselined to the document's *canonical re-serialization* so that opening a record emits nothing.
+For a table that is the flattened value, which means the `next != _lastEmitted` guard in
+`didUpdateWidget` was true on every rebuild that bumped `externalValueKey` —
+`OverridableMarkdownField` hashes the value into the key, so that is every emit. In HTML mode the
+baseline is therefore the raw value, and a separate `_held` (the seed value until the first emit,
+then the emitted one) is what rich → HTML shows, so a look at the source of an untouched field can
+change nothing. `MarkdownFieldController.flush()` returns **null** from an untouched source box,
+which is its documented contract and which every caller already falls back from; "Save as default"
+on a document footer then hands company settings the stored string rather than a re-serialization.
+
+**Line breaks are the one thing converted, and only on the way out.** The server runs `nl2br()` over
+these fields on the PDF path (`HtmlEngine.php:823`) and deletes newlines only for a request carrying
+`X-REACT` (`UpdateInvoiceRequest.php:191`), which this app does not send. A line break between two
+tags — the first thing anyone does in a source box — would print as a blank line on the invoice, and
+between two table rows as a blank line *above* the table, where the browser hoists the stray `<br>`.
+`wireHtmlFromSource` decides by where the break sits: inside a tag it is one space; beside a
+block-level tag or a `<br>` it is source formatting and is dropped (what the server does for React);
+between words **or beside an inline tag** it becomes `<br>`, because that is what the PDF already
+renders for it and what the rich path writes for the same value — collapsing it would join two lines
+of an address the first time `Company\nStreet` was edited as source. Two consequences, both accepted:
+source indented by hand comes back as one wrapped line on the next visit (React's source view shows
+`getHTML()`, also one line), and the first edit of a value stored *with* breaks between tags (legacy
+TinyMCE output) stops the PDF adding a blank line for each — which the rich editor already did to
+such a value.
+
+**Where the controls live, and why not in the label row.** Rich → HTML is a `</>` button at the end
+of the formatting toolbar, under the web app's own name for it (`source_code`): a resting field
+gains no chrome, and there are eight of them on the Defaults page. HTML → rich is a strip above the
+box, shown whether or not the box is focused, because a field full of tags has to say why at rest.
+While the value is forced the strip shows the reason instead of the button. Both sit **inside the
+frame**: the billing notes tabs pass `showLabel: false, expand: true`, which takes the early return
+at the top of the label-row code, and a label-row action there would put the `Expanded` frame into
+a Column with no bounded height.
+
+**What the mode has to keep its hands off.** The document, composer and editor are still built on
+every seed — `dispose`, the chip summary and the way back all need them — but nothing may write to
+them while they are hidden: `_onDocumentChange`, `_insertVariable`, the chip Undo closure (a toast
+outlives the switch) and `_applyPendingCaret` all check the mode first. `_editing` follows focus in
+HTML mode, since there is no reader to promote from; without that the blur block never ran, an
+emptied box never got its default back, and a default that arrived mid-edit was never adopted. And
+rich → HTML does **not** reseed: the toolbar is only up while a `SuperEditor` is mounted, and it is
+still holding the composer a reseed would dispose.
+
+**A consequence on the email surfaces.** A *customised* template that contains a table opens as
+source in Templates & Reminders and in Send Email, without chips. That is the right trade — one
+edited word there used to send the flattened table — and it is not the common case: none of the
+server's default templates contains a table (`EmailTemplateDefaults.php`), and Send Email's default
+body is the template's own body, not the wrapped email (`TemplateEngine.php:169`). "Insert variable"
+there writes the raw `$token` at the caret.
+
+**The source box is `readOnly`, never `enabled: false`.** A disabled `TextField` wraps itself in an
+`IgnorePointer` and takes its own scrolling with it — #107 again, for a footer longer than the box.
+Smart quotes, smart dashes, autocorrect, suggestions and spell check are all off, and the first is
+load-bearing: iOS would turn `style="width: 33%"` into the curly-quoted shape in the table above.
+
+**The box's text is not quite the source: embedded image data is shown as a placeholder.** The web
+app's image button embeds an upload as a `data:` URI (TipTap's `allowBase64`), so a footer with a
+logo in one cell is a single unbreakable word several hundred KB long. Measured under
+`flutter test` with a 300 KB payload: **~2.1 s to mount the box and ~2.0 s per keystroke**, all of it
+text layout — the emit itself (the wire rule plus the detectors) is 3 ms — and the markup the user
+came to edit is somewhere under a wall of `AAAA…`. `elideDataPayloads` swaps each payload of 512+
+characters for `[base64-data-1-300KB]` and `restoreDataPayloads` puts it back before anything leaves
+the box; with that the same value shows 104 characters and a keystroke costs what any other does.
+So `_htmlController.text` may only be compared with itself (`_lastHtmlText`, `_isPristine`);
+everything that reads it for its *meaning* — the emitted value, the detectors — goes through
+`_htmlSourceOf`. A deleted placeholder takes its image with it, a copied one brings it along, and a
+number with no payload behind it (pasted from another field) is left as typed rather than guessed
+at. The placeholder is plain ASCII on purpose: it has to render in the bundled mono face, and it
+must not read as markup, a `$variable`, or Twig. An image the user pastes in *while* editing is not
+elided until the next seed — rewriting the text under a live caret is the worse trade.
+
+**Ligatures are off in the box.** JetBrains Mono draws `</` and `/>` as single glyphs (`calt`). In
+a box whose whole content is tags that makes every closing tag look like a character nobody typed.
+
+Pinned by `test/utils/html_source_test.dart` (the detectors, the wire rule and its fixed point, the
+placeholders) and `test/ui/core/widgets/markdown_text_field_html_mode_test.dart` (verbatim seed with
+no emission, the three blanking shapes, the key-bump and late-default cases, the toggle, `expand`,
+read-only scrolling, an embedded image intact on the wire, the pending edit surviving teardown).

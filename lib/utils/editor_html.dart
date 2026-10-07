@@ -39,6 +39,7 @@ library;
 
 import 'package:super_editor/super_editor.dart';
 
+import 'package:admin/utils/html_source.dart';
 import 'package:admin/utils/legacy_html_markdown.dart';
 import 'package:admin/utils/notes_html.dart';
 
@@ -66,6 +67,48 @@ import 'package:admin/utils/notes_html.dart';
 String htmlFromEditableValue(String value) => htmlFromEditorDocument(
   deserializeMarkdownToDocument(markdownFromLegacyHtml(value)),
 );
+
+/// Whether a stored [value] must be shown as HTML source, because putting it
+/// through the rich editor would rewrite or delete part of it
+/// (invoiceninja/flutter#174). `MarkdownTextField` asks this on every seed.
+///
+/// Two reasons, and they are different kinds of reason:
+///
+///  * **It contains a table** ([hasTableMarkup]). The fold flattens the cells
+///    to paragraphs and the first keystroke stores that — a three-column
+///    footer becomes three stacked lines on every PDF.
+///  * **It would lose text.** The fold left a raw block the deserializer is
+///    about to delete ([foldLeftRawHtmlBlock]), the document comes out blank
+///    although the value has words in it, or deserializing throws. This is the
+///    half the report actually describes — "the footer appears empty" — and it
+///    is not a table check: `<p hidden>Gone</p>` has no table in it.
+///
+/// **Not** a formatting check, deliberately. A `<span style="color:red">`
+/// still opens in the rich editor and still loses its colour on the first
+/// edit; reporting every value the web app's toolbar can produce would show
+/// most of them as raw tags to people who have never seen one.
+///
+/// A value with no `<` in it is never HTML and is never reported, which also
+/// keeps the cost of this off every plain-text note.
+bool richEditorCannotHold(String value) {
+  if (!value.contains('<')) return false;
+  if (hasTableMarkup(value)) return true;
+  final folded = markdownFromLegacyHtml(value);
+  if (foldLeftRawHtmlBlock(folded)) return true;
+  // Nothing to lose: an image-only or rule-only value has no words, and a
+  // blank document is then the right answer rather than a symptom.
+  if (plainTextFromHtml(value).trim().isEmpty) return false;
+  if (folded.isEmpty) return true;
+  try {
+    return htmlFromEditorDocument(
+      deserializeMarkdownToDocument(folded),
+    ).isEmpty;
+  } catch (_) {
+    // The visitor throws on a few malformed shapes (a list item with no list).
+    // A value the editor cannot even open is one it cannot hold.
+    return true;
+  }
+}
 
 /// Renders [document] as the HTML to store.
 ///

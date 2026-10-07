@@ -101,6 +101,11 @@ String plainTextFromHtml(String input, {bool singleLine = false}) {
 
 /// Tags whose boundary is a paragraph break when markup is flattened to text.
 /// `br` is handled separately (one newline, not two).
+///
+/// `td` / `th` are here because a table need not be pretty-printed: TipTap
+/// writes `<td>Company</td><td>Bank</td>` with nothing between the cells, and
+/// with only `tr` in this set a three-column footer read `CompanyBankVAT` on
+/// every read-only surface (invoiceninja/flutter#174).
 const _kTextBlockTags = <String>{
   'address',
   'blockquote',
@@ -122,6 +127,8 @@ const _kTextBlockTags = <String>{
   'pre',
   'section',
   'table',
+  'td',
+  'th',
   'tr',
   'ul',
 };

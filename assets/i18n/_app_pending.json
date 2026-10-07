@@ -1323,5 +1323,7 @@
   "no_longer_open_quote": "This quote is no longer open.",
   "connect_to_load_record": "Connect to load this record.",
   "action_not_available": "That action is not available for this record.",
-  "could_not_load_label": "Couldn't load"
+  "could_not_load_label": "Couldn't load",
+  "rich_text": "Rich text",
+  "html_only_notice": "Shown as HTML because the rich text editor can't display this content without changing it."
 }

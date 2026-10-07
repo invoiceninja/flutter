@@ -1685,6 +1685,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Clipboard copy actions | ✅ | ✅ | ✅ | ✅ | |
 | Toast notifications | ✅ | ✅ | ✅ | ✅ | |
 | Markdown editor (rich text) | ✅ | ✅ | ✅ | ✅ | |
+| HTML source view for notes / terms / footer / templates — a table is kept intact instead of flattened (invoiceninja/flutter#174) | ✅ | ✅ | ✅ | | |
 | Restore-on-restart (resume last screen) | 🟡 | ✅ | ✅ | ✅ | |
 | Encrypted local persistence | — | ❌ | ✅ | ✅ | |
 

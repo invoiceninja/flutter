@@ -87,5 +87,20 @@ void main() {
         'one two three',
       );
     });
+
+    test('the cells of a table do not run together', () {
+      // TipTap writes a table with nothing between the cells, so with only
+      // `tr` treated as a boundary a three-column footer read
+      // `CompanyBankVAT` (invoiceninja/flutter#174).
+      const table =
+          '<table><tbody><tr><td><p>Company</p></td><td><p>Bank</p></td>'
+          '<th>VAT</th></tr></tbody></table>';
+      expect(plainTextFromHtml(table), 'Company\n\nBank\n\nVAT');
+      expect(plainTextFromHtml(table, singleLine: true), 'Company Bank VAT');
+      expect(
+        plainTextFromHtml('<table><tr><td>a</td><td>b</td></tr></table>'),
+        'a\n\nb',
+      );
+    });
   });
 }

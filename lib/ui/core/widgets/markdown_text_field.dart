@@ -17,6 +17,7 @@ import 'package:admin/ui/core/widgets/template_variables/template_default_badge.
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_picker.dart';
 import 'package:admin/utils/editor_html.dart';
+import 'package:admin/utils/html_source.dart';
 import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Handle the host can pass into [MarkdownTextField] to force the
@@ -42,7 +43,9 @@ class MarkdownFieldController {
   /// through the field's `onChanged`, and return the value the parent now
   /// holds (HTML — see [MarkdownTextField]). Returns null when the field isn't
   /// mounted or there's nothing to flush (the caller should fall back to its
-  /// known value).
+  /// known value) — which is always the case for a field showing HTML source
+  /// that nobody has edited: the stored string must reach the caller as
+  /// stored, and the caller is the one holding it.
   String? flush() => _flushHandler?.call();
 }
 
@@ -58,6 +61,14 @@ class MarkdownFieldController {
 /// evidence for that in its own library comment (invoiceninja/flutter#159).
 /// Plain text and legacy markdown still load correctly; they are rewritten to
 /// HTML on the user's first real edit, never merely by being opened.
+///
+/// **A value the document cannot hold is shown as its own HTML instead**
+/// (invoiceninja/flutter#174): one containing a table, or one the fold would
+/// silently delete text from — see `richEditorCannotHold`. The frame then
+/// hosts a plain source box holding the stored string verbatim, and nothing
+/// about it is converted in either direction except line breaks on the way out
+/// (`wireHtmlFromSource`). Any other field can be switched to its source from
+/// the formatting toolbar, and back from the strip above the box.
 ///
 /// Bound to a one-way data flow: parent owns the truth and feeds [initialValue]
 /// + [externalValueKey]; when the key changes and the new value differs from
@@ -225,6 +236,60 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// How [MarkdownTextField.defaultValue] serializes; null without one.
   String? _defaultSerialized;
 
+  /// True while the frame shows the value's own HTML in [_htmlController]
+  /// instead of the document — because the document cannot hold it
+  /// ([_htmlForced]) or because the user asked ([_userChoseHtml]).
+  ///
+  /// The document, composer and editor are still built on every seed: `dispose`
+  /// and the chip summary read them, and the way back to rich text needs
+  /// somewhere to land. They are simply not shown, and — this is the part the
+  /// guards scattered through this class are for — **not written**.
+  bool _htmlMode = false;
+
+  /// The source cannot be put through the document without rewriting or
+  /// deleting part of it (`richEditorCannotHold`). Decided on every seed and
+  /// re-decided on every emit from the box's own text, so deleting the table
+  /// brings the way back to rich text with it.
+  bool _htmlForced = false;
+
+  /// The user switched this field to its source. Kept for the life of the
+  /// State and across reseeds: it is a choice about the field, not about the
+  /// value in it.
+  bool _userChoseHtml = false;
+
+  /// The source box. Holds the stored string **verbatim** — no fold, no
+  /// re-serialization — which is the entire point of the mode.
+  final _htmlController = TextEditingController();
+
+  /// [_htmlController]'s text at the last emit check: [_lastSerialized]'s twin
+  /// for the source box, and what makes a type-and-revert emit nothing.
+  String _lastHtmlText = '';
+
+  /// The base64 image payloads the box is showing placeholders for — see
+  /// `elideDataPayloads`. **The box's text is therefore not quite the source**:
+  /// everything that reads it for its meaning goes through [_htmlSourceOf],
+  /// and only comparisons of the box against itself use the text directly.
+  List<String> _htmlPayloads = const [];
+
+  /// The string the parent holds, **as stored**: what the last seed was given,
+  /// until this field emits, and then what it emitted.
+  ///
+  /// Not [_lastEmitted], which in rich mode is baselined to the *canonical
+  /// re-serialization* of the seed (so that opening a record emits nothing).
+  /// That is the right thing to compare a serialize against and the wrong
+  /// thing to show somebody as "the source": switching an untouched field to
+  /// HTML and back must be able to change nothing at all.
+  String _held = '';
+
+  /// Whether this field has handed the parent a value since the last seed.
+  bool _emittedSinceSeed = false;
+
+  /// [MarkdownTextField.defaultValue] as stored, at the last seed — `''` when
+  /// there is none worth showing. The source box's counterpart to
+  /// [_defaultSerialized], and frozen at the seed for the same reason: a
+  /// default that changes mid-edit is adopted on the blur, not underfoot.
+  String _seededDefault = '';
+
   /// The document [_reseedDefault] last replaced, until the next seed — so
   /// the Undo for a change that emptied the body can still put it back.
   MutableDocument? _clearedDocument;
@@ -263,8 +328,14 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
 
   /// The parent holds `''` — the default — but the document isn't it: the
   /// body was emptied, by hand or by removing its last chip.
+  ///
+  /// In the source box "isn't it" can only mean *emptied*: the box maps its
+  /// text to `''` in exactly two cases, and the other one is the default.
   bool get _needsDefaultReseed =>
-      _showingDefault && _lastSerialized != _defaultSerialized;
+      _showingDefault &&
+      (_htmlMode
+          ? _lastHtmlText.trim().isEmpty
+          : _lastSerialized != _defaultSerialized);
 
   /// The document is exactly what the parent believes it is: no edit waiting
   /// on the debounce, and what it serializes to is still the default's (or
@@ -274,8 +345,15 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// stays `''` for a whole typing burst — the debounce restarts on every
   /// keystroke, so "the parent has nothing" is true right up until the user
   /// pauses. Reseeding on that reads as losing everything they just typed.
+  ///
+  /// The source box answers from its own text. [_lastSerialized] describes a
+  /// document nobody is looking at there, and a default reseeded on its say-so
+  /// would replace what the user is in the middle of typing.
   bool get _isPristine =>
-      _debounce == null && _lastSerialized == (_defaultSerialized ?? '');
+      _debounce == null &&
+      (_htmlMode
+          ? _htmlController.text == _lastHtmlText
+          : _lastSerialized == (_defaultSerialized ?? ''));
 
   bool get _chipsEditable => widget.enabled && !widget.readOnly;
   // When false, the heavy editing `SuperEditor` (which attaches an IME
@@ -353,12 +431,16 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
 
   /// Cancel the debounce, serialize now, emit if changed, return the value the
   /// parent now holds. Wired to [MarkdownFieldController.flush].
-  String _flushNow() {
+  ///
+  /// Null from an untouched source box. There is nothing to flush, and the
+  /// caller's own copy is the stored string — every caller already falls back
+  /// to it. The rich path keeps answering with its baseline, as it always has.
+  String? _flushNow() {
     _debounce?.cancel();
     _debounce = null;
     final value = _emitCurrent();
     _reportEditing(false);
-    return value;
+    return _htmlMode && !_emittedSinceSeed ? null : value;
   }
 
   /// Every serialize goes through here: chips back into tokens, stray U+FFFC
@@ -382,15 +464,75 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// Serialize, and emit when the value changed. Returns the value the parent
   /// now holds.
   String _emitCurrent() {
+    if (_htmlMode) return _emitHtml();
     final md = _serialize();
     if (md == _lastSerialized) return _lastEmitted;
     _lastSerialized = md;
     final value = _valueFor(md);
     if (value != _lastEmitted) {
       _lastEmitted = value;
+      _held = value;
+      _emittedSinceSeed = true;
       widget.onChanged(value);
     }
     return _lastEmitted;
+  }
+
+  /// What the parent should hold for the source box's [text]: the text itself,
+  /// with only its line breaks resolved (`wireHtmlFromSource` — the server
+  /// `nl2br`s these fields), and `''` when that is the default template, so
+  /// editing back to the default restores it exactly as the rich path does.
+  String _htmlValueFor(String text) {
+    final wire = wireHtmlFromSource(_htmlSourceOf(text));
+    return _seededDefault.isNotEmpty &&
+            wire == wireHtmlFromSource(_seededDefault)
+        ? ''
+        : wire;
+  }
+
+  /// [_emitCurrent] for the source box.
+  String _emitHtml() {
+    final text = _htmlController.text;
+    if (text == _lastHtmlText) return _lastEmitted;
+    _lastHtmlText = text;
+    final value = _htmlValueFor(text);
+    if (value != _lastEmitted) {
+      _lastEmitted = value;
+      _held = value;
+      _emittedSinceSeed = true;
+      widget.onChanged(value);
+    }
+    // Whether the way back to rich text is open follows the text, not the
+    // seed: deleting the table opens it, typing one closes it.
+    final forced = richEditorCannotHold(_htmlSource(text));
+    if (forced != _htmlForced) {
+      if (mounted) {
+        setState(() => _htmlForced = forced);
+      } else {
+        _htmlForced = forced;
+      }
+    }
+    return _lastEmitted;
+  }
+
+  /// The string the source box stands for — its source, or the default
+  /// template the server uses while it is empty.
+  String _htmlSource(String text) =>
+      text.trim().isEmpty ? _seededDefault : _htmlSourceOf(text);
+
+  /// The box's [text] with its image payloads put back: the HTML itself.
+  String _htmlSourceOf(String text) => restoreDataPayloads(text, _htmlPayloads);
+
+  /// Puts [stored] in the source box, with any embedded image data stood in
+  /// for by a placeholder. The only writer of the box besides the user (and
+  /// "Insert variable", which edits the text that is already there).
+  void _showInSourceBox(String stored) {
+    final shown = elideDataPayloads(stored);
+    _htmlPayloads = shown.payloads;
+    if (_htmlController.text != shown.text) {
+      _htmlController.value = TextEditingValue(text: shown.text);
+    }
+    _lastHtmlText = shown.text;
   }
 
   @override
@@ -472,10 +614,20 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     if (_debounce != null) {
       _debounce!.cancel();
       _debounce = null;
-      final md = _serialize();
-      if (md != _lastSerialized) {
-        final value = _valueFor(md);
-        if (value != _lastEmitted) pending = value;
+      if (_htmlMode) {
+        // Read before the controller goes: the source box's pending edit is
+        // its text, not the document's serialization.
+        final text = _htmlController.text;
+        if (text != _lastHtmlText) {
+          final value = _htmlValueFor(text);
+          if (value != _lastEmitted) pending = value;
+        }
+      } else {
+        final md = _serialize();
+        if (md != _lastSerialized) {
+          final value = _valueFor(md);
+          if (value != _lastEmitted) pending = value;
+        }
       }
     }
     widget.controller?._detach(_flushNow);
@@ -484,6 +636,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _focusNode.removeListener(_onFocusChanged);
     if (_ownsFocusNode) _focusNode.dispose();
     _composer.dispose();
+    _htmlController.dispose();
     if (pending != null) {
       final emit = widget.onChanged;
       scheduleMicrotask(() => emit(pending!));
@@ -491,7 +644,10 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     super.dispose();
   }
 
-  void _seedDocument(String markdown) {
+  /// Seeds the field from [value], the string as stored (HTML, or legacy
+  /// markdown / plain text), and decides whether it is shown as a document or
+  /// as its own source.
+  void _seedDocument(String value) {
     _isApplyingExternal = true;
     _clearedDocument = null;
     _pendingDefaultSeed = false;
@@ -504,14 +660,17 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       _composer.dispose();
     }
 
-    final sanitized = _sanitize(markdown);
+    final sanitized = _sanitize(value);
     final defaultMarkdown = _sanitize(widget.defaultValue ?? '');
     // An empty value shows the default template, when there is one.
     final source = sanitized.isEmpty ? defaultMarkdown : sanitized;
     final scope = widget.templateVariables;
-    var document = source.isEmpty
-        ? MutableDocument.empty()
-        : deserializeMarkdownToDocument(source);
+    // super_editor's visitor throws on a few malformed shapes. That used to
+    // take the whole field down; a value the document cannot even be built
+    // from is now simply one more that is shown as source (below).
+    final parsed = source.isEmpty ? null : _tryDeserialize(source);
+    final seedFailed = source.isNotEmpty && parsed == null;
+    var document = parsed ?? MutableDocument.empty();
     // Every field: undo linkify's `$client.name` → link corruption in content
     // saved while it was live. Before the baseline, so it emits nothing.
     document = healTemplateVariableLinks(document);
@@ -532,12 +691,18 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       superEditorLaunchLinkTapHandlerFactory,
     ];
     _document.addListener(_onDocumentChange);
+    final defaultDocument = defaultMarkdown.isEmpty
+        ? null
+        : _tryDeserialize(defaultMarkdown);
     _defaultSerialized = defaultMarkdown.isEmpty
         ? null
+        // A default that will not parse still *is* a default — the badge, the
+        // caption and "an empty value means the default" all hang off this
+        // being non-null — so it keeps its fold as a stand-in.
+        : defaultDocument == null
+        ? defaultMarkdown
         : serializeDocumentToMarkdown(
-            healTemplateVariableLinks(
-              deserializeMarkdownToDocument(defaultMarkdown),
-            ),
+            healTemplateVariableLinks(defaultDocument),
           );
     // Baseline against what the editor would actually serialize right now —
     // not against the unsanitized input. The deserialize → serialize round
@@ -550,11 +715,42 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // stored as legacy plain text or markdown is rewritten on the user's first
     // real edit, never merely by being opened or saved untouched — the
     // `md == _lastSerialized` guard in `_emitCurrent` is what makes that true.
-    _lastEmitted = sanitized.isEmpty && _defaultSerialized != null
+    final showsDefault = sanitized.isEmpty && _defaultSerialized != null;
+    _lastEmitted = showsDefault ? '' : _valueFor(_lastSerialized);
+    _held = value;
+    _emittedSinceSeed = false;
+
+    // Document or source? Asked of what the frame actually stands for — the
+    // value, or the default template it falls back to — and of the string *as
+    // stored*, before the fold has stripped the tags that answer it. A table in
+    // the default matters exactly as much as one in the value: the Send Email
+    // body is an empty value over a default, and one edited word there used to
+    // send the flattened table.
+    _seededDefault = _defaultSerialized == null
         ? ''
-        : _valueFor(_lastSerialized);
+        : (widget.defaultValue ?? '');
+    final stored = showsDefault ? _seededDefault : value;
+    _htmlForced = seedFailed || richEditorCannotHold(stored);
+    _htmlMode = _htmlForced || _userChoseHtml;
+    if (_htmlMode) {
+      _showInSourceBox(stored);
+      // The parent holds the stored string, so that — not the document's
+      // re-serialization of it — is the baseline. It is what keeps the reseed
+      // guard in `didUpdateWidget` exact here: against the canonical form a
+      // table's value always "differs" (it is the flattened one), and every
+      // rebuild that bumped the key would reseed the box under the caret.
+      if (!showsDefault) _lastEmitted = value;
+    }
     _initialized = true;
     _isApplyingExternal = false;
+  }
+
+  MutableDocument? _tryDeserialize(String markdown) {
+    try {
+      return deserializeMarkdownToDocument(markdown);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Folds the HTML that the React (TinyMCE) client and the pre-v5 apps store
@@ -563,8 +759,21 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// so this runs on every seed. See `markdownFromLegacyHtml`.
   String _sanitize(String md) => markdownFromLegacyHtml(md);
 
+  /// The source box's `onChanged` — [_onDocumentChange] for the other mode,
+  /// deliberately the same three steps. Wired through `TextField.onChanged`
+  /// and not a controller listener: a listener also fires for every caret move
+  /// and for the reseed's own write, and would report an edit for both.
+  void _onHtmlChanged(String _) {
+    _reportEditing(true);
+    _debounce?.cancel();
+    _debounce = Timer(widget.debounce, _emitNow);
+    if (mounted) const UserActivityNotification().dispatch(context);
+  }
+
   void _onDocumentChange(DocumentChangeLog _) {
-    if (_isApplyingExternal) return;
+    // The document is hidden behind the source box and is not the value; an
+    // edit to it there (a late chip Undo) must not be emitted over the source.
+    if (_isApplyingExternal || _htmlMode) return;
     // Before the debounce: a host whose dirty flag is read during build can't
     // wait for `onChanged`. `_isApplyingExternal` above is what keeps this to
     // genuine user edits — a seed installs a *new* document and this listener
@@ -635,7 +844,11 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   void _restoreNow(String value) {
     final held = _lastEmitted;
     setState(() => _seedDocument(value));
-    if (_lastEmitted != held) widget.onChanged(_lastEmitted);
+    if (_lastEmitted != held) {
+      _held = _lastEmitted;
+      _emittedSinceSeed = true;
+      widget.onChanged(_lastEmitted);
+    }
   }
 
   /// A chip was tapped (in the editor, or through the reader's hit-test):
@@ -648,14 +861,16 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     required bool fromEditor,
   }) async {
     final scope = widget.templateVariables;
-    if (scope == null || !_chipsEditable) return;
+    if (scope == null || !_chipsEditable || _htmlMode) return;
     final pick = await showTemplateVariablePicker(
       context,
       scope: scope,
       currentToken: hit.token,
       values: _values,
     );
-    if (pick == null || !mounted) return;
+    // The mode can change while the picker is up, and there are no chips in
+    // the source box to change.
+    if (pick == null || !mounted || _htmlMode) return;
     // Settle an edit still in its debounce first, so the Undo below knows
     // exactly what the parent held before this change.
     _debounce?.cancel();
@@ -716,7 +931,9 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       context,
       context.tr(replacement == null ? 'removed' : 'updated'),
       action: NotifyAction(context.tr('undo'), () {
-        if (!mounted) return;
+        // The toast outlives a switch to the source box, where this would
+        // edit a document nobody can see.
+        if (!mounted || _htmlMode) return;
         if (!identical(document, _document)) {
           // Only our own reseed of the default is undone, and only while the
           // default is untouched; any other reseed (Reset to default, an
@@ -761,6 +978,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   Future<void> _insertVariable() async {
     final scope = widget.templateVariables;
     if (scope == null || !_chipsEditable) return;
+    if (_htmlMode) return _insertVariableIntoSource(scope);
     final selection = _editing ? _composer.selection : null;
     final pick = await showTemplateVariablePicker(
       context,
@@ -813,6 +1031,40 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     if (atCaret) _enterEditing();
   }
 
+  /// "Insert variable" for the source box: the raw `$token` at the caret,
+  /// replacing a selection, or at the end when the box has never had one.
+  /// There are no chips in source — the token is the text.
+  ///
+  /// The selection is read **before** the picker opens (its route takes the
+  /// focus) and checked against the text **after**, since the box can be
+  /// reseeded while the picker is up.
+  Future<void> _insertVariableIntoSource(TemplateVariableScope scope) async {
+    final selection = _htmlController.selection;
+    final pick = await showTemplateVariablePicker(
+      context,
+      scope: scope,
+      values: _values,
+    );
+    if (pick is! TemplateVariablePicked || !mounted || !_htmlMode) return;
+    final text = _htmlController.text;
+    final atCaret = selection.isValid && selection.end <= text.length;
+    final start = atCaret ? selection.start : text.length;
+    final end = atCaret ? selection.end : text.length;
+    // Same rule as the document: a token must not run into the word after it,
+    // or `$client.name` followed by `x` reads as a different variable.
+    final after = end < text.length ? text[end] : '';
+    final token = templateVariableContinuesToken(after)
+        ? '${pick.token} '
+        : pick.token;
+    final next = text.replaceRange(start, end, token);
+    _htmlController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + token.length),
+    );
+    // A programmatic write does not come back through `TextField.onChanged`.
+    _onHtmlChanged(next);
+  }
+
   /// The reader sits under a `SliverIgnorePointer`, so a tap on one of its
   /// chips arrives here, as the promote tap, and is hit-tested against the
   /// reader's layout. True when it was a chip (and the promote is swallowed).
@@ -849,6 +1101,13 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       _debounce!.cancel();
       _debounce = null;
       _emitNow();
+    }
+    // The source box has no reader to promote from — it takes the focus node
+    // directly — so `_editing` has to follow focus here or the blur below
+    // never runs for it: an emptied box would not get its default back, and a
+    // default that arrived mid-edit would never be adopted.
+    if (_htmlMode && _focusNode.hasFocus && !_editing && mounted) {
+      setState(() => _editing = true);
     }
     // Drop back to the read-only `SuperReader` when focus leaves so the
     // IME client is released and this field stops participating in focus
@@ -909,7 +1168,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _pendingCaret = null;
     if (position == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_editing) return;
+      if (!mounted || !_editing || _htmlMode) return;
       // The document was reseeded between the tap and this frame (a default
       // reseed, an external value): the captured node id no longer exists.
       if (_document.getNodeById(position.nodeId) == null) return;
@@ -920,6 +1179,56 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
           SelectionReason.userInteraction,
         ),
       ]);
+    });
+  }
+
+  /// The toolbar's `</>`: show this field's HTML instead of the document.
+  ///
+  /// Three things it must not do. **Emit** — the box opens on [_held], the
+  /// string the parent already holds, so a look at the source changes nothing
+  /// (a rich edit still in its debounce is settled first, and that emit is the
+  /// edit's, not the switch's). **Reseed** — the toolbar is only up while a
+  /// `SuperEditor` is mounted, and it is still holding the composer a reseed
+  /// would dispose (the hazard [_restore] defers a frame for). And **lose the
+  /// focus** — the user was typing; the box takes the same focus node.
+  void _showSource() {
+    if (_htmlMode) return;
+    _debounce?.cancel();
+    _debounce = null;
+    _emitNow();
+    final showsDefault = _showingDefault;
+    final stored = showsDefault ? _seededDefault : _held;
+    setState(() {
+      _userChoseHtml = true;
+      _htmlMode = true;
+      _htmlForced = richEditorCannotHold(stored);
+      _showInSourceBox(stored);
+      // From here the baseline is the stored string — see `_seedDocument`.
+      if (!showsDefault) _lastEmitted = _held;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _htmlMode) _focusNode.requestFocus();
+    });
+  }
+
+  /// The strip's "Rich text": back to the document, seeded from [_held].
+  ///
+  /// Refused while the source is one the document cannot hold — the strip
+  /// shows why instead of the button, and this re-checks because the edit
+  /// being settled here may be the one that typed the table.
+  void _showRichText() {
+    if (!_htmlMode) return;
+    _debounce?.cancel();
+    _debounce = null;
+    _emitNow();
+    if (!mounted || !_htmlMode || _htmlForced) return;
+    setState(() {
+      _userChoseHtml = false;
+      // Land on the reader, as every other way into rich text does; no
+      // `SuperEditor` is mounted over the source box, so this reseed is safe
+      // to run at once.
+      _editing = false;
+      _seedDocument(_held);
     });
   }
 
@@ -964,7 +1273,9 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     final t = context.inTheme;
     final disabled = !widget.enabled;
     final canEdit = widget.enabled && !widget.readOnly;
-    final showEditor = canEdit && _editing;
+    // The source box is neither reader nor editor: it replaces both, so no
+    // `SuperEditor` (and no toolbar) is ever mounted while it is showing.
+    final showEditor = canEdit && _editing && !_htmlMode;
     final showToolbar = showEditor;
 
     // The sliver fed into the CustomScrollView host below. Nothing that
@@ -1008,43 +1319,45 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // `t.accent` matches every other caret and selection handle in the app —
     // M3 defaults a `TextField` cursor to `colorScheme.primary`, which is the
     // same token.
-    final Widget sliver = Theme(
-      data: Theme.of(context).copyWith(primaryColor: t.accent),
-      child: showEditor
-          ? SuperEditor(
-              editor: _editor,
-              focusNode: _focusNode,
-              // The reader had no editing focus to hand over, so grab focus on
-              // mount. Caret lands at the document edge rather than the exact
-              // tap offset — an accepted tradeoff for never colliding IME
-              // registrations across the many-editor screens.
-              autofocus: true,
-              stylesheet: _buildStylesheet(t, muted: _showingDefault),
-              contentTapDelegateFactories: _tapFactories,
-              // The *desktop* caret color isn't stylesheet-controllable in
-              // super_editor; the only seam is the overlay-builder list. The
-              // package default (`DefaultCaretOverlayBuilder`) hardcodes black
-              // — invisible in dark mode — so reuse the default builders
-              // (keeping the mobile selection/handle overlays untouched; those
-              // are themed by the `primaryColor` override above) and swap just
-              // the desktop caret for a theme-aware one. `t.ink` is the primary
-              // foreground token: near-black in light mode, near-white in dark,
-              // matching the editor's body text color above.
-              documentOverlayBuilders: [
-                ...defaultSuperEditorDocumentOverlayBuilders.where(
-                  (b) => b is! DefaultCaretOverlayBuilder,
-                ),
-                DefaultCaretOverlayBuilder(
-                  caretStyle: CaretStyle(width: 2, color: t.ink),
-                ),
-              ],
-            )
-          : SuperReader(
-              editor: _editor,
-              documentLayoutKey: _readerLayoutKey,
-              stylesheet: _buildStylesheet(t, muted: _showingDefault),
-            ),
-    );
+    final Widget? sliver = _htmlMode
+        ? null
+        : Theme(
+            data: Theme.of(context).copyWith(primaryColor: t.accent),
+            child: showEditor
+                ? SuperEditor(
+                    editor: _editor,
+                    focusNode: _focusNode,
+                    // The reader had no editing focus to hand over, so grab focus on
+                    // mount. Caret lands at the document edge rather than the exact
+                    // tap offset — an accepted tradeoff for never colliding IME
+                    // registrations across the many-editor screens.
+                    autofocus: true,
+                    stylesheet: _buildStylesheet(t, muted: _showingDefault),
+                    contentTapDelegateFactories: _tapFactories,
+                    // The *desktop* caret color isn't stylesheet-controllable in
+                    // super_editor; the only seam is the overlay-builder list. The
+                    // package default (`DefaultCaretOverlayBuilder`) hardcodes black
+                    // — invisible in dark mode — so reuse the default builders
+                    // (keeping the mobile selection/handle overlays untouched; those
+                    // are themed by the `primaryColor` override above) and swap just
+                    // the desktop caret for a theme-aware one. `t.ink` is the primary
+                    // foreground token: near-black in light mode, near-white in dark,
+                    // matching the editor's body text color above.
+                    documentOverlayBuilders: [
+                      ...defaultSuperEditorDocumentOverlayBuilders.where(
+                        (b) => b is! DefaultCaretOverlayBuilder,
+                      ),
+                      DefaultCaretOverlayBuilder(
+                        caretStyle: CaretStyle(width: 2, color: t.ink),
+                      ),
+                    ],
+                  )
+                : SuperReader(
+                    editor: _editor,
+                    documentLayoutKey: _readerLayoutKey,
+                    stylesheet: _buildStylesheet(t, muted: _showingDefault),
+                  ),
+          );
 
     // Wrap the editor frame in [TextInputFocusScope] so the app-wide
     // `isTextInputFocused()` guard returns true while the caret is in
@@ -1073,38 +1386,48 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
                     _convertSelectedToList(ListItemType.unordered),
                 onNumberedList: () =>
                     _convertSelectedToList(ListItemType.ordered),
+                onSource: _showSource,
               ),
-            _EditorHost(
-              height: widget.height,
-              maxHeight: widget.maxHeight,
-              expand: widget.expand,
-              // In reader mode the inner `SuperReader` subtree is `ExcludeFocus`'d
-              // so its deep, possibly-unlaid render objects stay out of the
-              // geometry-based `ReadingOrderTraversalPolicy` sort (closes the
-              // `hasSize` crash), while a single lightweight host `Focus` node
-              // remains Tab-reachable and keyboard-activatable. Tap or keyboard
-              // activation promotes the field to the editing `SuperEditor`.
-              // These wrappers sit *outside* the sliver host — never between it
-              // and the editor — so the sliver protocol stays intact.
-              //
-              // Edge: a field scrolled off-screen in a `TabBarView` while still
-              // focused/editing keeps its `SuperEditor` mounted; switching tabs
-              // normally unfocuses it (→ reader), so this is not a live path.
-              excludeFocus: !showEditor,
-              // Everything but the live `readOnly` reader blocks pointers into
-              // the document: the tap-to-edit reader so its tap layer wins the
-              // arena, and a disabled field because it takes no input at all.
-              // This used to be inferred from `enterEditing != null`, which
-              // left the disabled case to a frame-level `IgnorePointer` —
-              // i.e. to the very construct #107 was about.
-              ignorePointer:
-                  !showEditor && !(widget.readOnly && widget.enabled),
-              enterEditing: (!showEditor && canEdit) ? _enterEditing : null,
-              chipTapAt: widget.templateVariables == null
-                  ? null
-                  : _readerChipTapAt,
-              sliver: sliver,
-            ),
+            if (_htmlMode) ...[
+              _HtmlSourceStrip(
+                forced: _htmlForced,
+                // Only an editable field can leave: a read-only or disabled
+                // one is here because its value is, and has no say in it.
+                onRichText: canEdit ? _showRichText : null,
+              ),
+              _buildSourceHost(t, canEdit: canEdit),
+            ] else
+              _EditorHost(
+                height: widget.height,
+                maxHeight: widget.maxHeight,
+                expand: widget.expand,
+                // In reader mode the inner `SuperReader` subtree is `ExcludeFocus`'d
+                // so its deep, possibly-unlaid render objects stay out of the
+                // geometry-based `ReadingOrderTraversalPolicy` sort (closes the
+                // `hasSize` crash), while a single lightweight host `Focus` node
+                // remains Tab-reachable and keyboard-activatable. Tap or keyboard
+                // activation promotes the field to the editing `SuperEditor`.
+                // These wrappers sit *outside* the sliver host — never between it
+                // and the editor — so the sliver protocol stays intact.
+                //
+                // Edge: a field scrolled off-screen in a `TabBarView` while still
+                // focused/editing keeps its `SuperEditor` mounted; switching tabs
+                // normally unfocuses it (→ reader), so this is not a live path.
+                excludeFocus: !showEditor,
+                // Everything but the live `readOnly` reader blocks pointers into
+                // the document: the tap-to-edit reader so its tap layer wins the
+                // arena, and a disabled field because it takes no input at all.
+                // This used to be inferred from `enterEditing != null`, which
+                // left the disabled case to a frame-level `IgnorePointer` —
+                // i.e. to the very construct #107 was about.
+                ignorePointer:
+                    !showEditor && !(widget.readOnly && widget.enabled),
+                enterEditing: (!showEditor && canEdit) ? _enterEditing : null,
+                chipTapAt: widget.templateVariables == null
+                    ? null
+                    : _readerChipTapAt,
+                sliver: sliver!,
+              ),
           ],
         ),
       ),
@@ -1117,9 +1440,11 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // is hidden and `enterEditing` is null.
     final scope = widget.templateVariables;
     Widget body = disabled ? Opacity(opacity: 0.55, child: frame) : frame;
-    if (scope != null) {
+    if (scope != null && !_htmlMode) {
       // super_editor has no semantics layer (and its inline widgets sit under
-      // an IgnorePointer), so the chips are summarised on the frame.
+      // an IgnorePointer), so the chips are summarised on the frame. The
+      // source box needs none of this: it is a real text field, it has no
+      // chips, and it reads its own tokens out as the text they are.
       body = Semantics(
         container: true,
         label: widget.label,
@@ -1190,12 +1515,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
                     alignment: WrapAlignment.end,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (insert)
-                        FieldActionButton(
-                          icon: Icons.add,
-                          label: context.tr('insert_variable'),
-                          onPressed: _insertVariable,
-                        ),
+                      if (insert) _insertVariableButton(context),
                       ?trailing,
                     ],
                   ),
@@ -1206,6 +1526,93 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
         ),
         body,
       ],
+    );
+  }
+
+  Widget _insertVariableButton(BuildContext context) {
+    final button = FieldActionButton(
+      icon: Icons.add,
+      label: context.tr('insert_variable'),
+      onPressed: _insertVariable,
+    );
+    // Over the source box the button joins the text field's tap region, so
+    // pressing it is not a "tap outside" and does not blur the box on the way
+    // down — the token goes in at a caret the user can still see. (The rich
+    // editor is not a text field and has no such region to join.)
+    return _htmlMode ? TextFieldTapRegion(child: button) : button;
+  }
+
+  /// The source box: a plain multi-line text field over [_htmlController],
+  /// sized by the same three rules as the document host — `height` is a
+  /// floor, the content grows it to the same ceiling, and `expand` hands the
+  /// height to the parent.
+  ///
+  /// **`readOnly`, never `enabled: false`.** A disabled `TextField` wraps
+  /// itself in an `IgnorePointer`, which switches off its own scrolling too —
+  /// a footer longer than the box could then not be read at all, which is
+  /// invoiceninja/flutter#107 over again. A field that is disabled or showing
+  /// an inherited value is read-only and still scrolls; the frame's dim is
+  /// what says "disabled".
+  ///
+  /// Every text-assist feature is off, and that is not tidiness: iOS smart
+  /// quotes rewrite `style="width: 33%"` into the curly-quoted shape that
+  /// makes the fold refuse the tag — the very thing that blanked the reporter's
+  /// footer — and autocorrect has opinions about `colspan`.
+  Widget _buildSourceHost(InTheme t, {required bool canEdit}) {
+    final field = TextField(
+      controller: _htmlController,
+      focusNode: _focusNode,
+      readOnly: !canEdit,
+      canRequestFocus: widget.enabled,
+      maxLines: null,
+      expands: widget.expand,
+      textAlignVertical: TextAlignVertical.top,
+      autocorrect: false,
+      enableSuggestions: false,
+      smartDashesType: SmartDashesType.disabled,
+      smartQuotesType: SmartQuotesType.disabled,
+      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+      textCapitalization: TextCapitalization.none,
+      style: TextStyle(
+        fontFamily: kMonoFontFamily,
+        fontSize: 13,
+        height: 1.4,
+        // The untouched default template reads muted, as it does as a document.
+        color: _showingDefault ? t.ink2 : t.ink,
+        // JetBrains Mono draws `</` and `/>` as single ligature glyphs. Fine in
+        // an IDE; in a box whose whole content is tags it makes every closing
+        // tag look like a different character from the one that was typed.
+        fontFeatures: const [
+          FontFeature.disable('calt'),
+          FontFeature.disable('liga'),
+        ],
+      ),
+      cursorColor: t.accent,
+      decoration: InputDecoration(
+        isCollapsed: true,
+        filled: false,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: InSpacing.md(context),
+          vertical: InSpacing.sm,
+        ),
+      ),
+      onChanged: _onHtmlChanged,
+    );
+    if (widget.expand) return Expanded(child: field);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: widget.height,
+        maxHeight: _resolveEditorMaxHeight(
+          context,
+          height: widget.height,
+          maxHeight: widget.maxHeight,
+        ),
+      ),
+      child: field,
     );
   }
 
@@ -1348,7 +1755,11 @@ class _EditorHostState extends State<_EditorHost> {
             // the same box, which is the other half of #107.
             constraints: BoxConstraints(
               minHeight: height,
-              maxHeight: _resolveMaxHeight(context),
+              maxHeight: _resolveEditorMaxHeight(
+                context,
+                height: height,
+                maxHeight: widget.maxHeight,
+              ),
             ),
             // `shrinkWrap` is cheap here despite its reputation: super_editor
             // hands us a single `SliverToBoxAdapter` that lays the whole
@@ -1413,18 +1824,21 @@ class _EditorHostState extends State<_EditorHost> {
     // so there's no dead space below the editor inside a fixed-height panel.
     return expand ? Expanded(child: host) : host;
   }
-
-  /// Ceiling on the content-driven growth. Half the viewport keeps a long
-  /// note from crowding out the fields around it while still showing several
-  /// times what the old fixed box did; the 480 cap keeps a desktop settings
-  /// field from turning into a page of its own. Never below [height], so a
-  /// caller's floor always wins.
-  double _resolveMaxHeight(BuildContext context) => math.max(
-    widget.height,
-    widget.maxHeight ??
-        math.min(MediaQuery.sizeOf(context).height * 0.5, 480.0),
-  );
 }
+
+/// Ceiling on the content-driven growth, for the document host and the source
+/// box alike. Half the viewport keeps a long note from crowding out the fields
+/// around it while still showing several times what the old fixed box did; the
+/// 480 cap keeps a desktop settings field from turning into a page of its own.
+/// Never below [height], so a caller's floor always wins.
+double _resolveEditorMaxHeight(
+  BuildContext context, {
+  required double height,
+  required double? maxHeight,
+}) => math.max(
+  height,
+  maxHeight ?? math.min(MediaQuery.sizeOf(context).height * 0.5, 480.0),
+);
 
 class _MarkdownToolbar extends StatelessWidget {
   const _MarkdownToolbar({
@@ -1435,6 +1849,7 @@ class _MarkdownToolbar extends StatelessWidget {
     required this.onUnderline,
     required this.onBulletList,
     required this.onNumberedList,
+    required this.onSource,
   });
 
   final MutableDocumentComposer composer;
@@ -1449,6 +1864,12 @@ class _MarkdownToolbar extends StatelessWidget {
   final VoidCallback onUnderline;
   final VoidCallback onBulletList;
   final VoidCallback onNumberedList;
+
+  /// Switch the field to its HTML source. Lives here, with the formatting
+  /// tools and only while editing, so a resting field gains no chrome — eight
+  /// of these sit on the Defaults page alone — and under the web app's own
+  /// name for it (`source_code`), where its users already know to look.
+  final VoidCallback onSource;
 
   @override
   Widget build(BuildContext context) {
@@ -1502,6 +1923,12 @@ class _MarkdownToolbar extends StatelessWidget {
                 tooltip: context.tr('numbered_list'),
                 onPressed: onNumberedList,
               ),
+              const SizedBox(width: InSpacing.sm),
+              _ToolbarButton(
+                icon: Icons.code,
+                tooltip: context.tr('source_code'),
+                onPressed: onSource,
+              ),
             ],
           );
         },
@@ -1543,6 +1970,79 @@ class _ToolbarButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(InRadii.r1),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The bar above the source box: says what the box is, and is the way back.
+///
+/// Always shown in HTML mode, focused or not — unlike the formatting toolbar —
+/// because a field full of tags needs to say why at rest, not only once it is
+/// clicked into. While the source is one the document cannot hold ([forced])
+/// there is no way back to offer, so the button gives its place to the reason:
+/// a disabled button would say only that something is unavailable.
+class _HtmlSourceStrip extends StatelessWidget {
+  const _HtmlSourceStrip({required this.forced, required this.onRichText});
+
+  final bool forced;
+
+  /// Null for a field the user cannot edit.
+  final VoidCallback? onRichText;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.inTheme;
+    final onRichText = this.onRichText;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surfaceAlt,
+        border: Border(bottom: BorderSide(color: t.border)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(InRadii.r1),
+        ),
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: InSpacing.md(context),
+        vertical: 2,
+      ),
+      // A floor, not a height: the reason wraps on a phone, and at large text
+      // scale a fixed box would slice it.
+      constraints: const BoxConstraints(minHeight: 36),
+      child: Row(
+        children: [
+          Icon(Icons.code, size: 16, color: t.ink3),
+          const SizedBox(width: InSpacing.xs),
+          Text(
+            context.tr('html'),
+            style: TextStyle(
+              color: t.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: InSpacing.sm),
+          Expanded(
+            child: forced
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
+                    child: Text(
+                      context.tr('html_only_notice'),
+                      style: TextStyle(color: t.ink3, fontSize: 12),
+                    ),
+                  )
+                : Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: onRichText == null
+                        ? null
+                        : FieldActionButton(
+                            icon: Icons.notes,
+                            label: context.tr('rich_text'),
+                            onPressed: onRichText,
+                          ),
+                  ),
+          ),
+        ],
       ),
     );
   }

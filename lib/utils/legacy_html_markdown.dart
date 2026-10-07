@@ -27,9 +27,16 @@
 /// isn't one — onto a newline that at least keeps the text.
 ///
 /// Known lossy edges, each preferred over deleting the text: table cells
-/// flatten to paragraphs (super_editor supports GFM tables, so this could
-/// improve later), `<blockquote>` loses its marker, and HTML inside a fenced
-/// code block is rewritten like any other (there is no fence tracking).
+/// flatten to paragraphs, and HTML inside a fenced code block is rewritten
+/// like any other (there is no fence tracking). **A table is no longer
+/// expected to arrive here at all** — `MarkdownTextField` shows a value that
+/// contains one as HTML source instead (invoiceninja/flutter#174), because
+/// flattening is the *good* outcome: a cell tag written in a shape
+/// [kHtmlTagPattern] refuses (`<td nowrap>`) is left raw, and the deserializer
+/// then deletes its text. [foldLeftRawHtmlBlock] is how a caller finds that
+/// out before it happens. A GFM table would not help: it has no cell widths,
+/// alignment, `colspan` or block content, so the footer would still be
+/// rewritten.
 ///
 /// HTML **entities** are deliberately not touched: `markdown` resolves them
 /// downstream via `DecodeHtmlSyntax`, which is in its default inline syntax
@@ -101,12 +108,14 @@ final _kInlineFencePattern = RegExp(
 /// `markdown/lib/src/patterns.dart`), minus the list tags handled separately
 /// below, plus `br` and `pre`.
 ///
-/// `script`, `style` and `textarea` are intentionally absent. They are
-/// raw-text elements that end at their own closing tag, so the deserializer
-/// drops exactly them and nothing else — and their content is machinery, not
-/// prose, so that is the right outcome. `pre` is the same kind of element but
-/// holds text the user typed, so it is mapped (losing the monospace block,
-/// keeping the words).
+/// `script`, `style` and `textarea` are intentionally absent, which makes
+/// them unmapped inline tags: the tag is dropped and its content is kept as
+/// text. (This comment used to say the deserializer drops the whole element.
+/// That stopped being true when unmapped inline tags began to be removed
+/// rather than left in place — a `<style>` block's CSS now reaches the editor
+/// as a paragraph. Known, and outside what #174 changed.) `pre` holds text
+/// the user typed, so it is mapped (losing the monospace block, keeping the
+/// words).
 const _kBlockTags = <String>{
   'address',
   'article',
@@ -172,6 +181,46 @@ const _kBlockTags = <String>{
 };
 
 final _kHeadingPattern = RegExp(r'^h([1-6])$');
+
+/// Whether [name] (lower-case, no brackets) is a tag this file treats as
+/// block-level — a paragraph boundary, a list part, or a `<br>`. Everything
+/// else is inline, including a tag it has never heard of.
+bool isHtmlBlockTag(String name) =>
+    _kBlockTags.contains(name) || name == 'ul' || name == 'ol' || name == 'li';
+
+/// A line that still opens with a block-level tag after the fold has run:
+/// CommonMark's HTML-block start condition 6 — the name, then whitespace, `>`,
+/// `/>` or the end of the line — at up to three spaces of indent.
+///
+/// Mirrors that condition rather than "any `<`" on purpose. `<john@x.com>` and
+/// `<https://example.com>` at the start of a line are not HTML blocks to the
+/// parser and nothing deletes them, so they must not be reported.
+final _kRawBlockLine = RegExp(
+  '^ {0,3}</?(?:${[..._kBlockTags, 'ul', 'ol', 'li'].join('|')})'
+  r'(?:[ \t]|/?>|$)',
+  multiLine: true,
+  caseSensitive: false,
+);
+
+/// Whether [markdown] — the **output** of [markdownFromLegacyHtml] — still
+/// has a raw block-level tag at the start of a line.
+///
+/// The fold removes every tag it recognises, so one that is left is one
+/// [kHtmlTagPattern] refused: a valueless attribute (`<td nowrap>`), an
+/// unquoted value with a space in it (`style=width:33%; text-align:left`), a
+/// smart quote. `markdown`'s `HtmlBlockSyntax` takes that line and everything
+/// up to the next blank one as a raw HTML block, and super_editor's block
+/// visitor drops raw text — so the words on it are about to be **deleted**,
+/// and the first edit persists the deletion.
+///
+/// That is the whole of "the footer appears empty" in invoiceninja/flutter#174:
+/// React's source-code view stores pasted HTML exactly as typed, so a
+/// hand-written three-column table whose every cell opened with such a tag
+/// reached the editor as a blank document. The pattern stays strict — loosening
+/// it is what eats prose — so the caller asks this instead and shows the value
+/// as source.
+bool foldLeftRawHtmlBlock(String markdown) =>
+    markdown.contains('<') && _kRawBlockLine.hasMatch(markdown);
 
 /// Rewrites legacy HTML in [input] into markdown super_editor can parse.
 ///

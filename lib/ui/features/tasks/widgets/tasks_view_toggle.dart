@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/list/entity_list_top_row.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/features/tasks/view_models/task_filters_mixin.dart';
@@ -71,19 +72,28 @@ PreferredSizeWidget buildTasksViewAppBar(
             horizontal: 24,
             vertical: 12,
           ),
-          child: Row(
-            children: [
-              Text(
-                context.tr('tasks'),
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const Spacer(),
-              if (filterAction != null) ...[
-                filterAction,
-                const SizedBox(width: InSpacing.sm),
+          // In the same first-row slot the list header centres its buttons
+          // in (`HeaderRowSlot`), so the toggle sits at the same height here
+          // as it does beside the Tasks list's search box. Left to its own
+          // height this row is as tall as the toggle, and the toggle moved a
+          // couple of pixels on every switch between the list and these
+          // views.
+          child: HeaderRowSlot(
+            expand: true,
+            child: Row(
+              children: [
+                Text(
+                  context.tr('tasks'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const Spacer(),
+                if (filterAction != null) ...[
+                  filterAction,
+                  const SizedBox(width: InSpacing.sm),
+                ],
+                TasksViewToggle(active: active, wide: true),
               ],
-              TasksViewToggle(active: active, wide: true),
-            ],
+            ),
           ),
         ),
       ),

@@ -390,8 +390,9 @@ class SettingsSearchField extends StatelessWidget {
 /// narrow lands on the list cleanly.
 ///
 /// Owns the search chrome: the trigger in the AppBar's `actions:` and the
-/// field in its 56 px `bottom:` strip, mirroring `EntityListNormalAppBar`'s
-/// narrow layout. Neither may live in the scrolling body — that was issue #42.
+/// field in its 56 px `bottom:` strip — the same shape as
+/// `EntityListAppBar`'s narrow layout, a toolbar over a 56 px search row.
+/// Neither may live in the scrolling body — that was issue #42.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -444,12 +445,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text(context.tr('settings')),
             leading: globalNav ? null : const DrawerHamburger(),
             automaticallyImplyLeading: !globalNav,
-            // Mirrors `EntityListNormalAppBar`'s narrow chrome: the affordance
-            // in `actions:`, the field pinned in a 56 px `bottom:`. No
-            // `preferredSize` to keep in sync — this is a real `AppBar`, so it
-            // derives `kToolbarHeight + 56` from `bottom` itself. Don't wrap it
-            // in a custom `PreferredSizeWidget`; that's what forces
-            // `EntityListNormalAppBar` to hand-maintain the number twice.
+            // The same shape as `EntityListAppBar`'s narrow chrome: the
+            // affordance in `actions:`, the field pinned in a 56 px row
+            // under the toolbar. No `preferredSize` to keep in sync — this is
+            // a real `AppBar`, so it derives `kToolbarHeight + 56` from
+            // `bottom` itself. Don't wrap it in a custom
+            // `PreferredSizeWidget` unless, like the list header, the row has
+            // to GROW: a settings search field is one line, always.
             actions: [
               if (_search.isActive)
                 IconButton(

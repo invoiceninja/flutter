@@ -43,6 +43,12 @@ class IsFilterKey extends FilterKey {
   String get id => 'is';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
   Iterable<String> get aliases => const ['state'];
 
   @override

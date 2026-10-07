@@ -1,10 +1,14 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'package:admin/app/services.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart'
     show resolveRelativeDateToken;
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// One filterable dimension of an entity list — `is`, `custom1`, `country`,
 /// and so on. Each `FilterKey` knows how to render itself in the suggestion
@@ -77,9 +81,44 @@ abstract class FilterKey {
   /// When non-null, selecting this key from the picker applies this value
   /// IMMEDIATELY rather than opening a value picker. For single-value boolean
   /// keys (e.g. Overdue) whose only choice is "on" — there's nothing to pick,
-  /// so a one-item value list is pure friction. The narrow filter sheet's
-  /// `_onSelectKey` honours this; default null keeps the normal pick flow.
+  /// so a one-item value list is pure friction. Both hosts honour it; default
+  /// null keeps the normal pick flow.
   String? get directApplyValue => null;
+
+  /// True for the handful of dimensions a list is filtered by most — State,
+  /// Status, Client, the document date, a client's Name. They lead the
+  /// picker's first view under a "Suggested" header, ahead of the A→Z rest.
+  ///
+  /// A flag on the key rather than "the first N in registry order": registry
+  /// order also drives chip order and the cross-key value matches, and it is
+  /// not a ranking (Invoices lists Tags before Status).
+  bool get isPrimary => false;
+
+  /// False for a key whose values are picked from a list and stored as ids or
+  /// enum names (client, country, status, tags, …). Enter on text that matches
+  /// no row then keeps the input instead of committing it: `client:acme` used
+  /// to apply `client_id=acme` — a chip reading `client acme` over an empty
+  /// list — and so did Enter that beat the list's first emission.
+  ///
+  /// True (the default) for keys whose value IS what the user types: names,
+  /// numbers, comparable amounts and dates, custom-field values.
+  bool get acceptsTypedValue => true;
+
+  /// The canonical raw value for something the user TYPED after `<key>:`, or
+  /// null to refuse it and keep the input. The default accepts whatever
+  /// [isValidValue] does, verbatim; keys with a typed grammar override it —
+  /// a date key turns `5/14` or `today` into the wire form, a numeric key
+  /// rejects `abc`.
+  String? normalizeTypedValue(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String typed,
+  ) => isValidValue(typed) ? typed : null;
+
+  /// When non-null, the value list shown before the user types anything is
+  /// cut to this many rows, and the menu says so ("Showing the first 50 —
+  /// type to narrow") instead of passing a truncated list off as complete.
+  int? get idleSuggestionCap => null;
 
   /// Currently-applied tokens for this key, derived from VM state. Empty
   /// when the key is at its default and no chip should appear.
@@ -171,6 +210,21 @@ abstract class FilterKey {
     return run();
   }
 
+  /// Swap one applied value for another — how a chip edit commits. The chip
+  /// being edited stays applied until this runs, so backing out of the editor
+  /// (Escape, a tap away) leaves the filter exactly as it was; the old flow
+  /// removed the value first and a cancelled edit silently deleted it. The
+  /// generic default is two VM writes; set-backed keys override it for one.
+  Future<void> replaceValue(
+    GenericListViewModel<dynamic> vm,
+    String oldRaw,
+    String newRaw,
+  ) async {
+    if (oldRaw == newRaw) return;
+    await removeValue(vm, oldRaw);
+    await addValue(vm, newRaw);
+  }
+
   /// User-typeable form of [rawValue] for chip-tap-to-edit. Returns null
   /// when the key shouldn't pre-fill its value — membership keys whose
   /// raw value is an opaque id (`country:840`), enum keys whose value
@@ -222,6 +276,23 @@ abstract class FilterKey {
   ///
   /// Return `true` to accept; `false` to reject and keep the input.
   bool isValidValue(String rawValue) => true;
+}
+
+/// Best-effort company [Formatter] for a filter key — the chip's date format,
+/// a typed date's pattern, the decimal separator of a typed amount. Read from
+/// the screen-tree [Services] (always present where chips are painted; the
+/// per-screen formatter is cached by paint time). Guarded so the
+/// bare-`BuildContext` unit tests — which have no `Provider<Services>` — get
+/// null and fall back to ISO dates and a dot decimal instead of throwing.
+Formatter? filterFormatterOrNull(
+  GenericListViewModel<dynamic> vm,
+  BuildContext context,
+) {
+  try {
+    return context.read<Services>().formatterIfReady(vm.companyId);
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Single-write helper for `extraFilters[serverKey]`. Writes a one-element
@@ -339,13 +410,51 @@ const kRelativeDatePresets = <(String token, String labelKey)>[
   ('rel:d30', 'relative_30_days_ago'),
 ];
 
+/// Rolling tokens a typed keyword resolves to. Not offered as preset rows —
+/// they exist so `date:today` stays "today" in a saved view instead of
+/// freezing to the date it was typed on.
+const kTypedRelativeDateKeywords = <(String token, String labelKey)>[
+  ('rel:d0', 'today'),
+  ('rel:d1', 'yesterday'),
+];
+
 /// Localized label for a value that may be a `rel:` token — "7 days
 /// ago" for `rel:d7`, the value verbatim otherwise.
 String relativeValueLabel(BuildContext context, String value) {
   for (final (token, labelKey) in kRelativeDatePresets) {
     if (token == value) return context.tr(labelKey);
   }
+  for (final (token, labelKey) in kTypedRelativeDateKeywords) {
+    if (token == value) return context.tr(labelKey);
+  }
   return value;
+}
+
+/// Splits an operator the user typed in front of a value (`>=1000`, `≤30`,
+/// `gte:2026-01-01`) from the value. `op` is null when none was typed — which
+/// is not the same as the key's default operator, and callers that pre-select
+/// a row or echo the interpretation need to tell the two apart.
+({FilterOp? op, String value}) splitTypedOperator(String typed) {
+  final t = typed.trim();
+  for (final probe in const [
+    ('>=', FilterOp.gte),
+    ('<=', FilterOp.lte),
+    ('≥', FilterOp.gte),
+    ('≤', FilterOp.lte),
+    ('>', FilterOp.gt),
+    ('<', FilterOp.lt),
+    ('=', FilterOp.eq),
+    ('gte:', FilterOp.gte),
+    ('lte:', FilterOp.lte),
+    ('gt:', FilterOp.gt),
+    ('lt:', FilterOp.lt),
+    ('eq:', FilterOp.eq),
+  ]) {
+    if (t.startsWith(probe.$1)) {
+      return (op: probe.$2, value: t.substring(probe.$1.length).trim());
+    }
+  }
+  return (op: null, value: t);
 }
 
 /// Single-value comparable dimension backed by `extraFilters[serverKey]`
@@ -433,6 +542,47 @@ mixin ComparableFilterKey on FilterKey {
   @override
   bool isValidValue(String rawValue) => parseWire(rawValue).$1.isNotEmpty;
 
+  static final _typedNumber = RegExp(r'^-?[\d.,\s]*\d[\d.,\s]*$');
+
+  /// [normalizeTypedValue] for a numeric key: `<500`, `1,000`, or `1.234,56`
+  /// under a comma-decimal company → the canonical `op:value` wire. Null for
+  /// anything that is not a number — `balance:abc` used to be accepted and
+  /// sent to the server as `gt:abc`.
+  String? normalizeTypedNumber(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String typed,
+  ) {
+    final split = splitTypedOperator(typed);
+    if (!_typedNumber.hasMatch(split.value)) return null;
+    final commaDecimal =
+        filterFormatterOrNull(vm, context)?.settings.useCommaAsDecimalPlace ??
+        false;
+    // The separator rule is `parseDecimal`'s — a comma is the decimal point
+    // only under a comma-decimal company, otherwise it groups thousands —
+    // but parsed STRICTLY. `parseDecimal` answers zero for what it cannot
+    // read (it is built for form fields, where a blank is zero), so `1.2.3`
+    // passed the shape check above and came back as `> 0`.
+    var digits = split.value.replaceAll(RegExp(r'\s'), '');
+    if (commaDecimal && digits.contains(',')) {
+      digits = digits.replaceAll('.', '').replaceAll(',', '.');
+    } else {
+      digits = digits.replaceAll(',', '');
+    }
+    final amount = Decimal.tryParse(digits);
+    if (amount == null) return null;
+    return buildWire(amount.toString(), split.op ?? defaultOp);
+  }
+
+  /// How a bare value (operator already split off) reads on the chip. The
+  /// default resolves a rolling token to its label and shows anything else
+  /// verbatim; date keys format an absolute date the company's way.
+  String chipValueLabel(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String value,
+  ) => relativeValueLabel(context, value);
+
   @override
   Iterable<FilterToken> tokensFrom(
     GenericListViewModel<dynamic> vm,
@@ -449,7 +599,7 @@ mixin ComparableFilterKey on FilterKey {
             keyId: id,
             displayKey: displayLabel(context),
             rawValue: wire,
-            displayValue: relativeValueLabel(context, value),
+            displayValue: chipValueLabel(vm, context, value),
             displayComparator: comparator,
             // Reveal the absolute date behind a rolling "7 days ago".
             valueTooltip: resolved,

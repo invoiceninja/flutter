@@ -739,6 +739,13 @@ class InSizes {
   /// the sidebar subtracts it. Comparing the constant against a screenshot is
   /// what it is for, which is why it counts the rule rather than excluding it.
   static const double headerBand = 69;
+
+  /// The row inside [headerBand]: the band less its 12 px of padding above
+  /// and below. The height of one line of the list header — the token search
+  /// field with nothing wrapped, and the slot each button beside it is centred
+  /// in. A **floor** for the same reason the band is: the search field grows
+  /// past it when its chips wrap, and so does the header around it.
+  static const double headerRow = headerBand - 24;
 }
 
 /// Brightness-independent dimensions — spacing scale.

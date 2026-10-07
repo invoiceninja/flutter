@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:provider/provider.dart';
 
-import 'package:admin/app/services.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart'
+    show resolveRelativeDateToken;
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
@@ -30,8 +30,15 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     required String labelKey,
     String hintKey = 'created_filter_hint',
     this.windowOnly = false,
+    this.isPrimary = false,
   }) : _labelKey = labelKey,
        _hintKey = hintKey;
+
+  /// Set for the one date an entity is usually filtered by (a document's
+  /// `date`), so it leads the picker's Suggested block. See
+  /// [FilterKey.isPrimary].
+  @override
+  final bool isPrimary;
 
   /// Only the date-window comparator ([FilterOp.between]) — for an entity
   /// whose server filters this column by `<col>_range` alone, with no
@@ -84,6 +91,108 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
   @override
   String? hintForValueMode(BuildContext context) => context.tr(_hintKey);
 
+  // ── Typed input ──────────────────────────────────────────────────────
+
+  /// A digit either side of a date separator, or a run of letters (a month
+  /// name, `tomorrow`). [parseDateInput] also accepts bare shortcuts — `20`,
+  /// `+1`, `0514` — which are right for a date FIELD the user is committing
+  /// on blur, but here they would turn `2026-05-14` into a filter for "the
+  /// 20th" two characters in, and Enter would commit it.
+  static final _unambiguousDate = RegExp(r'\d\s*[-/.]\s*\d|[A-Za-z]{3}');
+
+  static final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+  /// The date the user TYPED after `<key>:`, with any operator they typed in
+  /// front of it (`>=5/14`). Null when [typed] is not an unambiguous date —
+  /// the menu then keeps offering the comparator → preset picker.
+  ///
+  /// `today` / `yesterday` come back as rolling `rel:` tokens so a saved view
+  /// keeps meaning "today"; a [windowOnly] key has no rolling form (its wire
+  /// is a closed range), so there they resolve to the absolute date.
+  ({String value, FilterOp? op})? parseTypedDate(
+    String typed, {
+    String? activePattern,
+    DateTime? now,
+  }) {
+    final split = splitTypedOperator(typed);
+    final t = split.value;
+    // No comma test here: `May 14, 2026` has one and is a single date. A
+    // typed WINDOW (`2026-01-01,2026-02-01`) simply fails to parse as one.
+    if (t.isEmpty) return null;
+    if (resolveRelativeDateToken(t) != null) {
+      return (value: t, op: split.op);
+    }
+    final keyword = switch (t.toLowerCase()) {
+      'today' => 'rel:d0',
+      'yesterday' => 'rel:d1',
+      _ => null,
+    };
+    if (keyword != null) {
+      return (
+        value: windowOnly
+            ? resolveRelativeDateToken(keyword, now: now)!
+            : keyword,
+        op: split.op,
+      );
+    }
+    if (!_unambiguousDate.hasMatch(t)) return null;
+    final date = parseDateInput(t, activePattern: activePattern, now: now);
+    if (date == null) return null;
+    String two(int v) => v.toString().padLeft(2, '0');
+    return (
+      value: '${date.year}-${two(date.month)}-${two(date.day)}',
+      op: split.op,
+    );
+  }
+
+  /// The company's date pattern, for [parseTypedDate] — so `14/5/2026` reads
+  /// the way the rest of the app shows dates to this user.
+  String? activeDatePattern(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+  ) {
+    final formatter = _formatterOrNull(vm, context);
+    return formatter?.dateFormats[formatter.settings.dateFormatId]?.format;
+  }
+
+  @override
+  String? normalizeTypedValue(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String typed,
+  ) {
+    // A single date first: it may legitimately contain a comma, which is
+    // also what marks a window.
+    final parsed = parseTypedDate(
+      typed,
+      activePattern: activeDatePattern(vm, context),
+    );
+    if (parsed != null) {
+      if (windowOnly) return canonicalWindow(parsed.value, parsed.value);
+      return buildWire(parsed.value, parsed.op ?? defaultOp);
+    }
+    if (isWindowWire(typed)) {
+      final (start, end) = parseWindow(typed);
+      return _isoDate.hasMatch(start) && _isoDate.hasMatch(end) ? typed : null;
+    }
+    return null;
+  }
+
+  /// An absolute date reads the company's way on the chip, matching the
+  /// between-window chip below (which always did) — a single date used to
+  /// show raw ISO beside it.
+  @override
+  String chipValueLabel(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String value,
+  ) {
+    final label = relativeValueLabel(context, value);
+    if (label != value || !_isoDate.hasMatch(value)) return label;
+    final formatted = _formatterOrNull(vm, context)?.date(value) ?? '';
+    return formatted.isEmpty ? value : formatted;
+  }
+
   // ── Window-wire helpers ──────────────────────────────────────────────
 
   /// A window wire is the canonical `<col>,<start>,<end>`, the legacy
@@ -125,21 +234,10 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     return super.isValidValue(rawValue);
   }
 
-  /// Best-effort company [Formatter] for the chip text. Read from the
-  /// screen-tree [Services] (always present where chips are painted;
-  /// the per-screen formatter is cached by paint time). Guarded so the
-  /// bare-`BuildContext` unit tests — which have no `Provider<Services>`
-  /// — fall back to raw ISO instead of throwing.
   Formatter? _formatterOrNull(
     GenericListViewModel<dynamic> vm,
     BuildContext context,
-  ) {
-    try {
-      return context.read<Services>().formatterIfReady(vm.companyId);
-    } catch (_) {
-      return null;
-    }
-  }
+  ) => filterFormatterOrNull(vm, context);
 
   @override
   Iterable<FilterToken> tokensFrom(

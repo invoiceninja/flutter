@@ -39,7 +39,12 @@ List<FilterKey> buildPaymentFilterKeys({
     nameForClientId: nameForClientId,
   ),
   const PaymentStatusFilterKey(),
-  const DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
+  const DateColumnFilterKey(
+    id: 'date',
+    serverKey: 'date',
+    labelKey: 'date',
+    isPrimary: true,
+  ),
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(
       columnIndex: i,
@@ -77,6 +82,12 @@ class PaymentStatusFilterKey extends FilterKey {
 
   @override
   String get id => 'status';
+
+  @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
 
   @override
   String displayLabel(BuildContext context) => context.tr('status');

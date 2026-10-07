@@ -40,7 +40,12 @@ List<FilterKey> buildInvoiceFilterKeys({
   ),
   const InvoiceStatusFilterKey(),
   const InvoiceOverdueFilterKey(),
-  const DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
+  const DateColumnFilterKey(
+    id: 'date',
+    serverKey: 'date',
+    labelKey: 'date',
+    isPrimary: true,
+  ),
   const DateColumnFilterKey(
     id: 'due_date',
     serverKey: 'due_date',
@@ -70,6 +75,9 @@ class InvoiceOverdueFilterKey extends FilterKey {
 
   @override
   String get id => 'overdue';
+
+  @override
+  bool get acceptsTypedValue => false;
 
   @override
   String displayLabel(BuildContext context) => context.tr('overdue');
@@ -161,6 +169,12 @@ class InvoiceStatusFilterKey extends FilterKey {
 
   @override
   String get id => 'status';
+
+  @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
 
   @override
   String displayLabel(BuildContext context) => context.tr('status');

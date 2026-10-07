@@ -37,6 +37,13 @@ abstract class MembershipFilterKey extends FilterKey {
   /// matching statics map.
   String displayValueFor(String rawValue) => rawValue;
 
+  /// A flat key's value IS what the user typed (a VAT number, an id number),
+  /// so editing its chip prefills it. A statics- or repo-backed key's raw
+  /// value is an opaque id and prefills nothing — its picker opens instead.
+  @override
+  String? editableValueText(String rawValue) =>
+      acceptsTypedValue ? rawValue : null;
+
   @override
   bool isAtDefault(GenericListViewModel<dynamic> vm) =>
       (vm.extraFilters[serverKey] ?? const <String>{}).isEmpty;
@@ -75,6 +82,21 @@ abstract class MembershipFilterKey extends FilterKey {
   @override
   Future<void> removeValue(GenericListViewModel<dynamic> vm, String rawValue) =>
       removeMembership(vm, serverKey, rawValue);
+
+  /// One VM write (one reload): drop [oldRaw] and add [newRaw] together.
+  @override
+  Future<void> replaceValue(
+    GenericListViewModel<dynamic> vm,
+    String oldRaw,
+    String newRaw,
+  ) {
+    final trimmed = newRaw.trim();
+    if (trimmed.isEmpty || trimmed == oldRaw) return Future.value();
+    final next = Set<String>.from(vm.extraFilters[serverKey] ?? const {})
+      ..remove(oldRaw)
+      ..add(trimmed);
+    return vm.setExtraFilter(serverKey: serverKey, values: next);
+  }
 
   /// Replace the whole membership set with [rawValue] in one VM write
   /// (one reload, not one per previously-applied value).

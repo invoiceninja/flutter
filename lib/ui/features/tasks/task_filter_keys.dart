@@ -89,6 +89,15 @@ class StatusFilterKey extends MembershipFilterKey {
   String get id => 'status';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
   String get serverKey => 'task_status';
 
   /// Render checkboxes — inherits the single-write `selectExclusive` from
@@ -117,7 +126,7 @@ class StatusFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return statuses.watchAll(companyId: companyId).map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((s) => s.name.toLowerCase().contains(q));
       return [
         for (final s in filtered)
@@ -170,6 +179,12 @@ class ProjectFilterKey extends MembershipFilterKey {
   String get id => 'project';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'project_tasks';
 
   /// Server `project_tasks` accepts a single project — selecting one
@@ -203,7 +218,7 @@ class ProjectFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return projects.watchActiveNames(companyId: companyId).map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((p) => p.name.toLowerCase().contains(q));
       return [
         for (final p in filtered)

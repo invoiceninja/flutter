@@ -116,6 +116,73 @@ void main() {
       expect(hits, [1, 2]);
     });
 
+    test('commit refuses rows published for a different input', () {
+      // Rows publish a frame after the text changes. A scanner — or a paste
+      // followed at once by Enter — lands the key in that frame, when the
+      // published actions still belong to the previous text.
+      final c = FilterSuggestionController();
+      final ran = <String>[];
+      c.publishRows([() => ran.add('acm')], ['search_for'], stamp: 'acm');
+
+      expect(c.commit(expecting: 'acme'), isFalse);
+      expect(ran, isEmpty, reason: 'the caller commits what is in the box');
+
+      expect(c.commit(expecting: 'acm'), isTrue);
+      // No expectation = the old unconditional commit (the sheet's tap path).
+      expect(c.commit(), isTrue);
+      expect(ran, ['acm', 'acm']);
+    });
+
+    test('preselect applies to a fresh list, never over a moved highlight', () {
+      final c = FilterSuggestionController();
+      void rows(List<Object> keys, {int? preselect}) => c.publishRows(
+        [for (final _ in keys) () {}],
+        keys,
+        preselect: preselect,
+      );
+
+      // `balance:<…` — the typed comparator's row, not row 0.
+      rows(['op:gt|lt', 'op:gte|lt', 'op:lt|lt'], preselect: 2);
+      expect(c.selectedIndex, 2);
+
+      // The user arrows away; a rebuild of the SAME rows must not snap back.
+      // This is what the date comparator list did on every VM notify.
+      c.moveUp();
+      rows(['op:gt|lt', 'op:gte|lt', 'op:lt|lt'], preselect: 2);
+      expect(c.selectedIndex, 1);
+
+      // A different typed comparator re-keys the rows, and preselect applies.
+      rows(['op:gt|gt', 'op:gte|gt', 'op:lt|gt'], preselect: 0);
+      expect(c.selectedIndex, 0);
+
+      // Out of range falls back to the first row.
+      rows(['a', 'b'], preselect: 9);
+      expect(c.selectedIndex, 0);
+    });
+
+    test('knows whether the keyboard or the pointer moved the highlight', () {
+      final c = FilterSuggestionController();
+      c.publishRows([() {}, () {}, () {}], ['a', 'b', 'c']);
+      // A fresh list is a programmatic position: rows scroll to it.
+      expect(c.movedByKeyboard, isTrue);
+
+      c.setSelectedIndex(2); // hover
+      expect(c.movedByKeyboard, isFalse);
+      c.moveUp();
+      expect(c.movedByKeyboard, isTrue);
+      expect(c.selectedIndex, 1);
+
+      // Hovering the row that is already highlighted still hands the
+      // highlight to the pointer — and tells listeners, once.
+      var notified = 0;
+      c.addListener(() => notified++);
+      c.setSelectedIndex(1);
+      expect(c.movedByKeyboard, isFalse);
+      expect(notified, 1);
+      c.setSelectedIndex(1);
+      expect(notified, 1, reason: 'unchanged input does not notify');
+    });
+
     test('notifies listeners on every state change', () {
       final c = FilterSuggestionController();
       var notifyCount = 0;

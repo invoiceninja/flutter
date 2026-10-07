@@ -1605,14 +1605,15 @@ void main() {
     });
 
     test(
-      'membership / enum keys do NOT override — value belongs in the picker',
+      'pick-list keys prefill nothing — the value belongs in the picker',
       () async {
         final vm = await makeVm();
         final statics = _FakeStaticsRepository(
           db: db,
           service: _FakeStaticsService(),
         );
-        // null defaults preserve the "remove chip + open menu" path.
+        // A raw value that is an id or an enum name is not something to
+        // type over: null opens the picker instead (the chip stays applied).
         expect(const IsFilterKey().editableValueText('active'), isNull);
         expect(
           CountryFilterKey(statics: statics).editableValueText('840'),
@@ -1622,7 +1623,11 @@ void main() {
           CurrencyFilterKey(statics: statics).editableValueText('1'),
           isNull,
         );
-        expect(const VatFilterKey().editableValueText('DE123'), isNull);
+        // A flat membership key is the other kind: its value IS what the user
+        // typed, so editing the chip hands it back. It used to be null too,
+        // which worked only because the chip was removed before the editor
+        // opened — the behaviour that deleted a filter on a cancelled edit.
+        expect(const VatFilterKey().editableValueText('DE123'), 'DE123');
         expect(
           const CustomFieldFilterKey(
             columnIndex: 1,

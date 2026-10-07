@@ -140,4 +140,17 @@ class CustomFieldFilterKey extends FilterKey {
       ..remove(rawValue);
     return vm.setCustomFilter(columnIndex: columnIndex, values: next);
   }
+
+  @override
+  Future<void> replaceValue(
+    GenericListViewModel<dynamic> vm,
+    String oldRaw,
+    String newRaw,
+  ) {
+    if (newRaw.isEmpty || newRaw == oldRaw) return Future.value();
+    final next = Set<String>.from(vm.customFilters[columnIndex] ?? const {})
+      ..remove(oldRaw)
+      ..add(newRaw);
+    return vm.setCustomFilter(columnIndex: columnIndex, values: next);
+  }
 }

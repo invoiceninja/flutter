@@ -24,6 +24,7 @@ read-it-first orientation for a new developer.
 - [`form-fields.md`](form-fields.md) — **Form field input types.** Every text input declares the keyboard, capitalization and autofill its data needs, and none of it is visible under `flutter test` — a soft keyboard never renders.
 - [`integration-tests.md`](integration-tests.md) — **Integration tests.** `integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` with in-memory Drift + `InMemoryTokenStorage` and a `MockClient`.
 - [`keyboard.md`](keyboard.md) — **The keyboard layer.** Shortcut discoverability, the focus invariant the whole keyboard layer hangs off, the `G`-leader table, and how a key is drawn in a cap.
+- [`list-search-field.md`](list-search-field.md) — **The list search field.** The token search box above every entity list: why its popup is placed in the layout pass (and what "too far over" was), what Enter, Tab, Escape and Backspace may do, why a pick-only key never takes typed text, and why the list header grows around it.
 - [`migrations.md`](migrations.md) — **Drift schema migrations.** **The app is shipped (beta).** Installed databases hold real user data and unsynced outbox.
 - [`pane-width-and-overflow.md`](pane-width-and-overflow.md) — **When content doesn't fit its pane.** Five surfaces that overflowed a narrow pane, and the arithmetic behind each fix.
 - [`pickers.md`](pickers.md) — **Searchable pickers.** The main file carries which widget to reach for and one line per rule; this doc carries the evidence.

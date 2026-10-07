@@ -18,6 +18,7 @@ import 'package:admin/ui/features/clients/views/client_detail_screen.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_header.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_past_due_line.dart';
+import 'package:admin/ui/core/list/search/filter_token_chip.dart';
 
 import '../../../_support/record_screen_harness.dart';
 import '../shell/_shell_test_helpers.dart';
@@ -304,7 +305,14 @@ void main() {
               late.requests.any((u) => u.queryParameters['overdue'] == 'true'),
           'the filtered list',
         );
-        await screen.untilFound(find.text('overdue'), 'the filter chip');
+        // The chip carries the filter's label in its own case.
+        await screen.untilFound(
+          find.descendant(
+            of: find.byType(FilterTokenChip),
+            matching: find.text('Overdue'),
+          ),
+          'the filter chip',
+        );
         expect(find.text('#late1'), findsOneWidget);
         expect(find.text('#late2'), findsOneWidget);
         expect(find.text('#current'), findsNothing);

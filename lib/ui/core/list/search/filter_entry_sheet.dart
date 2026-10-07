@@ -63,6 +63,7 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     );
     _lastSyncedSearch = widget.vm.search;
     _controller.text.addListener(_onChange);
+    _controller.text.addListener(_controller.disarmLastChip);
     widget.vm.addListener(_onChange);
     // Pin changes touch neither text nor vm — rebuild so the always-built
     // menu switches to value mode for a pinned checkbox key.
@@ -91,6 +92,7 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   void dispose() {
     widget.vm.removeListener(_onChange);
     _controller.text.removeListener(_onChange);
+    _controller.text.removeListener(_controller.disarmLastChip);
     _controller.pinRevision.removeListener(_onChange);
     _controller.dispose();
     super.dispose();
@@ -98,8 +100,13 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
 
   void _onChange() {
     _controller.invalidateParse();
-    // Typing exits a pinned chip-edit — text owns the menu mode again.
-    if (_controller.text.text.isNotEmpty) {
+    // Text typed into a pinned picker is that key's VALUE QUERY, exactly as
+    // on wide. It used to drop the pin instead, which made a pinned list
+    // un-narrowable (a tag past the first 50 could not be reached) and turned
+    // a custom-field value into a free-text search. Only an explicit new
+    // `<key>:` hands the menu to another key.
+    if (_controller.pinnedValueKey != null &&
+        _controller.typedPrefixKey() != null) {
       _controller.clearPinnedValueKey();
     }
     _syncLiveSearch();
@@ -128,8 +135,15 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   /// (no live-results section to feed).
   void _syncLiveSearch() {
     if (widget.resultTile == null) return;
-    if (_controller.pinnedValueKey != null) return;
-    if (_controller.parseInput().matchedKey != null) return;
+    // Building a filter is not a search — and starting one withdraws the
+    // search that was live, as on wide. `parseInput` is pin-aware.
+    if (_controller.parseInput().matchedKey != null) {
+      if (_lastSyncedSearch.isNotEmpty) {
+        _lastSyncedSearch = '';
+        widget.vm.setSearch('');
+      }
+      return;
+    }
     final text = _controller.text.text.trim();
     if (text == _lastSyncedSearch) return;
     _lastSyncedSearch = text;
@@ -146,7 +160,12 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       key,
       value,
       context,
-      beforeAwait: () => _controller.focus.requestFocus(),
+      beforeAwait: () {
+        // What was typed to find the value is spent; leaving it filtered the
+        // list for the next pick and had to be erased by hand.
+        if (_controller.pinnedValueKey != null) _controller.text.clear();
+        _controller.focus.requestFocus();
+      },
     );
   }
 
@@ -154,18 +173,24 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   /// (the sheet is already a batch-edit surface; same as `_onSelectValue`
   /// but routed through the sticky toggle for symmetry with wide mode).
   Future<void> _onToggleValue(FilterKey key, FilterValueSuggestion value) {
+    // A tick made from the keyboard's Search/Done brings the whole list back
+    // for the next one. A TAP leaves the narrowed list alone — resetting it
+    // there reshuffled the rows under the finger that was working down them.
+    if (_controller.suggestions.committingByKeyboard) {
+      _controller.resetValueQuery(key);
+    }
     _controller.focus.requestFocus();
     return _controller.toggleValueSticky(key, value, context);
   }
 
   /// Row-label half — pick only this value, then close the sheet
   /// (pick-one-and-done, consistent with wide mode closing its overlay).
-  Future<void> _onPickExclusive(
-    FilterKey key,
-    FilterValueSuggestion value,
-  ) async {
-    await _controller.selectValueExclusive(key, value, context);
-    if (mounted) unawaited(Navigator.of(context).maybePop());
+  void _onPickExclusive(FilterKey key, FilterValueSuggestion value) {
+    // Not awaited: the write updates the VM synchronously and then reloads,
+    // and holding the sheet open for that network round-trip made "Only" feel
+    // like it had not registered.
+    unawaited(_controller.selectValueExclusive(key, value, context));
+    unawaited(Navigator.of(context).maybePop());
   }
 
   void _onCommitFreeText(String value) {
@@ -192,9 +217,30 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       _onCommitFreeText(_controller.text.text);
       return;
     }
-    if (_controller.suggestions.commit()) return;
-    final text = _controller.text.text.trim();
-    if (text.isNotEmpty) _onCommitFreeText(text);
+    if (_controller.suggestions.commit(expecting: _controller.inputStamp)) {
+      return;
+    }
+    // No row took it: commit what is typed. A `<key>:<value>` the key accepts
+    // becomes a chip and the sheet stays open for the next one (batch edit);
+    // a free-text term is searched and the sheet pops back to the list. This
+    // path used to know only the second half, so `name:acme` + Search
+    // searched for the literal text `name:acme`.
+    final result = _controller.commitTyped(
+      context,
+      beforeApply: _controller.text.clear,
+    );
+    if (result == TypedCommit.searched && mounted) {
+      unawaited(Navigator.of(context).maybePop());
+    }
+  }
+
+  /// The value header's "‹": back to the filter picker. On a phone this is
+  /// the only way — a soft keyboard sends no key event for Backspace on an
+  /// empty input, so a picked key used to be a dead end.
+  void _onBack() {
+    _controller.clearPinnedValueKey();
+    _controller.dropBoxText();
+    _controller.focus.requestFocus();
   }
 
   /// Free-text input with live results available — the sheet shows matching
@@ -206,43 +252,6 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
         _controller.pinnedValueKey == null &&
         parse.matchedKey == null &&
         parse.query.trim().isNotEmpty;
-  }
-
-  /// Mirror of wide-mode `_onSelectKey`. Checkbox keys (State / Status)
-  /// open their value picker via the pin — no `<key>:` prefix written into
-  /// the sheet's input. Other keys keep the typed prefix.
-  void _onSelectKey(FilterKey key) {
-    if (key.checkboxMultiSelect) {
-      _controller.pinValueKey(key);
-      return;
-    }
-    // Boolean keys (e.g. Overdue) have a single value — apply it in one tap
-    // instead of opening a one-item picker. The chip appears; the sheet stays
-    // open (batch-edit). The key drops out of the picker once applied.
-    final direct = key.directApplyValue;
-    if (direct != null) {
-      unawaited(key.addValue(widget.vm, direct));
-      return;
-    }
-    _controller.selectKey(key);
-  }
-
-  /// Mirror of wide-mode `_onChipTap` — see [TokenSearchField]. Drops
-  /// into value mode for the chip's key so the user can change it.
-  void _onChipTap(ActiveFilterChip chip) {
-    final key = chip.key;
-    if (key.checkboxMultiSelect) {
-      // Checkbox keys manage their set in the (always-open) sheet picker;
-      // never pre-remove — an aggregate chip has no single clicked value.
-      // Pin the key instead of writing `<key>:` into the input (no stray
-      // prefix in the sheet's field).
-      _controller.pinValueKey(key);
-      return;
-    }
-    if (!key.singleValue) {
-      unawaited(key.removeValue(widget.vm, chip.rawValues.single));
-    }
-    _controller.selectKey(key);
   }
 
   /// Comparator / value segment tap → the dedicated [SegmentMenu] in a
@@ -282,19 +291,6 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     );
   }
 
-  /// Pick-op-first flow — see the wide-mode `_onPickOp` for the rationale.
-  /// Writes `<key>:<symbol>` to the input and keeps focus so the user
-  /// types the value next.
-  void _onPickOp(FilterKey key, FilterOp op) {
-    final symbol = filterOpSymbol(op);
-    final next = '${key.id}:$symbol';
-    _controller.text.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: next.length),
-    );
-    _controller.focus.requestFocus();
-  }
-
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     // The suggestion list is always visible inside the sheet, so
     // arrow keys + Enter always navigate it.
@@ -318,14 +314,18 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       keys: widget.filterKeys,
       parse: _controller.parseInput(),
       controller: _controller.suggestions,
+      stamp: _controller.inputStamp,
       // This sheet IS a route, so back pops it and there is no overlay to
       // close first — see `FilterSuggestionMenu.onDismiss`.
       onDismiss: null,
-      onSelectKey: _onSelectKey,
+      onBack: _onBack,
+      // What a pick means is the controller's, shared with the wide field;
+      // the sheet has no overlay to open or close around it.
+      onSelectKey: _controller.pickKey,
       onSelectValue: _onSelectValue,
       onToggleValue: _onToggleValue,
       onPickExclusive: _onPickExclusive,
-      onPickOp: _onPickOp,
+      onPickOp: _controller.pickOp,
       onCommitFreeText: _onCommitFreeText,
       maxHeight: double.infinity,
       // Full-bleed panel below the divider — flat, not a floating
@@ -446,10 +446,13 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                   for (final c in active)
                     FilterTokenChip(
                       token: c.token,
+                      armed:
+                          identical(c, active.last) &&
+                          _controller.lastChipArmed,
                       onRemove: () => _controller.removeChip(c, context),
                       // Narrow mode is a bottom sheet — no anchor math, so
                       // the reported rect is unused here.
-                      onTap: (_) => _onChipTap(c),
+                      onTap: (_) => _controller.editChip(c),
                       // Comparator / value segments open the same
                       // dedicated SegmentMenu as wide mode, hosted in a
                       // bottom sheet (no anchor math). Commits via

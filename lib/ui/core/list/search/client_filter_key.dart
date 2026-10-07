@@ -39,6 +39,15 @@ class ClientFilterKey extends MembershipFilterKey {
   String get id => 'client';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'client_id';
 
   @override
@@ -63,7 +72,7 @@ class ClientFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return clients.watchActiveNames(companyId: companyId).map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((c) => c.name.toLowerCase().contains(q));
       return [
         for (final c in filtered)

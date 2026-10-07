@@ -245,7 +245,7 @@ class ActionBarLayoutScope extends InheritedWidget {
 /// (detail-wide, where the bar owns the whole title slot).
 ///
 /// With **no [leading]** (the multi-select bulk bar) it stays the spread bar at
-/// every width — a locked design (see `EntityListSelectionAppBar`).
+/// every width — a locked design (see `EntityListAppBar`).
 ///
 /// (Entity *detail* headers use [EntityDetailActionsRow], which reuses this bar
 /// when wide — Edit forwarded as [leading] — and renders its own compact `⋮`

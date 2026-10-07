@@ -1264,7 +1264,16 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
             // `_paneWidth`), which would otherwise drop every embedded list
             // inside a pane to the full-screen phone `FilterEntrySheet`.
             // Table / column / AppBar layout still follows `wide`.
-            final searchWide = wide || globalNav;
+            //
+            // …except on a PHONE, landscape included. `globalNav` is a raw
+            // `width >= 600`, which every phone on its side clears, and the
+            // inline field there opens a popup into the ~190 px the soft
+            // keyboard leaves — under one row of menu. A phone gets the
+            // summary row and the full-screen sheet in either orientation
+            // (docs/touch-targets.md § A landscape phone is not a small
+            // desktop); a tablet keeps the inline field.
+            final searchWide =
+                (wide || globalNav) && !Breakpoints.isPhone(context);
             final selecting = _vm.isInMultiselect;
             // Embedded mode: skip the outer Scaffold (no AppBar / FAB /
             // drawer) so the parent screen's chrome isn't duplicated.
@@ -1376,39 +1385,48 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
               // endFloat lifts the FAB above the bottom filter bar on mobile.
               floatingActionButtonLocation:
                   FloatingActionButtonLocation.endFloat,
-              appBar: selecting
-                  ? EntityListSelectionAppBar<T>(
-                      vm: _vm,
-                      wide: wide,
-                      items: _bulkActionItems(context),
-                    )
-                  : EntityListNormalAppBar<T>(
-                      vm: _vm,
-                      wide: wide,
-                      showHamburger: !globalNav,
-                      settingsBackTarget: settingsBackTarget,
-                      titleKey: widget.titleKey,
-                      newRoute: widget.newRoute,
-                      newLabelKey: widget.newLabelKey,
-                      sortOptions: widget.sortOptions(context),
-                      groupOptions:
-                          widget.groupOptions?.call(context, _vm) ??
-                          const <GroupOption>[],
-                      // See the embedded-list searchField above: key by
-                      // company so the token-search State is recreated (and
-                      // its controller rebound to the new VM) on a company
-                      // switch rather than reused with a stale, disposed VM.
-                      searchField: KeyedSubtree(
-                        key: ValueKey(_companyId),
-                        child: _withResultScope(
-                          widget.searchFieldBuilder(context, _vm, searchWide),
-                        ),
-                      ),
-                      extraActions:
-                          widget.extraAppBarActions?.call(context, _vm, wide) ??
-                          const <Widget>[],
-                      canCreate: widget.canCreate,
-                    ),
+              // One header for both modes: the selection chrome is stacked
+              // over the normal chrome rather than swapped for it, so it is
+              // exactly as tall — wrapped filter chips included — and the
+              // rows under the pointer do not move when one is ticked. It
+              // also keeps the search field (and its state) mounted.
+              appBar: EntityListAppBar<T>(
+                vm: _vm,
+                wide: wide,
+                selecting: selecting,
+                // A ceiling, not a height — the header shrink-wraps under
+                // it. See [EntityListAppBar].
+                maxExtent: EntityListAppBar.maxExtentFor(
+                  wide: wide,
+                  available: constraints.maxHeight,
+                ),
+                selectionItems: selecting
+                    ? _bulkActionItems(context)
+                    : const <EntityActionItem<String>>[],
+                showHamburger: !globalNav,
+                settingsBackTarget: settingsBackTarget,
+                titleKey: widget.titleKey,
+                newRoute: widget.newRoute,
+                newLabelKey: widget.newLabelKey,
+                sortOptions: widget.sortOptions(context),
+                groupOptions:
+                    widget.groupOptions?.call(context, _vm) ??
+                    const <GroupOption>[],
+                // See the embedded-list searchField above: key by
+                // company so the token-search State is recreated (and
+                // its controller rebound to the new VM) on a company
+                // switch rather than reused with a stale, disposed VM.
+                searchField: KeyedSubtree(
+                  key: ValueKey(_companyId),
+                  child: _withResultScope(
+                    widget.searchFieldBuilder(context, _vm, searchWide),
+                  ),
+                ),
+                extraActions:
+                    widget.extraAppBarActions?.call(context, _vm, wide) ??
+                    const <Widget>[],
+                canCreate: widget.canCreate,
+              ),
               body: () {
                 final body = _bodyWithBanner(
                   context,

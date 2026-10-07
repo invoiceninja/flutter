@@ -213,6 +213,12 @@ class CountryFilterKey extends MembershipFilterKey {
   String get id => 'country';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'country_id';
 
   @override
@@ -239,7 +245,7 @@ class CountryFilterKey extends MembershipFilterKey {
     final all = statics.countries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
-        ? all.take(50)
+        ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
                 c.name.toLowerCase().contains(q) ||
@@ -338,6 +344,12 @@ class GroupFilterKey extends MembershipFilterKey {
   String get id => 'group';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'group_settings_id';
 
   @override
@@ -367,7 +379,7 @@ class GroupFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return groups.watchAll(companyId: companyId).map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((g) => g.name.toLowerCase().contains(q));
       return [
         for (final g in filtered)
@@ -389,6 +401,12 @@ class IndustryFilterKey extends MembershipFilterKey {
 
   @override
   String get id => 'industry';
+
+  @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
 
   @override
   String get serverKey => 'industry_id';
@@ -417,7 +435,7 @@ class IndustryFilterKey extends MembershipFilterKey {
     final all = statics.industries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
-        ? all.take(50)
+        ? all.take(idleSuggestionCap!)
         : all.where((i) => i.name.toLowerCase().contains(q));
     return Stream.value([
       for (final i in filtered)
@@ -456,6 +474,12 @@ class SizeFilterKey extends MembershipFilterKey {
   String get id => 'size';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'size_id';
 
   @override
@@ -479,7 +503,7 @@ class SizeFilterKey extends MembershipFilterKey {
     final all = statics.sizes.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
-        ? all.take(50)
+        ? all.take(idleSuggestionCap!)
         : all.where((s) => s.name.toLowerCase().contains(q));
     return Stream.value([
       for (final s in filtered)
@@ -532,6 +556,12 @@ class AssignedFilterKey extends MembershipFilterKey {
   String get id => 'assigned';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'assigned_user_ids';
 
   @override
@@ -561,7 +591,7 @@ class AssignedFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return users.watchAllForPicker(companyId: companyId).map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((u) => u.displayName.toLowerCase().contains(q));
       return [
         for (final u in filtered)
@@ -593,6 +623,9 @@ class NameFilterKey extends FilterKey {
 
   @override
   String get id => 'name';
+
+  @override
+  bool get isPrimary => true;
 
   @override
   String displayLabel(BuildContext context) => context.tr('name');
@@ -864,6 +897,13 @@ class BalanceFilterKey extends FilterKey with ComparableFilterKey {
   @override
   String? hintForValueMode(BuildContext context) =>
       context.tr('balance_filter_hint');
+
+  @override
+  String? normalizeTypedValue(
+    GenericListViewModel<dynamic> vm,
+    BuildContext context,
+    String typed,
+  ) => normalizeTypedNumber(vm, context, typed);
 }
 
 // Created / Updated date filters are the shared `DateColumnFilterKey`
@@ -966,6 +1006,12 @@ class CurrencyFilterKey extends MembershipFilterKey {
   String get id => 'currency';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'currency_id';
 
   @override
@@ -990,7 +1036,7 @@ class CurrencyFilterKey extends MembershipFilterKey {
     final all = statics.currencies.values.toList()
       ..sort((a, b) => a.code.compareTo(b.code));
     final filtered = q.isEmpty
-        ? all.take(50)
+        ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
                 c.code.toLowerCase().contains(q) ||
@@ -1043,6 +1089,12 @@ class LanguageFilterKey extends MembershipFilterKey {
   String get id => 'language';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'language_id';
 
   @override
@@ -1067,7 +1119,7 @@ class LanguageFilterKey extends MembershipFilterKey {
     final all = statics.languages.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
-        ? all.take(50)
+        ? all.take(idleSuggestionCap!)
         : all.where((l) => l.name.toLowerCase().contains(q));
     return Stream.value([
       for (final l in filtered)

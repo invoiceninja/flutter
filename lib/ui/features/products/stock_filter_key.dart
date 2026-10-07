@@ -24,6 +24,9 @@ class StockFilterKey extends FilterKey {
   String get id => serverKey;
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
   Iterable<String> get aliases => const ['inventory'];
 
   @override

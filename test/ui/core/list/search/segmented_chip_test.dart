@@ -36,7 +36,7 @@ void main() {
         ),
       );
 
-      expect(find.text('created'), findsOneWidget);
+      expect(find.text('Created'), findsOneWidget);
       expect(find.text('is on or after'), findsOneWidget);
       expect(find.text('2026-01-01'), findsOneWidget);
       // One caret on the comparator segment, one on the value segment.
@@ -59,7 +59,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('created'));
+      await tester.tap(find.text('Created'));
       await tester.tap(find.text('is on or after'));
       await tester.tap(find.text('2026-01-01'));
       await tester.pump();
@@ -124,7 +124,7 @@ void main() {
         ),
       );
       expect(find.byIcon(Icons.arrow_drop_down), findsNothing);
-      expect(find.text('country'), findsOneWidget);
+      expect(find.text('Country'), findsOneWidget);
       expect(find.text('United States'), findsOneWidget);
     });
   });

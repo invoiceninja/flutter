@@ -16,11 +16,11 @@ import '../../../../_localization_helper.dart';
 /// `test/ui/features/clients/client_filter_keys_test.dart`; the
 /// repo / query-string path is in `client_repository_test.dart`.
 ///
-/// The full token field is intentionally NOT tested here: its
-/// `OverlayPortal` + composited-transform follower + focus-driven stream
-/// subscriptions don't settle cleanly under `pumpAndSettle`, so we get
-/// orders of magnitude more value out of the focused unit tests plus
-/// manual / smoke checks at the screen level.
+/// The field itself — where its popup lands, what typing and the keys do —
+/// is covered in `token_search_field_overlay_test.dart`, on the harness in
+/// `_token_search_harness.dart`. It was left untested for a long time because
+/// an open popup never settles under `pumpAndSettle`; the harness pumps
+/// frame by frame instead.
 
 void main() {
   group('FilterInputParse.of', () {
@@ -90,7 +90,10 @@ void main() {
         wrap(FilterTokenChip(token: sampleToken, onRemove: () {})),
       );
       expect(find.text('Archived'), findsOneWidget);
-      expect(find.text('status'), findsOneWidget);
+      // The label keeps its own case. It used to be lowercased, which is
+      // wrong for any label that is not an English common noun.
+      expect(find.text('Status'), findsOneWidget);
+      expect(find.text('status'), findsNothing);
     });
 
     testWidgets(

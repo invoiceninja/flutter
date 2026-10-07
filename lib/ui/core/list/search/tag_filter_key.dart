@@ -44,6 +44,12 @@ class TagFilterKey extends MembershipFilterKey {
   String get id => 'tag';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String get serverKey => 'tag_ids';
 
   @override
@@ -69,7 +75,7 @@ class TagFilterKey extends MembershipFilterKey {
       all,
     ) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((t) => t.name.toLowerCase().contains(q));
       return [
         for (final t in filtered)

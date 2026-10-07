@@ -62,9 +62,8 @@ class DashboardMobileAppBar extends StatelessWidget
   /// `Breakpoints.isGlobalNavVisible`.
   final bool showHamburger;
 
-  /// No `bottom:`, so this is the plain toolbar height — none of the
-  /// hand-maintained `kToolbarHeight + 56` arithmetic `EntityListNormalAppBar`
-  /// has to keep in sync.
+  /// No search row under it, so this is the plain toolbar height — unlike
+  /// `EntityListAppBar`, whose narrow chrome adds a 56 px row that can grow.
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 

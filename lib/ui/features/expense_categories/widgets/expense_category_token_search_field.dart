@@ -6,7 +6,7 @@ import 'package:admin/ui/features/expense_categories/widgets/expense_category_fi
 
 /// Thin wrapper that wires [TokenSearchField] for the expense-categories
 /// list. Mirrors `ProductTokenSearchField` so the layout / placement code in
-/// `EntityListNormalAppBar` stays entity-agnostic.
+/// `EntityListAppBar` stays entity-agnostic.
 class ExpenseCategoryTokenSearchField extends StatelessWidget {
   const ExpenseCategoryTokenSearchField({
     required this.vm,

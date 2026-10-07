@@ -29,6 +29,12 @@ class TransactionStatusFilterKey extends FilterKey {
   String get id => 'status';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
   String displayLabel(BuildContext context) => context.tr('status');
 
   @override
@@ -182,6 +188,9 @@ class TransactionTypeFilterKey extends FilterKey {
   String get id => 'type';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
   String displayLabel(BuildContext context) => context.tr('type');
 
   @override
@@ -331,5 +340,10 @@ List<FilterKey> buildTransactionFilterKeys({
   ),
   const TransactionStatusFilterKey(),
   const TransactionTypeFilterKey(),
-  const DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
+  const DateColumnFilterKey(
+    id: 'date',
+    serverKey: 'date',
+    labelKey: 'date',
+    isPrimary: true,
+  ),
 ];

@@ -31,14 +31,17 @@ Every desktop platform hides the OS title bar and integrates the window controls
 
   **Header seam.** The rail's company row and the content pane's header sit side by side and
   must line up; `InSizes.headerBand` is the shared total (including the 1-px rule). Four
-  surfaces use it — the sidebar header, the dashboard header, the list toolbar and its
-  multi-select twin, and the Tasks view toggle — because the last three are documented to
-  match each other exactly and a body that jumps 5 px on entering multi-select is the
-  symptom when they drift. **`preferredSize` is load-bearing on the two custom
-  `PreferredSizeWidget`s**: `Scaffold` clamps an app bar to
-  `AppBar.preferredHeightFor(context, appBar.preferredSize)`, which for a custom one is that
-  value verbatim — so raising `toolbarHeight` while leaving `preferredSize` on the old
-  literal renders the old height and looks precisely like a change that did nothing.
+  surfaces use it — the sidebar header, the dashboard header, the list header
+  (`EntityListAppBar`, whose multi-select chrome is the same widget) and the Tasks view
+  toggle. It is a **floor**: the list header grows past it when the search field wraps its
+  filter chips, and lines up with the rail again when it does not — see
+  `docs/list-search-field.md` § The header grows because `preferredSize` is a ceiling.
+  **`preferredSize` is load-bearing on the custom `PreferredSizeWidget`s**: `Scaffold` clamps
+  an app bar to `AppBar.preferredHeightFor(context, appBar.preferredSize)`, which for a custom
+  one is that value verbatim. For a fixed-height bar (the Tasks view toggle) that means
+  raising `toolbarHeight` while leaving `preferredSize` on the old literal renders the old
+  height and looks precisely like a change that did nothing; for the list header it means
+  `preferredSize` must be the *ceiling* it may grow to, never the band.
   `test/lint/window_chrome_wiring_test.dart` fails on a leftover hardcoded 64 for that reason.
 
   **Colour, measured across all six palettes** (Sand / Mist / Paper, Espresso / Midnight / Carbon). Fill is `surface`; the wordmark is `ink` (14.9–17.9:1), the window glyphs are `ink2` (9.1–9.7:1) and the nav arrows `ink3` (4.0–4.7:1) — all comfortably clear. Two values are *not* the obvious ones and should not be "tidied" back:

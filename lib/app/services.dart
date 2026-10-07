@@ -774,11 +774,12 @@ class Services implements SidebarBadgeContext {
   /// `UnsavedChangesScope` (lib/ui/core/unsaved_changes/).
   final UnsavedChangesGuard unsavedChangesGuard;
 
-  /// One-slot registry of the currently-mounted token search field's
-  /// FocusNode. The global `/` shortcut reads this to focus search on the
-  /// active list screen without coupling the shell to any specific list.
-  /// Filled by `TokenSearchField.initState`, cleared in `dispose`; `null`
-  /// when no list screen is mounted (e.g. Dashboard, Settings).
+  /// Registry of the on-stage token search fields' FocusNodes. The global `/`
+  /// shortcut reads its `current` to focus search on the active list screen
+  /// without coupling the shell to any specific list. Claimed in
+  /// `TokenSearchField.didChangeDependencies` while the field is on-stage,
+  /// released when it goes offstage or is disposed; `null` when no list
+  /// screen is on stage (e.g. Dashboard, Settings).
   final SearchFocusRegistry searchFocus = SearchFocusRegistry();
 
   /// App-wide toast queue, rendered by the global `ToastHost` mounted in

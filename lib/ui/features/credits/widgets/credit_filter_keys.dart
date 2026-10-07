@@ -34,7 +34,12 @@ List<FilterKey> buildCreditFilterKeys({
     nameForClientId: nameForClientId,
   ),
   const CreditClientStatusFilterKey(),
-  const DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
+  const DateColumnFilterKey(
+    id: 'date',
+    serverKey: 'date',
+    labelKey: 'date',
+    isPrimary: true,
+  ),
   const DateColumnFilterKey(
     id: 'due_date',
     serverKey: 'due_date',
@@ -84,6 +89,12 @@ class CreditClientStatusFilterKey extends FilterKey {
 
   @override
   String get id => 'status';
+
+  @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
 
   @override
   String displayLabel(BuildContext context) => context.tr('status');

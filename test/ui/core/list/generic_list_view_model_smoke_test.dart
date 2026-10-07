@@ -190,6 +190,44 @@ void main() {
     },
   );
 
+  test('setSearch withdraws a term still inside its debounce', () async {
+    const debounce = Duration(milliseconds: 40);
+    final vm = FakeInvoiceListViewModel(
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      searchDebounce: debounce,
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    await settle();
+
+    // Typed, not applied yet. Asking for the value that IS applied must
+    // cancel what was about to replace it: the equality check used to return
+    // before the timer was touched, so `statu` — typed on the way to
+    // `status:` — fired a quarter-second later under the open value picker.
+    vm.setSearch('statu');
+    expect(vm.search, '');
+    vm.setSearch('');
+    await Future<void>.delayed(debounce * 3);
+    expect(vm.search, '');
+
+    // Same hole from the other side: `a` applied, `ab` typed and deleted.
+    vm.setSearch('a', immediate: true);
+    await settle();
+    vm.setSearch('ab');
+    vm.setSearch('a');
+    await Future<void>.delayed(debounce * 3);
+    expect(vm.search, 'a');
+
+    // Everything that replaces the search wholesale withdraws it too.
+    vm.setSearch('acme');
+    await vm.clearAllFilters();
+    await Future<void>.delayed(debounce * 3);
+    expect(vm.search, '', reason: 'a pending term outlived Clear filters');
+
+    vm.dispose();
+  });
+
   test('enterSelectionMode latches multiselect with nothing selected; '
       'clearSelection exits', () async {
     final vm = FakeInvoiceListViewModel(

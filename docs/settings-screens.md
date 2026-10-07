@@ -236,16 +236,18 @@ The index is the one settings screen that does **not** go through
 owns the search chrome, and that placement is load-bearing:
 
 - The trigger goes in `AppBar.actions`, the field in a 56 px
-  `bottom: PreferredSize(...)` — the same recipe `EntityListNormalAppBar` uses
-  on narrow. **Neither may live in the scrolling body.** The magnifying glass
+  `bottom: PreferredSize(...)` — the same shape as `EntityListAppBar`'s
+  narrow chrome (a toolbar over a 56 px search row). **Neither may live in the
+  scrolling body.** The magnifying glass
   used to be the `trailing:` of the in-list "Basic Settings" header, so it
   scrolled away and the user had to fling back to the top (issue #42).
 - The 56 isn't arbitrary: minus the 8 px bottom pad it's the 48 px intrinsic
   height a `prefixIcon` forces. The `title:` slot clamps to `kToolbarHeight`
   and re-creates the clipping `SettingsSearchField`'s comment describes.
-- Keep the `AppBar` inline. It derives `preferredSize` from `bottom` itself;
-  wrapping it in a custom `PreferredSizeWidget` is exactly what forces
-  `EntityListNormalAppBar` to hand-maintain `kToolbarHeight + 56` twice.
+- Keep the `AppBar` inline. It derives `preferredSize` from `bottom` itself.
+  `EntityListAppBar` is a custom `PreferredSizeWidget` only because its search
+  row has to grow when filter chips wrap (`docs/list-search-field.md`); a
+  settings search field is one line, always.
 
 `SettingsSearchController` (`state/`) holds the open/closed flag, query and
 focus node, because the trigger and the results no longer share a parent. The

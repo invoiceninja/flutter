@@ -848,6 +848,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// in-memory value in place — applying a "clean" saved view would carry
   /// over yesterday's stale country filter.
   void _applyDecoded(Map<String, dynamic> entity) {
+    _cancelPendingSearch();
     _search = '';
     _states = kDefaultListStates;
     _sortField = defaultSortField;
@@ -1073,6 +1074,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// the list would be a surprise. (This is the one place the "reset every
   /// dimension" rule doesn't apply.)
   void _applyIntentState(ListFilterIntent intent) {
+    _cancelPendingSearch();
     _search = '';
     // `intent.states` is public API on `ListFilterIntent` but no dashboard
     // panel sets it today, so this normally takes the default branch. Routed
@@ -1315,8 +1317,14 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
 
   void setSearch(String value, {bool immediate = false}) {
     final next = value.trim();
+    // Cancel BEFORE the no-op return. A debounced term that has not applied
+    // yet is not `_search`, so returning first left it armed: typing `statu`
+    // and then `s:` (a filter prefix, which asks for '') let `statu` fire
+    // 250 ms later under the open value picker, and a filter picked inside
+    // the window left it applied with an empty box. Asking for the value that
+    // is already applied must also withdraw whatever was about to replace it.
+    _cancelPendingSearch();
     if (next == _search) return;
-    _searchTimer?.cancel();
     if (immediate) {
       // Explicit commit (Enter / "Search for" row / soft-keyboard Done):
       // apply now instead of debouncing, so the result is deterministic and
@@ -1326,6 +1334,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       return;
     }
     _searchTimer = Timer(_searchDebounce, () => _applySearch(next));
+  }
+
+  /// Withdraws a debounced search that has not applied yet. Every path that
+  /// REPLACES the search wholesale calls this — [clearAllFilters], a restored
+  /// or saved-view snapshot ([_applyDecoded]) and a dashboard deep link
+  /// ([_applyIntentState]) — or the stale term lands ~250 ms after the state
+  /// it was typed against is gone.
+  void _cancelPendingSearch() {
+    _searchTimer?.cancel();
+    _searchTimer = null;
   }
 
   Future<void> _applySearch(String value) async {
@@ -1501,6 +1519,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         _sortAscending != defaultSortAscending ||
         _customFilters.isNotEmpty ||
         _extraFilters.isNotEmpty;
+    _cancelPendingSearch();
     _search = '';
     // Reset state to the default `{active}` rather than dropping the
     // dimension — "Clear filters" means "show me the normal list", which

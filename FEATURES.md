@@ -1656,6 +1656,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | List filter — expense project / vendor | ✅ | ✅ | ✅ | ✅ | v5 `project_ids`/`vendor_ids` |
 | List filter — canonical `date_range` (`column,start,end`) | — | — | ✅ | ✅ | legacy 2-part still parsed |
 | List filter — date "is between" comparator (date + due_date + client created/updated) | — | — | — | ✅ | unified into `DateColumnFilterKey`; dual-calendar popover; replaced bespoke payment date_range key; clients folded the standalone "updated between" entry into the operator (`created_at_range`/`updated_at_range`, mirrored locally); server `date_range`/`due_date_range` standardized 3-part in fork (BACKEND.md § E3) |
+| List search field — `key:value` filter chips with a suggestion popup (suggested filters first, type-hints, multi-select with "Only"), typed amounts / dates, full keyboard (Enter · Tab · ↓ · two-stage Esc · armed Backspace) | — | — | ✅ | | The popup is placed in the layout pass under the text being typed and kept inside the box; the list header grows a row when chips wrap; a chip's body edits and only ✕ removes (`docs/list-search-field.md`) |
 | Saved views (filter + sort + columns) | ✅ | ✅ | ✅ | ✅ | |
 | Bulk-actions framework | ✅ | ✅ | ✅ | ✅ | |
 | PDF generation | ✅ | ✅ | ✅ | ✅ | |

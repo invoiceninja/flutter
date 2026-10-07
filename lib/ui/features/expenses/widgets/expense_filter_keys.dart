@@ -74,6 +74,12 @@ class ExpenseStatusFilterKey extends MembershipFilterKey {
   String get id => 'status';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
   String get serverKey => 'client_status';
 
   @override
@@ -150,6 +156,9 @@ class ExpenseCategoryFilterKey extends MembershipFilterKey {
   String get id => 'category';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
   String get serverKey => 'categories';
 
   /// Render checkboxes — inherits the single-write `selectExclusive` /
@@ -221,6 +230,12 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
   bool get checkboxMultiSelect => true;
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  int? get idleSuggestionCap => 50;
+
+  @override
   String displayValueFor(String rawValue) {
     final cached = _names[rawValue];
     return (cached != null && cached.isNotEmpty) ? cached : rawValue;
@@ -235,7 +250,7 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
     final q = query.trim().toLowerCase();
     return nameStream().map((all) {
       final filtered = q.isEmpty
-          ? all.take(50)
+          ? all.take(idleSuggestionCap!)
           : all.where((r) => r.name.toLowerCase().contains(q));
       return [
         for (final r in filtered)

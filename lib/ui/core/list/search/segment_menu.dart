@@ -57,7 +57,10 @@ class SegmentMenu extends StatelessWidget {
   /// current key, rendered check-marked.
   final List<ComparableFilterKey> fieldChoices;
 
-  static const double _maxWidth = 280;
+  /// The popup's size caps. Public so the host's placement can keep the
+  /// popup on screen by its real width, and shorten it above a keyboard.
+  static const double maxWidth = 280;
+  static const double maxHeight = 360;
 
   /// The date key behind this chip, when it is one — gives access to the
   /// `between` window slot (`date_range` / `due_date_range`).
@@ -119,7 +122,20 @@ class SegmentMenu extends StatelessWidget {
             onClose();
             return;
           }
-          filterKey.addValue(vm, filterKey.buildWire(t, op));
+          // Through the key's own normalizer, so `abc` is refused (the popup
+          // stays open on it) and `1,5` is read the company's way. The
+          // comparator is this chip's — one typed here is dropped, not
+          // appended to the value as it used to be (`> >600`).
+          final normalized = filterKey.normalizeTypedValue(
+            vm,
+            context,
+            splitTypedOperator(t).value,
+          );
+          if (normalized == null) return;
+          filterKey.addValue(
+            vm,
+            filterKey.buildWire(filterKey.parseWire(normalized).$1, op),
+          );
           onClose();
         },
       );
@@ -140,8 +156,8 @@ class SegmentMenu extends StatelessWidget {
         color: tokens.surface,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: _maxWidth,
-            maxHeight: 360,
+            maxWidth: maxWidth,
+            maxHeight: maxHeight,
           ),
           child: Container(
             decoration: BoxDecoration(
@@ -244,6 +260,12 @@ class SegmentMenu extends StatelessWidget {
       children: [
         for (final (token, labelKey) in kRelativeDatePresets)
           _MenuRow(
+            // Something in the popup has to hold focus or its Escape binding
+            // (a `CallbackShortcuts` in `_shell`) never sees the key: the
+            // comparator and field lists autofocus their current row, and
+            // this list had no row that did.
+            autofocus: token == kRelativeDatePresets.first.$1,
+            selected: filterKey.parseWire(currentWire).$1 == token,
             label: context.tr(labelKey),
             onTap: () {
               filterKey.addValue(vm, filterKey.buildWire(token, op));
@@ -260,11 +282,23 @@ class SegmentMenu extends StatelessWidget {
             // closing first is the only thing that works for both.
             onClose();
             final now = DateTime.now();
+            final first = DateTime(2000);
+            final last = DateTime(now.year + 5);
+            // Open on the chip's own date, not on today — changing 14 May to
+            // 15 May should not start from this month.
+            final current = DateTime.tryParse(
+              filterKey.parseWire(currentWire).$1,
+            );
             final picked = await showDatePicker(
               context: context,
-              initialDate: now,
-              firstDate: DateTime(2000),
-              lastDate: DateTime(now.year + 5),
+              initialDate:
+                  current != null &&
+                      !current.isBefore(first) &&
+                      !current.isAfter(last)
+                  ? current
+                  : now,
+              firstDate: first,
+              lastDate: last,
             );
             if (picked != null) {
               final iso =

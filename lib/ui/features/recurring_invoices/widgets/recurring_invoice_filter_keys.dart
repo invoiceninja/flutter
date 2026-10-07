@@ -56,6 +56,12 @@ class RecurringInvoiceStatusFilterKey extends FilterKey {
   String get id => 'status';
 
   @override
+  bool get acceptsTypedValue => false;
+
+  @override
+  bool get isPrimary => true;
+
+  @override
   String displayLabel(BuildContext context) => context.tr('status');
 
   @override

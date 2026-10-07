@@ -236,10 +236,32 @@ void main() {
       final chip = chips.single;
       expect(chip.aggregate, isTrue);
       expect(chip.rawValues, hasLength(3));
-      expect(chip.token.displayValue.split(', '), hasLength(3));
-      final parts = chip.token.displayValue.split(', ');
-      final sorted = [...parts]..sort();
-      expect(parts, sorted, reason: 'chip values must be deterministic');
+      // Two values are named and the rest are counted — three labels in one
+      // chip is what pushed the input onto a second line. The full list is
+      // the chip's tooltip.
+      final all = chip.token.valueTooltip!.split(', ');
+      expect(all, hasLength(3));
+      expect(
+        all,
+        [...all]..sort(),
+        reason: 'chip values must be deterministic',
+      );
+      expect(
+        chip.token.displayValue,
+        '${all.take(TokenSearchController.kAggregateChipValues).join(', ')} +1',
+      );
+
+      // Two values fit, so nothing is abbreviated and there is no tooltip.
+      await vm.setStates({EntityState.active, EntityState.archived});
+      final two = controller.activeChips(ctx).single;
+      expect(two.aggregate, isTrue);
+      expect(two.token.displayValue.split(', '), hasLength(2));
+      expect(two.token.valueTooltip, isNull);
+      await vm.setStates({
+        EntityState.active,
+        EntityState.archived,
+        EntityState.deleted,
+      });
 
       // Removing the aggregate chip returns to the default — and the chip
       // goes with it, so the `×` is never a dead affordance.
@@ -495,9 +517,9 @@ void main() {
       expect(controller.pinnedValueKey, isNull);
       expect(vm.states, statesBefore, reason: 'no chip removed');
 
-      // No pin + empty input + a chip present → Backspace removes the
-      // last chip (unchanged behavior). Seed a NON-default state: at the
-      // default there is no chip to remove.
+      // No pin + empty input + a chip present → the FIRST Backspace arms
+      // the last chip and removes nothing; the second removes it. Seed a
+      // NON-default state: at the default there is no chip to remove.
       await vm.setStates({EntityState.archived});
       expect(controller.activeChips(ctx), hasLength(1));
       expect(
@@ -509,6 +531,35 @@ void main() {
         KeyEventResult.handled,
       );
       await Future<void>.delayed(Duration.zero);
+      expect(controller.lastChipArmed, isTrue);
+      expect(vm.states, {EntityState.archived}, reason: 'armed, not removed');
+
+      // A key held down repeats, and a repeat must never reach a chip: the
+      // user is clearing their text.
+      expect(
+        controller.handleArrowEnterBackspace(
+          KeyRepeatEvent(
+            physicalKey: PhysicalKeyboardKey.backspace,
+            logicalKey: LogicalKeyboardKey.backspace,
+            timeStamp: Duration.zero,
+          ),
+          suggestionsActive: false,
+          context: ctx,
+        ),
+        KeyEventResult.ignored,
+      );
+      expect(vm.states, {EntityState.archived});
+
+      expect(
+        controller.handleArrowEnterBackspace(
+          backspace,
+          suggestionsActive: false,
+          context: ctx,
+        ),
+        KeyEventResult.handled,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.lastChipArmed, isFalse);
       expect(vm.states, {EntityState.active});
 
       // Back at the default there is nothing left to remove: Backspace must

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 
@@ -9,6 +10,11 @@ import 'package:admin/ui/core/list/search/filter_token.dart';
 /// Two shapes:
 ///  * **Plain** (`token.displayComparator == null`): `<key> <value> ×` —
 ///    key muted, value bold. The body is one tap target ([onTap]).
+///
+/// The key label keeps the case it was given. It used to be lowercased for a
+/// `key:value` look, which is wrong the moment the label is not English: a
+/// German noun (`kunde`), an abbreviation (`ust-idnr.`), or the label a
+/// company typed for its own custom field.
 ///  * **Segmented** (a comparable key — `displayComparator != null`):
 ///    `<field> | <comparator ▾> | <value ▾> | ×` — each of the three
 ///    parts is its own tap target so the user can change the comparator
@@ -28,6 +34,8 @@ class FilterTokenChip extends StatelessWidget {
     this.onTap,
     this.onComparatorTap,
     this.onValueTap,
+    this.armed = false,
+    this.compact = false,
     super.key,
   }) : readOnly = false;
 
@@ -36,6 +44,8 @@ class FilterTokenChip extends StatelessWidget {
       onTap = null,
       onComparatorTap = null,
       onValueTap = null,
+      armed = false,
+      compact = false,
       readOnly = true;
 
   final FilterToken token;
@@ -57,6 +67,19 @@ class FilterTokenChip extends StatelessWidget {
   final void Function(Rect anchorGlobalRect)? onValueTap;
 
   final bool readOnly;
+
+  /// True after one Backspace in the empty input: this chip is the one the
+  /// next Backspace removes, and it says so with the accent border — the
+  /// keyboard equivalent of pointing at its ✕.
+  final bool armed;
+
+  /// True where the chip sits in a row of fixed height (the wide search box):
+  /// on a touch platform the ✕ then takes its height from the chip's own
+  /// line and keeps a finger's WIDTH, instead of the theme padding its layout
+  /// box to 40 px square — which made a single chip 50 px tall, taller than
+  /// the header row it sat in. False (the phone sheet, which has the room)
+  /// keeps the full square target. No effect with a pointer.
+  final bool compact;
 
   static void _noop() {}
 
@@ -84,7 +107,7 @@ class FilterTokenChip extends StatelessWidget {
       color: readOnly ? tokens.surface : tokens.surfaceAlt,
       // Project rule: rounded rectangles, never pills.
       borderRadius: BorderRadius.circular(InRadii.r1),
-      border: Border.all(color: tokens.border),
+      border: Border.all(color: armed ? tokens.accent : tokens.border),
     );
 
     if (_segmented) {
@@ -102,7 +125,7 @@ class FilterTokenChip extends StatelessWidget {
                   semanticLabel:
                       '${token.displayKey}, ${context.tr('filter_field')}',
                   child: Text(
-                    token.displayKey.toLowerCase(),
+                    token.displayKey,
                     style: keyStyle,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
@@ -169,7 +192,7 @@ class FilterTokenChip extends StatelessWidget {
         // part, so it carries most of the shrink.
         Flexible(
           child: Text(
-            token.displayKey.toLowerCase(),
+            token.displayKey,
             style: keyStyle,
             overflow: TextOverflow.ellipsis,
             softWrap: false,
@@ -182,11 +205,13 @@ class FilterTokenChip extends StatelessWidget {
         ],
         Flexible(
           flex: 2,
-          child: Text(
-            token.displayValue,
-            style: valueStyle,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
+          child: _maybeTooltip(
+            Text(
+              token.displayValue,
+              style: valueStyle,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
         ),
       ],
@@ -262,17 +287,31 @@ class FilterTokenChip extends StatelessWidget {
     if (readOnly) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(left: 2),
-      child: IconButton(
-        tooltip: context.tr('clear_filter'),
-        iconSize: 14,
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        // 24×24 hit slop — under that, iOS HIG reports the button as
-        // below the minimum touch target. Icon stays 14 px for density.
-        constraints: const BoxConstraints(minHeight: 24, minWidth: 24),
-        onPressed: onRemove,
-        icon: Icon(Icons.close, color: tokens.ink3),
-      ),
+      child: compact && Env.isTouchPrimary
+          ? IconButton(
+              tooltip: context.tr('clear_filter'),
+              iconSize: 14,
+              padding: EdgeInsets.zero,
+              // `shrinkWrap`, no `visualDensity` — see `SidebarRowIconButton`
+              // for why each is needed to make the constraints below real.
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              constraints: const BoxConstraints.tightFor(width: 40, height: 24),
+              onPressed: onRemove,
+              icon: Icon(Icons.close, color: tokens.ink3),
+            )
+          : IconButton(
+              tooltip: context.tr('clear_filter'),
+              iconSize: 14,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              // 24×24 hit slop — under that, iOS HIG reports the button as
+              // below the minimum touch target. Icon stays 14 px for density.
+              constraints: const BoxConstraints(minHeight: 24, minWidth: 24),
+              onPressed: onRemove,
+              icon: Icon(Icons.close, color: tokens.ink3),
+            ),
     );
   }
 }

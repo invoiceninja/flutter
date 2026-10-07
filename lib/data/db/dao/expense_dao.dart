@@ -284,16 +284,25 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
   /// Cheap streams used by cross-entity navigation (vendor/client/project
   /// detail pages → "Linked expenses" card). Each filters by a single id +
   /// excludes deleted rows.
-
+  ///
+  /// [activeClientsOnly] leaves out expenses billed to an archived or deleted
+  /// client — the rows the vendor's Expenses tab does not fetch and its count
+  /// does not include (see [clientActiveFilter]).
   Stream<List<ExpenseRow>> watchForVendor({
     required String companyId,
     required String vendorId,
     Set<EntityState> states = const {EntityState.active},
+    bool activeClientsOnly = false,
   }) {
     final q = select(expenses)
       ..where(
         (e) => e.companyId.equals(companyId) & e.vendorId.equals(vendorId),
       );
+    if (activeClientsOnly) {
+      q.where(
+        (e) => clientActiveFilter(clientId: e.clientId, companyId: companyId),
+      );
+    }
     if (states.isNotEmpty) {
       q.where(
         (e) => entityStateFilter(

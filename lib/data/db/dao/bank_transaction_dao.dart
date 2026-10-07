@@ -259,7 +259,8 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
       );
     final predicate = badgeModePredicate(modeId);
     if (predicate != null) q.where(predicate);
-    return q.map((row) => row.read(count) ?? 0).watchSingle();
+    // `distinct` for the reason `BaseEntityDao.watchBadgeCount` gives.
+    return q.map((row) => row.read(count) ?? 0).watchSingle().distinct();
   }
 
   /// The list-filter form of [badgeModePredicate], mirroring

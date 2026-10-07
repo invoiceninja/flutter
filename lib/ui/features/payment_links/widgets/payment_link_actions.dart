@@ -8,16 +8,33 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/utils/url_safety.dart';
 
 /// Action set surfaced for a Payment Link. The standard minimum surface —
 /// edit / archive / restore / delete — plus `clone`, which duplicates a
 /// link into a fresh create form (invoiceninja/flutter#62: setting up
 /// per-duration tiers of the same product otherwise means rebuilding all
 /// four tabs by hand).
-enum PaymentLinkAction { edit, clone, copyLink, archive, restore, delete }
+enum PaymentLinkAction {
+  edit,
+  clone,
+
+  /// Quick-action strip only — see [PaymentLinkActions.quickItemsFor]. Not in
+  /// [PaymentLinkActions.itemsFor], so they reach neither the `⋮` menu, the
+  /// list row's menu, nor the edit screen.
+  copyPurchasePage,
+  openPurchasePage,
+  copyLink,
+  archive,
+  restore,
+  delete,
+}
 
 /// Single source of truth for what PaymentLink actions exist and what
 /// they do. Consumed by the list-row popup, detail header, and edit
@@ -85,16 +102,33 @@ class PaymentLinkActions {
     PaymentLink paymentLink,
     void Function(PaymentLinkAction) onTap,
   ) {
-    final canArchive = paymentLink.archivedAt == null && !paymentLink.isDeleted;
-    final canRestore = paymentLink.archivedAt != null || paymentLink.isDeleted;
+    final session = context.read<Services>().auth.session.value;
+    // Archive, restore and delete all need `edit_subscription` (the wire name
+    // of a payment link): the server authorizes each through
+    // `EntityPolicy::edit`, and there is no `delete_*` permission. Ungated, a
+    // view-only user was offered Restore — one tap from the record's state
+    // banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'subscription',
+          createdBy: paymentLink.userId,
+          assignedTo: paymentLink.assignedUserId,
+          recordId: paymentLink.id,
+        ) ??
+        false;
+    final canArchive =
+        canEdit && paymentLink.archivedAt == null && !paymentLink.isDeleted;
+    final canRestore =
+        canEdit && (paymentLink.archivedAt != null || paymentLink.isDeleted);
     // Same gate as the list's New button (`canCreate: hasAccess`) — Clone is
     // a create affordance and `payment_links` is Pro-gated
     // (`kProGatedSettings`). Without it, Clone would be a create path that
     // reopens the hole the New-button gate closes, since the `/new` route
     // itself is ungated. Self-hosted always qualifies (`isProPlan` short-
     // circuits on `isSelfHosted`).
-    final hasProAccess =
-        context.read<Services>().auth.session.value?.hasProAccess ?? false;
+    final hasProAccess = session?.hasProAccess ?? false;
 
     return [
       editActionItem(
@@ -132,9 +166,63 @@ class PaymentLinkActions {
         context: context,
         subject: _confirmSubject(paymentLink),
         kind: PaymentLinkAction.delete,
-        canDelete: !paymentLink.isDeleted,
+        canDelete: canEdit && !paymentLink.isDeleted,
         onTap: () => onTap(PaymentLinkAction.delete),
       ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles, most-used first: hand the
+  /// purchase page to a customer, look at it, start another link like it.
+  ///
+  /// The two purchase-page tiles exist only here (see
+  /// [PaymentLinkAction.copyPurchasePage]); Clone is a second render of the
+  /// item [itemsFor] already built, so its Pro gate stays on the item.
+  static List<EntityQuickAction<PaymentLinkAction>> quickItemsFor(
+    BuildContext context,
+    PaymentLink paymentLink,
+    void Function(PaymentLinkAction) onTap,
+  ) {
+    // A deleted link is read-only, and an unsynced one has no purchase page
+    // and would answer Clone with "sync first" — the banner says that once.
+    if (paymentLink.isDeleted || paymentLink.id.startsWith('tmp_')) {
+      return const [];
+    }
+    final items = itemsFor(context, paymentLink, onTap);
+    final clone = findActionItem<PaymentLinkAction>(
+      items,
+      PaymentLinkAction.clone,
+    );
+    final url = paymentLink.purchasePage;
+    final page = context.tr('purchase_page');
+    return [
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: PaymentLinkAction.copyPurchasePage,
+          icon: Icons.link,
+          // Named for what it copies: the record's own menu has a different
+          // "Copy Link", which is the link to this screen.
+          label: '$page: ${context.tr('copy_link')}',
+          enabled: true,
+          onTap: () => onTap(PaymentLinkAction.copyPurchasePage),
+        ),
+        shortLabel: context.tr('copy_link'),
+        applies: url.isNotEmpty,
+      ),
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: PaymentLinkAction.openPurchasePage,
+          icon: Icons.open_in_new,
+          label: page,
+          enabled: true,
+          onTap: () => onTap(PaymentLinkAction.openPurchasePage),
+        ),
+        shortLabel: context.tr('open'),
+        // Only a link the app would actually launch.
+        applies: url.isNotEmpty && isSafeWebUrl(url),
+      ),
+      if (clone != null)
+        EntityQuickAction(item: clone, shortLabel: context.tr('clone')),
     ];
   }
 
@@ -148,6 +236,12 @@ class PaymentLinkActions {
     switch (action) {
       case PaymentLinkAction.edit:
         goEntityEdit(context, '/settings/payment_links', paymentLink.id);
+      case PaymentLinkAction.copyPurchasePage:
+        if (paymentLink.purchasePage.isEmpty) return;
+        await copyToClipboard(context, paymentLink.purchasePage);
+      case PaymentLinkAction.openPurchasePage:
+        if (!isSafeWebUrl(paymentLink.purchasePage)) return;
+        await openExternalUrl(context, paymentLink.purchasePage);
       case PaymentLinkAction.clone:
         // Client-side clone: seed the create form, no server round-trip (the
         // subscriptions route is a plain `Route::resource` — there is no

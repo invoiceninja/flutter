@@ -91,7 +91,15 @@ class BillingDocEmailScreen extends StatefulWidget {
     this.onSchedule,
     required this.onReactivate,
     required this.pdfFetcher,
+    this.initialTemplate,
   });
+
+  /// The template to open on, when the caller knows which one is wanted — the
+  /// dashboard's Remind passes the next unsent reminder, where opening on the
+  /// first template (the "here is your invoice" email) made every reminder
+  /// start with a trip to the picker. Ignored unless it is one this document
+  /// type offers; the picker stays free to change it.
+  final String? initialTemplate;
 
   final Services services;
   final String companyId;
@@ -305,7 +313,11 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     _preview = PreviewController(api: widget.services.templates);
     _preview.addListener(_onPreviewChanged);
     _ccFocus.addListener(_onCcFocus);
-    _template = BillingEmailTemplate.forType(widget.type).first.value;
+    final templates = BillingEmailTemplate.forType(widget.type);
+    final wanted = widget.initialTemplate;
+    _template = templates.any((t) => t.value == wanted)
+        ? wanted!
+        : templates.first.value;
 
     // The doc's client/vendor (hence its contacts) may not be in Drift yet
     // when reached from a list — deduped + safe to fire unconditionally.

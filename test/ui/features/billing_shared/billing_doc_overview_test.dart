@@ -10,16 +10,15 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/country.dart';
 import 'package:admin/data/models/value/currency.dart';
-import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
-import 'package:admin/ui/features/billing_shared/billing_doc_kpi_strip.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
+import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -126,123 +125,6 @@ void main() {
     );
   }
 
-  group('BillingDocKpiStrip', () {
-    testWidgets('formats money and renders — for zero', (tester) async {
-      await pump(
-        tester,
-        BillingDocKpiStrip(
-          formatter: _usdFormatter(),
-          currencyId: '1',
-          metrics: [
-            BillingMetric(label: 'Amount', amount: Decimal.parse('100')),
-            BillingMetric(label: 'Paid', amount: Decimal.zero),
-          ],
-        ),
-      );
-      await tester.pump();
-
-      // The original bug rendered the raw decimal "100"; the fix formats it.
-      expect(find.text(r'$100.00'), findsOneWidget);
-      expect(find.text('100'), findsNothing);
-      // Zero collapses to an em dash, matching the KPI-strip convention.
-      expect(find.text('—'), findsOneWidget);
-    });
-  });
-
-  group('BillingDatesCaption', () {
-    testWidgets('renders the overdue chip and formats the dates', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        BillingDatesCaption(
-          formatter: _usdFormatter(),
-          issuedLabel: 'Date',
-          issued: Date.tryParse('2022-01-07'),
-          secondaryLabel: 'Due Date',
-          secondary: Date.tryParse('2022-02-08'),
-          overduePrefix: 'Overdue',
-          overdueDays: 32,
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Overdue · 32d'), findsOneWidget);
-      // Dates are formatted, never the raw ISO string.
-      expect(find.textContaining('2022-02-08'), findsNothing);
-      expect(find.textContaining('Feb 8, 2022'), findsOneWidget);
-    });
-
-    // invoiceninja/flutter#154. The segment is the only part of this feature
-    // that survives the status moving on: `calculatedStatusId` checks its
-    // viewed branch last, so an invoice that was read and then went overdue
-    // shows a `Past Due` pill and no link. "Did they ever even open it?" is at
-    // its most valuable exactly there.
-    testWidgets('carries the viewed date whatever the status says', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        BillingDatesCaption(
-          formatter: _usdFormatter(),
-          issuedLabel: 'Date',
-          issued: Date.tryParse('2022-01-07'),
-          secondaryLabel: 'Due Date',
-          secondary: Date.tryParse('2022-02-08'),
-          overduePrefix: 'Overdue',
-          overdueDays: 32,
-          viewedLabel: 'Viewed',
-          viewedIso: '2022-02-20 15:50:31',
-        ),
-      );
-      await tester.pump();
-
-      // Date-only, even though the value carries a time: both neighbours are
-      // date-only, the with-time segment does not fit one run beside the PDF
-      // pane, and the Activity row it pairs with reads `created_at`, which the
-      // server's queued listener puts at least five seconds later.
-      expect(find.textContaining('Viewed Feb 20, 2022'), findsOneWidget);
-      expect(find.textContaining('3:50'), findsNothing);
-    });
-
-    testWidgets('renders nothing when nobody has looked', (tester) async {
-      await pump(
-        tester,
-        BillingDatesCaption(
-          formatter: _usdFormatter(),
-          issuedLabel: 'Date',
-          issued: Date.tryParse('2022-01-07'),
-          secondaryLabel: 'Due Date',
-          secondary: Date.tryParse('2022-02-08'),
-          viewedLabel: 'Viewed',
-          viewedIso: null,
-        ),
-      );
-      await tester.pump();
-      expect(find.textContaining('Viewed'), findsNothing);
-    });
-
-    testWidgets('renders nothing rather than a label with a gap after it', (
-      tester,
-    ) async {
-      // `Formatter.date` answers '' for a value it cannot parse.
-      await pump(
-        tester,
-        BillingDatesCaption(
-          formatter: _usdFormatter(),
-          issuedLabel: 'Date',
-          issued: Date.tryParse('2022-01-07'),
-          secondaryLabel: 'Due Date',
-          secondary: Date.tryParse('2022-02-08'),
-          viewedLabel: 'Viewed',
-          viewedIso: 'not-a-date',
-        ),
-      );
-      await tester.pump();
-      expect(find.textContaining('Viewed'), findsNothing);
-    });
-  });
-
   group('LineItemsReadonlyTable', () {
     testWidgets('renders item, unit cost and gross line total', (tester) async {
       await pump(
@@ -339,7 +221,7 @@ void main() {
   });
 
   group('BillingDocOverview', () {
-    testWidgets('renders line items + totals, shows notes, hides empty terms', (
+    testWidgets('renders line items + totals, then whatever trails them', (
       tester,
     ) async {
       await pump(
@@ -354,8 +236,6 @@ void main() {
             ),
             precision: 2,
             balance: Decimal.parse('100'),
-            publicNotes: 'Thanks for your business',
-            terms: '',
             formatter: _usdFormatter(),
             currencyId: '1',
             trailing: const [Text('TRAILING_MARKER')],
@@ -368,12 +248,55 @@ void main() {
       expect(find.text('Widget'), findsOneWidget);
       expect(find.text('Total'), findsOneWidget);
       expect(find.text(r'$100.00'), findsWidgets);
-      // Public notes shown; empty Terms section hidden (not '—').
-      expect(find.text('Thanks for your business'), findsOneWidget);
-      expect(find.text('Terms'), findsNothing);
+      // Nothing is dashed; the notes are a card of their own now
+      // (`billing_doc_notes_test.dart`).
       expect(find.text('—'), findsNothing);
-      // Trailing (invoice-only reminders/payments slot) renders.
+      // Trailing (the invoice's payments and reminders, then the printed
+      // notes) renders.
       expect(find.text('TRAILING_MARKER'), findsOneWidget);
+    });
+
+    testWidgets('the totals card sits at the end of its row where there is '
+        'room to see that it does, and fills the row where there is not', (
+      tester,
+    ) async {
+      Future<({double left, double width})> totalsAt(double width) async {
+        await pump(
+          tester,
+          SingleChildScrollView(
+            child: Center(
+              child: SizedBox(
+                width: width,
+                child: BillingDocOverview(
+                  totalsInput: BillingTotalsInput(
+                    lineItems: [_item()],
+                    discount: Decimal.zero,
+                    isAmountDiscount: false,
+                    usesInclusiveTaxes: false,
+                  ),
+                  precision: 2,
+                  formatter: _usdFormatter(),
+                  currencyId: '1',
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final totals = tester.getRect(find.byType(TotalsWidget));
+        final table = tester.getRect(find.byType(LineItemsReadonlyTable));
+        return (left: totals.left - table.left, width: totals.width);
+      }
+
+      // A 390 px phone leaves 366: capped at 360 the card stopped six pixels
+      // short of the table above it, which read as a card that had slipped.
+      final phone = await totalsAt(366);
+      expect(phone.left, 0);
+      expect(phone.width, 366);
+      // The pane has room for the offset to be seen as one.
+      final pane = await totalsAt(448);
+      expect(pane.width, 360);
+      expect(pane.left, 88);
     });
 
     testWidgets('resolves the header Custom Labels off the watched company', (
@@ -394,8 +317,6 @@ void main() {
             ),
             precision: 2,
             balance: Decimal.parse('100'),
-            publicNotes: '',
-            terms: '',
             formatter: _usdFormatter(),
             currencyId: '1',
           ),

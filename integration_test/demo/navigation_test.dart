@@ -22,7 +22,7 @@ import 'package:admin/ui/features/credits/views/credit_detail_screen.dart';
 import 'package:admin/ui/features/credits/views/credit_list_screen.dart';
 import 'package:admin/ui/features/credits/widgets/credit_list_tile.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
-import 'package:admin/ui/features/dashboard/widgets/kpi_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_figures.dart';
 import 'package:admin/ui/features/expenses/views/expense_detail_screen.dart';
 import 'package:admin/ui/features/expenses/views/expense_list_screen.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_list_tile.dart';
@@ -344,11 +344,15 @@ void main() {
 
     await bootLoggedIn(tester, initialLocation: '/dashboard');
     await pumpUntilFound(tester, find.byType(DashboardScreen));
-    // KpiCard only renders once the live KPI fetch resolves (loading shows
-    // a spinner, failure an ErrorView) — so its presence + no ErrorView is
-    // a stable "dashboard loaded with live data" signal.
-    await pumpUntilFound(tester, find.byType(KpiCard));
-    expect(find.byType(KpiCard), findsAtLeastNWidgets(1));
+    // The Outstanding card is on screen from the first frame — as a
+    // placeholder until the live totals fetch resolves, and as a dash if it
+    // fails. So it is the card *showing a value the server returned*, plus no
+    // ErrorView, that is the stable "dashboard loaded with live data" signal.
+    final loadedFigure = find.byWidgetPredicate(
+      (w) => w is OutstandingFigureCard && w.showsLoadedValue,
+    );
+    await pumpUntilFound(tester, loadedFigure);
+    expect(loadedFigure, findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(DashboardScreen),

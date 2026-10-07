@@ -50,8 +50,9 @@ String viewedByTooltip({
 /// `hasViewedInvitation`. `calculatedStatusId` checks its viewed branch last,
 /// so a paid-or-overdue invoice can be viewed while the pill reads something
 /// else; gating on the invitations would hang a "viewed by" tooltip under a
-/// pill saying *Paid*. The durable answer for those documents is the header
-/// caption's `Viewed <date>` segment, which is status-independent.
+/// pill saying *Paid*. The durable answer for those documents is the header's
+/// `Viewed: <date>` segment (`BillingDocRecordHeader`), which is
+/// status-independent.
 ///
 /// When the gate is closed this mounts no Drift watch at all, so the common
 /// path costs nothing.
@@ -88,8 +89,8 @@ class ViewedStatusPillLink extends StatelessWidget {
   final TabSelectionController selectTab;
   final ActivityRevealController reveal;
 
-  /// Passed in rather than read from `FormatterScope`: the purchase-order
-  /// detail screen mounts no scope and threads its formatter by hand.
+  /// Passed in rather than read from `FormatterScope`: only the invoice
+  /// screen mounts a scope; the other three thread their formatter by hand.
   final Formatter? formatter;
 
   final String clientId;
@@ -151,7 +152,8 @@ class ViewedStatusPillLink extends StatelessWidget {
           // long-press nobody will try — this app has no long-press-reveals-
           // info pattern, and the one the issue remembers (the phone icon)
           // actually *copies* on long-press. Touch gets the answer visually
-          // from the header caption and from the row this tap lands on.
+          // from the header's `Viewed` segment and from the row this tap
+          // lands on.
           Env.isTouchPrimary ? null : line,
           // Ungated: a screen reader has no hover either way, and touch is
           // where it is most likely to be the only way the user reads this.

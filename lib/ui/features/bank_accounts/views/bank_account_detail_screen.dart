@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,24 +7,39 @@ import 'package:admin/data/models/domain/bank_account.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/entity_record_column.dart';
+import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
+import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
+import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart'
     show kBankAccountsListSearchKeys;
 import 'package:admin/ui/features/bank_accounts/widgets/bank_account_actions.dart';
+import 'package:admin/ui/features/bank_accounts/widgets/detail/bank_account_detail_header.dart';
+import 'package:admin/ui/features/bank_accounts/widgets/detail/bank_account_detail_profile.dart';
+import 'package:admin/ui/features/bank_accounts/widgets/detail/bank_account_detail_standing.dart';
 import 'package:admin/ui/features/bank_accounts/widgets/reconnect_banner.dart';
 import 'package:admin/ui/features/transactions/views/transaction_list_screen.dart';
 import 'package:admin/utils/formatting.dart';
 
-/// `/settings/bank_accounts/:id` — read-only detail view for one bank
-/// integration. Header surfaces balance + provider + status + quick-edit
-/// `auto_sync` switch. Reconnect banner appears when the upstream
-/// provider has dropped the connection. Below the header, an embedded
-/// `TransactionListScreen` filtered to this integration shows recent
-/// transactions; tap "View all" to drop into the full
-/// `/transactions?bank_account_id=<id>` workspace screen.
+/// `/settings/bank_accounts/:id` — the bank-account record screen, on the
+/// record layout (`docs/detail-screen-layout.md`): identity, quick actions,
+/// the balance as its standing and a Details card, above a pinned strip whose
+/// one tab is the account's transactions.
+///
+/// The reconnect banner still leads when the upstream provider has dropped
+/// the connection — it explains why and carries the button, which is why
+/// there is no Reconnect tile.
+///
+/// It does not go through `SettingsFormShell`, and never did: the embedded
+/// transactions table needs the width, the way a client's invoices do.
 class BankAccountDetailScreen extends StatefulWidget {
   const BankAccountDetailScreen({required this.id, super.key});
 
@@ -41,11 +54,12 @@ class BankAccountDetailScreen extends StatefulWidget {
       _BankAccountDetailScreenState();
 }
 
-class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
+class _BankAccountDetailScreenState extends State<BankAccountDetailScreen>
+    with FormatterHostMixin {
   late final GenericDetailViewModel<BankAccount> _vm;
+  late final RecordScreenController _record;
   late final Services _services;
   late final String _companyId;
-  Future<Formatter>? _formatterFuture;
 
   @override
   void initState() {
@@ -55,19 +69,53 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
     _vm = GenericDetailViewModel<BankAccount>.bound(
       _services.bankAccounts.watch(companyId: _companyId, id: widget.id),
     );
-    _formatterFuture = _services.formatterFor(_companyId);
+    _record = RecordScreenController(
+      services: _services,
+      companyId: _companyId,
+      routeId: widget.id,
+      entityWireName: 'bank_account',
+      // By id, on open and on a pull: a balance moves whenever the feed
+      // syncs, and the row is otherwise only as fresh as the last `/refresh`.
+      refreshRecord: (id) =>
+          _services.bankAccounts.refreshByIds(companyId: _companyId, ids: [id]),
+      hasRecord: () => _vm.item != null,
+      // The key the embedded list itself sends — plural, and the only form
+      // `BankTransactionFilters` reads (the singular is silently ignored).
+      countFilterKey: 'bank_integration_ids',
+      countFetchers: {
+        DetailTabIds.transactions: _services.bankTransactions.api.count,
+      },
+      // The transactions list always sends this
+      // (`BankTransactionRepository.ensurePageLoaded`), and the server then
+      // returns nothing for an account that is archived or deleted. Counted
+      // without it, such an account wears a badge over a list that fetches
+      // no rows.
+      countExtras: const {
+        DetailTabIds.transactions: {'active_banks': 'true'},
+      },
+    );
+    loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _record.dispose();
     _vm.dispose();
     super.dispose();
   }
 
-  /// Quick-edit auto_sync from the header — flips a single field and
-  /// persists immediately via the standard outbox path. No save button
-  /// since this is the only edit on the detail screen; the full edit
-  /// form is one tap away.
+  void _dispatch(BankAccount account, BankAccountAction action) =>
+      BankAccountActions.dispatch(
+        context,
+        _services,
+        _companyId,
+        account,
+        action,
+      );
+
+  /// Quick-edit auto_sync — flips a single field and persists immediately via
+  /// the standard outbox path. No save button since this is the only edit on
+  /// the record; the full edit form is one tap away.
   Future<void> _toggleAutoSync(BankAccount account, bool value) async {
     await _services.bankAccounts.save(
       companyId: _companyId,
@@ -77,206 +125,184 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Formatter>(
-      future: _formatterFuture,
-      builder: (context, snapshot) {
-        final formatter = snapshot.data;
-        return EntityDetailScaffold<BankAccount>(
-          id: widget.id,
-          vm: _vm,
-          hydrate: () => _services.bankAccounts.ensureLoaded(
-            companyId: _companyId,
-            id: widget.id,
+    return EntityDetailScaffold<BankAccount>(
+      id: widget.id,
+      vm: _vm,
+      hydrate: () => _services.bankAccounts.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.bankAccount),
+      emptyIcon: Icons.account_balance_outlined,
+      emptyTitle: context.tr('bank_account_not_found'),
+      actionsForItem: (context, a) => EntityDetailActionsRow<BankAccountAction>(
+        items: BankAccountActions.itemsFor(
+          context,
+          a,
+          (action) => _dispatch(a, action),
+        ),
+      ),
+      compactTitleForItem: (context, a) =>
+          _CompactTitle(account: a, formatter: formatter),
+      // A deleted account is read-only until restored.
+      isReadOnly: (a) => a.isDeleted,
+      onRefresh: _record.refresh,
+      bannerForItem: (context, a) => recordStateBanner<BankAccountAction>(
+        context,
+        items: BankAccountActions.itemsFor(
+          context,
+          a,
+          (action) => _dispatch(a, action),
+        ),
+        restoreKind: BankAccountAction.restore,
+        entityId: a.id,
+        isDeleted: a.isDeleted,
+        archivedAt: a.archivedAt,
+        formatter: formatter,
+      ),
+      bodyBuilder: (context, a) => _body(context, a),
+    );
+  }
+
+  Widget _body(BuildContext context, BankAccount a) {
+    final me = _services.auth.session.value?.currentCompany;
+    final hasTransactions = me?.moduleEnabled(EntityType.transaction) ?? false;
+    _record.attach(
+      recordId: a.id,
+      revision: a.updatedAt,
+      tabIds: {if (hasTransactions) DetailTabIds.transactions},
+    );
+    final canEdit = me?.can('edit_bank_integration') ?? false;
+    final top = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Owns its trailing gap, and builds nothing while the connection is
+        // up.
+        ReconnectBanner(account: a),
+        EntityRecordColumn(
+          header: BankAccountDetailHeader(
+            account: a,
+            formatter: formatter,
+            // The banner above the page already says Deleted / Archived.
+            showStatePills: !a.isDeleted && a.archivedAt == null,
           ),
-          emptyAction: entityListEmptyAction(context, EntityType.bankAccount),
-          emptyIcon: Icons.account_balance_outlined,
-          emptyTitle: context.tr('bank_account_not_found'),
-          actionsForItem: (context, account) => _ActionsRow(account: account),
-          bodyBuilder: (context, account) {
-            return SingleChildScrollView(
-              controller: DetailScrollScope.maybeOf(context),
-              padding: EdgeInsets.all(InSpacing.lg(context)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ReconnectBanner(account: account),
-                  _Header(
-                    account: account,
-                    formatter: formatter,
-                    onAutoSyncChanged: (v) => _toggleAutoSync(account, v),
-                  ),
-                  SizedBox(height: InSpacing.lg(context)),
-                  _RecentTransactionsSection(bankAccountId: account.id),
-                ],
+          quickActions: EntityQuickActions<BankAccountAction>(
+            priority: BankAccountActions.quickItemsFor(
+              context,
+              a,
+              (action) => _dispatch(a, action),
+            ),
+          ),
+          standing: BankAccountDetailStanding(
+            account: a,
+            formatter: formatter,
+            onOpenTransactions: hasTransactions
+                ? () => _record.selectTab.selectId(DetailTabIds.transactions)
+                : null,
+          ),
+          profile: BankAccountDetailProfile(
+            account: a,
+            formatter: formatter,
+            // A deleted account is read-only, and the switch is an edit.
+            onAutoSyncChanged: a.isDeleted || !canEdit
+                ? null
+                : (value) => _toggleAutoSync(a, value),
+          ),
+        ),
+      ],
+    );
+    if (!hasTransactions) {
+      // No module, no tab — and a strip with no tabs is not a strip. The
+      // record is then just its top, in a scroll view of its own.
+      return RefreshIndicator(
+        onRefresh: _record.refresh,
+        child: SingleChildScrollView(
+          controller: DetailScrollScope.maybeOf(context),
+          // Handed a controller, so it has to ask to be pullable when the
+          // record is shorter than the viewport (`docs/pull-to-refresh.md`).
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(InSpacing.lg(context)),
+          child: top,
+        ),
+      );
+    }
+    // The tabs own the `TabController`, so they wrap the page and hand back
+    // the strip and the body for it to place — which is what lets the strip
+    // stay pinned while a long list scrolls under it.
+    //
+    // The scope tells the embedded list what it cannot know from an account
+    // id alone: that the account is deleted (no New), or not yet synced.
+    return EmbeddedListParentScope(
+      parentId: a.id,
+      readOnly: a.isDeleted,
+      intents: _record.listIntents,
+      child: ListenableBuilder(
+        // A count lands after the strip is on screen.
+        listenable: _record,
+        builder: (context, _) => EntityDetailTabs(
+          selectTab: _record.selectTab,
+          onReveal: _record.page.revealTabs,
+          layoutBuilder: (context, strip, body) =>
+              _record.buildPage(strip: strip, body: body, top: top),
+          tabs: [
+            EntityDetailTab(
+              id: DetailTabIds.transactions,
+              count: _record.countFor(DetailTabIds.transactions),
+              label: context.tr('transactions'),
+              icon: Icons.swap_horiz,
+              // Keyed on the account's id: a list builds its view model once,
+              // with the id it was first given, and an account opened while
+              // still `tmp_…` comes back through here with its server id.
+              bodyBuilder: (_) => KeyedSubtree(
+                key: ValueKey<String>(a.id),
+                child: TransactionListScreen(
+                  bankAccountId: a.id,
+                  embedded: true,
+                ),
               ),
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.account,
-    required this.formatter,
-    required this.onAutoSyncChanged,
-  });
+/// The account's name and balance, for the fixed bar once the header has
+/// scrolled away — so a long transaction list still says whose it is.
+class _CompactTitle extends StatelessWidget {
+  const _CompactTitle({required this.account, required this.formatter});
 
   final BankAccount account;
   final Formatter? formatter;
-  final ValueChanged<bool> onAutoSyncChanged;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final tokens = context.inTheme;
-    final displayName = account.name.trim().isEmpty
-        ? context.tr('untitled')
-        : account.name;
-    final balanceText = _formatBalance();
-    return Container(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (account.provider.isNotEmpty ||
-                        account.type.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        [
-                          if (account.type.isNotEmpty) account.type,
-                          if (account.provider.isNotEmpty) account.provider,
-                        ].join(' · '),
-                        style: TextStyle(color: tokens.ink2, fontSize: 13),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              Text(
-                balanceText,
-                style: moneyTextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.ink,
-                ),
-              ),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          account.name.trim().isEmpty ? context.tr('untitled') : account.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: tokens.ink,
+            fontWeight: FontWeight.w600,
           ),
-          SizedBox(height: InSpacing.lg(context)),
-          // Quick-edit row. Auto-sync is by far the most-flipped field
-          // on this screen; surfacing it on the header avoids a trip
-          // through the full edit form. When `account.isDirty` is true
-          // there's an outbox row pending — render a small spinner so
-          // the user sees the change is queued for sync.
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Row(
-              children: [
-                Text(context.tr('auto_sync')),
-                if (account.isDirty) ...[
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: tokens.ink3,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            subtitle: Text(
-              context.tr('auto_sync_help'),
-              style: TextStyle(color: tokens.ink2, fontSize: 12),
-            ),
-            value: account.autoSync,
-            onChanged: onAutoSyncChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatBalance() {
-    if (formatter == null) {
-      final prefix = account.currency.isEmpty ? '' : '${account.currency} ';
-      return '$prefix${account.balance}';
-    }
-    String? resolvedId;
-    if (account.currency.isNotEmpty) {
-      final upper = account.currency.toUpperCase();
-      for (final entry in formatter!.currencies.entries) {
-        if (entry.value.code.toUpperCase() == upper) {
-          resolvedId = entry.key;
-          break;
-        }
-      }
-    }
-    final formatted = formatter!.money(account.balance, currencyId: resolvedId);
-    if (formatted.isNotEmpty) return formatted;
-    final prefix = account.currency.isEmpty ? '' : '${account.currency} ';
-    return '$prefix${account.balance}';
-  }
-}
-
-class _RecentTransactionsSection extends StatelessWidget {
-  const _RecentTransactionsSection({required this.bankAccountId});
-
-  final String bankAccountId;
-
-  @override
-  Widget build(BuildContext context) {
-    // Reuses TransactionListScreen scoped to this bank account with
-    // `embedded: true`: it renders its own slim toolbar (filter + New)
-    // and grows with the detail page (single scrollbar, no card chrome) —
-    // consistent with the client/vendor related-entity tabs.
-    return TransactionListScreen(bankAccountId: bankAccountId, embedded: true);
-  }
-}
-
-class _ActionsRow extends StatelessWidget {
-  const _ActionsRow({required this.account});
-  final BankAccount account;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return EntityDetailActionsRow<BankAccountAction>(
-      items: BankAccountActions.itemsFor(
-        context,
-        account,
-        (action) => BankAccountActions.dispatch(
-          context,
-          services,
-          companyId,
-          account,
-          action,
         ),
-      ),
+        Text(
+          bankAccountBalanceText(account, formatter),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: tokens.ink2)
+              .merge(moneyTextStyle()),
+        ),
+      ],
     );
   }
 }

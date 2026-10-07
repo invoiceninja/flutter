@@ -20,7 +20,17 @@ import 'package:admin/utils/date_ranges.dart';
 /// default 0 (Sunday) the boundary is the Saturday week-end — matching dayjs's
 /// default `en` locale `endOf('week')`, which is what React uses.
 class ChartAxis {
-  const ChartAxis({required this.buckets, required this.values});
+  const ChartAxis({
+    required this.buckets,
+    required this.values,
+    this.grouping = ChartGrouping.month,
+  });
+
+  /// The grouping the buckets were actually built at — the one asked for, or a
+  /// coarser / finer one when that could not draw a useful line (see
+  /// [buildContinuousAxis]). The chart's Day / Week / Month control shows this,
+  /// so it never claims a grouping the plot is not using.
+  final ChartGrouping grouping;
 
   /// Ordered, contiguous bucket boundary dates spanning the period.
   final List<Date> buckets;
@@ -37,6 +47,25 @@ class ChartAxis {
 /// The user's selected grouping is unchanged.
 const int _maxRenderBuckets = 750;
 
+/// The fewest boundaries that still draw a shape. A single month grouped by
+/// month is two — its first day and its last — which plots as one straight
+/// line from nothing to the total: the default range under the default
+/// grouping, and it said nothing a figure did not.
+const int _minUsefulBuckets = 4;
+
+/// Whether [grouping] can draw the window `[start, end]` as it stands: enough
+/// boundaries to show a shape, few enough to render.
+bool chartGroupingFits(
+  Date start,
+  Date end,
+  ChartGrouping grouping, {
+  int firstDayOfWeek = 0,
+}) {
+  if (start.compareTo(end) > 0) return false;
+  final n = _buildBoundaries(start, end, grouping, firstDayOfWeek).length;
+  return n >= _minUsefulBuckets && n <= _maxRenderBuckets;
+}
+
 /// Builds a [ChartAxis] from [pointsBySeries] at [grouping] granularity. Range
 /// is `[startDate, endDate]` when both are present; otherwise it falls back to
 /// the min/max of every non-null point date across all series. Returns an empty
@@ -48,6 +77,7 @@ ChartAxis buildContinuousAxis({
   required Date? endDate,
   required ChartGrouping grouping,
   int firstDayOfWeek = 0,
+  bool refineShortRanges = false,
 }) {
   Date? start = startDate;
   Date? end = endDate;
@@ -81,6 +111,20 @@ ChartAxis buildContinuousAxis({
         : ChartGrouping.month;
     buckets = _buildBoundaries(start, end, effective, firstDayOfWeek);
   }
+  // …and refine it while it is too coarse to show anything. Opt-in: the
+  // boundary rules themselves are a port of the web client's and are tested
+  // as such; this is the chart's own choice of which of them to draw.
+  while (refineShortRanges &&
+      buckets.length < _minUsefulBuckets &&
+      effective != ChartGrouping.day) {
+    final finer = effective == ChartGrouping.month
+        ? ChartGrouping.week
+        : ChartGrouping.day;
+    final next = _buildBoundaries(start, end, finer, firstDayOfWeek);
+    if (next.length > _maxRenderBuckets) break;
+    effective = finer;
+    buckets = next;
+  }
 
   final values = <ChartSeriesId, List<double>>{
     for (final id in ChartSeriesId.values)
@@ -98,7 +142,7 @@ ChartAxis buildContinuousAxis({
     }
   });
 
-  return ChartAxis(buckets: buckets, values: values);
+  return ChartAxis(buckets: buckets, values: values, grouping: effective);
 }
 
 // ─── Boundary generation (ports of the React helpers) ───────────────────────

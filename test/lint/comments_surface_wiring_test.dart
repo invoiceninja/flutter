@@ -181,6 +181,34 @@ void main() {
     );
   });
 
+  test('every tab selected by id names a shared DetailTabIds constant', () {
+    // `selectId` is the by-name twin of `select`, for the tabs whose index
+    // module gating moves. A string literal here would compile, run, and
+    // silently do nothing the day the id constant is renamed — the strip
+    // ignores an id it does not have. So every argument has to be a
+    // `DetailTabIds.<name>` (or a tear-off that forwards one).
+    final selectId = RegExp(r'\.selectId\(([^()]+)\)');
+    final offenders = <String>[];
+    for (final f in _dartFiles('lib/ui')) {
+      for (final m in selectId.allMatches(f.readAsStringSync())) {
+        final arg = m.group(1)!.trim();
+        // A forwarded parameter (`onOpenTab(tabId)` → `selectId(id)`) is fine:
+        // the constant is checked where it is named.
+        final forwarded = RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(arg);
+        if (!arg.startsWith('DetailTabIds.') && !forwarded) {
+          offenders.add('${f.path}: selectId($arg)');
+        }
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'Name the tab with a DetailTabIds constant '
+          '(lib/ui/core/detail/detail_tab_indices.dart): $offenders',
+    );
+  });
+
   test('every View All link aims at Comments', () {
     // The membership test above cannot tell the two constants apart, so this
     // pins the *aim*: a `View All` that started opening the Activity tab would

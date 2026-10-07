@@ -218,9 +218,10 @@ void main() {
   /// The "View vendor" item is the replacement home for the shortcut
   /// invoiceninja/flutter#128 removed from the narrow row, so it has to be
   /// present — and it is a *labelled* "go to the vendor" affordance, so it is
-  /// permission-gated the way `EntityLinkCard`'s `permissionKey:` is on the
-  /// detail grids. `can()` short-circuits true for an admin or owner, so a
-  /// non-admin with explicit permissions is the only way to see the gate.
+  /// permission-gated the way the vendor's name under the expense's number is
+  /// (`expensePartySegments`). `can()` short-circuits true for an admin or
+  /// owner, so a non-admin with explicit permissions is the only way to see
+  /// the gate.
   group('view vendor', () {
     testWidgets('present for an admin on an expense with a vendor', (
       tester,

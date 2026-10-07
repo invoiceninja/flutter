@@ -12,6 +12,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/payment_api_model.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
@@ -433,18 +434,20 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
   /// Lazily hydrate a single payment into Drift on a cache miss — backs detail
   /// screens reached from the dashboard (whose rows live only in the dashboard
   /// cache, not the entity table). Deduped / negative-cached in the template.
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.paymentDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.paymentDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
 
   @override
   Future<void> refreshByIds({

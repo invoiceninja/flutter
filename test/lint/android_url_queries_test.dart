@@ -26,9 +26,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// tap-to-call affordance on phone numbers builds those URIs itself from a
 /// normalised number rather than from a server-supplied string, so it bypasses
 /// that predicate (invoiceninja/flutter#109, docs/tap-to-call.md) and needs its
-/// own declarations. There is still no `mailto:` intent, because nothing
-/// launches one. A future change that starts launching a new scheme needs both
-/// a new `<intent>` and a new case below.
+/// own declarations. `mailto:` is the third such exception, added with the
+/// record screens' Email action: one address, validated by
+/// `cleanEmailAddress` before a URI is ever built. A future change that starts
+/// launching a new scheme needs both a new `<intent>` and a new case below.
 void main() {
   test('AndroidManifest declares browser intents for url_launcher', () {
     final file = File('android/app/src/main/AndroidManifest.xml');
@@ -55,7 +56,7 @@ void main() {
       r'<intent>.*?</intent>',
     ).allMatches(xml).map((m) => m.group(0)!).toList();
 
-    for (final scheme in const ['https', 'http', 'tel', 'sms']) {
+    for (final scheme in const ['https', 'http', 'tel', 'sms', 'mailto']) {
       // The action and the scheme must live in the *same* <intent>: an
       // ACTION_VIEW intent with no matching <data> scheme does not grant
       // visibility of a browser for that scheme. The closing quote in the

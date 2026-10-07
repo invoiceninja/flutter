@@ -45,6 +45,13 @@ class MasterDetailNavController {
   /// on a tab they weren't reading, so a mismatch declines to restore instead.
   ({int index, int count})? lastTab;
 
+  /// The [lastTab] by name, when the strip's tabs carry ids. Tried first on
+  /// restore: an id still names the same tab after a count change, which is
+  /// exactly where the index above has to decline. Null for a strip without
+  /// ids, and rewritten on every tab change so a stale one cannot outlive the
+  /// strip that wrote it.
+  String? lastTabId;
+
   /// [items] is index-aligned with [itemIds] — both are built by the list
   /// scaffold from one pass over its VM with the same visibility predicate.
   /// It defaults to empty so a caller that only cares about J/K navigation

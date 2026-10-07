@@ -245,6 +245,10 @@ and the scaffold holds its spinner until that resolves — without it the screen
 flashes "not found" for the length of the fetch. `emptyAction:` gives a genuinely
 missing record a way onward instead of a dead end.
 
+### A record that could not be fetched is not a record that does not exist
+
+`hydrate` now reports what happened (`EnsureLoadedOutcome`). A link opened offline used to land on the "not found" empty state — telling the recipient of a perfectly good link that the record did not exist. The scaffold now shows "No internet connection" (or the generic error for a server failure) with **Retry**, and keeps "not found" for when the server actually said so. `docs/detail-screen-layout.md` § Record states: one banner, and unreachable is not missing.
+
 ## Two registry notes this depends on
 
 Two registry notes this depends on. `EntityHandlers.detailBuilder` is read as

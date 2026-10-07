@@ -1,50 +1,55 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
-import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
-import 'package:admin/ui/core/widgets/client_name_label.dart';
-import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/billing/invitation.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/data/models/domain/quote_status.dart';
-import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/adaptive.dart';
-import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
-import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
-import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
-import 'package:admin/ui/core/detail/detail_tab_indices.dart';
-import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
-import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/ui/core/detail/entity_documents_tab.dart';
-import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
-import 'package:admin/ui/core/widgets/party_call_button.dart';
-import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
+import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/entity_record_column.dart';
+import 'package:admin/ui/core/detail/entity_state_banner.dart';
+import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/invoice_name_label.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
-import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_documents_tab.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_due_note.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_profile.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_header.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_standing.dart';
 import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
 import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
+import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
+import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_detail_view_model.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
-import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/value/date.dart';
-import 'package:admin/domain/billing/billing_doc_totals.dart';
-import 'package:admin/ui/core/widgets/formatter_scope.dart';
-import 'package:admin/ui/features/billing_shared/billing_doc_kpi_strip.dart';
-import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
-import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
+import 'package:admin/utils/formatting.dart';
 
+/// The quote record screen, on the record layout
+/// (`docs/detail-screen-layout.md`). Everything the five billing documents
+/// have in common lives in `billing_shared/detail/`; what is here is what
+/// only a quote has — the invoice it became — and the wiring several lints
+/// pin to this file.
 class QuoteDetailScreen extends StatefulWidget {
   const QuoteDetailScreen({required this.id, super.key});
   final String id;
@@ -53,13 +58,23 @@ class QuoteDetailScreen extends StatefulWidget {
   State<QuoteDetailScreen> createState() => _QuoteDetailScreenState();
 }
 
+/// Whether the quote is still waiting on an answer — the only time its
+/// valid-until date says anything. The same four terminal statuses
+/// `Quote.isExpired` rules out before it looks at the date, so the standing
+/// card's "Expired" line and the status pill above it cannot disagree.
+bool quoteAwaitsAnswer(Quote quote) =>
+    !quote.isConverted &&
+    !quote.isApproved &&
+    !quote.isRejected &&
+    !quote.isCancelled;
+
 class _QuoteDetailScreenState extends State<QuoteDetailScreen>
     with FormatterHostMixin {
   late final QuoteDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
-  final TabSelectionController _selectTab = TabSelectionController();
+  late final RecordScreenController _record;
 
   /// Carries "reveal the view activity" from the header's `Viewed` pill to the
   /// Activity tab, which is not mounted when the tap happens
@@ -89,18 +104,31 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
       entityWireName: 'quote',
       entityId: widget.id,
     );
+    _record = RecordScreenController(
+      services: _services,
+      companyId: _companyId,
+      routeId: widget.id,
+      entityWireName: 'quote',
+      refreshRecord: (id) =>
+          _services.quotes.refreshByIds(companyId: _companyId, ids: [id]),
+      hasRecord: () => _vm.item != null,
+      refreshWith: [_activityVm.refresh],
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _record.dispose();
     _activityVm.dispose();
-    _selectTab.dispose();
     _revealActivity.dispose();
     _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
+
+  void _dispatch(Quote quote, QuoteAction action) =>
+      QuoteActions.dispatch(context, _services, _companyId, quote, action);
 
   @override
   Widget build(BuildContext context) {
@@ -116,462 +144,298 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
         items: QuoteActions.itemsFor(
           context,
           quote,
-          (a) =>
-              QuoteActions.dispatch(context, _services, _companyId, quote, a),
+          (a) => _dispatch(quote, a),
         ),
       ),
-      bodyBuilder: (context, quote) {
-        final body = _Body(
-          quote: quote,
-          services: _services,
-          companyId: _companyId,
-          activityVm: _activityVm,
-          selectTab: _selectTab,
-          revealActivity: _revealActivity,
-          selectedVersion: _selectedVersion,
-        );
-        // Always mounted, even while `formatter` is still null: branching
-        // here would change the tree shape and remount the whole body when
-        // the formatter lands.
-        return FormatterScope(formatter: formatter, child: body);
-      },
+      compactTitleForItem: (context, quote) => BillingDocCompactTitle(
+        type: BillingDocType.quote,
+        doc: quote,
+        figure: quote.amount,
+        formatter: formatter,
+      ),
+      // A deleted quote is read-only until restored.
+      isReadOnly: (quote) => quote.isDeleted,
+      onRefresh: _record.refresh,
+      bannerForItem: (context, quote) => recordStateBanner<QuoteAction>(
+        context,
+        items: QuoteActions.itemsFor(
+          context,
+          quote,
+          (a) => _dispatch(quote, a),
+        ),
+        restoreKind: QuoteAction.restore,
+        entityId: quote.id,
+        isDeleted: quote.isDeleted,
+        archivedAt: quote.archivedAt,
+        formatter: formatter,
+      ),
+      bodyBuilder: (context, quote) => _body(context, quote),
     );
   }
-}
 
-class _Body extends StatelessWidget {
-  const _Body({
-    required this.quote,
-    required this.services,
-    required this.companyId,
-    required this.activityVm,
-    required this.selectTab,
-    required this.revealActivity,
-    required this.selectedVersion,
-  });
-
-  final Quote quote;
-  final Services services;
-  final ValueNotifier<String?> selectedVersion;
-  final String companyId;
-  final EntityActivityViewModel activityVm;
-  final TabSelectionController selectTab;
-  final ActivityRevealController revealActivity;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide =
-            Breakpoints.isWide(constraints) && constraints.maxWidth >= 900;
-        activityVm.kick();
-        // Built here, not in the screen's `initState`: `promptLogCallFor`
-        // needs a subject off the resolved record.
-        final notes = EntityNoteActions(
-          onAddComment: () => promptAddCommentFor(
-            context,
-            entityId: quote.id,
-            submit: (text) => services.quotes.addComment(
-              companyId: companyId,
+  Widget _body(BuildContext context, Quote quote) {
+    _activityVm.kick();
+    _record.attach(recordId: quote.id, revision: quote.updatedAt);
+    Future<void> submit(String text) => _services.quotes.addComment(
+      companyId: _companyId,
+      entityId: quote.id,
+      text: text,
+    );
+    // Built once here, not in `initState` (`promptLogCallFor` needs a subject
+    // off the resolved record) and not twice (the card and the tabs must not
+    // each hold their own copy — see `EntityNoteActions`). A deleted quote
+    // takes no new notes: the feed stays readable, its buttons go.
+    final notes = quote.isDeleted
+        ? EntityNoteActions.none
+        : EntityNoteActions(
+            onAddComment: () => promptAddCommentFor(
+              context,
               entityId: quote.id,
-              text: text,
+              submit: submit,
             ),
-          ),
-          onLogCall: () => promptLogCallFor(
-            context,
-            companyId: companyId,
-            entityId: quote.id,
-            subject: quote.number.isEmpty ? '' : '#${quote.number}',
-            clientId: quote.clientId,
-            submit: (text) => services.quotes.addComment(
-              companyId: companyId,
+            onLogCall: () => promptLogCallFor(
+              context,
+              companyId: _companyId,
               entityId: quote.id,
-              text: text,
+              subject: billingDocSubject(quote),
+              clientId: quote.clientId,
+              submit: submit,
             ),
-          ),
-        );
-        final main = SingleChildScrollView(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              RecentVisitRecorder(
-                type: EntityType.quote,
-                id: quote.id,
-                label: quote.number.isEmpty
-                    ? context.tr('quote')
-                    : '#${quote.number}',
-                child: _Header(
-                  quote: quote,
-                  selectTab: selectTab,
-                  revealActivity: revealActivity,
-                ),
+          );
+    return WatchBuilder<Company?>(
+      cacheKey: _companyId,
+      // Seeded, so the profile's custom fields do not arrive a frame late and
+      // push the tabs down.
+      initialData: _services.company.peek(
+        companyId: _companyId,
+        id: _companyId,
+      ),
+      create: () => _services.company.watchCompany(_companyId),
+      builder: (context, companySnap) => BillingDocRecordBody(
+        record: _record,
+        pdfPane: (context) => _PdfPane(
+          quote: quote,
+          selectedVersion: _selectedVersion,
+          formatter: formatter,
+        ),
+        top: (context, hasPdfPane) => _top(
+          context,
+          quote,
+          notes,
+          companySnap.data,
+          hasPdfPane: hasPdfPane,
+        ),
+        tabs: (context, hasPdfPane, layout) => EntityDetailTabs(
+          initialIndex: 2,
+          selectTab: _record.selectTab,
+          onReveal: _record.page.revealTabs,
+          layoutBuilder: layout,
+          tabs: [
+            EntityDetailTab(
+              id: DetailTabIds.comments,
+              label: context.tr('comments'),
+              icon: Icons.comment_outlined,
+              bodyBuilder: (_) => EntityActivityTab(
+                vm: _activityVm,
+                formatter: formatter,
+                actions: notes,
+                commentsOnly: true,
+                hostWireName: 'quote',
               ),
-              SizedBox(height: InSpacing.lg(context)),
-              EntityCommentsCard(
-                vm: activityVm,
-                formatter: FormatterScope.maybeOf(context),
+            ),
+            EntityDetailTab(
+              id: DetailTabIds.activity,
+              label: context.tr('activity'),
+              icon: Icons.history_outlined,
+              bodyBuilder: (_) => EntityActivityTab(
+                vm: _activityVm,
+                formatter: formatter,
                 actions: notes,
                 hostWireName: 'quote',
-                onViewAll: () => selectTab.select(kCommentsTabIndex),
+                reveal: _revealActivity,
               ),
-              EntityDetailTabs(
-                initialIndex: 2,
-                selectTab: selectTab,
-                tabs: [
-                  EntityDetailTab(
-                    label: context.tr('comments'),
-                    icon: Icons.comment_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: FormatterScope.maybeOf(context),
-                      actions: notes,
-                      commentsOnly: true,
-                      hostWireName: 'quote',
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: FormatterScope.maybeOf(context),
-                      actions: notes,
-                      hostWireName: 'quote',
-                      reveal: revealActivity,
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('overview'),
-                    icon: Icons.dashboard_outlined,
-                    bodyBuilder: (_) => Padding(
-                      padding: EdgeInsets.all(InSpacing.lg(context)),
-                      child: _Overview(quote: quote),
-                    ),
-                  ),
-                  buildDocumentHistoryTab(
-                    context: context,
-                    services: services,
-                    companyId: companyId,
-                    basePath: services.quotes.api.basePath,
-                    entityId: quote.id,
-                    currentAmount: quote.amount,
-                    currentUpdatedAt: quote.updatedAt,
-                    formatter: FormatterScope.maybeOf(context),
-                    clientId: quote.clientId,
-                    selection: selectedVersion,
-                    // Only wide drives the pane; narrow navigates, so
-                    // nothing there is ever "selected".
-                    showSelection: wide,
-                    onOpenVersion: (String? activityId) {
-                      // Wide keeps the record on screen and swaps the
-                      // pane; narrow has no pane, so it routes.
-                      if (wide) {
-                        selectedVersion.value = activityId;
-                      } else if (requireSynced(context, quote.id)) {
-                        context.go(
-                          '/quotes/${quote.id}/pdf'
-                          '${activityId == null ? '' : '?activity_id=$activityId'}',
-                        );
-                      }
-                    },
-                  ),
-                  EntityDetailTab(
-                    label: quote.documents.isEmpty
-                        ? context.tr('documents')
-                        : context.tr('documents_with_count', {
-                            'count': '${quote.documents.length}',
-                          }),
-                    icon: Icons.description_outlined,
-                    bodyBuilder: (_) => EntityDocumentsTab(
-                      entityId: quote.id,
-                      documents: quote.documents,
-                      onUpload: (sources) async {
-                        for (final s in sources) {
-                          await services.quotes.uploadDocument(
-                            companyId: companyId,
-                            entityId: quote.id,
-                            source: s,
-                          );
-                        }
-                      },
-                      onDelete: (doc) async {
-                        await services.quotes.deleteDocument(
-                          companyId: companyId,
-                          entityId: quote.id,
-                          documentId: doc.id,
-                        );
-                      },
-                      onToggleVisibility: (doc) async {
-                        await services.quotes.setDocumentVisibility(
-                          companyId: companyId,
-                          entityId: quote.id,
-                          documentId: doc.id,
-                          isPublic: !doc.isPublic,
-                        );
-                      },
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('email_history'),
-                    icon: Icons.outgoing_mail,
-                    bodyBuilder: (_) => BillingDocSendsTab(
-                      services: services,
-                      companyId: companyId,
-                      entityWireName: 'quote',
-                      entityId: quote.id,
-                      invitations: quote.invitations,
-                      isDirty: quote.isDirty,
-                      clientId: quote.clientId,
-                      isHosted: services.auth.session.value?.isHosted ?? false,
-                      onReactivate: (messageId) =>
-                          services.quotes.reactivateInvitationEmail(
-                            companyId: companyId,
-                            id: quote.id,
-                            messageId: messageId,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-        if (!wide) return main;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: 5, child: main),
-            VerticalDivider(width: 1, color: context.inTheme.border),
-            Expanded(
-              flex: 6,
-              child: _PdfPane(quote: quote, selectedVersion: selectedVersion),
             ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.quote,
-    required this.selectTab,
-    required this.revealActivity,
-  });
-  final Quote quote;
-  final TabSelectionController selectTab;
-  final ActivityRevealController revealActivity;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final formatter = FormatterScope.maybeOf(context);
-    final services = context.read<Services>();
-    final companyId = services.auth.currentCompanyId ?? '';
-    return Container(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      decoration: BoxDecoration(
-        border: Border.all(color: tokens.border),
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        color: tokens.surface,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  quote.number.isEmpty ? '—' : '#${quote.number}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.ink,
-                  ),
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              ViewedStatusPillLink(
-                isViewed:
-                    quote.calculatedStatusId == QuoteStatusComputed.viewed,
-                invitations: quote.invitations,
-                entityWireName: 'quote',
-                companyId: companyId,
-                clients: services.clients,
-                vendors: services.vendors,
-                clientId: quote.clientId,
-                selectTab: selectTab,
-                reveal: revealActivity,
+            EntityDetailTab(
+              id: DetailTabIds.overview,
+              label: context.tr('overview'),
+              icon: Icons.dashboard_outlined,
+              bodyBuilder: (_) => BillingDocOverviewOf(
+                type: BillingDocType.quote,
+                doc: quote,
                 formatter: formatter,
-                builder: (context, tooltip, semanticsLabel, onTap) =>
-                    QuoteStatusPill(
-                      statusId: quote.calculatedStatusId,
-                      hasBounce: quote.hasBouncedInvitation,
-                      tooltip: tooltip,
-                      onTap: onTap,
-                      semanticsLabel: semanticsLabel,
-                      semanticsHint: onTap == null
-                          ? null
-                          : context.tr('activity'),
-                    ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Flexible(
-                child: ClientNameLabel(
-                  clientId: quote.clientId,
-                  link: true,
-                  style: TextStyle(color: tokens.ink3),
-                ),
-              ),
-              PartyCallButton(
-                clientId: quote.clientId,
-                // Filed against the *document*, not the party: the
-                // server stamps `client_id` on it anyway, so it still
-                // reaches the client's feed — and this way the note
-                // also says which document the call was about.
-                logTarget: (
-                  type: EntityType.quote,
-                  id: quote.id,
-                  subject: quote.number.isEmpty ? '' : '#${quote.number}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          BillingDatesCaption(
-            formatter: formatter,
-            issuedLabel: context.tr('date'),
-            issued: quote.date,
-            secondaryLabel: context.tr('valid_until'),
-            secondary: quote.dueDate,
-            overduePrefix: context.tr('expired'),
-            overdueDays: quote.isExpired && quote.dueDate != null
-                ? Date.today().differenceInDays(quote.dueDate!)
-                : null,
-            viewedLabel: context.tr('viewed'),
-            viewedIso: quote.invitations.newestViewed?.viewedDate,
-          ),
-          const SizedBox(height: 16),
-          WatchBuilder<Client?>(
-            cacheKey: (companyId, quote.clientId),
-            initialData: services.clients.peek(
-              companyId: companyId,
-              id: quote.clientId,
             ),
-            create: () => services.clients.watch(
-              companyId: companyId,
-              id: quote.clientId,
-            ),
-            builder: (context, clientSnap) => BillingDocKpiStrip(
+            buildDocumentHistoryTab(
+              context: context,
+              services: _services,
+              companyId: _companyId,
+              basePath: _services.quotes.api.basePath,
+              entityId: quote.id,
+              currentAmount: quote.amount,
+              currentUpdatedAt: quote.updatedAt,
               formatter: formatter,
-              currencyId: clientSnap.data?.currencyId,
-              metrics: [
-                BillingMetric(
-                  label: context.tr('amount'),
-                  amount: quote.amount,
-                ),
-              ],
+              clientId: quote.clientId,
+              selection: _selectedVersion,
+              // Only the pane is ever "showing" a version; without one a tap
+              // navigates, so nothing is selected.
+              showSelection: hasPdfPane,
+              onOpenVersion: billingDocVersionOpener(
+                context,
+                type: BillingDocType.quote,
+                docId: quote.id,
+                hasPdfPane: hasPdfPane,
+                selection: _selectedVersion,
+              ),
             ),
-          ),
-          if (quote.invoiceId.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(
-                  '${context.tr('converted_to')} ',
-                  style: TextStyle(fontSize: 12.5, color: tokens.ink3),
-                ),
-                Flexible(
-                  child: InvoiceNameLabel(
-                    invoiceId: quote.invoiceId,
-                    link: true,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.ink,
+            buildBillingDocumentsTab(
+              context: context,
+              companyId: _companyId,
+              doc: quote,
+              formatter: formatter,
+              upload: _services.quotes.uploadDocument,
+              delete: _services.quotes.deleteDocument,
+              setVisibility: _services.quotes.setDocumentVisibility,
+            ),
+            EntityDetailTab(
+              id: DetailTabIds.emailHistory,
+              label: context.tr('email_history'),
+              icon: Icons.outgoing_mail,
+              bodyBuilder: (_) => BillingDocSendsTab(
+                services: _services,
+                companyId: _companyId,
+                entityWireName: 'quote',
+                entityId: quote.id,
+                invitations: quote.invitations,
+                isDirty: quote.isDirty,
+                clientId: quote.clientId,
+                isHosted: _services.auth.session.value?.isHosted ?? false,
+                onReactivate: (messageId) =>
+                    _services.quotes.reactivateInvitationEmail(
+                      companyId: _companyId,
+                      id: quote.id,
+                      messageId: messageId,
                     ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
-}
 
-class _Overview extends StatelessWidget {
-  const _Overview({required this.quote});
-  final Quote quote;
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = FormatterScope.maybeOf(context);
-    final services = context.read<Services>();
-    final companyId = services.auth.currentCompanyId ?? '';
-    return WatchBuilder<Client?>(
-      cacheKey: (companyId, quote.clientId),
-      initialData: services.clients.peek(
-        companyId: companyId,
-        id: quote.clientId,
-      ),
-      create: () =>
-          services.clients.watch(companyId: companyId, id: quote.clientId),
-      builder: (context, clientSnap) {
-        final currencyId = clientSnap.data?.currencyId;
-        final precision =
-            formatter?.precisionFor(clientCurrencyId: currencyId) ?? 2;
-        return BillingDocOverview(
-          totalsInput: quote.totalsInput,
-          surchargeAmounts: [
-            quote.customSurcharge1,
-            quote.customSurcharge2,
-            quote.customSurcharge3,
-            quote.customSurcharge4,
-          ],
-          precision: precision,
-          publicNotes: quote.publicNotes,
-          terms: quote.terms,
+  /// Everything above the tabs.
+  Widget _top(
+    BuildContext context,
+    Quote quote,
+    EntityNoteActions notes,
+    Company? company, {
+    required bool hasPdfPane,
+  }) {
+    return EntityRecordColumn(
+      header: BillingDocRecordHeader(
+        type: BillingDocType.quote,
+        doc: quote,
+        formatter: formatter,
+        statusPill: ViewedStatusPillLink(
+          isViewed: quote.calculatedStatusId == QuoteStatusComputed.viewed,
+          invitations: quote.invitations,
+          entityWireName: 'quote',
+          companyId: _companyId,
+          clients: _services.clients,
+          vendors: _services.vendors,
+          clientId: quote.clientId,
+          selectTab: _record.selectTab,
+          reveal: _revealActivity,
           formatter: formatter,
-          currencyId: currencyId,
-          entityType: 'quote',
-          tagIds: quote.tagIds,
-          trailing: [
-            if (quote.customValue1.isNotEmpty ||
-                quote.customValue2.isNotEmpty ||
-                quote.customValue3.isNotEmpty ||
-                quote.customValue4.isNotEmpty)
-              CustomFieldsDetailCard(
-                companyId: companyId,
-                prefix: 'invoice',
-                values: [
-                  quote.customValue1,
-                  quote.customValue2,
-                  quote.customValue3,
-                  quote.customValue4,
-                ],
-                formatter: formatter,
+          builder: (context, tooltip, semanticsLabel, onTap) => QuoteStatusPill(
+            statusId: quote.calculatedStatusId,
+            hasBounce: quote.hasBouncedInvitation,
+            tooltip: tooltip,
+            onTap: onTap,
+            semanticsLabel: semanticsLabel,
+            semanticsHint: onTap == null ? null : context.tr('activity'),
+          ),
+        ),
+        party: ClientNameLabel(
+          clientId: quote.clientId,
+          link: true,
+          style: BillingDocRecordHeader.partyStyle(context),
+        ),
+      ),
+      quickActions: EntityQuickActions<QuoteAction>(
+        priority: QuoteActions.quickItemsFor(
+          context,
+          quote,
+          (a) => _dispatch(quote, a),
+          hasPdfPane: hasPdfPane,
+        ),
+      ),
+      standing: BillingDocStanding(
+        type: BillingDocType.quote,
+        doc: quote,
+        formatter: formatter,
+        dueNote: billingDocDueNote(
+          due: billingDocEffectiveDue(BillingDocType.quote, quote),
+          today: Date.today(),
+          isOpen: quoteAwaitsAnswer(quote),
+        ),
+      ),
+      comments: EntityCommentsCard(
+        vm: _activityVm,
+        formatter: formatter,
+        actions: notes,
+        hostWireName: 'quote',
+        onViewAll: () => _record.selectTab.select(kCommentsTabIndex),
+        matchFormColumn: true,
+      ),
+      profile: BillingDocPartyContacts(
+        companyId: _companyId,
+        type: BillingDocType.quote,
+        doc: quote,
+        builder: (context, contacts) => BillingDocProfile(
+          type: BillingDocType.quote,
+          doc: quote,
+          company: company,
+          contacts: contacts,
+          formatter: formatter,
+          detailRows: [
+            // The invoice this quote became.
+            if (quote.invoiceId.isNotEmpty)
+              billingDocLabelRow(
+                context,
+                'invoice',
+                InvoiceNameLabel(
+                  invoiceId: quote.invoiceId,
+                  link: true,
+                  style: BillingDocDetailsCard.valueStyle(context),
+                ),
+              ),
+            if (quote.projectId.isNotEmpty)
+              billingDocLabelRow(
+                context,
+                'project',
+                ProjectNameLabel(
+                  projectId: quote.projectId,
+                  link: true,
+                  style: BillingDocDetailsCard.valueStyle(context),
+                ),
               ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
 class _PdfPane extends StatelessWidget {
-  const _PdfPane({required this.quote, required this.selectedVersion});
+  const _PdfPane({
+    required this.quote,
+    required this.selectedVersion,
+    this.formatter,
+  });
   final Quote quote;
   final ValueNotifier<String?> selectedVersion;
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +447,7 @@ class _PdfPane extends StatelessWidget {
       api: services.documentVersions,
       basePath: services.quotes.api.basePath,
       entityId: quote.id,
-      formatter: FormatterScope.maybeOf(context),
+      formatter: formatter,
       liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.quotes.api.downloadPdf(
             entityJson: quote.toApiJson(),

@@ -1119,6 +1119,21 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
 
   // ── Public actions ──────────────────────────────────────────────────
 
+  /// Re-fetch page 1 of the list **as it is currently scoped and filtered** —
+  /// one request.
+  ///
+  /// Not [refresh]. That one is `refreshAll`: a sweep of the whole entity,
+  /// every page and every lifecycle state, company-wide, which is the right
+  /// answer to pull-to-refresh on the Invoices *screen* and a very wrong one
+  /// to a refresh of one client's Invoices *tab* — a list embedded in a record
+  /// has a parent scope, and this is the reload that keeps it.
+  Future<void> reloadFirstPage() async {
+    // Before hydration there is nothing to reload: `_init` is about to fetch
+    // page 1 itself.
+    if (_disposed || !_hydrated) return;
+    await _resetAndReload(ignoreCursor: true);
+  }
+
   Future<void> refresh() async {
     try {
       await refreshAll();

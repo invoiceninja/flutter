@@ -396,6 +396,7 @@ class _DashboardBillingPipelineCardState
         child: ListCardSkeleton(rowCount: _rowLimit),
       );
     }
+    if (rows.isEmpty && _vm.tabLoadFailed) return _failed(context);
     if (rows.isEmpty) return _empty(context);
     if (widget.narrow) {
       return Column(
@@ -416,6 +417,31 @@ class _DashboardBillingPipelineCardState
       formatter: widget.formatter,
       showType: showType,
       onOpen: _openRecord,
+    );
+  }
+
+  /// The tab's fetch failed and nothing is cached for it: unknown, not empty.
+  Widget _failed(BuildContext context) {
+    final tokens = context.inTheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 18, color: tokens.overdue),
+          const SizedBox(width: InSpacing.sm),
+          Flexible(
+            child: Text(
+              context.tr('could_not_load_label'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.ink2, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: InSpacing.sm),
+          TextButton(onPressed: _vm.retry, child: Text(context.tr('retry'))),
+        ],
+      ),
     );
   }
 
@@ -443,14 +469,14 @@ class _DashboardBillingPipelineCardState
           Text(
             context.tr(isLocalOnly ? 'none_synced_yet' : 'no_records_found'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12.5, color: tokens.ink3),
+            style: TextStyle(fontSize: 13, color: tokens.ink2),
           ),
           if (isLocalOnly) ...[
             const SizedBox(height: 4),
             Text(
               context.tr('counted_from_local_data'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: tokens.ink3),
+              style: TextStyle(fontSize: 11.5, color: tokens.ink2),
             ),
           ],
         ],

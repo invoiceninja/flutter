@@ -52,6 +52,13 @@ String _snakeName(EntityType type) => type.name.replaceAllMapped(
 /// entity reads the same wherever it is created from.
 String quickCreateLabelKey(EntityType type) => 'new_${_snakeName(type)}';
 
+/// Localization key for [type]'s bare noun: `invoice`, `payment`,
+/// `recurring_invoice`. What a create button beside a `+` icon reads, where
+/// the icon already says "new" and the verb forms above run long — German's
+/// "Zahlung eingeben" against "Zahlung". Every one is a Transifex key, so it is
+/// translated in each locale ([quickCreateLabelKey]'s are too).
+String quickCreateNounKey(EntityType type) => _snakeName(type);
+
 /// The permission a user needs to create a [type].
 ///
 /// `create_<entity>`, except that the permission grid names transactions

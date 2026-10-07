@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/models/api/login_response_api_model.dart';
 
 import '../ui/features/shell/_shell_test_helpers.dart';
 
@@ -47,6 +48,18 @@ void main() {
           'every workspace-sidebar list entity must be topped up by a /refresh '
           'delta — add the missing entity to refreshDeltaAppliers in '
           'services_entity_wiring.dart',
+    );
+
+    // One dropped array per applier. A full snapshot is parsed without the
+    // arrays these appliers read (`LoginResponseApi.fromFullSnapshot`), and an
+    // entity missing from that list is typed in full on every cold start, for
+    // rows the applier then skips.
+    expect(
+      kBrowsableDeltaJsonKeys,
+      hasLength(fixture.services.refreshDeltaEntityTypes.length),
+      reason:
+          'refreshDeltaAppliers and kBrowsableDeltaJsonKeys must name the same '
+          'entities',
     );
 
     fixture.services.recentlyViewed.dispose();

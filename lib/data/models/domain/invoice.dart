@@ -236,7 +236,12 @@ extension InvoiceCalculation on Invoice {
   /// True iff the active due date (partial first, then full) is in the past
   /// AND the invoice still has a non-zero balance. Mirrors admin-portal
   /// `invoice_model.dart` `isPastDue` logic.
-  bool get isPastDue {
+  bool get isPastDue => isPastDueOn(Date.today());
+
+  /// [isPastDue] as of [today]. Takes the day so a caller that reasons about
+  /// "today" itself — the client screen's past-due summary — can be tested
+  /// either side of midnight, and re-evaluated without a clock baked in.
+  bool isPastDueOn(Date today) {
     if (balance <= Decimal.zero) return false;
     // A draft is never past due — it hasn't been sent, so there is nothing
     // owed yet. The server keeps a draft's balance at 0 so this never fired
@@ -245,7 +250,6 @@ extension InvoiceCalculation on Invoice {
     // `isPastDue`, which requires `isSent`.
     if (isDraft) return false;
     if (isPaid || isCancelled || isReversed) return false;
-    final today = Date.today();
     final effectiveDue = partialDueDate ?? dueDate;
     if (effectiveDue == null) return false;
     return effectiveDue.compareTo(today) < 0;

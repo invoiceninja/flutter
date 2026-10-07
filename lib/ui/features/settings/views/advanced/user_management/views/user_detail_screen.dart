@@ -73,7 +73,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   /// wrong calendar day for anyone whose evening crosses the UTC boundary (a
   /// UTC-8 user signing in at 17:00 local would read tomorrow's date).
   /// `ActivityRecordRow._timestampLabel` and `EntityDetailHeader._format`
-  /// document the same trap. Note `VendorDetailDetailsCard` still has it.
+  /// document the same trap, and `VendorDetailDetailsCard` converts the same
+  /// way.
   String _lastLoginText(BuildContext context, String companyId, User user) {
     final at = epochSecondsToUtcOrNull(user.lastLogin);
     if (at == null) return context.tr('never');

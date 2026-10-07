@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/core/widgets/client_picker_field.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
@@ -102,10 +103,10 @@ class _FakeClientRepo implements ClientRepository {
 
   /// `ClientNameLabel` fires this on mount for the locked row.
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Future<bool> ensurePageLoaded({

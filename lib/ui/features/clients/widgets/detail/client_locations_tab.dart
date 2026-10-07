@@ -20,9 +20,17 @@ import 'package:admin/ui/features/clients/widgets/edit/client_edit_country_field
 /// dispatcher refreshes the parent client so this list (watched from Drift)
 /// updates when the row drains.
 class ClientLocationsTab extends StatelessWidget {
-  const ClientLocationsTab({required this.client, super.key});
+  const ClientLocationsTab({
+    required this.client,
+    this.readOnly = false,
+    super.key,
+  });
 
   final Client client;
+
+  /// The client is deleted: its locations are listed, but cannot be added,
+  /// edited or removed until it is restored.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -44,18 +52,21 @@ class ClientLocationsTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: EdgeInsets.all(InSpacing.md(context)),
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-              label: Text(context.tr('add_location')),
-              onPressed: () => _showLocationDialog(context, client, null),
+        if (!readOnly)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: EdgeInsets.all(InSpacing.md(context)),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(64, 40),
+                ),
+                icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                label: Text(context.tr('add_location')),
+                onPressed: () => _showLocationDialog(context, client, null),
+              ),
             ),
           ),
-        ),
         if (locations.isEmpty)
           EmptyState(
             icon: Icons.location_off_outlined,
@@ -63,17 +74,22 @@ class ClientLocationsTab extends StatelessWidget {
           )
         else
           for (final loc in locations)
-            _LocationTile(client: client, location: loc),
+            _LocationTile(client: client, location: loc, readOnly: readOnly),
       ],
     );
   }
 }
 
 class _LocationTile extends StatelessWidget {
-  const _LocationTile({required this.client, required this.location});
+  const _LocationTile({
+    required this.client,
+    required this.location,
+    required this.readOnly,
+  });
 
   final Client client;
   final Location location;
+  final bool readOnly;
 
   String _addressLine(BuildContext context) {
     final swap = location.countryId.isEmpty
@@ -125,12 +141,16 @@ class _LocationTile extends StatelessWidget {
             ),
         ],
       ),
-      trailing: IconButton(
-        icon: Icon(Icons.delete_outline, color: tokens.overdue),
-        tooltip: context.tr('delete_location'),
-        onPressed: () => _confirmDelete(context, client, location),
-      ),
-      onTap: () => _showLocationDialog(context, client, location),
+      trailing: readOnly
+          ? null
+          : IconButton(
+              icon: Icon(Icons.delete_outline, color: tokens.overdue),
+              tooltip: context.tr('delete_location'),
+              onPressed: () => _confirmDelete(context, client, location),
+            ),
+      onTap: readOnly
+          ? null
+          : () => _showLocationDialog(context, client, location),
     );
   }
 }

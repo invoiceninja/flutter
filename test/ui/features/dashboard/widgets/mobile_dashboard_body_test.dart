@@ -16,7 +16,6 @@ import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
-import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
@@ -35,9 +34,13 @@ import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
-import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
+import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_figures.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_period_bar.dart';
+import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/list_card_skeleton.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
+import 'package:admin/ui/features/dashboard/widgets/needs_attention_band.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
@@ -46,18 +49,17 @@ import '../../../../_localization_helper.dart';
 import '../../../../_responsive_helper.dart';
 import '../_fake_dashboard_repo.dart';
 
-/// flutter#37 was filed against the Android beta, and mobile was the worse
-/// half of it: the AppBar carries a bare filter *icon*, so the selected window
-/// appeared nowhere on the page. Every figure below was scoped to a range the
-/// user could not see — "even more confusing when you start using filters like
-/// `Last Year` or `Last Quarter` and that's what the app opens on".
+/// The narrow dashboard body: needs-attention band, Outstanding, the period
+/// row and its figures, the user's metric cards, the chart, the list panels,
+/// then the activity feed.
 ///
-/// The eyebrow now leads with the window. It displaces the company name and
-/// the word "Dashboard", because one ellipsised 11 px line has no room for all
-/// three. (It used to be justified by the AppBar title carrying the company;
-/// flutter#50 retitled that bar to the page name, so the company now lives
-/// only in the drawer's switcher. The assertion below is unchanged — the
-/// eyebrow should not carry it either way.)
+/// flutter#37 was filed against the Android beta, and mobile was the worse
+/// half of it: the AppBar carried a bare filter *icon*, so the selected window
+/// appeared nowhere on the page. Every figure was scoped to a range the user
+/// could not see — "even more confusing when you start using filters like
+/// `Last Year` or `Last Quarter` and that's what the app opens on". The window
+/// is now a control in the page, directly above the figures it changes, and
+/// names both the days measured and the days they are set against.
 class _FakeAuth implements AuthRepository {
   _FakeAuth(this._session);
   final ValueNotifier<AuthSession?> _session;
@@ -287,6 +289,8 @@ void main() {
     bool isAdmin = true,
     double fabClearance = 0,
     VoidCallback? onShowPanels,
+    bool showFigures = true,
+    Stream<int>? failedSaves,
   }) async {
     if (range != null) await vm.setDateRange(range);
     if (surface != null) {
@@ -326,18 +330,21 @@ void main() {
                 vm: vm,
                 formatter: formatter,
                 fabClearance: fabClearance,
+                showFigures: showFigures,
+                failedSaves: failedSaves,
+                onAttentionViewAll: (_) {},
                 onOpenCard: (_) {},
-                onPastDueInvoiceTap: (_) {},
-                onAllInvoices: () {},
+                onInvoiceTap: (_) {},
                 onAllUpcomingInvoices: () {},
                 onOutstandingTap: () {},
+                onInvoicesTap: () {},
                 onPaidTap: () {},
                 onActivityTap: (_) {},
-                onUpcomingInvoiceTap: (_) {},
                 onPaymentTap: (_) {},
                 onAllPayments: () {},
                 onQuoteTap: (_) {},
-                onAllQuotes: () {},
+                onAllUpcomingQuotes: () {},
+                onAllExpiredQuotes: () {},
                 onRecurringTap: (_) {},
                 onAllRecurring: () {},
                 onShowPanels: onShowPanels ?? () {},
@@ -352,67 +359,128 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
   }
 
-  String eyebrowText(WidgetTester tester) => tester
-      .widget<Text>(
-        find
-            .descendant(
-              of: find.byType(FreshnessTicker),
-              matching: find.byType(Text),
-            )
-            .first,
-      )
-      .data!;
+  double topOf(WidgetTester tester, Finder finder) =>
+      tester.getTopLeft(finder).dy;
 
-  testWidgets('the eyebrow states the active window', (tester) async {
-    await pumpBody(
-      tester,
-      range: const DashboardCustomRange(
-        start: Date(2026, 4, 1),
-        end: Date(2026, 6, 30),
-      ),
-    );
-
-    expect(
-      eyebrowText(tester),
-      startsWith('APR 1, 2026 — JUN 30, 2026 · UPDATED'),
-    );
+  DashboardInvoiceRow lateInvoice() => DashboardInvoiceRow.fromJson({
+    'id': 'i1',
+    'number': '0042',
+    'balance': '120',
+    'amount': '120',
+    'due_date': '2020-01-01',
+    'status_id': '2',
+    'client': {'id': 'c1', 'name': 'Acme Late'},
   });
 
-  testWidgets('the window survives a range change', (tester) async {
+  // The order is the design: what needs doing, then what is owed, then how the
+  // period went. The page used to open on metric cards and reach the overdue
+  // list some 700 px down.
+  testWidgets('the band leads, then Outstanding, the period row and its '
+      'figures, then the chart', (tester) async {
     await pumpBody(
       tester,
-      range: const DashboardPresetRange(DashboardDatePreset.thisMonth),
+      enabledModules: EnabledModule.invoices.bitmask,
+      surface: const Size(390, 4000),
     );
-    final monthly = eyebrowText(tester);
+    repo.pastDue.add([lateInvoice()]);
+    await tester.pump(const Duration(milliseconds: 10));
 
-    await pumpBody(
-      tester,
-      range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
-    );
-
-    expect(
-      eyebrowText(tester),
-      isNot(monthly),
-      reason: 'the eyebrow is the only place a phone shows the window',
-    );
+    final order = [
+      find.byType(NeedsAttentionBand),
+      find.byType(OutstandingFigureCard),
+      find.byType(DashboardPeriodBar),
+      find.byType(PeriodFiguresCard),
+      find.byType(ChartCard),
+      find.byType(ActivityCard),
+    ];
+    for (final f in order) {
+      expect(f, findsOneWidget);
+    }
+    for (var i = 1; i < order.length; i++) {
+      expect(
+        topOf(tester, order[i]),
+        greaterThan(topOf(tester, order[i - 1])),
+        reason: 'position $i',
+      );
+    }
   });
 
-  testWidgets('the eyebrow does not carry the company name', (tester) async {
-    await pumpBody(tester);
-
-    expect(eyebrowText(tester), isNot(contains('ACME CORPORATION')));
-  });
-
-  testWidgets('the hero sub-KPI reads "Paid", not "Paid this month"', (
+  // The range was a funnel icon in the app bar and an untappable line of small
+  // capitals here: the one place that named the window could not change it.
+  testWidgets('the window is a control in the page, with the drafts switch', (
     tester,
   ) async {
     await pumpBody(
       tester,
-      range: const DashboardPresetRange(DashboardDatePreset.lastYear),
+      range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
+      surface: const Size(390, 2000),
     );
 
-    expect(find.text('PAID'), findsOneWidget);
+    expect(find.byType(DateRangePickerButton), findsOneWidget);
+    expect(find.text('Last Quarter'), findsOneWidget);
+    expect(find.byType(IncludeDraftsSwitch), findsOneWidget);
+    // Both windows are stated: the one measured and the one it is set against.
+    expect(find.textContaining(' vs '), findsOneWidget);
+  });
+
+  testWidgets('no figure label bakes in the range', (tester) async {
+    await pumpBody(
+      tester,
+      range: const DashboardPresetRange(DashboardDatePreset.lastYear),
+      surface: const Size(390, 2000),
+    );
+
+    for (final label in ['OUTSTANDING', 'INVOICES', 'PAYMENTS']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
     expect(find.textContaining('THIS MONTH'), findsNothing);
+    // Before the totals answer, a figure is a placeholder — never `$0.00`.
+    expect(find.byType(FigureSkeletonBar), findsWidgets);
+  });
+
+  // The server refuses the chart endpoints to a user without `view_dashboard`.
+  // They keep the band and the panels, which come from the ordinary lists.
+  testWidgets('without view_dashboard the figures and chart are not drawn', (
+    tester,
+  ) async {
+    await pumpBody(
+      tester,
+      enabledModules: EnabledModule.invoices.bitmask,
+      surface: const Size(390, 4000),
+      showFigures: false,
+    );
+    repo.pastDue.add([lateInvoice()]);
+    await tester.pump(const Duration(milliseconds: 10));
+
+    for (final type in [
+      OutstandingFigureCard,
+      PeriodFiguresCard,
+      DashboardPeriodBar,
+      ChartCard,
+    ]) {
+      expect(find.byType(type), findsNothing, reason: '$type');
+    }
+    expect(find.byType(NeedsAttentionBand), findsOneWidget);
+    expect(find.text('Upcoming Invoices'), findsOneWidget);
+    expect(find.byType(ActivityCard), findsOneWidget);
+  });
+
+  // A change that could not be saved is not about invoices, and must not
+  // disappear with them: it shows even when the band has nothing else to say
+  // and this phone is hiding empty panels.
+  testWidgets('a failed save holds the band open', (tester) async {
+    await pumpBody(
+      tester,
+      enabledModules: EnabledModule.invoices.bitmask,
+      surface: const Size(390, 2000),
+      media: const Size(390, 844),
+      failedSaves: Stream<int>.value(2),
+    );
+    repo.pastDue.add(const []);
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(find.text('2 changes could not be saved'), findsOneWidget);
+    expect(find.text('Nothing past due'), findsOneWidget);
   });
 
   // flutter#51 routes a phone here in landscape too, so this body is laid out
@@ -486,9 +554,9 @@ void main() {
     ]) {
       expect(find.text(label), findsNothing, reason: label);
     }
-    // Positive control: the hero sat directly above the row, so the body has
-    // rendered past the point where the tiles used to be.
-    expect(find.text('Outstanding'), findsWidgets);
+    // Positive control: the figure sat directly above the row, so the body
+    // has rendered past the point where the tiles used to be.
+    expect(find.text('OUTSTANDING'), findsOneWidget);
   });
 
   // The FAB covers the bottom 72 px of the body. Without the padding, the
@@ -622,7 +690,11 @@ void main() {
       repo.upcomingRecurring.add([recurringRow()]);
       await settle(tester);
       expect(find.text('Upcoming Recurring Invoices'), findsOneWidget);
-      expect(find.text('Acme Recurring'), findsOneWidget);
+      // One line: the number and the client, in one text.
+      expect(
+        find.textContaining('R-0001 · Acme Recurring', findRichText: true),
+        findsOneWidget,
+      );
     });
 
     testWidgets('switching it off while mounted brings the panel back', (
@@ -702,8 +774,8 @@ void main() {
       }
     });
 
-    testWidgets('the pinned past-due card hides too — "All caught up" is '
-        'still nothing to show', (tester) async {
+    testWidgets('the band hides too — "Nothing past due" is still nothing '
+        'to show', (tester) async {
       await pumpBody(
         tester,
         enabledModules: EnabledModule.invoices.bitmask,
@@ -716,7 +788,38 @@ void main() {
       await settle(tester);
 
       expect(find.text('Needs your attention'), findsNothing);
-      expect(find.text('All caught up'), findsNothing);
+      expect(find.text('Nothing past due'), findsNothing);
+    });
+
+    // Emptiness is every bucket's, not the past-due list's: with nothing late
+    // but an invoice due this week, the band has something to show.
+    testWidgets('the band stays while any bucket has something', (
+      tester,
+    ) async {
+      await pumpBody(
+        tester,
+        enabledModules: EnabledModule.invoices.bitmask,
+        surface: tall,
+        media: phone,
+      );
+      final soon = vm.today.addDays(2);
+      repo.pastDue.add(const []);
+      repo.upcomingInvoices.add([
+        DashboardInvoiceRow.fromJson({
+          'id': 'i2',
+          'number': '0050',
+          'balance': '80',
+          'amount': '80',
+          'due_date': soon.toIso(),
+          'status_id': '2',
+          'client': {'id': 'c1', 'name': 'Acme Soon'},
+        }),
+      ]);
+      await settle(tester);
+
+      expect(find.byType(NeedsAttentionBand), findsOneWidget);
+      expect(find.text('Due Soon'), findsOneWidget);
+      expect(find.text('Past Due'), findsNothing);
     });
 
     testWidgets('a section that has not loaded shows a skeleton, never its '
@@ -746,20 +849,30 @@ void main() {
       await vm.refresh();
       await settle(tester);
 
+      final card = find.ancestor(
+        of: find.text('Upcoming Recurring Invoices'),
+        matching: find.byType(DashboardCardShell),
+      );
       expect(
-        find.text("Couldn't load upcoming recurring invoices. Tap to retry."),
+        find.descendant(of: card, matching: find.text("Couldn't load")),
         findsOneWidget,
       );
-      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: card,
+          matching: find.widgetWithText(TextButton, 'Retry'),
+        ),
+        findsOneWidget,
+      );
       // Inline, not `ErrorView`: that needs ~240 px, and in the card's fixed
       // box it scrolled Retry out of sight.
       expect(find.byType(ErrorView), findsNothing);
       expect(find.text('No upcoming recurring invoices'), findsNothing);
     });
 
-    testWidgets('a card that loads empty keeps its height', (tester) async {
-      // Off, so the card stays: its loading placeholder is sized like its
-      // empty message, and a phone column below it doesn't jump on load.
+    testWidgets('an empty card costs a line, not a box', (tester) async {
+      // Off, so the card stays. Its empty state used to be an icon and a
+      // paragraph in a fixed 200 px box — per panel, on a healthy account.
       pref.value = false;
       // Wide enough that the message stays on one line in the test font,
       // whose glyphs are a full em wide — the real font fits a phone.
@@ -773,14 +886,12 @@ void main() {
         of: find.text('Upcoming Recurring Invoices'),
         matching: find.byType(DashboardCardShell),
       );
-      final loading = tester.getSize(card()).height;
 
       repo.upcomingRecurring.add(const []);
       await settle(tester);
       expect(find.text('No upcoming recurring invoices'), findsOneWidget);
-      final empty = tester.getSize(card()).height;
 
-      expect((empty - loading).abs(), lessThanOrEqualTo(4));
+      expect(tester.getSize(card()).height, lessThan(120));
     });
 
     testWidgets('the chart keeps its element when past-due empties out', (

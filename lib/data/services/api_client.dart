@@ -17,6 +17,7 @@ import 'package:admin/data/services/http_client_factory.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 final _log = Logger('ApiClient');
 
@@ -177,6 +178,34 @@ class ApiClient {
       return null;
     }
     return raw;
+  }
+
+  /// How many rows a list query matches on the server, without fetching them.
+  ///
+  /// Asks for one row and reads `meta.pagination.total`, which every list
+  /// endpoint's paginator reports for the query as filtered. Null when the
+  /// response carries no such figure — an answer to treat as "not known",
+  /// never as zero.
+  ///
+  /// Deliberately not [getList]: nothing here is a page of anything, so it
+  /// takes no cursor and returns none for a caller to store by mistake.
+  Future<int?> getListTotal(
+    String path, {
+    Map<String, String> filters = const {},
+  }) async {
+    final body = await _send(
+      method: 'GET',
+      path: path,
+      query: {'page': '1', 'per_page': '1', ...filters},
+    );
+    final parsed = await _decodeBody(body);
+    if (parsed is! Map) return null;
+    final meta = parsed['meta'];
+    final pagination = meta is Map ? meta['pagination'] : null;
+    final total = pagination is Map ? pagination['total'] : null;
+    if (total is int) return total < 0 ? null : total;
+    final asInt = int.tryParse('$total');
+    return (asInt == null || asInt < 0) ? null : asInt;
   }
 
   /// GET a single resource.
@@ -562,8 +591,9 @@ class ApiClient {
       }
       sent += chunk.length;
       onProgress?.call(sent, length == 0 ? 1 : length);
-      if (i == total - 1 && response.body.isNotEmpty) {
-        last = jsonDecode(response.body);
+      if (i == total - 1) {
+        final body = response.body;
+        if (body.isNotEmpty) last = jsonDecode(body);
       }
     }
     return last;
@@ -602,11 +632,14 @@ class ApiClient {
     );
     http.Response response;
     try {
-      response = await _sendNoRedirect(
-        method: method.toUpperCase(),
-        uri: uri,
-        headers: headers,
-        body: encoded,
+      response = await traceAsync(
+        'http ${method.toUpperCase()} $path',
+        () => _sendNoRedirect(
+          method: method.toUpperCase(),
+          uri: uri,
+          headers: headers,
+          body: encoded,
+        ),
       );
     } catch (e) {
       _debugCaptureStore?.failRequest(
@@ -616,16 +649,26 @@ class ApiClient {
       );
       rethrow;
     }
+    final elapsed = stopwatch.elapsed;
+    // Read once. `http.Response.body` is an uncached getter that decodes the
+    // bytes on every access, and this used to run it twice per request — once
+    // for a capture store that drops it while capture is off — on the UI
+    // isolate, for a body as large as a full `/refresh`.
+    final responseBody = traceSync(
+      'http.bodyDecode',
+      () => response.body,
+      args: {'bytes': response.bodyBytes.length},
+    );
     _debugCaptureStore?.completeRequest(
       captureId,
       statusCode: response.statusCode,
-      duration: stopwatch.elapsed,
-      responseBody: response.body,
+      duration: elapsed,
+      responseBody: responseBody,
       responseHeaders: response.headers,
     );
     await _postFlight(response, creds, method: method.toUpperCase(), uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return response.body;
+      return responseBody;
     }
     _raiseFromResponse(response);
   }
@@ -771,6 +814,17 @@ class ApiClient {
           /* non-JSON body — fall through to the normal 401 path */
         }
       }
+      // A permission denial is a 401 on this server too, and it says nothing
+      // about the session — see [PermissionDeniedException]. Checked before
+      // anything below can reach for a logout, or for the company-switch
+      // rollback, which used to answer this same 401 by undoing the switch.
+      final denial = _permissionDenialMessage(response, contentType);
+      if (denial != null) {
+        // `info`, not `warning`: an expected answer, and one a screen can get
+        // on every open — it has no business filling the diagnostics log.
+        _log.info('permission denied: $method ${uri.host}${uri.path}');
+        throw PermissionDeniedException(denial);
+      }
       // Only force logout when the 401 belongs to the *current* credential
       // set. A request issued under a credential set that has since been
       // replaced (e.g. mid-flight when the user switched companies) can come
@@ -888,6 +942,28 @@ class ApiClient {
         _log.warning('onUnauthorized threw', e, st);
       }
     }().whenComplete(() => _logoutFuture = null);
+  }
+
+  /// The server's message when a 401 is a permission denial rather than a
+  /// rejected session, else null. Exact match on the one message a policy or
+  /// `authorize()` failure produces; a 401 that says anything else — or
+  /// nothing parseable — stays a 401.
+  static String? _permissionDenialMessage(
+    http.Response response,
+    String contentType,
+  ) {
+    if (!contentType.contains('application/json')) return null;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final message = decoded['message'];
+      if (message is! String) return null;
+      return message.trim().toLowerCase() == kPermissionDeniedMessage
+          ? message.trim()
+          : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   Never _raiseFromResponse(http.Response response) {
@@ -1111,10 +1187,18 @@ class ApiClient {
       // entirely — synchronous decode is faster than the spawn and can't
       // contend. An injected decoder (tests) always falls through to the
       // timeout-guarded path below regardless of size.
-      return _decodeJson(body);
+      return traceSync(
+        'json.decode',
+        () => _decodeJson(body),
+        args: {'chars': body.length, 'on': 'ui'},
+      );
     }
     try {
-      return await _decoder(body).timeout(_decodeTimeout);
+      return await traceAsync(
+        'json.decode',
+        () => _decoder(body).timeout(_decodeTimeout),
+        args: {'chars': body.length, 'on': 'isolate'},
+      );
     } on TimeoutException {
       throw const NetworkException('Response parse timed out');
     }

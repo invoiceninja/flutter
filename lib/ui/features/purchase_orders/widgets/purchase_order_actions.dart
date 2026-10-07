@@ -21,6 +21,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -133,13 +135,22 @@ class PurchaseOrderActions {
     final canArchive = po.archivedAt == null && !po.isDeleted;
     final canRestore = po.archivedAt != null || po.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewVendor = me?.can('view_vendor') ?? false;
-    final canEdit = me?.can('edit_purchase_order') ?? false;
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'purchase_order',
+          createdBy: po.userId,
+          assignedTo: po.assignedUserId,
+          recordId: po.id,
+        ) ??
+        false;
     final canCreate = me?.can('create_purchase_order') ?? false;
-    final canDelete = me?.can('edit_purchase_order') ?? false;
+    final canDelete = canEdit;
     final canMarkSent = canEdit && po.isDraft;
     // Server cancels a PO while `status_id <= SENT` (Draft or Sent) and
     // silently no-ops for Accepted/Received (`PurchaseOrderController` cancel
@@ -209,7 +220,8 @@ class PurchaseOrderActions {
         kind: PurchaseOrderAction.sendEmail,
         icon: Icons.mail_outline,
         label: context.tr('send_email'),
-        enabled: canEdit,
+        // The record's edit rule and the user's own right to send at all.
+        enabled: canEdit && (me?.maySendEmails ?? false),
         onTap: () => onTap(PurchaseOrderAction.sendEmail),
       ),
       EntityActionItem(
@@ -369,6 +381,45 @@ class PurchaseOrderActions {
           canDelete: !po.isDeleted,
           onTap: () => onTap(PurchaseOrderAction.delete),
         ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles — a second render of [itemsFor].
+  ///
+  /// Mark Sent for a draft and Add to Inventory for an accepted order are the
+  /// two that move it on; then getting it to the vendor and reading it; then
+  /// what follows from it — the expense it becomes (or the one it already
+  /// became) and the vendor's own view of it.
+  ///
+  /// [hasPdfPane]: see `InvoiceActions.quickItemsFor`.
+  static List<EntityQuickAction<PurchaseOrderAction>> quickItemsFor(
+    BuildContext context,
+    PurchaseOrder po,
+    void Function(PurchaseOrderAction) onTap, {
+    required bool hasPdfPane,
+  }) {
+    final q = BillingDocQuickActions<PurchaseOrderAction>(
+      doc: po,
+      items: itemsFor(context, po, onTap),
+    );
+    return [
+      ?q.pick(PurchaseOrderAction.markSent, context.tr('mark_sent')),
+      ?q.pick(PurchaseOrderAction.addToInventory, context.tr('inventory')),
+      ?q.pick(PurchaseOrderAction.sendEmail, context.tr('email')),
+      ?q.pick(
+        PurchaseOrderAction.viewPdf,
+        context.tr('pdf'),
+        applies: !hasPdfPane,
+      ),
+      ?q.pick(PurchaseOrderAction.downloadPdf, context.tr('download')),
+      // "+ Expense" makes one; a bare "Expense" opens the one it made.
+      ?q.pick(
+        PurchaseOrderAction.convertToExpense,
+        '+ ${context.tr('expense')}',
+      ),
+      ?q.pick(PurchaseOrderAction.viewExpense, context.tr('expense')),
+      ?q.pick(PurchaseOrderAction.vendorPortal, context.tr('vendor_portal')),
+      ?q.pick(PurchaseOrderAction.clone, context.tr('clone')),
     ];
   }
 

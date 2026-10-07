@@ -10,10 +10,12 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_invoice_line_item.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -71,78 +73,116 @@ class ExpenseActions {
     Expense expense,
     void Function(ExpenseAction) onTap,
   ) {
-    final canArchive = expense.archivedAt == null && !expense.isDeleted;
-    final canRestore = expense.archivedAt != null || expense.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Archive, restore and delete all need `edit_expense`: the server
+    // authorizes each through `EntityPolicy::edit` (there is no `delete_*`
+    // permission). Ungated, a view-only user was offered Restore — one tap
+    // from the record's state banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'expense',
+          createdBy: expense.userId,
+          assignedTo: expense.assignedUserId,
+          recordId: expense.id,
+        ) ??
+        false;
+    final canArchive =
+        canEdit && expense.archivedAt == null && !expense.isDeleted;
+    final canRestore =
+        canEdit && (expense.archivedAt != null || expense.isDeleted);
+    // Permission gate for the labelled "go to the vendor" item. Read lazily
+    // here (itemsFor runs per build) so it re-resolves on a company switch.
     final canViewVendor = me?.can('view_vendor') ?? false;
+    // An action that makes a new record needs `create_<entity>` — edit rights
+    // never imply it — and, where the record is another kind, that kind's
+    // module. A clone is a new expense; its own module is on or this expense
+    // would not be on screen.
+    bool canCreate(EntityType type) =>
+        (me?.moduleEnabled(type) ?? false) &&
+        (me?.can(createPermissionFor(type)) ?? false);
+    final canClone = me?.can(createPermissionFor(EntityType.expense)) ?? false;
 
     return [
-      editActionItem(
-        context: context,
-        kind: ExpenseAction.edit,
-        onTap: () => onTap(ExpenseAction.edit),
-      ),
-      EntityActionItem(
-        kind: ExpenseAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone_expense'),
-        enabled: true,
-        onTap: () => onTap(ExpenseAction.clone),
-      ),
-      EntityActionItem(
-        kind: ExpenseAction.cloneToRecurring,
-        icon: Icons.event_repeat_outlined,
-        label: context.tr('clone_to_recurring'),
-        enabled: true,
-        onTap: () => onTap(ExpenseAction.cloneToRecurring),
-      ),
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
-        EntityActionItem(
-          kind: ExpenseAction.invoiceExpense,
-          icon: Icons.outbox_outlined,
-          label: context.tr('invoice_expense'),
-          enabled: !expense.id.startsWith('tmp_') && expense.invoiceId.isEmpty,
-          onTap: () => onTap(ExpenseAction.invoiceExpense),
+      // Everything that changes the expense, copies it or bills it. Hidden
+      // entirely on a soft-deleted one — only the link, the vendor and
+      // Restore remain, as on a deleted client: the server refuses an edit of
+      // a deleted record, and the screen says it is read-only.
+      if (!expense.isDeleted) ...[
+        editActionItem(
+          context: context,
+          kind: ExpenseAction.edit,
+          onTap: () => onTap(ExpenseAction.edit),
         ),
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+        if (canClone)
+          EntityActionItem(
+            kind: ExpenseAction.clone,
+            icon: Icons.copy_outlined,
+            label: context.tr('clone_expense'),
+            enabled: true,
+            onTap: () => onTap(ExpenseAction.clone),
+          ),
+        if (canCreate(EntityType.recurringExpense))
+          EntityActionItem(
+            kind: ExpenseAction.cloneToRecurring,
+            icon: Icons.event_repeat_outlined,
+            label: context.tr('clone_to_recurring'),
+            enabled: true,
+            onTap: () => onTap(ExpenseAction.cloneToRecurring),
+          ),
+        if (canCreate(EntityType.invoice))
+          EntityActionItem(
+            kind: ExpenseAction.invoiceExpense,
+            icon: Icons.outbox_outlined,
+            label: context.tr('invoice_expense'),
+            enabled:
+                !expense.id.startsWith('tmp_') && expense.invoiceId.isEmpty,
+            onTap: () => onTap(ExpenseAction.invoiceExpense),
+          ),
+        // Appends to an invoice that already exists, so it is an edit of that
+        // invoice rather than a new one — which the server allows its creator
+        // too. Which invoice is not known until it is picked, so anyone who
+        // could own one is asked.
+        if ((me?.moduleEnabled(EntityType.invoice) ?? false) &&
+            ((me?.can('edit_invoice') ?? false) ||
+                (me?.can(createPermissionFor(EntityType.invoice)) ?? false)))
+          EntityActionItem(
+            kind: ExpenseAction.addToInvoice,
+            icon: Icons.playlist_add_outlined,
+            // `action_add_to_invoice`, not `add_to_invoice` — the latter is
+            // "Add to invoice :invoice" (invoiceninja/flutter#35).
+            label: context.tr('action_add_to_invoice'),
+            // Mirrors admin-portal: an un-invoiced expense tied to a client
+            // can be appended to one of that client's existing invoices.
+            enabled:
+                !expense.id.startsWith('tmp_') &&
+                expense.invoiceId.isEmpty &&
+                expense.clientId.isNotEmpty,
+            onTap: () => onTap(ExpenseAction.addToInvoice),
+          ),
         EntityActionItem(
-          kind: ExpenseAction.addToInvoice,
-          icon: Icons.playlist_add_outlined,
-          // `action_add_to_invoice`, not `add_to_invoice` — the latter is
-          // "Add to invoice :invoice" (invoiceninja/flutter#35).
-          label: context.tr('action_add_to_invoice'),
-          // Mirrors admin-portal: an un-invoiced expense tied to a client
-          // can be appended to one of that client's existing invoices.
-          enabled:
-              !expense.id.startsWith('tmp_') &&
-              expense.invoiceId.isEmpty &&
-              expense.clientId.isNotEmpty,
-          onTap: () => onTap(ExpenseAction.addToInvoice),
+          kind: ExpenseAction.runTemplate,
+          icon: Icons.auto_awesome_outlined,
+          label: context.tr('run_template'),
+          enabled: !expense.id.startsWith('tmp_'),
+          onTap: () => onTap(ExpenseAction.runTemplate),
         ),
-      EntityActionItem(
-        kind: ExpenseAction.runTemplate,
-        icon: Icons.auto_awesome_outlined,
-        label: context.tr('run_template'),
-        enabled: !expense.id.startsWith('tmp_'),
-        onTap: () => onTap(ExpenseAction.runTemplate),
-      ),
-      EntityActionItem(
-        kind: ExpenseAction.addComment,
-        icon: Icons.chat_bubble_outline,
-        label: context.tr('add_comment'),
-        enabled: true,
-        onTap: () => onTap(ExpenseAction.addComment),
-      ),
-      EntityActionItem(
-        kind: ExpenseAction.logCall,
-        icon: Icons.phone_in_talk_outlined,
-        label: context.tr('log_call'),
-        enabled: true,
-        onTap: () => onTap(ExpenseAction.logCall),
-      ),
+        EntityActionItem(
+          kind: ExpenseAction.addComment,
+          icon: Icons.chat_bubble_outline,
+          label: context.tr('add_comment'),
+          enabled: true,
+          onTap: () => onTap(ExpenseAction.addComment),
+        ),
+        EntityActionItem(
+          kind: ExpenseAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(ExpenseAction.logCall),
+        ),
+      ],
       if (expense.vendorId.isNotEmpty && canViewVendor)
         EntityActionItem(
           kind: ExpenseAction.viewVendor,
@@ -178,9 +218,64 @@ class ExpenseActions {
         context: context,
         subject: _confirmSubject(expense),
         kind: ExpenseAction.delete,
-        canDelete: !expense.isDeleted,
+        canDelete: canEdit && !expense.isDeleted,
         onTap: () => onTap(ExpenseAction.delete),
       ),
+    ];
+  }
+
+  /// The expense screen's quick-action strip, most-used first. The strip
+  /// shows the first few that apply (`pickQuickActions`); the rest stay one
+  /// tap further away in the `⋮` menu, which still lists everything.
+  ///
+  /// Every tile is the *same item* [itemsFor] builds, looked up by kind, so
+  /// its module and permission gates and its unsynced guard cannot drift from
+  /// the menu's.
+  ///
+  /// `applies` is about relevance, not ability. Billing an expense is the one
+  /// thing worth a tile while it has not been billed and is pointless once it
+  /// has — and Add to Invoice needs a client whose invoices it could join. An
+  /// expense that is done with shows the tiles for making the next one.
+  static List<EntityQuickAction<ExpenseAction>> quickItemsFor(
+    BuildContext context,
+    Expense expense,
+    void Function(ExpenseAction) onTap,
+  ) {
+    // A deleted expense is read-only, and an unsynced one would answer most
+    // tiles with "sync first" — the banner says that once instead.
+    if (expense.isDeleted || expense.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, expense, onTap);
+    EntityQuickAction<ExpenseAction>? pick(
+      ExpenseAction kind,
+      String shortLabel, {
+      bool applies = true,
+    }) {
+      final item = findActionItem<ExpenseAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(
+        item: item,
+        shortLabel: shortLabel,
+        applies: applies,
+      );
+    }
+
+    final unbilled = expense.invoiceId.isEmpty;
+    return [
+      // "+ Invoice", not "Invoice Expense": the entity noun is one word in
+      // every bundled locale, where the verb phrase will not fit a tile.
+      ?pick(
+        ExpenseAction.invoiceExpense,
+        '+ ${context.tr('invoice')}',
+        applies: unbilled,
+      ),
+      ?pick(
+        ExpenseAction.addToInvoice,
+        context.tr('action_add_to_invoice'),
+        applies: unbilled && expense.clientId.isNotEmpty,
+      ),
+      ?pick(ExpenseAction.clone, context.tr('clone')),
+      ?pick(ExpenseAction.cloneToRecurring, context.tr('recurring')),
+      ?pick(ExpenseAction.runTemplate, context.tr('run_template')),
     ];
   }
 

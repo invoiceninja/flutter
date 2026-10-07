@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/api/contact_api_model.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
@@ -116,73 +117,168 @@ void main() {
 
   setUp(() => services = PhoneActionsTestServices());
 
-  testWidgets('a contact with a phone gets Call and Message', (tester) async {
+  // The row's actions are icon buttons now — the first two that apply get one
+  // each, the rest sit behind `⋮` — where they used to be four text buttons
+  // in a `Wrap`. Found by tooltip, which is the button's accessible name.
+  final callButton = find.byTooltip('Call');
+  final emailButton = find.byTooltip('Email');
+  final moreButton = find.byTooltip('More');
+
+  Future<void> openMore(WidgetTester tester) async {
+    await tester.tap(moreButton);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a contact with a phone gets Call, with Message behind ⋮', (
+    tester,
+  ) async {
     await services.phoneActions.setTapToCall(true);
     await pump(tester, [contact()]);
 
-    expect(find.widgetWithText(TextButton, 'Call'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Send SMS'), findsOneWidget);
+    expect(callButton, findsOneWidget);
+    expect(emailButton, findsOneWidget);
     expect(find.byType(LinkText), findsOneWidget, reason: 'the number too');
+    await openMore(tester);
+    expect(find.text('Send SMS'), findsOneWidget);
   });
 
-  testWidgets('the buttons show without a portal link', (tester) async {
+  testWidgets('the actions show without a portal link', (tester) async {
     // The action `Wrap` used to be gated on `contact.link.isNotEmpty`, back
     // when the only things in it were the two portal buttons. A contact with
     // no portal link must still get Call / Message.
     await services.phoneActions.setTapToCall(true);
     await pump(tester, [contact(link: '')]);
 
-    expect(find.widgetWithText(TextButton, 'View portal'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Call'), findsOneWidget);
+    expect(callButton, findsOneWidget);
+    await openMore(tester);
+    expect(find.text('View Portal'), findsNothing);
+    expect(find.text('Send SMS'), findsOneWidget);
+  });
+
+  testWidgets('a portal link adds Copy link and View portal', (tester) async {
+    await services.phoneActions.setTapToCall(true);
+    await pump(tester, [contact(link: 'https://portal.example.com/abc')]);
+
+    await openMore(tester);
+    // Named for the portal: the record's own menu has a "Copy Link" too.
+    expect(find.text('Client Portal: Copy Link'), findsOneWidget);
+    expect(find.text('View Portal'), findsOneWidget);
+  });
+
+  testWidgets('with calling off, a desktop gets Email and the portal copy', (
+    tester,
+  ) async {
+    // The first two actions that apply get a button. Without Call that is
+    // Email and Copy portal link — what a desktop user does with a contact —
+    // and with only View Portal left there is still a `⋮` for it.
+    await services.phoneActions.setTapToCall(false);
+    await pump(tester, [contact(link: 'https://portal.example.com/abc')]);
+
+    expect(callButton, findsNothing);
+    expect(emailButton, findsOneWidget);
+    expect(find.byTooltip('Client Portal: Copy Link'), findsOneWidget);
+    await openMore(tester);
+    expect(find.text('View Portal'), findsOneWidget);
+    expect(find.text('Send SMS'), findsNothing);
   });
 
   testWidgets('a contact with no phone gets neither', (tester) async {
     await services.phoneActions.setTapToCall(true);
     await pump(tester, [contact(phone: '')]);
 
-    expect(find.widgetWithText(TextButton, 'Call'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Send SMS'), findsNothing);
+    expect(callButton, findsNothing);
+    // Email is the only action left, so there is nothing to put behind `⋮`.
+    expect(emailButton, findsOneWidget);
+    expect(moreButton, findsNothing);
   });
 
   testWidgets('an undialable number gets neither', (tester) async {
     await services.phoneActions.setTapToCall(true);
     await pump(tester, [contact(phone: 'call the office')]);
 
-    expect(find.widgetWithText(TextButton, 'Call'), findsNothing);
+    expect(callButton, findsNothing);
     expect(find.byType(LinkText), findsNothing);
   });
 
-  testWidgets('tap-to-call off hides the buttons', (tester) async {
+  testWidgets('tap-to-call off hides Call and Message', (tester) async {
     await services.phoneActions.setTapToCall(false);
     await pump(tester, [contact()]);
 
-    expect(find.widgetWithText(TextButton, 'Call'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Send SMS'), findsNothing);
+    expect(callButton, findsNothing);
+    expect(moreButton, findsNothing, reason: 'Message was all it held');
+  });
+
+  testWidgets('an address that is not one address gets no Email action', (
+    tester,
+  ) async {
+    // A `mailto:` built from this would carry a second recipient. The row
+    // offers no way to send it; the text is still there to copy.
+    await services.phoneActions.setTapToCall(false);
+    await pump(tester, [contact(email: 'jane@acme.example.com?bcc=x@evil.io')]);
+
+    expect(emailButton, findsNothing);
+    expect(find.text('jane@acme.example.com?bcc=x@evil.io'), findsOneWidget);
   });
 
   testWidgets(
-    'flipping the preference removes the buttons from a mounted card',
+    'flipping the preference removes the actions from a mounted card',
     (tester) async {
-      // The regression: the buttons are built in `_ContactRow.build`, one level
-      // above the `PhoneActionsScope` that the number carries. A detail screen
-      // stays mounted behind `/settings/**` while the switch is flipped, so a
-      // bare read left a live Call button beside a number that had already
+      // The regression: the actions are built in the row, one level above the
+      // `PhoneActionsScope` that the number carries. A detail screen stays
+      // mounted behind `/settings/**` while the switch is flipped, so a bare
+      // read left a live Call button beside a number that had already
       // reverted to plain text — and tapping it still placed the call.
       await services.phoneActions.setTapToCall(true);
       await pump(tester, [contact()]);
-      expect(find.widgetWithText(TextButton, 'Call'), findsOneWidget);
+      expect(callButton, findsOneWidget);
 
       await services.phoneActions.setTapToCall(false);
       await tester.pump();
 
       expect(find.byType(LinkText), findsNothing, reason: 'number went inert');
       expect(
-        find.widgetWithText(TextButton, 'Call'),
+        callButton,
         findsNothing,
         reason: 'the button must go inert with it',
       );
     },
   );
+
+  testWidgets('the primary star and the exceptions are named', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester, [
+      Contact.fromApi(
+        const ContactApi(
+          id: 'ct1',
+          firstName: 'Jane',
+          lastName: 'Smith',
+          isPrimary: true,
+          isLocked: true,
+          ccOnly: true,
+        ),
+      ),
+    ]);
+    // A bare star says nothing to a screen reader; a bare red icon said
+    // nothing to anyone.
+    expect(find.bySemanticsLabel('Primary Contact'), findsOneWidget);
+    expect(find.text('Unsubscribed'), findsOneWidget);
+    expect(find.text('CC Only'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('an expanded list can be collapsed again', (tester) async {
+    // Inline expansion (a window 600 px or wider — the harness default) used
+    // to be one-way: thirty contacts stayed thirty rows tall.
+    await pump(tester, people(5));
+    await tester.tap(find.textContaining('more'));
+    await tester.pump();
+    expect(find.text('Person 5'), findsOneWidget);
+
+    await tester.tap(find.text('Less'));
+    await tester.pump();
+    expect(find.text('Person 5'), findsNothing);
+    expect(find.textContaining('more'), findsOneWidget);
+  });
 
   // ─────────── invoiceninja/flutter#115: blank contacts ───────────
   //
@@ -309,18 +405,45 @@ void main() {
     await pump(tester, [blank(link: 'https://portal.example.com/abc')]);
 
     expect(find.byType(DashboardCardShell), findsNothing);
-    expect(find.widgetWithText(TextButton, 'View portal'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Copy link'), findsNothing);
+    expect(find.byTooltip('Client Portal: Copy Link'), findsNothing);
   });
 
-  testWidgets('a contact custom value alone does not keep a blank contact', (
-    tester,
-  ) async {
-    // React counts contact custom fields because its row renders them; this
-    // card doesn't, so a row kept alive by one would paint only `(no name)`.
+  testWidgets('a custom value with no label for it does not keep a blank '
+      'contact', (tester) async {
+    // Nothing would be printed for it — the row shows a custom field only
+    // under the label the company gave it — so the row would be `(no name)`
+    // and nothing else.
     await pump(tester, [blank(customValue1: 'VIP')]);
 
     expect(find.byType(DashboardCardShell), findsNothing);
+  });
+
+  test('a custom value the company has labelled is content', () {
+    // The row prints contact custom fields now, so a contact whose only entry
+    // is one has a line to show. `Contact.isBlank` leaves custom values out
+    // on purpose and says a card that renders them must widen its own test —
+    // this is that. React's row makes the same call.
+    final company = Company(
+      id: 'co1',
+      name: 'Co',
+      customFields: const {'contact1': 'Department'},
+    );
+    // Labels a *different* slot from the one the contact filled.
+    final elsewhere = Company(
+      id: 'co1',
+      name: 'Co',
+      customFields: const {'contact2': 'Other'},
+    );
+    final onlyCustom = blank(customValue1: 'Accounts');
+
+    expect(visibleClientContacts([onlyCustom]), isEmpty, reason: 'no labels');
+    expect(visibleClientContacts([onlyCustom], company: company), [onlyCustom]);
+    expect(
+      visibleClientContacts([onlyCustom], company: elsewhere),
+      isEmpty,
+      reason: 'slot 1 has no label there, so nothing would print',
+    );
+    expect(primaryClientContact([onlyCustom], company: company), onlyCustom);
   });
 
   testWidgets('"+N more" counts the filtered list, not the raw one', (

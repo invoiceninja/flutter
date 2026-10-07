@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
@@ -148,10 +149,10 @@ class _FakeClients implements ClientRepository {
   final Client? client;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Stream<Client?> watch({required String companyId, required String id}) =>
@@ -171,10 +172,10 @@ class _FakeVendors implements VendorRepository {
   final Vendor? vendor;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Stream<Vendor?> watch({required String companyId, required String id}) =>

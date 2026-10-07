@@ -7,6 +7,7 @@ import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/task_dao.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
@@ -196,15 +197,22 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
 
   /// Active, non-deleted tasks for a single project. Backs the "Tasks"
   /// card on the Project detail screen.
+  ///
+  /// [activeClientsOnly]: see `TaskDao.watchForProject`.
   Stream<List<Task>> watchForProject({
     required String companyId,
     required String projectId,
+    bool activeClientsOnly = false,
   }) {
     if (projectId.isEmpty) {
       return Stream<List<Task>>.value(const <Task>[]);
     }
     return db.taskDao
-        .watchForProject(companyId: companyId, projectId: projectId)
+        .watchForProject(
+          companyId: companyId,
+          projectId: projectId,
+          activeClientsOnly: activeClientsOnly,
+        )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
@@ -871,18 +879,18 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   /// a deep-linked record the recipient has never browsed to, a restored
   /// route, or a cross-entity reference off the prefetched page. Cache-gated,
   /// coalesced, and negative-cached; see [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.taskDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.taskDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+  );
 
   /// The row's `documents` column decoded, or null when the row isn't cached
   /// locally, which skips the write. Write-avoidance, not correctness — see

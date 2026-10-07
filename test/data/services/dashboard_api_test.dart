@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
@@ -39,8 +40,11 @@ class _CapturingClient extends ApiClient {
     Map<String, String>? query,
   }) async {
     gets.add((path: path, query: query));
-    return const {'data': <Object?>[]};
+    return nextGet ?? const {'data': <Object?>[]};
   }
+
+  /// What the next GET answers with; the empty envelope when null.
+  Object? nextGet;
 
   @override
   Future<dynamic> postJson(
@@ -159,22 +163,157 @@ void main() {
     expect(kActivityFeedRows, greaterThan(75));
   });
 
-  test('totals — period body + include_drafts query', () async {
-    await api.fetchTotals(DashboardFilter.defaults());
+  test('totals — the app\'s own dates, sent as custom', () async {
+    final filter = DashboardFilter.defaults();
+    await api.fetchTotals(filter);
     final call = client.posts.single;
+    final (start, end) = filter.resolveDates();
     expect(call.path, '/api/v1/charts/totals_v2');
-    expect(call.body!['date_range'], 'this_month');
-    expect(call.body, contains('start_date'));
-    expect(call.body, contains('end_date'));
+    // Given `this_month` the server ignores the dates and works the window out
+    // again from its own clock; `custom` makes it sum the window the header
+    // shows.
+    expect(call.body, {
+      'start_date': start.toIso(),
+      'end_date': end.toIso(),
+      'date_range': 'custom',
+    });
     expect(call.query, {'include_drafts': 'false'});
   });
 
-  test('totals previous period — custom range, back-shifted', () async {
-    await api.fetchTotals(DashboardFilter.defaults(), previousPeriod: true);
+  test('totals — a rolling preset is sent as custom too', () async {
+    // The server's "last 7 days" is eight (`now()->subDays(7)` to today).
+    const filter = DashboardFilter(
+      range: DashboardPresetRange(DashboardDatePreset.last7),
+    );
+    await api.fetchTotals(filter);
     final body = client.posts.single.body!;
-    // Previous-period uses `custom` so the server honors our shifted dates
-    // instead of recomputing the window from the preset name.
+    final (start, end) = filter.resolveDates();
     expect(body['date_range'], 'custom');
+    expect(body['start_date'], start.toIso());
+    expect(body['end_date'], end.toIso());
+    expect(end.differenceInDays(start), 6, reason: 'seven days, inclusive');
+  });
+
+  test('totals — all time stays a name', () async {
+    const filter = DashboardFilter(
+      range: DashboardPresetRange(DashboardDatePreset.allTime),
+    );
+    await api.fetchTotals(filter);
+    expect(client.posts.single.body!['date_range'], 'all_time');
+  });
+
+  test('totals previous period — the like-for-like window', () async {
+    final filter = DashboardFilter.defaults();
+    await api.fetchTotals(filter, previousPeriod: true);
+    final body = client.posts.single.body!;
+    final c = filter.comparison()!;
+    // Not the whole window shifted back: the same elapsed span of the month
+    // before.
+    expect(body, {
+      'start_date': c.previousStart.toIso(),
+      'end_date': c.previousEnd.toIso(),
+      'date_range': 'custom',
+    });
+  });
+
+  test('totals previous period — all time asks for nothing', () async {
+    const filter = DashboardFilter(
+      range: DashboardPresetRange(DashboardDatePreset.allTime),
+    );
+    final result = await api.fetchTotals(filter, previousPeriod: true);
+    expect(result, isNull);
+    expect(client.posts, isEmpty, reason: 'there is no period before all time');
+  });
+
+  // NOT the `all_time` preset: the server ends that one today, so an invoice
+  // dated next week and already sent — owed, by any reading — was left out.
+  // Measured on the demo account: `all_time` gave 334.00 across one invoice
+  // while four were unpaid, 9,727.00.
+  test('outstanding — the totals query over an open-ended window', () async {
+    await api.fetchOutstandingTotals(includeDrafts: true);
+    final call = client.posts.single;
+    expect(call.path, '/api/v1/charts/totals_v2');
+    expect(call.body, {
+      'date_range': 'custom',
+      'start_date': '1970-01-01',
+      'end_date': '2099-12-31',
+    });
+    expect(call.query, {'include_drafts': 'true'});
+  });
+
+  test('chart — the app\'s own dates, sent as custom', () async {
+    final filter = DashboardFilter.defaults();
+    await api.fetchChartSummary(filter);
+    final call = client.posts.single;
+    final (start, end) = filter.resolveDates();
+    expect(call.path, '/api/v1/charts/chart_summary_v2');
+    expect(call.body!['date_range'], 'custom');
+    expect(call.body!['start_date'], start.toIso());
+    expect(call.body!['end_date'], end.toIso());
+  });
+
+  test('calculated_fields — keep the preset name', () async {
+    // The server derives a card's `previous` period from the name; for
+    // `custom` it hands back the same window.
+    await api.fetchCalculatedField(
+      DashboardFilter.defaults(),
+      const DashboardCardConfig(
+        field: 'active_invoices',
+        period: CardPeriod.previous,
+        calculate: CardCalc.sum,
+        format: CardFormat.money,
+      ),
+    );
+    expect(client.posts.single.body!['date_range'], 'this_month');
+  });
+
+  group('a list keeps the paginator total', () {
+    test('rows and total, when the response carries one', () async {
+      client.nextGet = const {
+        'data': [
+          {'id': 'a'},
+          {'id': 'b'},
+        ],
+        'meta': {
+          'pagination': {'total': 80, 'count': 2},
+        },
+      };
+      expect(await api.fetchPastDueInvoices(), {
+        'rows': [
+          {'id': 'a'},
+          {'id': 'b'},
+        ],
+        'total': 80,
+      });
+    });
+
+    test('the bare list when it carries none', () async {
+      client.nextGet = const {
+        'data': [
+          {'id': 'a'},
+        ],
+      };
+      expect(await api.fetchPastDueInvoices(), [
+        {'id': 'a'},
+      ]);
+    });
+
+    test(
+      'activities stay a bare list — that endpoint is not paginated',
+      () async {
+        client.nextGet = const {
+          'data': [
+            {'id': 'x'},
+          ],
+          'meta': {
+            'pagination': {'total': 9},
+          },
+        };
+        expect(await api.fetchActivities(), [
+          {'id': 'x'},
+        ]);
+      },
+    );
   });
 
   // --- calculated_fields: the server's per-field-class request rules ---

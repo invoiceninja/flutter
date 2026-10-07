@@ -23,7 +23,17 @@ class EntityHeaderFields {
     required this.isArchived,
     required this.isDeleted,
     required this.isDirty,
+    this.subtitle,
+    this.tags,
+    this.nameMaxLines = 1,
+    this.showStatePills = true,
   });
+
+  /// See the same-named fields on [EntityDetailHeader].
+  final Widget? subtitle;
+  final Widget? tags;
+  final int nameMaxLines;
+  final bool showStatePills;
 
   final String seedForAvatar;
   final String displayName;
@@ -95,6 +105,10 @@ class EntityDetailHeaderHost<T> extends StatelessWidget {
         isDirty: f.isDirty,
         formatter: formatter,
         fallbackIcon: fallbackIcon,
+        subtitle: f.subtitle,
+        tags: f.tags,
+        nameMaxLines: f.nameMaxLines,
+        showStatePills: f.showStatePills,
       ),
     );
   }

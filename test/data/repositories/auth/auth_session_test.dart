@@ -6,6 +6,17 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 /// Plan / Overview cards and the per-screen plan gates read. Trial math uses
 /// `DateTime.now()`, so we phrase `trialStarted` / `planExpires` as offsets
 /// from "now" rather than fixed timestamps.
+///
+/// **An expired `planExpires` is built from the UTC day** ([_utcDaysAgo]).
+/// `hostedPlanDateExpired` reads the first ten characters as a UTC date and
+/// keeps the plan paid until that UTC day has ended — so "yesterday" taken
+/// from the *local* clock is still today in UTC for the first hours after
+/// local midnight on any machine east of Greenwich, and the plan is, rightly,
+/// not expired yet. Built that way these tests failed between 00:00 and 03:00
+/// on a UTC+3 laptop and at no other time.
+String _utcDaysAgo(int days) =>
+    DateTime.now().toUtc().subtract(Duration(days: days)).toIso8601String();
+
 AuthSession _session({
   String baseUrl = 'https://example.test',
   bool isHosted = true,
@@ -32,6 +43,114 @@ AuthSession _session({
 );
 
 void main() {
+  group('AuthSession.canEditRecord', () {
+    // The server's `EntityPolicy::edit`: an admin, a holder of
+    // `edit_<entity>`, or the record's creator or assignee. A user without
+    // `view_<entity>` is listed only the records they created or are
+    // assigned, so for them the third arm is the only one that ever applies.
+    AuthSession as({
+      String permissions = '',
+      bool isAdmin = false,
+      String userId = 'me',
+    }) => AuthSession(
+      baseUrl: 'https://example.test',
+      isHosted: true,
+      accountId: 'acc1',
+      companies: [
+        AuthCompany(
+          id: 'co1',
+          name: 'Co',
+          displayName: 'Co',
+          permissions: permissions,
+          isAdmin: isAdmin,
+          isOwner: false,
+        ),
+      ],
+      currentCompanyId: 'co1',
+      userId: userId,
+    );
+
+    test('an admin may, whoever made the record', () {
+      expect(
+        as(isAdmin: true).canEditRecord('task', createdBy: 'someone'),
+        isTrue,
+      );
+    });
+
+    test('edit_<entity> and edit_all may', () {
+      expect(
+        as(permissions: 'edit_task').canEditRecord('task', createdBy: 'x'),
+        isTrue,
+      );
+      expect(
+        as(permissions: 'edit_all').canEditRecord('task', createdBy: 'x'),
+        isTrue,
+      );
+    });
+
+    test('the creator may, with no edit permission at all', () {
+      // The "may create tasks, nothing else" user: every task they are shown
+      // is their own, and gated on `edit_task` alone they could archive none.
+      final me = as(permissions: 'create_task');
+      expect(me.canEditRecord('task', createdBy: 'me'), isTrue);
+      expect(me.canEditRecord('task', createdBy: 'someone'), isFalse);
+    });
+
+    test('the assignee may', () {
+      final me = as(permissions: 'view_task');
+      expect(
+        me.canEditRecord('task', createdBy: 'someone', assignedTo: 'me'),
+        isTrue,
+      );
+      expect(
+        me.canEditRecord('task', createdBy: 'someone', assignedTo: 'other'),
+        isFalse,
+      );
+    });
+
+    test('a permission for another entity is not this one', () {
+      expect(
+        as(permissions: 'edit_invoice').canEditRecord('task', createdBy: 'x'),
+        isFalse,
+      );
+    });
+
+    test('a record made on this device and not yet synced is the user\'s '
+        'own', () {
+      // The server has stamped no `user_id` on it yet.
+      expect(
+        as(
+          permissions: 'create_task',
+        ).canEditRecord('task', createdBy: '', recordId: 'tmp_1'),
+        isTrue,
+      );
+    });
+
+    test('a blank user id matches nothing', () {
+      // Two blanks are not "the same person": a session restored before the
+      // user id is known must not own every record whose creator is unknown.
+      expect(
+        as(
+          permissions: 'view_task',
+          userId: '',
+        ).canEditRecord('task', createdBy: ''),
+        isFalse,
+      );
+    });
+
+    test('no current company, no', () {
+      const none = AuthSession(
+        baseUrl: 'https://example.test',
+        isHosted: true,
+        accountId: 'acc1',
+        companies: [],
+        currentCompanyId: '',
+        userId: 'me',
+      );
+      expect(none.canEditRecord('task', createdBy: 'me'), isFalse);
+    });
+  });
+
   group('AuthSession.isPaidPlanSlug', () {
     test('true for pro / enterprise / premium_business_plus', () {
       expect(_session(plan: 'pro').isPaidPlanSlug, isTrue);
@@ -87,10 +206,7 @@ void main() {
     });
 
     test('expired hosted plan reverts to free', () {
-      final yesterday = DateTime.now()
-          .subtract(const Duration(days: 1))
-          .toIso8601String();
-      final s = _session(plan: 'pro', planExpires: yesterday);
+      final s = _session(plan: 'pro', planExpires: _utcDaysAgo(1));
       expect(s.isProPlan, isFalse);
       expect(s.isEnterprisePlan, isFalse);
     });
@@ -236,10 +352,10 @@ void main() {
     });
 
     test('true for expired hosted paid plan (reverts to free behavior)', () {
-      final yesterday = DateTime.now()
-          .subtract(const Duration(days: 1))
-          .toIso8601String();
-      expect(_session(plan: 'pro', planExpires: yesterday).isFreePlan, isTrue);
+      expect(
+        _session(plan: 'pro', planExpires: _utcDaysAgo(1)).isFreePlan,
+        isTrue,
+      );
     });
   });
 
@@ -513,6 +629,34 @@ AuthCompany _company({
 );
 
 void _permissionTests() {
+  // `SendEmailRequest` refuses a user holding `disable_emails` before it even
+  // looks at the record, so every Send Email action gates on this — or it
+  // offers a send the server will reject.
+  group('AuthCompany.maySendEmails', () {
+    test('a user without the token may send', () {
+      expect(_company().maySendEmails, isTrue);
+      expect(_company(permissions: 'edit_invoice').maySendEmails, isTrue);
+    });
+
+    test('holding disable_emails takes it away', () {
+      expect(
+        _company(permissions: 'edit_all,disable_emails').maySendEmails,
+        isFalse,
+      );
+    });
+
+    // A negative token: the blanket admin grant must not confer it, or every
+    // admin would be unable to email.
+    test('an admin or owner may always send', () {
+      expect(_company(isAdmin: true).maySendEmails, isTrue);
+      expect(_company(isOwner: true).maySendEmails, isTrue);
+      expect(
+        _company(isAdmin: true, permissions: 'disable_emails').maySendEmails,
+        isTrue,
+      );
+    });
+  });
+
   group('AuthCompany.can', () {
     test('admin and owner bypass every check', () {
       expect(_company(isAdmin: true).can('view_client'), isTrue);

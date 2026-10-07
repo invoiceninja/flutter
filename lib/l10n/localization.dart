@@ -82,6 +82,36 @@ class Localization {
   static const LocalizationsDelegate<Localization> delegate =
       _LocalizationDelegate();
 
+  /// Start loading the English and pending bundles now, without waiting.
+  ///
+  /// Flutter holds the first frame until [delegate]'s `load` resolves, and that
+  /// only begins once `runApp` has built `Localizations` — after the database
+  /// open, the session restore and the statics warm-up. Called from `main()`
+  /// ahead of all three, so the two bundles every locale needs load alongside
+  /// that work and `load` usually finds them cached.
+  ///
+  /// Never awaited, and never throws: each loader already swallows its own
+  /// failure (English falls back to an empty map, loudly), so nothing here can
+  /// keep boot from reaching `runApp`.
+  static void prewarm({AssetBundle? bundle}) {
+    final from = bundle ?? rootBundle;
+    try {
+      unawaited(_loadEnglishOnce(from));
+      unawaited(_loadPendingOnce(from));
+    } catch (e, st) {
+      _log.warning('i18n prewarm could not start', e, st);
+    }
+  }
+
+  /// Forget the bundles [prewarm] and [delegate] cache for the process.
+  @visibleForTesting
+  static void resetCachesForTest() {
+    _englishCache = null;
+    _englishLoad = null;
+    _pendingCache = null;
+    _pendingLoad = null;
+  }
+
   /// English fallback — loaded once via [_loadEnglishOnce] so every other
   /// locale can layer on top.
   static Map<String, String>? _englishCache;
@@ -189,20 +219,29 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
 
   @override
   Future<Localization> load(Locale locale) async {
-    final fallback = await Localization._loadEnglishOnce(rootBundle);
-    final pending = await Localization._loadPendingOnce(rootBundle);
     final key = localeKey(locale);
-    if (key == 'en') {
-      return Localization._(fallback, pending: pending);
-    }
-    try {
-      final strings = await Localization._loadAsset(rootBundle, key);
-      return Localization._(strings, fallback: fallback, pending: pending);
-    } catch (_) {
-      // Locale bundled in supported list but file missing (e.g. importer
-      // not yet run) — fall back to English so the app still renders.
-      return Localization._(fallback, pending: pending);
-    }
+    // All three started before any is awaited. Each is a file read plus an
+    // isolate hop, and Flutter holds the first frame until this resolves — one
+    // after another they cost three round trips where one will do. The first
+    // two are usually done already (`Localization.prewarm`).
+    final fallbackLoad = Localization._loadEnglishOnce(rootBundle);
+    final pendingLoad = Localization._loadPendingOnce(rootBundle);
+    // Locale bundled in supported list but file missing (e.g. importer not yet
+    // run) — fall back to English so the app still renders. Folded to null
+    // here rather than caught below: while the two loads above are still being
+    // awaited nothing is listening to this one, and an error with no listener
+    // is an unhandled one.
+    final stringsLoad = key == 'en'
+        ? null
+        : Localization._loadAsset(
+            rootBundle,
+            key,
+          ).then<Map<String, String>?>((m) => m, onError: (Object _) => null);
+    final fallback = await fallbackLoad;
+    final pending = await pendingLoad;
+    final strings = stringsLoad == null ? null : await stringsLoad;
+    if (strings == null) return Localization._(fallback, pending: pending);
+    return Localization._(strings, fallback: fallback, pending: pending);
   }
 
   @override

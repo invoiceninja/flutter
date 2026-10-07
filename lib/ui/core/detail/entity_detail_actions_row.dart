@@ -35,6 +35,7 @@ class EntityActionItem<A> {
     this.children,
     this.disabledTooltipKey = 'coming_soon',
     this.isLifecycle = false,
+    this.startsGroup = false,
     this.isNavigationOnly = false,
     this.confirm = false,
     this.isDestructive = false,
@@ -56,6 +57,15 @@ class EntityActionItem<A> {
   /// destructive group reads as separate from the entity-specific actions
   /// above it.
   final bool isLifecycle;
+
+  /// Begins a new section in a *menu*: [menuChildrenFor] draws a divider above
+  /// this item when something visible precedes it.
+  ///
+  /// A record with fourteen actions in one undivided list makes the user read
+  /// all fourteen to find one. Set it on the first item of each run of related
+  /// actions (the two note actions, the Create New fly-out, the admin tools).
+  /// It has no effect on the spread button bar, which has no rows to divide.
+  final bool startsGroup;
 
   /// A pure navigation action: it persists nothing, it just goes somewhere
   /// else (View client / View vendor).
@@ -134,24 +144,37 @@ class EntityActionItem<A> {
     BuildContext context,
     List<EntityActionItem<A>> items,
   ) {
-    // Auto-divider: emit one separator before the first visible lifecycle
-    // item (Archive/Restore/Delete/Purge), but only if a visible
-    // non-lifecycle item preceded it in this pass. That single guard also
-    // suppresses a stray leading divider when the slice is lifecycle-only
-    // (e.g. an overflow "More" menu whose hidden tail is all lifecycle).
+    // Dividers. Two sources, one rule — never two in a row and never one at
+    // the top:
+    //  * one before the first visible lifecycle item
+    //    (Archive/Restore/Delete/Purge), so the destructive group reads as
+    //    separate from the entity-specific actions above it;
+    //  * one before any item marked [startsGroup].
+    // The `emittedAny` / `lastWasDivider` guards also suppress a stray leading
+    // divider when the slice opens on such an item (e.g. an overflow "More"
+    // menu whose hidden tail is all lifecycle).
     final children = <Widget>[];
-    var sawNonLifecycle = false;
-    var dividerEmitted = false;
+    var emittedAny = false;
+    var lastWasDivider = false;
+    var lifecycleDividerEmitted = false;
+    void divide() {
+      if (!emittedAny || lastWasDivider) return;
+      children.add(Divider(height: 9, color: context.inTheme.border));
+      lastWasDivider = true;
+    }
+
     for (final item in items) {
       if (!item.isVisible) continue;
       if (item.isLifecycle) {
-        if (sawNonLifecycle && !dividerEmitted) {
-          children.add(Divider(height: 9, color: context.inTheme.border));
-          dividerEmitted = true;
+        if (!lifecycleDividerEmitted) {
+          divide();
+          lifecycleDividerEmitted = true;
         }
-      } else {
-        sawNonLifecycle = true;
+      } else if (item.startsGroup) {
+        divide();
       }
+      emittedAny = true;
+      lastWasDivider = false;
       if (item.hasChildren) {
         children.add(
           SubmenuButton(
@@ -349,34 +372,49 @@ class EntityDetailActionsRow<A> extends StatelessWidget {
     // scaffold's titleSpacing: InSpacing.lg(context). The LayoutBuilder's
     // constraints reflect that same allocated width — wide ⇒ the spread overflow
     // bar, narrow ⇒ the compact `⋮` (mobile + master-detail/slide-over pane).
+    //
+    // Beside the scaffold's compact title the cluster is instead laid out at
+    // its own width (`EntityDetailScaffold._withCompactTitle`): the width is
+    // then unbounded, and [ActionBarLayoutScope] says which form to take.
+    final scopeWide = ActionBarLayoutScope.maybeWideOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = Breakpoints.isWide(constraints);
+        final bounded = constraints.hasBoundedWidth;
+        // The spread bar measures what fits, so it needs a width to measure.
+        final wide = bounded && (scopeWide ?? Breakpoints.isWide(constraints));
+        final cluster = wide
+            // Pin Edit as `leading` (a plain enabled FilledButton — never
+            // collapses, like Save on the edit bar); the rest spread inline
+            // and overflow into "More".
+            ? ActionBarLayoutScope(
+                wide: true,
+                child: EntityOverflowActionBar<A>(
+                  leading: primary == null
+                      ? null
+                      : _ActionButton<A>(item: primary),
+                  items: rest,
+                ),
+              )
+            // Compact: Edit + a single `⋮` holding every other action.
+            // The primary is the one part that can give: on a bar narrower
+            // than the cluster (a long label, large text) it shortens to an
+            // ellipsis rather than pushing `⋮` off the edge.
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (primary != null)
+                    Flexible(child: _ActionButton<A>(item: primary)),
+                  if (primary != null && rest.isNotEmpty)
+                    SizedBox(width: InSpacing.md(context)),
+                  if (rest.isNotEmpty) _OverflowMenuButton<A>(items: rest),
+                ],
+              );
+        // Told to be compact by a host that places it: hug the content, so
+        // the host can give the rest of the bar to something else.
+        if (!bounded || scopeWide == false) return cluster;
         return SizedBox(
           width: double.infinity,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: wide
-                // Pin Edit as `leading` (a plain enabled FilledButton — never
-                // collapses, like Save on the edit bar); the rest spread inline
-                // and overflow into "More".
-                ? EntityOverflowActionBar<A>(
-                    leading: primary == null
-                        ? null
-                        : _ActionButton<A>(item: primary),
-                    items: rest,
-                  )
-                // Compact: Edit + a single `⋮` holding every other action.
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (primary != null) _ActionButton<A>(item: primary),
-                      if (primary != null && rest.isNotEmpty)
-                        SizedBox(width: InSpacing.md(context)),
-                      if (rest.isNotEmpty) _OverflowMenuButton<A>(items: rest),
-                    ],
-                  ),
-          ),
+          child: Align(alignment: Alignment.centerRight, child: cluster),
         );
       },
     );
@@ -416,7 +454,12 @@ class _ActionButton<A> extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
             ),
             icon: Icon(item.icon, size: 18),
-            label: Text(item.label),
+            label: Text(
+              item.label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+            ),
             onPressed: item.enabled ? guardedOnTap<A>(context, item) : null,
           )
         : OutlinedButton.icon(

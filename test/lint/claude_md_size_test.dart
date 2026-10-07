@@ -150,7 +150,6 @@ void main() {
     /// growing this set.
     const preExistingDangling = <String>{
       'default to', // task_edit_times_section.dart — quotes prose, not a heading
-      'kpi strip', // kpi_cell.dart — no heading has ever had this name
       'progressive disclosure', // expense_edit_screen.dart
       'mark paid toggle', // expense_edit_payment_section.dart
     };

@@ -23,7 +23,7 @@ import 'package:admin/ui/core/widgets/watch_builder.dart';
 /// `bodyMedium` line box of the name row it sits in, at text scale 1.0.
 ///
 /// **Not** [InSizes.touchTarget], and that is the whole point. A 44 px-tall
-/// box would drive the row's cross axis and push the dates + KPI strip down
+/// box would drive the row's cross axis and push everything under it down
 /// ~24 px on every billing-doc header — and, because the party resolves
 /// asynchronously, do it a frame or two *late* on a cold deep link, which is
 /// exactly the follow-a-link-in-the-field case. CLAUDE.md's touch-target trap
@@ -429,39 +429,73 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
 
   Future<void> _onTap(BuildContext context) async {
     if (_busy) return;
-    final candidates = widget.candidates;
-    if (candidates.isEmpty) return;
+    if (widget.candidates.isEmpty) return;
     _busy = true;
     try {
-      var picked = candidates.first;
-      if (candidates.length > 1) {
-        final chosen = await showPhoneCandidatePicker(
-          context,
-          candidates: candidates,
-          partyName: widget.partyName,
-          clientId: widget.clientId,
-          onViewParty: widget.onViewParty,
-          viewPartyLabelKey: widget.viewPartyLabelKey,
-        );
-        if (chosen == null) return;
-        picked = chosen;
-      }
-      // This context, never the picker's. `callPhoneNumber` re-checks
-      // `context.mounted` only *after* awaiting the timezone cascade, so
-      // dialling from a route that is mid-pop silently drops the call along
-      // with its confirm dialog — a race against the exit animation.
-      if (!context.mounted) return;
-      await callPhoneNumber(
+      await pickAndCallPhone(
         context,
-        picked.phone,
-        subject: _labelOf(context, picked),
+        candidates: widget.candidates,
+        partyName: widget.partyName,
         clientId: widget.clientId,
+        onViewParty: widget.onViewParty,
+        viewPartyLabelKey: widget.viewPartyLabelKey,
         logTarget: widget.logTarget,
       );
     } finally {
       _busy = false;
     }
   }
+}
+
+/// Dials one of [candidates]: the only one outright, or the one the user
+/// picks when there are several.
+///
+/// The single path behind every "call this party" affordance — the header
+/// glyph ([PhoneCallButton]) and a record screen's Call quick action — so the
+/// picker, the out-of-hours warning and the log-a-call offer cannot differ
+/// between them. It applies **no** `tapToCall` gate: a caller decides whether
+/// to offer the affordance at all, and must do so under a `PhoneActionsScope`.
+///
+/// [candidates] must be a dialer's list ([clientPhoneCandidates] /
+/// [vendorPhoneCandidates]), never a log-call one — see the assert in
+/// [PhoneCallButton].
+Future<void> pickAndCallPhone(
+  BuildContext context, {
+  required List<PhoneCandidate> candidates,
+  required String partyName,
+  String? clientId,
+  VoidCallback? onViewParty,
+  String viewPartyLabelKey = 'view_client',
+  CallLogTarget? logTarget,
+}) async {
+  if (candidates.isEmpty) return;
+  var picked = candidates.first;
+  if (candidates.length > 1) {
+    final chosen = await showPhoneCandidatePicker(
+      context,
+      candidates: candidates,
+      partyName: partyName,
+      clientId: clientId,
+      onViewParty: onViewParty,
+      viewPartyLabelKey: viewPartyLabelKey,
+    );
+    if (chosen == null) return;
+    picked = chosen;
+  }
+  // The caller's context, never the picker's. `callPhoneNumber` re-checks
+  // `context.mounted` only *after* awaiting the timezone cascade, so dialling
+  // from a route that is mid-pop silently drops the call along with its
+  // confirm dialog — a race against the exit animation.
+  if (!context.mounted) return;
+  await callPhoneNumber(
+    context,
+    picked.phone,
+    subject: picked.label.isEmpty
+        ? context.tr('no_name_fallback')
+        : picked.label,
+    clientId: clientId,
+    logTarget: logTarget,
+  );
 }
 
 /// Asks which of [candidates] to dial, returning the choice (or null).

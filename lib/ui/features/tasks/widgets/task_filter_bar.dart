@@ -325,11 +325,11 @@ class TaskFilterBar extends StatelessWidget {
   /// on a phone — and a strip spending two or three runs gives back most of
   /// what collapsing the pickers saved, in the one state the user actually
   /// works in. And the resolvers it would need each misbehave inside a chip:
-  /// `ProjectNameLabel` renders the raw hashid when a project doesn't resolve,
-  /// `UserNameLabel` renders an empty label and then an em dash for an id the
-  /// roster can't resolve (users have no per-id hydrate path at all), and all
-  /// three hardcode a font size over the chip's own label style. An em dash also
-  /// belongs in a *labelled* slot, which a chip is not.
+  /// `ProjectNameLabel` and `ClientNameLabel` render an em dash for a record
+  /// that doesn't resolve, `UserNameLabel` renders an empty label and then an
+  /// em dash for an id the roster can't resolve (users have no per-id hydrate
+  /// path at all), and all three hardcode a font size over the chip's own label
+  /// style. An em dash belongs in a *labelled* slot, which a chip is not.
   ///
   /// `Wrap`, never a horizontal scroller: a chip pushed off the edge hides an
   /// active filter — verbatim the defect this file exists to remove — and on

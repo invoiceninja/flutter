@@ -38,7 +38,7 @@ class _PaymentRefundScreenState extends State<PaymentRefundScreen> {
   Formatter? get _formatter => _services.formatterIfReady(_companyId);
 
   /// Format an amount in the payment's currency, mirroring
-  /// `payment_detail_kpi_strip.dart`. Falls back to the raw decimal until the
+  /// `payment_detail_standing.dart`. Falls back to the raw decimal until the
   /// formatter is ready.
   String _money(Decimal value) {
     final f = _formatter;

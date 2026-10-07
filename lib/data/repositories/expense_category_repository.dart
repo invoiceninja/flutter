@@ -9,6 +9,7 @@ import 'package:admin/data/models/api/expense_category_api_model.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/expense_categories_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -137,18 +138,20 @@ class ExpenseCategoryRepository
   /// Lazily hydrate one expense category by id when a reference (e.g. an
   /// expense's category) isn't cached so a `CategoryNameLabel` would show
   /// the raw id. See [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.expenseCategoryDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.expenseCategoryDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
 
   Future<void> refreshAll({required String companyId, bool full = false}) =>
       refreshAllTemplate(

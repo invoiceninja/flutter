@@ -33,9 +33,12 @@ CardListTarget cardListTarget(DashboardCardConfig config) {
         'status_id': {'2', '3', '4'},
       });
     case 'outstanding_invoices':
-      // Same vocabulary as the fixed "Outstanding" KPI deep-link.
+      // Sent + partial, as `status_id` — the same filter the fixed
+      // Outstanding figure links with (`buildInvoiceKpiIntent`). It was
+      // `client_status=unpaid`, a key the invoice list neither registers nor
+      // mirrors locally, so the card opened an unfiltered list.
       return const CardListTarget(EntityType.invoice, '/invoices', {
-        'client_status': {'unpaid'},
+        'status_id': {'2', '3'},
       });
     case 'completed_payments':
       return const CardListTarget(EntityType.payment, '/payments', {

@@ -2722,3 +2722,204 @@ predicate changes.
   history include) so a client can explain an empty list without re-deriving the plan logic.
   Note the client-side predicate must be slug-only: `isFreeHostedClient()` has **no trial branch**,
   so a trial-aware check reports access for exactly the user whose list is empty.
+
+## A per-client summary endpoint — counts and past due in one call — **O (client derives both today)**
+
+**Provenance** — 2026-10-06, the client record screen redesign (`docs/detail-screen-layout.md`),
+read against `v5-develop`.
+
+The client record screen shows two things the API has no direct answer for, and gets each the
+long way round:
+
+1. **How many records each related tab holds.** Eight requests per client opened —
+   `GET /api/v1/{invoices,quotes,payments,recurring_invoices,credits,projects,tasks,expenses}?client_id=<id>&status=active&per_page=1`
+   — each read only for `meta.pagination.total`. Every one runs the full list query, its
+   transformer and its paginator to return a single integer.
+2. **How much of the balance is past due.** There is no such figure on the client. The app fetches
+   the client's Sent and Partial invoices (`client_status=unpaid`), and shows the late part only
+   when that fetch was complete in one page **and** the balances sum to `client.balance`
+   (`ClientService::calculateBalance` is the same sum). Otherwise it shows nothing. A client with
+   fifty or more unpaid invoices therefore never gets the figure at all.
+
+### Requested change
+
+`GET /api/v1/clients/{client}/summary` (or an `?include=summary` on the client transformer —
+whichever is cheaper to keep fast), returning for the authenticated user's visible records:
+
+```json
+{
+  "counts": {
+    "invoices": 12, "quotes": 3, "payments": 9, "recurring_invoices": 1,
+    "credits": 1, "projects": 2, "tasks": 31, "expenses": 0
+  },
+  "past_due": { "amount": "1240.00", "count": 2 }
+}
+```
+
+- `counts` — active (not archived, not deleted) records with this `client_id`, under the same
+  permission scoping the list endpoints apply, so a count never exceeds what the list will show.
+- `past_due` — over invoices with `status_id IN (2, 3)`, `is_deleted = 0`, `balance > 0` and a due
+  date before today in the company's timezone: the predicate `InvoiceFilters::overdue` already
+  uses. Note that filter ORs `due_date` with `partial_due_date`; the apps treat the partial due
+  date as taking precedence when set. Either is fine as long as the figure and the `overdue` list
+  filter agree with each other.
+- **`amount` should be what is late, not the balance of late invoices.** When only the deposit's
+  date has passed (`partial_due_date < today <= due_date`, `partial > 0`), the late amount is
+  `min(partial, balance)` — a $10,000 invoice with a $1,000 deposit a week overdue is $1,000 past
+  due. The app applies that rule today (`lateAmountOf`, `lib/domain/clients/client_past_due.dart`);
+  `count` is still of invoices.
+
+### Client status
+
+Working without it: `ApiClient.getListTotal` + `RelatedTabCountsViewModel` for the counts,
+`clientPastDue` for the figure. With the endpoint, both collapse to one request and the past-due
+line stops being "proven or withheld".
+
+## 401 and 403 are the wrong way round — a client cannot tell a dead session from a refused request — **O (clients sniff the message)**
+
+**Provenance** — 2026-10-06, read against `v5-develop`; found chasing a sign-out on company switch
+in the Flutter app.
+
+- `TokenAuth` answers an unknown token, and a token whose user is gone, with **403**
+  (`"Invalid token"`, `"User inactive"`).
+- `Handler` renders every `AuthorizationException` — a policy or `authorize()` saying *this user may
+  not do this to this record* — as **401** (`"This action is unauthorized."`).
+
+HTTP has these the other way: 401 is "who are you", 403 is "I know who you are, and no". Both
+first-party clients were built to the convention, so both sign the user out on 401 — which on this
+server is the permission denial. In a multi-company client it fires for any request that names a
+record in a company other than the token's, e.g. a screen still open from before a company switch.
+React reloads on a company switch and so rarely sees it; the Flutter app did, and signed users out.
+
+### Requested change
+
+Either order fixes it; the first is the smaller change for existing clients.
+
+1. Render `AuthorizationException` as **403**, leaving `TokenAuth` as it is, and add a stable
+   `error_type` (`"forbidden"` vs `"invalid_token"`) so a client can tell the two 403s apart without
+   reading English.
+2. Or swap them outright: 401 for token failures, 403 for authorization.
+
+### Client status
+
+The Flutter app matches the one message exactly (`This action is unauthorized.` →
+`PermissionDeniedException`, no sign-out) and leaves every other 401 alone. It still takes no
+action on a 403 `Invalid token`, so a token revoked mid-session leaves the user signed in with
+every request failing; an `error_type` would let it sign out on that, and only that.
+
+---
+
+## Activity notes — two entities are filed under an unrelated expense, one is dropped — **O (data pollution; client shows no feed for a recurring expense)**
+
+**Provenance** — 2026-10-07, read against `v5-develop` (`ActivityController::note`,
+`StoreNoteRequest`, `ShowActivityRequest`); found putting the comments card on every record screen
+in the Flutter app.
+
+`POST /activities/notes` accepts fourteen `entity` values. Three of them do not do what the caller
+expects:
+
+- **`recurring_expenses`** — the note is saved with `recurring_expense_id = <id>` **and**
+  `expense_id = <the same id>`. The two tables number independently, so the note appears in the
+  activity feed of whichever *expense* happens to share that numeric id — a different record,
+  possibly for a different vendor or client.
+- **`purchase_orders`** — the same: `purchase_order_id = <id>` and `expense_id = <id>`. Every comment
+  on a purchase order is also a comment on an unrelated expense.
+- **`bank_transactions`** — passes validation, then falls through the controller's `switch` (there
+  is no `BankTransaction` case, and `activities` has no `bank_transaction_id` column). Nothing is
+  saved and the response is empty.
+
+And one cannot be read back: `ShowActivityRequest` (`POST /activities/entity`) whitelists
+`invoice, quote, credit, purchase_order, payment, client, vendor, expense, task, project,
+subscription, recurring_invoice` — no `recurring_expense`. A note on one is written and then shown
+nowhere, except on the wrong expense.
+
+### Requested change
+
+1. In `ActivityController::note`, drop the `expense_id` assignment from the `RecurringExpense` and
+   `PurchaseOrder` cases.
+2. Add `recurring_expense` to `ShowActivityRequest`'s `entity` list (the rule below it already
+   resolves the table and model from the name).
+3. Either remove `bank_transactions` from `StoreNoteRequest`'s list, or add the column and the case.
+
+### Client status
+
+The Flutter app posts notes for ten entities, purchase orders and recurring expenses among them, so
+it produces the stray rows described above. It shows no comments card or Activity tab on a
+recurring expense — there is no feed to fill them from — and offers no notes on a bank
+transaction. With (1) and (2) shipped a recurring expense takes the same card and tabs an expense
+has, with no other change.
+
+---
+
+## Dashboard — six things the client now works around — **O**
+
+**Provenance** — 2026-10-07, the dashboard redesign. Source-read of
+`app/Services/Chart/ChartQueries.php`, `app/Utils/Traits/MakesDates.php`,
+`app/Filters/InvoiceFilters.php` / `QuoteFilters.php` and
+`app/Http/Requests/Email/SendEmailRequest.php` against `~/Code/invoiceninja`
+(`v5-develop`), plus read-only probes of `demo.invoiceninja.com`. Each item
+names what the Flutter client does instead, so it can be undone when the server
+changes.
+
+**1. `outstanding` in `totals_v2` is scoped to invoices *dated in the window*,
+and no figure answers "what is owed today".** `getOutstandingQuery` filters
+`invoices.date BETWEEN :start AND :end`. Under "This Month" the Outstanding
+figure therefore left out everything still unpaid from before the 1st — an
+overdue August invoice was in the past-due list and missing from the figure
+beside it. *Client:* a second `totals_v2` call over an open window and reads
+only its `outstanding` bucket (`DashboardApi.fetchOutstandingTotals`).
+
+**2. `date_range: all_time` ends today, so it cannot be that window.** Measured
+on the demo account (its seed invoices are post-dated): `all_time` came back
+`end_date: 2026-10-07` with `outstanding` 334.00 / 1 invoice, while
+`{date_range: custom, start_date: 2000-01-01, end_date: 2099-12-31}` returned
+9,727.00 / 4 — the four the `upcoming` list holds. An invoice dated next week
+and already sent is owed. *Client:* sends `custom` 1970-01-01 → 2099-12-31.
+*Ask:* either an `outstanding_as_of_today` bucket that ignores the window, or
+an `all_time` that has no upper bound.
+
+**3. Preset windows are recomputed from the preset's name, and do not match
+their labels.** `calculateStartAndEndDates` ignores the dates the client sends
+unless `date_range` is `custom`; `last7` is `subDays(7)`..today — eight days —
+and likewise for 30 / 90 / 365. The header named one window and the figures
+summed another. *Client:* every preset except all-time is sent as `custom` with
+its own dates (`_windowBody`).
+
+**4. …but the calculated fields cannot follow, because the previous period of a
+`custom` range is the range itself.** `calculatePreviousPeriodStartAndEndDates`
+has no arm for `custom` and returns the current window, so a "previous period"
+card would equal its "current" twin. *Client:* the dashboard-card requests keep
+sending the preset name (`_periodBody`) — which means a metric card's window can
+differ by a day from the figures above it, and its previous period is the
+server's (the whole prior window), not the like-for-like span the figures use.
+*Ask:* step a custom range back by its own length.
+
+**5. `upcoming` is not ordered.** `InvoiceFilters::upcoming` and the
+`QuoteFilters` equivalent call `orderBy` *inside* the nested `where` closure,
+where Laravel discards it, so the list arrives newest-created first. The
+dashboard's five "upcoming" rows were not the five due next. *Client:* sorts the
+page it has soonest-first (`DashboardRepository._soonestFirst`) — which is only
+right while the whole list fits one page of 50; past that the true next-due
+invoice can be on page two. *Ask:* move the `orderBy` out of the closure.
+(Related, and by design as far as the source shows: `upcoming` includes a sent
+invoice with **no** due date. The client labels those "No due date set".)
+
+**6. `include_drafts` reaches the totals and nothing else.** Already noted under
+"Dashboard net (ex-tax) chart totals" above — `chart_summary_v2` is called
+without the argument — and equally true of the list endpoints and the
+calculated fields. *Client:* the switch sits with the figures it changes rather
+than as a page-wide filter.
+
+**Not shipped because of the server: a "To invoice" tab.** The calculated fields
+that would feed it (`logged_tasks`, `invoiced_tasks`, `pending_expenses`) are
+raw sums across currencies with no client or project scoping, and "logged minus
+invoiced" is not "unbilled" (a task can be logged and non-billable). Counts are
+currency-safe but there is no count of *billable, uninvoiced* time. *Ask:* an
+`uninvoiced_tasks` / `uninvoiced_expenses` pair returning a count and a
+per-currency amount.
+
+**Related, not a defect:** `SendEmailRequest` refuses a user holding
+`disable_emails` before it looks at the record. Every Send Email action in the
+client now gates on that token too (`AuthCompany.maySendEmails`); it used to
+offer the action and fail on send.
+

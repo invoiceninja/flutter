@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/static_template.dart';
 import 'package:admin/data/models/value/timezone.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/domain/gateway_constants.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 final _log = Logger('StaticsRepository');
 
@@ -41,6 +42,16 @@ class StaticsRepository {
   final DateTime Function() _now;
 
   Map<String, dynamic>? _memo;
+
+  /// `fetched_at` of the stored row [_memo] matches — the row it was decoded
+  /// from, or the one written alongside it. [ensureLoaded] compares it with
+  /// the row's current stamp, which is how it notices a wipe (no row) without
+  /// any hook having to tell it.
+  int? _memoFetchedAt;
+
+  /// The unforced [ensureLoaded] in flight, shared by concurrent callers.
+  Future<void>? _loading;
+
   Map<String, Currency>? _currencies;
   Map<String, Country>? _countries;
   Map<String, DatetimeFormat>? _dateFormats;
@@ -54,27 +65,54 @@ class StaticsRepository {
 
   /// Refresh the cache if it's empty or older than [_ttl]. Idempotent and
   /// cheap to call from app start + post-login.
-  Future<void> ensureLoaded({bool force = false}) async {
+  ///
+  /// Cheap once warm: with the blob already in memory this reads one integer
+  /// (the row's `fetched_at`) and returns. It used to read and decode the
+  /// whole payload and rebuild every typed view on each call, and a cold start
+  /// calls it several times over — boot, the locale resolver on every session
+  /// change, each company's formatter.
+  Future<void> ensureLoaded({bool force = false}) {
+    if (force) return _load(force: true);
+    return _loading ??= _load(force: false).whenComplete(() => _loading = null);
+  }
+
+  Future<void> _load({required bool force}) async {
+    if (!force && _memo != null) {
+      final stamp = await _db.staticsDao.fetchedAt();
+      if (stamp != null &&
+          stamp == _memoFetchedAt &&
+          _now().millisecondsSinceEpoch - stamp < _ttl.inMilliseconds) {
+        return;
+      }
+    }
     final cached = await _db.staticsDao.read();
     final nowMs = _now().millisecondsSinceEpoch;
     if (!force &&
         cached != null &&
         nowMs - cached.fetchedAt < _ttl.inMilliseconds) {
-      _setMemo(jsonDecode(cached.payload) as Map<String, dynamic>);
-      _warmTypedViews();
+      _adoptCached(cached);
       return;
     }
     try {
       final fresh = await _service.fetch();
       await _db.staticsDao.write(payload: jsonEncode(fresh), fetchedAt: nowMs);
-      _setMemo(fresh);
+      _setMemo(fresh, fetchedAt: nowMs);
     } catch (e, st) {
       _log.warning('statics refresh failed; using stale cache if any', e, st);
-      if (cached != null) {
-        _setMemo(jsonDecode(cached.payload) as Map<String, dynamic>);
-      }
+      if (cached != null) _adoptCached(cached);
     }
     _warmTypedViews();
+  }
+
+  /// Decode the stored row into [_memo] and parse the typed views.
+  void _adoptCached(({String payload, int fetchedAt}) cached) {
+    traceSync('statics.decode', () {
+      _setMemo(
+        jsonDecode(cached.payload) as Map<String, dynamic>,
+        fetchedAt: cached.fetchedAt,
+      );
+      _warmTypedViews();
+    }, args: {'chars': cached.payload.length});
   }
 
   /// Seed the cache from a `/api/v1/refresh` `static` blob instead of an
@@ -89,7 +127,7 @@ class StaticsRepository {
     if (blob == null || blob.isEmpty) return;
     final nowMs = _now().millisecondsSinceEpoch;
     await _db.staticsDao.write(payload: jsonEncode(blob), fetchedAt: nowMs);
-    _setMemo(blob);
+    _setMemo(blob, fetchedAt: nowMs);
     _warmTypedViews();
   }
 
@@ -112,8 +150,9 @@ class StaticsRepository {
     templates;
   }
 
-  void _setMemo(Map<String, dynamic> blob) {
+  void _setMemo(Map<String, dynamic> blob, {required int fetchedAt}) {
     _memo = blob;
+    _memoFetchedAt = fetchedAt;
     // Invalidate the typed views so the next read reparses.
     _currencies = null;
     _countries = null;

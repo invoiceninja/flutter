@@ -4,7 +4,7 @@
 // a stray full-width `Expanded` / unconstrained `Row` doesn't silently break
 // the mobile (or wide) layout — exactly the gap the foundation audit flagged.
 //
-// Scope: Services-free widgets only, with one exception — ClientDetailCardsGrid
+// Scope: Services-free widgets only, with one exception — ClientDetailProfile
 // renders phone numbers, and tap-to-call's `PhoneActionsScope` reads
 // `Provider<Services>`, so it opts into `pumpAt(phoneActions: true)`'s minimal
 // harness. Full feature screens (list / edit / settings) need the real
@@ -24,7 +24,7 @@ import 'package:admin/data/models/domain/system_log.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
-import 'package:admin/ui/features/clients/widgets/detail/client_detail_cards_grid.dart';
+import 'package:admin/ui/features/clients/widgets/detail/client_detail_profile.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/projects/widgets/detail/analytics/project_burnup_chart.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
@@ -34,19 +34,25 @@ import '../_responsive_helper.dart';
 void main() {
   group('no overflow across breakpoints', () {
     for (final width in kResponsiveWidths) {
-      testWidgets('ClientDetailCardsGrid @ ${width.toInt()}px', (tester) async {
+      testWidgets('ClientDetailProfile @ ${width.toInt()}px', (tester) async {
         final client = Client.fromApi(
           ClientApi(
             id: 'c1',
             name: 'Acme Corporation',
             phone: '555-0100',
-            // Long values + a contact so the grid renders its 3-column wide
-            // layout (Details · Address · Contacts) — exercises overflow at
-            // the ~321 px/card width the 1000 px breakpoint introduces.
+            // Long values, an address and a contact so the profile renders
+            // its 3-column wide row (Contacts · Details · Address) — exercises
+            // overflow at the ~321 px/card width the 1000 px breakpoint
+            // introduces. Two contacts: the summary card above the profile
+            // takes the first, and the profile lists the rest.
             website:
                 'https://www.acme-corporation-international-holdings.example.com/portal',
+            address1:
+                '1 Extraordinarily Long Street Name Boulevard, Suite 4000',
             contacts: const [
+              ContactApi(id: 'lead', firstName: 'Lee', isPrimary: true),
               ContactApi(
+                id: 'second',
                 firstName: 'Alexandra',
                 lastName: 'Montgomery-Worthington',
                 email:
@@ -60,7 +66,7 @@ void main() {
         await pumpAt(
           tester,
           width,
-          ClientDetailCardsGrid(client: client, formatter: null),
+          ClientDetailProfile(client: client, company: null),
           // The one widget here that isn't Services-free: its phone rows go
           // through `PhoneActionsScope`. The minimal harness also hands it a
           // foreign timezone, so the local-time suffix and the contact row's
@@ -165,7 +171,7 @@ void main() {
   //
   // A local width list rather than `kResponsiveWidths`: the phone widths below
   // matter for this widget specifically, and adding them to the shared list
-  // would drag ClientDetailCardsGrid / SystemLogRow / ProjectBurnupChart /
+  // would drag ClientDetailProfile / SystemLogRow / ProjectBurnupChart /
   // EmptyState into widths they were never designed against.
   //
   // Note what this can and can't catch: soft-wrapped text and clipped content

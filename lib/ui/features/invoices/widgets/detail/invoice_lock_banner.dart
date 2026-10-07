@@ -9,7 +9,8 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/l10n/localization.dart';
 
-/// "This invoice is locked" notice above the invoice detail header.
+/// "This invoice is locked" notice at the head of the invoice record screen,
+/// above its number (`BillingDocRecordHeader.banner`).
 ///
 /// Client-computed rather than read off the server's `isLocked` flag, which is
 /// stale on list-sourced rows and on offline edits. The authoritative edit gate
@@ -24,8 +25,8 @@ import 'package:admin/l10n/localization.dart';
 /// corrected by the async cascade. That matters because the master-detail pane
 /// re-keys its subtree per `:id`: without a seed every row click mounted this
 /// at [InvoiceLockReason.none], resolved two Drift reads later, and pushed the
-/// entire left column down ~44 px — invoice number, status pill, client, dates,
-/// KPI strip and the whole tab block.
+/// entire record column down ~44 px — invoice number, status pill, client,
+/// dates, and every card and tab under them.
 class InvoiceLockBanner extends StatefulWidget {
   const InvoiceLockBanner({
     super.key,

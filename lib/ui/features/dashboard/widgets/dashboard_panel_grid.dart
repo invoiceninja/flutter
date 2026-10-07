@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
+import 'package:admin/ui/features/dashboard/helpers/panel_rows.dart';
 
 /// The wide dashboard's bottom grid: the orderable panels, in the user's
 /// saved order, laid out one or two to a row.
@@ -27,8 +28,44 @@ import 'package:admin/ui/core/widgets/link_text.dart';
 ///   (its `formatterFor` never completes), so this is where the key rule gets
 ///   pinned.
 ///
+/// **Which panels share a row is `layoutPanelRows`' decision**, not "fill two
+/// columns in order": Invoices & Quotes always takes a whole row, the rest
+/// pair up, and an odd one out gives a table the row rather than leaving half
+/// of it empty. The pure function is unit-tested on every subset; this widget
+/// only draws its answer.
+///
 /// The `builders` map stays with the screen — `dashboard_panel_wiring_test`
 /// looks for each `DashboardKind.<kind>:` entry there.
+/// Says to the card beneath it that it sits in a cell a neighbour can stretch —
+/// one half of a paired row, whose height is the taller of the two.
+///
+/// A card in such a cell can be much taller than its content, and a short
+/// state ("No upcoming quotes") then sat at the top of a hollow box. Knowing
+/// it is stretched, the card centres that state instead
+/// (`DashboardCardShell.bodyFills`). Only the widget that builds the row can
+/// know: the same card in a full-width row, or in the phone's list, has an
+/// unbounded height, where filling it would throw.
+class DashboardPanelCell extends InheritedWidget {
+  const DashboardPanelCell({
+    super.key,
+    required this.stretched,
+    required super.child,
+  });
+
+  final bool stretched;
+
+  /// Whether the nearest cell is a stretched one. False with none above.
+  static bool stretchedOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<DashboardPanelCell>()
+          ?.stretched ??
+      false;
+
+  @override
+  bool updateShouldNotify(DashboardPanelCell oldWidget) =>
+      oldWidget.stretched != stretched;
+}
+
 class DashboardPanelGrid extends StatefulWidget {
   const DashboardPanelGrid({
     super.key,
@@ -68,17 +105,23 @@ class _DashboardPanelGridState extends State<DashboardPanelGrid> {
   Widget build(BuildContext context) {
     final builders = widget.builders;
     bool renderable(DashboardPanelPref p) => builders.containsKey(p.kind);
-    final cards = <Widget>[
+    final shown = [
       for (final p in widget.panelPrefs)
         if (p.visible && renderable(p) && !widget.hidden.contains(p.kind))
-          KeyedSubtree(
-            key: _keys.putIfAbsent(
-              p.kind,
-              () => GlobalKey(debugLabel: 'dashboard panel ${p.kind}'),
-            ),
-            child: builders[p.kind]!(),
-          ),
+          p.kind,
     ];
+    // Keyed by kind and built once per frame, then placed by the row layout:
+    // a panel that changes row or width keeps its element.
+    final cards = <String, Widget>{
+      for (final kind in shown)
+        kind: KeyedSubtree(
+          key: _keys.putIfAbsent(
+            kind,
+            () => GlobalKey(debugLabel: 'dashboard panel $kind'),
+          ),
+          child: builders[kind]!(),
+        ),
+    };
 
     if (cards.isEmpty) {
       // Offer a way back only to panels the *user* switched off that would
@@ -102,58 +145,41 @@ class _DashboardPanelGridState extends State<DashboardPanelGrid> {
       );
     }
 
-    return _MultiColumnGrid(
-      columns: widget.columns,
-      gap: widget.gap,
-      children: cards,
-    );
-  }
-}
-
-/// Simple column-balanced grid that places `children` left-to-right, top-to-
-/// bottom into [columns] columns with `gap` between cells and rows. We use
-/// this instead of `GridView` so each row can size itself to its tallest
-/// card (cards have variable internal height).
-class _MultiColumnGrid extends StatelessWidget {
-  const _MultiColumnGrid({
-    required this.columns,
-    required this.gap,
-    required this.children,
-  });
-
-  final int columns;
-  final double gap;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i += columns) {
-      final rowChildren = <Widget>[];
-      for (var j = 0; j < columns; j++) {
-        final idx = i + j;
-        if (j > 0) rowChildren.add(SizedBox(width: gap));
-        rowChildren.add(
-          Expanded(
-            child: idx < children.length
-                ? children[idx]
-                : const SizedBox.shrink(),
-          ),
-        );
-      }
-      if (rows.isNotEmpty) rows.add(SizedBox(height: gap));
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: rowChildren,
-          ),
-        ),
-      );
-    }
+    final rows = layoutPanelRows(shown, columns: widget.columns);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rows,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) SizedBox(height: widget.gap),
+          _row(rows[i], cards),
+        ],
+      ],
+    );
+  }
+
+  Widget _row(PanelRow row, Map<String, Widget> cards) {
+    final first = cards[row.first]!;
+    if (row.spans) return first;
+    final second = row.second == null ? null : cards[row.second];
+    // `IntrinsicHeight` + stretch: the two cards of a row end on one line
+    // whatever each holds. It is why nothing under a panel may be a
+    // `LayoutBuilder` (`docs/dashboard-panels.md`).
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: DashboardPanelCell(stretched: true, child: first)),
+          SizedBox(width: widget.gap),
+          // A lone half-width panel keeps its half: only the task calendar on
+          // its own ends up here, and stretched across the row its 440 px
+          // month grid would be an island.
+          Expanded(
+            child: second == null
+                ? const SizedBox.shrink()
+                : DashboardPanelCell(stretched: true, child: second),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -33,7 +33,32 @@ class EntityDetailHeader extends StatelessWidget {
     required this.isDirty,
     this.formatter,
     this.fallbackIcon,
+    this.subtitle,
+    this.tags,
+    this.nameMaxLines = 1,
+    this.showStatePills = true,
   });
+
+  /// Replaces the created/updated line under the name, and takes the number
+  /// with it: a host that passes this puts the number in the subtitle (see
+  /// [DetailSubtitle]) so a long name can use the whole first line.
+  ///
+  /// Null keeps the original layout, which every entity that has not adopted
+  /// the record page still uses.
+  final Widget? subtitle;
+
+  /// The record's own tags, drawn under the subtitle. Null or a widget that
+  /// builds nothing costs no space.
+  final Widget? tags;
+
+  /// How many lines the name may take. 1 everywhere except a host with a
+  /// [subtitle], where there is no number sharing the baseline and a long
+  /// company name would otherwise be cut off with no way to read it.
+  final int nameMaxLines;
+
+  /// False when the screen says the same thing in a banner — a Deleted pill
+  /// under a "this record is deleted" strip is the word twice.
+  final bool showStatePills;
 
   final String seedForAvatar;
   final String displayName;
@@ -85,11 +110,14 @@ class EntityDetailHeader extends StatelessWidget {
                         color: tokens.ink,
                         fontWeight: FontWeight.w600,
                       ),
-                      maxLines: 1,
+                      maxLines: nameMaxLines,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (numberWidget != null) ...[
+                  if (subtitle != null)
+                    // The number rides in the subtitle instead.
+                    const SizedBox.shrink()
+                  else if (numberWidget != null) ...[
                     const SizedBox(width: InSpacing.sm),
                     numberWidget!,
                   ] else if (number != null && number!.isNotEmpty) ...[
@@ -109,18 +137,22 @@ class EntityDetailHeader extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              _Timestamps(
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-                formatter: formatter,
-                tokens: tokens,
-              ),
+              subtitle ??
+                  _Timestamps(
+                    createdAt: createdAt,
+                    updatedAt: updatedAt,
+                    formatter: formatter,
+                    tokens: tokens,
+                  ),
+              ?tags,
             ],
           ),
         ),
         _HeaderPills(
-          isDeleted: isDeleted,
-          isArchived: isArchived,
+          // The Unsynced pill is not a lifecycle state and no banner repeats
+          // it, so it survives `showStatePills: false`.
+          isDeleted: showStatePills && isDeleted,
+          isArchived: showStatePills && isArchived,
           isDirty: isDirty,
           tokens: tokens,
         ),
@@ -128,6 +160,77 @@ class EntityDetailHeader extends StatelessWidget {
     );
   }
 }
+
+/// The fallback subtitle for a host that passes [EntityDetailHeader.subtitle]
+/// but has nothing to put in it: the same created/updated line the header
+/// draws on its own.
+class DetailHeaderTimestamps extends StatelessWidget {
+  const DetailHeaderTimestamps({
+    super.key,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.formatter,
+  });
+
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final Formatter? formatter;
+
+  @override
+  Widget build(BuildContext context) => _Timestamps(
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    formatter: formatter,
+    tokens: context.inTheme,
+  );
+}
+
+/// A header subtitle built from independent segments — a copyable number, a
+/// place, a link to a parent record — joined by a middle dot.
+///
+/// Segments are widgets, not strings, so one can be copyable or tappable while
+/// its neighbour is plain text. A `Wrap`, so a long subtitle breaks between
+/// segments rather than mid-word or off the edge of a 440 px pane.
+///
+/// **Put a `CopyableValue` segment last.** With a pointer it reserves the
+/// width of its hover icon whether or not the icon is showing; anywhere but
+/// the end of the line that reads as a stray gap before the next separator.
+///
+/// Drawn in `ink2`: this line now carries real information (who, where), and
+/// `ink3` on a card is under the 4.5:1 floor for text this small.
+class DetailSubtitle extends StatelessWidget {
+  const DetailSubtitle({super.key, required this.segments});
+
+  /// Empty builds nothing; the caller decides what to show instead.
+  final List<Widget> segments;
+
+  @override
+  Widget build(BuildContext context) {
+    if (segments.isEmpty) return const SizedBox.shrink();
+    final style = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink2);
+    return DefaultTextStyle.merge(
+      style: style,
+      child: Wrap(
+        // `start`, not `center`: a copyable segment is taller than a plain one
+        // (it holds a 22 px icon slot, top-aligned), and centring the run sat
+        // its text a few pixels above its neighbours'.
+        crossAxisAlignment: WrapCrossAlignment.start,
+        runSpacing: 2,
+        children: [
+          for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) const Text(_kSegmentSeparator),
+            segments[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Typographic, not prose — the same middle dot the timestamp line joins on.
+const String _kSegmentSeparator = '  ·  ';
 
 class _Timestamps extends StatelessWidget {
   const _Timestamps({

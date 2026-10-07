@@ -7,6 +7,7 @@ import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/project_dao.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/project_api_model.dart';
@@ -220,18 +221,20 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
   /// Lazily hydrate one project by id when a reference (e.g. a task's
   /// project) isn't in the prefetched page so a `*NameLabel` would show
   /// the raw id. See [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.projectDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.projectDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
 
   Future<void> refreshAll({required String companyId, bool full = false}) =>
       refreshAllTemplate(

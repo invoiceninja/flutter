@@ -1094,6 +1094,21 @@ class SyncRepository {
         if (row.state == 'pending' &&
             row.nextAttemptAt > nowMs &&
             !await _waitsOnLandingParent(row)) {
+          // **`row` may be history by now.** It was read by one query and its
+          // parent by others, and a discard of the parent — one transaction
+          // that takes this row with it — can commit in between: the row read
+          // as still parked, the parent then read as gone, and the two
+          // together looked like a save with nothing to wait for and a retry
+          // in the future. That reported "the server rejected this save" for
+          // a row the user had just discarded, about half the time. Look
+          // again; if the row moved, let the top of the loop judge what it is
+          // now — a missing row is its `discarded` / `success` / replaced arm.
+          final again = await db.outboxDao.byId(rowId);
+          if (again == null ||
+              again.state != row.state ||
+              again.nextAttemptAt != row.nextAttemptAt) {
+            continue;
+          }
           // A retry has been scheduled into the future — this is a transient
           // server/network failure. Surface inline; the outbox will keep
           // retrying in the background per its backoff if the user navigates

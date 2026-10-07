@@ -5,8 +5,16 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_sparkline.dart';
 
-/// One KPI tile: label / value / delta / sparkline. Renders inside the shared
-/// card shell shape, sized by the parent grid.
+/// Height floor of a metric tile — see [KpiCard].
+const double kKpiCardMinHeight = 104;
+
+/// One metric tile: label / value / captions. The user's own dashboard cards
+/// are drawn with it; the dashboard's fixed figures have their own cards
+/// (`dashboard_figures.dart`), in the same language.
+///
+/// It sizes to its content above a floor ([kKpiCardMinHeight]) rather than
+/// filling a fixed 140 px grid cell, where a second caption at a larger text
+/// size ran out of room and was clipped.
 class KpiCard extends StatelessWidget {
   const KpiCard({
     super.key,
@@ -21,6 +29,7 @@ class KpiCard extends StatelessWidget {
     this.showDelta = true,
     this.semanticsLabel,
     this.onTap,
+    this.trailingIcon = Icons.chevron_right,
   });
 
   final String label;
@@ -59,89 +68,106 @@ class KpiCard extends StatelessWidget {
   /// (typically to a filtered list view).
   final VoidCallback? onTap;
 
+  /// The glyph beside the label when [onTap] is set — a chevron for "opens a
+  /// list", something else when the tap does something else.
+  final IconData trailingIcon;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final sparkColor = tone == KpiTone.overdue ? tokens.overdue : tokens.paid;
     final radius = BorderRadius.circular(InRadii.r3);
     final clickable = onTap != null;
-    final Widget inner = Padding(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.2,
-                    color: tokens.ink3,
-                  ),
-                ),
-              ),
-              if (clickable)
-                Icon(Icons.chevron_right, size: 16, color: tokens.ink3),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            // The card sits in a fixed `mainAxisExtent: 140` cell, so a value
-            // that wraps to a second 26 px line overflows it — clipped in
-            // release by the `Material`'s `Clip.antiAlias`, a RenderFlex
-            // overflow in debug. Both captions below already guard this way;
-            // the value did not, which only became reachable once a card could
-            // hold an aggregate duration (`21d 19h 45m` — the first value here
-            // with a space in it, and so the first that can wrap).
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: moneyTextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -0.5,
-              height: 1.3,
-              color: tokens.ink,
-            ),
-          ),
-          if (subcaption != null)
-            Text(
-              subcaption!,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, height: 1.2, color: tokens.ink3),
-            ),
-          if (secondCaption != null)
-            Text(
-              secondCaption!,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, height: 1.2, color: tokens.ink3),
-            ),
-          if (showDelta) ...[
-            const SizedBox(height: 4),
+    final Widget inner = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: kKpiCardMinHeight),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Row(
               children: [
-                DeltaChip(
-                  percent: deltaPercent,
-                  goodDirection: goodDirection,
-                  suffix: context.tr('vs_prior'),
+                Expanded(
+                  // Small capitals in `ink2`, the caption the figures above use
+                  // (`ink3` at this size is under 4:1 on a white card).
+                  child: Text(
+                    label.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.ink2,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
                 ),
-                if (sparklineValues != null) ...[
-                  const Spacer(),
-                  KpiSparkline(values: sparklineValues!, color: sparkColor),
-                ],
+                if (clickable) Icon(trailingIcon, size: 16, color: tokens.ink2),
               ],
             ),
+            const SizedBox(height: 4),
+            // Scaled down to fit, never ellipsised: `$1,234,5…` is not an
+            // amount, and a duration like `21d 19h 45m` must not wrap either.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                value,
+                maxLines: 1,
+                softWrap: false,
+                style: moneyTextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.4,
+                  height: 1.25,
+                  color: tokens.ink,
+                ),
+              ),
+            ),
+            if (subcaption != null)
+              Text(
+                subcaption!,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.25,
+                  color: tokens.ink2,
+                ),
+              ),
+            if (secondCaption != null)
+              Text(
+                secondCaption!,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.25,
+                  color: tokens.ink2,
+                ),
+              ),
+            if (showDelta) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  DeltaChip(
+                    percent: deltaPercent,
+                    goodDirection: goodDirection,
+                    suffix: context.tr('vs_prior'),
+                  ),
+                  if (sparklineValues != null) ...[
+                    const Spacer(),
+                    KpiSparkline(values: sparklineValues!, color: sparkColor),
+                  ],
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
     final Widget surface = Material(

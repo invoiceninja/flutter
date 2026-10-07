@@ -44,6 +44,9 @@ class SyncFirstBanner extends StatelessWidget {
                 child: Text(
                   context.tr('not_synced_yet'),
                   style: TextStyle(color: tokens.ink2, fontSize: 13),
+                  // Two lines, not one: on a phone the sentence is cut off
+                  // before it says what has not happened yet.
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

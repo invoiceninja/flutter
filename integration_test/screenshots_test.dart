@@ -32,7 +32,7 @@ import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/main.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
-import 'package:admin/ui/features/dashboard/widgets/kpi_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_figures.dart';
 import 'package:admin/ui/features/invoices/views/invoice_detail_screen.dart';
 import 'package:admin/ui/features/invoices/views/invoice_edit_screen.dart';
 import 'package:admin/ui/features/invoices/views/invoice_list_screen.dart';
@@ -108,9 +108,16 @@ void main() {
       ),
     );
 
-    // 1. Dashboard — the KPI cards render once the live KPI fetch resolves.
+    // 1. Dashboard — wait for a figure the server returned. The Outstanding
+    // card is on screen from the first frame (as a placeholder), so it is its
+    // loaded state, not its presence, that says the live fetch resolved.
     await _pumpUntilFound(tester, find.byType(DashboardScreen));
-    await _pumpUntilFound(tester, find.byType(KpiCard));
+    await _pumpUntilFound(
+      tester,
+      find.byWidgetPredicate(
+        (w) => w is OutstandingFigureCard && w.showsLoadedValue,
+      ),
+    );
     await _settle(tester);
     await binding.takeScreenshot('01-dashboard');
 

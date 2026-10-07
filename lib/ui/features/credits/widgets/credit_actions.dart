@@ -19,6 +19,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -130,13 +132,22 @@ class CreditActions {
     final canArchive = credit.archivedAt == null && !credit.isDeleted;
     final canRestore = credit.archivedAt != null || credit.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewClient = me?.can('view_client') ?? false;
-    final canEdit = me?.can('edit_credit') ?? false;
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'credit',
+          createdBy: credit.userId,
+          assignedTo: credit.assignedUserId,
+          recordId: credit.id,
+        ) ??
+        false;
     final canCreate = me?.can('create_credit') ?? false;
-    final canDelete = me?.can('edit_credit') ?? false;
+    final canDelete = canEdit;
     final canMarkSent = canEdit && credit.isDraft;
     // Mark paid only for negative credits (which behave like a receivable),
     // and only while still open — mirrors React's `amount < 0` + status gate.
@@ -183,7 +194,8 @@ class CreditActions {
         kind: CreditAction.sendEmail,
         icon: Icons.mail_outline,
         label: context.tr('send_email'),
-        enabled: canEdit,
+        // The record's edit rule and the user's own right to send at all.
+        enabled: canEdit && (me?.maySendEmails ?? false),
         onTap: () => onTap(CreditAction.sendEmail),
       ),
       EntityActionItem(
@@ -327,6 +339,34 @@ class CreditActions {
           canDelete: !credit.isDeleted,
           onTap: () => onTap(CreditAction.delete),
         ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles — a second render of [itemsFor].
+  ///
+  /// A credit exists to be used, so Apply leads while there is any of it left
+  /// (the item is disabled at a zero balance and yields its slot); a draft
+  /// gets Mark Sent ahead of it.
+  ///
+  /// [hasPdfPane]: see `InvoiceActions.quickItemsFor`.
+  static List<EntityQuickAction<CreditAction>> quickItemsFor(
+    BuildContext context,
+    Credit credit,
+    void Function(CreditAction) onTap, {
+    required bool hasPdfPane,
+  }) {
+    final q = BillingDocQuickActions<CreditAction>(
+      doc: credit,
+      items: itemsFor(context, credit, onTap),
+    );
+    return [
+      ?q.pick(CreditAction.markSent, context.tr('mark_sent')),
+      ?q.pick(CreditAction.applyToInvoice, context.tr('apply')),
+      ?q.pick(CreditAction.sendEmail, context.tr('email')),
+      ?q.pick(CreditAction.viewPdf, context.tr('pdf'), applies: !hasPdfPane),
+      ?q.pick(CreditAction.downloadPdf, context.tr('download')),
+      ?q.pick(CreditAction.markPaid, context.tr('mark_paid')),
+      ?q.pick(CreditAction.clone, context.tr('clone')),
     ];
   }
 

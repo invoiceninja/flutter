@@ -138,9 +138,14 @@ class EmbeddedListTopRow extends StatelessWidget {
     required this.newLabelKey,
     required this.wide,
     this.canCreate = true,
+    this.showNew = true,
     this.onNewPressed,
     super.key,
   });
+
+  /// False leaves the New button out altogether — the parent record is
+  /// read-only, so there is nothing to explain by greying it.
+  final bool showNew;
 
   final Widget searchField;
   final String newRoute;
@@ -172,8 +177,7 @@ class EmbeddedListTopRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: searchField),
-        const SizedBox(width: 12),
-        newButton,
+        if (showNew) ...[const SizedBox(width: 12), newButton],
       ],
     );
   }

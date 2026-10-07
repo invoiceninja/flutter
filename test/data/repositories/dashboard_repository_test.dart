@@ -1,6 +1,7 @@
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart'
     show CompanySwitchedException;
@@ -95,6 +96,16 @@ class _FakeDashboardApi extends DashboardApi {
         ? _totalsPrevious[filter.filterHash()]
         : _totalsCurrent[filter.filterHash()];
     return _maybe(key, value);
+  }
+
+  /// Canned all-time totals, and the include-drafts value last asked for.
+  Object? outstandingTotals;
+  bool? outstandingDrafts;
+
+  @override
+  Future<Object?> fetchOutstandingTotals({required bool includeDrafts}) {
+    outstandingDrafts = includeDrafts;
+    return _maybe('totals_outstanding', outstandingTotals);
   }
 
   @override
@@ -209,6 +220,159 @@ void main() {
         filterHash: kDashboardListFilterHash,
       );
       expect(pastDueRow, isNotNull);
+    });
+
+    test(
+      'outstanding is its own row, keyed by the drafts switch alone',
+      () async {
+        api.outstandingTotals = {
+          'currencies': {'1': 'USD'},
+          '1': {
+            'outstanding': {
+              'outstanding_count': 9,
+              'amount': '12400.00',
+              'code': 'USD',
+            },
+          },
+        };
+        final values = <dynamic>[];
+        final sub = repo
+            .watchOutstanding('co_a', includeDrafts: false)
+            .listen(values.add);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(values.last, isNull);
+
+        await repo.refreshOutstanding('co_a', includeDrafts: false);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(api.outstandingDrafts, isFalse);
+        expect(values.last!.byCurrency['1']!.outstandingCount, 9);
+        expect('${values.last!.byCurrency['1']!.outstandingAmount}', '12400');
+
+        // A different date range is the same row — the figure is "as of today".
+        final row = await db.dashboardCacheDao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsOutstanding,
+          filterHash: dashboardOutstandingHash(includeDrafts: false),
+        );
+        expect(row, isNotNull);
+        // The drafts switch is a different row.
+        expect(
+          await db.dashboardCacheDao.read(
+            companyId: 'co_a',
+            kind: DashboardKind.totalsOutstanding,
+            filterHash: dashboardOutstandingHash(includeDrafts: true),
+          ),
+          isNull,
+        );
+        await sub.cancel();
+      },
+    );
+
+    test('a failed outstanding fetch is filed under its own kind', () async {
+      final filter = DashboardFilter.defaults();
+      api._totalsCurrent[filter.filterHash()] = {
+        'currencies': <String, dynamic>{},
+      };
+      api._totalsPrevious[filter.filterHash()] = {
+        'currencies': <String, dynamic>{},
+      };
+      api.failures['totals_outstanding'] = StateError('boom');
+
+      final errors = await repo.refreshFilterKeyed('co_a', filter);
+      expect(errors.keys, [DashboardKind.totalsOutstanding]);
+      // The period figures still landed.
+      expect(
+        await db.dashboardCacheDao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsCurrent,
+          filterHash: filter.filterHash(),
+        ),
+        isNotNull,
+      );
+    });
+
+    test('all time writes no previous-period row', () async {
+      const filter = DashboardFilter(
+        range: DashboardPresetRange(DashboardDatePreset.allTime),
+      );
+      api._totalsCurrent[filter.filterHash()] = {
+        'currencies': <String, dynamic>{},
+      };
+      // The real API answers null for the comparison — nothing precedes all
+      // time. The fake's map simply has no entry.
+      await repo.refreshTotals('co_a', filter);
+      expect(
+        await db.dashboardCacheDao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsPrevious,
+          filterHash: filter.filterHash(),
+        ),
+        isNull,
+      );
+      expect(
+        await db.dashboardCacheDao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsCurrent,
+          filterHash: filter.filterHash(),
+        ),
+        isNotNull,
+      );
+    });
+
+    test(
+      'upcoming invoices come out soonest due first, undated last',
+      () async {
+        // Newest-created first, as the server sends them.
+        api.upcomingInvoices = {
+          'rows': [
+            {'id': 'undated', 'due_date': ''},
+            {'id': 'later', 'due_date': '2026-12-01'},
+            {'id': 'sooner', 'due_date': '2026-10-20'},
+            {'id': 'same-day-a', 'due_date': '2026-11-01'},
+            {'id': 'same-day-b', 'due_date': '2026-11-01'},
+          ],
+          'total': 5,
+        };
+        await repo.refreshUpcomingInvoices('co_a');
+        final rows = await repo.watchUpcomingInvoices('co_a').first;
+        expect(rows!.map((r) => r.id), [
+          'sooner',
+          'same-day-a',
+          'same-day-b',
+          'later',
+          'undated',
+        ]);
+        // The total survives the sort.
+        expect(rows.serverTotal, 5);
+        expect(rows.isCompleteList, isTrue);
+      },
+    );
+
+    test('upcoming quotes come out soonest to expire first', () async {
+      api.upcomingQuotes = [
+        {'id': 'b', 'due_date': '2026-11-10'},
+        {'id': 'open', 'due_date': ''},
+        {'id': 'a', 'due_date': '2026-10-20'},
+      ];
+      await repo.refreshUpcomingQuotes('co_a');
+      final rows = await repo.watchUpcomingQuotes('co_a').first;
+      expect(rows!.map((r) => r.id), ['a', 'b', 'open']);
+      // A payload with no total decodes with the total unknown.
+      expect(rows.serverTotal, isNull);
+    });
+
+    test('past due keeps the paginator total', () async {
+      api.pastDue = {
+        'rows': [
+          {'id': 'a'},
+        ],
+        'total': 80,
+      };
+      await repo.refreshPastDue('co_a');
+      final rows = await repo.watchPastDue('co_a').first;
+      expect(rows, hasLength(1));
+      expect(rows!.serverTotal, 80);
+      expect(rows.isCompleteList, isFalse);
     });
 
     test('clearForCompany wipes only that company\'s cache', () async {

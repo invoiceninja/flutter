@@ -15,6 +15,7 @@ class DashboardCardShell extends StatelessWidget {
     this.trailing,
     this.padding,
     this.onHeaderTap,
+    this.bodyFills = false,
     required this.child,
   }) : assert(
          onHeaderTap == null || title != null || trailing != null,
@@ -29,19 +30,29 @@ class DashboardCardShell extends StatelessWidget {
   final Widget? trailing;
   final EdgeInsetsGeometry? padding;
 
+  /// Give the body every pixel the card has below its header, instead of the
+  /// body's own height.
+  ///
+  /// **Only valid when the card is handed a bounded height** — a cell of a
+  /// stretched row. In a scrolling column the height is unbounded and a flex
+  /// child there throws, which is why this is opt-in and why the dashboard
+  /// reads it from `DashboardPanelCell` (set by the one widget that knows the
+  /// card is in such a cell) rather than guessing. It exists so a short state —
+  /// "No upcoming quotes" — can sit centred in a card that a taller neighbour
+  /// stretched, instead of at the top of a hollow box.
+  final bool bodyFills;
+
   /// Makes the whole header band a tap target for whatever [trailing] already
   /// links to, at no extra height wherever [trailing] is present
   /// (invoiceninja/flutter#145).
   ///
   /// **Only valid when [trailing] NAVIGATES to a superset of the card body**,
-  /// and that is a narrow licence: of the ten shells that pass a [trailing]
-  /// today, **six** would be actively wrong here. A header reads as a label, so
+  /// and that is a narrow licence: of the shells that pass a [trailing]
+  /// today, most would be actively wrong here. A header reads as a label, so
   /// a tap on it may only do what the visible affordance beside it promises —
-  /// `project_detail_cards_grid.dart` would *create* a task,
   /// `client_edit_shipping_address_section.dart` would overwrite the shipping
-  /// address, the two expense edit layouts would toggle a collapse,
-  /// `reports_chart_card.dart` has two pickers and no single answer, and
-  /// `project_progress_card.dart`'s status pill is not interactive at all.
+  /// address, the two expense edit layouts would toggle a collapse, and
+  /// `reports_chart_card.dart` has two pickers and no single answer.
   /// Leave this null wherever the trailing widget is an action rather than a
   /// destination.
   ///
@@ -86,6 +97,15 @@ class DashboardCardShell extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
     final hasHeader = title != null || trailing != null;
+    final Widget body = Padding(
+      padding:
+          padding ??
+          EdgeInsets.symmetric(
+            horizontal: InSpacing.lg(context),
+            vertical: InSpacing.md(context),
+          ),
+      child: child,
+    );
     return Container(
       decoration: BoxDecoration(
         color: tokens.surface,
@@ -100,21 +120,13 @@ class DashboardCardShell extends StatelessWidget {
         type: MaterialType.transparency,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: bodyFills ? MainAxisSize.max : MainAxisSize.min,
           children: [
             if (hasHeader) ...[
               _header(context, theme, tokens),
               Divider(height: 1, thickness: 1, color: tokens.border),
             ],
-            Padding(
-              padding:
-                  padding ??
-                  EdgeInsets.symmetric(
-                    horizontal: InSpacing.lg(context),
-                    vertical: InSpacing.md(context),
-                  ),
-              child: child,
-            ),
+            if (bodyFills) Expanded(child: body) else body,
           ],
         ),
       ),

@@ -10,6 +10,7 @@ import 'package:admin/data/models/api/company_gateway_api_model.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/company_gateways_api.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -374,16 +375,18 @@ class CompanyGatewayRepository
   /// a deep-linked record the recipient has never browsed to, a restored
   /// route, or a cross-entity reference off the prefetched page. Cache-gated,
   /// coalesced, and negative-cached; see [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.companyGatewayDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.companyGatewayDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
 }

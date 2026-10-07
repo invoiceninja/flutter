@@ -12,7 +12,7 @@ import 'package:admin/data/models/domain/company_gateway.dart';
 ///
 /// Company gateways are seeded up front by `CompanyGatewayRepository.applyBundle`
 /// from the `/login` / `/refresh` envelope, so there is no lazy per-id hydrate.
-/// Resolution mirrors `payment_detail_gateway_card.dart` (prefer `label`).
+/// Resolution mirrors the gateway row in `payment_detail_profile.dart`.
 class CompanyGatewayNameLabel extends StatelessWidget {
   const CompanyGatewayNameLabel({
     super.key,

@@ -6,9 +6,11 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -100,68 +102,100 @@ class ProductActions {
     Product product,
     void Function(ProductAction) onTap,
   ) {
-    final canArchive = product.archivedAt == null && !product.isDeleted;
-    final canRestore = product.archivedAt != null || product.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Archive, restore, delete and Set Tax Category all need `edit_product`:
+    // the server authorizes each through `EntityPolicy::edit` (there is no
+    // `delete_*` permission). Ungated, a view-only user was offered Restore —
+    // one tap from the record's state banner — for a mutation the server
+    // refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'product',
+          createdBy: product.userId,
+          assignedTo: product.assignedUserId,
+          recordId: product.id,
+        ) ??
+        false;
+    final canArchive =
+        canEdit && product.archivedAt == null && !product.isDeleted;
+    final canRestore =
+        canEdit && (product.archivedAt != null || product.isDeleted);
     final notTmp = !product.id.startsWith('tmp_');
-    // Purge is admin/owner-only — mirrors the Client gate so the action
-    // only renders when the user could plausibly run it.
+    // A create action needs its module AND the `create_<entity>` permission.
+    // The module alone used to decide, which offered New Invoice to a user
+    // the server would then refuse — and edit rights never imply create. A
+    // clone is a new product; its own module is on or this product would not
+    // be on screen.
+    bool canCreate(EntityType type) =>
+        (me?.moduleEnabled(type) ?? false) &&
+        (me?.can(createPermissionFor(type)) ?? false);
+    final canClone = me?.can(createPermissionFor(EntityType.product)) ?? false;
 
     return [
-      editActionItem(
-        context: context,
-        kind: ProductAction.edit,
-        onTap: () => onTap(ProductAction.edit),
-      ),
-      // The "New X" items collapse into one fly-out submenu (like Client)
-      // so they stop burying the rest of the actions menu.
-      if ((me?.moduleEnabled(EntityType.invoice) ?? false) ||
-          (me?.moduleEnabled(EntityType.quote) ?? false) ||
-          (me?.moduleEnabled(EntityType.purchaseOrder) ?? false))
-        newGroupActionItem(
+      // Everything that changes the product, copies it or puts it on a
+      // document. Hidden entirely on a soft-deleted one — only the link and
+      // Restore remain, as on a deleted client: the server refuses an edit of
+      // a deleted record, and the screen says it is read-only.
+      if (!product.isDeleted) ...[
+        editActionItem(
           context: context,
-          kind: ProductAction.newGroup,
-          children: [
-            if (me?.moduleEnabled(EntityType.invoice) ?? false)
-              EntityActionItem(
-                kind: ProductAction.newInvoice,
-                icon: Icons.receipt_long_outlined,
-                label: context.tr('new_invoice'),
-                enabled: notTmp,
-                onTap: () => onTap(ProductAction.newInvoice),
-              ),
-            if (me?.moduleEnabled(EntityType.quote) ?? false)
-              EntityActionItem(
-                kind: ProductAction.newQuote,
-                icon: Icons.request_quote_outlined,
-                label: context.tr('new_quote'),
-                enabled: notTmp,
-                onTap: () => onTap(ProductAction.newQuote),
-              ),
-            if (me?.moduleEnabled(EntityType.purchaseOrder) ?? false)
-              EntityActionItem(
-                kind: ProductAction.newPurchaseOrder,
-                icon: Icons.shopping_cart_outlined,
-                label: context.tr('new_purchase_order'),
-                enabled: notTmp,
-                onTap: () => onTap(ProductAction.newPurchaseOrder),
-              ),
-          ],
+          kind: ProductAction.edit,
+          onTap: () => onTap(ProductAction.edit),
         ),
-      EntityActionItem(
-        kind: ProductAction.setTaxCategory,
-        icon: Icons.percent,
-        label: context.tr('set_tax_category'),
-        enabled: notTmp,
-        onTap: () => onTap(ProductAction.setTaxCategory),
-      ),
-      EntityActionItem(
-        kind: ProductAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone_product'),
-        enabled: true,
-        onTap: () => onTap(ProductAction.clone),
-      ),
+        // The "New X" items collapse into one fly-out submenu (like Client)
+        // so they stop burying the rest of the actions menu.
+        if (canCreate(EntityType.invoice) ||
+            canCreate(EntityType.quote) ||
+            canCreate(EntityType.purchaseOrder))
+          newGroupActionItem(
+            context: context,
+            kind: ProductAction.newGroup,
+            children: [
+              if (canCreate(EntityType.invoice))
+                EntityActionItem(
+                  kind: ProductAction.newInvoice,
+                  icon: Icons.receipt_long_outlined,
+                  label: context.tr('new_invoice'),
+                  enabled: notTmp,
+                  onTap: () => onTap(ProductAction.newInvoice),
+                ),
+              if (canCreate(EntityType.quote))
+                EntityActionItem(
+                  kind: ProductAction.newQuote,
+                  icon: Icons.request_quote_outlined,
+                  label: context.tr('new_quote'),
+                  enabled: notTmp,
+                  onTap: () => onTap(ProductAction.newQuote),
+                ),
+              if (canCreate(EntityType.purchaseOrder))
+                EntityActionItem(
+                  kind: ProductAction.newPurchaseOrder,
+                  icon: Icons.shopping_cart_outlined,
+                  label: context.tr('new_purchase_order'),
+                  enabled: notTmp,
+                  onTap: () => onTap(ProductAction.newPurchaseOrder),
+                ),
+            ],
+          ),
+        if (canEdit)
+          EntityActionItem(
+            kind: ProductAction.setTaxCategory,
+            icon: Icons.percent,
+            label: context.tr('set_tax_category'),
+            enabled: notTmp,
+            onTap: () => onTap(ProductAction.setTaxCategory),
+          ),
+        if (canClone)
+          EntityActionItem(
+            kind: ProductAction.clone,
+            icon: Icons.copy_outlined,
+            label: context.tr('clone_product'),
+            enabled: true,
+            onTap: () => onTap(ProductAction.clone),
+          ),
+      ],
       ?copyLinkActionItem(
         context: context,
         kind: ProductAction.copyLink,
@@ -185,9 +219,52 @@ class ProductActions {
         context: context,
         subject: _confirmSubject(product),
         kind: ProductAction.delete,
-        canDelete: !product.isDeleted,
+        canDelete: canEdit && !product.isDeleted,
         onTap: () => onTap(ProductAction.delete),
       ),
+    ];
+  }
+
+  /// The product screen's quick-action strip, most-used first. The strip
+  /// shows the first few that apply (`pickQuickActions`); the rest stay in the
+  /// `⋮` menu, which still lists everything.
+  ///
+  /// Every tile is the *same item* [itemsFor] builds, looked up by kind — the
+  /// three create tiles from inside the menu's Create New group — so its
+  /// module and permission gates and its unsynced guard cannot drift from the
+  /// menu's. What a product is *for* is being put on a document, so those
+  /// lead; Clone and the tax category follow.
+  static List<EntityQuickAction<ProductAction>> quickItemsFor(
+    BuildContext context,
+    Product product,
+    void Function(ProductAction) onTap,
+  ) {
+    // A deleted product is read-only, and an unsynced one would answer every
+    // create tile with "sync first" — the banner says that once instead.
+    if (product.isDeleted || product.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, product, onTap);
+    EntityQuickAction<ProductAction>? pick(
+      ProductAction kind,
+      String shortLabel,
+    ) {
+      final item = findActionItem<ProductAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(item: item, shortLabel: shortLabel);
+    }
+
+    // "+ Invoice", not "New Invoice": the entity noun is one word in most
+    // bundled locales, where the verb phrase is two and will not fit a tile.
+    String create(String nounKey) => '+ ${context.tr(nounKey)}';
+
+    return [
+      ?pick(ProductAction.newInvoice, create('invoice')),
+      ?pick(ProductAction.newQuote, create('quote')),
+      // "+ Order", as on the vendor screen: "Purchase Order" is three words
+      // in French and Spanish and scaled down beside its neighbours on a
+      // phone. The tooltip and the screen reader get the full label.
+      ?pick(ProductAction.newPurchaseOrder, create('order')),
+      ?pick(ProductAction.clone, context.tr('clone')),
+      ?pick(ProductAction.setTaxCategory, context.tr('tax_category')),
     ];
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/company_settings.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 
 /// Guards the per-type capability flags the shared billing widgets branch on.
@@ -192,6 +193,72 @@ void main() {
         expect(t.pickerFabHeroTag, '${t.wireName}_picker_fab');
         expect(t.mobilePickerFabHeroTag, '${t.wireName}_picker_fab_mobile');
       }
+    });
+  });
+
+  group('the record screen\'s spec', () {
+    // The record (detail) layout in `billing_shared/detail/` is one layout
+    // for five documents too; these are the values it branches on.
+    const i = BillingDocType.invoice;
+    const q = BillingDocType.quote;
+    const c = BillingDocType.credit;
+    const p = BillingDocType.purchaseOrder;
+    const r = BillingDocType.recurringInvoice;
+
+    Map<BillingDocType, Object?> of(Object? Function(BillingDocType) read) => {
+      for (final t in BillingDocType.values) t: read(t),
+    };
+
+    test('entity and route', () {
+      expect(of((t) => t.entityType), {
+        i: EntityType.invoice,
+        q: EntityType.quote,
+        c: EntityType.credit,
+        p: EntityType.purchaseOrder,
+        r: EntityType.recurringInvoice,
+      });
+      expect(of((t) => t.routePath), {
+        i: '/invoices',
+        q: '/quotes',
+        c: '/credits',
+        p: '/purchase_orders',
+        r: '/recurring_invoices',
+      });
+      // The route is the API path without its prefix — the two are the same
+      // plural, and a sixth document that broke that would 404 its PDF.
+      for (final t in BillingDocType.values) {
+        expect(t.apiPath, '/api/v1${t.routePath}', reason: '$t');
+      }
+    });
+
+    test('which documents have a deadline worth a line, and its wording', () {
+      // Only an invoice is "past due" and only a quote "expires". A credit's
+      // and a purchase order's dates are not deadlines anyone is held to, and
+      // a recurring invoice has no date of its own.
+      expect(of((t) => t.dueNoteLabelKeys), {
+        i: (upcoming: 'due', late: 'past_due'),
+        q: (upcoming: 'expires', late: 'expired'),
+        c: null,
+        p: null,
+        r: null,
+      });
+    });
+
+    test('the second figure and what settles it', () {
+      expect(of((t) => t.balanceLabelKey), {
+        i: 'balance_due',
+        q: null,
+        c: 'credit_remaining',
+        p: null,
+        r: null,
+      });
+      expect(of((t) => t.settledLabelKey), {
+        i: 'paid_to_date',
+        q: null,
+        c: 'applied',
+        p: null,
+        r: null,
+      });
     });
   });
 }

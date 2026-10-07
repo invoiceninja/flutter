@@ -7,8 +7,13 @@ import 'package:admin/utils/formatting.dart';
 
 /// "Updated 12 min ago" — the dashboard's data-freshness stamp.
 ///
-/// A null [lastRefreshed] means we've never completed a pass: "Loading…" while
-/// one is in flight, "Not yet loaded" when the boot refresh failed outright.
+/// A null [lastRefreshed] means this session has never completed a pass:
+/// "Loading…" while one is in flight. If that pass then fails there are two
+/// honest answers. With nothing cached it is "Not yet loaded". With figures
+/// from an earlier session still on screen it is how old *those* are —
+/// [cachedAt], the time their cache row was written — because "Not yet loaded"
+/// printed over a page of numbers is plainly untrue, and "Updated just now"
+/// would be worse.
 ///
 /// Relative wording comes from the shared [formatRelativeTime] so the dashboard
 /// reads the same as the activity feed and System Logs.
@@ -16,17 +21,16 @@ String freshnessText(
   BuildContext context, {
   required DateTime? lastRefreshed,
   required bool isRefreshing,
+  DateTime? cachedAt,
 }) {
-  if (lastRefreshed == null) {
+  final shown = lastRefreshed ?? (isRefreshing ? null : cachedAt);
+  if (shown == null) {
     return context.tr(
       isRefreshing ? 'loading_ellipsis' : 'not_yet_loaded_label',
     );
   }
   return context.tr('updated_relative', {
-    'relative': formatRelativeTime(
-      context,
-      DateTime.now().difference(lastRefreshed),
-    ),
+    'relative': formatRelativeTime(context, DateTime.now().difference(shown)),
   });
 }
 

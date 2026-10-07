@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/templates_api.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -77,10 +78,10 @@ class _FakeClients implements ClientRepository {
   final Map<String, Client> byId;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Stream<Client?> watch({required String companyId, required String id}) =>

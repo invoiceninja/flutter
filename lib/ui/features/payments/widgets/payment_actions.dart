@@ -10,17 +10,24 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/email/recipient_email_fix.dart';
+import 'package:admin/ui/features/payments/widgets/payment_apply.dart';
 
-/// Action set surfaced for a payment. Apply intentionally lives inline on the
-/// detail screen (not the action menu) since it's a one-tap/two-tap flow.
-/// Refund opens a dedicated sub-route at `/payments/:id/refund`.
+/// Action set surfaced for a payment. Refund opens a dedicated sub-route at
+/// `/payments/:id/refund`.
 enum PaymentAction {
   edit,
+
+  /// Quick-action strip only — see [PaymentActions.quickItemsFor]. Not in
+  /// [PaymentActions.itemsFor], so it reaches neither the `⋮` menu, the list
+  /// row's menu, nor the edit screen (where an action with no save param runs
+  /// *after* a save the user did not ask for).
+  apply,
   refund,
   sendEmail,
   addComment,
@@ -73,12 +80,31 @@ class PaymentActions {
     void Function(PaymentAction) onTap,
   ) {
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewClient = me?.can('view_client') ?? false;
-    final canArchive = payment.archivedAt == null && !payment.isDeleted;
-    final canRestore = payment.archivedAt != null || payment.isDeleted;
+    // Archive, restore and delete all need `edit_payment`: the server
+    // authorizes each through `EntityPolicy::edit` (there is no `delete_*`
+    // permission). Ungated, a view-only user was offered Restore — one tap
+    // from the record's state banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEditPayment =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'payment',
+          createdBy: payment.userId,
+          assignedTo: payment.assignedUserId,
+          recordId: payment.id,
+        ) ??
+        false;
+    final canArchive =
+        canEditPayment && payment.archivedAt == null && !payment.isDeleted;
+    final canRestore =
+        canEditPayment && (payment.archivedAt != null || payment.isDeleted);
+    // `RefundPaymentRequest::authorize` is `isAdmin()` and nothing else, so
+    // edit rights do not buy a refund.
+    final isAdminOrOwner = (me?.isAdmin ?? false) || (me?.isOwner ?? false);
 
     return [
       editActionItem(
@@ -93,7 +119,10 @@ class PaymentActions {
         // Only offer Refund when there's an invoice allocation to refund
         // against — the refund screen has no client-account-refund path
         // (matches React), so an unapplied payment would dead-end.
-        enabled: payment.canRefund && payment.hasInvoiceAllocations,
+        enabled:
+            isAdminOrOwner &&
+            payment.canRefund &&
+            payment.hasInvoiceAllocations,
         onTap: () => onTap(PaymentAction.refund),
       ),
       EntityActionItem(
@@ -156,9 +185,67 @@ class PaymentActions {
         kind: PaymentAction.delete,
         // The server refuses while a linked invoice is deleted
         // (`deleted_invoices_exist`) — a queued delete would only dead-letter.
-        canDelete: !payment.isDeleted && !payment.hasDeletedInvoice,
+        canDelete:
+            canEditPayment && !payment.isDeleted && !payment.hasDeletedInvoice,
         onTap: () => onTap(PaymentAction.delete),
       ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles, most-used first: put the
+  /// unapplied money somewhere, send the receipt, refund, open the client.
+  ///
+  /// Each tile is a second render of an action the record already has, so
+  /// gating and the confirmation prompt stay on the item — except Apply, which
+  /// exists only here (see [PaymentAction.apply]).
+  static List<EntityQuickAction<PaymentAction>> quickItemsFor(
+    BuildContext context,
+    Payment payment,
+    void Function(PaymentAction) onTap,
+  ) {
+    // A deleted payment is read-only, and an unsynced one would answer every
+    // tile with "sync first" — the banner says that once instead.
+    if (payment.isDeleted || payment.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, payment, onTap);
+    EntityQuickAction<PaymentAction>? pick(
+      PaymentAction kind,
+      String shortLabel, {
+      bool applies = true,
+    }) {
+      final item = findActionItem<PaymentAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(
+        item: item,
+        shortLabel: shortLabel,
+        applies: applies,
+      );
+    }
+
+    return [
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: PaymentAction.apply,
+          icon: Icons.playlist_add_check_outlined,
+          label: context.tr('apply_payment'),
+          // An allocation is an edit of the payment (`UpdatePaymentRequest`),
+          // which its creator or assignee may make too.
+          enabled:
+              context.read<Services>().auth.session.value?.canEditRecord(
+                'payment',
+                createdBy: payment.userId,
+                assignedTo: payment.assignedUserId,
+                recordId: payment.id,
+              ) ??
+              false,
+          onTap: () => onTap(PaymentAction.apply),
+        ),
+        shortLabel: context.tr('apply'),
+        // Only while there is money on it that pays for nothing yet.
+        applies: payment.hasUnappliedFunds && payment.clientId.isNotEmpty,
+      ),
+      ?pick(PaymentAction.sendEmail, context.tr('email')),
+      ?pick(PaymentAction.refund, context.tr('refund')),
+      ?pick(PaymentAction.viewClient, context.tr('client')),
     ];
   }
 
@@ -172,6 +259,13 @@ class PaymentActions {
     switch (action) {
       case PaymentAction.edit:
         goEntityEdit(context, '/payments', payment.id);
+      case PaymentAction.apply:
+        await applyPaymentToOldestInvoice(
+          context,
+          services,
+          companyId,
+          payment,
+        );
       case PaymentAction.refund:
         if (!requireSynced(context, payment.id)) return;
         context.go('/payments/${payment.id}/refund');

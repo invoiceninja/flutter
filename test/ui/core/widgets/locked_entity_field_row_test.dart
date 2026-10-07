@@ -14,6 +14,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 
@@ -41,10 +42,13 @@ class _FakeClientRepo implements ClientRepository {
   Client? peek({required String companyId, required String id}) => null;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async => ensureLoadedCalls.add(id);
+  }) async {
+    ensureLoadedCalls.add(id);
+    return EnsureLoadedOutcome.fetched;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -63,10 +67,10 @@ class _FakeVendorRepo implements VendorRepository {
   Vendor? peek({required String companyId, required String id}) => null;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

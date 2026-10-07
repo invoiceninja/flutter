@@ -224,6 +224,35 @@ class AuthSession {
   /// gets the saved template instead.
   bool get canCustomizeEmail => isSelfHosted || isPaidAccount;
 
+  /// Whether the signed-in user may change one particular record — archive,
+  /// restore, delete or edit it.
+  ///
+  /// The server's own rule (`EntityPolicy::edit`): an admin, a holder of
+  /// `edit_<entity>` (or `edit_all`), **or the record's creator or assignee**.
+  /// The third arm is not a nicety. A user without `view_<entity>` is shown
+  /// only the records they created or are assigned (`BaseController`'s list
+  /// scope), so for the common "may create tasks, nothing else" user it is
+  /// the *only* arm that ever applies — and a gate written as
+  /// `can('edit_task')` hides Archive and Delete on every task they can see.
+  ///
+  /// [entity] is the permission's entity token (`task`, `recurring_expense`,
+  /// `subscription`). A record created on this device and not yet synced
+  /// ([recordId] starts with `tmp_`) is the user's own whatever its
+  /// `createdBy` says: the server has not stamped a `user_id` on it yet.
+  bool canEditRecord(
+    String entity, {
+    required String createdBy,
+    String assignedTo = '',
+    String recordId = '',
+  }) {
+    final me = currentCompany;
+    if (me == null) return false;
+    if (me.can('edit_$entity')) return true;
+    if (recordId.startsWith('tmp_')) return true;
+    if (userId.isEmpty) return false;
+    return createdBy == userId || assignedTo == userId;
+  }
+
   AuthCompany? get currentCompany {
     for (final c in companies) {
       if (c.id == currentCompanyId) return c;
@@ -557,6 +586,13 @@ class AuthCompany {
   /// `disable_emails`) stay EXACT-token on purpose: they're standalone
   /// checkboxes above the grid, and React deliberately excludes them from
   /// `_all` expansion, so ticking "view all" shouldn't silently unlock Reports.
+  /// Whether this user may send email at all. `disable_emails` is a
+  /// *negative* token — holding it takes the ability away — and the server
+  /// refuses `POST /emails` on it before it looks at the record
+  /// (`SendEmailRequest`). Every Send Email action gates on this as well as on
+  /// the record's own edit rule, or it offers a send the server will reject.
+  bool get maySendEmails => !can('disable_emails');
+
   bool can(String permission) {
     // Negative tokens are never conferred by admin status — holding one takes
     // an ability away, so the blanket grant below would invert them.

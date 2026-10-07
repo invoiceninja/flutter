@@ -6,10 +6,13 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -87,101 +90,147 @@ class ProjectActions {
     Project project,
     void Function(ProjectAction) onTap,
   ) {
-    final canArchive = project.archivedAt == null && !project.isDeleted;
-    final canRestore = project.archivedAt != null || project.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-
-    return [
-      editActionItem(
-        context: context,
-        kind: ProjectAction.edit,
-        onTap: () => onTap(ProjectAction.edit),
-      ),
-      // Wired in Phase 3.5 via the Tasks card "Add task" affordance, but
-      // also surfaced here so the action menu mirrors React/admin-portal.
-      // The four "New X" items collapse into one fly-out submenu (like
-      // Client) so they stop burying the rest of the actions menu.
-      if ((me?.moduleEnabled(EntityType.task) ?? false) ||
-          (me?.moduleEnabled(EntityType.invoice) ?? false) ||
-          (me?.moduleEnabled(EntityType.quote) ?? false) ||
-          (me?.moduleEnabled(EntityType.expense) ?? false))
-        newGroupActionItem(
-          context: context,
-          kind: ProjectAction.newGroup,
-          children: [
-            if (me?.moduleEnabled(EntityType.task) ?? false)
-              EntityActionItem(
-                kind: ProjectAction.newTask,
-                icon: Icons.task_outlined,
-                label: context.tr('new_task'),
-                enabled: true,
-                onTap: () => onTap(ProjectAction.newTask),
-              ),
-            if (me?.moduleEnabled(EntityType.invoice) ?? false)
-              EntityActionItem(
-                kind: ProjectAction.newInvoice,
-                icon: Icons.receipt_long_outlined,
-                label: context.tr('new_invoice'),
-                enabled: !project.id.startsWith('tmp_'),
-                onTap: () => onTap(ProjectAction.newInvoice),
-              ),
-            if (me?.moduleEnabled(EntityType.quote) ?? false)
-              EntityActionItem(
-                kind: ProjectAction.newQuote,
-                icon: Icons.request_quote_outlined,
-                label: context.tr('new_quote'),
-                enabled: !project.id.startsWith('tmp_'),
-                onTap: () => onTap(ProjectAction.newQuote),
-              ),
-            if (me?.moduleEnabled(EntityType.expense) ?? false)
-              EntityActionItem(
-                kind: ProjectAction.newExpense,
-                icon: Icons.account_balance_wallet_outlined,
-                label: context.tr('new_expense'),
-                enabled: !project.id.startsWith('tmp_'),
-                onTap: () => onTap(ProjectAction.newExpense),
-              ),
-          ],
-        ),
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+    // Archive, restore and delete all need `edit_project`: the server
+    // authorizes each through `EntityPolicy::edit` (there is no `delete_*`
+    // permission). Ungated, a view-only user was offered Restore — one tap
+    // from the record's state banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEditProject =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'project',
+          createdBy: project.userId,
+          assignedTo: project.assignedUserId,
+          recordId: project.id,
+        ) ??
+        false;
+    final canArchive =
+        canEditProject && project.archivedAt == null && !project.isDeleted;
+    final canRestore =
+        canEditProject && (project.archivedAt != null || project.isDeleted);
+    // A create action needs its module AND the `create_<entity>` permission.
+    // The module alone used to decide, which offered New Invoice to a user the
+    // server would then refuse — and edit rights never imply create.
+    bool canCreate(EntityType type) =>
+        (me?.moduleEnabled(type) ?? false) &&
+        (me?.can(createPermissionFor(type)) ?? false);
+    final createChildren = <EntityActionItem<ProjectAction>>[
+      if (canCreate(EntityType.task))
         EntityActionItem(
-          kind: ProjectAction.invoiceProject,
-          icon: Icons.outbox_outlined,
-          label: context.tr('invoice_project'),
+          kind: ProjectAction.newTask,
+          icon: Icons.task_outlined,
+          label: context.tr('new_task'),
+          enabled: true,
+          onTap: () => onTap(ProjectAction.newTask),
+        ),
+      if (canCreate(EntityType.invoice))
+        EntityActionItem(
+          kind: ProjectAction.newInvoice,
+          icon: Icons.receipt_long_outlined,
+          label: context.tr('new_invoice'),
           enabled: !project.id.startsWith('tmp_'),
-          onTap: () => onTap(ProjectAction.invoiceProject),
+          onTap: () => onTap(ProjectAction.newInvoice),
         ),
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+      if (canCreate(EntityType.quote))
         EntityActionItem(
-          kind: ProjectAction.addToInvoice,
-          icon: Icons.playlist_add,
-          // `action_add_to_invoice`, not `add_to_invoice` — the latter is
-          // "Add to invoice :invoice" (invoiceninja/flutter#35).
-          label: context.tr('action_add_to_invoice'),
-          // Same billable set as "Invoice Project", appended to one of the
-          // client's existing invoices instead of a new one — so a period's
-          // work across several projects can land on a single document.
-          // Needs a client to scope the invoice picker.
-          enabled:
-              !project.id.startsWith('tmp_') &&
-              project.clientId.isNotEmpty &&
-              !project.isDeleted,
-          onTap: () => onTap(ProjectAction.addToInvoice),
+          kind: ProjectAction.newQuote,
+          icon: Icons.request_quote_outlined,
+          label: context.tr('new_quote'),
+          enabled: !project.id.startsWith('tmp_'),
+          onTap: () => onTap(ProjectAction.newQuote),
         ),
-      EntityActionItem(
-        kind: ProjectAction.runTemplate,
-        icon: Icons.auto_awesome_outlined,
-        label: context.tr('run_template'),
-        enabled: !project.id.startsWith('tmp_'),
-        onTap: () => onTap(ProjectAction.runTemplate),
-      ),
-      EntityActionItem(
-        kind: ProjectAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone_project'),
-        enabled: true,
-        onTap: () => onTap(ProjectAction.clone),
-      ),
+      if (canCreate(EntityType.expense))
+        EntityActionItem(
+          kind: ProjectAction.newExpense,
+          icon: Icons.account_balance_wallet_outlined,
+          label: context.tr('new_expense'),
+          enabled: !project.id.startsWith('tmp_'),
+          onTap: () => onTap(ProjectAction.newExpense),
+        ),
+    ];
+
+    final edit = editActionItem<ProjectAction>(
+      context: context,
+      kind: ProjectAction.edit,
+      onTap: () => onTap(ProjectAction.edit),
+    );
+    return [
+      // Everything that edits the project, builds on it or bills it is
+      // withdrawn on a soft-deleted project, which the server will not edit
+      // or attach anything to — only Copy Link and Restore remain, as on a
+      // deleted client. The record screen says why in its banner.
+      //
+      // Edit alone stays in the list, disabled: a disabled item is hidden
+      // from every menu and bar, but the wide list row still finds it as its
+      // primary and draws the greyed pencil — without it the row's `⋮` would
+      // slide into the pencil's place, out of line with the rows around it.
+      if (project.isDeleted)
+        EntityActionItem(
+          kind: edit.kind,
+          icon: edit.icon,
+          label: edit.label,
+          // No handler: a disabled item is never tapped.
+          enabled: false,
+          isPrimary: true,
+        ),
+      if (!project.isDeleted) ...[
+        edit,
+        // The four "New X" items collapse into one fly-out submenu (like
+        // Client) so they stop burying the rest of the actions menu.
+        if (createChildren.isNotEmpty)
+          newGroupActionItem(
+            context: context,
+            kind: ProjectAction.newGroup,
+            children: createChildren,
+          ),
+        // Builds a new invoice out of the project's unbilled work, so it is a
+        // create like the ones above and gated like them.
+        if (canCreate(EntityType.invoice))
+          EntityActionItem(
+            kind: ProjectAction.invoiceProject,
+            icon: Icons.outbox_outlined,
+            label: context.tr('invoice_project'),
+            enabled: !project.id.startsWith('tmp_'),
+            onTap: () => onTap(ProjectAction.invoiceProject),
+          ),
+        // Appends to an invoice that already exists — an edit of that
+        // invoice, which the server allows its creator too. Which invoice is
+        // not known until it is picked, so anyone who could own one is asked.
+        if ((me?.moduleEnabled(EntityType.invoice) ?? false) &&
+            ((me?.can('edit_invoice') ?? false) ||
+                (me?.can(createPermissionFor(EntityType.invoice)) ?? false)))
+          EntityActionItem(
+            kind: ProjectAction.addToInvoice,
+            icon: Icons.playlist_add,
+            // `action_add_to_invoice`, not `add_to_invoice` — the latter is
+            // "Add to invoice :invoice" (invoiceninja/flutter#35).
+            label: context.tr('action_add_to_invoice'),
+            // Same billable set as "Invoice Project", appended to one of the
+            // client's existing invoices instead of a new one — so a period's
+            // work across several projects can land on a single document.
+            // Needs a client to scope the invoice picker.
+            enabled:
+                !project.id.startsWith('tmp_') && project.clientId.isNotEmpty,
+            onTap: () => onTap(ProjectAction.addToInvoice),
+          ),
+        EntityActionItem(
+          kind: ProjectAction.runTemplate,
+          icon: Icons.auto_awesome_outlined,
+          label: context.tr('run_template'),
+          enabled: !project.id.startsWith('tmp_'),
+          onTap: () => onTap(ProjectAction.runTemplate),
+        ),
+        // Cloning opens a new project: a create.
+        if (me?.can(createPermissionFor(EntityType.project)) ?? false)
+          EntityActionItem(
+            kind: ProjectAction.clone,
+            icon: Icons.copy_outlined,
+            label: context.tr('clone_project'),
+            enabled: true,
+            onTap: () => onTap(ProjectAction.clone),
+          ),
+      ],
       ?copyLinkActionItem(
         context: context,
         kind: ProjectAction.copyLink,
@@ -205,11 +254,88 @@ class ProjectActions {
         context: context,
         subject: _confirmSubject(project),
         kind: ProjectAction.delete,
-        canDelete: !project.isDeleted,
+        canDelete: canEditProject && !project.isDeleted,
         onTap: () => onTap(ProjectAction.delete),
       ),
     ];
   }
+
+  /// The project screen's quick-action strip, most-used first. The strip
+  /// shows the first few that apply (`pickQuickActions`); the rest stay one
+  /// tap further away in the `⋮` menu, which still lists everything.
+  ///
+  /// Every tile is the *same item* [itemsFor] builds, looked up by kind, so
+  /// its module and permission gates and its unsynced guard cannot drift from
+  /// the menu's.
+  ///
+  /// `applies` is about relevance, not ability: the two invoicing tiles are
+  /// worth a slot only while the project has work to put on an invoice.
+  /// [hasBillableWork] is the screen's answer to that, from the tasks it
+  /// already holds — see [hasBillableTasks]. Both actions stay in the menu
+  /// either way, where a project whose only unbilled work is an expense can
+  /// still reach them.
+  ///
+  /// New Invoice is deliberately not a tile: beside "Invoice" it would be a
+  /// second tile with the same word on it, for the rarer of the two.
+  static List<EntityQuickAction<ProjectAction>> quickItemsFor(
+    BuildContext context,
+    Project project,
+    void Function(ProjectAction) onTap, {
+    required bool hasBillableWork,
+  }) {
+    // A deleted project is read-only, and an unsynced one would answer most
+    // tiles with "sync first" — the banner says that once instead.
+    if (project.isDeleted || project.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, project, onTap);
+    EntityQuickAction<ProjectAction>? pick(
+      ProjectAction kind,
+      String shortLabel, {
+      bool applies = true,
+    }) {
+      final item = findActionItem<ProjectAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(
+        item: item,
+        shortLabel: shortLabel,
+        applies: applies,
+      );
+    }
+
+    // "+ Task", not "New Task": the entity noun is one word in every bundled
+    // locale, where the verb phrase is two and will not fit a tile.
+    String create(String nounKey) => '+ ${context.tr(nounKey)}';
+
+    return [
+      ?pick(ProjectAction.newTask, create('task')),
+      ?pick(
+        ProjectAction.invoiceProject,
+        context.tr('invoice'),
+        applies: hasBillableWork,
+      ),
+      ?pick(ProjectAction.newExpense, create('expense')),
+      ?pick(ProjectAction.newQuote, create('quote')),
+      ?pick(
+        ProjectAction.addToInvoice,
+        context.tr('action_add_to_invoice'),
+        applies: hasBillableWork,
+      ),
+      ?pick(ProjectAction.clone, context.tr('clone')),
+    ];
+  }
+
+  /// Whether any of [tasks] could go on an invoice right now: synced, not
+  /// running, not yet invoiced, with billable time actually worked. The same
+  /// test `projectInvoiceLineItems` applies, so a tile offered on this answer
+  /// is one whose action will find something to bill.
+  static bool hasBillableTasks(Iterable<Task> tasks, {DateTime? now}) =>
+      tasks.any(
+        (t) =>
+            !t.id.startsWith('tmp_') &&
+            !t.isDeleted &&
+            !t.isRunning &&
+            !t.isInvoiced &&
+            t.billableDuration(now).inSeconds > 0,
+      );
 
   static Future<void> dispatch(
     BuildContext context,

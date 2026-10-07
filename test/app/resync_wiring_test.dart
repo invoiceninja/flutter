@@ -480,10 +480,11 @@ void _syncCompletionTests() {
       expect(result.isClean, isTrue);
       expect(
         paths.where((p) => p == totals),
-        hasLength(2),
+        hasLength(3),
         reason:
-            'current and previous period — keyed by a filter only the view '
-            'model knows, so nothing in the pass can ask for them',
+            'current period, previous period, and Outstanding as of today — '
+            'the first two keyed by a filter only the view model knows, so '
+            'nothing in the pass can ask for them',
       );
       expect(paths.where((p) => p == chart), hasLength(1));
       expect(

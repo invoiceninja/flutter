@@ -23,6 +23,7 @@ import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/domain/sync/refresh_sync_constants.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 export 'package:admin/data/repositories/local_data_disposer.dart'
     show DisposalReason, LocalDataPolicy;
@@ -1107,11 +1108,12 @@ class AuthRepository {
     } else {
       final updatedAtSecs = (((lastSync ~/ 1000) - kUpdatedAtBufferSeconds))
           .clamp(0, 1 << 62);
-      final cachedStatics = await _db.staticsDao.read();
+      // The stamp alone — this ran on every delta and used to read the whole
+      // statics payload just to look at its age.
+      final staticsFetchedAt = await _db.staticsDao.fetchedAt();
       final staticsStale =
-          cachedStatics == null ||
-          reqStartMs - cachedStatics.fetchedAt >
-              kStaticsStaleAfter.inMilliseconds;
+          staticsFetchedAt == null ||
+          reqStartMs - staticsFetchedAt > kStaticsStaleAfter.inMilliseconds;
       query = {
         'current_company': 'true',
         'updated_at': '$updatedAtSecs',
@@ -1135,18 +1137,32 @@ class AuthRepository {
         'Unexpected /refresh response shape: ${raw.runtimeType}',
       );
     }
-    final response = LoginResponseApi.fromJson(raw);
-    await _persistAndActivate(
-      response: response,
-      baseUrl: s.baseUrl,
-      isHosted: s.isHosted,
-      preserveActiveCompanyId: preserveActiveCompanyId ?? s.currentCompanyId,
-      isFullSync: isFullSync,
-      syncWatermarkMs: reqStartMs,
-      expectedGeneration: generation,
-      // Live id at request time — lets the commit detect (and yield to) a
-      // company switch that lands while this refresh is in flight.
-      activeCompanyIdAtRequest: s.currentCompanyId,
+    // A full sync's envelope is every company's whole dataset, and the delta
+    // appliers skip it (`_deltaOnly`) — so its browsable entity arrays are
+    // left unparsed. Typing them cost a cold start one long block on the UI
+    // isolate, for objects nothing read.
+    final response = traceSync(
+      'refresh.typedParse',
+      () => isFullSync
+          ? LoginResponseApi.fromFullSnapshot(raw)
+          : LoginResponseApi.fromJson(raw),
+      args: {'fullSync': isFullSync},
+    );
+    await traceAsync(
+      'refresh.persist',
+      () => _persistAndActivate(
+        response: response,
+        baseUrl: s.baseUrl,
+        isHosted: s.isHosted,
+        preserveActiveCompanyId: preserveActiveCompanyId ?? s.currentCompanyId,
+        isFullSync: isFullSync,
+        syncWatermarkMs: reqStartMs,
+        expectedGeneration: generation,
+        // Live id at request time — lets the commit detect (and yield to) a
+        // company switch that lands while this refresh is in flight.
+        activeCompanyIdAtRequest: s.currentCompanyId,
+      ),
+      args: {'fullSync': isFullSync},
     );
   }
 

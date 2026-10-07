@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/ledger/ledger_entry.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -74,23 +75,47 @@ class _LedgerTabState extends State<LedgerTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isClient = widget.scope == LedgerScope.client;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: InSpacing.lg(context)),
-      child: _LedgerStreams(
-        scope: widget.scope,
-        companyId: widget.companyId,
-        entityId: widget.entityId,
-        openingAt: widget.openingAt,
-        builder: (context, entries, loading) =>
-            _content(context, entries, loading),
+      // Every amount here is the party's money, so it is formatted in the
+      // party's currency — resolved through the same cascade the record's
+      // standing figures use. It used to go to `Formatter.money` bare, which
+      // is the *company* currency: a euro client's ledger read in dollars,
+      // one tab away from the same balance in euros.
+      child: PartyCurrencyBuilder(
+        clientId: isClient ? widget.entityId : null,
+        vendorId: isClient ? null : widget.entityId,
+        builder: (context, currencyId) => _LedgerStreams(
+          scope: widget.scope,
+          companyId: widget.companyId,
+          entityId: widget.entityId,
+          openingAt: widget.openingAt,
+          builder: (context, entries, loading) =>
+              _content(context, entries, loading, _moneyIn(currencyId)),
+        ),
       ),
     );
+  }
+
+  /// Formats in the party's currency; `''` until the formatter has loaded.
+  String Function(Decimal) _moneyIn(String? currencyId) {
+    final f = widget.formatter;
+    final isClient = widget.scope == LedgerScope.client;
+    return (amount) => f == null
+        ? ''
+        : f.money(
+            amount,
+            clientCurrencyId: isClient ? currencyId : null,
+            vendorCurrencyId: isClient ? null : currencyId,
+          );
   }
 
   Widget _content(
     BuildContext context,
     List<LedgerEntry> entries,
     bool loading,
+    String Function(Decimal) money,
   ) {
     final tokens = context.inTheme;
     // The genesis row (isOpening) carries a placeholder `kind`; it's the
@@ -105,7 +130,7 @@ class _LedgerTabState extends State<LedgerTab> {
       balance: widget.summaryBalance,
       paidToDate: widget.summaryPaidToDate,
       creditBalance: widget.summaryCreditBalance,
-      formatter: widget.formatter,
+      money: money,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -153,6 +178,7 @@ class _LedgerTabState extends State<LedgerTab> {
                 _LedgerRow(
                   entry: visible[i],
                   formatter: widget.formatter,
+                  money: money,
                   tokens: tokens,
                   isLast: i == visible.length - 1,
                   openingLabel: widget.scope == LedgerScope.client
@@ -186,13 +212,19 @@ class _LedgerRow extends StatelessWidget {
   const _LedgerRow({
     required this.entry,
     required this.formatter,
+    required this.money,
     required this.tokens,
     required this.isLast,
     required this.openingLabel,
   });
 
   final LedgerEntry entry;
+
+  /// For the date only — amounts go through [money].
   final Formatter? formatter;
+
+  /// Formats an amount in the party's currency.
+  final String Function(Decimal) money;
   final InTheme tokens;
   final bool isLast;
 
@@ -260,14 +292,14 @@ class _LedgerRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                (opening || f == null) ? '' : f.money(entry.adjustment),
+                opening ? '' : money(entry.adjustment),
                 style: TextStyle(
                   color: amountColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
-                f == null ? '' : f.money(entry.runningBalance),
+                money(entry.runningBalance),
                 style: TextStyle(fontSize: 12, color: tokens.ink3),
               ),
             ],
@@ -294,27 +326,32 @@ class _LedgerSummary extends StatelessWidget {
     required this.balance,
     required this.paidToDate,
     required this.creditBalance,
-    required this.formatter,
+    required this.money,
   });
 
   final LedgerScope scope;
   final Decimal? balance;
   final Decimal? paidToDate;
   final Decimal? creditBalance;
-  final Formatter? formatter;
+
+  /// Formats an amount in the party's currency; `''` while it cannot.
+  final String Function(Decimal) money;
 
   bool get hasAny =>
       balance != null || paidToDate != null || creditBalance != null;
 
   @override
   Widget build(BuildContext context) {
-    final f = formatter;
-    String money(Decimal? v) => (v == null || f == null) ? '—' : f.money(v);
+    String show(Decimal? v) {
+      final text = v == null ? '' : money(v);
+      return text.isEmpty ? '—' : text;
+    }
+
     final cells = <Widget>[
-      _cell(context, context.tr('balance'), money(balance)),
-      _cell(context, context.tr('paid_to_date'), money(paidToDate)),
+      _cell(context, context.tr('balance'), show(balance)),
+      _cell(context, context.tr('paid_to_date'), show(paidToDate)),
       if (scope == LedgerScope.client && creditBalance != null)
-        _cell(context, context.tr('credit_balance'), money(creditBalance)),
+        _cell(context, context.tr('credit_balance'), show(creditBalance)),
     ];
     return DashboardCardShell(
       child: Row(

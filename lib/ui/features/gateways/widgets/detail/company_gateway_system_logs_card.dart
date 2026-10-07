@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/data/models/domain/system_log.dart';
@@ -10,7 +11,7 @@ import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
-import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
 /// Per-gateway System Logs section on the gateway detail screen. Reuses the
@@ -22,6 +23,11 @@ import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 /// `company_gateway_id`, so two gateways of the same provider share logs.
 /// Hidden entirely for non-admins/owners (the endpoint is 403 for them) and
 /// for providers with no known log type id (bank/crypto gateways).
+///
+/// **It owns its leading gap.** Whether it draws anything is decided in here,
+/// so a gap paid by the host would be paid for a card that then builds
+/// nothing (`docs/comments-and-activity.md` § A card that hides itself still
+/// costs a gap).
 class CompanyGatewaySystemLogsCard extends StatefulWidget {
   const CompanyGatewaySystemLogsCard({
     super.key,
@@ -85,21 +91,23 @@ class _CompanyGatewaySystemLogsCardState
     if (typeIds == null || typeIds.isEmpty) return const SizedBox.shrink();
     final tokens = context.inTheme;
 
-    return FormSection(
-      title: context.tr('system_logs'),
-      trailing: IconButton(
-        icon: _refreshing
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.refresh),
-        tooltip: context.tr('refresh'),
-        onPressed: _refreshing ? null : _refresh,
-      ),
-      children: [
-        WatchBuilder<List<SystemLog>>(
+    return Padding(
+      padding: EdgeInsets.only(top: InSpacing.md(context)),
+      child: DashboardCardShell(
+        title: context.tr('system_logs'),
+        trailing: IconButton(
+          icon: _refreshing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh, size: 18),
+          tooltip: context.tr('refresh'),
+          visualDensity: Env.isTouchPrimary ? null : VisualDensity.compact,
+          onPressed: _refreshing ? null : _refresh,
+        ),
+        child: WatchBuilder<List<SystemLog>>(
           cacheKey: widget.companyId,
           create: () => services.systemLogs.watch(widget.companyId),
           builder: (context, snap) {
@@ -132,7 +140,7 @@ class _CompanyGatewaySystemLogsCardState
             );
           },
         ),
-      ],
+      ),
     );
   }
 }

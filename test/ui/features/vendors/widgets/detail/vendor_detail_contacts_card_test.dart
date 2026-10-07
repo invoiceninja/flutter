@@ -8,26 +8,26 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/api/vendor_api_model.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/party_contact_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
-import 'package:admin/ui/features/vendors/widgets/detail/vendor_detail_cards.dart';
+import 'package:admin/ui/features/vendors/widgets/detail/vendor_detail_contacts_card.dart';
 
 import '../../../../../_localization_helper.dart';
 import '../../../../../_support/phone_actions_test_services.dart';
 
-/// invoiceninja/flutter#115. A vendor carries an all-blank contact the user
+/// The vendor record screen's Contacts card.
+///
+/// invoiceninja/flutter#115: a vendor carries an all-blank contact the user
 /// never filled in, so `contacts.isEmpty` is never the question — the card
 /// used to render that row as `(no name)` beside a primary star.
 ///
-/// The card's grid wiring (the wide column and the stacked entry, both gated
-/// on [VendorDetailContactsCard.hasContent]) is not pumped here:
-/// `VendorDetailDetailsCard` builds a `WatchBuilder<Company?>` unconditionally,
-/// so `VendorDetailCardsGrid` can't run under `PhoneActionsTestServices`. The
-/// gating is two lines identical to the client grid's, which
-/// `clients/client_detail_cards_grid_test.dart` does pin.
+/// Each row is a `PartyContactRow` now, the same row a client's contacts get:
+/// the first two actions that apply are icon buttons, the rest sit behind `⋮`.
 void main() {
   late PhoneActionsTestServices services;
 
   VendorContact contact({
+    String id = 'vc1',
     String firstName = '',
     String lastName = '',
     String email = '',
@@ -35,9 +35,11 @@ void main() {
     String link = '',
     String customValue1 = '',
     bool isPrimary = false,
+    bool ccOnly = false,
+    bool isDeleted = false,
   }) => VendorContact.fromApi(
     VendorContactApi(
-      id: 'vc1',
+      id: id,
       firstName: firstName,
       lastName: lastName,
       email: email,
@@ -45,6 +47,8 @@ void main() {
       link: link,
       customValue1: customValue1,
       isPrimary: isPrimary,
+      ccOnly: ccOnly,
+      isDeleted: isDeleted,
     ),
   );
 
@@ -59,7 +63,7 @@ void main() {
   }) => contact(email: email, isPrimary: true);
 
   Future<void> pump(WidgetTester tester, List<VendorContact> contacts) async {
-    await tester.binding.setSurfaceSize(const Size(500, 900));
+    await tester.binding.setSurfaceSize(const Size(500, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       Provider<Services>.value(
@@ -127,6 +131,25 @@ void main() {
         reason: 'real contact in the demo dataset',
       );
     });
+
+    test('a deleted contact is not this vendor\'s contact any more', () {
+      expect(
+        VendorDetailContactsCard.hasContent([
+          contact(firstName: 'Ada', isDeleted: true),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('a custom value counts only once the company has labelled it', () {
+      // The row prints a contact custom field only under a configured label.
+      // With no company to say there is one, a contact holding nothing else
+      // would be a row reading `(no name)`.
+      expect(
+        VendorDetailContactsCard.hasContent([contact(customValue1: 'VIP')]),
+        isFalse,
+      );
+    });
   });
 
   testWidgets('a vendor whose only contact is blank shows no card', (
@@ -148,6 +171,8 @@ void main() {
 
       expect(find.text('Jimmy'), findsOneWidget);
       expect(find.textContaining('@example.com'), findsNothing);
+      // …and with no address there is nothing for an Email button to write to.
+      expect(find.byTooltip('Email'), findsNothing);
     },
   );
 
@@ -188,11 +213,11 @@ void main() {
 
     expect(find.text('ada@example.com'), findsOneWidget);
     expect(find.text('(no name)'), findsNothing);
+    expect(find.byTooltip('Email'), findsOneWidget);
   });
 
-  testWidgets('a phone-only contact survives, still titled (no name)', (
-    tester,
-  ) async {
+  testWidgets('a phone-only contact survives, still titled (no name), and '
+      'can be rung', (tester) async {
     // The predicate is "nothing to show", not "has a name" — a number with no
     // name attached is a real contact, and the `no_name_fallback` title cascade
     // is still what gives its row a heading.
@@ -200,7 +225,15 @@ void main() {
     await pump(tester, [contact(phone: '+1 415 555 2672')]);
 
     expect(find.text('(no name)'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Call'), findsOneWidget);
+    expect(find.byTooltip('Call'), findsOneWidget);
+  });
+
+  testWidgets('with tap-to-call off there is no Call button', (tester) async {
+    await services.phoneActions.setTapToCall(false);
+    await pump(tester, [contact(firstName: 'Ada', phone: '+1 415 555 2672')]);
+
+    expect(find.text('Ada'), findsOneWidget);
+    expect(find.byTooltip('Call'), findsNothing);
   });
 
   testWidgets('a portal link alone does not keep a blank contact', (
@@ -223,13 +256,90 @@ void main() {
     expect(find.byType(DashboardCardShell), findsNothing);
   });
 
-  testWidgets('a contact custom value alone does not keep a blank contact', (
+  testWidgets('the first two actions that apply are buttons; the portal is '
+      'named for what it is', (tester) async {
+    // No phone, so Email and the portal link are the two — the pair a desktop
+    // user wants from a contact.
+    await pump(tester, [
+      contact(
+        firstName: 'Ada',
+        email: 'ada@acme.test',
+        link: 'https://portal.example.com/vendor/key_login/abc',
+      ),
+    ]);
+
+    expect(find.byTooltip('Email'), findsOneWidget);
+    // Not a bare "Copy Link": the record's own menu has one of those, and it
+    // copies a link to this screen.
+    expect(find.byTooltip('Vendor Portal: Copy Link'), findsOneWidget);
+    // View Portal is the third, behind the row's `⋮`.
+    expect(find.text('View Portal'), findsNothing);
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('View Portal'), findsOneWidget);
+  });
+
+  testWidgets('a contact with no portal link offers no portal action', (
     tester,
   ) async {
-    // React counts contact custom fields because its row renders them; this
-    // card doesn't, so a row kept alive by one would paint only `(no name)`.
-    await pump(tester, [contact(customValue1: 'VIP')]);
+    await pump(tester, [contact(firstName: 'Ada', email: 'ada@acme.test')]);
 
-    expect(find.byType(DashboardCardShell), findsNothing);
+    expect(find.byTooltip('Email'), findsOneWidget);
+    expect(find.byTooltip('Vendor Portal: Copy Link'), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+  });
+
+  testWidgets('a CC-only contact says so', (tester) async {
+    await pump(tester, [
+      contact(firstName: 'Accounts', email: 'ap@acme.test', ccOnly: true),
+    ]);
+
+    expect(find.byType(PartyContactPill), findsOneWidget);
+    expect(find.text('CC Only'), findsOneWidget);
+  });
+
+  testWidgets('more than three contacts: the rest open in place, and close '
+      'again', (tester) async {
+    await pump(tester, [
+      for (var i = 1; i <= 5; i++) contact(id: 'c$i', firstName: 'Contact $i'),
+    ]);
+
+    expect(find.text('Contact 3'), findsOneWidget);
+    expect(find.text('Contact 4'), findsNothing);
+    expect(find.text('+2 more'), findsOneWidget);
+
+    await tester.tap(find.text('+2 more'));
+    await tester.pump();
+    expect(find.text('Contact 5'), findsOneWidget);
+    expect(find.text('+2 more'), findsNothing);
+
+    // An expansion has to be undoable.
+    await tester.tap(find.text('Less'));
+    await tester.pump();
+    expect(find.text('Contact 4'), findsNothing);
+    expect(find.text('+2 more'), findsOneWidget);
+  });
+
+  testWidgets('three contacts need no "more"', (tester) async {
+    await pump(tester, [
+      for (var i = 1; i <= 3; i++) contact(id: 'c$i', firstName: 'Contact $i'),
+    ]);
+
+    expect(find.text('Contact 3'), findsOneWidget);
+    expect(find.textContaining('more'), findsNothing);
+    expect(find.text('Less'), findsNothing);
+  });
+
+  testWidgets('"+N more" counts only contacts that would draw a row', (
+    tester,
+  ) async {
+    // Four real ones and two blanks: one is hidden, not three.
+    await pump(tester, [
+      blank(),
+      for (var i = 1; i <= 4; i++) contact(id: 'c$i', firstName: 'Contact $i'),
+      contact(id: 'b2'),
+    ]);
+
+    expect(find.text('+1 more'), findsOneWidget);
   });
 }

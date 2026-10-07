@@ -133,6 +133,10 @@ const _kNavStateBudget = Duration(seconds: 10);
 Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   initLogging();
+  // Start the two localization bundles loading now, beside the database open
+  // and the session restore: the first frame waits on them, and otherwise
+  // they only begin once `runApp` has built the tree. Not awaited.
+  Localization.prewarm();
   // IANA tzdb, for the callee's real local time beside a phone number and for
   // the outside-business-hours warning (`docs/tap-to-call.md`). Synchronous and
   // web-safe — the data is compiled-in Dart, not an asset fetch — so it costs a
@@ -346,6 +350,14 @@ Future<void> _bootstrap() async {
       : '/login';
 
   mark('nav-state + route resolve');
+  // Registered here, fires once `runApp`'s first frame is on screen. Never
+  // awaited. It times the gap between the last stage above and the first
+  // paint, which is where the localization load sits.
+  unawaited(
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then(
+      (_) => mark('first frame'),
+    ),
+  );
   // Web URL strategy is left at Flutter's default (hash — `/#/clients`).
   // This is intentional: hash routing needs no server rewrite-to-index
   // config, so the build deploys to any static host. Do NOT add

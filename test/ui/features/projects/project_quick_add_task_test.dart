@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/api/task_status_api_model.dart';
+import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/ui/features/projects/view_models/project_edit_view_model.dart'
     show emptyProject;
-import 'package:admin/ui/features/projects/widgets/detail/project_detail_cards_grid.dart';
+import 'package:admin/ui/features/projects/widgets/detail/project_quick_add_task.dart';
 
 import '../shell/_shell_test_helpers.dart';
 
-/// Quick task creation from the project's Tasks card (invoiceninja/ui#3383).
+/// Quick task creation at the head of the project's Tasks tab
+/// (invoiceninja/ui#3383). That the new task then shows in the list under the
+/// field is covered where the list is — `project_detail_screen_test.dart`.
 void main() {
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 10; i++) {
@@ -52,7 +55,7 @@ void main() {
         services,
         Scaffold(
           body: SingleChildScrollView(
-            child: ProjectDetailCardsGrid(project: project, companyId: 'co1'),
+            child: ProjectQuickAddTask(project: project, companyId: 'co1'),
           ),
         ),
       ),
@@ -80,9 +83,23 @@ void main() {
     final input = tester.widget<TextField>(field);
     expect(input.controller!.text, isEmpty);
     expect(input.focusNode!.hasFocus, isTrue);
-    expect(find.text('Design homepage'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  test('offered only where a task could be created on the project', () {
+    final project = emptyProject().copyWith(id: 'p1', name: 'Site');
+    bool applies(Project p, {bool can = true}) =>
+        ProjectQuickAddTask.appliesTo(p, canCreateTask: can);
+    expect(applies(project), isTrue);
+    expect(applies(project, can: false), isFalse);
+    expect(applies(project.copyWith(isDeleted: true)), isFalse);
+    expect(
+      applies(project.copyWith(archivedAt: DateTime.utc(2026, 5, 1))),
+      isFalse,
+    );
+    // The server has never seen it: a task pointing at it could not sync.
+    expect(applies(project.copyWith(id: 'tmp_1')), isFalse);
   });
 }

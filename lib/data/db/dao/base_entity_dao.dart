@@ -148,7 +148,13 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
             currentUserId: currentUserId,
           );
     if (extra != null) q.where(extra);
-    return q.map((row) => row.read(count) ?? 0).watchSingle();
+    // `distinct`: Drift re-runs this on every write to the table, and a sync
+    // writes a page at a time — an unchanged count used to re-emit and rebuild
+    // its sidebar row or status tab each time. Safe for a consumer that
+    // re-listens (a Drift stream replays its latest value to each listener,
+    // and `distinct` keeps its state per subscription); a cache in front of it
+    // must replay too — see `CachedStream`.
+    return q.map((row) => row.read(count) ?? 0).watchSingle().distinct();
   }
 
   /// The list-filter form of [badgeModePredicate]: the SAME expression
@@ -238,6 +244,31 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
         clients.companyId.equals(companyId) & clients.isDeleted.equals(true),
       );
     return clientId.equals('') | clientId.isNotInQuery(deletedClientIds);
+  }
+
+  /// Predicate matching exactly the rows the server's
+  /// `without_deleted_clients=true` returns: those with no client, or whose
+  /// client is neither deleted **nor archived** (`QueryFilters
+  /// ::without_deleted_clients` is `is_deleted = 0 AND deleted_at IS NULL`).
+  ///
+  /// Stricter than [clientNotDeletedFilter], which drops only deleted
+  /// clients' rows and is what the workspace lists use. This one exists for
+  /// callers that have to describe the *same set* as a server count taken
+  /// with that parameter — `RelatedRowsProof` measures the rows the device
+  /// holds against such a count, and a row the count leaves out must not be
+  /// counted towards it.
+  Expression<bool> clientActiveFilter({
+    required GeneratedColumn<String> clientId,
+    required String companyId,
+  }) {
+    final clients = attachedDatabase.clients;
+    final inactiveClientIds = selectOnly(clients)
+      ..addColumns([clients.id])
+      ..where(
+        clients.companyId.equals(companyId) &
+            (clients.isDeleted.equals(true) | clients.archivedAt.isNotNull()),
+      );
+    return clientId.equals('') | clientId.isNotInQuery(inactiveClientIds);
   }
 
   /// Predicate matching rows whose client's name matches the free-text search

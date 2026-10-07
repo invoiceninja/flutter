@@ -2908,6 +2908,68 @@ void main() {
         expect(q['include_static'], 'true');
       });
 
+      test('a FULL refresh leaves the browsable entity arrays unparsed; a '
+          'DELTA still hands them to the bundle hook', () async {
+        // A full sync's envelope is every company's whole dataset and the
+        // delta appliers skip it, so typing those arrays was a cold-start
+        // parse of rows nothing read. A delta must still carry them — that
+        // is the #170 top-up.
+        const tMs = 1700000000000;
+        final fixedRepo = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: passwordCache,
+          now: () => DateTime.fromMillisecondsSinceEpoch(tMs),
+        );
+        authService.queueLogin(_envelope());
+        await fixedRepo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+
+        final body = jsonDecode(jsonEncode(_envelope().toJson())) as Map;
+        final company = ((body['data'] as List).first as Map)['company'] as Map;
+        company['invoices'] = [
+          {'id': 'in_1', 'updated_at': 1},
+          {'id': 'in_2', 'updated_at': 2},
+        ];
+        company['clients'] = [
+          {'id': 'cl_1', 'updated_at': 1},
+        ];
+        final fakeHttp = MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            return http.Response(jsonEncode(body), 200);
+          }
+          return http.Response('not found', 404);
+        });
+        fixedRepo.apiClient = ApiClient(
+          credentials: fixedRepo.credentials,
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          httpClient: fakeHttp,
+        );
+        final seen = <({bool fullSync, int invoices, int clients})>[];
+        fixedRepo.onPersistBundles =
+            ({required companyId, required company, required fullSync}) async {
+              seen.add((
+                fullSync: fullSync,
+                invoices: company.invoices.length,
+                clients: company.clients.length,
+              ));
+            };
+
+        await fixedRepo.refresh(fullSync: true);
+        await fixedRepo.refresh();
+
+        expect(seen, [
+          (fullSync: true, invoices: 0, clients: 0),
+          (fullSync: false, invoices: 2, clients: 1),
+        ]);
+      });
+
       // ── Full sync must not blank the companies row (issue #29) ──────────
       //
       // `_persistAndActivate` re-writes the companies row from

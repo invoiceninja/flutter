@@ -25,6 +25,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_create_strip.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -102,6 +103,16 @@ class _FakeServices implements Services {
   /// `_buildVm` hands the view model the real-time signal too. Never fires.
   @override
   final RealtimeService realtime = _IdleRealtime();
+
+  /// And the outbox count it refetches on. Never emits — and deliberately not
+  /// the real Drift watch, which a widget test must not sit on.
+  @override
+  Stream<int> watchOutboxActive(String companyId) => const Stream<int>.empty();
+
+  // The needs-attention band's "changes could not be saved" line.
+  @override
+  Stream<int> watchOutboxAttention(String companyId) =>
+      const Stream<int>.empty();
 
   /// Never completes, so `_formatter` stays null and the data body — the only
   /// part that touches Drift watch streams — is never built.
@@ -403,16 +414,26 @@ void main() {
       expect(find.byType(DashboardCreateFab), findsOneWidget);
     });
 
-    testWidgets('wide: no FAB, the top bar keeps New Invoice', (tester) async {
+    // The wide layout's creates are buttons in the bar — on screen however
+    // far the page is scrolled — fed by the same list the FAB's sheet shows.
+    testWidgets('wide: no FAB, the top bar carries the create buttons', (
+      tester,
+    ) async {
       session.value = _session(enabledModules: EnabledModule.invoices.bitmask);
       await pumpScreen(tester, window: 1200);
 
       expect(find.byType(DashboardCreateFab), findsNothing);
+      final strip = find.descendant(
+        of: find.byType(DashboardTopBar),
+        matching: find.byType(DashboardCreateStrip),
+      );
+      expect(strip, findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byType(DashboardTopBar),
-          matching: find.text('New Invoice'),
-        ),
+        tester.widget<DashboardCreateStrip>(strip).options.map((o) => o.type),
+        containsAll([EntityType.invoice, EntityType.client]),
+      );
+      expect(
+        find.descendant(of: strip, matching: find.text('Invoice')),
         findsOneWidget,
       );
     });
@@ -458,7 +479,7 @@ void main() {
     // The wide button used to check only the invoices module. So a user
     // without `create_invoice` was offered New Invoice and then refused when
     // saving. Both layouts now ask `_creatableEntities`.
-    testWidgets('wide New Invoice needs create_invoice, not just the module', (
+    testWidgets('a wide create needs its permission, not just the module', (
       tester,
     ) async {
       session.value = _session(
@@ -469,10 +490,13 @@ void main() {
       await pumpScreen(tester, window: 1200);
 
       expect(find.byType(DashboardTopBar), findsOneWidget);
-      expect(find.text('New Invoice'), findsNothing);
+      // Nothing creatable: no strip at all, not an empty one.
+      expect(find.byType(DashboardCreateStrip), findsNothing);
     });
 
-    testWidgets('wide New Invoice shows for create_invoice', (tester) async {
+    testWidgets('a wide create shows for its own permission only', (
+      tester,
+    ) async {
       session.value = _session(
         enabledModules: EnabledModule.invoices.bitmask,
         isAdmin: false,
@@ -480,7 +504,10 @@ void main() {
       );
       await pumpScreen(tester, window: 1200);
 
-      expect(find.text('New Invoice'), findsOneWidget);
+      final strip = tester.widget<DashboardCreateStrip>(
+        find.byType(DashboardCreateStrip),
+      );
+      expect(strip.options.map((o) => o.type), [EntityType.invoice]);
     });
 
     group('navigation', () {
@@ -578,13 +605,19 @@ void main() {
         expect(services.staged, isEmpty);
       });
 
-      testWidgets('wide New Invoice goes the same way', (tester) async {
+      testWidgets('a wide create button goes the same way', (tester) async {
         session.value = _session(
           enabledModules: EnabledModule.invoices.bitmask,
         );
         await pumpRouted(tester, window: 1200);
 
-        await tapAndWait(tester, find.text('New Invoice'));
+        await tapAndWait(
+          tester,
+          find.descendant(
+            of: find.byType(DashboardCreateStrip),
+            matching: find.text('Invoice'),
+          ),
+        );
 
         expect(find.text('route: /invoices/new'), findsOneWidget);
         expect(services.staged, const [('/invoices', null)]);

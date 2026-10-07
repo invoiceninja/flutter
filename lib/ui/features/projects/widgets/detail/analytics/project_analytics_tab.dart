@@ -17,9 +17,11 @@ import 'package:admin/utils/formatting.dart';
 /// Analytics tab on the project detail screen — the server-computed view of a
 /// project, from `charts/project_analytics/{id}` + `charts/project_burnup/{id}`.
 ///
-/// Complements rather than replaces `ProjectProgressCard` on the detail body:
-/// that card computes cumulative hours vs ideal pace **locally** from Drift
-/// time logs and keeps working offline. This tab adds what local data can't
+/// Complements rather than replaces what the record shows above its tabs —
+/// the standing card's logged / budgeted figures and, on a wide window, the
+/// `ProjectProgressCard` chart. Those compute cumulative hours vs ideal pace
+/// **locally** from Drift time logs and keep working offline. This tab adds
+/// what local data can't
 /// produce — the money series (invoiced / paid / outstanding / expense) and
 /// the server's health, profitability and budget-vs-actual scoring.
 ///
@@ -510,8 +512,8 @@ class _HealthCard extends StatelessWidget {
 
 // ── shared bits ─────────────────────────────────────────────────────────
 
-/// KPI cells that reflow instead of overflowing. Same visual language as
-/// `ProjectProgressCard`'s hero strip.
+/// KPI cells that reflow instead of overflowing. Same visual language as the
+/// record screens' standing figures.
 class _KpiWrap extends StatelessWidget {
   const _KpiWrap({required this.cells});
   final List<Widget> cells;

@@ -21,6 +21,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -192,21 +194,30 @@ class InvoiceActions {
     final canArchive = invoice.archivedAt == null && !invoice.isDeleted;
     final canRestore = invoice.archivedAt != null || invoice.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewClient = me?.can('view_client') ?? false;
     // Permission gates. Admin / owner bypass `can(...)`; otherwise check
     // the comma-separated `permissions` string. Server enforces too — UI
     // gates just hide affordances the user can't action.
-    final canEditInvoice = me?.can('edit_invoice') ?? false;
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEditInvoice =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'invoice',
+          createdBy: invoice.userId,
+          assignedTo: invoice.assignedUserId,
+          recordId: invoice.id,
+        ) ??
+        false;
     final canCreateInvoice = me?.can('create_invoice') ?? false;
     // There is no `delete_*` permission in the product — the server authorizes
     // a destroy through `EntityPolicy::edit` (`DestroyInvoiceRequest` →
     // `can('edit', $invoice)`), and React gates delete on `edit_*` too. Asking
     // for a `delete_invoice` token could never be granted, so Delete was hidden
     // from every non-admin.
-    final canDeleteInvoice = me?.can('edit_invoice') ?? false;
+    final canDeleteInvoice = canEditInvoice;
     // `isLocked` (Verifactu) prevents *edits* but not status transitions —
     // marking sent / auto-billing a locked invoice is allowed; only
     // `markPaid` is gated because the synthetic payment it records is
@@ -214,7 +225,10 @@ class InvoiceActions {
     final isLocked = invoice.isLocked;
     // Send → only meaningful for non-cancelled/non-reversed invoices.
     final canEmail =
-        canEditInvoice && !invoice.isCancelled && !invoice.isReversed;
+        canEditInvoice &&
+        (me?.maySendEmails ?? false) &&
+        !invoice.isCancelled &&
+        !invoice.isReversed;
     // Mark sent → only from Draft.
     final canMarkSent = canEditInvoice && invoice.isDraft;
     // Mark paid → only when there's still a balance.
@@ -241,6 +255,10 @@ class InvoiceActions {
     // likely intent on a sent / past-due invoice.
     final canEnterPayment =
         (me?.can('create_payment') ?? false) &&
+        // A deleted invoice is read-only until restored: the server refuses a
+        // payment against it, and a filled "Enter Payment" beside the banner
+        // saying so was the one thing on the screen that contradicted it.
+        !invoice.isDeleted &&
         !invoice.isDraft &&
         !invoice.isPaid &&
         !invoice.isCancelled &&
@@ -327,8 +345,12 @@ class InvoiceActions {
         // Refunds operate on this invoice's payment(s); only meaningful
         // once it's (partially) paid. Dispatch resolves the actual
         // refundable payment(s) and routes to the existing refund screen.
+        //
+        // Admin-only, like the payment's own Refund: the server's
+        // `RefundPaymentRequest::authorize` is `isAdmin()` and nothing else,
+        // so edit rights on the invoice do not buy a refund.
         enabled:
-            canEditInvoice &&
+            ((me?.isAdmin ?? false) || (me?.isOwner ?? false)) &&
             (invoice.isPaid || invoice.isPartial) &&
             !invoice.isReversed,
         onTap: () => onTap(InvoiceAction.refund),
@@ -502,6 +524,42 @@ class InvoiceActions {
           canDelete: !invoice.isDeleted,
           onTap: () => onTap(InvoiceAction.delete),
         ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles, in the order a user most often
+  /// wants them — a second render of [itemsFor], so a tile can never offer
+  /// what the menu would refuse.
+  ///
+  /// What moves the invoice forward leads: taking a payment while something
+  /// is owed, marking a draft sent. Then getting it to the client, then
+  /// reading it. Each item's own `enabled` already encodes the status rules
+  /// (Mark Sent only from draft, Refund only once paid), so a tile that does
+  /// not apply simply yields its slot to the next.
+  ///
+  /// [hasPdfPane]: the PDF is already on screen beside the record, so a tile
+  /// that opens it would be spending a slot on what the user is looking at.
+  static List<EntityQuickAction<InvoiceAction>> quickItemsFor(
+    BuildContext context,
+    Invoice invoice,
+    void Function(InvoiceAction) onTap, {
+    required bool hasPdfPane,
+  }) {
+    final q = BillingDocQuickActions<InvoiceAction>(
+      doc: invoice,
+      items: itemsFor(context, invoice, onTap),
+    );
+    return [
+      // "+ Payment", as on the client screen: the noun is one word in every
+      // bundled locale, where the verb phrase will not fit a tile.
+      ?q.pick(InvoiceAction.enterPayment, '+ ${context.tr('payment')}'),
+      ?q.pick(InvoiceAction.markSent, context.tr('mark_sent')),
+      ?q.pick(InvoiceAction.sendEmail, context.tr('email')),
+      ?q.pick(InvoiceAction.viewPdf, context.tr('pdf'), applies: !hasPdfPane),
+      ?q.pick(InvoiceAction.markPaid, context.tr('mark_paid')),
+      ?q.pick(InvoiceAction.downloadPdf, context.tr('download')),
+      ?q.pick(InvoiceAction.refund, context.tr('refund')),
+      ?q.pick(InvoiceAction.clone, context.tr('clone')),
     ];
   }
 

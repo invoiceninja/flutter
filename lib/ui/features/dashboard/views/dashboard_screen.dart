@@ -14,36 +14,46 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/list_status_tabs.dart' show kBadgeModeFilterKey;
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart'
+    show findActionItem;
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
+import 'package:admin/ui/features/dashboard/helpers/attention_record_verdict.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
+import 'package:admin/ui/features/dashboard/helpers/needs_attention.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_attention_slot.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_panel_grid.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_period_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
-import 'package:admin/ui/features/dashboard/widgets/needs_your_attention_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/needs_attention_band.dart';
 import 'package:admin/ui/features/dashboard/widgets/recent_payments_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_invoices_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_quotes_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_recurring_invoices_card.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
+import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -67,6 +77,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late String _rawCompanyName;
   Formatter? _formatter;
 
+  /// Changes waiting on the user after failing to save — the band's first
+  /// line. Built once per company, never in `build`: a stream made there is a
+  /// new object each time and would re-subscribe on every rebuild.
+  late Stream<int> _failedSaves;
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final session = _services.auth.session.value!;
     _companyId = session.currentCompanyId;
     _rawCompanyName = _rawNameFor(session.currentCompany);
+    _failedSaves = _services.watchOutboxAttention(_companyId);
     _vm = _buildVm();
     _services.auth.session.addListener(_onSessionChanged);
     _loadFormatter();
@@ -100,12 +116,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     resyncCompletions: _services.resync.lastCompletion,
     // A pushed server change refetches the same sections, rate-limited.
     realtimeRefreshes: _services.realtime.lastRefresh,
+    // So does a change of the user's own leaving the outbox — a payment
+    // entered from a past-due row must take that row off the page.
+    outboxActive: _services.watchOutboxActive(_companyId),
+    // The needs-attention band is built from three lists and has to leave out
+    // the ones this company or user is not offered. Read live, so a module
+    // switched on mid-session is seen on the next emission.
+    panelEnabled: (kind) => _enabledPanels().contains(kind),
     // Sync best-effort: if the formatter is already cached (e.g. navigating
     // back to the dashboard) we get the real fiscal year immediately;
     // otherwise _loadFormatter pushes it in once it resolves.
     firstMonthOfYear:
         _services.formatterIfReady(_companyId)?.settings.firstMonthOfYear ?? 1,
   );
+
+  /// The panels this company and user are offered — the one gate both bodies
+  /// and the Customize sheet read (`enabledPanelKinds`).
+  Set<String> _enabledPanels() {
+    final me = _services.auth.session.value?.currentCompany;
+    return enabledPanelKinds(
+      moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+      can: (p) => me?.can(p) ?? false,
+    );
+  }
 
   void _loadFormatter() {
     final loadingFor = _companyId;
@@ -133,6 +166,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _companyId = s.currentCompanyId;
       _rawCompanyName = _rawNameFor(s.currentCompany);
       _formatter = null;
+      _failedSaves = _services.watchOutboxAttention(_companyId);
       _vm = _buildVm();
     });
     oldVm.dispose();
@@ -266,10 +300,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     sortAscending: true,
   );
 
-  /// Upcoming invoices panel is a plain `GET /invoices` sorted by due date
-  /// ascending — match the ordering, no status filter.
-  ListFilterIntent get _upcomingInvoicesIntent =>
-      ListFilterIntent(sortField: _dueDateColumnId, sortAscending: true);
+  /// Upcoming invoices → unpaid invoices due today or later, soonest first:
+  /// what the panel lists (the server's `upcoming`), as filters the invoice
+  /// list can apply *and show as chips*. It used to open the whole invoice
+  /// list sorted by due date, so "View all" on a panel of unpaid invoices led
+  /// with paid and draft ones.
+  ListFilterIntent get _upcomingInvoicesIntent => ListFilterIntent(
+    extraFilters: {
+      'status_id': {InvoiceStatus.sent.wireId, InvoiceStatus.partial.wireId},
+      'due_date': {'gte:${_vm.today.toIso()}'},
+    },
+    sortField: _dueDateColumnId,
+    sortAscending: true,
+  );
+
+  /// Upcoming quotes → sent quotes still valid today, soonest to lapse first.
+  ListFilterIntent get _upcomingQuotesIntent => ListFilterIntent(
+    extraFilters: {
+      'client_status': const {'sent'},
+      'due_date': {'gte:${_vm.today.toIso()}'},
+    },
+    sortField: _dueDateColumnId,
+    sortAscending: true,
+  );
+
+  /// Upcoming recurring invoices → the list's own Active tab.
+  ListFilterIntent get _activeRecurringIntent => ListFilterIntent(
+    extraFilters: const {
+      kBadgeModeFilterKey: {'active'},
+    },
+  );
+
+  /// The band's "View all" for [tab]: the list of exactly what that tab
+  /// counts. The two "soon" tabs carry the same seven-day window the band
+  /// used (`kAttentionSoonDays`).
+  void _viewAllAttention(AttentionTab tab) {
+    final today = _vm.today;
+    final window =
+        'due_date,${today.toIso()},'
+        '${today.addDays(kAttentionSoonDays).toIso()}';
+    switch (tab) {
+      case AttentionTab.pastDue:
+        unawaited(_goWithIntent('/invoices', _pastDueInvoicesIntent));
+      case AttentionTab.dueSoon:
+        unawaited(
+          _goWithIntent(
+            '/invoices',
+            ListFilterIntent(
+              extraFilters: {
+                'status_id': {
+                  InvoiceStatus.sent.wireId,
+                  InvoiceStatus.partial.wireId,
+                },
+                'due_date_range': {window},
+              },
+              sortField: _dueDateColumnId,
+              sortAscending: true,
+            ),
+          ),
+        );
+      case AttentionTab.quotesExpiring:
+        unawaited(
+          _goWithIntent(
+            '/quotes',
+            ListFilterIntent(
+              extraFilters: {
+                'client_status': const {'sent'},
+                'due_date_range': {window},
+              },
+              sortField: _dueDateColumnId,
+              sortAscending: true,
+            ),
+          ),
+        );
+    }
+  }
 
   /// Expired quotes → `client_status=expired` (server-backed, same param
   /// the panel uses).
@@ -279,19 +384,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     },
   );
 
-  /// KPI Outstanding / Unpaid → invoices, carrying the dashboard's date window
-  /// as a true closed `date_range` (base `QueryFilters::date_range`, 2-part
-  /// `start,end` → `whereBetween('date', …)`). Both the Outstanding *amount*
-  /// and the Unpaid *count* tiles describe `client_status=unpaid` (sent +
-  /// partial), so they share this windowed intent. "All time" omits the window
-  /// (open-ended by design).
-  ListFilterIntent _invoiceKpiIntent() {
+  /// Outstanding → every unpaid invoice. No date window: the figure is what
+  /// is owed today, whenever it was invoiced, so the list it opens is too.
+  ListFilterIntent _outstandingIntent() => buildInvoiceKpiIntent(
+    overdue: false,
+    isAllTimeRange: true,
+    start: _vm.today,
+    end: _vm.today,
+  );
+
+  /// Invoices → what the period's Invoices figure sums: sent, partial and paid
+  /// invoices dated in the window (plus drafts when they are counted). The
+  /// statuses are stated because the server leaves cancelled and reversed
+  /// invoices out of the figure, and a bare date window would list them.
+  ListFilterIntent _invoicedIntent() {
     final (start, end) = _vm.filter.resolveDates();
-    return buildInvoiceKpiIntent(
-      overdue: false,
-      isAllTimeRange: _isAllTimeRange,
-      start: start,
-      end: end,
+    return ListFilterIntent(
+      extraFilters: {
+        'status_id': {
+          if (_vm.filter.includeDrafts) InvoiceStatus.draft.wireId,
+          InvoiceStatus.sent.wireId,
+          InvoiceStatus.partial.wireId,
+          InvoiceStatus.paid.wireId,
+        },
+        if (!_isAllTimeRange)
+          'date_range': {'date,${start.toIso()},${end.toIso()}'},
+      },
     );
   }
 
@@ -396,11 +514,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Breakpoints.isWide(constraints) && !Breakpoints.isPhone(context);
         final globalNav = Breakpoints.isGlobalNavVisible(context);
         final creatable = _creatableEntities();
-        // The `+` is narrow-only, like every list screen's. The wide top bar
-        // keeps its labelled New Invoice button instead.
-        final createOptions = wide
-            ? const <QuickCreateOption>[]
-            : _createOptions(creatable);
+        // One list for both layouts: the narrow `+` opens a sheet of it, the
+        // wide top bar shows as much of it as fits and puts the rest under
+        // More. Neither can offer something the other does not.
+        final createOptions = _createOptions(creatable);
         final scaffold = Builder(
           builder: (context) {
             final tokens = context.inTheme;
@@ -418,7 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // invoiceninja/flutter#164. This is the narrow dashboard's only
               // create affordance. It is left off when the user may create
               // nothing, rather than opening an empty sheet.
-              floatingActionButton: createOptions.isEmpty
+              floatingActionButton: wide || createOptions.isEmpty
                   ? null
                   : DashboardCreateFab(
                       options: createOptions,
@@ -428,18 +545,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   children: [
                     if (wide)
-                      // Top bar reads `vm.filter` — rebuild only on VM
-                      // notify, not as part of the static scaffold.
+                      // Rebuilds on the VM's own notify (refresh state) and on
+                      // the totals section, which carries how old the cached
+                      // figures are — not as part of the static scaffold.
+                      // Outside the formatter gate below: nothing in the bar
+                      // needs one, and a create button must not wait on it.
                       ListenableBuilder(
-                        listenable: _vm,
+                        listenable: Listenable.merge([
+                          _vm,
+                          _vm.listenableFor(DashboardKind.totalsCurrent),
+                        ]),
                         builder: (context, _) => DashboardTopBar(
                           vm: _vm,
                           companyName: _resolveCompanyName(context),
                           onRefresh: () => unawaited(_refreshWithFeedback()),
-                          onNewInvoice: creatable.contains(EntityType.invoice)
-                              ? () => unawaited(_create(EntityType.invoice))
-                              : null,
-                          formatter: _formatter,
+                          createOptions: createOptions,
+                          onCreate: (type) => unawaited(_create(type)),
                         ),
                       ),
                     Expanded(
@@ -489,7 +610,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // while the drawer follows *window* width, so the two disagree for a
       // window between 600 and ~832 px.
       showHamburger: !globalNav,
-      formatter: _formatter,
     );
   }
 
@@ -498,50 +618,221 @@ class _DashboardScreenState extends State<DashboardScreen> {
       vm: _vm,
       formatter: _formatter!,
       fabClearance: fabClearance,
+      showFigures: _showsFigures,
+      attentionActions: _attentionActions(),
+      failedSaves: _failedSaves,
+      onReviewFailedSaves: () => _safeNavigate('/sync/outbox'),
+      onAttentionViewAll: _viewAllAttention,
       onOpenCard: _openConfiguredCard,
-      onPastDueInvoiceTap: _navInvoice,
-      onAllInvoices: () => _goWithIntent('/invoices', _pastDueInvoicesIntent),
+      onInvoiceTap: _navInvoice,
       onAllUpcomingInvoices: () =>
           _goWithIntent('/invoices', _upcomingInvoicesIntent),
-      onOutstandingTap: () => _goWithIntent('/invoices', _invoiceKpiIntent()),
+      onOutstandingTap: () => _goWithIntent('/invoices', _outstandingIntent()),
+      onInvoicesTap: () => _goWithIntent('/invoices', _invoicedIntent()),
       onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
       onActivityTap: _navActivity,
       onAllActivities: () => _safeNavigate('/activity'),
-      onUpcomingInvoiceTap: _navInvoice,
       onPaymentTap: _navPayment,
       onAllPayments: () => _safeNavigate('/payments'),
       onQuoteTap: _navQuote,
-      onAllQuotes: () => _safeNavigate('/quotes'),
+      onAllUpcomingQuotes: () =>
+          _goWithIntent('/quotes', _upcomingQuotesIntent),
+      onAllExpiredQuotes: () => _goWithIntent('/quotes', _expiredQuotesIntent),
       onRecurringTap: _navRecurring,
-      onAllRecurring: () => _safeNavigate('/recurring_invoices'),
+      onAllRecurring: () =>
+          _goWithIntent('/recurring_invoices', _activeRecurringIntent),
       onShowPanels: () => openManageDashboardCards(
         context,
         vm: _vm,
-        mobileLayout: true,
         initialTab: ManagePane.panels,
       ),
     );
   }
 
-  // Cell-level navigation helpers shared by every list card. The pair pattern
-  // (entity tap vs client tap) lines up 1:1 with the per-cell callback split
-  // in `DashboardEntityTableRow.cellTaps`.
+  /// Whether the period figures, the metric cards and the chart are drawn.
+  /// The server refuses the chart endpoints to a user without
+  /// `view_dashboard`, so for them those sections could only ever show a
+  /// retry; the band and the list panels are ordinary list requests and stay.
+  bool get _showsFigures =>
+      _services.auth.session.value?.currentCompany?.can('view_dashboard') ??
+      false;
+
+  bool _panelVisible(String kind) =>
+      _vm.panelPrefs.any((p) => p.kind == kind && p.visible);
+
+  // ─── Needs-attention band ──────────────────────────────────────────────
+
+  /// What a band row may do for this user. Offered by module and permission
+  /// here; the tap checks again against the record as it is by then.
+  AttentionActions _attentionActions() {
+    final session = _services.auth.session.value;
+    final maySend = session?.currentCompany?.maySendEmails ?? false;
+    final mayEnterPayment = _creatableEntities().contains(EntityType.payment);
+    final quotesOn = _enabledPanels().contains(DashboardKind.upcomingQuotes);
+    return AttentionActions(
+      remindInvoice: (row) {
+        final mayEdit =
+            session?.canEditRecord(
+              'invoice',
+              createdBy: row.userId,
+              assignedTo: row.assignedUserId,
+              recordId: row.id,
+            ) ??
+            false;
+        if (!maySend || !mayEdit) return null;
+        return () => _actOnInvoice(row, InvoiceAction.sendEmail);
+      },
+      enterPayment: (row) => mayEnterPayment
+          ? () => _actOnInvoice(row, InvoiceAction.enterPayment)
+          : null,
+      remindQuote: (row) {
+        final mayEdit =
+            session?.canEditRecord(
+              'quote',
+              createdBy: row.userId,
+              assignedTo: row.assignedUserId,
+              recordId: row.id,
+            ) ??
+            false;
+        if (!quotesOn || !maySend || !mayEdit) return null;
+        return () => _remindQuote(row);
+      },
+      // A slot is kept for the call button only where calling is switched on;
+      // the button itself draws nothing for a client with no number.
+      callButton: _services.phoneActions.value.tapToCall
+          ? (context, clientId) => PartyCallButton(clientId: clientId)
+          : null,
+    );
+  }
+
+  /// Runs [action] on the invoice [row] names — on the invoice **as it is
+  /// now**, not as the dashboard last listed it.
+  ///
+  /// The row is the server's past-due list, cached, while every action screen
+  /// reads the local database — and the app loads invoices a page at a time, so
+  /// an old overdue invoice is exactly the one that may never have been
+  /// browsed to. Acting on the row meant a Send Email screen reading "No
+  /// records found" and a payment form with a blank invoice. And between that
+  /// fetch and this tap the invoice may have been paid. So: fetch it, look at
+  /// it, then act or say why not.
+  Future<void> _actOnInvoice(
+    DashboardInvoiceRow row,
+    InvoiceAction action,
+  ) async {
+    if (!await _services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    final companyId = _companyId;
+    final vm = _vm;
+    try {
+      // Both swallow a failed fetch and leave whatever is cached, which is
+      // what makes the offline case fall through to the verdict below.
+      await _services.invoices.refreshByIds(
+        companyId: companyId,
+        ids: [row.id],
+      );
+      if (row.clientId.isNotEmpty) {
+        await _services.clients.ensureLoaded(
+          companyId: companyId,
+          id: row.clientId,
+        );
+      }
+    } catch (_) {
+      // Decided by what is on the device.
+    }
+    final invoice = await _services.invoices
+        .watch(companyId: companyId, id: row.id)
+        .first;
+    if (!mounted || companyId != _companyId) return;
+    switch (invoiceVerdict(invoice)) {
+      case AttentionVerdict.unavailable:
+        Notify.warning(context, context.tr('connect_to_load_record'));
+        return;
+      case AttentionVerdict.resolved:
+        Notify.info(context, context.tr('no_longer_owed'));
+        unawaited(vm.refresh());
+        return;
+      case AttentionVerdict.act:
+        break;
+    }
+    final item = findActionItem<InvoiceAction>(
+      InvoiceActions.itemsFor(context, invoice!, (_) {}),
+      action,
+    );
+    if (item == null || !item.enabled) {
+      Notify.warning(context, context.tr('action_not_available'));
+      return;
+    }
+    if (action == InvoiceAction.sendEmail) {
+      // Open on the reminder, not on the "here is your invoice" email the
+      // composer otherwise starts with.
+      context.go(
+        '/invoices/${invoice.id}/email?view=full'
+        '&template=${nextInvoiceReminderTemplate(row)}',
+      );
+      return;
+    }
+    await InvoiceActions.dispatch(
+      context,
+      _services,
+      companyId,
+      invoice,
+      action,
+    );
+  }
+
+  /// A reminder for a quote about to lapse — see [_actOnInvoice].
+  Future<void> _remindQuote(DashboardQuoteRow row) async {
+    if (!await _services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    final companyId = _companyId;
+    final vm = _vm;
+    try {
+      await _services.quotes.refreshByIds(companyId: companyId, ids: [row.id]);
+      if (row.clientId.isNotEmpty) {
+        await _services.clients.ensureLoaded(
+          companyId: companyId,
+          id: row.clientId,
+        );
+      }
+    } catch (_) {
+      // Decided by what is on the device.
+    }
+    final quote = await _services.quotes
+        .watch(companyId: companyId, id: row.id)
+        .first;
+    if (!mounted || companyId != _companyId) return;
+    switch (quoteVerdict(quote)) {
+      case AttentionVerdict.unavailable:
+        Notify.warning(context, context.tr('connect_to_load_record'));
+        return;
+      case AttentionVerdict.resolved:
+        Notify.info(context, context.tr('no_longer_open_quote'));
+        unawaited(vm.refresh());
+        return;
+      case AttentionVerdict.act:
+        break;
+    }
+    final item = findActionItem<QuoteAction>(
+      QuoteActions.itemsFor(context, quote!, (_) {}),
+      QuoteAction.sendEmail,
+    );
+    if (item == null || !item.enabled) {
+      Notify.warning(context, context.tr('action_not_available'));
+      return;
+    }
+    context.go(
+      '/quotes/${quote.id}/email?view=full&template=$kQuoteReminderTemplate',
+    );
+  }
+
+  // Row navigation shared by the band and every list card. A row is one
+  // target and opens its record; the client is a tap further on, from there.
 
   void _navInvoice(DashboardInvoiceRow row) =>
       _safeNavigate('/invoices/${row.id}');
-  void _navInvoiceClient(DashboardInvoiceRow row) =>
-      _safeNavigate('/clients/${row.clientId}');
   void _navPayment(DashboardPaymentRow row) =>
       _safeNavigate('/payments/${row.id}');
-  void _navPaymentClient(DashboardPaymentRow row) =>
-      _safeNavigate('/clients/${row.clientId}');
   void _navQuote(DashboardQuoteRow row) => _safeNavigate('/quotes/${row.id}');
-  void _navQuoteClient(DashboardQuoteRow row) =>
-      _safeNavigate('/clients/${row.clientId}');
   void _navRecurring(DashboardRecurringInvoiceRow row) =>
       _safeNavigate('/recurring_invoices/${row.id}');
-  void _navRecurringClient(DashboardRecurringInvoiceRow row) =>
-      _safeNavigate('/clients/${row.clientId}');
 
   /// Resolve an activity row to its most-specific deep-link. Mirrors the
   /// precedence the activity-list page is expected to use when M2 lands.
@@ -553,35 +844,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _safeNavigate(target);
   }
 
+  /// The wide body, top to bottom: what needs attention now, then how the
+  /// selected period went, then the panels.
+  ///
+  /// Two gaps, and they mean something: [InSpacing.lg] between things that
+  /// belong together (the period controls and the figures they change), and
+  /// [InSpacing.xl] between one zone and the next.
   Widget _buildScroll(BuildContext context, BoxConstraints outer) {
     final width = outer.maxWidth;
     final formatter = _formatter!;
+    final enabled = _enabledPanels();
+    final showFigures = _showsFigures;
+    final expensesOn = _moduleOn(EntityType.expense);
+    final zoneGap = const SizedBox(height: InSpacing.xl);
     final children = <Widget>[
-      ConfiguredCardsGrid(
+      // First, and one child whether or not it draws — see
+      // `DashboardAttentionSlot`.
+      HiddenEmptyPanelsBuilder(
         vm: _vm,
-        formatter: formatter,
-        onManage: () =>
-            openManageDashboardCards(context, vm: _vm, mobileLayout: false),
-        onOpenCard: _openConfiguredCard,
-      ),
-      SizedBox(height: InSpacing.lg(context)),
-      sectionListenable(
-        _vm.kpiListenable,
-        () => KpiRow(
-          vm: _vm,
-          formatter: formatter,
-          onOutstandingTap: () =>
-              _goWithIntent('/invoices', _invoiceKpiIntent()),
-          onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
+        pref: _services.hideEmptyPanels,
+        builder: (context, hidden) => ListenableBuilder(
+          // Tap-to-call decides whether rows carry a call button.
+          listenable: _services.phoneActions,
+          builder: (context, _) => DashboardAttentionSlot(
+            vm: _vm,
+            formatter: formatter,
+            show:
+                enabled.contains(DashboardKind.pastDue) &&
+                _panelVisible(DashboardKind.pastDue) &&
+                !hidden.contains(DashboardKind.pastDue),
+            compact: false,
+            rowLimit: kAttentionRows,
+            gap: InSpacing.xl,
+            actions: _attentionActions(),
+            failedSaves: _failedSaves,
+            onReviewFailedSaves: () => _safeNavigate('/sync/outbox'),
+            onInvoiceTap: _navInvoice,
+            onQuoteTap: _navQuote,
+            onViewAll: _viewAllAttention,
+          ),
         ),
       ),
-      SizedBox(height: InSpacing.lg(context)),
-      _chartAndActivity(context, width, formatter),
-      SizedBox(height: InSpacing.lg(context)),
+      if (showFigures) ...[
+        // The controls that govern the figures and the chart, directly above
+        // them. Reads the totals too (whether a second currency exists).
+        sectionListenable(
+          _vm.kpiListenable,
+          () => DashboardPeriodBar(vm: _vm, formatter: formatter),
+        ),
+        SizedBox(height: InSpacing.lg(context)),
+        sectionListenable(
+          Listenable.merge([_vm.kpiListenable, _vm.attentionListenable]),
+          () => KpiRow(
+            vm: _vm,
+            formatter: formatter,
+            // The band's own count, so "4 past due" here and the tab above
+            // can never disagree.
+            pastDueCount:
+                enabled.contains(DashboardKind.pastDue) &&
+                    _vm.pastDue.data != null
+                ? _vm.attention().pastDueCount
+                : null,
+            showExpenses: expensesOn,
+            onOutstandingTap: () =>
+                _goWithIntent('/invoices', _outstandingIntent()),
+            onInvoicesTap: () => _goWithIntent('/invoices', _invoicedIntent()),
+            onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
+          ),
+        ),
+        // One child either way, like the band: the cards and the gap above
+        // them, or nothing.
+        _vm.dashboardCards.isEmpty
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: EdgeInsets.only(top: InSpacing.lg(context)),
+                child: ConfiguredCardsGrid(
+                  vm: _vm,
+                  formatter: formatter,
+                  onManage: () => openManageDashboardCards(context, vm: _vm),
+                  onOpenCard: _openConfiguredCard,
+                ),
+              ),
+        SizedBox(height: InSpacing.lg(context)),
+      ],
+      _chartAndActivity(context, width, formatter, showChart: showFigures),
+      zoneGap,
       _bottomGrid(context, width, formatter),
       // The freshness stamp + Refresh used to live here, at the very bottom of
       // the scroll; both now sit in the always-visible top bar (issue #26).
-      const SizedBox(height: InSpacing.xl),
+      zoneGap,
     ];
 
     return ListView(
@@ -593,12 +944,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _chartAndActivity(
     BuildContext context,
     double width,
-    Formatter formatter,
-  ) {
-    final chart = sectionListenable(
-      _vm.chartCardListenable,
-      () => ChartCard(vm: _vm, formatter: formatter),
-    );
+    Formatter formatter, {
+    required bool showChart,
+  }) {
     final activity = sectionListenable(
       _vm.listenableFor(DashboardKind.activities),
       () => ActivityCard(
@@ -608,14 +956,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onActivityTap: _navActivity,
       ),
     );
-    if (width >= 1024) {
+    if (!showChart) return activity;
+    final sideBySide = width >= 1024;
+    final chart = sectionListenable(
+      _vm.chartCardListenable,
+      // Beside Activity the plot takes whatever height that card has, so the
+      // two end on one line; stacked, it keeps its own proportions.
+      () => ChartCard(vm: _vm, formatter: formatter, fillHeight: sideBySide),
+    );
+    if (sideBySide) {
       return IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(flex: 17, child: chart),
             SizedBox(width: InSpacing.lg(context)),
-            Expanded(flex: 10, child: activity),
+            Expanded(
+              flex: 10,
+              child: DashboardPanelCell(stretched: true, child: activity),
+            ),
           ],
         ),
       );
@@ -639,36 +998,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       can: (p) => me?.can(p) ?? false,
     );
     bool on(String kind) => enabled.contains(kind);
+    final actions = _attentionActions();
 
+    // Past-due is not here: it is the needs-attention band that leads the
+    // page (`_buildScroll`), on this layout as on the narrow one.
+    //
     // One builder per panel whose module is enabled; `DashboardPanelGrid`
     // renders them in the user's saved order (`_vm.panelPrefs`), skipping the
     // ones the user hid and the ones with nothing to show, and keys each with
     // a `GlobalKey` so a panel that changes row keeps its element — see that
     // widget for why the old per-card `ValueKey` never did.
     final builders = <String, Widget Function()>{
-      if (on(DashboardKind.pastDue))
-        DashboardKind.pastDue: () => sectionListenable(
-          _vm.listenableFor(DashboardKind.pastDue),
-          () => NeedsYourAttentionCard(
-            section: _vm.pastDue,
-            formatter: formatter,
-            onInvoiceTap: _navInvoice,
-            onClientTap: _navInvoiceClient,
-            onViewAll: () => _goWithIntent('/invoices', _pastDueInvoicesIntent),
-            onRetry: () => _vm.retry(DashboardKind.pastDue),
-          ),
-        ),
       if (on(DashboardKind.upcomingInvoices))
         DashboardKind.upcomingInvoices: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingInvoices),
           () => UpcomingInvoicesCard(
             section: _vm.upcomingInvoices,
             formatter: formatter,
+            today: _vm.today,
+            compact: false,
             onInvoiceTap: _navInvoice,
-            onClientTap: _navInvoiceClient,
             onViewAll: () =>
                 _goWithIntent('/invoices', _upcomingInvoicesIntent),
             onRetry: () => _vm.retry(DashboardKind.upcomingInvoices),
+            enterPayment: actions.enterPayment,
           ),
         ),
       if (on(DashboardKind.recentPayments))
@@ -677,8 +1030,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           () => RecentPaymentsCard(
             section: _vm.recentPayments,
             formatter: formatter,
+            compact: false,
             onPaymentTap: _navPayment,
-            onClientTap: _navPaymentClient,
             onViewAll: () => _safeNavigate('/payments'),
             onRetry: () => _vm.retry(DashboardKind.recentPayments),
           ),
@@ -689,10 +1042,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           () => UpcomingQuotesCard(
             section: _vm.upcomingQuotes,
             formatter: formatter,
+            today: _vm.today,
+            compact: false,
             onQuoteTap: _navQuote,
-            onClientTap: _navQuoteClient,
-            onViewAll: () => _safeNavigate('/quotes'),
+            onViewAll: () => _goWithIntent('/quotes', _upcomingQuotesIntent),
             onRetry: () => _vm.retry(DashboardKind.upcomingQuotes),
+            remind: actions.remindQuote,
           ),
         ),
       if (on(DashboardKind.expiredQuotes))
@@ -701,8 +1056,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           () => ExpiredQuotesCard(
             section: _vm.expiredQuotes,
             formatter: formatter,
+            compact: false,
             onQuoteTap: _navQuote,
-            onClientTap: _navQuoteClient,
             onViewAll: () => _goWithIntent('/quotes', _expiredQuotesIntent),
             onRetry: () => _vm.retry(DashboardKind.expiredQuotes),
           ),
@@ -713,9 +1068,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           () => UpcomingRecurringInvoicesCard(
             section: _vm.upcomingRecurring,
             formatter: formatter,
+            compact: false,
             onRecurringTap: _navRecurring,
-            onClientTap: _navRecurringClient,
-            onViewAll: () => _safeNavigate('/recurring_invoices'),
+            onViewAll: () =>
+                _goWithIntent('/recurring_invoices', _activeRecurringIntent),
             onRetry: () => _vm.retry(DashboardKind.upcomingRecurring),
           ),
         ),
@@ -760,18 +1116,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         panelPrefs: _vm.panelPrefs,
         builders: builders,
         hidden: hidden,
-        columns: width >= 1200 ? 2 : 1,
+        columns: width >= kDashboardTwoColumnPane ? 2 : 1,
         gap: InSpacing.lg(context),
         onShowPanels: () => openManageDashboardCards(
           context,
           vm: _vm,
-          mobileLayout: false,
           initialTab: ManagePane.panels,
         ),
       ),
     );
   }
 }
+
+/// Pane width from which the panels sit two to a row.
+///
+/// It was 1200 — a 1432 px window once the sidebar is counted — so a 1280 or
+/// 1366 px laptop, the commonest desktop there is, stacked every panel full
+/// width and the page ran to eight screens. A panel row is
+/// `number · client | when | amount | action`; at this width each half-width
+/// card has about 470 px, which holds that row at the app's largest text size
+/// with the client name still readable.
+const double kDashboardTwoColumnPane = 1000;
 
 /// Builds the deep-link [ListFilterIntent] for the Outstanding / Overdue KPI
 /// cards. Extracted as a pure function so the period-window rule is unit

@@ -5,13 +5,20 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 
 /// Resolves the project name from the local Drift cache and renders it
-/// as a `Text` (or a link when [link]). Falls back to the raw
-/// `projectId` while the watch is empty; on a cache miss it triggers a
+/// as a `Text` (or a link when [link]). On a cache miss it triggers a
 /// lazy per-id hydrate (`ProjectRepository.ensureLoaded`) so the name
 /// resolves even when the project isn't on the prefetched first page.
+///
+/// **Never renders the raw `projectId`.** A hashid means nothing to the user
+/// in any state — loading, deleted, or permission-denied — and this label now
+/// sits in a task's header, the most prominent line on that screen. Unresolved
+/// renders the muted em dash instead, exactly as `ClientNameLabel` does, with
+/// the id kept for screen readers and `debugDumpApp` via [Semantics]. A
+/// resolved project with no name is "(no name)", not unresolved.
 ///
 /// Drift dedupes identical watch queries (and the repo dedupes the
 /// hydrate fetch), so N rows for the same project share one
@@ -76,7 +83,7 @@ class _ProjectNameLabelState extends State<ProjectNameLabel> {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null || companyId.isEmpty) {
-      return _text(context, widget.projectId);
+      return _unresolved(tokens);
     }
     return StreamBuilder<Project?>(
       initialData: services.projects.peek(
@@ -89,13 +96,24 @@ class _ProjectNameLabelState extends State<ProjectNameLabel> {
       ),
       builder: (context, snapshot) {
         final project = snapshot.data;
-        final name = project == null || project.name.isEmpty
-            ? widget.projectId
-            : project.name;
-        return _text(context, name);
+        if (project == null) return _unresolved(tokens);
+        return _text(
+          context,
+          project.name.isEmpty ? context.tr('no_name_fallback') : project.name,
+        );
       },
     );
   }
+
+  /// Shown while the name is resolving and when it never will (a deleted
+  /// project, no permission). Never a link: there is nothing known to open.
+  Widget _unresolved(InTheme tokens) => Semantics(
+    label: widget.projectId,
+    child: Text(
+      '—',
+      style: widget.style ?? TextStyle(fontSize: 13, color: tokens.ink3),
+    ),
+  );
 
   Widget _text(BuildContext context, String text) => linkOrText(
     context: context,

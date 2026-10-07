@@ -8,27 +8,34 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/entity_record_column.dart';
+import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
+import 'package:admin/ui/core/detail/record_screen_controller.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
-import 'package:admin/ui/core/widgets/centered_form_column.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/transaction_rule_matched_chip.dart';
+import 'package:admin/ui/features/transactions/widgets/detail/transaction_detail_header.dart';
+import 'package:admin/ui/features/transactions/widgets/detail/transaction_detail_profile.dart';
+import 'package:admin/ui/features/transactions/widgets/detail/transaction_detail_standing.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_actions.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_match_panel.dart';
-import 'package:admin/ui/features/transactions/widgets/transaction_matched_entities.dart';
-import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
-/// Read-only detail screen for a bank transaction. Header surfaces the
-/// identity + status, then either the match panel (Unmatched/Matched) or
-/// the matched-entities chip row (Converted). Actions row in the AppBar
-/// dispatches edit / convert / unlink / archive / restore / delete.
+/// The bank-transaction record screen, on the record layout
+/// (`docs/detail-screen-layout.md`): identity, quick actions (Convert /
+/// Unlink, when there is a match to act on), the amount and status as its
+/// standing, then Details, what it is linked to, and — while it still needs
+/// accounting for — the match panel.
+///
+/// No page tabs: the match panel has two of its own (create / link), and they
+/// are a form, not a list that needs a pinned strip.
 class TransactionDetailScreen extends StatefulWidget {
   const TransactionDetailScreen({required this.id, super.key});
 
@@ -42,6 +49,7 @@ class TransactionDetailScreen extends StatefulWidget {
 class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     with FormatterHostMixin {
   late final GenericDetailViewModel<BankTransaction> _vm;
+  late final RecordScreenController _record;
   late final Services _services;
   late final String _companyId;
 
@@ -53,11 +61,25 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     _vm = GenericDetailViewModel<BankTransaction>.bound(
       _services.bankTransactions.watch(companyId: _companyId, id: widget.id),
     );
+    _record = RecordScreenController(
+      services: _services,
+      companyId: _companyId,
+      routeId: widget.id,
+      entityWireName: 'bank_transaction',
+      // By id, never `refreshAll`: the table is far too large to sweep for
+      // one record. A match made on another device shows up on open.
+      refreshRecord: (id) => _services.bankTransactions.refreshByIds(
+        companyId: _companyId,
+        ids: [id],
+      ),
+      hasRecord: () => _vm.item != null,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _record.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -140,6 +162,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     };
   }
 
+  void _dispatch(BankTransaction tx, TransactionAction action) =>
+      TransactionActions.dispatch(context, _services, _companyId, tx, action);
+
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<BankTransaction>(
@@ -152,35 +177,88 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       emptyAction: entityListEmptyAction(context, EntityType.transaction),
       emptyIcon: Icons.swap_horiz,
       emptyTitle: context.tr('transaction_not_found'),
-      actionsForItem: (context, tx) => _ActionsRow(transaction: tx),
+      // `tx` is captured at item-tap time — a late-arriving stream update
+      // can't change which transaction gets archived / restored mid-action.
+      actionsForItem: (context, tx) =>
+          EntityDetailActionsRow<TransactionAction>(
+            items: TransactionActions.itemsFor(
+              context,
+              tx,
+              (a) => _dispatch(tx, a),
+            ),
+          ),
+      compactTitleForItem: (context, tx) =>
+          _CompactTitle(transaction: tx, formatter: formatter),
+      // A deleted transaction is read-only until restored.
+      isReadOnly: (tx) => tx.isDeleted,
+      onRefresh: _record.refresh,
+      bannerForItem: (context, tx) => recordStateBanner<TransactionAction>(
+        context,
+        items: TransactionActions.itemsFor(
+          context,
+          tx,
+          (a) => _dispatch(tx, a),
+        ),
+        restoreKind: TransactionAction.restore,
+        entityId: tx.id,
+        isDeleted: tx.isDeleted,
+        archivedAt: tx.archivedAt,
+        formatter: formatter,
+      ),
       bodyBuilder: (context, tx) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          // Whole body capped/centered (820) — not just an overview grid like
-          // client/vendor detail. A transaction's match panel + matched
-          // entities are compact (no long related-entity list), so this reads
-          // cleanly at full width.
-          child: CenteredFormColumn(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Header(transaction: tx, formatter: formatter),
-                SizedBox(height: InSpacing.lg(context)),
-                if (tx.isUnmatched || tx.isMatched)
-                  TransactionMatchPanel(
-                    transaction: tx,
-                    formatter: formatter,
-                    runner: (convert, successKey) =>
-                        _runConversion(context, tx, convert, successKey),
-                  ),
-                if (tx.isMatched || tx.isConverted) ...[
-                  SizedBox(height: InSpacing.lg(context)),
-                  _Section(
-                    title: context.tr(tx.isConverted ? 'converted' : 'matched'),
-                    child: TransactionMatchedEntities(transaction: tx),
-                  ),
-                ],
-              ],
+        _record.attach(recordId: tx.id, revision: tx.updatedAt);
+        // A deleted transaction is read-only: it is not matched to anything
+        // until it has been restored.
+        final canMatch = !tx.isDeleted && (tx.isUnmatched || tx.isMatched);
+        return RefreshIndicator(
+          onRefresh: _record.refresh,
+          child: SingleChildScrollView(
+            controller: DetailScrollScope.maybeOf(context),
+            // Handed a controller, so it has to ask to be pullable when the
+            // record is shorter than its viewport (`docs/pull-to-refresh.md`).
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(InSpacing.lg(context)),
+            child: EntityRecordColumn(
+              header: TransactionDetailHeader(
+                transaction: tx,
+                formatter: formatter,
+                // Opens the account's own record — never an edit screen.
+                bankAccount: tx.bankAccountId.isEmpty
+                    ? null
+                    : BankAccountNameLabel(
+                        bankAccountId: tx.bankAccountId,
+                        link: true,
+                        // The link tone at rest too: on a pointer platform
+                        // the label only underlines on hover, and in a line
+                        // of muted text that is a link nobody finds.
+                        style: TextStyle(color: context.inTheme.accentInk),
+                      ),
+                // The banner above the page already says Deleted / Archived.
+                showStatePills: !tx.isDeleted && tx.archivedAt == null,
+              ),
+              quickActions: EntityQuickActions<TransactionAction>(
+                priority: TransactionActions.quickItemsFor(
+                  context,
+                  tx,
+                  (a) => _dispatch(tx, a),
+                ),
+              ),
+              standing: TransactionDetailStanding(
+                transaction: tx,
+                formatter: formatter,
+              ),
+              profile: TransactionDetailProfile(
+                transaction: tx,
+                formatter: formatter,
+                work: canMatch
+                    ? TransactionMatchPanel(
+                        transaction: tx,
+                        formatter: formatter,
+                        runner: (convert, successKey) =>
+                            _runConversion(context, tx, convert, successKey),
+                      )
+                    : null,
+              ),
             ),
           ),
         );
@@ -189,183 +267,40 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.transaction, this.formatter});
+/// The transaction's description and signed amount, for the fixed bar once
+/// the header has scrolled away.
+class _CompactTitle extends StatelessWidget {
+  const _CompactTitle({required this.transaction, required this.formatter});
+
   final BankTransaction transaction;
   final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final tokens = context.inTheme;
-    final tx = transaction;
-    final sign = tx.isWithdrawal ? '-' : '+';
-    final amountColor = tx.isWithdrawal ? tokens.overdue : tokens.paid;
-    // Format through the central Formatter (symbol/code, separators,
-    // precision) when it has resolved; until then fall back to the raw
-    // fixed-2 with the bare currency code so the amount never renders blank.
-    final formatted = formatter?.money(tx.amount, currencyId: tx.currencyId);
-    final amountBody = (formatted != null && formatted.isNotEmpty)
-        ? formatted
-        : '${tx.currencyId.isEmpty ? '' : '${tx.currencyId} '}'
-              '${tx.amount.toStringAsFixed(2)}';
-    return Container(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              TransactionStatusPill(statusId: tx.statusId, dotSize: 10),
-              const Spacer(),
-              Text(
-                '$sign$amountBody',
-                style: moneyTextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: amountColor,
-                ),
-              ),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          transactionDisplayName(context, transaction),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: tokens.ink,
+            fontWeight: FontWeight.w600,
           ),
-          if (tx.transactionRuleId.isNotEmpty &&
-              (tx.isMatched || tx.isConverted)) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TransactionRuleMatchedChip(
-                transactionRuleId: tx.transactionRuleId,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          if (tx.participantName.isNotEmpty) ...[
-            Text(
-              tx.participantName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-          ],
-          if (tx.description.isNotEmpty)
-            Text(tx.description, style: TextStyle(color: tokens.ink2)),
-          const SizedBox(height: 12),
-          _MetaRow(
-            label: context.tr('date'),
-            value: tx.date == null
-                ? '—'
-                : (formatter?.date(tx.date!.toIso()) ?? tx.date!.toIso()),
-          ),
-          if (tx.bankAccountId.isNotEmpty)
-            _MetaRow(
-              label: context.tr('bank_account'),
-              valueChild: BankAccountNameLabel(
-                bankAccountId: tx.bankAccountId,
-                link: true,
-                style: TextStyle(color: context.inTheme.ink),
-              ),
-            ),
-          if (tx.participant.isNotEmpty)
-            _MetaRow(label: context.tr('participant'), value: tx.participant),
-          if (tx.tagIds.isNotEmpty)
-            _MetaRow(
-              label: context.tr('tags'),
-              valueChild: EntityTagsView(
-                entityType: 'bank_transaction',
-                tagIds: tx.tagIds,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  const _MetaRow({required this.label, this.value = '', this.valueChild});
-  final String label;
-  final String value;
-
-  /// When provided, rendered instead of the [value] string (used for
-  /// reference rows that resolve a name via a `*NameLabel`).
-  final Widget? valueChild;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final valueWidget =
-        valueChild ?? Text(value, style: TextStyle(color: tokens.ink));
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            // Tighter label gutter on narrow phones so the value keeps room.
-            width: MediaQuery.sizeOf(context).width < 600 ? 96 : 120,
-            child: Text(
-              label,
-              style: TextStyle(color: tokens.ink3, fontSize: 13),
-            ),
-          ),
-          Expanded(child: valueWidget),
-        ],
-      ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Container(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionsRow extends StatelessWidget {
-  const _ActionsRow({required this.transaction});
-  final BankTransaction transaction;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return EntityDetailActionsRow<TransactionAction>(
-      items: TransactionActions.itemsFor(
-        context,
-        transaction,
-        (action) => TransactionActions.dispatch(
-          context,
-          services,
-          companyId,
-          transaction,
-          action,
         ),
-      ),
+        Text(
+          transactionAmountText(transaction, formatter),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: tokens.ink2)
+              .merge(moneyTextStyle()),
+        ),
+      ],
     );
   }
 }

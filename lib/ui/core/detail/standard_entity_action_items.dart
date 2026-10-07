@@ -154,12 +154,14 @@ EntityActionItem<A> newGroupActionItem<A>({
   required BuildContext context,
   required A kind,
   required List<EntityActionItem<A>> children,
+  bool startsGroup = false,
 }) => EntityActionItem(
   kind: kind,
   icon: Icons.add_circle_outline,
   label: context.tr('create_new'),
   enabled: children.any((c) => c.enabled),
   children: children,
+  startsGroup: startsGroup,
 );
 
 /// "PDF" group parent. Collapses View / Download / Print PDF (and, for

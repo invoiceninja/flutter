@@ -21,23 +21,17 @@ import 'package:admin/data/prefs/device_prefs_store.dart';
 import '../../../../_localization_helper.dart';
 import '../_fake_dashboard_repo.dart';
 
-/// The Panels tab has to agree with the dashboard body behind it: the mobile
-/// body pins past-due to its hero zone and drops it from the ordered trailing
-/// panels (`mobile_dashboard_body.dart` `_trailingPanels`), so there the row
-/// must render as pinned and the other five reorder through
-/// `reorderTrailingPanels`.
+/// The Panels tab has to agree with the dashboard behind it. Both dashboard
+/// bodies draw past-due as the needs-attention band that leads the page, so
+/// its order slot means nothing on either: the row is pinned, and the others
+/// reorder beneath it through `reorderTrailingPanels`.
 ///
-/// It used to answer that by measuring `MediaQuery.sizeOf(context).width`, which
-/// is the **window** — and this surface floats on the root navigator, so the
-/// window is all it can see. Two configurations render the mobile body behind a
-/// ≥600 px window: a desktop window of 600–832 px (the sidebar rail leaves the
-/// pane under 600) and, since flutter#51, **any phone in landscape**. In both,
-/// past-due came up with a live drag handle whose gesture the dashboard ignores
-/// — and which wrote through `reorderPanels`, so the same drag saved a
-/// different order than it does in portrait.
-///
-/// The flag is passed from the call site now. These tests hold the window wide
-/// in *both* cases, so they fail if anyone re-derives it from `MediaQuery`.
+/// It was not always the same on both. The wide body once ordered past-due
+/// like any other panel, and this surface — which floats on the root navigator
+/// and can only measure the *window* — guessed which body it was editing from
+/// `MediaQuery`, wrongly for a 600–832 px desktop window and for every phone
+/// in landscape. These tests open it at a wide window and a phone's, and the
+/// pin has to be there both times.
 class _FakeAuth implements AuthRepository {
   _FakeAuth(this._session);
   final ValueNotifier<AuthSession?> _session;
@@ -121,8 +115,7 @@ void main() {
   /// dialog mounts on the root navigator and reads `Services` from there
   /// (main.dart has the same shape).
   ///
-  /// The window is deliberately wide in every case: the claim under test is
-  /// that [mobileLayout] decides, not the viewport.
+  /// The window is wide unless [phone] is given.
   ///
   /// `setSurfaceSize` leaves `MediaQuery` at the test view's 800x600, so
   /// `Breakpoints.isPhone` is false and "Hide empty panels" starts off unless
@@ -131,7 +124,6 @@ void main() {
   /// applies [textScale].
   Future<void> openPanels(
     WidgetTester tester, {
-    required bool mobileLayout,
     int enabledModules = 0,
     Size? phone,
     double textScale = 1.0,
@@ -165,7 +157,6 @@ void main() {
                 onPressed: () => openManageDashboardCards(
                   context,
                   vm: vm,
-                  mobileLayout: mobileLayout,
                   initialTab: ManagePane.panels,
                 ),
                 child: const Text('open'),
@@ -182,17 +173,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('mobile body: past-due is pinned, the rest reorder', (
+  testWidgets('past-due is pinned and the rest reorder, in a wide window', (
     tester,
   ) async {
-    await openPanels(tester, mobileLayout: true);
+    await openPanels(tester);
 
     expect(
       find.byIcon(Icons.push_pin_outlined),
       findsOneWidget,
       reason:
-          'past-due renders in the mobile hero zone — its order is ignored, '
-          'so a drag handle here is a dead control',
+          'past-due is the band that leads the page — its order is ignored, '
+          'so a drag handle here would be a dead control',
     );
     // Every kind but the pinned past-due one.
     expect(
@@ -201,14 +192,11 @@ void main() {
     );
   });
 
-  testWidgets('wide body: every panel reorders', (tester) async {
-    await openPanels(tester, mobileLayout: false);
+  testWidgets('and on a phone', (tester) async {
+    await openPanels(tester, phone: const Size(390, 844));
 
-    expect(find.byIcon(Icons.push_pin_outlined), findsNothing);
-    expect(
-      find.byIcon(Icons.drag_indicator),
-      findsNWidgets(DashboardKind.panelKinds.length),
-    );
+    expect(find.byIcon(Icons.push_pin_outlined), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   // invoiceninja/flutter#161. The switch shares the footer's single run with
@@ -230,7 +218,7 @@ void main() {
     testWidgets('the footer switch shows and sets the device preference', (
       tester,
     ) async {
-      await openPanels(tester, mobileLayout: false);
+      await openPanels(tester);
 
       expect(find.text('Hide empty panels'), findsOneWidget);
       expect(
@@ -258,12 +246,7 @@ void main() {
     ) async {
       // A plain `Text` in the switch's `Row` ignored the `Wrap`'s width bound
       // and overflowed, pushing the switch past the sheet's edge.
-      await openPanels(
-        tester,
-        mobileLayout: true,
-        phone: const Size(320, 640),
-        textScale: 2.0,
-      );
+      await openPanels(tester, phone: const Size(320, 640), textScale: 2.0);
 
       expect(find.text('Hide empty panels'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -277,7 +260,7 @@ void main() {
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await openPanels(tester, mobileLayout: false);
+      await openPanels(tester);
 
       expect(
         tester.getSemantics(find.text('Hide empty panels')),
@@ -297,7 +280,6 @@ void main() {
       pref.value = true;
       await openPanels(
         tester,
-        mobileLayout: false,
         enabledModules: EnabledModule.recurringInvoices.bitmask,
       );
       expect(find.text('Hidden while empty'), findsNothing);
@@ -319,7 +301,6 @@ void main() {
       vm.togglePanelVisibility(DashboardKind.upcomingRecurring);
       await openPanels(
         tester,
-        mobileLayout: true,
         enabledModules: EnabledModule.recurringInvoices.bitmask,
       );
       repo.upcomingRecurring.add(const []);

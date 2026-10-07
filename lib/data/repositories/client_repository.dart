@@ -5,6 +5,7 @@ import 'package:drift/drift.dart'
     show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -350,18 +351,18 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// Lazily hydrate one client by id when a reference (e.g. an invoice's
   /// client) isn't in the prefetched page so a `*NameLabel` would show
   /// the raw id. See [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.clientDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.clientDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+  );
 
   /// Force-refetches [ids] dirty-preserving (the non-cache-gated sibling of
   /// [ensureLoaded]) to converge a client's balance/paid_to_date after a mutation

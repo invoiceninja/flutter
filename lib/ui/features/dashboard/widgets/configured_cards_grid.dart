@@ -7,7 +7,6 @@ import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
-import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
 import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
@@ -31,8 +30,28 @@ String _calcKey(CardCalc c) => switch (c) {
   CardCalc.count => 'count',
 };
 
-/// User-configured metric cards (React's `dashboard_fields`). Renders directly
-/// above the fixed KPI row. Empty → a slim "add" link instead of a grid.
+/// How many metric cards a row holds at [width], and the sizes of the rows
+/// [count] cards are split into.
+///
+/// Rows are **balanced**: five cards at four to a row are three and two, not
+/// four and a stray one. A single short row keeps the cards at the width they
+/// would have in a full row rather than stretching one card across the page.
+List<int> metricCardRows(int count, double width) {
+  if (count <= 0) return const [];
+  final perRow = width >= 1024 ? 4 : (width >= 600 ? 3 : 2);
+  final rows = (count / perRow).ceil();
+  final base = count ~/ rows;
+  final extra = count % rows;
+  return [for (var i = 0; i < rows; i++) base + (i < extra ? 1 : 0)];
+}
+
+/// The most cards a row holds at [width] — see [metricCardRows].
+int metricCardsPerRow(double width) =>
+    width >= 1024 ? 4 : (width >= 600 ? 3 : 2);
+
+/// User-configured metric cards (React's `dashboard_fields`), beneath the
+/// dashboard's own figures and in the same tile language. Renders nothing when
+/// there are none — Customize, in the page's bar, is how one is added.
 class ConfiguredCardsGrid extends StatelessWidget {
   const ConfiguredCardsGrid({
     super.key,
@@ -51,16 +70,7 @@ class ConfiguredCardsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (vm.dashboardCards.isEmpty) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: LinkText(
-          label: context.tr('add_dashboard_cards'),
-          onTap: onManage,
-          style: const TextStyle(fontSize: 12.5),
-        ),
-      );
-    }
+    if (vm.dashboardCards.isEmpty) return const SizedBox.shrink();
     // The cells' converted-currency caption reads `vm.totals`, which lands on
     // its own section notifier (`_subscribe` bumps the section and never fires
     // the global VM notify). Both mounts of this grid — wide and mobile — sit
@@ -72,28 +82,53 @@ class ConfiguredCardsGrid extends StatelessWidget {
       () => LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
-          final cols = width >= 1024 ? 3 : (width >= 600 ? 2 : 1);
-          return GridView(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: cols,
-              crossAxisSpacing: InSpacing.lg(context),
-              mainAxisSpacing: InSpacing.lg(context),
-              mainAxisExtent: 140,
-            ),
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            children: [
-              for (final c in vm.dashboardCards)
-                sectionListenable(
-                  vm.listenableFor(DashboardKind.calc(c.key)),
-                  () => _CardCell(
-                    vm: vm,
-                    formatter: formatter,
-                    config: c,
-                    onOpenCard: onOpenCard,
-                  ),
+          final cards = vm.dashboardCards;
+          final sizes = metricCardRows(cards.length, width);
+          final perRow = metricCardsPerRow(width);
+          final gap = InSpacing.lg(context);
+          final rows = <Widget>[];
+          var at = 0;
+          for (final size in sizes) {
+            final rowCards = cards.sublist(at, at + size);
+            at += size;
+            // A lone short row keeps full-row card widths; balanced rows of a
+            // longer list stretch to fill.
+            final slots = sizes.length == 1 ? perRow : size;
+            if (rows.isNotEmpty) rows.add(SizedBox(height: gap));
+            rows.add(
+              // Stretched, so the cards of a row end on one line whatever
+              // captions each carries.
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < slots; i++) ...[
+                      if (i > 0) SizedBox(width: gap),
+                      Expanded(
+                        child: i < rowCards.length
+                            ? sectionListenable(
+                                vm.listenableFor(
+                                  DashboardKind.calc(rowCards[i].key),
+                                ),
+                                () => _CardCell(
+                                  vm: vm,
+                                  formatter: formatter,
+                                  config: rowCards[i],
+                                  onOpenCard: onOpenCard,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ],
                 ),
-            ],
+              ),
+            );
+          }
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: rows,
           );
         },
       ),
@@ -156,7 +191,9 @@ class _CardCell extends StatelessWidget {
       subcaption: subcaption,
       secondCaption: secondCaption,
       semanticsLabel: '$label, $value, $subcaption',
-      // Error → retry; otherwise tap opens the relevant filtered list.
+      // Error → retry; otherwise tap opens the relevant filtered list. The
+      // glyph says which: a chevron on a card that will retry promised a list.
+      trailingIcon: section.hasError ? Icons.refresh : Icons.chevron_right,
       onTap: section.hasError
           ? () => vm.retryCard(config.key)
           : () => onOpenCard(config),

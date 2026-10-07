@@ -49,7 +49,9 @@ class DateRangePickerButton extends StatelessWidget {
           side: BorderSide(color: tokens.border),
         ),
       ),
-      icon: const Icon(Icons.filter_alt_outlined, size: 14),
+      // A calendar, not a funnel: this picks a period, and the funnel is the
+      // app's glyph for a list filter.
+      icon: const Icon(Icons.calendar_today_outlined, size: 14),
       // A custom range renders a long two-date string, and the top bar's
       // action Wrap is now width-bounded (it can break to a second run), so
       // this label is the one that can actually get squeezed. Without a cap it

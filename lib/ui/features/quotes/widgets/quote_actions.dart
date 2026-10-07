@@ -19,6 +19,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -133,13 +135,22 @@ class QuoteActions {
     final canArchive = quote.archivedAt == null && !quote.isDeleted;
     final canRestore = quote.archivedAt != null || quote.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewClient = me?.can('view_client') ?? false;
-    final canEdit = me?.can('edit_quote') ?? false;
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'quote',
+          createdBy: quote.userId,
+          assignedTo: quote.assignedUserId,
+          recordId: quote.id,
+        ) ??
+        false;
     final canCreate = me?.can('create_quote') ?? false;
-    final canDelete = me?.can('edit_quote') ?? false;
+    final canDelete = canEdit;
     final canMarkSent = canEdit && quote.isDraft;
     // Approve any non-terminal quote (draft or sent) — matches React
     // (`Draft || Sent`) and admin-portal (`!isApproved`); excludes
@@ -217,7 +228,7 @@ class QuoteActions {
         label: context.tr('send_email'),
         // Sending a cancelled quote to the client is meaningless — mirrors
         // `InvoiceActions.canEmail`.
-        enabled: canEdit && !quote.isCancelled,
+        enabled: canEdit && (me?.maySendEmails ?? false) && !quote.isCancelled,
         onTap: () => onTap(QuoteAction.sendEmail),
       ),
       EntityActionItem(
@@ -395,6 +406,47 @@ class QuoteActions {
           canDelete: !quote.isDeleted,
           onTap: () => onTap(QuoteAction.delete),
         ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles — a second render of [itemsFor],
+  /// ranked for the state the quote is in.
+  ///
+  /// A sent quote is waiting on a yes, so Approve and Convert lead there. A
+  /// draft is still on its way out: getting it sent and read comes first, and
+  /// the same two rank after that. Each item's own `enabled` carries the
+  /// status rules (a converted, cancelled or expired quote cannot convert).
+  ///
+  /// [hasPdfPane]: see `InvoiceActions.quickItemsFor`.
+  static List<EntityQuickAction<QuoteAction>> quickItemsFor(
+    BuildContext context,
+    Quote quote,
+    void Function(QuoteAction) onTap, {
+    required bool hasPdfPane,
+  }) {
+    final q = BillingDocQuickActions<QuoteAction>(
+      doc: quote,
+      items: itemsFor(context, quote, onTap),
+    );
+    final draft = quote.isDraft;
+    return [
+      ?q.pick(QuoteAction.markSent, context.tr('mark_sent')),
+      ?q.pick(QuoteAction.approve, context.tr('approve'), applies: !draft),
+      ?q.pick(
+        QuoteAction.convertToInvoice,
+        context.tr('convert'),
+        applies: !draft,
+      ),
+      ?q.pick(QuoteAction.sendEmail, context.tr('email')),
+      ?q.pick(QuoteAction.viewPdf, context.tr('pdf'), applies: !hasPdfPane),
+      ?q.pick(QuoteAction.downloadPdf, context.tr('download')),
+      ?q.pick(QuoteAction.approve, context.tr('approve'), applies: draft),
+      ?q.pick(
+        QuoteAction.convertToInvoice,
+        context.tr('convert'),
+        applies: draft,
+      ),
+      ?q.pick(QuoteAction.clone, context.tr('clone')),
     ];
   }
 

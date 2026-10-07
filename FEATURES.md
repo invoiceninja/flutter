@@ -101,20 +101,25 @@ the honest default.
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Dashboard overview screen | ✅ | ✅ | ✅ | ✅ | ✅ |
-| KPI strip (revenue / invoices / quotes / payments) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Figures — Outstanding beside Invoices · Payments · Expenses for the period | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Outstanding as of today — everything unpaid, whatever the date range (post-dated invoices included) | ❌ | ❌ | ✅ | | |
+| A figure is a placeholder until it loads and a dash with Retry when it cannot — never `$0.00` | — | — | ✅ | | |
 | Delta chip (period-over-period change) | ✅ | ✅ | ✅ | ✅ | |
-| Sparkline charts on KPIs | ✅ | ✅ | ✅ | ✅ | |
+| Like-for-like trend — a period still in progress is compared with the same days of the one before (Oct 1–7 vs Sep 1–7), and both windows are named | ❌ | ❌ | ✅ | | |
+| Sparkline charts on KPIs | ✅ | ✅ | 🟡 | ✅ | v2 has the widget but draws none: the chart series and the figures count different payment statuses, so a sparkline under a figure would not add up to it |
 | Recent payments card | ✅ | ✅ | ✅ | ✅ | |
 | Upcoming invoices card | ✅ | ✅ | ✅ | ✅ | |
 | Upcoming quotes card | ✅ | ✅ | ✅ | ✅ | |
 | Upcoming recurring invoices card | ✅ | ✅ | ✅ | ✅ | |
 | Expired quotes card | ✅ | ✅ | ✅ | ✅ | |
-| Past-due invoices card | ✅ | ✅ | ✅ | ✅ | |
+| Past-due invoices card | ✅ | ✅ | ✅ | ✅ | v2: the Past Due tab of the needs-attention band |
 | Needs-attention auto-detected items | ✅ | ✅ | ✅ | ✅ | |
+| Needs-attention band leading the page — Past Due · Due Soon · Quotes Expiring with exact counts: side by side on desktop (all visible at once, a long list running over two or three columns), tabs that switch rows in place on a phone; "N changes could not be saved" alert | — | — | ✅ | | |
+| Act from a dashboard row — Remind (opens the next unsent reminder), Enter Payment, Call; the record is re-read first, so a row paid elsewhere says so | — | — | ✅ | | |
 | Activity feed (recent entity changes) | ✅ | ✅ | ✅ | ✅ | |
 | Global activity feed screen (day-grouped, filterable) | ❌ | 🟡 | ✅ | | |
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
-| Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | |
+| Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | v2 draws the nearest grouping the range can show (one month by month is a single line) and the control shows the one in effect |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
 | Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | — | — | ✅ | | |
 | Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
@@ -123,8 +128,10 @@ the honest default.
 | Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
 | Invoices & Quotes panel — one card, status tabs with live counts, most recent first | ❌ | ❌ | ✅ | | flutter#155 |
 | Dashboard panel order — a new panel lands at its declared slot, not last | — | — | ✅ | | |
-| Quick-create `+` — a floating button (phone layout) opens a sheet of everything the user may create, gated by module and `create_*` permission; replaces the app-bar New Invoice icon and the New Client / Enter Expense tiles (flutter#164) | ✅ | ❌ | ✅ | | |
+| Quick-create `+` — a floating button (phone layout) opens a sheet of everything the user may create, gated by module and `create_*` permission; replaces the app-bar New Invoice icon and the New Client / Enter Expense tiles (flutter#164). The wide layout shows the same creates as buttons in its fixed top bar | ✅ | ❌ | ✅ | | |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
+| "View All (N)" carries the server's count; upcoming invoices and quotes are listed soonest-first | — | — | ✅ | | |
+| Date range, currency and Include Drafts shown in the page above the figures they change (no settings cog) | — | — | ✅ | | |
 | Freshness label (last data update) | ❌ | ✅ | ✅ | ✅ | |
 | Responsive single-column mobile layout | — | ✅ | ✅ | ✅ | |
 
@@ -136,6 +143,14 @@ the honest default.
 |---|---|---|---|---|---|
 | Client — list | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Client — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Client — redesigned record screen: quick-action tiles (New Invoice / Enter Payment / Email / Call / Statement / Portal, by what applies), standing card whose figures open their tab and that ends level with the tiles beside it, contacts / details / address as equal cards on a wide window, tab strip pinned while the list scrolls | — | — | ✅ | | |
+| Client — past-due amount and invoice count under the balance (shown only when provable from a complete fetch; an overdue deposit counts as the deposit, not the invoice), opening exactly those invoices | — | — | ✅ | | Derived client-side; exact once the server has a per-client summary (BACKEND.md § A per-client summary endpoint) |
+| Client — how many related records a client has, per entity (v2: server totals as badges on the record's tabs, no badge when unknown; v1: "N Active • M Archived" on the client overview, from its fully-loaded local store) | ❌ | ✅ | ✅ | | |
+| Client — email a contact (`mailto:`, picker when several) and open an address in maps from the record | ❌ | ✅ | ✅ | | |
+| Client — view shows every field edit can set (payment terms, group, assigned user, industry, size, task rate, valid VAT, reminders, quote valid-until, portal last login, contact custom fields) | 🟡 | 🟡 | ✅ | | React shows payment terms, group, task rate and contact custom fields; v1 shows group, assigned user, task rate and custom fields |
+| Client — refresh the record (pull-to-refresh, `R`), quiet re-check on open | — | ✅ | ✅ | | |
+| Client — deleted record is read-only behind one banner with Restore (for a user who may edit); archived says when; an offline open says "No internet connection" + Retry rather than "not found" | — | — | ✅ | | The unreachable / Retry state applies to every detail screen |
+| Client — `[` / `]` step through the record's tabs (by character too, for layouts that type a bracket with AltGr / Option); all-tabs list when the strip overflows | — | — | ✅ | | Tab keys apply to every detail screen |
 | Client — edit | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Client — create | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Client — clone | ✅ | ❌ | ✅ | ✅ | |
@@ -344,6 +359,7 @@ the honest default.
 | Payment — edit | ✅ | ✅ | ✅ | ✅ | |
 | Payment — record manual payment | ✅ | ✅ | ✅ | ✅ | |
 | Payment — apply to specific invoice | ✅ | ✅ | ✅ | ✅ | |
+| Payment — apply unapplied funds to the oldest unpaid invoice from the record, naming the invoice and the amount before anything moves | — | — | ✅ | | It applied on one tap before; an allocation cannot be undone from the app |
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |
 | Email — no address on file: inline Add email (writes the invited contact), bulk sends skip those documents; recurring Send Now offers Send anyway (the invoice is still created) | ✅ | — | ✅ | | |
@@ -1624,6 +1640,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Client / vendor frozen once the record is saved (locked row + reason, taps through to the record) | ✅ | ❌ | ✅ | | The server pins `client_id` / `vendor_id` on UPDATE for invoice / quote / credit / recurring / payment, `vendor_id` for PO, and silently ignores it for project; #158. React renders a read-only `ClientSelector`; the lock glyph + reason + Clone pointer are v2-only |
 | Paste a record link into the command palette (covers web / Linux) | — | — | ✅ | | both link shapes |
 | Detail screen hydrates an uncached record on arrival (deep link / dashboard tap / restored route) | — | — | ✅ | | |
+| Record screens — one layout for every entity: quick-action tiles for what is done most (only those that apply), a standing card of the figures that matter, profile cards always shown and level on a wide window, the tab strip pinned with counts, one banner for deleted / archived / not-yet-synced | — | — | ✅ | | Client first (§ Clients), then vendor, project, task, expense, recurring expense, product, payment, invoice, quote, credit, recurring invoice, purchase order, bank account, transaction, expense category, gateway, payment link — docs/detail-screen-layout.md |
+| Record screens — pull-to-refresh / `R` and a quiet re-check on open, on every entity | — | ✅ | ✅ | | v1 has pull-to-refresh on its view screens; `R` and the re-check on open are new. Bank accounts and transactions gained a by-id re-fetch for this |
+| Record screens — a total the device adds up itself is shown only once every row behind it is in (a vendor's total expenses, a project's hours and uninvoiced amount) | — | — | ✅ | | Fetches the missing pages scoped to the record; withheld past 1,000 rows |
 | Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | Responsive layout — mobile | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — tablet | ✅ | ✅ | ✅ | ✅ | |

@@ -7,30 +7,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
-import 'package:admin/data/models/value/date.dart';
-import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_create_strip.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_period_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_refresh_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
+import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
-import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 
 import '../../../../_localization_helper.dart';
 import '../_fake_dashboard_repo.dart';
 
-/// Company date format so the subtitle assertions read like the real UI rather
-/// than the ISO cold-start fallback.
-Formatter _formatter() => Formatter(
-  settings: CompanyFormatSettings.fallback,
-  currencies: const {},
-  countries: const {},
-  dateFormats: const {'5': DatetimeFormat(id: '5', format: 'MMM d, yyyy')},
-);
+QuickCreateOption _option(EntityType type) =>
+    QuickCreateOption(type: type, icon: Icons.add);
+
+/// Every create the bar can be asked to hold — far more than fit at 600 px.
+final List<QuickCreateOption> _manyCreates = [
+  _option(EntityType.invoice),
+  _option(EntityType.quote),
+  _option(EntityType.payment),
+  _option(EntityType.client),
+  _option(EntityType.expense),
+  _option(EntityType.task),
+  _option(EntityType.project),
+  _option(EntityType.vendor),
+];
 
 /// #26 — the freshness stamp and Refresh moved out of the bottom of the
 /// dashboard scroll and into the always-visible top bar. Both live in the
@@ -41,6 +49,11 @@ Formatter _formatter() => Formatter(
 /// The old footers are gone by construction: `dashboard_screen.dart` no longer
 /// imports `freshness.dart` at all, so a re-added desktop footer wouldn't
 /// compile without someone deliberately restoring the import.
+///
+/// The bar has since traded its filters for the create buttons: the date
+/// range, currency and include-drafts controls moved into the page, above the
+/// figures they change (`dashboard_period_bar_test.dart`), and what the user
+/// may create sits here so it is on screen however far the page is scrolled.
 void main() {
   late AppDatabase db;
   late FakeDashboardRepo repo;
@@ -72,9 +85,8 @@ void main() {
     await db.close();
   });
 
-  /// Width is varied with a `SizedBox` on the default 800x600 surface rather
-  /// than `tester.view.physicalSize` — the latter needs a matching
-  /// `devicePixelRatio` and a `reset` teardown or it leaks into the next test.
+  /// The surface itself is sized (with its `devicePixelRatio` and a `reset`
+  /// teardown, or it leaks into the next test), so 1400 means 1400.
   ///
   /// `theme: buildInTheme(...)` is mandatory, not decoration: `context.inTheme`
   /// is `Theme.of(this).extension<InTheme>()!`, so without it every widget in
@@ -84,9 +96,15 @@ void main() {
     required double width,
     VoidCallback? onRefresh,
     DashboardDateRange? range,
-    Formatter? formatter,
+    List<QuickCreateOption> creates = const [],
+    ValueChanged<EntityType>? onCreate,
   }) async {
     if (range != null) await vm.setDateRange(range);
+    // A real surface of this width: a `SizedBox` wider than the default
+    // 800 px surface is clamped to it.
+    tester.view.physicalSize = Size(width, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: kTestLocalizationsDelegates,
@@ -104,8 +122,8 @@ void main() {
                 vm: vm,
                 companyName: 'Acme Corporation',
                 onRefresh: onRefresh ?? () {},
-                onNewInvoice: () {},
-                formatter: formatter,
+                createOptions: creates,
+                onCreate: onCreate ?? (_) {},
               ),
             ),
           ),
@@ -141,13 +159,11 @@ void main() {
     expect(find.textContaining('Updated just now'), findsOneWidget);
   });
 
-  testWidgets('narrow header wraps instead of crushing the company name', (
+  testWidgets('a narrow header does not crush the company name', (
     tester,
   ) async {
-    // 600 is the minimum width that still renders the wide branch, and the
-    // actions are far wider than the ~340 px they look — this is the case that
-    // used to squeeze the title to an ellipsis (and, with a custom date range,
-    // overflow the Row outright).
+    // 600 is the minimum width that still renders the wide branch — the case
+    // that used to squeeze the title to an ellipsis.
     await pumpBar(tester, width: 600);
 
     expect(tester.takeException(), isNull);
@@ -167,25 +183,103 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a custom date range at the minimum wide width still fits', (
-    tester,
-  ) async {
-    // The widest the action cluster ever gets: a custom range renders two full
-    // dates instead of a short preset word. Before the Row was restructured
-    // this combination overflowed at 600 — the Wrap was a non-flex child, so it
-    // took its full natural width and left the title nothing.
+  // ---------------------------------------------------------------------------
+  // The create buttons.
+
+  testWidgets('holds the create buttons, first one filled', (tester) async {
+    final picked = <EntityType>[];
     await pumpBar(
       tester,
-      width: 600,
-      range: const DashboardCustomRange(
-        start: Date(2026, 8, 1),
-        end: Date(2026, 8, 31),
-      ),
+      width: 1400,
+      creates: _manyCreates.take(3).toList(),
+      onCreate: picked.add,
     );
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('Acme Corporation'), findsOneWidget);
+    final strip = find.byType(DashboardCreateStrip);
+    expect(strip, findsOneWidget);
+    expect(
+      find.descendant(of: strip, matching: find.byType(FilledButton)),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.descendant(of: strip, matching: find.text('Quote')));
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(picked, [EntityType.quote]);
+  });
+
+  testWidgets('nothing creatable draws no create buttons', (tester) async {
+    await pumpBar(tester, width: 1400);
+
+    expect(find.byType(DashboardCreateStrip), findsNothing);
     expect(find.byType(DashboardRefreshButton), findsOneWidget);
+  });
+
+  // The strip is the flexible one. However many creates it is handed, the
+  // fixed pair to its right keeps its place and the company keeps its name.
+  for (final width in const <double>[600, 760, 1000, 1400]) {
+    testWidgets('@ ${width.toInt()}px every create fits or folds into More', (
+      tester,
+    ) async {
+      await pumpBar(tester, width: width, creates: _manyCreates);
+
+      expect(tester.takeException(), isNull);
+      final bar = tester.getRect(find.byType(DashboardTopBar));
+      for (final type in [DashboardRefreshButton, DashboardCardsButton]) {
+        final rect = tester.getRect(find.byType(type));
+        expect(rect.right, lessThanOrEqualTo(bar.right), reason: '$type');
+        expect(rect.width, greaterThan(0), reason: '$type');
+      }
+      expect(
+        tester.getSize(find.text('Acme Corporation')).width,
+        greaterThan(80),
+        reason: 'the title must keep a readable slice, not collapse to "A…"',
+      );
+      // Whatever does not fit is one tap away, never gone: the buttons that
+      // fit beside a More menu, or — in a slot too tight for a labelled
+      // button — one `+` that opens them all. The wide layout has no FAB.
+      final compact = find.byType(DashboardCreateMenuButton);
+      if (compact.evaluate().isNotEmpty) {
+        expect(find.byType(DashboardCreateStrip), findsNothing);
+        await tester.tap(compact);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byType(MenuItemButton), findsNWidgets(_manyCreates.length));
+      } else {
+        expect(find.text('More'), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('a long company name still leaves a create button', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final picked = <EntityType>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        theme: buildInTheme(InTheme.light),
+        home: Scaffold(
+          body: DashboardTopBar(
+            vm: vm,
+            companyName: 'Acme Corporation International Holdings Limited',
+            onRefresh: () {},
+            createOptions: _manyCreates,
+            onCreate: picked.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byType(DashboardCreateMenuButton));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('New Invoice'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(picked, [EntityType.invoice]);
   });
 
   testWidgets('tapping refresh fires the callback', (tester) async {
@@ -228,10 +322,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // flutter#37 — the subtitle used to read "Dashboard · {end month} {year}",
-  // naming only the *last* month of the selected window: "Last quarter"
-  // displayed as "June 2026". It now states the resolved window in full, which
-  // is also the only place the dates appear at all on a narrow layout.
+  // The subtitle is how fresh the data is, and nothing else. It used to lead
+  // with the selected window (flutter#37); the window is stated beside the
+  // control that changes it now, and repeating it up here would put one fact
+  // in two places that can only disagree in how they phrase it.
 
   String subtitleText(WidgetTester tester) => tester
       .widget<Text>(
@@ -242,94 +336,30 @@ void main() {
       )
       .data!;
 
-  testWidgets('the subtitle states the whole window, both endpoints', (
-    tester,
-  ) async {
+  testWidgets('the subtitle is the freshness stamp alone', (tester) async {
     await pumpBar(
       tester,
       width: 1400,
       range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
     );
 
-    // Derived from the VM rather than hardcoded: a quarter boundary depends on
-    // today, and CI runs in UTC while the dev boxes here do not. The claim
-    // under test is that *both* endpoints render — the old code dropped the
-    // start entirely.
-    final (start, end) = vm.filter.resolveDates();
-    final subtitle = subtitleText(tester);
-    expect(subtitle, contains(start.toIso()));
-    expect(subtitle, contains(end.toIso()));
-    expect(subtitle, contains('Updated just now'));
+    expect(subtitleText(tester), 'Updated just now');
   });
 
-  testWidgets('the subtitle tracks the selected range', (tester) async {
-    await pumpBar(
-      tester,
-      width: 1400,
-      range: const DashboardPresetRange(DashboardDatePreset.thisMonth),
-    );
-    final monthly = subtitleText(tester);
-
-    await pumpBar(
-      tester,
-      width: 1400,
-      range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
-    );
-
-    expect(
-      subtitleText(tester),
-      isNot(monthly),
-      reason: 'a static subtitle is what made the filter invisible',
-    );
-  });
-
-  testWidgets('a custom range renders both dates the user picked', (
+  testWidgets('carries no date range, currency or drafts control', (
     tester,
   ) async {
-    await pumpBar(
-      tester,
-      width: 1400,
-      range: const DashboardCustomRange(
-        start: Date(2026, 3, 5),
-        end: Date(2026, 3, 12),
-      ),
-      formatter: _formatter(),
-    );
+    await pumpBar(tester, width: 1400, creates: _manyCreates);
 
-    expect(subtitleText(tester), startsWith('Mar 5, 2026 — Mar 12, 2026'));
-  });
-
-  testWidgets('All Time is named, not rendered as a 50-year span', (
-    tester,
-  ) async {
-    await pumpBar(
-      tester,
-      width: 1400,
-      range: const DashboardPresetRange(DashboardDatePreset.allTime),
-      formatter: _formatter(),
-    );
-
-    expect(subtitleText(tester), startsWith('All Time'));
-  });
-
-  testWidgets('the widest subtitle still fits the capped title column', (
-    tester,
-  ) async {
-    // 600 is the minimum width that renders the wide branch, and two full dates
-    // plus the freshness stamp is the longest this line ever gets. It must
-    // ellipsise inside the 280 px cap, not overflow the header.
-    await pumpBar(
-      tester,
-      width: 600,
-      range: const DashboardCustomRange(
-        start: Date(2026, 12, 28),
-        end: Date(2027, 12, 31),
-      ),
-      formatter: _formatter(),
-    );
-
-    expect(tester.takeException(), isNull);
-    expect(find.text('Acme Corporation'), findsOneWidget);
+    final bar = find.byType(DashboardTopBar);
+    for (final type in [DateRangePickerButton, IncludeDraftsSwitch]) {
+      expect(
+        find.descendant(of: bar, matching: find.byType(type)),
+        findsNothing,
+        reason: '$type lives in the page, above the figures it changes',
+      );
+    }
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
   });
 
   testWidgets('a partial failure leaves the stamp unchanged so the caller can '

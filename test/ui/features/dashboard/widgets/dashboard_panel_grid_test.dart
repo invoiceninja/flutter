@@ -212,4 +212,129 @@ void main() {
     expect(find.text('Show panels'), findsNothing);
     expect(tester.getSize(find.byType(DashboardPanelGrid)).height, 0);
   });
+
+  // Which panels share a row is `layoutPanelRows`' decision (unit-tested on
+  // every subset in `panel_rows_test.dart`); these pin that the grid draws
+  // that answer rather than filling two columns in order.
+  group('rows', () {
+    Widget box(String label, double height) =>
+        SizedBox(height: height, child: Text(label));
+    List<DashboardPanelPref> shown(List<String> kinds) => [
+      for (final k in kinds) DashboardPanelPref(kind: k, visible: true),
+    ];
+    Rect rectOf(WidgetTester tester, String label) =>
+        tester.getRect(find.text(label));
+    double gridWidth(WidgetTester tester) =>
+        tester.getSize(find.byType(DashboardPanelGrid)).width;
+
+    testWidgets('Invoices & Quotes takes a whole row', (tester) async {
+      await pumpGrid(
+        tester,
+        prefs: shown([
+          DashboardKind.invoicesAndQuotes,
+          DashboardKind.upcomingInvoices,
+          DashboardKind.recentPayments,
+        ]),
+        panels: {
+          DashboardKind.invoicesAndQuotes: () => box('pipeline', 60),
+          DashboardKind.upcomingInvoices: () => box('upcoming', 60),
+          DashboardKind.recentPayments: () => box('payments', 60),
+        },
+      );
+
+      final full = gridWidth(tester);
+      expect(rectOf(tester, 'pipeline').width, full);
+      // The other two pair up beneath it.
+      expect(rectOf(tester, 'upcoming').width, lessThan(full / 2));
+      expect(rectOf(tester, 'upcoming').top, rectOf(tester, 'payments').top);
+      expect(
+        rectOf(tester, 'upcoming').top,
+        greaterThan(rectOf(tester, 'pipeline').bottom),
+      );
+    });
+
+    testWidgets('an odd one out spans — no row is left half empty', (
+      tester,
+    ) async {
+      await pumpGrid(
+        tester,
+        prefs: shown([
+          DashboardKind.upcomingInvoices,
+          DashboardKind.recentPayments,
+          DashboardKind.upcomingQuotes,
+        ]),
+        panels: {
+          DashboardKind.upcomingInvoices: () => box('upcoming', 60),
+          DashboardKind.recentPayments: () => box('payments', 60),
+          DashboardKind.upcomingQuotes: () => box('quotes', 60),
+        },
+      );
+
+      final full = gridWidth(tester);
+      final widths = [
+        for (final l in ['upcoming', 'payments', 'quotes'])
+          rectOf(tester, l).width,
+      ];
+      expect(widths.where((w) => w == full), hasLength(1));
+      expect(widths.where((w) => w < full / 2), hasLength(2));
+    });
+
+    testWidgets('the task calendar alone keeps half the row', (tester) async {
+      await pumpGrid(
+        tester,
+        prefs: shown([DashboardKind.taskCalendar]),
+        panels: {DashboardKind.taskCalendar: () => box('calendar', 60)},
+      );
+
+      // Stretched across the page its month grid would be an island.
+      expect(rectOf(tester, 'calendar').width, lessThan(gridWidth(tester) / 2));
+    });
+
+    testWidgets('two cards of a row end on one line', (tester) async {
+      await pumpGrid(
+        tester,
+        prefs: shown([
+          DashboardKind.upcomingInvoices,
+          DashboardKind.recentPayments,
+        ]),
+        panels: {
+          // The stand-ins fill the height they are given, as a card does.
+          DashboardKind.upcomingInvoices: () => ConstrainedBox(
+            key: const ValueKey('short'),
+            constraints: const BoxConstraints(minHeight: 60),
+            child: const Text('upcoming'),
+          ),
+          DashboardKind.recentPayments: () => ConstrainedBox(
+            key: const ValueKey('tall'),
+            constraints: const BoxConstraints(minHeight: 180),
+            child: const Text('payments'),
+          ),
+        },
+      );
+
+      final short = tester.getRect(find.byKey(const ValueKey('short')));
+      final tall = tester.getRect(find.byKey(const ValueKey('tall')));
+      expect(short.top, tall.top);
+      expect(short.bottom, tall.bottom);
+    });
+
+    testWidgets('one column stacks everything full width', (tester) async {
+      await pumpGrid(
+        tester,
+        columns: 1,
+        prefs: shown([
+          DashboardKind.upcomingInvoices,
+          DashboardKind.taskCalendar,
+        ]),
+        panels: {
+          DashboardKind.upcomingInvoices: () => box('upcoming', 60),
+          DashboardKind.taskCalendar: () => box('calendar', 60),
+        },
+      );
+
+      final full = gridWidth(tester);
+      expect(rectOf(tester, 'upcoming').width, full);
+      expect(rectOf(tester, 'calendar').width, full);
+    });
+  });
 }

@@ -9,6 +9,10 @@ import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
+import 'package:admin/data/models/value/dashboard_comparison.dart';
+import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
@@ -430,12 +434,14 @@ void main() {
       expect(vm.panelsAreDefault, isTrue);
     });
 
-    test('reorderPanels moves a panel, fires notify, clears default', () {
+    test('a reorder moves a panel, fires notify, clears default', () {
       var globalHits = 0;
       vm.addListener(() => globalHits++);
-      vm.reorderPanels(0, 2); // pastDue → index 2
-      expect(vm.panelPrefs.first.kind, DashboardKind.invoicesAndQuotes);
-      expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
+      // Indices are of the panels beneath the pinned past-due band.
+      vm.reorderTrailingPanels(0, 2); // invoices & quotes → third of the rest
+      expect(vm.panelPrefs.first.kind, DashboardKind.pastDue);
+      expect(vm.panelPrefs[1].kind, DashboardKind.upcomingInvoices);
+      expect(vm.panelPrefs[3].kind, DashboardKind.invoicesAndQuotes);
       expect(vm.panelsAreDefault, isFalse);
       expect(globalHits, greaterThanOrEqualTo(1));
     });
@@ -456,7 +462,7 @@ void main() {
     });
 
     test('resetPanels restores default order + visibility', () {
-      vm.reorderPanels(0, 3);
+      vm.reorderTrailingPanels(0, 3);
       vm.togglePanelVisibility(DashboardKind.recentPayments);
       expect(vm.panelsAreDefault, isFalse);
       vm.resetPanels();
@@ -486,39 +492,13 @@ void main() {
           'task_calendar',
           'invoices_and_quotes',
         ]);
-
-        // Now move past-due off slot 0, then reorder the five again and confirm
-        // past-due keeps its (non-zero) slot.
-        vm.resetPanels();
-        vm.reorderPanels(0, 2); // past-due → index 2
-        expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
-        vm.reorderTrailingPanels(0, 1); // swap the first two trailing panels
-        expect(
-          vm.panelPrefs[2].kind,
-          DashboardKind.pastDue,
-          reason: 'past-due slot preserved',
-        );
-        expect(
-          vm.panelPrefs
-              .where((p) => p.kind != DashboardKind.pastDue)
-              .map((p) => p.kind),
-          const [
-            'upcoming_invoices',
-            'invoices_and_quotes',
-            'recent_payments',
-            'upcoming_quotes',
-            'expired_quotes',
-            'upcoming_recurring',
-            'task_calendar',
-          ],
-        );
       },
     );
 
     test('persists and rehydrates panel order + visibility', () async {
       final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      writer.reorderPanels(0, 5); // pastDue → mid-list
+      writer.reorderTrailingPanels(0, 4); // invoices & quotes → mid-list
       writer.togglePanelVisibility(DashboardKind.upcomingQuotes); // hide
       await Future<void>.delayed(const Duration(milliseconds: 40));
       final expectedOrder = writer.panelPrefs.map((p) => p.kind).toList();
@@ -618,17 +598,17 @@ void main() {
         // Saved (deduped, known) keep their relative order; each missing kind
         // lands at its CANONICAL RANK relative to them rather than at the end.
         //
-        // This fixture is the reason the rule is anchored on the PREDECESSOR:
-        // the save puts `recent_payments` above `past_due`, so "before the
-        // first kind of greater rank" would hoist `invoices_and_quotes` to the
-        // very top, above the past-due card it is meant to sit under. Anchoring
-        // on the last smaller-ranked kind keeps it directly below `past_due`
-        // wherever the user has dragged that.
+        // The save puts `recent_payments` above `past_due`, from when the wide
+        // layout let past-due be dragged. Past-due is pinned first on every
+        // layout now, so hydrate moves it to the front *before* placing the
+        // missing kinds — each of which is anchored on its last smaller-ranked
+        // predecessor, so `invoices_and_quotes` lands directly beneath the band
+        // rather than far down the page beside a stranded past-due slot.
         expect(reader.panelPrefs.map((p) => p.kind), const [
-          'recent_payments',
           'past_due',
           'invoices_and_quotes',
           'upcoming_invoices',
+          'recent_payments',
           'upcoming_quotes',
           'expired_quotes',
           'upcoming_recurring',
@@ -840,6 +820,406 @@ void main() {
         () => vm.emptyPanels.value.add(DashboardKind.pastDue),
         throwsUnsupportedError,
       );
+    });
+  });
+
+  // The band at the top of the page is built from three lists, and it takes
+  // the past-due panel's place in `emptyPanels` — so "nothing to show" has to
+  // mean nothing in any of its buckets.
+  group('the needs-attention band', () {
+    const today = Date(2026, 10, 14);
+    late DashboardViewModel band;
+    var quotesOn = true;
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 10));
+
+    DashboardInvoiceRow invoice(String id, String due) =>
+        DashboardInvoiceRow.fromJson({
+          'id': id,
+          'due_date': due,
+          'balance': 100,
+          'client': {'id': 'c1', 'name': 'Acme'},
+        });
+
+    DashboardQuoteRow quote(String id, String validUntil) =>
+        DashboardQuoteRow.fromJson({
+          'id': id,
+          'due_date': validUntil,
+          'client': {'id': 'c1', 'name': 'Acme'},
+        });
+
+    setUp(() async {
+      quotesOn = true;
+      band = DashboardViewModel(
+        repo: repo,
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        statics: StaticsRepository(
+          db: db,
+          service: StaticsService(dummyDashboardClient),
+        ),
+        today: () => today,
+        panelEnabled: (kind) =>
+            kind != DashboardKind.upcomingQuotes || quotesOn,
+      );
+      await settle();
+    });
+
+    tearDown(() => band.dispose());
+
+    test(
+      'nothing past due, nothing due soon, no quote expiring: empty',
+      () async {
+        repo.pastDue.add(const []);
+        repo.upcomingInvoices.add([invoice('far', '2026-12-01')]);
+        repo.upcomingQuotes.add([quote('far', '2026-12-01')]);
+        await settle();
+        expect(band.attention().isEmpty, isTrue);
+        expect(band.emptyPanels.value, contains(DashboardKind.pastDue));
+        // What the quiet line names.
+        expect(band.attention().nextDue?.id, 'far');
+      },
+    );
+
+    test(
+      'an invoice due this week keeps the band, with nothing past due',
+      () async {
+        repo.pastDue.add(const []);
+        repo.upcomingInvoices.add([invoice('soon', '2026-10-16')]);
+        await settle();
+        expect(band.attention().dueSoon.single.id, 'soon');
+        expect(
+          band.emptyPanels.value,
+          isNot(contains(DashboardKind.pastDue)),
+          reason: 'keyed on past-due alone, a phone dropped the whole band',
+        );
+      },
+    );
+
+    test(
+      'a quote about to expire keeps it too — unless quotes are off',
+      () async {
+        repo.pastDue.add(const []);
+        repo.upcomingQuotes.add([quote('q', '2026-10-18')]);
+        await settle();
+        expect(band.attention().quotesExpiring.single.id, 'q');
+        expect(band.emptyPanels.value, isNot(contains(DashboardKind.pastDue)));
+
+        // The same rows with the quotes module switched off are not shown, and
+        // do not hold the band open.
+        quotesOn = false;
+        repo.upcomingQuotes.add([quote('q', '2026-10-18')]);
+        await settle();
+        expect(band.attention().quotesExpiring, isEmpty);
+        expect(band.emptyPanels.value, contains(DashboardKind.pastDue));
+      },
+    );
+
+    test('it is not empty until past-due itself has loaded', () async {
+      repo.upcomingInvoices.add(const []);
+      repo.upcomingQuotes.add(const []);
+      await settle();
+      expect(band.emptyPanels.value, isNot(contains(DashboardKind.pastDue)));
+
+      repo.pastDue.add(const []);
+      await settle();
+      expect(band.emptyPanels.value, contains(DashboardKind.pastDue));
+    });
+
+    test('a later bucket filling re-opens a band that was empty', () async {
+      repo.pastDue.add(const []);
+      await settle();
+      expect(band.emptyPanels.value, contains(DashboardKind.pastDue));
+
+      repo.upcomingInvoices.add([invoice('soon', '2026-10-15')]);
+      await settle();
+      expect(band.emptyPanels.value, isNot(contains(DashboardKind.pastDue)));
+    });
+
+    test('any of its three lists notifies the band', () async {
+      var hits = 0;
+      band.attentionListenable.addListener(() => hits++);
+      repo.pastDue.add(const []);
+      repo.upcomingInvoices.add(const []);
+      repo.upcomingQuotes.add(const []);
+      repo.recentPayments.add(const []);
+      await settle();
+      expect(hits, 3, reason: 'not the unrelated payments list');
+    });
+
+    test(
+      'a save from before past-due was pinned hydrates with it first',
+      () async {
+        await db.navStateDao.saveFilters(
+          filtersJson: jsonEncode({
+            'co': {
+              'dashboard': {
+                'panels': [
+                  'upcoming_invoices|1',
+                  'recent_payments|1',
+                  'past_due|0',
+                  'invoices_and_quotes|1',
+                ],
+              },
+            },
+          }),
+          now: 1,
+        );
+        final reader = DashboardViewModel(
+          repo: repo,
+          companyId: 'co',
+          navStateDao: db.navStateDao,
+          statics: StaticsRepository(
+            db: db,
+            service: StaticsService(dummyDashboardClient),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(reader.panelPrefs.first.kind, DashboardKind.pastDue);
+        expect(
+          reader.panelPrefs.first.visible,
+          isFalse,
+          reason: 'its show / hide choice is kept',
+        );
+        // The rest keep the order they were saved in.
+        expect(reader.panelPrefs.skip(1).take(3).map((p) => p.kind), [
+          'upcoming_invoices',
+          'recent_payments',
+          'invoices_and_quotes',
+        ]);
+        reader.dispose();
+      },
+    );
+  });
+
+  group('the figures', () {
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 10));
+
+    DashboardTotals totalsOf(String outstanding) => DashboardTotals.fromJson({
+      'currencies': {'1': 'USD'},
+      '1': {
+        'outstanding': {
+          'outstanding_count': 2,
+          'amount': outstanding,
+          'code': 'USD',
+        },
+      },
+    });
+
+    test('a figure that has not loaded is loading, never a zero', () {
+      expect(vm.totals.valueState, ValueSectionState.loading);
+      expect(vm.outstanding.valueState, ValueSectionState.loading);
+      expect(vm.chart.valueState, ValueSectionState.loading);
+    });
+
+    test('loaded, failed over cached data, and failed with nothing', () async {
+      repo.totals.add(totalsOf('10'));
+      await settle();
+      expect(vm.totals.valueState, ValueSectionState.ready);
+
+      repo.refreshAllErrors = {DashboardKind.totalsCurrent: Exception('x')};
+      await vm.refresh();
+      expect(vm.totals.valueState, ValueSectionState.stale);
+
+      repo.totals.add(null);
+      await settle();
+      expect(vm.totals.valueState, ValueSectionState.failed);
+    });
+
+    test('a failed totals fetch is filed on the comparison too', () async {
+      // Cached figures, so a recovery has something to recover to.
+      repo.totals.add(totalsOf('10'));
+      repo.totalsPrev.add(totalsOf('5'));
+      await settle();
+      // One job fetches both windows and reports under one kind.
+      repo.refreshAllErrors = {DashboardKind.totalsCurrent: Exception('x')};
+      await vm.refresh();
+      expect(vm.totals.hasError, isTrue);
+      expect(vm.totalsPrevious.hasError, isTrue);
+
+      repo.refreshAllErrors = const {};
+      await vm.retry(DashboardKind.totalsCurrent);
+      expect(vm.totals.hasError, isFalse);
+      expect(vm.totalsPrevious.hasError, isFalse);
+    });
+
+    test('a new date range starts its sections over', () async {
+      repo.totals.add(totalsOf('10'));
+      repo.totalsPrev.add(totalsOf('5'));
+      await settle();
+      repo.refreshAllErrors = {DashboardKind.chart: Exception('x')};
+      await vm.refresh();
+      expect(vm.chart.hasError, isTrue);
+
+      await vm.setDateRange(
+        const DashboardPresetRange(DashboardDatePreset.lastMonth),
+      );
+      // The old window's figures and its error belong to the old window.
+      expect(vm.totals.data, isNull);
+      expect(vm.totalsPrevious.data, isNull);
+      expect(vm.chart.hasError, isFalse);
+      expect(vm.totals.valueState, ValueSectionState.loading);
+      expect(vm.chart.valueState, ValueSectionState.loading);
+    });
+
+    test('outstanding is untouched by the date range', () async {
+      repo.outstanding.add(totalsOf('12400'));
+      await settle();
+      final opened = repo.watchOutstandingCalls;
+      expect(opened, 1);
+      expect(repo.watchOutstandingDrafts, isFalse);
+
+      await vm.setDateRange(
+        const DashboardPresetRange(DashboardDatePreset.lastMonth),
+      );
+      expect(repo.watchOutstandingCalls, opened, reason: 'not re-opened');
+      expect(
+        '${vm.outstanding.data!.byCurrency['1']!.outstandingAmount}',
+        '12400',
+        reason: 'what is owed today does not depend on the range',
+      );
+    });
+
+    test('the drafts switch re-keys outstanding', () async {
+      repo.outstanding.add(totalsOf('12400'));
+      await settle();
+      await vm.setIncludeDrafts(true);
+      expect(repo.watchOutstandingCalls, 2);
+      expect(repo.watchOutstandingDrafts, isTrue);
+      expect(vm.outstanding.valueState, ValueSectionState.loading);
+    });
+
+    test('outstanding has its own section, error and retry', () async {
+      repo.outstanding.add(totalsOf('12400'));
+      await settle();
+      var hits = 0;
+      vm
+          .listenableFor(DashboardKind.totalsOutstanding)
+          .addListener(() => hits++);
+      repo.refreshAllErrors = {DashboardKind.totalsOutstanding: Exception('x')};
+      await vm.refresh();
+      expect(vm.outstanding.hasError, isTrue);
+      expect(
+        vm.totals.hasError,
+        isFalse,
+        reason: 'the period figures are fine',
+      );
+      expect(hits, greaterThanOrEqualTo(1));
+
+      await vm.retry(DashboardKind.totalsOutstanding);
+      expect(repo.refreshOutstandingCalls, 1);
+      expect(vm.outstanding.hasError, isFalse);
+    });
+
+    test('the figures listen to all three totals sections', () async {
+      var hits = 0;
+      vm.kpiListenable.addListener(() => hits++);
+      repo.totals.add(totalsOf('1'));
+      repo.totalsPrev.add(totalsOf('1'));
+      repo.outstanding.add(totalsOf('1'));
+      await settle();
+      expect(hits, 3);
+    });
+
+    test('the comparison is the like-for-like window', () {
+      final c = vm.comparison;
+      expect(c, isNotNull);
+      expect(c, vm.filter.comparison());
+    });
+  });
+
+  // A change this device made leaves the outbox once the server has it. The
+  // dashboard's rows are the server's lists, so that is the moment a refetch
+  // can show the result — a payment entered from a past-due row, say.
+  group('a change leaving the outbox', () {
+    const delay = Duration(milliseconds: 60);
+    late StreamController<int> outbox;
+    late DashboardViewModel live;
+    var liveDisposed = false;
+
+    Future<void> settle([Duration d = const Duration(milliseconds: 20)]) =>
+        Future<void>.delayed(d);
+
+    setUp(() async {
+      outbox = StreamController<int>.broadcast();
+      liveDisposed = false;
+      live = DashboardViewModel(
+        repo: repo,
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        statics: StaticsRepository(
+          db: db,
+          service: StaticsService(dummyDashboardClient),
+        ),
+        outboxActive: outbox.stream,
+        appliedChangeDelay: delay,
+      );
+      await settle();
+      repo.refreshAllCalls = 0;
+    });
+
+    tearDown(() async {
+      if (!liveDisposed) live.dispose();
+      await outbox.close();
+    });
+
+    test('a drop refetches, after the delay', () async {
+      outbox.add(1);
+      await settle();
+      outbox.add(0);
+      await settle();
+      expect(repo.refreshAllCalls, 0, reason: 'trailing');
+      await settle(delay);
+      expect(repo.refreshAllCalls, 1);
+    });
+
+    test('a save going into the queue does nothing', () async {
+      outbox.add(0);
+      outbox.add(1);
+      outbox.add(2);
+      await settle(delay * 2);
+      expect(repo.refreshAllCalls, 0);
+    });
+
+    test('the first count is a baseline, not a drop', () async {
+      outbox.add(0);
+      await settle(delay * 2);
+      expect(repo.refreshAllCalls, 0);
+    });
+
+    test('a queue draining one by one is a single refetch', () async {
+      outbox.add(3);
+      await settle();
+      outbox.add(2);
+      await settle();
+      outbox.add(1);
+      await settle();
+      outbox.add(0);
+      await settle(delay * 2);
+      expect(repo.refreshAllCalls, 1);
+    });
+
+    test('a row still parked does not block the others', () async {
+      // One change waiting on a conflict; another is delivered. The count
+      // never reaches zero, and the delivered one still refetches.
+      outbox.add(2);
+      await settle();
+      outbox.add(1);
+      await settle(delay * 2);
+      expect(repo.refreshAllCalls, 1);
+    });
+
+    test('dispose cancels a pending refetch', () async {
+      outbox.add(1);
+      await settle();
+      outbox.add(0);
+      await settle();
+      live.dispose();
+      liveDisposed = true;
+      await settle(delay * 2);
+      expect(repo.refreshAllCalls, 0);
     });
   });
 

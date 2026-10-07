@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/app/accent_color_controller.dart';
 import 'package:admin/app/app_locale_resolver.dart';
+import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/contacts_sync_controller.dart';
@@ -126,11 +127,13 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
+import 'package:admin/ui/core/detail/related_tab_counts.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 final Logger _servicesLog = Logger('Services');
 
@@ -211,9 +214,14 @@ Future<void> _runSidebarPrefetch(
     }
   }
 
-  await Future.wait([
-    for (var w = 0; w < _kPrefetchConcurrency && w < jobs.length; w++) worker(),
-  ]);
+  await traceAsync(
+    'prefetch.sweep',
+    () => Future.wait([
+      for (var w = 0; w < _kPrefetchConcurrency && w < jobs.length; w++)
+        worker(),
+    ]),
+    args: {'jobs': jobs.length},
+  );
 }
 
 /// Test seam: drive [_runSidebarPrefetch] with a synthetic prefetcher map so a
@@ -687,6 +695,13 @@ class Services implements SidebarBadgeContext {
   /// (React #3355) — Device Settings → Default tab.
   final DefaultItemsTabController defaultItemsTab;
 
+  /// Related-record counts learned this session, for the tab badges on a
+  /// record screen. Cleared when the session ends — see `onSessionReset`.
+  final RelatedTabCountsCache relatedTabCounts = RelatedTabCountsCache();
+
+  /// Fires when the device comes back online — see [BackOnlineSignal].
+  final BackOnlineSignal backOnline = BackOnlineSignal();
+
   /// Device-local "Phone numbers" preferences — tap-to-call, the optional
   /// in-app confirm, and the outside-business-hours warning window
   /// (invoiceninja/flutter#109, `docs/tap-to-call.md`). Every phone surface
@@ -985,6 +1000,11 @@ class Services implements SidebarBadgeContext {
   @override
   Stream<int> watchOutboxAttention(String companyId) =>
       db.outboxDao.watchAttentionCount(companyId: companyId);
+
+  /// Changes still queued or being sent. A **drop** means one has left the
+  /// queue — see `OutboxDao.watchActiveCount`. The dashboard refetches on it.
+  Stream<int> watchOutboxActive(String companyId) =>
+      db.outboxDao.watchActiveCount(companyId: companyId);
 
   /// Sidebar count streams keyed by entity type. Populated once in
   /// [Services.build] from [WiredEntities.countWatchers] and read by
@@ -1660,6 +1680,8 @@ class Services implements SidebarBadgeContext {
       // (The identity-change wipe doesn't run this — see `endSession`.)
       services.sharedFiles.dropHeld();
       services.clearStagedCreateDraft();
+      // How many records the last user could see is not the next user's.
+      services.relatedTabCounts.clear();
     };
     // The calendar connection lives on `company_user.settings`, i.e. per
     // (user, company) — so it is stale after a company switch too, not just
@@ -1747,6 +1769,8 @@ class Services implements SidebarBadgeContext {
       final companyId = auth.session.value?.currentCompanyId;
       if (companyId == null || companyId.isEmpty) return;
       sync.drainOnce(companyId: companyId);
+      // Screens that asked something while offline ask again.
+      services.backOnline.fire();
     });
     final theme = ThemeController(prefs: devicePrefs);
     final accentColor = AccentColorController(auth: auth, users: userRepo);
@@ -1900,6 +1924,10 @@ class Services implements SidebarBadgeContext {
       // Same cross-user argument: these rows carry document totals and the
       // ids of whoever made each change.
       documentVersionsApi.clearCache();
+      // And how many records the outgoing user could see under each record.
+      // Here as well as in `onSessionReset`: this hook is the one every
+      // session end passes through, the identity-change wipe included.
+      services.relatedTabCounts.clear();
       // Same argument for a call parked mid-dial: it names a record in the
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.

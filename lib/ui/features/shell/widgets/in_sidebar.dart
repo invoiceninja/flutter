@@ -8,7 +8,6 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/native_window.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/db/app_database.dart' show CompanyRow;
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -23,6 +22,7 @@ import 'package:admin/ui/core/list/master_detail_layout.dart'
 import 'package:admin/ui/core/list/saved_view_dialogs.dart';
 import 'package:admin/ui/core/list/saved_view_icons.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
+import 'package:admin/ui/features/shell/widgets/cached_stream.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
@@ -160,7 +160,7 @@ class _InSidebarState extends State<InSidebar> {
   // saved-views section collapsing to nothing mid-animation, and N+2
   // redundant DB queries per click).
   //
-  // They're memoized here behind [_CachedStream], which owns a broadcast
+  // They're memoized here behind [CachedStream], which owns a broadcast
   // controller fed by a single source subscription so the underlying Drift
   // query is deterministically cancelled when a generation is replaced or
   // the State is disposed. (A bare `.asBroadcastStream()` would *not*
@@ -179,16 +179,20 @@ class _InSidebarState extends State<InSidebar> {
   EntityType? _avEntityType;
   String? _svCompanyId;
 
-  _CachedStream<SavedView?>? _activeView;
-  _CachedStream<List<SavedView>>? _savedViews;
+  CachedStream<SavedView?>? _activeView;
+  CachedStream<List<SavedView>>? _savedViews;
 
-  /// The active company row. Only the product stock counters care about it
-  /// (`track_inventory` gates whether those modes are offered at all), but the
-  /// menu has to know before it renders — so it rides the same per-company
-  /// cached-stream generation as the saved views.
-  _CachedStream<CompanyRow?>? _company;
-  final Map<Object, _CachedStream<int>> _badgeStreams =
-      <Object, _CachedStream<int>>{};
+  /// Whether the active company tracks inventory. Only the product stock
+  /// counters care (`track_inventory` gates whether those modes are offered at
+  /// all), but the menu has to know before it renders — so it rides the same
+  /// per-company cached-stream generation as the saved views.
+  ///
+  /// The one bool, `distinct`, rather than the row it comes from: this stream
+  /// rebuilds every row of the menu, and the `companies` row is rewritten on
+  /// every `/refresh`.
+  CachedStream<bool>? _trackInventory;
+  final Map<Object, CachedStream<int>> _badgeStreams =
+      <Object, CachedStream<int>>{};
 
   /// Last-seen counter mode per entity, so [_syncStreams] can tear down the
   /// stream a row just switched away from. Only entities that have rendered a
@@ -234,7 +238,7 @@ class _InSidebarState extends State<InSidebar> {
       _avCompanyId = companyId;
       _avEntityType = entityType;
       _activeView?.close();
-      _activeView = _CachedStream<SavedView?>(
+      _activeView = CachedStream<SavedView?>(
         _buildActiveViewStream(services, companyId),
       );
     }
@@ -243,12 +247,15 @@ class _InSidebarState extends State<InSidebar> {
     if (companyId != _svCompanyId) {
       _svCompanyId = companyId;
       _savedViews?.close();
-      _savedViews = _CachedStream<List<SavedView>>(
+      _savedViews = CachedStream<List<SavedView>>(
         services.savedViews.watchAll(companyId),
       );
-      _company?.close();
-      _company = _CachedStream<CompanyRow?>(
-        services.db.companiesDao.watchById(companyId),
+      _trackInventory?.close();
+      _trackInventory = CachedStream<bool>(
+        services.db.companiesDao
+            .watchById(companyId)
+            .map((company) => company?.trackInventory ?? false)
+            .distinct(),
       );
       for (final s in _badgeStreams.values) {
         s.close();
@@ -301,16 +308,14 @@ class _InSidebarState extends State<InSidebar> {
   /// Memoize a badge stream within the current company generation. Cleared
   /// (and closed) wholesale by [_syncStreams] when the company changes, and
   /// per-entity when its counter mode changes.
-  Stream<int> _cachedBadge(Object key, Stream<int> Function() factory) =>
-      _badgeStreams
-          .putIfAbsent(key, () => _CachedStream<int>(factory()))
-          .stream;
+  CachedStream<int> _cachedBadge(Object key, Stream<int> Function() factory) =>
+      _badgeStreams.putIfAbsent(key, () => CachedStream<int>(factory()));
 
   @override
   void dispose() {
     _activeView?.close();
     _savedViews?.close();
-    _company?.close();
+    _trackInventory?.close();
     for (final s in _badgeStreams.values) {
       s.close();
     }
@@ -656,9 +661,10 @@ class _InSidebarState extends State<InSidebar> {
                         listenable: services.sidebarMenu,
                         builder: (context, _) => ListenableBuilder(
                           listenable: services.sidebarBadgeModes,
-                          builder: (context, _) => StreamBuilder<CompanyRow?>(
-                            stream: _company?.stream,
-                            builder: (context, companySnap) =>
+                          builder: (context, _) => StreamBuilder<bool>(
+                            stream: _trackInventory?.stream,
+                            initialData: _trackInventory?.latest,
+                            builder: (context, inventorySnap) =>
                                 StreamBuilder<SavedView?>(
                                   stream: _activeView?.stream,
                                   builder: (context, snap) => Column(
@@ -672,8 +678,7 @@ class _InSidebarState extends State<InSidebar> {
                                       touch: touch,
                                       activeViewId: snap.data?.id,
                                       trackInventory:
-                                          companySnap.data?.trackInventory ??
-                                          false,
+                                          inventorySnap.data ?? false,
                                     ),
                                   ),
                                 ),
@@ -1197,14 +1202,18 @@ class _InSidebarState extends State<InSidebar> {
       (m) => m.id == modeId,
       orElse: () => offered.first,
     );
+    // Keyed by (entity, mode): keying by entity alone would hand a row that
+    // just switched to "Overdue" the previously-cached total.
+    final cached = _cachedBadge((
+      handlers.type,
+      modeId,
+    ), () => badge(services, companyId, modeId));
     return withMenu(
       StreamBuilder<int>(
-        // Keyed by (entity, mode): keying by entity alone would hand a row that
-        // just switched to "Overdue" the previously-cached total.
-        stream: _cachedBadge((
-          handlers.type,
-          modeId,
-        ), () => badge(services, companyId, modeId)),
+        stream: cached.stream,
+        // A builder created after the count last changed would otherwise
+        // paint one frame with no badge — see [CachedStream].
+        initialData: cached.latest,
         builder: (context, snap) => buildTile(
           count: snap.data,
           tone: mode.tone,
@@ -1252,40 +1261,16 @@ class _InSidebarState extends State<InSidebar> {
     if (badgeStream == null) return buildTile();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     if (companyId.isEmpty) return buildTile();
+    final cached = _cachedBadge(kind, () => badgeStream(services, companyId));
     return StreamBuilder<int>(
-      stream: _cachedBadge(kind, () => badgeStream(services, companyId)),
+      stream: cached.stream,
+      initialData: cached.latest,
       builder: (context, snap) {
         final count = snap.data ?? 0;
         if (hideWhenZero && count == 0) return const SizedBox.shrink();
         return buildTile(count: count);
       },
     );
-  }
-}
-
-/// Owns a broadcast controller fed by a single subscription to a
-/// (single-subscription) source stream, so the sidebar's stream cache can
-/// deterministically tear the source down — `Stream.asBroadcastStream()`
-/// does not cancel its source when listeners drop, which would leak a live
-/// Drift query per replaced cache generation.
-class _CachedStream<T> {
-  _CachedStream(Stream<T> source)
-    : _controller = StreamController<T>.broadcast() {
-    _sub = source.listen(
-      _controller.add,
-      onError: _controller.addError,
-      onDone: _controller.close,
-    );
-  }
-
-  final StreamController<T> _controller;
-  late final StreamSubscription<T> _sub;
-
-  Stream<T> get stream => _controller.stream;
-
-  void close() {
-    unawaited(_sub.cancel());
-    unawaited(_controller.close());
   }
 }
 

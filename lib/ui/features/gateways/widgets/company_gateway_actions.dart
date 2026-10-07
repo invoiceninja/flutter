@@ -10,6 +10,7 @@ import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -60,9 +61,6 @@ class CompanyGatewayActions {
     CompanyGateway gateway,
     void Function(CompanyGatewayAction) onTap,
   ) {
-    final canArchive = gateway.archivedAt == 0 && !gateway.isDeleted;
-    final canRestore = gateway.archivedAt != 0 || gateway.isDeleted;
-
     final isStripeConnect = gateway.gatewayKey == kGatewayStripeConnect;
     final isAnyStripe =
         gateway.gatewayKey == kGatewayStripe ||
@@ -76,6 +74,14 @@ class CompanyGatewayActions {
     final session = context.read<Services>().auth.session.value;
     final me = session?.currentCompany;
     final isAdmin = (me?.isAdmin ?? false) || (me?.isOwner ?? false);
+    // Every write to a gateway is admin-only on the server
+    // (`UpdateCompanyGatewayRequest`: `can('edit') && isAdmin()`, and Store
+    // the same), so archive, restore, delete and Clone are not offered to
+    // anyone else — one tap from the record's state banner would otherwise be
+    // a mutation the server refuses.
+    final canArchive = isAdmin && gateway.archivedAt == 0 && !gateway.isDeleted;
+    final canRestore =
+        isAdmin && (gateway.archivedAt != 0 || gateway.isDeleted);
     final accountId = gateway.stripeAccountId;
     final isConnected = accountId.isNotEmpty;
     final canDisconnect =
@@ -104,7 +110,9 @@ class CompanyGatewayActions {
           enabled: true,
           onTap: () => onTap(CompanyGatewayAction.disconnect),
         ),
-      if (isAnyStripe) ...[
+      // Import and Verify are admin-only on the server too
+      // (`TestCompanyGatewayRequest::authorize`).
+      if (isAnyStripe && isAdmin) ...[
         EntityActionItem(
           kind: CompanyGatewayAction.importCustomers,
           confirm: true,
@@ -127,7 +135,7 @@ class CompanyGatewayActions {
         kind: CompanyGatewayAction.clone,
         icon: Icons.copy_all_outlined,
         label: context.tr('clone'),
-        enabled: true,
+        enabled: isAdmin,
         onTap: () => onTap(CompanyGatewayAction.clone),
       ),
       ?copyLinkActionItem(
@@ -153,9 +161,39 @@ class CompanyGatewayActions {
         context: context,
         subject: _confirmSubject(gateway),
         kind: CompanyGatewayAction.delete,
-        canDelete: !gateway.isDeleted,
+        canDelete: isAdmin && !gateway.isDeleted,
         onTap: () => onTap(CompanyGatewayAction.delete),
       ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles: the two things done *from* a
+  /// Stripe gateway. Every other provider has nothing but Edit and the
+  /// lifecycle actions, which live in the bar — so it gets no strip at all.
+  ///
+  /// Each tile is a second render of an item [itemsFor] already built, so the
+  /// admin gate and the confirmation prompt stay on the item.
+  static List<EntityQuickAction<CompanyGatewayAction>> quickItemsFor(
+    BuildContext context,
+    CompanyGateway gateway,
+    void Function(CompanyGatewayAction) onTap,
+  ) {
+    // A deleted gateway is read-only, and an unsynced one would answer every
+    // tile with "sync first" — the banner says that once instead.
+    if (gateway.isDeleted || gateway.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, gateway, onTap);
+    EntityQuickAction<CompanyGatewayAction>? pick(
+      CompanyGatewayAction kind,
+      String shortLabel,
+    ) {
+      final item = findActionItem<CompanyGatewayAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(item: item, shortLabel: shortLabel);
+    }
+
+    return [
+      ?pick(CompanyGatewayAction.importCustomers, context.tr('import')),
+      ?pick(CompanyGatewayAction.verifyCustomers, context.tr('verify')),
     ];
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,12 +16,14 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_start_scheduled_dialog.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -140,12 +143,43 @@ class TaskActions {
     Task task,
     void Function(TaskAction) onTap,
   ) {
-    final canArchive = task.archivedAt == null && !task.isDeleted;
-    final canRestore = task.archivedAt != null || task.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Archive, restore and delete all need `edit_task`: the server authorizes
+    // each through `EntityPolicy::edit` (there is no `delete_*` permission).
+    // Ungated, a view-only user was offered Restore — one tap from the
+    // record's state banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEditTask =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'task',
+          createdBy: task.userId,
+          assignedTo: task.assignedUserId,
+          recordId: task.id,
+        ) ??
+        false;
+    final canArchive =
+        canEditTask && task.archivedAt == null && !task.isDeleted;
+    final canRestore =
+        canEditTask && (task.archivedAt != null || task.isDeleted);
+    // The two invoicing actions need the invoices module AND the matching
+    // invoice permission — the module alone used to decide, which offered New
+    // Invoice to a user the server would then refuse.
+    final invoicesOn = me?.moduleEnabled(EntityType.invoice) ?? false;
+    final canCreateInvoice =
+        invoicesOn &&
+        (me?.can(createPermissionFor(EntityType.invoice)) ?? false);
+    // Add To Invoice opens an invoice that already exists and saves it — an
+    // edit of *that* invoice, which the server allows its creator as well as
+    // a holder of `edit_invoice`. Which invoice is not known until it is
+    // picked, so the action is offered to anyone who could own one.
+    final canEditInvoice =
+        invoicesOn &&
+        ((me?.can('edit_invoice') ?? false) ||
+            (me?.can(createPermissionFor(EntityType.invoice)) ?? false));
+    // Permission gate, matching the linked name in the record's header.
+    // Read lazily here (itemsFor runs per build) so it re-resolves on a
+    // company switch.
     final canViewClient = me?.can('view_client') ?? false;
 
     // Start/Stop/Resume — only one renders at a time, gated by task state.
@@ -184,14 +218,34 @@ class TaskActions {
       }
     }
 
+    // A soft-deleted task is read-only: the server will not edit it, time it
+    // or bill it, so what would do any of those is not offered — as on a
+    // deleted client. Viewing its client, linking to it and restoring it are.
+    final live = !task.isDeleted;
+    final edit = editActionItem<TaskAction>(
+      context: context,
+      kind: TaskAction.edit,
+      onTap: () => onTap(TaskAction.edit),
+    );
     return [
-      editActionItem(
-        context: context,
-        kind: TaskAction.edit,
-        onTap: () => onTap(TaskAction.edit),
-      ),
+      // Edit stays in the list for a deleted task, disabled: a disabled item
+      // is hidden from every menu and bar, but the wide list row still finds
+      // it as its primary and draws the greyed pencil — without it the row's
+      // `⋮` would slide into the pencil's place, out of line with its
+      // neighbours.
+      if (live)
+        edit
+      else
+        EntityActionItem(
+          kind: edit.kind,
+          icon: edit.icon,
+          label: edit.label,
+          // No handler: a disabled item is never tapped.
+          enabled: false,
+          isPrimary: true,
+        ),
       ?timerItem,
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+      if (live && canCreateInvoice)
         EntityActionItem(
           kind: TaskAction.newInvoice,
           icon: Icons.receipt_long_outlined,
@@ -205,7 +259,8 @@ class TaskActions {
               !task.isRunning,
           onTap: () => onTap(TaskAction.newInvoice),
         ),
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+      // Appends to an invoice that already exists — an edit of that invoice.
+      if (live && canEditInvoice)
         EntityActionItem(
           kind: TaskAction.addToInvoice,
           icon: Icons.playlist_add,
@@ -233,13 +288,15 @@ class TaskActions {
           isNavigationOnly: true,
           onTap: () => onTap(TaskAction.viewClient),
         ),
-      EntityActionItem(
-        kind: TaskAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone_task'),
-        enabled: true,
-        onTap: () => onTap(TaskAction.clone),
-      ),
+      // Cloning opens a new task: a create.
+      if (live && (me?.can(createPermissionFor(EntityType.task)) ?? false))
+        EntityActionItem(
+          kind: TaskAction.clone,
+          icon: Icons.copy_outlined,
+          label: context.tr('clone_task'),
+          enabled: true,
+          onTap: () => onTap(TaskAction.clone),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: TaskAction.copyLink,
@@ -263,9 +320,80 @@ class TaskActions {
         context: context,
         subject: _confirmSubject(task),
         kind: TaskAction.delete,
-        canDelete: !task.isDeleted,
+        canDelete: canEditTask && !task.isDeleted,
         onTap: () => onTap(TaskAction.delete),
       ),
+    ];
+  }
+
+  /// The three kinds that write the time log. One of them is on screen at a
+  /// time, and a host that shows a tile for it marks that tile busy while the
+  /// write is in flight — see [quickItemsFor].
+  static bool isTimerAction(TaskAction action) =>
+      action == TaskAction.start ||
+      action == TaskAction.stop ||
+      action == TaskAction.resume;
+
+  /// The task screen's quick-action strip, most-used first. The strip shows
+  /// the first few that apply (`pickQuickActions`); the rest stay one tap
+  /// further away in the `⋮` menu, which still lists everything.
+  ///
+  /// Every tile is the *same item* [itemsFor] builds, looked up by kind, so
+  /// its gates cannot drift from the menu's — in particular the timer tile is
+  /// whichever of Start / Resume / Stop [itemsFor] decided on, and the word
+  /// Resume appears here under exactly the rule that lets it appear there
+  /// (`docs/task-scheduling.md`). It runs through the host's dispatcher, i.e.
+  /// `planTaskStart`; nothing here opens a time entry.
+  ///
+  /// [timerBusy] is true while a timer write the host started is in flight.
+  /// The tile then stays where it is, inert, rather than vanishing and
+  /// shifting its neighbours — or taking a second tap that would stop the
+  /// timer the first one is still starting.
+  ///
+  /// `applies` is about relevance, not ability: the two invoicing tiles are
+  /// worth a slot only once there is something to bill — time worked, or an
+  /// estimate, which is what a task invoiced ahead of the work is billed at
+  /// (`taskBillableHours`).
+  static List<EntityQuickAction<TaskAction>> quickItemsFor(
+    BuildContext context,
+    Task task,
+    void Function(TaskAction) onTap, {
+    ValueListenable<bool>? timerBusy,
+  }) {
+    // A deleted task is read-only, and an unsynced one would answer every
+    // tile with "sync first" — the banner says that once instead.
+    if (task.isDeleted || task.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, task, onTap);
+    EntityQuickAction<TaskAction>? pick(
+      TaskAction kind,
+      String shortLabel, {
+      bool applies = true,
+      ValueListenable<bool>? busy,
+    }) {
+      final item = findActionItem<TaskAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(
+        item: item,
+        shortLabel: shortLabel,
+        applies: applies,
+        busy: busy,
+      );
+    }
+
+    final billable =
+        task.billableDuration().inSeconds > 0 || task.estimatedSeconds > 0;
+    return [
+      // At most one of the three exists.
+      ?pick(TaskAction.stop, context.tr('stop'), busy: timerBusy),
+      ?pick(TaskAction.resume, context.tr('resume'), busy: timerBusy),
+      ?pick(TaskAction.start, context.tr('start'), busy: timerBusy),
+      ?pick(TaskAction.newInvoice, context.tr('invoice'), applies: billable),
+      ?pick(
+        TaskAction.addToInvoice,
+        context.tr('action_add_to_invoice'),
+        applies: billable,
+      ),
+      ?pick(TaskAction.clone, context.tr('clone')),
     ];
   }
 

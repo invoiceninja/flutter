@@ -62,7 +62,7 @@ void main() {
         missingFlag.add(name);
       }
       // A labelled "go to the client" affordance is permission-gated, the way
-      // `EntityLinkCard`'s `permissionKey:` is on the detail grids.
+      // the linked name in the record's header is.
       final perm = action == 'viewClient' ? 'view_client' : 'view_vendor';
       if (!src.contains("can('$perm')")) {
         missingGate.add(name);
@@ -94,7 +94,7 @@ void main() {
       missingGate,
       isEmpty,
       reason:
-          'gate the item on `me?.can(...)`, matching EntityLinkCard:\n'
+          'gate the item on `me?.can(...)`, matching the header link:\n'
           '  ${missingGate.join('\n  ')}',
     );
   });

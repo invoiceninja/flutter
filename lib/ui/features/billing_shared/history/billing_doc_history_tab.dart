@@ -26,9 +26,10 @@ import 'package:admin/utils/formatting.dart';
 /// parameter, because the two things a tab normally reads from context are
 /// both unreliable here:
 ///
-/// * `FormatterScope` is mounted by only three of the five detail screens —
-///   purchase order and recurring invoice thread their `Formatter` by hand —
-///   and `Formatter.money` on a null formatter silently renders `''`.
+/// * `FormatterScope` is mounted by only one of the five detail screens (the
+///   invoice's, for its reminders summary) — the others thread their
+///   `Formatter` by hand — and `Formatter.money` on a null formatter silently
+///   renders `''`.
 /// * The currency is resolved asynchronously from the *party* row, and it is
 ///   the **vendor's** on a purchase order. It is not a field on the document.
 ///

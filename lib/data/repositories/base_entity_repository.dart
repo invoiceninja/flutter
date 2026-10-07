@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart'
     show resolveRelativeFilterTokens;
@@ -22,6 +23,7 @@ import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 export 'package:admin/data/services/company_switched_exception.dart';
 
@@ -118,7 +120,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// `*NameLabel` to a raw id; now that a detail screen's `hydrate` runs
   /// through here too, it would leave the record's own screen permanently
   /// empty for the rest of the session.
-  final Map<String, Future<void>> _ensureInFlight = {};
+  final Map<String, Future<EnsureLoadedOutcome>> _ensureInFlight = {};
   final Set<String> _ensureMissing = {};
 
   /// Most recently OBSERVED value per `companyId/id`, mirrored out of [watch]'s
@@ -1184,6 +1186,30 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     );
   }
 
+  /// The parent-scope filter keys — the same ones [ensurePageLoadedTemplate]
+  /// keeps off the sync cursor.
+  static const List<String> _parentScopeKeys = [
+    'client_id',
+    'client_ids',
+    'vendor_id',
+    'bank_integration_ids',
+    'project_id',
+    'project_ids',
+    'project_tasks',
+  ];
+
+  /// True when some parent scope names only local `tmp_` records. Every value
+  /// has to be local: a set mixing a real id with a local one still has
+  /// server rows to fetch.
+  static bool _scopedToUnsyncedParent(Map<String, Set<String>> extraFilters) {
+    for (final key in _parentScopeKeys) {
+      final values = extraFilters[key];
+      if (values == null || values.isEmpty) continue;
+      if (values.every((v) => v.startsWith('tmp_'))) return true;
+    }
+    return false;
+  }
+
   /// Shared shape for `ensurePageLoaded` across every paginated repo (CRUD
   /// + bundled). Encodes the contract every list-fetching repo has shared
   /// independently:
@@ -1283,6 +1309,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         resolvedExtra.containsKey('project_ids') ||
         resolvedExtra.containsKey('project_tasks');
 
+    // A list scoped to a parent the server has never seen — the Invoices tab
+    // of a client created offline — has nothing to fetch: no server record can
+    // point at a `tmp_` id. Asking anyway is a guaranteed error (the id does
+    // not decode), which the tab then shows as "Failed to load" over what is
+    // simply an empty list.
+    if (_scopedToUnsyncedParent(resolvedExtra)) return false;
+
     // The cursor is a PAGE-1, UNSCOPED, UN-NARROWED delta probe only — see
     // `isNarrowedFetch` / `shouldReadCursor` for the full rationale, shared
     // with the ADVANCE gate below so the two can't disagree.
@@ -1346,7 +1379,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
 
     // Server-refresh: skip ids whose existing local row has is_dirty=true,
     // so a paged refresh doesn't clobber the user's pending offline edit.
-    await upsert({for (final a in apiRows) idOf(a): toCompanion(a)});
+    final spanArgs = {'entity': entityTypeName, 'rows': apiRows.length};
+    final byId = traceSync(
+      'page.map',
+      () => {for (final a in apiRows) idOf(a): toCompanion(a)},
+      args: spanArgs,
+    );
+    await traceAsync('page.write', () => upsert(byId), args: spanArgs);
 
     // Only an unscoped, un-narrowed page 1 may move the global watermark —
     // same `isNarrowedFetch` predicate the cursor READ above is gated on.
@@ -1534,8 +1573,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// id stays eligible so the next rebuild retries once connectivity
   /// recovers, instead of showing a raw id for the rest of the session. This
   /// is a read-only hydrate — no outbox / `is_dirty` semantics.
+  ///
+  /// Returns what happened as an [EnsureLoadedOutcome], so a detail screen can
+  /// tell "the server has no such record" from "the server could not be
+  /// reached". Every `ensureLoaded` wrapper is still declared `Future<void>`
+  /// and most callers ignore the value.
   @protected
-  Future<void> ensureLoadedTemplate<TItem, TCompanion>({
+  Future<EnsureLoadedOutcome> ensureLoadedTemplate<TItem, TCompanion>({
     required String companyId,
     required String id,
     required Future<TItem> Function(String id) fetch,
@@ -1544,26 +1588,42 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required Future<void> Function(Map<String, TCompanion> byId) upsert,
   }) {
     final cacheKey = '$companyId/$id';
-    if (id.isEmpty ||
-        id.startsWith('tmp_') ||
-        _ensureMissing.contains(cacheKey)) {
-      return Future<void>.value();
+    if (id.isEmpty || id.startsWith('tmp_')) {
+      return Future<EnsureLoadedOutcome>.value(EnsureLoadedOutcome.skipped);
+    }
+    if (_ensureMissing.contains(cacheKey)) {
+      return Future<EnsureLoadedOutcome>.value(EnsureLoadedOutcome.missing);
     }
     return _ensureInFlight[cacheKey] ??= () async {
       try {
         final cached = await watch(companyId: companyId, id: id).first;
-        if (cached != null) return;
+        if (cached != null) return EnsureLoadedOutcome.cached;
         final item = await fetch(id);
         await upsert({idOf(item): toCompanion(item)});
+        return EnsureLoadedOutcome.fetched;
       } on NotFoundException {
         // Genuinely gone server-side (404) — negative-cache so a deleted /
         // unknown reference isn't re-fetched on every rebuild this session.
         _ensureMissing.add(cacheKey);
+        return EnsureLoadedOutcome.missing;
+      } on PermissionDeniedException {
+        // There is such a record and this user may not see it — or it belongs
+        // to another company, which is what a screen left mounted across a
+        // company switch asks about. To the screen that is "missing", and it
+        // is negative-cached for the same reason: asking again gets the same
+        // answer.
+        _ensureMissing.add(cacheKey);
+        return EnsureLoadedOutcome.missing;
+      } on NetworkException {
+        // Never got an answer. Not negative-cached, like every other
+        // transient failure below: the id stays eligible for the next try.
+        return EnsureLoadedOutcome.unreachable;
       } catch (_) {
-        // Transient failure (NetworkException / 5xx ServerException /
-        // RateLimitedException / stale 401): leave the id eligible so the
-        // next rebuild retries once the network recovers, rather than
-        // pinning the *NameLabel to a raw id for the rest of the session.
+        // Transient failure (5xx ServerException / RateLimitedException /
+        // stale 401): leave the id eligible so the next rebuild retries once
+        // the network recovers, rather than pinning the *NameLabel to a raw
+        // id for the rest of the session.
+        return EnsureLoadedOutcome.failed;
       } finally {
         // `remove` returns the in-flight future itself; awaiting it here
         // would deadlock, so explicitly mark it unawaited.

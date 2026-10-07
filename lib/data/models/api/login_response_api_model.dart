@@ -70,6 +70,19 @@ abstract class LoginResponseApi with _$LoginResponseApi {
 
   factory LoginResponseApi.fromJson(Map<String, dynamic> json) =>
       _$LoginResponseApiFromJson(json);
+
+  /// [fromJson] for an envelope that is a FULL snapshot — `/login`, an OAuth or
+  /// token sign-in, a signup, or a `/refresh` sent with `updated_at=0` — which
+  /// leaves the fourteen browsable entity arrays unparsed.
+  ///
+  /// A full snapshot carries every client, invoice, payment, … of every
+  /// company, and nothing reads them: the delta appliers skip a full sync
+  /// (`_deltaOnly`). Parsing them anyway built a typed object for every record
+  /// in the account, on the UI isolate, on every cold start — see
+  /// `docs/startup-responsiveness.md`. A delta `/refresh` still goes through
+  /// [fromJson], which is what the appliers need.
+  static LoginResponseApi fromFullSnapshot(Map<String, dynamic> json) =>
+      LoginResponseApi.fromJson(withoutBrowsableEntityArrays(json));
 }
 
 /// One per company this user has access to. The token is per-company.
@@ -349,8 +362,10 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // filtered to `updated_at >= <the delta watermark>` — v2 used to drop it on
     // the floor, which is why a long session showed days-old data
     // (invoiceninja/flutter#170). Applied by `refreshDeltaAppliers` on a DELTA
-    // refresh only. See `docs/sync.md` § The refresh delta tops up the
-    // browsable tables.
+    // refresh only; a full snapshot is parsed without them
+    // (`LoginResponseApi.fromFullSnapshot`). See `docs/sync.md` § The refresh
+    // delta tops up the browsable tables. A new field here must also join
+    // `kBrowsableDeltaJsonKeys`.
     //
     // Every one of these MUST parse through `tolerantList`: they sit on the
     // same envelope as the session and the reference bundles, so one malformed
@@ -741,3 +756,54 @@ List<PurchaseOrderApi> _purchaseOrderDeltaListData(Object? raw) =>
     tolerantList(raw, PurchaseOrderApi.fromJson, label: 'purchase_order');
 List<BankTransactionApi> _bankTransactionDeltaListData(Object? raw) =>
     tolerantList(raw, BankTransactionApi.fromJson, label: 'bank_transaction');
+
+/// JSON keys of the fourteen browsable entity arrays on `data[N].company` —
+/// the `name:` of each delta field on [CompanyEnvelopeApi], and the one list
+/// [withoutBrowsableEntityArrays] drops. `login_response_full_snapshot_test`
+/// fails if a fifteenth delta field is declared without joining it.
+const kBrowsableDeltaJsonKeys = <String>{
+  'clients',
+  'products',
+  'invoices',
+  'recurring_invoices',
+  'quotes',
+  'credits',
+  'payments',
+  'tasks',
+  'projects',
+  'expenses',
+  'recurring_expenses',
+  'vendors',
+  'purchase_orders',
+  'bank_transactions',
+};
+
+/// [envelope] with [kBrowsableDeltaJsonKeys] removed from every company — see
+/// [LoginResponseApi.fromFullSnapshot]. Copies the maps it changes rather than
+/// editing them, so a caller's own (or an unmodifiable) map is left alone; an
+/// entry it does not recognise is passed through for `tolerantList` to judge.
+Map<String, dynamic> withoutBrowsableEntityArrays(
+  Map<String, dynamic> envelope,
+) {
+  final data = envelope['data'];
+  if (data is! List) return envelope;
+  return {
+    ...envelope,
+    'data': [
+      for (final entry in data)
+        if (entry is Map<String, dynamic> &&
+            entry['company'] is Map<String, dynamic>)
+          {
+            ...entry,
+            'company': <String, dynamic>{
+              for (final field
+                  in (entry['company'] as Map<String, dynamic>).entries)
+                if (!kBrowsableDeltaJsonKeys.contains(field.key))
+                  field.key: field.value,
+            },
+          }
+        else
+          entry,
+    ],
+  };
+}

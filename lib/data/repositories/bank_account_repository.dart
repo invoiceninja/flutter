@@ -9,6 +9,7 @@ import 'package:admin/data/models/api/bank_account_api_model.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/bank_accounts_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -153,18 +154,41 @@ class BankAccountRepository
   /// show the raw id. See [ensureLoadedTemplate]. Bank accounts are
   /// bundled, so this is usually a cache hit / no-op — it's the safety
   /// net for a stale or not-yet-bundled integration id.
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.bankAccountDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
+
+  /// Force-refetch bank accounts by id — the record screen's re-check on open
+  /// and its pull-to-refresh (a balance moves whenever the feed syncs), and
+  /// the Outbox's Check. It was the base no-op. See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<BankAccountApi, BankAccountsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.bankAccountDao.upsertAllPreservingDirty(
         companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.bankAccountDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+        byId: byId,
+      ),
+    );
+  }
 
   Future<void> refreshAll({required String companyId, bool full = false}) =>
       refreshAllTemplate(

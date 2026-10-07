@@ -48,6 +48,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/main.dart';
+import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 
 import 'support/in_memory_executor.dart';
 
@@ -188,6 +189,42 @@ Future<void> _stop(
   }
 }
 
+/// Captures the dashboard a viewport at a time below its first screen. The
+/// page is several screens long, and what sits below the fold is where its
+/// layout problems are; one capture of the top would never show them.
+///
+/// Jumps the scroll position rather than dragging: a drag is a touch gesture,
+/// and the pointer passes exist to capture what a mouse user sees.
+Future<void> _dashboardBelowTheFold(
+  WidgetTester tester,
+  IntegrationTestWidgetsFlutterBinding binding,
+) async {
+  const maxPages = 6;
+  for (var page = 2; page <= maxPages; page++) {
+    final scrollable = find.descendant(
+      of: find.byType(DashboardScreen),
+      matching: find.byType(Scrollable),
+    );
+    if (scrollable.evaluate().isEmpty) return;
+    final position = tester.state<ScrollableState>(scrollable.first).position;
+    final target = (position.pixels + position.viewportDimension * 0.9).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    // Already at the end — another capture would repeat the last one.
+    if (target <= position.pixels + 1) return;
+    await _stop(
+      tester,
+      binding,
+      'dashboard-$page',
+      action: () async {
+        position.jumpTo(target);
+        await _settle(tester, frames: 6);
+      },
+    );
+  }
+}
+
 // --- The sweep --------------------------------------------------------------
 
 void main() {
@@ -267,7 +304,15 @@ Future<void> _sweep(
   // ignore: avoid_print
   print('=== UX sweep $_tag ===');
 
-  await _stop(tester, binding, 'dashboard');
+  // The dashboard's sections land one request at a time, so it gets a longer
+  // settle than a list does — captured early it is a page of skeletons.
+  await _stop(
+    tester,
+    binding,
+    'dashboard',
+    action: () => _settle(tester, frames: 32),
+  );
+  await _dashboardBelowTheFold(tester, binding);
   await _stop(tester, binding, 'clients-list', route: '/clients');
   await _stop(tester, binding, 'invoices-list', route: '/invoices');
   await _stop(tester, binding, 'invoice-new', route: '/invoices/new');

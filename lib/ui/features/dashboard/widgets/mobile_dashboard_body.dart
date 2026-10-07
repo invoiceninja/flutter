@@ -1,4 +1,3 @@
-import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,63 +6,78 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
-import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
 import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
-import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
-import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
-import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
+import 'package:admin/ui/features/dashboard/helpers/needs_attention.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
-import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
-import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_attention_slot.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_period_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
-import 'package:admin/ui/features/dashboard/widgets/list_card_skeleton.dart';
+import 'package:admin/ui/features/dashboard/widgets/kpi_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
-import 'package:admin/ui/features/dashboard/widgets/mobile/dashboard_mobile_rows.dart';
+import 'package:admin/ui/features/dashboard/widgets/needs_attention_band.dart';
+import 'package:admin/ui/features/dashboard/widgets/recent_payments_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/upcoming_invoices_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/upcoming_quotes_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/upcoming_recurring_invoices_card.dart';
 
-/// Mobile (<600 px) dashboard body. The header follows `patterns.jsx:375-441`
-/// — eyebrow → dark hero KPI → compact past-due table — and is then followed
-/// by the same sections desktop renders (revenue chart, activity feed,
-/// upcoming invoices, recent payments, upcoming / expired quotes, upcoming
-/// recurring invoices), each laid out as a single-column stack of
-/// mobile-friendly rows rather than the desktop multi-column tables which
-/// overflow on phone widths.
+/// Narrow dashboard body — a phone in either orientation, or a pane under
+/// 600 px.
 ///
-/// **There are no quick-action tiles any more** (invoiceninja/flutter#164).
-/// The row under the hero held New Client, Enter Expense and Reports. The two
-/// creates moved into the screen's `+` sheet (`DashboardCreateFab`), which
-/// offers every entity the user may create and stays on screen while the page
-/// scrolls. Reports is in the main menu, where it is gated on `view_reports`
-/// and shows the plan lock; the tile checked neither.
+/// Top to bottom: **what needs attention**, then **what is outstanding** and
+/// how the selected period went, the user's own metric cards, the chart, the
+/// list panels in their saved order, and the activity feed.
+///
+/// The band leads. It used to sit third, under the user's metric cards — one
+/// to a row at 140 px each, so three cards put the overdue invoices about
+/// 690 px down, off the first screen of the device most likely to be glanced
+/// at between jobs.
+///
+/// **The period controls are in the page**, between Outstanding and the
+/// figures they change (`DashboardPeriodBar`). They were a funnel and a cog in
+/// the app bar, and the range was shown as an untappable line of small
+/// capitals at the top of this list.
+///
+/// **There are no quick-action tiles** (invoiceninja/flutter#164): creating is
+/// the screen's `+` sheet (`DashboardCreateFab`), which stays on screen while
+/// the page scrolls.
+/// Rows a list panel shows on the narrow layout.
+const int _kNarrowPanelRows = 3;
+
 class MobileDashboardBody extends StatelessWidget {
   const MobileDashboardBody({
     super.key,
     required this.vm,
     required this.formatter,
     this.fabClearance = 0,
+    this.showFigures = true,
+    this.attentionActions = AttentionActions.none,
+    this.failedSaves,
+    this.onReviewFailedSaves,
+    required this.onAttentionViewAll,
     required this.onOpenCard,
-    required this.onPastDueInvoiceTap,
-    required this.onAllInvoices,
+    required this.onInvoiceTap,
     required this.onAllUpcomingInvoices,
     required this.onOutstandingTap,
+    required this.onInvoicesTap,
     required this.onPaidTap,
     required this.onActivityTap,
     this.onAllActivities,
-    required this.onUpcomingInvoiceTap,
     required this.onPaymentTap,
     required this.onAllPayments,
     required this.onQuoteTap,
-    required this.onAllQuotes,
+    required this.onAllUpcomingQuotes,
+    required this.onAllExpiredQuotes,
     required this.onRecurringTap,
     required this.onAllRecurring,
     required this.onShowPanels,
@@ -77,17 +91,34 @@ class MobileDashboardBody extends StatelessWidget {
   /// button and 0 when it doesn't.
   final double fabClearance;
 
+  /// Whether the period figures, the metric cards and the chart are drawn —
+  /// false for a user without `view_dashboard`, whom the server refuses those
+  /// endpoints. The band and the list panels are unaffected.
+  final bool showFigures;
+
+  /// What the band's rows may do — see `AttentionActions`.
+  final AttentionActions attentionActions;
+
+  /// Changes that failed to save, as a count; null draws no alert line. Must
+  /// be a stream built once by the host.
+  final Stream<int>? failedSaves;
+  final VoidCallback? onReviewFailedSaves;
+
+  /// The band's "View all" for the selected tab.
+  final void Function(AttentionTab tab) onAttentionViewAll;
+
   /// Open the entity list relevant to a tapped configured card.
   final void Function(DashboardCardConfig) onOpenCard;
-  final void Function(DashboardInvoiceRow) onPastDueInvoiceTap;
 
-  /// "View all" on the past-due / "Needs your attention" section.
-  final VoidCallback onAllInvoices;
+  /// A tap on an invoice row, in the band or the Upcoming Invoices card.
+  final void Function(DashboardInvoiceRow) onInvoiceTap;
 
-  /// "View all" on the Upcoming Invoices card — distinct from
-  /// [onAllInvoices] so each lands on its own filtered list.
+  /// "View all" on the Upcoming Invoices card.
   final VoidCallback onAllUpcomingInvoices;
   final VoidCallback onOutstandingTap;
+
+  /// A tap on the period's Invoices figure.
+  final VoidCallback onInvoicesTap;
   final VoidCallback onPaidTap;
   final void Function(DashboardActivity) onActivityTap;
 
@@ -95,11 +126,14 @@ class MobileDashboardBody extends StatelessWidget {
   /// test can omit it — null still hides the "View all" link
   /// (see [ActivityCard.onViewAll]).
   final VoidCallback? onAllActivities;
-  final void Function(DashboardInvoiceRow) onUpcomingInvoiceTap;
   final void Function(DashboardPaymentRow) onPaymentTap;
   final VoidCallback onAllPayments;
   final void Function(DashboardQuoteRow) onQuoteTap;
-  final VoidCallback onAllQuotes;
+
+  /// "View all" on the Upcoming Quotes and Expired Quotes cards — two lists,
+  /// so two destinations.
+  final VoidCallback onAllUpcomingQuotes;
+  final VoidCallback onAllExpiredQuotes;
   final void Function(DashboardRecurringInvoiceRow) onRecurringTap;
   final VoidCallback onAllRecurring;
 
@@ -111,18 +145,12 @@ class MobileDashboardBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     // Module + permission gating through the one shared gate the wide body and
-    // the manage sheet also read (`enabledPanelKinds`) — mobile previously
-    // rendered these list cards unconditionally, and then briefly held a
-    // hand-copied second gate.
+    // the manage sheet also read (`enabledPanelKinds`).
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final enabled = enabledPanelKinds(
       moduleOn: (t) => me?.moduleEnabled(t) ?? false,
       can: (p) => me?.can(p) ?? false,
     );
-    // Named for the panel, not the module: this asks the shared gate the
-    // precise question the pinned card needs, and stays correct if past-due
-    // ever gains a permission gate of its own.
-    final pastDueEnabled = enabled.contains(DashboardKind.pastDue);
     // `hidden` is the set of panels this device is leaving out because they
     // have nothing to show (invoiceninja/flutter#161) — on by default on a
     // phone. The builder is what rebuilds this list when a panel empties: a
@@ -134,8 +162,8 @@ class MobileDashboardBody extends StatelessWidget {
         context,
         tokens,
         enabled: enabled,
-        pastDueEnabled: pastDueEnabled,
         hidden: hidden,
+        expensesOn: me?.moduleEnabled(EntityType.expense) ?? false,
       ),
     );
   }
@@ -144,10 +172,11 @@ class MobileDashboardBody extends StatelessWidget {
     BuildContext context,
     InTheme tokens, {
     required Set<String> enabled,
-    required bool pastDueEnabled,
     required Set<String> hidden,
+    required bool expensesOn,
   }) {
     final gutter = InSpacing.lg(context);
+    final pastDueOn = enabled.contains(DashboardKind.pastDue);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         gutter,
@@ -156,60 +185,92 @@ class MobileDashboardBody extends StatelessWidget {
         gutter + fabClearance,
       ),
       children: [
-        _eyebrow(context, tokens),
-        // The empty-state "add cards" link is dropped on mobile — the app bar
-        // already has a dedicated Cards button. Only render the grid (and its
-        // leading gap) once cards exist.
-        ListenableBuilder(
-          listenable: vm,
-          builder: (context, _) => vm.dashboardCards.isEmpty
-              ? const SizedBox.shrink()
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: InSpacing.sm),
-                    ConfiguredCardsGrid(
+        // The band leads, and it is ONE child either way — band and gap, or a
+        // zero-size box: the list matches unkeyed children by index, so a slot
+        // that came and went would shift, and rebuild, everything below it.
+        // Past-due's order slot is ignored; only its show / hide switch counts.
+        DashboardAttentionSlot(
+          vm: vm,
+          formatter: formatter,
+          show:
+              pastDueOn &&
+              _panelVisible(DashboardKind.pastDue) &&
+              !hidden.contains(DashboardKind.pastDue),
+          compact: true,
+          rowLimit: kAttentionRows,
+          gap: InSpacing.lg(context),
+          actions: attentionActions,
+          failedSaves: failedSaves,
+          onReviewFailedSaves: onReviewFailedSaves,
+          onInvoiceTap: onInvoiceTap,
+          onQuoteTap: onQuoteTap,
+          onViewAll: onAttentionViewAll,
+        ),
+        if (showFigures) ...[
+          sectionListenable(
+            Listenable.merge([vm.kpiListenable, vm.attentionListenable]),
+            () => buildOutstandingCard(
+              context,
+              vm: vm,
+              formatter: formatter,
+              pastDueCount: pastDueOn && vm.pastDue.data != null
+                  ? vm.attention().pastDueCount
+                  : null,
+              onTap: onOutstandingTap,
+              valueFontSize: 30,
+            ),
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          // The controls for the figures and the chart, directly above them.
+          // Rebuilt by the screen's global notify (the filter) and by the
+          // totals (whether there is a second currency to offer).
+          sectionListenable(
+            vm.kpiListenable,
+            () =>
+                DashboardPeriodBar(vm: vm, formatter: formatter, compact: true),
+          ),
+          SizedBox(height: InSpacing.md(context)),
+          sectionListenable(
+            vm.kpiListenable,
+            () => buildPeriodCard(
+              context,
+              vm: vm,
+              formatter: formatter,
+              showExpenses: expensesOn,
+              onInvoicesTap: onInvoicesTap,
+              onPaidTap: onPaidTap,
+              valueFontSize: 16,
+            ),
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          // The user's own metric cards. One child either way — see the band.
+          ListenableBuilder(
+            listenable: vm,
+            builder: (context, _) => vm.dashboardCards.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: EdgeInsets.only(bottom: InSpacing.lg(context)),
+                    child: ConfiguredCardsGrid(
                       vm: vm,
                       formatter: formatter,
-                      onManage: () => openManageDashboardCards(
-                        context,
-                        vm: vm,
-                        mobileLayout: true,
-                      ),
+                      onManage: () => openManageDashboardCards(context, vm: vm),
                       onOpenCard: onOpenCard,
                     ),
-                  ],
-                ),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(vm.kpiListenable, () => _heroKpi(context, tokens)),
-        SizedBox(height: InSpacing.lg(context)),
-        // Past-due is pinned to the hero zone on mobile (its order slot is
-        // ignored); shown only when visible + invoices enabled, and not while
-        // it is hidden for having nothing to show. ONE child either way — card
-        // and spacer together, or nothing: the list matches unkeyed children
-        // by index, so a slot that came and went would shift the chart and the
-        // activity card below it, and each shift rebuilds them from scratch.
-        (pastDueEnabled &&
-                _panelVisible(DashboardKind.pastDue) &&
-                !hidden.contains(DashboardKind.pastDue))
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  sectionListenable(
-                    vm.listenableFor(DashboardKind.pastDue),
-                    () => _needsAttentionCard(context, tokens),
                   ),
-                  SizedBox(height: InSpacing.lg(context)),
-                ],
-              )
-            : const SizedBox.shrink(),
-        sectionListenable(
-          vm.chartCardListenable,
-          () => ChartCard(vm: vm, formatter: formatter),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
+          ),
+          sectionListenable(
+            vm.chartCardListenable,
+            () => ChartCard(vm: vm, formatter: formatter),
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+        ],
+        // The list panels in the user's saved order (past-due excluded — it is
+        // the band above). Each visible, module-enabled panel emits its card +
+        // a trailing spacer, so hiding one never orphans a gap.
+        ..._trailingPanels(context, tokens, enabled: enabled, hidden: hidden),
+        _hiddenPanelsLink(context, enabled: enabled, hidden: hidden),
+        // Last: a feed of what already happened is the least urgent thing on
+        // the page, and it used to sit above every panel.
         sectionListenable(
           vm.listenableFor(DashboardKind.activities),
           () => ActivityCard(
@@ -219,15 +280,6 @@ class MobileDashboardBody extends StatelessWidget {
             onActivityTap: onActivityTap,
           ),
         ),
-        SizedBox(height: InSpacing.lg(context)),
-        // Trailing list panels in the user's saved order (past-due excluded —
-        // it's pinned above). Each visible, module-enabled panel emits its card
-        // + a trailing spacer, so hiding one never orphans a gap — which is
-        // also why nothing replaces the freshness stamp that used to close the
-        // page here; it rides the eyebrow at the top now (issue #26), and the
-        // ListView's own padding closes the bottom when every panel is hidden.
-        ..._trailingPanels(context, tokens, enabled: enabled, hidden: hidden),
-        _hiddenPanelsLink(context, enabled: enabled, hidden: hidden),
       ],
     );
   }
@@ -253,17 +305,22 @@ class MobileDashboardBody extends StatelessWidget {
         )
         .length;
     if (count == 0) return const SizedBox.shrink();
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: DashboardCardFooterLink(
-        label: context.tr(
-          count == 1
-              ? 'empty_panels_hidden_count_singular'
-              : 'empty_panels_hidden_count_plural',
-          {'count': '$count'},
+    return Padding(
+      // It carries its own gap, like a panel: the activity feed follows, and a
+      // line that came and went would otherwise leave it hard against it.
+      padding: EdgeInsets.only(bottom: InSpacing.lg(context)),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: DashboardCardFooterLink(
+          label: context.tr(
+            count == 1
+                ? 'empty_panels_hidden_count_singular'
+                : 'empty_panels_hidden_count_plural',
+            {'count': '$count'},
+          ),
+          onTap: onShowPanels,
+          touchFloor: true,
         ),
-        onTap: onShowPanels,
-        touchFloor: true,
       ),
     );
   }
@@ -286,25 +343,72 @@ class MobileDashboardBody extends StatelessWidget {
     // would hang off a `Listenable` that can never fire and read, wrongly, as
     // if it were fed by `dashboard_cache`.
     final builders = <String, Widget Function()>{
+      // The same cards the wide grid uses, in their stacked form: one row
+      // grammar and one set of states on both layouts. Three rows rather than
+      // five — on a phone each row is two lines, and "View all" is one tap.
       DashboardKind.upcomingInvoices: () => sectionListenable(
         vm.listenableFor(DashboardKind.upcomingInvoices),
-        () => _upcomingInvoicesCard(context, tokens),
+        () => UpcomingInvoicesCard(
+          section: vm.upcomingInvoices,
+          formatter: formatter,
+          today: vm.today,
+          compact: true,
+          preview: _kNarrowPanelRows,
+          onInvoiceTap: onInvoiceTap,
+          onViewAll: onAllUpcomingInvoices,
+          onRetry: () => vm.retry(DashboardKind.upcomingInvoices),
+          enterPayment: attentionActions.enterPayment,
+        ),
       ),
       DashboardKind.recentPayments: () => sectionListenable(
         vm.listenableFor(DashboardKind.recentPayments),
-        () => _recentPaymentsCard(context, tokens),
+        () => RecentPaymentsCard(
+          section: vm.recentPayments,
+          formatter: formatter,
+          compact: true,
+          preview: _kNarrowPanelRows,
+          onPaymentTap: onPaymentTap,
+          onViewAll: onAllPayments,
+          onRetry: () => vm.retry(DashboardKind.recentPayments),
+        ),
       ),
       DashboardKind.upcomingQuotes: () => sectionListenable(
         vm.listenableFor(DashboardKind.upcomingQuotes),
-        () => _upcomingQuotesCard(context, tokens),
+        () => UpcomingQuotesCard(
+          section: vm.upcomingQuotes,
+          formatter: formatter,
+          today: vm.today,
+          compact: true,
+          preview: _kNarrowPanelRows,
+          onQuoteTap: onQuoteTap,
+          onViewAll: onAllUpcomingQuotes,
+          onRetry: () => vm.retry(DashboardKind.upcomingQuotes),
+          remind: attentionActions.remindQuote,
+        ),
       ),
       DashboardKind.expiredQuotes: () => sectionListenable(
         vm.listenableFor(DashboardKind.expiredQuotes),
-        () => _expiredQuotesCard(context, tokens),
+        () => ExpiredQuotesCard(
+          section: vm.expiredQuotes,
+          formatter: formatter,
+          compact: true,
+          preview: _kNarrowPanelRows,
+          onQuoteTap: onQuoteTap,
+          onViewAll: onAllExpiredQuotes,
+          onRetry: () => vm.retry(DashboardKind.expiredQuotes),
+        ),
       ),
       DashboardKind.upcomingRecurring: () => sectionListenable(
         vm.listenableFor(DashboardKind.upcomingRecurring),
-        () => _upcomingRecurringCard(context, tokens),
+        () => UpcomingRecurringInvoicesCard(
+          section: vm.upcomingRecurring,
+          formatter: formatter,
+          compact: true,
+          preview: _kNarrowPanelRows,
+          onRecurringTap: onRecurringTap,
+          onViewAll: onAllRecurring,
+          onRetry: () => vm.retry(DashboardKind.upcomingRecurring),
+        ),
       ),
       DashboardKind.invoicesAndQuotes: () {
         final me = context.read<Services>().auth.session.value?.currentCompany;
@@ -343,502 +447,4 @@ class MobileDashboardBody extends StatelessWidget {
 
   bool _panelVisible(String kind) =>
       vm.panelPrefs.any((p) => p.kind == kind && p.visible);
-
-  // ---------------------------------------------------------------------------
-  // Eyebrow
-
-  /// `APR 1, 2026 — JUN 30, 2026 · UPDATED 12 MIN AGO`.
-  ///
-  /// The window leads because on a phone it appeared nowhere else — the AppBar
-  /// carries a bare filter *icon* — so every figure below was scoped to a range
-  /// the user couldn't see (flutter#37). It displaced `ACME CORPORATION ·
-  /// DASHBOARD`, which cost nothing: the nav already says which page this is,
-  /// and the company is a tap or two away in the drawer — the
-  /// `CompanySwitcherButton` header on a multi-company account, and
-  /// `SidebarCompanyFooterAction` on a single-company one (issue #104), which
-  /// drops the header row for the space and spells the name out in the picker
-  /// sheet it opens rather than in the drawer itself.
-  /// (This used to point at the AppBar title for the company name; flutter#50
-  /// retitled that bar to the page name, so the drawer is the sole surface.)
-  ///
-  /// One run in one voice, not a two-column row: on a 360 dp phone the content
-  /// line is ~336 px and a full range (~186 px) plus the freshness stamp
-  /// (~158 px) overruns it, so side-by-side would truncate the window on every
-  /// handset at or below 375 dp. As a single string the ellipsis eats the
-  /// freshness first, which is the right priority. There is no tappable
-  /// Refresh here. `RefreshIndicator` already wraps the body, and the AppBar
-  /// has no room for a fourth action: on a 320 dp handset it would truncate
-  /// the title again.
-  Widget _eyebrow(BuildContext context, InTheme tokens) {
-    return FreshnessTicker(
-      builder: (context) => Text(
-        '${dashboardRangeDates(context, vm.filter, formatter: formatter).toUpperCase()} · '
-        '${freshnessText(context, lastRefreshed: vm.lastRefreshed, isRefreshing: vm.isAnyRefreshing).toUpperCase()}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.6,
-          color: tokens.ink3,
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Hero KPI — dark surface, Outstanding number + sparkline, 2 sub-KPIs.
-
-  Widget _heroKpi(BuildContext context, InTheme tokens) {
-    final currencyKey = selectedCurrencyKey(vm.filter.currencyId);
-    final convertedHint = convertedToBaseCaption(
-      context,
-      selectedCurrencyId: vm.filter.currencyId,
-      totals: vm.totals.data,
-      formatter: formatter,
-    );
-    final current = selectCurrencyTotals(vm.totals.data, currencyKey);
-    final previous = selectCurrencyTotals(vm.totalsPrevious.data, currencyKey);
-
-    final outstanding = current?.outstandingAmount ?? Decimal.zero;
-    final outstandingText = formatter.money(
-      outstanding,
-      currencyId: currencyKey,
-    );
-    final outstandingDelta = percentDelta(
-      current?.outstandingAmount,
-      previous?.outstandingAmount,
-    );
-
-    final unpaidCount = current?.outstandingCount ?? 0;
-
-    final paidText = formatter.money(
-      current?.revenuePaidToDate ?? Decimal.zero,
-      currencyId: currencyKey,
-    );
-
-    final heroRadius = BorderRadius.circular(InRadii.r3);
-
-    return Material(
-      color: tokens.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: tokens.border),
-        borderRadius: heroRadius,
-      ),
-      child: InkWell(
-        onTap: onOutstandingTap,
-        child: Padding(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          context.tr('outstanding'),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.3,
-                            color: tokens.ink3,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          outstandingText,
-                          style: moneyTextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: -0.5,
-                            color: tokens.ink,
-                          ),
-                        ),
-                        if (convertedHint != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            convertedHint,
-                            style: TextStyle(fontSize: 11, color: tokens.ink3),
-                          ),
-                        ],
-                        if (outstandingDelta != null) ...[
-                          const SizedBox(height: 4),
-                          // Outstanding is "good when down": a rising balance
-                          // renders red, a falling one green — same semantics
-                          // as the desktop KPI. Reuse DeltaChip, don't hand-roll
-                          // (the old version hardcoded green for both).
-                          DeltaChip(
-                            percent: outstandingDelta,
-                            goodDirection: GoodDirection.down,
-                            // Range-agnostic + localized, matching the chart
-                            // card. "this month" misled for non-month ranges.
-                            suffix: context.tr('vs_prior'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: InSpacing.lg(context)),
-              Row(
-                children: [
-                  Expanded(
-                    child: _subKpi(
-                      context: context,
-                      label: context.tr('unpaid'),
-                      // Count of unpaid invoices in the period. The totals
-                      // endpoint exposes only `outstanding_count` (no overdue
-                      // count), so this is labeled "Unpaid" and drills to the
-                      // same windowed-unpaid list as the Outstanding hero — the
-                      // mislabeled "Overdue" number/drill-through disagreed (U7).
-                      value: '$unpaidCount',
-                      bg: tokens.surfaceAlt,
-                      labelColor: tokens.ink3,
-                      valueColor: tokens.ink,
-                      onTap: onOutstandingTap,
-                    ),
-                  ),
-                  SizedBox(width: InSpacing.sm),
-                  Expanded(
-                    child: _subKpi(
-                      context: context,
-                      // Range-agnostic, like its "Unpaid" sibling: the figure
-                      // tracks the selected window, so a fixed "this month"
-                      // heading lied for every other range (flutter#37). The
-                      // window is stated once, in the eyebrow above.
-                      label: context.tr('paid'),
-                      value: paidText,
-                      bg: tokens.surfaceAlt,
-                      labelColor: tokens.ink3,
-                      valueColor: tokens.ink,
-                      onTap: onPaidTap,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _subKpi({
-    required BuildContext context,
-    required String label,
-    required String value,
-    required Color bg,
-    required Color labelColor,
-    required Color valueColor,
-    VoidCallback? onTap,
-  }) {
-    final radius = BorderRadius.circular(10);
-    final inner = Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.md(context),
-        vertical: InSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-              color: labelColor,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: moneyTextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-    return Material(
-      color: bg,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? inner
-          : InkWell(onTap: onTap, borderRadius: radius, child: inner),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Needs-attention card — 3 rows max on mobile.
-
-  Widget _needsAttentionCard(BuildContext context, InTheme tokens) {
-    final today = Date.today();
-    return _mobileListCard<DashboardInvoiceRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('needs_your_attention'),
-      allLabel: context.tr('all_invoices'),
-      onAllTap: onAllInvoices,
-      section: vm.pastDue,
-      emptyMessage: context.tr('all_caught_up'),
-      onRetry: () => vm.retry(DashboardKind.pastDue),
-      max: 3,
-      rowBuilder: (row) => MobileInvoiceRow(
-        row: row,
-        formatter: formatter,
-        today: today,
-        onTap: () => onPastDueInvoiceTap(row),
-        alwaysOverdue: true,
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // List-card sections — single-column stacked rows that mirror the data each
-  // desktop card shows, but in a layout that fits on a phone width.
-
-  Widget _upcomingInvoicesCard(BuildContext context, InTheme tokens) {
-    final today = Date.today();
-    return _mobileListCard<DashboardInvoiceRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('upcoming_invoices'),
-      allLabel: context.tr('all_invoices'),
-      onAllTap: onAllUpcomingInvoices,
-      section: vm.upcomingInvoices,
-      onRetry: () => vm.retry(DashboardKind.upcomingInvoices),
-      emptyMessage: context.tr('no_invoices_due_soon'),
-      rowBuilder: (row) => MobileInvoiceRow(
-        row: row,
-        formatter: formatter,
-        today: today,
-        onTap: () => onUpcomingInvoiceTap(row),
-      ),
-    );
-  }
-
-  Widget _recentPaymentsCard(BuildContext context, InTheme tokens) {
-    return _mobileListCard<DashboardPaymentRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('recent_payments'),
-      allLabel: context.tr('all_payments'),
-      onAllTap: onAllPayments,
-      section: vm.recentPayments,
-      onRetry: () => vm.retry(DashboardKind.recentPayments),
-      emptyMessage: context.tr('no_payments_yet'),
-      rowBuilder: (row) => MobilePaymentRow(
-        row: row,
-        formatter: formatter,
-        onTap: () => onPaymentTap(row),
-      ),
-    );
-  }
-
-  Widget _upcomingQuotesCard(BuildContext context, InTheme tokens) {
-    return _mobileListCard<DashboardQuoteRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('upcoming_quotes'),
-      allLabel: context.tr('all_quotes'),
-      onAllTap: onAllQuotes,
-      section: vm.upcomingQuotes,
-      onRetry: () => vm.retry(DashboardKind.upcomingQuotes),
-      emptyMessage: context.tr('no_upcoming_quotes'),
-      rowBuilder: (row) => MobileQuoteRow(
-        row: row,
-        formatter: formatter,
-        expired: false,
-        onTap: () => onQuoteTap(row),
-      ),
-    );
-  }
-
-  Widget _expiredQuotesCard(BuildContext context, InTheme tokens) {
-    return _mobileListCard<DashboardQuoteRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('expired_quotes'),
-      allLabel: context.tr('all_quotes'),
-      onAllTap: onAllQuotes,
-      section: vm.expiredQuotes,
-      onRetry: () => vm.retry(DashboardKind.expiredQuotes),
-      emptyMessage: context.tr('no_expired_quotes'),
-      rowBuilder: (row) => MobileQuoteRow(
-        row: row,
-        formatter: formatter,
-        expired: true,
-        onTap: () => onQuoteTap(row),
-      ),
-    );
-  }
-
-  Widget _upcomingRecurringCard(BuildContext context, InTheme tokens) {
-    return _mobileListCard<DashboardRecurringInvoiceRow>(
-      context: context,
-      tokens: tokens,
-      title: context.tr('upcoming_recurring_invoices'),
-      allLabel: context.tr('all_recurring_invoices'),
-      onAllTap: onAllRecurring,
-      section: vm.upcomingRecurring,
-      onRetry: () => vm.retry(DashboardKind.upcomingRecurring),
-      emptyMessage: context.tr('no_upcoming_recurring_invoices'),
-      rowBuilder: (row) => MobileRecurringInvoiceRow(
-        row: row,
-        formatter: formatter,
-        onTap: () => onRecurringTap(row),
-      ),
-    );
-  }
-
-  // Shared shell for the stacked list cards (past-due included): header
-  // (title + optional "view all" link) → divider → a body chosen by
-  // `ListSectionState`, the order the wide `DashboardListCard` and the view
-  // model's `emptyPanels` share. The empty message renders only once the
-  // section has loaded with no rows — it used to render for all three non-row
-  // states, so a phone would flash "No upcoming quotes" before hiding the
-  // panel, and a failed fetch read as "there are none" (flutter#161).
-  //
-  // Both non-row placeholders are compact, and deliberately so: this card
-  // sits in a phone's single column, where a tall placeholder that collapses
-  // on load moves everything below it.
-  Widget _mobileListCard<T>({
-    required BuildContext context,
-    required InTheme tokens,
-    required String title,
-    required String allLabel,
-    required VoidCallback onAllTap,
-    required AsyncSection<List<T>> section,
-    required String emptyMessage,
-    required VoidCallback onRetry,
-    required Widget Function(T) rowBuilder,
-    int max = 5,
-  }) {
-    final state = section.listState;
-    final hasRows = state == ListSectionState.rows;
-    final List<T> rows = hasRows
-        ? section.data!.take(max).toList(growable: false)
-        : <T>[];
-    final messagePadding = EdgeInsets.symmetric(
-      horizontal: InSpacing.lg(context),
-      vertical: InSpacing.xl,
-    );
-    final messageStyle = TextStyle(fontSize: 12.5, color: tokens.ink3);
-    return DashboardCardShell(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: InSpacing.lg(context),
-              vertical: InSpacing.md(context),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.ink,
-                    ),
-                  ),
-                ),
-                if (hasRows)
-                  GestureDetector(
-                    onTap: onAllTap,
-                    child: Text(
-                      allLabel,
-                      style: TextStyle(fontSize: 11.5, color: tokens.ink3),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 1, color: tokens.border),
-          ...switch (state) {
-            ListSectionState.rows => [
-              for (var i = 0; i < rows.length; i++) ...[
-                rowBuilder(rows[i]),
-                if (i < rows.length - 1)
-                  Divider(height: 1, thickness: 1, color: tokens.border),
-              ],
-            ],
-            // Inline rather than `ErrorView`: that centres a 56 px icon and a
-            // padded button in a scroll view, which needs ~240 px — in a fixed
-            // box it clipped Retry out of sight and swallowed pull-to-refresh.
-            ListSectionState.failed => [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  InSpacing.lg(context),
-                  InSpacing.lg(context),
-                  InSpacing.lg(context),
-                  InSpacing.sm,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      context.tr('couldnt_load_tap_to_retry', {
-                        'section': title.toLowerCase(),
-                      }),
-                      textAlign: TextAlign.center,
-                      style: messageStyle,
-                    ),
-                    TextButton(
-                      onPressed: onRetry,
-                      child: Text(context.tr('retry')),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            // One row, padded to the empty message's height — the skeleton
-            // row is 46 px, and 46 + 2×10 matches `messagePadding`'s 48 plus
-            // one 12.5 px line — so a card that loads empty keeps its height,
-            // and one hidden for being empty takes a card's worth of space
-            // with it rather than a three-row skeleton's.
-            ListSectionState.loading => [
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: InSpacing.lg(context),
-                  vertical: 10,
-                ),
-                child: const ListCardSkeleton(rowCount: 1),
-              ),
-            ],
-            ListSectionState.empty => [
-              Padding(
-                padding: messagePadding,
-                child: Text(
-                  emptyMessage,
-                  textAlign: TextAlign.center,
-                  style: messageStyle,
-                ),
-              ),
-            ],
-          },
-        ],
-      ),
-    );
-  }
 }

@@ -8,7 +8,7 @@ import 'package:admin/data/services/base_entity_api.dart';
 /// plus:
 ///   * `get` / `create` / `update` append `?show_dates=true` so the
 ///     server includes the previewed `recurring_dates` array (consumed by
-///     the detail screen's Schedule card and the edit screen's
+///     the detail screen's Schedule tab and the edit screen's
 ///     next-send-date preview).
 ///   * `start(id)` / `stop(id)` hit `PUT /recurring_expenses/{id}?start=true`
 ///     (or `&stop=true`) with the full entity body (parity with admin-portal +
@@ -45,7 +45,7 @@ class RecurringExpensesApi
   /// `GET /api/v1/recurring_expenses/{id}?show_dates=true`. The transformer
   /// leaves `recurring_dates` empty unless `show_dates=true`. Read-only /
   /// on-demand — `recurring_dates` is intentionally NOT persisted to Drift
-  /// (see `RecurringExpenseRepository`), so the detail Schedule card fetches
+  /// (see `RecurringExpenseRepository`), so the detail Schedule tab fetches
   /// it here rather than reading the (always-empty) synced entity field.
   /// Mirrors `RecurringInvoicesApi.fetchSchedule`. Expenses carry only
   /// `send_date` (no due date). Returns `[]` for an unsaved id.

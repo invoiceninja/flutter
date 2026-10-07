@@ -156,6 +156,32 @@ void main() {
     });
   });
 
+  group('the record screen owns focus for its own shortcuts', () {
+    final detail = read('lib/ui/core/detail/entity_detail_scaffold.dart');
+
+    test('the scaffold keeps a retained node behind a keeper, not an '
+        'autofocus', () {
+      // It binds `E`, `[`, `]` and `R`, and a `Shortcuts` map is only ever
+      // walked past: without a focus owner below it those keys did nothing
+      // until the user clicked into the record.
+      expect(detail.contains('FocusOwnerKeeper('), isTrue);
+      expect(detail.contains('node: _bodyFocus'), isTrue);
+      expect(detail.contains('focusNode: _bodyFocus'), isTrue);
+      expect(detail.contains('_bodyFocus.dispose()'), isTrue);
+      expect(detail.contains('autofocus:'), isFalse);
+    });
+
+    test('it is gated on TickerMode, like every other keeper', () {
+      expect(
+        detail.contains('TickerMode.valuesOf(context).enabled'),
+        isTrue,
+        reason:
+            'a record left mounted behind another branch would otherwise '
+            'claim focus from the screen the user is actually on',
+      );
+    });
+  });
+
   group('the / search slot follows the visible branch', () {
     test('TokenSearchField claims the slot under a TickerMode gate', () {
       expect(

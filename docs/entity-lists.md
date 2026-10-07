@@ -102,3 +102,19 @@ Counts come from the **local Drift cache**, which after login holds page 1 per e
 ### Date-sensitive counters go stale past midnight
 
 Second known staleness: `Date.today()` is baked into the SQL when a badge stream is built, and a sidebar stream lives for the whole session — so **leaving the app open past midnight keeps the date-sensitive counters (invoice/client/project `overdue`, quote `expired`) on yesterday's date** until a restart or company switch. The list filter chip has always had this property; it's just more visible on a permanent surface. Fixing it needs a date-rollover trigger to re-key the streams — deliberately not built.
+
+## Tab counts on a record screen are not sidebar counters
+
+The badge beside a record's related tab ("Invoices 12") looks like a sidebar counter and is the opposite trade. A sidebar counter is answered from Drift and never issues a request, so it can under-report until the user browses or syncs. A tab count is a **server total** — one `per_page=1` request per tab, read for `meta.pagination.total` — because the tab's list pages in fifty at a time and the local table only knows how many rows it has fetched. Unknown (offline, an unsynced record, a failed request) draws no badge. `docs/detail-screen-layout.md` § Tab counts are server totals, and unknown is not zero.
+
+## A count stream is distinct, so a cache in front of it must replay
+
+**`watchBadgeCount` ends in `.distinct()`, and anything that caches one of these streams behind a broadcast controller has to replay its latest value to a new listener — `CachedStream` does.**
+
+Drift re-runs a watched query on every write to a table it reads, with no debounce, and a sync writes a page at a time. So every count stream re-emitted its unchanged number once per page landed, and each emission rebuilt the sidebar row or status tab showing it. `distinct` at the DAO seam (`BaseEntityDao.watchBadgeCount`, and the hand-rolled twin on `BankTransactionDao`) stops that for every consumer at once: the sidebar, the list status tabs, the settings preview and the dashboard's Invoices & Quotes panel.
+
+**Why it is safe for a consumer that holds the stream itself.** A Drift query stream is a `Stream.multi` that hands each new listener its latest value, and `distinct` keeps its "previous" per subscription. A `StreamBuilder` that re-listens — the status strip does, whenever `showCounts` flips — still gets a first value. `sidebar_badge_count_test` › the count stream pins both halves: quiet through a write that leaves the count alone, and a first value for every listener.
+
+**Why the sidebar needed more.** The sidebar keeps its streams behind a broadcast controller, so that a rebuild does not re-subscribe every row and a replaced generation can cancel its Drift query. A bare broadcast controller hands a late listener nothing until the source next emits. That gap was always there — a `StreamBuilder` re-created when the rail collapses or a row moves in the menu started empty — and was hidden by how often the source re-emitted. With `distinct`, "the next emission" can be the next time the number changes, so the badge could stay blank indefinitely. `CachedStream` (`lib/ui/features/shell/widgets/cached_stream.dart`) therefore replays its latest value on listen and exposes it as `latest`, which the two badge builders pass as `initialData` so a re-created row paints its count on the first frame. `cached_stream_test`.
+
+The same pass narrowed the stream that rebuilds every row of the menu. It watched the whole `companies` row for one bool, and that row is rewritten on every `/refresh`; it is now `trackInventory` alone, `distinct`.

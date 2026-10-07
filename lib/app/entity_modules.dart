@@ -550,6 +550,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
         builder: (context, state) => BillingDocEmailRouteScreen(
           type: BillingDocType.invoice,
           id: state.pathParameters['id']!,
+          initialTemplate: state.uri.queryParameters['template'],
         ),
       ),
     ],
@@ -603,6 +604,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
         builder: (context, state) => BillingDocEmailRouteScreen(
           type: BillingDocType.quote,
           id: state.pathParameters['id']!,
+          initialTemplate: state.uri.queryParameters['template'],
         ),
       ),
     ],

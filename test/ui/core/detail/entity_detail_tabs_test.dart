@@ -80,6 +80,74 @@ void main() {
     expect(find.text('Quotes body'), findsOneWidget);
   });
 
+  group('an opened tab keeps its state when an earlier tab is opened', () {
+    // The stack holds only the tabs opened so far, so opening an earlier one
+    // moves every later body down a slot. Unkeyed, Flutter matched them by
+    // position: the Invoices body's element was given the Comments tab, and
+    // Invoices was built again from nothing — filter, search, selection and
+    // scroll gone, page 1 fetched again. Every record screen lands on its
+    // third tab, so "View All" on the comments card did this each time.
+    Future<List<String>> pumpLanding(
+      WidgetTester tester, {
+      required bool withIds,
+    }) async {
+      final inits = <String>[];
+      await pumpAt(
+        tester,
+        900,
+        EntityDetailTabs(
+          initialIndex: 2,
+          tabs: [
+            for (final label in ['Comments', 'Activity', 'Invoices', 'Quotes'])
+              EntityDetailTab(
+                id: withIds ? label.toLowerCase() : null,
+                label: label,
+                icon: Icons.circle_outlined,
+                bodyBuilder: (_) => _Counting(label: label, inits: inits),
+              ),
+          ],
+        ),
+        scroll: false,
+      );
+      await tester.pumpAndSettle();
+      return inits;
+    }
+
+    for (final withIds in [true, false]) {
+      testWidgets(withIds ? 'tabs with ids' : 'tabs without ids', (
+        tester,
+      ) async {
+        final inits = await pumpLanding(tester, withIds: withIds);
+        expect(inits, ['Invoices']);
+
+        // What the user did in the Invoices tab.
+        await tester.enterText(find.byType(TextField), 'overdue');
+
+        // Left of where it landed…
+        await tester.tap(find.text('Comments'));
+        await tester.pumpAndSettle();
+        // …and further right, then back.
+        await tester.tap(find.text('Quotes'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Activity'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Invoices'));
+        await tester.pumpAndSettle();
+
+        expect(
+          inits.where((l) => l == 'Invoices'),
+          hasLength(1),
+          reason: 'built once, not once per earlier tab opened: $inits',
+        );
+        expect(
+          inits,
+          unorderedEquals(['Invoices', 'Comments', 'Quotes', 'Activity']),
+        );
+        expect(find.text('overdue'), findsOneWidget, reason: 'state kept');
+      });
+    }
+  });
+
   testWidgets('an unchanged tab count keeps the same controller', (
     tester,
   ) async {
@@ -200,6 +268,10 @@ void main() {
         .where((c) => (c.decoration as BoxDecoration?)?.gradient != null)
         .length;
 
+    /// The trailing-edge "all tabs" button, present only while the tabs run
+    /// past the strip.
+    final allTabsButton = find.byIcon(Icons.arrow_drop_down);
+
     const width = 400.0;
     // Must track `_kStripEdgeFade`.
     const fade = 32.0;
@@ -298,12 +370,14 @@ void main() {
       },
     );
 
-    testWidgets('the edge fades follow the scroll position', (tester) async {
-      // Each fade is gated on there being something to reveal that way: an
-      // unconditional one veils the first or last tab's own label once the
-      // strip is scrolled to that end, and neither belongs on a strip that
-      // fits. Counted structurally — the fades are the only gradient-filled
-      // containers in the strip; a tab button's decoration is a border.
+    testWidgets('the edge signals follow the scroll position', (tester) async {
+      // The leading fade is gated on there being something to reveal that
+      // way: an unconditional one veils the first tab's own label once the
+      // strip is scrolled back to the start. The trailing edge carries the
+      // "all tabs" button instead of a fade, for exactly as long as the tabs
+      // run past the strip. Counted structurally — the fade is the only
+      // gradient-filled container in the strip; a tab button's decoration is
+      // a border.
       int fades() => fadeCount(tester);
 
       final controller = TabSelectionController();
@@ -315,11 +389,13 @@ void main() {
         scroll: false,
       );
       await tester.pumpAndSettle();
-      expect(fades(), 1, reason: 'at the start: trailing only');
+      expect(fades(), 0, reason: 'at the start: nothing off the leading edge');
+      expect(allTabsButton, findsOneWidget);
 
       controller.select(14);
       await tester.pumpAndSettle();
       expect(fades(), 1, reason: 'at the end: leading only');
+      expect(allTabsButton, findsOneWidget, reason: 'it still overflows');
 
       await pumpAt(
         tester,
@@ -329,6 +405,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(fades(), 0, reason: 'a strip that fits needs no fade at all');
+      expect(allTabsButton, findsNothing, reason: 'nor a list of its tabs');
     });
 
     testWidgets('a revealed tab lands clear of the edge fades', (tester) async {
@@ -399,7 +476,7 @@ void main() {
         scroll: false,
       );
       await tester.pumpAndSettle();
-      expect(fadeCount(tester), 1, reason: 'overflowing: trailing fade');
+      expect(allTabsButton, findsOneWidget, reason: 'overflowing');
 
       await pumpAt(
         tester,
@@ -415,6 +492,13 @@ void main() {
         reason:
             'the strip now fits, and no scroll is left that could ever clear a '
             'stale fade',
+      );
+      expect(
+        allTabsButton,
+        findsNothing,
+        reason:
+            'measured on the tabs alone — the room the strip reserves for the '
+            'button must not keep the button alive',
       );
     });
 
@@ -444,4 +528,30 @@ void main() {
       expect(rect.right, lessThanOrEqualTo(width));
     });
   });
+}
+
+/// A tab body that says when it is built from nothing, and holds something
+/// only its own state can keep.
+class _Counting extends StatefulWidget {
+  const _Counting({required this.label, required this.inits});
+
+  final String label;
+  final List<String> inits;
+
+  @override
+  State<_Counting> createState() => _CountingState();
+}
+
+class _CountingState extends State<_Counting> {
+  @override
+  void initState() {
+    super.initState();
+    widget.inits.add(widget.label);
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [Text('${widget.label} body'), const TextField()],
+  );
 }

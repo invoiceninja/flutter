@@ -22,7 +22,10 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/domain/permissions.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/detail/detail_refresh_scope.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -562,11 +565,58 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!widget.embedded) return;
+    final refresh = DetailRefreshScope.maybeOf(context);
+    if (!identical(refresh, _parentRefresh)) {
+      _parentRefresh?.removeListener(_onParentRefresh);
+      _parentRefresh = refresh;
+      _parentRefresh?.addListener(_onParentRefresh);
+    }
+    final intents = EmbeddedListParentScope.maybeOf(context)?.intents;
+    if (!identical(intents, _parentIntents)) {
+      _parentIntents?.removeListener(_onParentIntent);
+      _parentIntents = intents;
+      _parentIntents?.addListener(_onParentIntent);
+    }
+    // One may already be waiting: the record screen selects this list's tab
+    // and addresses it in the same gesture, and a tab that has never been
+    // opened mounts its list only now.
+    _onParentIntent();
     final outer = DetailScrollScope.maybeOf(context);
     if (identical(outer, _outerScroll)) return;
     _outerScroll?.removeListener(_onOuterScroll);
     _outerScroll = outer;
     _outerScroll?.addListener(_onOuterScroll);
+  }
+
+  /// The record screen this list is embedded in was refreshed. Only the list
+  /// on stage answers — the others are mounted but offstage, and eight lists
+  /// re-fetching for one pull is seven requests nobody asked for. They catch
+  /// up when their tab is next opened and pages as usual.
+  ///
+  /// **`reloadFirstPage`, never `refresh`.** `refresh` is `refreshAll` — every
+  /// page of the entity, company-wide — so wired here it turned a pull on one
+  /// client's record into a download of every invoice the company has.
+  DetailRefreshSignal? _parentRefresh;
+
+  void _onParentRefresh() {
+    if (!mounted || !_tickerActive) return;
+    unawaited(_vm.reloadFirstPage());
+  }
+
+  /// Filters the record screen addressed to this list — see
+  /// `EmbeddedListIntents`.
+  EmbeddedListIntents? _parentIntents;
+
+  void _onParentIntent() {
+    if (!mounted) return;
+    final intent = _parentIntents?.take(_vm.entityType);
+    if (intent == null) return;
+    // Past this frame: applying reloads and notifies, and this can be reached
+    // from `didChangeDependencies`, i.e. during a build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_vm.applyDeepLinkIntent(intent));
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   /// Shared near-bottom load-more logic, parameterised on the controller so
@@ -614,6 +664,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     _vScroll.dispose();
     // _outerScroll is owned by EntityDetailScaffold — detach only.
     _outerScroll?.removeListener(_onOuterScroll);
+    _parentRefresh?.removeListener(_onParentRefresh);
+    _parentIntents?.removeListener(_onParentIntent);
     _hScroll.dispose();
     _bodyFocus.dispose();
     _vm.dispose();
@@ -919,6 +971,16 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
           _NewRecordIntent: GuardedShortcutAction<_NewRecordIntent>(
             onInvoke: (_) {
               if (!widget.canCreate) return null;
+              // Embedded in a record: `N` has to do what the New button
+              // beside it does. It used to go to the bare create route, so
+              // pressing it on a client's Invoices tab started an invoice
+              // for nobody.
+              if (widget.embedded) {
+                final onNew = _embeddedNewHandler(context);
+                if (onNew == null) return null;
+                onNew(context);
+                return null;
+              }
               goToCreateRoute(context, widget.newRoute);
               return null;
             },
@@ -992,6 +1054,30 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         ),
       ),
     );
+  }
+
+  /// What New does for a list embedded in a record's tab, or null when the
+  /// parent record cannot take one.
+  ///
+  /// One function for the button and the `N` shortcut, so they cannot
+  /// disagree. It adds what the parent knows and the list does not
+  /// ([EmbeddedListParentScope]): a soft-deleted parent offers no New at all,
+  /// and an unsynced one is sent through `requireSynced` first — a document
+  /// created against a `tmp_` client would point at an id the server has
+  /// never seen.
+  void Function(BuildContext context)? _embeddedNewHandler(
+    BuildContext context,
+  ) {
+    final parent = EmbeddedListParentScope.maybeOf(context);
+    if (parent?.readOnly ?? false) return null;
+    final create =
+        widget.embeddedNewOverride ??
+        (BuildContext ctx) => goToCreateRoute(ctx, widget.newRoute);
+    if (parent == null) return create;
+    return (ctx) {
+      if (!requireSynced(ctx, parent.parentId)) return;
+      create(ctx);
+    };
   }
 
   /// Move the URL-selected row one step (↓ / ↑). Mirrors the pane's
@@ -1198,7 +1284,10 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                       newRoute: widget.newRoute,
                       newLabelKey: widget.newLabelKey,
                       canCreate: widget.canCreate,
-                      onNewPressed: widget.embeddedNewOverride,
+                      // Null when the parent record is read-only, which
+                      // withdraws the button rather than disabling it.
+                      showNew: _embeddedNewHandler(context) != null,
+                      onNewPressed: _embeddedNewHandler(context),
                       // Key by company so the search field's State (which
                       // binds its TokenSearchController to the VM ONCE in
                       // initState — `TokenSearchController.vm` is final) is

@@ -446,6 +446,127 @@ void main() {
     );
   });
 
+  group('ApiClient 401: a permission denial is not a dead session', () {
+    // On this server a dead token is a 403 (`TokenAuth`: "Invalid token"). A
+    // 401 with Laravel's authorization message comes from a policy, under a
+    // token that is perfectly good — and it used to sign the user out. Most
+    // visibly on a company switch: a screen still mounted from the company
+    // just left asks for one of its records under the new company's token,
+    // the policy refuses a record in another company, and the session ended.
+    http.Response denial([String message = 'This action is unauthorized.']) =>
+        http.Response(
+          jsonEncode({'message': message}),
+          401,
+          headers: {'content-type': 'application/json'},
+        );
+
+    ({ApiClient client, List<String> calls}) clientFor(http.Response response) {
+      final calls = <String>[];
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => calls.add('logout'),
+        onUnauthorizedCandidate: (_) async {
+          calls.add('veto');
+          return true;
+        },
+        httpClient: MockClient((_) async => response),
+      );
+      return (client: client, calls: calls);
+    }
+
+    test('it throws PermissionDeniedException and ends nothing', () async {
+      final (:client, :calls) = clientFor(denial());
+      await expectLater(
+        client.getOne('/api/v1/clients/abc'),
+        throwsA(
+          isA<PermissionDeniedException>()
+              .having((e) => e.statusCode, 'statusCode', 401)
+              .having((e) => e.message, 'message', contains('unauthorized')),
+        ),
+      );
+      // Let anything that was going to fire detached, fire.
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        calls,
+        isEmpty,
+        reason:
+            'no logout — and no company-switch rollback either, which is '
+            'what the veto would have answered this same 401 with',
+      );
+    });
+
+    test('it is not an UnauthorizedException, so nothing waits for a '
+        're-login that is not coming', () async {
+      final (:client, calls: _) = clientFor(denial());
+      Object? caught;
+      try {
+        await client.getOne('/api/v1/clients/abc');
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught, isNot(isA<UnauthorizedException>()));
+      expect(caught, isA<ServerException>());
+    });
+
+    test('case and stray whitespace in the message do not matter', () async {
+      final (:client, :calls) = clientFor(
+        denial('  THIS ACTION IS UNAUTHORIZED. '),
+      );
+      await expectLater(
+        client.getOne('/api/v1/x'),
+        throwsA(isA<PermissionDeniedException>()),
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('a refused write is the same', () async {
+      final (:client, :calls) = clientFor(denial());
+      await expectLater(
+        client.mutate(
+          method: 'PUT',
+          path: '/api/v1/clients/abc',
+          idempotencyKey: 'k',
+          body: const {},
+        ),
+        throwsA(isA<PermissionDeniedException>()),
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('any OTHER 401 still means what it always did', () async {
+      // Matched exactly, on purpose: the rule is "this one message is not a
+      // session failure", never "401s are usually fine".
+      for (final response in [
+        http.Response('nope', 401),
+        http.Response(
+          jsonEncode({'error': 'Unauthenticated.'}),
+          401,
+          headers: {'content-type': 'application/json'},
+        ),
+        denial('Unauthorized'),
+        denial('This action is unauthorized. Probably.'),
+        // The right words in the wrong place.
+        http.Response(
+          jsonEncode({'error': 'This action is unauthorized.'}),
+          401,
+          headers: {'content-type': 'application/json'},
+        ),
+        // …or in a body that is not JSON at all.
+        http.Response('This action is unauthorized.', 401),
+      ]) {
+        final (:client, :calls) = clientFor(response);
+        await expectLater(
+          client.getOne('/api/v1/x'),
+          throwsA(isA<UnauthorizedException>()),
+          reason: response.body,
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(calls, ['veto', 'logout'], reason: response.body);
+      }
+    });
+  });
+
   group('ApiClient 401 veto (onUnauthorizedCandidate)', () {
     // The company-switch remedy: a 401 under a token the user just switched
     // into must fail the SWITCH, not the session. `ApiClient` delegates that

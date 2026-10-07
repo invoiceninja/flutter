@@ -23,7 +23,15 @@ class DetailInfoRow extends StatelessWidget {
     this.trailing,
     this.semanticsLabel,
     this.tooltip,
+    this.child,
   });
+
+  /// A widget to draw in place of [value] — a name resolved from an id
+  /// (`UserNameLabel`), say, which is a stream and cannot be a string. It gets
+  /// the row's label and alignment and nothing else: no copy affordance and no
+  /// link treatment, since the row does not know what the widget shows. Pass
+  /// [value] as `''` alongside it.
+  final Widget? child;
 
   final String label;
   final String value;
@@ -76,14 +84,23 @@ class DetailInfoRow extends StatelessWidget {
       fontWeight: FontWeight.w500,
       fontFeatures: monospace ? const [FontFeature.tabularFigures()] : null,
     );
-    Widget display = onTap == null
-        ? Text(value, style: valueStyle)
-        : LinkText(
-            label: value,
-            style: valueStyle,
-            color: tokens.accent,
-            onTap: onTap,
-          );
+    Widget display =
+        child ??
+        (onTap == null
+            ? Text(value, style: valueStyle)
+            // `accentInk`, never `accent`: the accent is the user's own
+            // colour and is the same mid tone in both brightnesses, which on
+            // a dark surface falls under the contrast floor. And an underline
+            // at rest where there is no hover to reveal one — a finger cannot
+            // discover a link by pointing at it. Both per
+            // `docs/row-actions-and-values.md`, which this row predated.
+            : LinkText(
+                label: value,
+                style: valueStyle,
+                color: tokens.accentInk,
+                underlineAtRest: linkNeedsAtRestCue,
+                onTap: onTap,
+              ));
     if (tooltip != null) {
       display = Tooltip(message: tooltip!, child: display);
     }
@@ -131,8 +148,12 @@ class DetailInfoRow extends StatelessWidget {
             width: 110,
             child: Text(
               label,
+              // `ink2`: the label is the field's name, and `ink3` at this size
+              // is 3.98:1 on a card in the default light theme — under the
+              // 4.5:1 floor. The tab strip made the same call for the same
+              // reason.
               style: theme.textTheme.bodySmall?.copyWith(
-                color: tokens.ink3,
+                color: tokens.ink2,
                 fontSize: 12.5,
               ),
             ),

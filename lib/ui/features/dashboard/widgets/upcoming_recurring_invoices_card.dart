@@ -1,119 +1,64 @@
 import 'package:flutter/material.dart';
 
-import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
-import 'package:admin/ui/features/dashboard/widgets/entity_table.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_record_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/list_card.dart';
+import 'package:admin/utils/formatting.dart';
 
+/// Active recurring invoices, next to send first. Each row says when it next
+/// goes out.
 class UpcomingRecurringInvoicesCard extends StatelessWidget {
   const UpcomingRecurringInvoicesCard({
     super.key,
     required this.section,
     required this.formatter,
+    required this.compact,
     required this.onRecurringTap,
-    required this.onClientTap,
     required this.onViewAll,
     required this.onRetry,
+    this.preview = 5,
   });
 
   final AsyncSection<List<DashboardRecurringInvoiceRow>> section;
   final Formatter formatter;
+
+  /// The stacked row form — passed by the host; see [DashboardRecordRow].
+  final bool compact;
   final void Function(DashboardRecurringInvoiceRow) onRecurringTap;
-  final void Function(DashboardRecurringInvoiceRow) onClientTap;
   final VoidCallback onViewAll;
   final VoidCallback onRetry;
+  final int preview;
 
   @override
   Widget build(BuildContext context) {
     return DashboardListCard<DashboardRecurringInvoiceRow>(
       title: context.tr('upcoming_recurring_invoices'),
       section: section,
-      footerLabel: context.tr('all_recurring_invoices'),
       onViewAll: onViewAll,
       onRetry: onRetry,
-      emptyIcon: Icons.replay_outlined,
       emptyTitle: context.tr('no_upcoming_recurring_invoices'),
-      bodyBuilder: (context, rows) => _table(context, rows),
-    );
-  }
-
-  Widget _table(BuildContext context, List<DashboardRecurringInvoiceRow> rows) {
-    final tokens = context.inTheme;
-    return DashboardEntityTable(
-      compact: true,
-      columnWidths: const {
-        0: IntrinsicColumnWidth(),
-        1: FlexColumnWidth(2),
-        2: IntrinsicColumnWidth(),
-        3: IntrinsicColumnWidth(),
-        4: FixedColumnWidth(32),
-      },
-      cellAlignments: const {
-        3: Alignment.centerRight,
-        4: Alignment.centerRight,
-      },
-      headers: [
-        context.tr('invoice'),
-        context.tr('client'),
-        context.tr('next'),
-        context.tr('amount'),
-        '',
-      ],
-      rows: [for (final row in rows) _row(context, tokens, row)],
-    );
-  }
-
-  DashboardEntityTableRow _row(
-    BuildContext context,
-    InTheme tokens,
-    DashboardRecurringInvoiceRow row,
-  ) {
-    final nextText = row.nextSendDate != null
-        ? formatter.date(row.nextSendDate!.toIso())
-        : '—';
-    final currencyKey = row.currencyId.isEmpty ? null : row.currencyId;
-    final amountText = formatter.money(
-      row.amount,
-      clientCurrencyId: currencyKey,
-    );
-
-    void recurringTap() => onRecurringTap(row);
-    void clientTap() => onClientTap(row);
-
-    return DashboardEntityTableRow(
-      cellTaps: [
-        recurringTap,
-        clientTap,
-        recurringTap,
-        recurringTap,
-        recurringTap,
-      ],
-      cells: [
-        LinkText(
-          label: row.number.isEmpty ? '—' : row.number,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
-        ),
-        LinkText(
-          label: row.clientName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13),
-        ),
-        Text(nextText, style: TextStyle(fontSize: 12.5, color: tokens.ink2)),
-        Text(
-          amountText,
-          style: moneyTextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: tokens.ink,
-          ),
-        ),
-        Icon(Icons.more_vert, size: 16, color: tokens.ink3),
-      ],
+      preview: preview,
+      bodyBuilder: (context, rows) => DashboardRecordRows(
+        rows: [
+          for (final r in rows)
+            DashboardRecordRow(
+              key: ValueKey('recurring:${r.id}'),
+              number: r.number,
+              client: r.clientName,
+              lead: r.nextSendDate == null
+                  ? ''
+                  : formatter.date(r.nextSendDate!.toIso()),
+              amount: formatter.money(
+                r.amount,
+                clientCurrencyId: r.currencyId.isEmpty ? null : r.currencyId,
+              ),
+              onTap: () => onRecurringTap(r),
+              compact: compact,
+            ),
+        ],
+      ),
     );
   }
 }

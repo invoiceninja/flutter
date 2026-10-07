@@ -10,6 +10,7 @@ import 'package:admin/data/models/api/bank_transaction_api_model.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/bank_transactions_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -582,16 +583,41 @@ class BankTransactionRepository
   /// a deep-linked record the recipient has never browsed to, a restored
   /// route, or a cross-entity reference off the prefetched page. Cache-gated,
   /// coalesced, and negative-cached; see [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.bankTransactionDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
+
+  /// Force-refetch bank transactions by id — the record screen's re-check on
+  /// open and its pull-to-refresh, and the Outbox's Check on a change that may
+  /// have been sent. It was the base no-op, so all three fetched nothing: a
+  /// transaction matched on another device stayed Unmatched here until the
+  /// next sync. See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<BankTransactionApi, BankTransactionsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.bankTransactionDao.upsertAllPreservingDirty(
         companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.bankTransactionDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+        byId: byId,
+      ),
+    );
+  }
 }

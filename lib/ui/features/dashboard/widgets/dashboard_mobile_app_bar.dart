@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/app/design_tokens.dart';
+import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
-import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
-import 'package:admin/ui/features/dashboard/widgets/filters/settings_popover.dart';
+import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 
-/// Narrow-layout `AppBar` for the dashboard: hamburger + title + icon actions.
+/// Narrow-layout `AppBar` for the dashboard: hamburger + title + Customize.
 /// Wide layouts use the bespoke `DashboardTopBar` inside the body instead — see
 /// `DashboardScreen`. Since flutter#51 a phone renders this bar in *either*
 /// orientation, so the landscape case arrives here through `Breakpoints.isPhone`
@@ -32,6 +32,13 @@ import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 /// screen's bottom-right `DashboardCreateFab`, which opens a choice of
 /// everything the user may create and sits where a thumb can reach it.
 ///
+/// **Nor a date range, a currency or a drafts switch.** They were a funnel
+/// icon and a cog up here, each hiding its state behind a tap; they are now
+/// controls in the page, above the figures they change, showing their value at
+/// rest (`DashboardPeriodBar`). The range was shown only as an untappable line
+/// of small capitals under this bar — the one place that said what it was could
+/// not change it.
+///
 /// Split out of `DashboardScreen` so it can be pumped without a
 /// `Provider<Services>` harness, exactly like its wide sibling — the screen
 /// itself is untestable in a widget test (its VM constructor runs
@@ -42,7 +49,6 @@ class DashboardMobileAppBar extends StatelessWidget
     super.key,
     required this.vm,
     required this.showHamburger,
-    this.formatter,
   });
 
   final DashboardViewModel vm;
@@ -55,8 +61,6 @@ class DashboardMobileAppBar extends StatelessWidget
   /// between 600 and ~832 px renders both the rail and this bar. See
   /// `Breakpoints.isGlobalNavVisible`.
   final bool showHamburger;
-
-  final Formatter? formatter;
 
   /// No `bottom:`, so this is the plain toolbar height — none of the
   /// hand-maintained `kToolbarHeight + 56` arithmetic `EntityListNormalAppBar`
@@ -81,8 +85,9 @@ class DashboardMobileAppBar extends StatelessWidget
       // to pop. Kept as a statement of intent, not a working guard.
       automaticallyImplyLeading: showHamburger,
       // Material's default 16 dp gap either side of the title costs more width
-      // than this bar has on the narrowest phones. With a hamburger and three
-      // actions, the default leaves the title 88 dp on a 320 dp handset.
+      // than this bar had on the narrowest phones. With a hamburger and three
+      // actions (it carries one now), the default left the title 88 dp on a
+      // 320 dp handset.
       // "Dashboard" measures 104 dp in Inter Tight, so the default truncates it
       // to "Dashboa…", the exact ellipsis flutter#50 was filed about. When
       // flutter#50 was filed it took a 360 dp phone to do this, because the
@@ -108,34 +113,97 @@ class DashboardMobileAppBar extends StatelessWidget
       // handsets remain too narrow for the full word with every action shown,
       // and the longest translation ("Pannello di Controllo", it, 192 dp)
       // overruns every phone.
-      title: Text(context.tr('dashboard'), overflow: TextOverflow.ellipsis),
-      actions: [
-        Builder(
-          builder: (iconContext) => IconButton(
-            tooltip: context.tr('date_range'),
-            icon: const Icon(Icons.filter_alt_outlined),
-            onPressed: () => openDateRangePicker(
-              iconContext,
-              current: vm.filter.range,
-              onChange: vm.setDateRange,
-              formatter: formatter,
+      //
+      // Under it, how fresh the data is — the same stamp the wide bar carries
+      // under the company's name. It used to ride an untappable line of small
+      // capitals at the top of the page, which the needs-attention band now
+      // leads.
+      //
+      // Two lines in a 56 px toolbar: at the default text size they fit with
+      // room to spare, and at 140% they do not — the page name lost its top.
+      // So the pair scales down together to the height it has (and only then;
+      // `scaleDown` never enlarges), while each line still ellipsises on width.
+      title: _FitToolbar(
+        children: [
+          Text(context.tr('dashboard'), overflow: TextOverflow.ellipsis),
+          // Its own listener: the screen builds this bar outside the
+          // builder that follows the view model, and the cached-figures time
+          // lands on the totals' section notifier.
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              vm,
+              vm.listenableFor(DashboardKind.totalsCurrent),
+            ]),
+            builder: (context, _) => FreshnessTicker(
+              builder: (context) => Text(
+                freshnessText(
+                  context,
+                  lastRefreshed: vm.lastRefreshed,
+                  isRefreshing: vm.isAnyRefreshing,
+                  cachedAt: vm.figuresFetchedAt,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink2),
+              ),
             ),
           ),
-        ),
-        Builder(
-          builder: (iconContext) => IconButton(
-            tooltip: context.tr('settings'),
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => openDashboardSettingsPopover(iconContext, vm: vm),
-          ),
-        ),
+        ],
+      ),
+      actions: [
         IconButton(
           tooltip: context.tr('customize'),
           icon: const Icon(Icons.dashboard_customize_outlined),
-          onPressed: () =>
-              openManageDashboardCards(context, vm: vm, mobileLayout: true),
+          onPressed: () => openManageDashboardCards(context, vm: vm),
         ),
       ],
+    );
+  }
+}
+
+/// The app bar's two-line title, kept inside the toolbar's height.
+///
+/// A `LayoutBuilder` rather than a bare `FittedBox`: a `FittedBox` hands its
+/// child unbounded width, which would let a long title run on instead of
+/// ellipsising. Here the lines keep the width they are given and only the
+/// height is fitted.
+class _FitToolbar extends StatelessWidget {
+  const _FitToolbar({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final column = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        );
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        // Both lines at scale 1 are about 40 px; past ~1.3x they outgrow the
+        // toolbar. Draw them at the size that fits, in a box that much wider,
+        // so the text still wraps to the same visual width.
+        const fits = 1.3;
+        if (scale <= fits || !constraints.hasBoundedWidth) return column;
+        final shrink = fits / scale;
+        // The height is stated: the toolbar lets its title be taller than
+        // itself, so without a bound there is nothing for the fit to fit to.
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: kToolbarHeight),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: SizedBox(
+              width: constraints.maxWidth / shrink,
+              child: column,
+            ),
+          ),
+        );
+      },
     );
   }
 }

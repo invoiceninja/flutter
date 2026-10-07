@@ -5,6 +5,7 @@ import 'package:drift/drift.dart'
     show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -196,18 +197,18 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
   /// Lazily hydrate one vendor by id when a reference (e.g. an expense's
   /// vendor) isn't in the prefetched page so a `*NameLabel` would show
   /// the raw id. See [ensureLoadedTemplate].
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.vendorDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.vendorDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+  );
 
   /// Force-refetch [ids], dirty-preserving — Check on a change that may have
   /// reached the server, and the re-fetch after a write whose reply was lost

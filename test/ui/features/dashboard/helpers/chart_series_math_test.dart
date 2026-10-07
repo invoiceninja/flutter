@@ -194,4 +194,110 @@ void main() {
       expect(axis.values[ChartSeriesId.expenses]!.reduce((a, b) => a + b), 50);
     });
   });
+
+  // The grouping the chart draws when the one asked for cannot show a shape.
+  // Opt-in: the boundary rules above are a port of the web client's and stay
+  // exactly as they are without the flag.
+  group('refineShortRanges', () {
+    Map<ChartSeriesId, List<DashboardChartPoint>> points() => {
+      ChartSeriesId.invoices: [_p('2026-04-08', 100), _p('2026-04-22', 50)],
+      ChartSeriesId.payments: const [],
+      ChartSeriesId.outstanding: const [],
+      ChartSeriesId.expenses: const [],
+    };
+
+    test('one month by month is two boundaries — a single straight line', () {
+      final axis = buildContinuousAxis(
+        pointsBySeries: points(),
+        startDate: const Date(2026, 4, 1),
+        endDate: const Date(2026, 4, 30),
+        grouping: ChartGrouping.month,
+      );
+
+      expect(axis.buckets.length, lessThan(4));
+      expect(axis.grouping, ChartGrouping.month);
+    });
+
+    test('with the flag it is drawn by week, and says so', () {
+      final axis = buildContinuousAxis(
+        pointsBySeries: points(),
+        startDate: const Date(2026, 4, 1),
+        endDate: const Date(2026, 4, 30),
+        grouping: ChartGrouping.month,
+        refineShortRanges: true,
+      );
+
+      expect(axis.grouping, ChartGrouping.week);
+      expect(axis.buckets.length, greaterThanOrEqualTo(4));
+      _expectSortedUnique(axis.buckets);
+      // Nothing is lost in the regrouping.
+      expect(axis.values[ChartSeriesId.invoices]!.reduce((a, b) => a + b), 150);
+    });
+
+    test('a week by month goes all the way down to days', () {
+      final axis = buildContinuousAxis(
+        pointsBySeries: points(),
+        startDate: const Date(2026, 4, 6),
+        endDate: const Date(2026, 4, 12),
+        grouping: ChartGrouping.month,
+        refineShortRanges: true,
+      );
+
+      expect(axis.grouping, ChartGrouping.day);
+      expect(axis.buckets.length, 7);
+    });
+
+    test('a range the grouping can draw is left alone', () {
+      final axis = buildContinuousAxis(
+        pointsBySeries: points(),
+        startDate: const Date(2026, 1, 1),
+        endDate: const Date(2026, 12, 31),
+        grouping: ChartGrouping.month,
+        refineShortRanges: true,
+      );
+
+      expect(axis.grouping, ChartGrouping.month);
+    });
+
+    test('a single day cannot be refined past days', () {
+      final axis = buildContinuousAxis(
+        pointsBySeries: points(),
+        startDate: const Date(2026, 4, 8),
+        endDate: const Date(2026, 4, 8),
+        grouping: ChartGrouping.month,
+        refineShortRanges: true,
+      );
+
+      expect(axis.grouping, ChartGrouping.day);
+      expect(axis.isEmpty, isFalse);
+    });
+  });
+
+  group('chartGroupingFits', () {
+    test('a month fits days and weeks, not months', () {
+      const start = Date(2026, 4, 1);
+      const end = Date(2026, 4, 30);
+      expect(chartGroupingFits(start, end, ChartGrouping.day), isTrue);
+      expect(chartGroupingFits(start, end, ChartGrouping.week), isTrue);
+      expect(chartGroupingFits(start, end, ChartGrouping.month), isFalse);
+    });
+
+    test('fifty years fits months, not days', () {
+      const start = Date(2000, 1, 1);
+      const end = Date(2050, 1, 1);
+      expect(chartGroupingFits(start, end, ChartGrouping.month), isTrue);
+      expect(chartGroupingFits(start, end, ChartGrouping.day), isFalse);
+    });
+
+    test('an inverted window fits nothing', () {
+      expect(
+        chartGroupingFits(
+          const Date(2026, 5, 1),
+          const Date(2026, 4, 1),
+          ChartGrouping.day,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

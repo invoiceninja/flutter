@@ -226,10 +226,17 @@ Future<_Party> _resolveParty(
 /// party — `save()` rebinds through `resolveId` first.
 Future<T?> _hydrate<T>({
   required Stream<T?> Function() watch,
-  required Future<void> Function() ensureLoaded,
+  required Future<Object?> Function() ensureLoaded,
 }) async {
   final cached = await watch().first;
   if (cached != null) return cached;
-  await ensureLoaded().timeout(_kPartyHydrateBudget, onTimeout: () {});
+  // `.then<void>` first, and it is load-bearing: `ensureLoaded` completes with
+  // an outcome, and `timeout`'s `onTimeout` is checked at RUNTIME against the
+  // future's own type argument — so `() {}` on the bare future throws a
+  // `TypeError` the moment it is called. The `catch` above then swallows it
+  // and the sheet opens with no contacts: #129 again, silently.
+  await ensureLoaded()
+      .then<void>((_) {})
+      .timeout(_kPartyHydrateBudget, onTimeout: () {});
   return watch().first;
 }

@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/templates_api.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_default_badge.dart';
@@ -126,10 +127,10 @@ class _FakeClients implements ClientRepository {
   final Client client;
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Stream<Client?> watch({required String companyId, required String id}) =>
@@ -164,6 +165,8 @@ Future<_FakeTemplatesApi> _pump(
   Duration? responseDelay,
   List<String?>? sentBodies,
   List<String?>? sentSubjects,
+  List<String>? sentTemplates,
+  String? initialTemplate,
 }) async {
   // A phone: the narrow layout, where the preview is a tab away.
   tester.view.physicalSize = const Size(400, 900);
@@ -215,9 +218,11 @@ Future<_FakeTemplatesApi> _pump(
           vendorId: '',
           isHosted: false,
           formatter: null,
+          initialTemplate: initialTemplate,
           onSend: ({required template, subject, body, ccEmail}) async {
             sentBodies?.add(body);
             sentSubjects?.add(subject);
+            sentTemplates?.add(template);
           },
           onSchedule:
               ({
@@ -343,6 +348,48 @@ void main() {
     expect(find.text('0012'), findsOneWidget);
     expect(find.text('Acme Ltd'), findsOneWidget);
     expect(_canPop(tester), isTrue, reason: 'seeding is not an edit');
+  });
+
+  // The dashboard's "Remind" opens this screen on the next unsent reminder
+  // (`?template=`). It used to open on the first template whatever it was
+  // asked — the *initial invoice* email, for a client being chased.
+  group('initialTemplate', () {
+    testWidgets('opens on the template asked for, and sends it', (
+      tester,
+    ) async {
+      final sent = <String>[];
+      final api = await _pump(
+        tester,
+        initialTemplate: 'reminder1',
+        sentTemplates: sent,
+      );
+
+      expect(api.templates, isNotEmpty);
+      expect(api.templates.toSet(), {'reminder1'});
+
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+      // Let the "queued" toast's own timers run out; the controller outlives
+      // the screen, which pops itself on send.
+      await tester.pump(const Duration(seconds: 7));
+      expect(sent, ['reminder1']);
+    });
+
+    testWidgets('one the document does not have falls back to the first', (
+      tester,
+    ) async {
+      // A quote's reminder id on an invoice: never a blank picker or a send
+      // under a template the server has no row for.
+      final api = await _pump(tester, initialTemplate: 'quote_reminder1');
+
+      expect(api.templates.toSet(), {'invoice'});
+    });
+
+    testWidgets('none asked for is the first, as before', (tester) async {
+      final api = await _pump(tester);
+
+      expect(api.templates.toSet(), {'invoice'});
+    });
   });
 
   testWidgets('an unbound document is never probed', (tester) async {

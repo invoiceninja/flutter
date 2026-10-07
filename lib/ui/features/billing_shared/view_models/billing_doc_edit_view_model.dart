@@ -47,8 +47,9 @@ abstract class GenericBillingDocEditViewModel<T>
   }) {
     // Stamp the computed totals onto the draft right before every save so the
     // optimistic Drift write reflects the edit immediately — otherwise the
-    // list tile + detail KPI strip (which read the stored `amount`/`balance`)
-    // show the pre-edit total offline while the Overview tab recomputes live,
+    // list tile + detail standing card (which read the stored
+    // `amount`/`balance`) show the pre-edit total offline while the Overview
+    // tab recomputes live,
     // and the two disagree until the server response lands. Registered as a
     // FINALIZE hook (not a before-save hook) so it runs AFTER the line-item
     // table flushes its debounced cell edits — otherwise a type-then-Save
@@ -170,7 +171,7 @@ abstract class GenericBillingDocEditViewModel<T>
 
   /// Pre-save hook (registered in the constructor): stamp `computeTotals`'
   /// output onto the draft so the optimistic local write — and the list tile
-  /// + detail KPI strip that read the stored `amount`/`balance` — reflect the
+  /// + detail standing card that read the stored `amount`/`balance` — reflect the
   /// edit immediately. Rounds at the live display precision (falling back to
   /// [currencyPrecision]). The outbox payload carries the same draft; the
   /// server recomputes totals authoritatively on sync, so any client/server

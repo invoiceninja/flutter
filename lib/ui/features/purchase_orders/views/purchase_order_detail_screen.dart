@@ -1,49 +1,56 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
-import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
-import 'package:admin/ui/core/widgets/party_call_button.dart';
-import 'package:admin/ui/core/widgets/vendor_name_label.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
-import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/models/domain/purchase_order_status.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/adaptive.dart';
-import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
-import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
-import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
 import 'package:admin/ui/core/detail/detail_tab_indices.dart';
+import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
-import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
-import 'package:admin/domain/date_placeholders.dart';
-import 'package:admin/domain/entity_type.dart';
-import 'package:admin/ui/core/detail/entity_documents_tab.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/entity_record_column.dart';
+import 'package:admin/ui/core/detail/entity_state_banner.dart';
+import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/expense_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
-import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/ui/core/widgets/invoice_name_label.dart';
+import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
-import 'package:admin/ui/core/detail/activity_note_actions.dart';
-import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
-import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_documents_tab.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_profile.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_header.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_standing.dart';
 import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
 import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
+import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
+import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_detail_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
-import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_status_pill.dart';
-import 'package:admin/utils/notes_html.dart';
+import 'package:admin/utils/formatting.dart';
 
+/// The purchase order record screen, on the record layout
+/// (`docs/detail-screen-layout.md`). Everything the five billing documents
+/// have in common lives in `billing_shared/detail/`; what is here is what
+/// only a purchase order has — the vendor as its party, and the records it
+/// came from and became — and the wiring several lints pin to this file.
 class PurchaseOrderDetailScreen extends StatefulWidget {
   const PurchaseOrderDetailScreen({required this.id, super.key});
   final String id;
@@ -59,7 +66,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   late final Services _services;
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
-  final TabSelectionController _selectTab = TabSelectionController();
+  late final RecordScreenController _record;
 
   /// Carries "reveal the view activity" from the header's `Viewed` pill to the
   /// Activity tab, which is not mounted when the tap happens
@@ -89,18 +96,33 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
       entityWireName: 'purchase_order',
       entityId: widget.id,
     );
+    _record = RecordScreenController(
+      services: _services,
+      companyId: _companyId,
+      routeId: widget.id,
+      entityWireName: 'purchase_order',
+      refreshRecord: (id) => _services.purchaseOrders.refreshByIds(
+        companyId: _companyId,
+        ids: [id],
+      ),
+      hasRecord: () => _vm.item != null,
+      refreshWith: [_activityVm.refresh],
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _record.dispose();
     _activityVm.dispose();
-    _selectTab.dispose();
     _revealActivity.dispose();
     _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
+
+  void _dispatch(PurchaseOrder po, PurchaseOrderAction action) =>
+      PurchaseOrderActions.dispatch(context, _services, _companyId, po, action);
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +138,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
       emptyTitle: context.tr('purchase_order_not_found'),
       actionsForItem: (context, po) => WatchBuilder<Company?>(
         // Cheap local Drift watch — the e-PO download gate needs the
-        // company's e-invoice type (mirrors invoice_detail_screen).
+        // company's e-invoice type (mirrors the invoice screen).
         // WatchBuilder, not StreamBuilder: `watchCompany` returns a fresh
         // stream per call, so building it inline would re-subscribe on every
         // rebuild and blank the action row for a frame each time.
@@ -127,549 +149,305 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
               items: PurchaseOrderActions.itemsFor(
                 context,
                 po,
-                (a) => PurchaseOrderActions.dispatch(
-                  context,
-                  _services,
-                  _companyId,
-                  po,
-                  a,
-                ),
+                (a) => _dispatch(po, a),
                 eInvoiceType: companySnap.data?.settings.eInvoiceType,
               ),
             ),
       ),
-      bodyBuilder: (context, po) => _Body(
-        purchaseOrder: po,
-        services: _services,
-        companyId: _companyId,
+      compactTitleForItem: (context, po) => BillingDocCompactTitle(
+        type: BillingDocType.purchaseOrder,
+        doc: po,
+        figure: po.amount,
         formatter: formatter,
-        activityVm: _activityVm,
-        selectTab: _selectTab,
-        revealActivity: _revealActivity,
-        selectedVersion: _selectedVersion,
       ),
+      // A deleted purchase order is read-only until restored.
+      isReadOnly: (po) => po.isDeleted,
+      onRefresh: _record.refresh,
+      bannerForItem: (context, po) => recordStateBanner<PurchaseOrderAction>(
+        context,
+        items: PurchaseOrderActions.itemsFor(
+          context,
+          po,
+          (a) => _dispatch(po, a),
+        ),
+        restoreKind: PurchaseOrderAction.restore,
+        entityId: po.id,
+        isDeleted: po.isDeleted,
+        archivedAt: po.archivedAt,
+        formatter: formatter,
+      ),
+      bodyBuilder: (context, po) => _body(context, po),
     );
   }
-}
 
-class _Body extends StatelessWidget {
-  const _Body({
-    required this.purchaseOrder,
-    required this.services,
-    required this.companyId,
-    this.formatter,
-    required this.activityVm,
-    required this.selectTab,
-    required this.revealActivity,
-    required this.selectedVersion,
-  });
-
-  final PurchaseOrder purchaseOrder;
-  final Services services;
-  final ValueNotifier<String?> selectedVersion;
-  final String companyId;
-  final EntityActivityViewModel activityVm;
-  final TabSelectionController selectTab;
-  final ActivityRevealController revealActivity;
-  final Formatter? formatter;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide =
-            Breakpoints.isWide(constraints) && constraints.maxWidth >= 900;
-        activityVm.kick();
-        // Built here, not in the screen's `initState`: `promptLogCallFor`
-        // needs a subject off the resolved record.
-        final notes = EntityNoteActions(
-          onAddComment: () => promptAddCommentFor(
-            context,
-            entityId: purchaseOrder.id,
-            submit: (text) => services.purchaseOrders.addComment(
-              companyId: companyId,
-              entityId: purchaseOrder.id,
-              text: text,
+  Widget _body(BuildContext context, PurchaseOrder po) {
+    _activityVm.kick();
+    _record.attach(recordId: po.id, revision: po.updatedAt);
+    Future<void> submit(String text) => _services.purchaseOrders.addComment(
+      companyId: _companyId,
+      entityId: po.id,
+      text: text,
+    );
+    // Built once here, not in `initState` (`promptLogCallFor` needs a subject
+    // off the resolved record) and not twice (the card and the tabs must not
+    // each hold their own copy — see `EntityNoteActions`). A deleted order
+    // takes no new notes: the feed stays readable, its buttons go.
+    final notes = po.isDeleted
+        ? EntityNoteActions.none
+        : EntityNoteActions(
+            onAddComment: () =>
+                promptAddCommentFor(context, entityId: po.id, submit: submit),
+            onLogCall: () => promptLogCallFor(
+              context,
+              companyId: _companyId,
+              entityId: po.id,
+              subject: billingDocSubject(po),
+              // Both: the vendor wins when set, and a purchase order's
+              // `clientId` is genuinely populated on a client-facing one.
+              vendorId: po.vendorId,
+              clientId: po.clientId,
+              submit: submit,
             ),
-          ),
-          onLogCall: () => promptLogCallFor(
-            context,
-            companyId: companyId,
-            entityId: purchaseOrder.id,
-            subject: purchaseOrder.number.isEmpty
-                ? ''
-                : '#${purchaseOrder.number}',
-            // Both: the vendor wins when set, and a purchase order's
-            // `clientId` is genuinely populated on a client-facing one.
-            vendorId: purchaseOrder.vendorId,
-            clientId: purchaseOrder.clientId,
-            submit: (text) => services.purchaseOrders.addComment(
-              companyId: companyId,
-              entityId: purchaseOrder.id,
-              text: text,
-            ),
-          ),
-        );
-        final main = SingleChildScrollView(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              RecentVisitRecorder(
-                type: EntityType.purchaseOrder,
-                id: purchaseOrder.id,
-                label: purchaseOrder.number.isEmpty
-                    ? context.tr('purchase_order')
-                    : '#${purchaseOrder.number}',
-                child: _Header(
-                  purchaseOrder: purchaseOrder,
-                  formatter: formatter,
-                  companyId: companyId,
-                  selectTab: selectTab,
-                  revealActivity: revealActivity,
-                ),
+          );
+    return WatchBuilder<Company?>(
+      cacheKey: _companyId,
+      // Seeded, so the profile's custom fields do not arrive a frame late and
+      // push the tabs down.
+      initialData: _services.company.peek(
+        companyId: _companyId,
+        id: _companyId,
+      ),
+      create: () => _services.company.watchCompany(_companyId),
+      builder: (context, companySnap) => BillingDocRecordBody(
+        record: _record,
+        pdfPane: (context) => _PdfPane(
+          purchaseOrder: po,
+          selectedVersion: _selectedVersion,
+          formatter: formatter,
+        ),
+        top: (context, hasPdfPane) =>
+            _top(context, po, notes, companySnap.data, hasPdfPane: hasPdfPane),
+        tabs: (context, hasPdfPane, layout) => EntityDetailTabs(
+          initialIndex: 2,
+          selectTab: _record.selectTab,
+          onReveal: _record.page.revealTabs,
+          layoutBuilder: layout,
+          tabs: [
+            EntityDetailTab(
+              id: DetailTabIds.comments,
+              label: context.tr('comments'),
+              icon: Icons.comment_outlined,
+              bodyBuilder: (_) => EntityActivityTab(
+                vm: _activityVm,
+                formatter: formatter,
+                actions: notes,
+                commentsOnly: true,
+                hostWireName: 'purchase_order',
               ),
-              SizedBox(height: InSpacing.lg(context)),
-              EntityCommentsCard(
-                vm: activityVm,
+            ),
+            EntityDetailTab(
+              id: DetailTabIds.activity,
+              label: context.tr('activity'),
+              icon: Icons.history_outlined,
+              bodyBuilder: (_) => EntityActivityTab(
+                vm: _activityVm,
                 formatter: formatter,
                 actions: notes,
                 hostWireName: 'purchase_order',
-                onViewAll: () => selectTab.select(kCommentsTabIndex),
+                reveal: _revealActivity,
               ),
-              EntityDetailTabs(
-                initialIndex: 2,
-                selectTab: selectTab,
-                tabs: [
-                  EntityDetailTab(
-                    label: context.tr('comments'),
-                    icon: Icons.comment_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: formatter,
-                      actions: notes,
-                      commentsOnly: true,
-                      hostWireName: 'purchase_order',
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: formatter,
-                      actions: notes,
-                      hostWireName: 'purchase_order',
-                      reveal: revealActivity,
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('overview'),
-                    icon: Icons.dashboard_outlined,
-                    bodyBuilder: (_) => Padding(
-                      padding: EdgeInsets.all(InSpacing.lg(context)),
-                      child: _Overview(
-                        purchaseOrder: purchaseOrder,
-                        companyId: companyId,
-                        formatter: formatter,
-                      ),
-                    ),
-                  ),
-                  buildDocumentHistoryTab(
-                    context: context,
-                    services: services,
-                    companyId: companyId,
-                    basePath: services.purchaseOrders.api.basePath,
-                    entityId: purchaseOrder.id,
-                    currentAmount: purchaseOrder.amount,
-                    currentUpdatedAt: purchaseOrder.updatedAt,
-                    formatter: formatter,
-                    vendorId: purchaseOrder.vendorId,
-                    selection: selectedVersion,
-                    // Only wide drives the pane; narrow navigates, so
-                    // nothing there is ever "selected".
-                    showSelection: wide,
-                    onOpenVersion: (String? activityId) {
-                      // Wide keeps the record on screen and swaps the
-                      // pane; narrow has no pane, so it routes.
-                      if (wide) {
-                        selectedVersion.value = activityId;
-                      } else if (requireSynced(context, purchaseOrder.id)) {
-                        context.go(
-                          '/purchase_orders/${purchaseOrder.id}/pdf'
-                          '${activityId == null ? '' : '?activity_id=$activityId'}',
-                        );
-                      }
-                    },
-                  ),
-                  EntityDetailTab(
-                    label: purchaseOrder.documents.isEmpty
-                        ? context.tr('documents')
-                        : context.tr('documents_with_count', {
-                            'count': '${purchaseOrder.documents.length}',
-                          }),
-                    icon: Icons.description_outlined,
-                    bodyBuilder: (_) => EntityDocumentsTab(
-                      entityId: purchaseOrder.id,
-                      documents: purchaseOrder.documents,
-                      onUpload: (sources) async {
-                        for (final s in sources) {
-                          await services.purchaseOrders.uploadDocument(
-                            companyId: companyId,
-                            entityId: purchaseOrder.id,
-                            source: s,
-                          );
-                        }
-                      },
-                      onDelete: (doc) async {
-                        await services.purchaseOrders.deleteDocument(
-                          companyId: companyId,
-                          entityId: purchaseOrder.id,
-                          documentId: doc.id,
-                        );
-                      },
-                      onToggleVisibility: (doc) async {
-                        await services.purchaseOrders.setDocumentVisibility(
-                          companyId: companyId,
-                          entityId: purchaseOrder.id,
-                          documentId: doc.id,
-                          isPublic: !doc.isPublic,
-                        );
-                      },
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('email_history'),
-                    icon: Icons.outgoing_mail,
-                    bodyBuilder: (_) => BillingDocSendsTab(
-                      services: services,
-                      companyId: companyId,
-                      entityWireName: 'purchase_order',
-                      entityId: purchaseOrder.id,
-                      invitations: purchaseOrder.invitations,
-                      isDirty: purchaseOrder.isDirty,
-                      vendorId: purchaseOrder.vendorId,
-                      isHosted: services.auth.session.value?.isHosted ?? false,
-                      onReactivate: (messageId) =>
-                          services.purchaseOrders.reactivateInvitationEmail(
-                            companyId: companyId,
-                            id: purchaseOrder.id,
-                            messageId: messageId,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-        if (!wide) return main;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: 5, child: main),
-            VerticalDivider(width: 1, color: context.inTheme.border),
-            Expanded(
-              flex: 6,
-              child: _PdfPane(
-                purchaseOrder: purchaseOrder,
-                selectedVersion: selectedVersion,
+            ),
+            EntityDetailTab(
+              id: DetailTabIds.overview,
+              label: context.tr('overview'),
+              icon: Icons.dashboard_outlined,
+              // What is being ordered. This tab used to hold tags and notes
+              // only — a purchase order's line items could not be read
+              // without opening it for editing.
+              bodyBuilder: (_) => BillingDocOverviewOf(
+                type: BillingDocType.purchaseOrder,
+                doc: po,
                 formatter: formatter,
+              ),
+            ),
+            buildDocumentHistoryTab(
+              context: context,
+              services: _services,
+              companyId: _companyId,
+              basePath: _services.purchaseOrders.api.basePath,
+              entityId: po.id,
+              currentAmount: po.amount,
+              currentUpdatedAt: po.updatedAt,
+              formatter: formatter,
+              vendorId: po.vendorId,
+              selection: _selectedVersion,
+              // Only the pane is ever "showing" a version; without one a tap
+              // navigates, so nothing is selected.
+              showSelection: hasPdfPane,
+              onOpenVersion: billingDocVersionOpener(
+                context,
+                type: BillingDocType.purchaseOrder,
+                docId: po.id,
+                hasPdfPane: hasPdfPane,
+                selection: _selectedVersion,
+              ),
+            ),
+            buildBillingDocumentsTab(
+              context: context,
+              companyId: _companyId,
+              doc: po,
+              formatter: formatter,
+              upload: _services.purchaseOrders.uploadDocument,
+              delete: _services.purchaseOrders.deleteDocument,
+              setVisibility: _services.purchaseOrders.setDocumentVisibility,
+            ),
+            EntityDetailTab(
+              id: DetailTabIds.emailHistory,
+              label: context.tr('email_history'),
+              icon: Icons.outgoing_mail,
+              bodyBuilder: (_) => BillingDocSendsTab(
+                services: _services,
+                companyId: _companyId,
+                entityWireName: 'purchase_order',
+                entityId: po.id,
+                invitations: po.invitations,
+                isDirty: po.isDirty,
+                vendorId: po.vendorId,
+                isHosted: _services.auth.session.value?.isHosted ?? false,
+                onReactivate: (messageId) =>
+                    _services.purchaseOrders.reactivateInvitationEmail(
+                      companyId: _companyId,
+                      id: po.id,
+                      messageId: messageId,
+                    ),
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
-}
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.purchaseOrder,
-    required this.companyId,
-    required this.selectTab,
-    required this.revealActivity,
-    this.formatter,
-  });
-  final PurchaseOrder purchaseOrder;
-  final String companyId;
-  final TabSelectionController selectTab;
-  final ActivityRevealController revealActivity;
-
-  /// Company-scoped formatter for money/date. Null until it resolves; callers
-  /// fall back to the raw value so the row never renders blank.
-  final Formatter? formatter;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final services = context.read<Services>();
-    final viewed = purchaseOrder.invitations.newestViewed;
-    // Date-only, matching the caption the other three headers use: the time
-    // lives in the pill's tooltip and in the Activity row. `Formatter.date`
-    // answers '' for anything it cannot parse, so an empty string means
-    // "render nothing" rather than a label with a gap after it.
-    final viewedCell = viewed == null
-        ? ''
-        : (formatter?.date(viewed.viewedDate) ?? '');
-    return Container(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      decoration: BoxDecoration(
-        border: Border.all(color: tokens.border),
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        color: tokens.surface,
+  /// Everything above the tabs.
+  Widget _top(
+    BuildContext context,
+    PurchaseOrder po,
+    EntityNoteActions notes,
+    Company? company, {
+    required bool hasPdfPane,
+  }) {
+    final valueStyle = BillingDocDetailsCard.valueStyle(context);
+    return EntityRecordColumn(
+      header: BillingDocRecordHeader(
+        type: BillingDocType.purchaseOrder,
+        doc: po,
+        formatter: formatter,
+        statusPill: ViewedStatusPillLink(
+          isViewed: po.calculatedStatusId == PurchaseOrderStatusComputed.viewed,
+          invitations: po.invitations,
+          entityWireName: 'purchase_order',
+          companyId: _companyId,
+          clients: _services.clients,
+          vendors: _services.vendors,
+          vendorId: po.vendorId,
+          selectTab: _record.selectTab,
+          reveal: _revealActivity,
+          formatter: formatter,
+          builder: (context, tooltip, semanticsLabel, onTap) =>
+              PurchaseOrderStatusPill(
+                statusId: po.calculatedStatusId,
+                hasBounce: po.hasBouncedInvitation,
+                tooltip: tooltip,
+                onTap: onTap,
+                semanticsLabel: semanticsLabel,
+                semanticsHint: onTap == null ? null : context.tr('activity'),
+              ),
+        ),
+        party: VendorNameLabel(
+          vendorId: po.vendorId,
+          link: true,
+          style: BillingDocRecordHeader.partyStyle(context),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // `Flexible` + ellipsis, as the other three billing headers
-              // already do. This one shipped with a bare `Text`, so nothing
-              // absorbed the pill growing — and the pill is the row's only
-              // non-flexible child, so every pixel it gains comes out of the
-              // number.
-              Flexible(
-                child: Text(
-                  purchaseOrder.number.isEmpty
-                      ? '—'
-                      : '#${purchaseOrder.number}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.ink,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ViewedStatusPillLink(
-                isViewed:
-                    purchaseOrder.calculatedStatusId ==
-                    PurchaseOrderStatusComputed.viewed,
-                invitations: purchaseOrder.invitations,
-                entityWireName: 'purchase_order',
-                companyId: companyId,
-                clients: services.clients,
-                vendors: services.vendors,
-                vendorId: purchaseOrder.vendorId,
-                selectTab: selectTab,
-                reveal: revealActivity,
-                formatter: formatter,
-                builder: (context, tooltip, semanticsLabel, onTap) =>
-                    PurchaseOrderStatusPill(
-                      statusId: purchaseOrder.calculatedStatusId,
-                      hasBounce: purchaseOrder.hasBouncedInvitation,
-                      tooltip: tooltip,
-                      onTap: onTap,
-                      semanticsLabel: semanticsLabel,
-                      semanticsHint: onTap == null
-                          ? null
-                          : context.tr('activity'),
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Flexible(
-                child: VendorNameLabel(
-                  vendorId: purchaseOrder.vendorId,
+      quickActions: EntityQuickActions<PurchaseOrderAction>(
+        priority: PurchaseOrderActions.quickItemsFor(
+          context,
+          po,
+          (a) => _dispatch(po, a),
+          hasPdfPane: hasPdfPane,
+        ),
+      ),
+      standing: BillingDocStanding(
+        type: BillingDocType.purchaseOrder,
+        doc: po,
+        formatter: formatter,
+      ),
+      comments: EntityCommentsCard(
+        vm: _activityVm,
+        formatter: formatter,
+        actions: notes,
+        hostWireName: 'purchase_order',
+        onViewAll: () => _record.selectTab.select(kCommentsTabIndex),
+        matchFormColumn: true,
+      ),
+      profile: BillingDocPartyContacts(
+        companyId: _companyId,
+        type: BillingDocType.purchaseOrder,
+        doc: po,
+        builder: (context, contacts) => BillingDocProfile(
+          type: BillingDocType.purchaseOrder,
+          doc: po,
+          company: company,
+          contacts: contacts,
+          formatter: formatter,
+          detailRows: [
+            // The expense this order became…
+            if (po.expenseId.isNotEmpty)
+              billingDocLabelRow(
+                context,
+                'expense',
+                ExpenseNameLabel(
+                  expenseId: po.expenseId,
                   link: true,
-                  style: TextStyle(color: tokens.ink3),
+                  style: valueStyle,
                 ),
               ),
-              PartyCallButton(
-                vendorId: purchaseOrder.vendorId,
-                // Filed against the *document*, not the party. Unlike the
-                // invoice / quote / credit headers, what the server stamps
-                // here is `vendor_id` — a purchase order's `client_id` is
-                // nullable and null for an ordinary vendor-facing PO — so the
-                // note reaches the **vendor's** feed, which is the one the
-                // caller was looking at anyway.
-                logTarget: (
-                  type: EntityType.purchaseOrder,
-                  id: purchaseOrder.id,
-                  subject: purchaseOrder.number.isEmpty
-                      ? ''
-                      : '#${purchaseOrder.number}',
+            // …the invoice it was produced from by the server's 2026-09-05
+            // `clone_to_purchase_order` action, so the user can get back to
+            // it…
+            if (po.invoiceId.isNotEmpty)
+              billingDocLabelRow(
+                context,
+                'invoice',
+                InvoiceNameLabel(
+                  invoiceId: po.invoiceId,
+                  link: true,
+                  style: valueStyle,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Purchase orders are denominated in the *vendor's* currency, not the
-          // company default — resolve it once and thread it through the money
-          // values (mirrors how invoice/quote detail resolve client currency).
-          PartyCurrencyBuilder(
-            vendorId: purchaseOrder.vendorId,
-            builder: (context, currencyId) => Wrap(
-              spacing: 24,
-              runSpacing: 12,
-              children: [
-                _LabelValue(
-                  label: context.tr('amount'),
-                  mono: true,
-                  value:
-                      formatter?.money(
-                        purchaseOrder.amount,
-                        vendorCurrencyId: currencyId,
-                      ) ??
-                      purchaseOrder.amount.toString(),
+            // …or the quote it was converted from (React #3370). There is no
+            // quote name label, so this one names the action; `view_quote` is
+            // placeholder-free.
+            if (po.quoteId.isNotEmpty)
+              DetailInfoRow(
+                label: context.tr('quote'),
+                value: context.tr('view_quote'),
+                copyable: false,
+                onTap: () => goEntityFullDetail(context, '/quotes', po.quoteId),
+              ),
+            if (po.projectId.isNotEmpty)
+              billingDocLabelRow(
+                context,
+                'project',
+                ProjectNameLabel(
+                  projectId: po.projectId,
+                  link: true,
+                  style: valueStyle,
                 ),
-                _LabelValue(
-                  label: context.tr('balance'),
-                  mono: true,
-                  value:
-                      formatter?.money(
-                        purchaseOrder.balance,
-                        vendorCurrencyId: currencyId,
-                      ) ??
-                      purchaseOrder.balance.toString(),
-                ),
-                if (purchaseOrder.dueDate != null)
-                  _LabelValue(
-                    label: context.tr('due_date'),
-                    value:
-                        formatter?.date(purchaseOrder.dueDate!.toIso()) ??
-                        purchaseOrder.dueDate!.toIso(),
-                  ),
-                // A `_LabelValue`, not the muted caption the other three
-                // headers grow: this header has no 12.5 px register at all, so
-                // a lone muted line would read as debug text. At this rank it
-                // sits beside Due Date, which is the same kind of fact.
-                //
-                // Status-independent on purpose — `calculatedStatusId` checks
-                // its viewed branch last, so the pill stops saying `Viewed` the
-                // moment the PO is accepted or cancelled, and "did they ever
-                // even open it?" outlives that.
-                if (viewedCell.isNotEmpty)
-                  _LabelValue(label: context.tr('viewed'), value: viewedCell),
-                if (purchaseOrder.expenseId.isNotEmpty)
-                  _RecordLink(
-                    captionKey: 'expense',
-                    labelKey: 'view_expense_label',
-                    route: '/expenses/${purchaseOrder.expenseId}',
-                  ),
-                // Set when this PO was produced by the server's 2026-09-05
-                // `clone_to_purchase_order` action, so the user can get back to
-                // the invoice it came from.
-                if (purchaseOrder.invoiceId.isNotEmpty)
-                  _RecordLink(
-                    captionKey: 'invoice',
-                    labelKey: 'view_invoice',
-                    route: '/invoices/${purchaseOrder.invoiceId}',
-                  ),
-                // …or the quote it was converted from (React #3370).
-                if (purchaseOrder.quoteId.isNotEmpty)
-                  _RecordLink(
-                    captionKey: 'quote',
-                    labelKey: 'view_quote',
-                    route: '/quotes/${purchaseOrder.quoteId}',
-                  ),
-              ],
-            ),
-          ),
-        ],
+              ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-class _Overview extends StatelessWidget {
-  const _Overview({
-    required this.purchaseOrder,
-    required this.companyId,
-    this.formatter,
-  });
-  final PurchaseOrder purchaseOrder;
-  final String companyId;
-  final Formatter? formatter;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final hasCustomFields =
-        purchaseOrder.customValue1.isNotEmpty ||
-        purchaseOrder.customValue2.isNotEmpty ||
-        purchaseOrder.customValue3.isNotEmpty ||
-        purchaseOrder.customValue4.isNotEmpty;
-    // Both fields are HTML on the wire; a read-only strip wants the words.
-    final publicNotes = plainTextFromHtml(purchaseOrder.publicNotes);
-    final terms = plainTextFromHtml(purchaseOrder.terms);
-    final hasNotes = publicNotes.isNotEmpty;
-    final hasTerms = terms.isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (purchaseOrder.tagIds.isNotEmpty) ...[
-          Text(
-            context.tr('tags'),
-            style: TextStyle(
-              fontSize: 12,
-              color: tokens.ink3,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          EntityTagsView(
-            entityType: 'purchase_order',
-            tagIds: purchaseOrder.tagIds,
-          ),
-          if (hasNotes || hasTerms || hasCustomFields)
-            SizedBox(height: InSpacing.md(context)),
-        ],
-        if (hasNotes) ...[
-          Text(
-            context.tr('public_notes'),
-            style: TextStyle(
-              fontSize: 12,
-              color: tokens.ink3,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            expandDatePlaceholders(publicNotes, formatter: formatter),
-            style: TextStyle(color: tokens.ink),
-          ),
-        ],
-        if (hasTerms) ...[
-          if (hasNotes) SizedBox(height: InSpacing.md(context)),
-          Text(
-            context.tr('terms'),
-            style: TextStyle(
-              fontSize: 12,
-              color: tokens.ink3,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            expandDatePlaceholders(terms, formatter: formatter),
-            style: TextStyle(color: tokens.ink),
-          ),
-        ],
-        // Purchase orders reuse the `invoice` custom-field config slots — no
-        // separate purchase_order keys exist server-side (matches admin-portal).
-        if (hasCustomFields) ...[
-          if (hasNotes || hasTerms) SizedBox(height: InSpacing.md(context)),
-          CustomFieldsDetailCard(
-            companyId: companyId,
-            prefix: 'invoice',
-            values: [
-              purchaseOrder.customValue1,
-              purchaseOrder.customValue2,
-              purchaseOrder.customValue3,
-              purchaseOrder.customValue4,
-            ],
-            formatter: formatter,
-          ),
-        ],
-      ],
     );
   }
 }
@@ -682,8 +460,6 @@ class _PdfPane extends StatelessWidget {
   });
   final PurchaseOrder purchaseOrder;
   final ValueNotifier<String?> selectedVersion;
-
-  /// Threaded by hand: this screen mounts no `FormatterScope`.
   final Formatter? formatter;
 
   @override
@@ -706,105 +482,6 @@ class _PdfPane extends StatelessWidget {
                     ? null
                     : purchaseOrder.designId),
           ),
-    );
-  }
-}
-
-class _LabelValue extends StatelessWidget {
-  const _LabelValue({
-    required this.label,
-    required this.value,
-    this.mono = false,
-  });
-  final String label;
-  final String value;
-
-  /// Render the value in the mono money typeface. Money fields (amount,
-  /// balance) set this; the date field keeps the sans UI font.
-  final bool mono;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: TextStyle(fontSize: 11, color: tokens.ink3)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: mono
-              ? moneyTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: tokens.ink,
-                )
-              : TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: tokens.ink,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A captioned header field rendered as a tappable link to a related record,
-/// instead of a raw id. Three users today, each mounted only when its id is
-/// set: the converted **expense** (`expenseId`), and the **invoice** or
-/// **quote** this PO was converted from (`invoiceId` / `quoteId`).
-class _RecordLink extends StatelessWidget {
-  const _RecordLink({
-    required this.captionKey,
-    required this.labelKey,
-    required this.route,
-  });
-
-  /// Localization key for the small caption above the link.
-  final String captionKey;
-
-  /// Localization key for the link text. Must be **placeholder-free** —
-  /// `view_expense` is "View expense # :expense" and nothing substitutes the
-  /// number here, hence `view_expense_label`; `view_invoice` is already bare.
-  final String labelKey;
-
-  /// Router path to open, e.g. `/expenses/<id>`.
-  final String route;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          context.tr(captionKey),
-          style: TextStyle(fontSize: 11, color: tokens.ink3),
-        ),
-        const SizedBox(height: 2),
-        // Transparent `Material` so the ink has a host: the enclosing header
-        // is an opaque `Container`, which would otherwise paint over a splash
-        // hosted by the Scaffold above it (same reason as
-        // `DashboardCardShell` and `PartyCallButton`).
-        Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: () => context.go(route),
-            child: Text(
-              context.tr(labelKey),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

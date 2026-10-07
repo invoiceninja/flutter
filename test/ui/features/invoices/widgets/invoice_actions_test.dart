@@ -117,6 +117,45 @@ void main() {
     }
   });
 
+  // The server refuses `POST /emails` to a user holding `disable_emails`
+  // before it looks at the record (`SendEmailRequest`). Offering the action
+  // anyway opened a screen whose Send could only fail.
+  group('send email — not for a user barred from emailing', () {
+    testWidgets('enabled for an editor', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _invoice(status: InvoiceStatus.sent),
+        isAdmin: false,
+        permissions: 'edit_invoice',
+      );
+
+      expect(enabled(items, InvoiceAction.sendEmail), isTrue);
+    });
+
+    testWidgets('disabled once they hold disable_emails', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _invoice(status: InvoiceStatus.sent),
+        isAdmin: false,
+        permissions: 'edit_invoice,disable_emails',
+      );
+
+      expect(enabled(items, InvoiceAction.sendEmail), isFalse);
+      // The token takes one thing away; the rest of the editor's actions stay.
+      expect(enabled(items, InvoiceAction.markPaid), isTrue);
+    });
+
+    testWidgets('an admin is never barred', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _invoice(status: InvoiceStatus.sent),
+        permissions: 'disable_emails',
+      );
+
+      expect(enabled(items, InvoiceAction.sendEmail), isTrue);
+    });
+  });
+
   // NB: the source comment says "only when there's still a balance", but
   // `canMarkPaid` has no balance term — it is `!isPaid && !isCancelled &&
   // !isReversed`, i.e. purely status-driven. Named for what the code does.
@@ -212,6 +251,21 @@ void main() {
         expect(enabled(items, InvoiceAction.refund), entry.value);
       });
     }
+  });
+
+  testWidgets('refund is an admin\'s to make, whatever edit rights say', (
+    tester,
+  ) async {
+    // The server's `RefundPaymentRequest::authorize` is `isAdmin()` and
+    // nothing else. Gated on `edit_invoice`, a non-admin was offered a refund
+    // — on a tile, now — that the server refuses.
+    final items = await resolveItems(
+      tester,
+      _invoice(status: InvoiceStatus.paid),
+      isAdmin: false,
+      permissions: 'edit_all,view_all,create_all',
+    );
+    expect(enabled(items, InvoiceAction.refund), isFalse);
   });
 
   group('send email — not on a cancelled or reversed invoice', () {

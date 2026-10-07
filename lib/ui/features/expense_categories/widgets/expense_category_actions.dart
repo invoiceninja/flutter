@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
@@ -45,10 +46,24 @@ class ExpenseCategoryActions {
     ExpenseCategory category,
     void Function(ExpenseCategoryAction) onTap,
   ) {
-    final canArchive = category.archivedAt == null && !category.isDeleted;
-    final canRestore = category.archivedAt != null || category.isDeleted;
-    // Purge is admin/owner-only — mirrors the Product/Gateway gate so the
-    // action only renders when the user could plausibly run it.
+    // Archive, restore and delete all need `edit_expense_category`: the
+    // server authorizes each through `EntityPolicy::edit` (there is no
+    // `delete_*` permission). Ungated, a view-only user was offered Restore —
+    // one tap from the record's state banner — for a mutation it refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'expense_category',
+          createdBy: category.userId,
+          assignedTo: category.assignedUserId,
+          recordId: category.id,
+        ) ??
+        false;
+    final canArchive =
+        canEdit && category.archivedAt == null && !category.isDeleted;
+    final canRestore =
+        canEdit && (category.archivedAt != null || category.isDeleted);
 
     return [
       editActionItem(
@@ -79,7 +94,7 @@ class ExpenseCategoryActions {
         context: context,
         subject: _confirmSubject(category),
         kind: ExpenseCategoryAction.delete,
-        canDelete: !category.isDeleted,
+        canDelete: canEdit && !category.isDeleted,
         onTap: () => onTap(ExpenseCategoryAction.delete),
       ),
     ];

@@ -13,12 +13,14 @@ import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
+import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/features/dashboard/helpers/needs_attention.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 
 final _log = Logger('DashboardViewModel');
@@ -41,6 +43,9 @@ class DashboardViewModel extends ChangeNotifier {
     required this.statics,
     ValueListenable<ResyncCompletion?>? resyncCompletions,
     ValueListenable<RealtimeRefresh?>? realtimeRefreshes,
+    Stream<int>? outboxActive,
+    bool Function(String kind)? panelEnabled,
+    Duration appliedChangeDelay = kAppliedChangeDelay,
     Duration realtimeRefetchGap = kRealtimeRefetchGap,
     int firstMonthOfYear = 1,
     Duration persistDebounce = const Duration(milliseconds: 500),
@@ -48,6 +53,8 @@ class DashboardViewModel extends ChangeNotifier {
     Date Function()? today,
   }) : _resyncCompletions = resyncCompletions,
        _realtimeRefreshes = realtimeRefreshes,
+       _appliedChangeDelay = appliedChangeDelay,
+       _panelEnabled = panelEnabled,
        _realtimeRefetchGap = realtimeRefetchGap,
        _fiscalYearStart = firstMonthOfYear,
        _persistDebounce = persistDebounce,
@@ -56,6 +63,7 @@ class DashboardViewModel extends ChangeNotifier {
     _filter = _filter.copyWith(firstMonthOfYear: _fiscalYearStart);
     resyncCompletions?.addListener(_onResyncCompleted);
     realtimeRefreshes?.addListener(_onRealtimeRefresh);
+    _outboxActiveSub = outboxActive?.listen(_onOutboxActive);
     unawaited(_init());
   }
 
@@ -66,6 +74,23 @@ class DashboardViewModel extends ChangeNotifier {
 
   /// `Services.realtime.lastRefresh` — see [_onRealtimeRefresh].
   final ValueListenable<RealtimeRefresh?>? _realtimeRefreshes;
+
+  /// How long after a change leaves the outbox the refetch waits — see
+  /// [_onOutboxActive]. Long enough to fold a burst of saves into one pass.
+  static const Duration kAppliedChangeDelay = Duration(milliseconds: 1500);
+  final Duration _appliedChangeDelay;
+
+  /// Whether the user's company and permissions offer [kind]'s panel at all
+  /// (`enabledPanelKinds`). The view model knows nothing of modules, but the
+  /// needs-attention band is built from three lists and must leave out the
+  /// ones that are switched off — see [attention]. Null means everything is
+  /// offered, which is what a test that is not about gating wants.
+  final bool Function(String kind)? _panelEnabled;
+
+  /// `OutboxDao.watchActiveCount` — see [_onOutboxActive]. Optional so a test
+  /// that is not about it can leave it out.
+  StreamSubscription<int>? _outboxActiveSub;
+  int? _outboxActive;
   final Duration _realtimeRefetchGap;
   DateTime? _lastRealtimeRefetch;
   Timer? _realtimeRefetchTimer;
@@ -91,11 +116,19 @@ class DashboardViewModel extends ChangeNotifier {
   /// [_resubscribeIfRolledOver]. Injected so a test can cross midnight.
   final Date Function() _today;
 
+  /// Today, by the same clock the view model computes with. The band reads it
+  /// so "12 days late" and the buckets it was sorted into agree on the date.
+  Date get today => _today();
+
   DashboardFilter _filter = DashboardFilter.defaults();
   DashboardFilter get filter => _filter;
 
   AsyncSection<DashboardTotals> totals = const AsyncSection.idle();
   AsyncSection<DashboardTotals> totalsPrevious = const AsyncSection.idle();
+
+  /// What is unpaid today, whatever the date range — only its `outstanding`
+  /// bucket is read. See `DashboardKind.totalsOutstanding`.
+  AsyncSection<DashboardTotals> outstanding = const AsyncSection.idle();
   AsyncSection<DashboardChartSeries> chart = const AsyncSection.idle();
   AsyncSection<List<DashboardActivity>> activities = const AsyncSection.idle();
   AsyncSection<List<DashboardInvoiceRow>> pastDue = const AsyncSection.idle();
@@ -151,6 +184,12 @@ class DashboardViewModel extends ChangeNotifier {
   /// "Updated N ago" freshness label.
   DateTime? lastRefreshed;
 
+  /// When the period figures now on screen were fetched — read off their
+  /// cache row, so it is known even when this session has not managed a clean
+  /// refresh. Null while there are none. Bumps the totals section's
+  /// listenable, not the global notify.
+  DateTime? figuresFetchedAt;
+
   /// The `refreshNonce` of the two Drift-backed panels (the task calendar and
   /// Invoices & Quotes): a change from one non-null value to another makes
   /// them refetch their own server window. A first stamp is their initial
@@ -183,11 +222,19 @@ class DashboardViewModel extends ChangeNotifier {
   Listenable listenableFor(String kind) =>
       _sectionNotifiers[kind] ?? (_sectionNotifiers[kind] = _SectionNotifier());
 
-  /// The KPI row reads both totals sections, so it listens to both.
+  /// The figures read the period totals, their comparison and what is
+  /// outstanding today, so they listen to all three.
   late final Listenable kpiListenable = Listenable.merge([
     listenableFor(DashboardKind.totalsCurrent),
     listenableFor(DashboardKind.totalsPrevious),
+    listenableFor(DashboardKind.totalsOutstanding),
   ]);
+
+  /// The periods the figures' trends compare, or null when there is nothing
+  /// before the selected range to compare with ("All time") — see
+  /// `DashboardFilter.comparison`. Resolved against the same day the watches
+  /// were keyed on.
+  DashboardComparison? get comparison => _filter.comparison(today: _today());
 
   /// The chart card's hero now reads the paid-revenue totals (current +
   /// previous) alongside the chart series, so it must rebuild on any of the
@@ -234,12 +281,69 @@ class DashboardViewModel extends ChangeNotifier {
       if (DashboardKind.listKinds.contains(kind)) kind,
   };
 
+  /// The needs-attention band's buckets — past due, due soon, quotes expiring
+  /// — from the three lists already loaded. See `needsAttention`.
+  ///
+  /// [companyCurrencyId] lets the proven past-due sum treat a client with no
+  /// currency of its own and one set to the company's as the same currency;
+  /// the screen passes it from its `Formatter`.
+  NeedsAttention attention({String companyCurrencyId = ''}) {
+    final enabled = _panelEnabled;
+    return needsAttention(
+      pastDue: pastDue.data,
+      upcomingInvoices: upcomingInvoices.data,
+      upcomingQuotes: upcomingQuotes.data,
+      today: _today(),
+      invoices: enabled?.call(DashboardKind.pastDue) ?? true,
+      quotes: enabled?.call(DashboardKind.upcomingQuotes) ?? true,
+      companyCurrencyId: companyCurrencyId,
+    );
+  }
+
+  /// The lists the band reads. An emission on any of them can change whether
+  /// it has anything to show.
+  static const Set<String> _attentionKinds = {
+    DashboardKind.pastDue,
+    DashboardKind.upcomingInvoices,
+    DashboardKind.upcomingQuotes,
+  };
+
+  /// Notifies when any list the band is built from changes — the band listens
+  /// to this rather than to one section.
+  late final Listenable attentionListenable = Listenable.merge([
+    for (final k in _attentionKinds) listenableFor(k),
+  ]);
+
   /// Called with each emission of a section stream. Emptiness changes only
   /// here: `_setSectionError` keeps the section's data, so a failed refresh
   /// can neither hide a panel nor reveal one.
   void _syncPanelEmpty(String kind, Object? data) {
-    if (_disposed || !_emptiableKinds.contains(kind)) return;
-    final empty = data is List<Object?> && isLoadedEmpty(data);
+    if (_disposed) return;
+    if (_attentionKinds.contains(kind)) _syncAttentionEmpty();
+    // Past-due's entry is the band's, set above from all of its buckets.
+    if (kind == DashboardKind.pastDue || !_emptiableKinds.contains(kind)) {
+      return;
+    }
+    _setPanelEmpty(kind, data is List<Object?> && isLoadedEmpty(data));
+  }
+
+  /// The band stands in for the past-due panel, so [emptyPanels] carries its
+  /// emptiness under that kind — and it is empty only when **every** bucket
+  /// is: nothing past due *and* nothing due soon *and* no quote expiring.
+  /// Keyed on past-due alone, a phone (which hides empty panels by default)
+  /// dropped the whole band, due-soon invoices and all, whenever nothing was
+  /// late yet.
+  ///
+  /// Past-due itself must have loaded: until it has, the band is a skeleton or
+  /// a retry, and neither is "nothing to show".
+  void _syncAttentionEmpty() {
+    _setPanelEmpty(
+      DashboardKind.pastDue,
+      pastDue.data != null && attention().isEmpty,
+    );
+  }
+
+  void _setPanelEmpty(String kind, bool empty) {
     final current = _emptyPanels.value;
     if (current.contains(kind) == empty) return;
     _emptyPanels.value = Set.unmodifiable(
@@ -381,19 +485,11 @@ class DashboardViewModel extends ChangeNotifier {
   // Pure layout state (no streams). The dashboard body rebuilds on the global
   // notify; the manage dialog reorders/toggles via these.
 
-  void reorderPanels(int oldIndex, int newIndex) {
-    if (oldIndex < 0 || oldIndex >= panelPrefs.length) return;
-    final next = [...panelPrefs];
-    final moved = next.removeAt(oldIndex);
-    next.insert(newIndex.clamp(0, next.length), moved);
-    panelPrefs = next;
-    notifyListeners();
-    _schedulePersist();
-  }
-
-  /// Reorder only the non-past-due panels, preserving past-due's slot. Used by
-  /// the narrow manage layout, where past-due is pinned to the top (it always
-  /// renders in the mobile hero zone) and the rest reorder beneath it.
+  /// Reorder the panels beneath the pinned needs-attention band.
+  ///
+  /// Past-due is not a panel anyone can move: both layouts draw it as the band
+  /// that leads the page, so it keeps the first slot in [panelPrefs] (where
+  /// its show / hide switch lives) and only the rest reorder.
   /// [oldIndex]/[newIndex] index the past-due-excluded subsequence.
   void reorderTrailingPanels(int oldIndex, int newIndex) {
     final rest = panelPrefs
@@ -534,6 +630,41 @@ class DashboardViewModel extends ChangeNotifier {
   void _onRealtimeRefresh() {
     final done = _realtimeRefreshes?.value;
     if (_disposed || done == null || done.companyId != companyId) return;
+    _scheduleQuietRefetch();
+  }
+
+  /// The number of this device's changes still queued or being sent.
+  ///
+  /// A **drop** means one has left the queue, so the server now has it (or it
+  /// failed, and a refetch is harmless). The dashboard's rows are the server's
+  /// own lists, cached — nothing local updates them — so without this a payment
+  /// entered from a past-due row left that invoice listed as past due until
+  /// something else refetched: a Sync, the Refresh button, or, hosted only, a
+  /// pushed change. On a self-hosted install the row simply sat there, inviting
+  /// a second reminder for an invoice already paid.
+  ///
+  /// It never fires from navigation or from the tap itself — at that point the
+  /// write is still queued and the server would answer with the old rows — and
+  /// a count that only rises (a save going *into* the queue) does nothing.
+  void _onOutboxActive(int count) {
+    final before = _outboxActive;
+    _outboxActive = count;
+    if (_disposed || before == null || count >= before) return;
+    if (!_bootRefreshDone) {
+      _refetchAfterBoot = true;
+      return;
+    }
+    // Trailing, and restarted by each further drop: three saves draining one
+    // after another are one refetch, after the last. Not held to the push
+    // limiter's 30 s — this is the user's own change, and they are looking at
+    // the row it should have removed.
+    _realtimeRefetchTimer?.cancel();
+    _realtimeRefetchTimer = Timer(_appliedChangeDelay, _runRealtimeRefetch);
+  }
+
+  /// A full refetch with no toast and no panel re-arm, at most once per
+  /// [kRealtimeRefetchGap], trailing — the last trigger in a burst still lands.
+  void _scheduleQuietRefetch() {
     if (!_bootRefreshDone) {
       _refetchAfterBoot = true;
       return;
@@ -638,6 +769,7 @@ class DashboardViewModel extends ChangeNotifier {
     if (!DashboardKind.listKinds.contains(kind) &&
         kind != DashboardKind.totalsCurrent &&
         kind != DashboardKind.totalsPrevious &&
+        kind != DashboardKind.totalsOutstanding &&
         kind != DashboardKind.chart) {
       return;
     }
@@ -649,6 +781,11 @@ class DashboardViewModel extends ChangeNotifier {
         case DashboardKind.totalsCurrent:
         case DashboardKind.totalsPrevious:
           await repo.refreshTotals(companyId, _filter);
+        case DashboardKind.totalsOutstanding:
+          await repo.refreshOutstanding(
+            companyId,
+            includeDrafts: _filter.includeDrafts,
+          );
         case DashboardKind.chart:
           await repo.refreshChart(companyId, _filter);
         case DashboardKind.activities:
@@ -739,6 +876,13 @@ class DashboardViewModel extends ChangeNotifier {
   /// [_resubscribeIfRolledOver].
   String? _watchedFilterHash;
 
+  /// Key of the [figuresFetchedAt] subscription in [_subs].
+  static const String _kFetchedAtSub = 'totals_fetched_at';
+
+  /// The include-drafts value the [outstanding] watch was opened with; null
+  /// before the first subscription.
+  bool? _watchedOutstandingDrafts;
+
   /// Reopen the filter-keyed watches if [filter] no longer hashes the way it
   /// did when they were opened.
   ///
@@ -755,7 +899,37 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   void _resubscribeFilterKeyed() {
-    _watchedFilterHash = _filter.filterHash(today: _today());
+    final hash = _filter.filterHash(today: _today());
+    // A different window is a different question. Without this the sections
+    // kept the old window's status and error while their data went null (the
+    // new hash has no cache row yet), so a figure that had failed under the
+    // last range read as failed under this one before it was ever asked for.
+    if (hash != _watchedFilterHash) {
+      figuresFetchedAt = null;
+      totals = const AsyncSection.idle();
+      totalsPrevious = const AsyncSection.idle();
+      chart = const AsyncSection.idle();
+      _bumpSection(DashboardKind.totalsCurrent);
+      _bumpSection(DashboardKind.totalsPrevious);
+      _bumpSection(DashboardKind.chart);
+    }
+    _watchedFilterHash = hash;
+    // Keyed by the drafts switch alone, so a date-range change leaves it — and
+    // the Outstanding figure — exactly as it was.
+    if (_watchedOutstandingDrafts != _filter.includeDrafts) {
+      if (_watchedOutstandingDrafts != null) {
+        outstanding = const AsyncSection.idle();
+        _bumpSection(DashboardKind.totalsOutstanding);
+      }
+      _watchedOutstandingDrafts = _filter.includeDrafts;
+      _subscribe(
+        DashboardKind.totalsOutstanding,
+        repo.watchOutstanding(companyId, includeDrafts: _filter.includeDrafts),
+        (d) {
+          outstanding = outstanding.withData(d);
+        },
+      );
+    }
     _subscribe(
       DashboardKind.totalsCurrent,
       repo.watchTotals(companyId, _filter),
@@ -773,6 +947,14 @@ class DashboardViewModel extends ChangeNotifier {
     _subscribe(DashboardKind.chart, repo.watchChart(companyId, _filter), (d) {
       chart = chart.withData(d);
     });
+    _subs[_kFetchedAtSub]?.cancel();
+    _subs[_kFetchedAtSub] = repo
+        .watchTotalsFetchedAt(companyId, _filter)
+        .listen((at) {
+          if (figuresFetchedAt == at) return;
+          figuresFetchedAt = at;
+          _bumpSection(DashboardKind.totalsCurrent);
+        });
     for (final card in dashboardCards) {
       _subscribeCard(card);
     }
@@ -824,6 +1006,17 @@ class DashboardViewModel extends ChangeNotifier {
         totals = err == null
             ? totals.withData(totals.data)
             : AsyncSection.error(err, data: totals.data);
+        // One job fetches both windows (`refreshTotals`) and files a failure
+        // under this kind alone, so the comparison section never learned it
+        // had failed and its trend read as "nothing to compare" instead.
+        totalsPrevious = err == null
+            ? totalsPrevious.withData(totalsPrevious.data)
+            : AsyncSection.error(err, data: totalsPrevious.data);
+        _bumpSection(DashboardKind.totalsPrevious);
+      case DashboardKind.totalsOutstanding:
+        outstanding = err == null
+            ? outstanding.withData(outstanding.data)
+            : AsyncSection.error(err, data: outstanding.data);
       case DashboardKind.totalsPrevious:
         totalsPrevious = err == null
             ? totalsPrevious.withData(totalsPrevious.data)
@@ -957,6 +1150,15 @@ class DashboardViewModel extends ChangeNotifier {
             loaded.add(pref);
           }
         }
+        // Past-due leads, whatever a save from before it was pinned on every
+        // layout says. Done before the placement below, which anchors a new
+        // panel after its canonical predecessor: left where a user once
+        // dragged past-due, that anchor sat far down the page.
+        final pinned = loaded.indexWhere(
+          (p) => p.kind == DashboardKind.pastDue,
+        );
+        if (pinned > 0) loaded.insert(0, loaded.removeAt(pinned));
+
         // Place any panel missing from the saved list (e.g. one added in a
         // later release) visible-by-default, AT ITS CANONICAL RANK rather than
         // at the end.
@@ -1068,6 +1270,7 @@ class DashboardViewModel extends ChangeNotifier {
     // disposes this one while the pass for its company may still be running.
     _resyncCompletions?.removeListener(_onResyncCompleted);
     _realtimeRefreshes?.removeListener(_onRealtimeRefresh);
+    unawaited(_outboxActiveSub?.cancel());
     _realtimeRefetchTimer?.cancel();
     _disposed = true;
     _persistTimer?.cancel();

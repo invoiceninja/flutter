@@ -91,7 +91,10 @@ class AuthService {
     );
     _raiseIfError(response);
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return LoginResponseApi.fromJson(json);
+    // Every response this service parses is a full snapshot (the server sends
+    // each company's whole dataset on a sign-in), so none of them types the
+    // browsable entity arrays — see [LoginResponseApi.fromFullSnapshot].
+    return LoginResponseApi.fromFullSnapshot(json);
   }
 
   /// Bound on the interactive pre-auth calls the login screen waits on with
@@ -229,7 +232,7 @@ class AuthService {
     );
     _raiseIfError(response);
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return LoginResponseApi.fromJson(json);
+    return LoginResponseApi.fromFullSnapshot(json);
   }
 
   /// POST `/api/v1/oauth_login`. Used by third-party OAuth flows (Sign in
@@ -287,7 +290,7 @@ class AuthService {
     );
     _raiseIfError(response);
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return LoginResponseApi.fromJson(json);
+    return LoginResponseApi.fromFullSnapshot(json);
   }
 
   /// POST `/api/v1/signup`. Native account creation. Mirrors admin-portal's
@@ -317,7 +320,7 @@ class AuthService {
     );
     _raiseIfError(response);
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return LoginResponseApi.fromJson(json);
+    return LoginResponseApi.fromFullSnapshot(json);
   }
 
   /// POST `/api/v1/reset_password`. The server mails the user a reset link;

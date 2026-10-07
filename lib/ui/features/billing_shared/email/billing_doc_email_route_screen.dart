@@ -27,10 +27,14 @@ class BillingDocEmailRouteScreen extends StatefulWidget {
     super.key,
     required this.type,
     required this.id,
+    this.initialTemplate,
   });
 
   final BillingDocType type;
   final String id;
+
+  /// `?template=` — see [BillingDocEmailScreen.initialTemplate].
+  final String? initialTemplate;
 
   @override
   State<BillingDocEmailRouteScreen> createState() =>
@@ -167,6 +171,7 @@ class _BillingDocEmailRouteScreenState
     onSchedule: onSchedule,
     onReactivate: onReactivate,
     pdfFetcher: pdfFetcher,
+    initialTemplate: widget.initialTemplate,
   );
 
   Widget _invoice() => StreamBuilder<Invoice?>(

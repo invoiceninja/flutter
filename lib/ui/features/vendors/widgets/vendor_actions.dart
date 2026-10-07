@@ -6,18 +6,24 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/utils/mail_actions.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
 import 'package:admin/ui/features/recurring_expenses/view_models/recurring_expense_edit_view_model.dart';
 import 'package:admin/ui/features/vendors/widgets/detail/merge_vendor_dialog.dart';
+import 'package:admin/ui/features/vendors/widgets/vendor_email_candidates.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_portal.dart';
 
 /// Full action set surfaced for a vendor. Mirrors the actions exposed in
@@ -29,7 +35,14 @@ enum VendorAction {
   vendorPortal,
   addComment,
   logCall,
+
+  /// Quick-action strip only — see [VendorActions.quickItemsFor]. Not in
+  /// [VendorActions.itemsFor], so they reach neither the `⋮` menu, the list
+  /// row's menu, nor the edit screen.
+  call,
+  email,
   clone,
+  newGroup,
   newExpense,
   newPurchaseOrder,
   newRecurringExpense,
@@ -72,9 +85,25 @@ class VendorActions {
     Vendor vendor,
     void Function(VendorAction) onTap,
   ) {
-    final canArchive = vendor.archivedAt == null && !vendor.isDeleted;
-    final canRestore = vendor.archivedAt != null || vendor.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Archive, restore and delete all need `edit_vendor`: the server
+    // authorizes each through `EntityPolicy::edit` (there is no `delete_*`
+    // permission). Ungated, a view-only user was offered Restore — one tap
+    // from the record's state banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEditVendor =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'vendor',
+          createdBy: vendor.userId,
+          assignedTo: vendor.assignedUserId,
+          recordId: vendor.id,
+        ) ??
+        false;
+    final canArchive =
+        canEditVendor && vendor.archivedAt == null && !vendor.isDeleted;
+    final canRestore =
+        canEditVendor && (vendor.archivedAt != null || vendor.isDeleted);
     final isAdminOrOwner = (me?.isAdmin ?? false) || (me?.isOwner ?? false);
 
     // The primary contact (falling back to the first) carries the portal
@@ -90,42 +119,14 @@ class VendorActions {
         (portalContact?.link.isNotEmpty ?? false) &&
         !vendor.id.startsWith('tmp_');
 
-    return [
-      editActionItem(
-        context: context,
-        kind: VendorAction.edit,
-        onTap: () => onTap(VendorAction.edit),
-      ),
-      EntityActionItem(
-        kind: VendorAction.vendorPortal,
-        icon: Icons.cloud_outlined,
-        label: context.tr('vendor_portal'),
-        // Opens the primary contact's portal with silent auto-login.
-        enabled: hasPortalLink,
-        onTap: () => onTap(VendorAction.vendorPortal),
-      ),
-      EntityActionItem(
-        kind: VendorAction.addComment,
-        icon: Icons.add_comment_outlined,
-        label: context.tr('add_comment'),
-        enabled: true,
-        onTap: () => onTap(VendorAction.addComment),
-      ),
-      EntityActionItem(
-        kind: VendorAction.logCall,
-        icon: Icons.phone_in_talk_outlined,
-        label: context.tr('log_call'),
-        enabled: true,
-        onTap: () => onTap(VendorAction.logCall),
-      ),
-      EntityActionItem(
-        kind: VendorAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone'),
-        enabled: true,
-        onTap: () => onTap(VendorAction.clone),
-      ),
-      if (me?.moduleEnabled(EntityType.expense) ?? false)
+    // A create action needs its module AND the `create_<entity>` permission.
+    // The module alone used to decide, which offered New Expense to a user the
+    // server would then refuse — and edit rights never imply create.
+    bool canCreate(EntityType type) =>
+        (me?.moduleEnabled(type) ?? false) &&
+        (me?.can(createPermissionFor(type)) ?? false);
+    final createChildren = <EntityActionItem<VendorAction>>[
+      if (canCreate(EntityType.expense))
         EntityActionItem(
           kind: VendorAction.newExpense,
           icon: Icons.attach_money,
@@ -133,7 +134,7 @@ class VendorActions {
           enabled: true,
           onTap: () => onTap(VendorAction.newExpense),
         ),
-      if (me?.moduleEnabled(EntityType.purchaseOrder) ?? false)
+      if (canCreate(EntityType.purchaseOrder))
         EntityActionItem(
           kind: VendorAction.newPurchaseOrder,
           icon: Icons.shopping_bag_outlined,
@@ -141,7 +142,7 @@ class VendorActions {
           enabled: true,
           onTap: () => onTap(VendorAction.newPurchaseOrder),
         ),
-      if (me?.moduleEnabled(EntityType.recurringExpense) ?? false)
+      if (canCreate(EntityType.recurringExpense))
         EntityActionItem(
           kind: VendorAction.newRecurringExpense,
           icon: Icons.event_repeat_outlined,
@@ -149,6 +150,60 @@ class VendorActions {
           enabled: true,
           onTap: () => onTap(VendorAction.newRecurringExpense),
         ),
+    ];
+
+    return [
+      // Single-record view / create / clone actions. Hidden entirely on a
+      // soft-deleted vendor — only Copy Link and Restore remain: the server
+      // refuses an edit of a deleted record, and a note or a new expense
+      // against one is not something to offer beside "This record is deleted".
+      if (!vendor.isDeleted) ...[
+        editActionItem(
+          context: context,
+          kind: VendorAction.edit,
+          onTap: () => onTap(VendorAction.edit),
+        ),
+        EntityActionItem(
+          kind: VendorAction.vendorPortal,
+          icon: Icons.cloud_outlined,
+          label: context.tr('vendor_portal'),
+          // Opens the primary contact's portal with silent auto-login.
+          enabled: hasPortalLink,
+          onTap: () => onTap(VendorAction.vendorPortal),
+        ),
+        EntityActionItem(
+          kind: VendorAction.addComment,
+          icon: Icons.add_comment_outlined,
+          label: context.tr('add_comment'),
+          enabled: true,
+          startsGroup: true,
+          onTap: () => onTap(VendorAction.addComment),
+        ),
+        EntityActionItem(
+          kind: VendorAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(VendorAction.logCall),
+        ),
+        if (createChildren.isNotEmpty)
+          newGroupActionItem(
+            context: context,
+            kind: VendorAction.newGroup,
+            children: createChildren,
+            startsGroup: true,
+          ),
+        // The record-keeping tools, after everything a user does day to day.
+        EntityActionItem(
+          kind: VendorAction.clone,
+          icon: Icons.copy_outlined,
+          label: context.tr('clone'),
+          enabled: true,
+          startsGroup: true,
+          onTap: () => onTap(VendorAction.clone),
+        ),
+      ],
+      // Merge is admin/owner-only and never offered on a deleted vendor.
       if (isAdminOrOwner && !vendor.isDeleted)
         EntityActionItem(
           kind: VendorAction.merge,
@@ -181,9 +236,84 @@ class VendorActions {
         context: context,
         subject: _confirmSubject(vendor),
         kind: VendorAction.delete,
-        canDelete: !vendor.isDeleted,
+        canDelete: canEditVendor && !vendor.isDeleted,
         onTap: () => onTap(VendorAction.delete),
       ),
+    ];
+  }
+
+  /// The vendor screen's quick-action strip, most-used first. The strip shows
+  /// the first few that apply (`pickQuickActions`); the rest stay one tap
+  /// further away in the `⋮` menu, which still lists everything.
+  ///
+  /// Every tile but Email and Call is the *same item* [itemsFor] builds,
+  /// looked up by kind, so its module and permission gates and its unsynced
+  /// guard cannot drift from the menu's.
+  ///
+  /// The order is what a user does from a vendor, most often first: record
+  /// what was spent, order from them, write, ring — then the two that are
+  /// set up once (a recurring expense, the vendor's own portal).
+  ///
+  /// **Read under a `PhoneActionsScope`** — Call depends on the tap-to-call
+  /// preference, and a detail screen stays mounted behind `/settings`.
+  static List<EntityQuickAction<VendorAction>> quickItemsFor(
+    BuildContext context,
+    Vendor vendor,
+    void Function(VendorAction) onTap,
+  ) {
+    // A deleted vendor is read-only, and an unsynced one would answer every
+    // tile with "sync first" — the banner says that once instead.
+    if (vendor.isDeleted || vendor.id.startsWith('tmp_')) return const [];
+    final items = itemsFor(context, vendor, onTap);
+    EntityQuickAction<VendorAction>? pick(
+      VendorAction kind,
+      String shortLabel,
+    ) {
+      final item = findActionItem<VendorAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(item: item, shortLabel: shortLabel);
+    }
+
+    // "+ Expense", not "New Expense": the noun fits a tile in every bundled
+    // locale, where the verb phrase does not. One word each — "Purchase
+    // Order" is three in French and Spanish and scaled down to a visibly
+    // smaller label than its neighbours on a phone, so that tile says
+    // "+ Order" (beside a vendor's name there is only one kind), and
+    // "Recurring Expense" says "+ Recurring" beside "+ Expense". The tooltip
+    // and the screen reader get the full label either way.
+    String create(String nounKey) => '+ ${context.tr(nounKey)}';
+
+    final canCall =
+        context.read<Services>().phoneActions.value.tapToCall &&
+        vendorPhoneCandidates(vendor).isNotEmpty;
+    return [
+      ?pick(VendorAction.newExpense, create('expense')),
+      ?pick(VendorAction.newPurchaseOrder, create('order')),
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: VendorAction.email,
+          icon: Icons.mail_outline,
+          label: context.tr('email'),
+          // No contact with a usable address: no tile, rather than one that
+          // opens a blank message to nobody.
+          enabled: vendorEmailCandidates(vendor).isNotEmpty,
+          onTap: () => onTap(VendorAction.email),
+        ),
+        shortLabel: context.tr('email'),
+      ),
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: VendorAction.call,
+          icon: Icons.call_outlined,
+          label: context.tr('call'),
+          enabled: canCall,
+          onTap: () => onTap(VendorAction.call),
+        ),
+        shortLabel: context.tr('call'),
+      ),
+      ?pick(VendorAction.newRecurringExpense, create('recurring')),
+      // Hidden when no contact has a portal link — the item is disabled then.
+      ?pick(VendorAction.vendorPortal, context.tr('vendor_portal')),
     ];
   }
 
@@ -198,6 +328,8 @@ class VendorActions {
     VendorAction action,
   ) async {
     switch (action) {
+      case VendorAction.newGroup:
+        break; // Submenu parent — never dispatched; children carry the action.
       case VendorAction.edit:
         goEntityEdit(context, '/vendors', vendor.id);
       case VendorAction.copyLink:
@@ -230,6 +362,26 @@ class VendorActions {
             entityId: vendor.id,
             text: text,
           ),
+        );
+      case VendorAction.call:
+        // No `onViewParty`: this is the party's own screen. No `clientId`
+        // either — a vendor has no timezone of its own, so the out-of-hours
+        // check uses the company's.
+        await pickAndCallPhone(
+          context,
+          candidates: vendorPhoneCandidates(vendor),
+          partyName: vendor.name,
+          logTarget: (
+            type: EntityType.vendor,
+            id: vendor.id,
+            subject: _confirmSubject(vendor),
+          ),
+        );
+      case VendorAction.email:
+        await pickAndComposeEmail(
+          context,
+          candidates: vendorEmailCandidates(vendor),
+          partyName: vendor.name,
         );
       case VendorAction.addComment:
         await promptAddCommentFor(

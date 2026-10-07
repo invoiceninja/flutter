@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/empty_state.dart';
-import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_panel_grid.dart';
+import 'package:admin/ui/features/dashboard/widgets/list_card.dart';
 
 /// "Activity" feed — 5 most recent rows, tone-tinted circle + templated text +
 /// meta line. Matches `screens.jsx:268–295`.
@@ -39,6 +39,12 @@ class ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = section.listState;
+    final short =
+        state == ListSectionState.empty || state == ListSectionState.failed;
+    // Beside the chart this card is stretched to the row's height — see
+    // `DashboardPanelCell`.
+    final centred = short && DashboardPanelCell.stretchedOf(context);
     return DashboardCardShell(
       title: context.tr('activity'),
       trailing: onViewAll == null
@@ -47,30 +53,24 @@ class ActivityCard extends StatelessWidget {
               label: context.tr('view_all'),
               onTap: onViewAll,
             ),
-      child: _body(context),
+      // The one-line states bring the panels' own padding; the feed rows and
+      // their skeleton use the shell's.
+      padding: short ? EdgeInsets.zero : null,
+      bodyFills: centred,
+      child: centred ? Center(child: _body(context)) : _body(context),
     );
   }
 
   Widget _body(BuildContext context) {
     switch (section.listState) {
+      // The same one-line states as every list panel — this card sits beside
+      // the chart, which fills whatever height is left over.
       case ListSectionState.failed:
-        return _Constrained(
-          child: ErrorView(
-            message: context.tr('couldnt_load_tap_to_retry', {
-              'section': context.tr('activity').toLowerCase(),
-            }),
-            onRetry: onRetry,
-          ),
-        );
+        return DashboardPanelError(onRetry: onRetry);
       case ListSectionState.loading:
         return const ActivityFeedSkeleton();
       case ListSectionState.empty:
-        return _Constrained(
-          child: EmptyState(
-            icon: Icons.notifications_none_outlined,
-            title: context.tr('no_activity_yet'),
-          ),
-        );
+        return DashboardPanelMessage(title: context.tr('no_activity_yet'));
       case ListSectionState.rows:
         break;
     }
@@ -99,11 +99,4 @@ class ActivityCard extends StatelessWidget {
       onTap: activityDeepLinkTarget(a) == null ? null : () => onActivityTap(a),
     );
   }
-}
-
-class _Constrained extends StatelessWidget {
-  const _Constrained({required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) => SizedBox(height: 160, child: child);
 }

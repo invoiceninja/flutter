@@ -258,6 +258,24 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.map((row) => row.read(count) ?? 0).watchSingle();
   }
 
+  /// Rows still on their way to the server — queued or being sent.
+  ///
+  /// Unlike [watchPendingCount] this does not drop when a row merely starts
+  /// sending, so a **decrease** means a change has actually left the queue:
+  /// delivered, or failed into the needs-attention set. A surface showing
+  /// server-computed data (the dashboard) uses that edge to know when a
+  /// refetch can see the change.
+  Stream<int> watchActiveCount({required String companyId}) {
+    final count = outbox.id.count();
+    final q = selectOnly(outbox)
+      ..addColumns([count])
+      ..where(
+        outbox.companyId.equals(companyId) &
+            outbox.state.isIn(const ['pending', 'in_flight']),
+      );
+    return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
   Stream<int> watchDeadCount({required String companyId}) {
     final count = outbox.id.count();
     final q = selectOnly(outbox)

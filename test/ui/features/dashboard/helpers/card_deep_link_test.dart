@@ -22,11 +22,13 @@ void main() {
               'status_id': {'2', '3', '4'},
             },
           ),
+          // `status_id`, never `client_status`: the invoice list has no such
+          // key, so that filter opened the whole list.
           'outstanding_invoices': (
             e: EntityType.invoice,
             route: '/invoices',
             f: {
-              'client_status': {'unpaid'},
+              'status_id': {'2', '3'},
             },
           ),
           'completed_payments': (

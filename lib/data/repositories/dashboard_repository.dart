@@ -12,9 +12,11 @@ import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart'
     show CompanySwitchedException;
 import 'package:admin/data/services/dashboard_api.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 final _log = Logger('DashboardRepository');
 
@@ -24,6 +26,14 @@ class DashboardKind {
 
   static const String totalsCurrent = 'totals_current';
   static const String totalsPrevious = 'totals_previous';
+
+  /// Everything unpaid **today** — the totals query over all time, of which
+  /// only `outstanding` is read. Its own kind, not a field of
+  /// [totalsCurrent]: it is keyed by the include-drafts switch alone
+  /// ([dashboardOutstandingHash]), so a change of date range neither refetches
+  /// nor blanks it, and a failure is filed here rather than taking the period
+  /// figures down with it. See `DashboardApi.fetchOutstandingTotals`.
+  static const String totalsOutstanding = 'totals_outstanding';
   static const String chart = 'chart';
   static const String activities = 'activities';
   static const String pastDue = 'past_due';
@@ -66,6 +76,7 @@ class DashboardKind {
   static const List<String> allKinds = [
     totalsCurrent,
     totalsPrevious,
+    totalsOutstanding,
     chart,
     ...listKinds,
   ];
@@ -109,6 +120,12 @@ class DashboardKind {
   /// contains `|` or the `calc:` prefix.
   static String calc(String cardKey) => 'calc:$cardKey';
 }
+
+/// Cache key of the [DashboardKind.totalsOutstanding] row. The figure depends
+/// on nothing in the filter but the drafts switch: currency is picked out of
+/// the response's buckets on the client, and the window is always all time.
+String dashboardOutstandingHash({required bool includeDrafts}) =>
+    'outstanding|d=$includeDrafts';
 
 /// One unit of refresh work: the cache `kind` a failure is filed under, paired
 /// with the call that does it.
@@ -188,6 +205,38 @@ class DashboardRepository {
     decode: (m) => DashboardTotals.fromJson(m),
   );
 
+  /// When the period totals on screen were fetched, or null while there are
+  /// none cached. After a refresh that failed, this is what lets the header
+  /// say how old the figures it is still showing are, instead of "Not yet
+  /// loaded" over a full page of numbers.
+  Stream<DateTime?> watchTotalsFetchedAt(
+    String companyId,
+    DashboardFilter filter,
+  ) => _dao
+      .watch(
+        companyId: companyId,
+        kind: DashboardKind.totalsCurrent,
+        filterHash: filter.filterHash(),
+      )
+      .map(
+        (row) => row == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(row.fetchedAt),
+      )
+      .distinct();
+
+  /// What is unpaid today — see [DashboardKind.totalsOutstanding]. Only the
+  /// `outstanding` amount and count of the decoded totals mean anything.
+  Stream<DashboardTotals?> watchOutstanding(
+    String companyId, {
+    required bool includeDrafts,
+  }) => _watchDecoded<DashboardTotals>(
+    companyId: companyId,
+    kind: DashboardKind.totalsOutstanding,
+    filterHash: dashboardOutstandingHash(includeDrafts: includeDrafts),
+    decode: (m) => DashboardTotals.fromJson(m),
+  );
+
   Stream<DashboardChartSeries?> watchChart(
     String companyId,
     DashboardFilter filter,
@@ -237,11 +286,23 @@ class DashboardRepository {
         decode: DashboardInvoiceRow.listFromJson,
       );
 
+  /// Upcoming invoices, **soonest due first**.
+  ///
+  /// Sorted here because the server does not: `InvoiceFilters::upcoming` puts
+  /// its `orderByRaw` inside a nested `where` closure, which Laravel discards,
+  /// and sending `sort` as well would sort undated invoices first. The rows
+  /// arrived newest-created first, so the five a panel showed were not the
+  /// five due next. An invoice with no due date sorts last. Exact whenever the
+  /// list is complete; past fifty matches the window itself is the server's
+  /// (`BACKEND.md`).
   Stream<List<DashboardInvoiceRow>?> watchUpcomingInvoices(String companyId) =>
       _watchList<DashboardInvoiceRow>(
         companyId: companyId,
         kind: DashboardKind.upcomingInvoices,
-        decode: DashboardInvoiceRow.listFromJson,
+        decode: (raw) => _soonestFirst(
+          DashboardInvoiceRow.listFromJson(raw),
+          (r) => r.dueDate,
+        ),
       );
 
   Stream<List<DashboardPaymentRow>?> watchRecentPayments(String companyId) =>
@@ -258,11 +319,17 @@ class DashboardRepository {
         decode: DashboardQuoteRow.listFromJson,
       );
 
+  /// Upcoming quotes, soonest to expire first — sorted here for the reason on
+  /// [watchUpcomingInvoices] (`QuoteFilters`' `orderBy` is in a nested closure
+  /// too).
   Stream<List<DashboardQuoteRow>?> watchUpcomingQuotes(String companyId) =>
       _watchList<DashboardQuoteRow>(
         companyId: companyId,
         kind: DashboardKind.upcomingQuotes,
-        decode: DashboardQuoteRow.listFromJson,
+        decode: (raw) => _soonestFirst(
+          DashboardQuoteRow.listFromJson(raw),
+          (r) => r.validUntil,
+        ),
       );
 
   Stream<List<DashboardRecurringInvoiceRow>?> watchUpcomingRecurring(
@@ -350,6 +417,17 @@ class DashboardRepository {
       );
     }
   }
+
+  /// Refresh what is unpaid today — see [DashboardKind.totalsOutstanding].
+  Future<void> refreshOutstanding(
+    String companyId, {
+    required bool includeDrafts,
+  }) => _refresh(
+    companyId: companyId,
+    kind: DashboardKind.totalsOutstanding,
+    filterHash: dashboardOutstandingHash(includeDrafts: includeDrafts),
+    fetch: () => api.fetchOutstandingTotals(includeDrafts: includeDrafts),
+  );
 
   Future<void> refreshChart(String companyId, DashboardFilter filter) =>
       _refresh(
@@ -476,19 +554,28 @@ class DashboardRepository {
   Future<Map<String, Object>> _runJobs(List<_RefreshJob> jobs) async {
     final errors = <String, Object>{};
     final semaphore = _Semaphore(_maxConcurrent);
-    await Future.wait([
-      for (final (kind, task) in jobs)
-        _runUnder(semaphore, task, onError: (e) => errors[kind] = e),
-    ]);
+    await traceAsync(
+      'dashboard.refresh',
+      () => Future.wait([
+        for (final (kind, task) in jobs)
+          _runUnder(semaphore, task, onError: (e) => errors[kind] = e),
+      ]),
+      args: {'jobs': jobs.length},
+    );
     return errors;
   }
 
-  /// Totals + chart: the two sections keyed by the [filter] itself.
+  /// Totals, what is outstanding today, and the chart: the sections that
+  /// depend on the [filter].
   List<_RefreshJob> _totalsAndChartJobs(
     String companyId,
     DashboardFilter filter,
   ) => [
     (DashboardKind.totalsCurrent, () => refreshTotals(companyId, filter)),
+    (
+      DashboardKind.totalsOutstanding,
+      () => refreshOutstanding(companyId, includeDrafts: filter.includeDrafts),
+    ),
     (DashboardKind.chart, () => refreshChart(companyId, filter)),
   ];
 
@@ -644,6 +731,24 @@ class DashboardRepository {
   /// switch / logout — also covered by `AppDatabase.wipe()`.
   Future<void> clearForCompany(String companyId) =>
       _dao.deleteForCompany(companyId);
+}
+
+/// [rows] ordered by [dateOf] ascending, rows without a date last, keeping the
+/// server's total. Stable: rows sharing a date stay in the order they arrived.
+DashboardRows<T> _soonestFirst<T>(List<T> rows, Date? Function(T) dateOf) {
+  final indexed = [for (var i = 0; i < rows.length; i++) (i, rows[i])];
+  indexed.sort((a, b) {
+    final da = dateOf(a.$2);
+    final db = dateOf(b.$2);
+    if (da == null && db == null) return a.$1.compareTo(b.$1);
+    if (da == null) return 1;
+    if (db == null) return -1;
+    final byDate = da.compareTo(db);
+    return byDate != 0 ? byDate : a.$1.compareTo(b.$1);
+  });
+  return DashboardRows<T>([
+    for (final e in indexed) e.$2,
+  ], total: rows.serverTotal);
 }
 
 /// Counting semaphore used to cap concurrent HTTP calls during `refreshAll`.

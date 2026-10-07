@@ -81,6 +81,71 @@ void main() {
     });
   });
 
+  // Drift re-runs a watched query on every write to its table, and a sync
+  // writes a page at a time. Each re-run used to re-emit the same number and
+  // rebuild the sidebar row (or status tab) showing it.
+  group('the count stream', () {
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 30));
+
+    test('stays quiet through a write that leaves the count as it was, and '
+        'speaks when it changes', () async {
+      final seen = <int>[];
+      final sub = db.invoiceDao.watchBadgeCount(companyId: co).listen(seen.add);
+      addTearDown(sub.cancel);
+      await settle();
+      expect(seen, [0]);
+
+      await invoice('a');
+      await settle();
+      expect(seen, [0, 1]);
+
+      // Same row, new balance: the table changed, the count did not.
+      await invoice('a', balance: '25');
+      // A row the badge does not count at all.
+      await invoice('gone', deleted: true);
+      await settle();
+      expect(seen, [0, 1], reason: 'an unchanged count must not re-emit');
+
+      await invoice('b');
+      await settle();
+      expect(seen, [0, 1, 2]);
+    });
+
+    test('every listener still gets a first value, however late', () async {
+      // The status tabs and the dashboard panel hold this stream and re-listen
+      // to it. `distinct` must not swallow the value a new subscription
+      // starts with just because an earlier one already saw it.
+      await invoice('a');
+      final stream = db.invoiceDao.watchBadgeCount(companyId: co);
+      expect(await stream.first, 1);
+      expect(await stream.first, 1, reason: 're-listening the same stream');
+      expect(await db.invoiceDao.watchBadgeCount(companyId: co).first, 1);
+    });
+
+    test('bank transactions: the hand-rolled twin is distinct too', () async {
+      final seen = <int>[];
+      final sub = db.bankTransactionDao
+          .watchBadgeCount(companyId: co)
+          .listen(seen.add);
+      addTearDown(sub.cancel);
+      await settle();
+      // An unrelated table changing is not what re-runs this query, so write
+      // to its own: a row the badge skips leaves the count at zero.
+      await db.bankTransactionDao.upsert(
+        BankTransactionsCompanion.insert(
+          id: 'bt_deleted',
+          companyId: co,
+          updatedAt: 1,
+          payload: '{}',
+          isDeleted: const Value(true),
+        ),
+      );
+      await settle();
+      expect(seen, [0]);
+    });
+  });
+
   group('invoice modes', () {
     test('overdue mirrors Invoice.isPastDue', () async {
       await invoice('past-due', dueDate: yesterday);

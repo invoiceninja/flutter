@@ -19,7 +19,7 @@ bool hidesEmptyPanelsByDefault(BuildContext context) =>
 /// resolves *automatic* through [hidesEmptyPanelsByDefault], so a switch can
 /// never show a different answer from the dashboard behind it. Don't call
 /// `effectiveFor` / `set` from a widget — a caller that passed its own notion
-/// of "phone" (the Customize sheet's `mobileLayout`, say) would disagree with
+/// of "phone" (the width of the window a dialog floats in, say) would disagree with
 /// the dashboard in a 600–832 px desktop window and nothing would notice.
 /// (`HiddenEmptyPanelsBuilder` is the one exception: its listener has no
 /// context, so it caches [hidesEmptyPanelsByDefault] from its last build.)

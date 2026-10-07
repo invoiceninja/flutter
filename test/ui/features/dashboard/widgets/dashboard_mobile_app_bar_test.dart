@@ -25,11 +25,11 @@ import '../_fake_dashboard_repo.dart';
 /// same `'dashboard'` key the sidebar nav row uses.
 ///
 /// Swapping the string was not enough on its own. Material's default title
-/// spacing leaves a slot narrower than "Dashboard" (104 dp): 80 dp on a 360 dp
-/// phone when the bar had four actions, and 88 dp on a 320 dp handset now that
-/// it has three. So the word truncated anyway. `titleSpacing: 0` is what buys
-/// the difference, and 'the title is not truncated on a 320 dp handset' below
-/// is what pins it.
+/// spacing left a slot narrower than "Dashboard" (104 dp) while the bar had
+/// three and four actions, so the word truncated anyway; `titleSpacing: 0`
+/// bought the difference. The bar has one action now and room to spare, but
+/// the spacing stays and 'the title is not truncated on a 320 dp handset'
+/// still pins the outcome.
 ///
 /// The fourth action was a `+` to New Invoice. flutter#164 moved it to the
 /// screen's bottom-right `DashboardCreateFab`, and 'carries no create action'
@@ -188,14 +188,66 @@ void main() {
     );
   });
 
-  testWidgets('renders the filter, settings and customize actions', (
+  // The one place a phone says how fresh the page is. It rode an untappable
+  // line at the top of the body, which the needs-attention band now leads.
+  testWidgets('says how fresh the data is, under the title', (tester) async {
+    await pumpBar(tester);
+
+    expect(find.text('Updated just now'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Updated just now')).dy,
+      greaterThan(tester.getTopLeft(find.text('Dashboard')).dy),
+    );
+  });
+
+  // Two lines in a 56 px toolbar fit at the default text size and not at
+  // 140%, where the page name lost its top (seen in the German, large-text
+  // capture). Both lines must stay inside the bar.
+  testWidgets('at 140% text the two-line title stays inside the toolbar', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        theme: buildInTheme(InTheme.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.4)),
+          child: child!,
+        ),
+        home: Scaffold(
+          appBar: DashboardMobileAppBar(vm: vm, showHamburger: true),
+          drawer: const Drawer(),
+          body: const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(tester.takeException(), isNull);
+    final bar = tester.getRect(find.byType(AppBar));
+    final title = tester.getRect(find.text('Dashboard'));
+    final stamp = tester.getRect(find.text('Updated just now'));
+    expect(title.top, greaterThanOrEqualTo(bar.top));
+    expect(stamp.bottom, lessThanOrEqualTo(bar.bottom));
+    expect(stamp.top, greaterThanOrEqualTo(title.bottom - 1));
+  });
+
+  // The funnel (date range) and the cog (currency, include drafts) each hid
+  // their state behind a tap. Both are controls in the page now, above the
+  // figures they change — `dashboard_period_bar_test.dart`.
+  testWidgets('renders Customize, and no filter or settings icon', (
     tester,
   ) async {
     await pumpBar(tester);
 
-    expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.byIcon(Icons.dashboard_customize_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.filter_alt_outlined), findsNothing);
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
   });
 
   // flutter#164: the `+` that ended this bar went straight to New Invoice. It
@@ -209,20 +261,18 @@ void main() {
     expect(find.byIcon(Icons.add), findsNothing);
     expect(
       find.byType(IconButton),
-      findsNWidgets(3),
-      reason: 'filter, settings and customize, and nothing else',
+      findsOneWidget,
+      reason: 'customize, and nothing else',
     );
   });
 
   // The measurement that reflects what a user actually sees.
   //
-  // 320 dp is the tight case now that the bar has three actions. That is why
-  // the bar carries `titleSpacing: 0`: with Material's default 16 the slot is
-  // 88 dp and the title renders "Dashboa…". (It was 360 dp while New Invoice
-  // was a fourth action, which is where flutter#50 was reported.) The test is
-  // sensitive to Inter Tight's metrics by design. If a font bump pushes the
-  // word past the slot, the title starts truncating again and this test should
-  // fail.
+  // 320 dp is the narrowest handset. flutter#50 was reported at 360 dp, when
+  // the bar had four actions and the title slot was 80 dp; it has one now. The
+  // test is sensitive to Inter Tight's metrics by design: if a font bump or a
+  // new action pushes the word past the slot, the title starts truncating
+  // again and this should fail.
   testWidgets('the title is not truncated on a 320 dp handset', (tester) async {
     await pumpBar(tester, width: 320);
 
@@ -245,7 +295,7 @@ void main() {
   // states): an ellipsised or clipped `Text` throws nothing, so dropping the
   // title's `overflow` keeps this group green — that is pinned directly by
   // 'the title ellipsises rather than overflowing' above. What these guard is
-  // the *action row*: a hamburger plus three 48 dp icons against a 320 dp bar.
+  // the *action row*: the hamburger and the action against a 320 dp bar.
   group('across handset widths', () {
     for (final width in const <double>[320, 360, 414]) {
       testWidgets('@ ${width.toInt()}px with every action', (tester) async {

@@ -34,6 +34,39 @@ class AsyncSection<T> {
 
 enum AsyncStatus { idle, loading, ready, error }
 
+/// What a single-value section — a figure, the chart — should draw.
+///
+/// The figures used to format `data ?? zero`, so "not loaded", "failed" and
+/// "really nothing" were all `$0.00`. These are the four things a figure can
+/// honestly be.
+enum ValueSectionState {
+  /// No answer yet and nothing has gone wrong — a skeleton, never a zero.
+  loading,
+
+  /// The fetch failed and nothing is cached — a dash and a retry.
+  failed,
+
+  /// The fetch failed but an earlier answer is still here — shown, and marked
+  /// as not current.
+  stale,
+
+  /// The latest answer.
+  ready,
+}
+
+extension ValueSectionStateOf<T> on AsyncSection<T> {
+  /// Deliberately not a function of "is a refresh running": a refresh ends a
+  /// beat before its cache row reaches the watch stream, and reading that gap
+  /// as "finished with nothing" flashed every figure through its failed state
+  /// on each load.
+  ValueSectionState get valueState {
+    if (data == null) {
+      return hasError ? ValueSectionState.failed : ValueSectionState.loading;
+    }
+    return hasError ? ValueSectionState.stale : ValueSectionState.ready;
+  }
+}
+
 /// What a list card should render for its section — the one ordering every
 /// dashboard list surface follows, so "this panel has nothing to show" means
 /// the same thing to the card that renders it and to the view model that

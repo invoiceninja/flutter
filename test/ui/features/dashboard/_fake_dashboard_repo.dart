@@ -47,6 +47,7 @@ class FakeDashboardRepo extends DashboardRepository {
       StreamController<List<DashboardRecurringInvoiceRow>?>.broadcast();
   final totals = StreamController<DashboardTotals?>.broadcast();
   final totalsPrev = StreamController<DashboardTotals?>.broadcast();
+  final outstanding = StreamController<DashboardTotals?>.broadcast();
   final chart = StreamController<DashboardChartSeries?>.broadcast();
 
   /// The `activities` row's write time — what the `/activity` screen's
@@ -91,6 +92,27 @@ class FakeDashboardRepo extends DashboardRepository {
   }) {
     watchTotalsCalls++;
     return previousPeriod ? totalsPrev.stream : totals.stream;
+  }
+
+  final totalsFetchedAt = StreamController<DateTime?>.broadcast();
+
+  @override
+  Stream<DateTime?> watchTotalsFetchedAt(String c, DashboardFilter f) =>
+      totalsFetchedAt.stream;
+
+  /// How many times the VM (re)opened the outstanding watch, and with which
+  /// include-drafts value last.
+  int watchOutstandingCalls = 0;
+  bool? watchOutstandingDrafts;
+
+  @override
+  Stream<DashboardTotals?> watchOutstanding(
+    String c, {
+    required bool includeDrafts,
+  }) {
+    watchOutstandingCalls++;
+    watchOutstandingDrafts = includeDrafts;
+    return outstanding.stream;
   }
 
   @override
@@ -181,6 +203,18 @@ class FakeDashboardRepo extends DashboardRepository {
 
   @override
   Future<void> refreshTotals(String c, DashboardFilter f) async {}
+
+  /// Calls of the outstanding-only refresh (a per-section retry).
+  int refreshOutstandingCalls = 0;
+
+  @override
+  Future<void> refreshOutstanding(
+    String c, {
+    required bool includeDrafts,
+  }) async {
+    refreshOutstandingCalls++;
+  }
+
   @override
   Future<void> refreshChart(String c, DashboardFilter f) async {}
   @override

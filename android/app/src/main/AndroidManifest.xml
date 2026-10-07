@@ -193,8 +193,8 @@
 
              `http` alongside `https`: self-hosted portals on internal networks
              are a real case, which is why `isSafeWebUrl`
-             (lib/utils/url_safety.dart) permits it. `mailto:` is still absent
-             because nothing in the app launches one.
+             (lib/utils/url_safety.dart) permits it. `mailto:` has its own
+             intent further down.
 
              Guarded by test/lint/android_url_queries_test.dart. -->
         <intent>
@@ -221,6 +221,20 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="sms"/>
+        </intent>
+
+        <!-- Email a contact from a record screen (the Email quick action and
+             each contact row). Launched as ACTION_VIEW on a `mailto:` URI the
+             app builds itself from one validated address — see
+             `lib/utils/email_address.dart` for why that check is strict — so,
+             like tel: and sms:, it never passes through `isSafeWebUrl`.
+
+             Nothing in `lib/` gates the launch on `canLaunchUrl`, so this is
+             the same belt-to-the-braces declaration as the ones above; a
+             failed launch falls back to copying the address. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
         </intent>
     </queries>
 </manifest>

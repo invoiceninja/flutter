@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/utils/formatting.dart';
@@ -10,7 +11,7 @@ import 'package:admin/utils/formatting.dart';
 /// Builds the standard Documents tab used on every document-bearing entity's
 /// detail screen (Client / Product / Project / Vendor / Expense /
 /// RecurringExpense / Invoice). Wraps [EntityDocumentsTab] with the
-/// `documents`/`documents_with_count` label, the description icon, and the
+/// `documents` label and its count badge, the description icon, and the
 /// three callback closures that route through [repo]'s uniform
 /// `uploadDocument` / `deleteDocument` / `setDocumentVisibility` methods.
 ///
@@ -24,16 +25,23 @@ EntityDetailTab buildStandardDocumentsTab({
   required List<Document> documents,
   required DocumentBearingRepository repo,
   Formatter? formatter,
+  bool readOnly = false,
 }) {
   return EntityDetailTab(
-    label: documents.isEmpty
-        ? context.tr('documents')
-        : context.tr('documents_with_count', {'count': '${documents.length}'}),
+    id: DetailTabIds.documents,
+    label: context.tr('documents'),
+    // The badge every counted tab wears, in place of a "(2)" in the label.
+    // Exact — the documents ride on the record — and left off at none: an
+    // empty Documents tab is the usual case, not news.
+    count: documents.isEmpty ? null : documents.length,
     icon: Icons.description_outlined,
     bodyBuilder: (_) => EntityDocumentsTab(
       entityId: entityId,
       documents: documents,
       formatter: formatter,
+      // A soft-deleted record cannot take a new document or lose one, but the
+      // ones it has stay readable.
+      readOnly: readOnly,
       onUpload: (sources) async {
         for (final s in sources) {
           await repo.uploadDocument(

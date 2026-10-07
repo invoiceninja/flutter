@@ -14,7 +14,7 @@ const double kKpiStripWideBreakpoint = 1100;
 /// caller supplies.
 ///
 /// **Layout only.** Each strip keeps its own cell widget — they genuinely
-/// differ (some take a pre-built `Widget` value, Client takes a `Decimal` +
+/// differ (some take a pre-built `Widget` value, Vendor takes a `Decimal` +
 /// `Formatter`, Projects takes a `String` with a `'—'` sentinel), and folding
 /// those together would mean four shapes behind one constructor.
 ///
@@ -34,11 +34,6 @@ const double kKpiStripWideBreakpoint = 1100;
 ///   the *window*, not the local constraints — so the gaps here key off the
 ///   screen while the branch above keys off the box. That split is deliberate
 ///   and predates this widget; don't "fix" one to match the other.
-///
-/// Deliberately **not** merged with `BillingDocKpiStrip`, which looks similar
-/// but branches on per-cell width (`maxWidth / cells.length >= 130`), falls
-/// back to a `Wrap`, and uses a 32 px divider — merging would silently move
-/// Invoice / Quote / Credit detail.
 class KpiStripLayout extends StatelessWidget {
   const KpiStripLayout({super.key, required this.cells});
 

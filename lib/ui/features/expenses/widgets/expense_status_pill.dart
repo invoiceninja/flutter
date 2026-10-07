@@ -5,9 +5,9 @@ import 'package:admin/domain/expense_status.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 
-/// Compact "● Status name" badge for expenses. Shared between list tile,
-/// detail header, KPI strip, and the wide-table status column so color +
-/// label stay in sync.
+/// Compact "● Status name" badge for expenses. Shared between the list tile,
+/// the record screen's standing card and the wide-table status column, so
+/// color + label stay in sync.
 ///
 /// Maps expense statuses onto the shared design tokens
 /// (paid → paid, unpaid → overdue, invoiced → partial, pending → sent,

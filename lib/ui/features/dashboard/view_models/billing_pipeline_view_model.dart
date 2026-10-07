@@ -174,7 +174,35 @@ class BillingPipelineViewModel extends ChangeNotifier {
   /// same key, whose failure arm then frees the claim the first is holding.
   final Map<String, Future<void>> _inFlightTabs = <String, Future<void>>{};
 
+  /// Top-ups that ended in an error, keyed like [_loadedTabs]. A key leaves
+  /// when its next attempt starts.
+  final Set<String> _failedTabs = <String>{};
+
   bool _disposed = false;
+
+  /// Whether the selected tab's top-up failed — for either half it reads.
+  ///
+  /// The card reads this beside `rows.isEmpty`: an empty tab whose fetch
+  /// failed is *unknown*, and used to print "No records found" as if the
+  /// server had answered. With rows on screen the cache is doing its job and
+  /// the failure is not worth a banner.
+  bool get tabLoadFailed {
+    final tab = _tab;
+    if (tab == null) return false;
+    return (includeInvoices &&
+            tab.invoiceModeId != null &&
+            _failedTabs.contains(
+              '${EntityType.invoice.name}:${tab.invoiceModeId}',
+            )) ||
+        (includeQuotes &&
+            tab.quoteModeId != null &&
+            _failedTabs.contains(
+              '${EntityType.quote.name}:${tab.quoteModeId}',
+            ));
+  }
+
+  /// Try the selected tab's top-up again.
+  Future<void> retry() => ensureTabLoaded();
 
   void _subscribe() {
     _invoiceSub?.cancel();
@@ -262,10 +290,10 @@ class BillingPipelineViewModel extends ChangeNotifier {
     }
     await Future.wait(futures);
     if (_disposed || !identical(tab, _tab)) return;
-    if (!_firstLoadResolved) {
-      _firstLoadResolved = true;
-      notifyListeners();
-    }
+    _firstLoadResolved = true;
+    // Unconditional: a failure that lands (or clears) changes what an empty
+    // tab says even when the first load resolved long ago.
+    notifyListeners();
   }
 
   Future<void> _runTab(EntityType type, String modeId) {
@@ -315,6 +343,7 @@ class BillingPipelineViewModel extends ChangeNotifier {
     // than a true first page — and a quote rejected three months ago and
     // untouched since is not in the delta. That would make the top-up for
     // `Rejected` (local-only, so unnarrowed) do nothing at all.
+    if (_failedTabs.remove(key) && !_disposed) notifyListeners();
     try {
       for (var page = 1; page <= maxPages; page++) {
         final more = type == EntityType.invoice
@@ -341,11 +370,13 @@ class BillingPipelineViewModel extends ChangeNotifier {
     } on CompanySwitchedException catch (e) {
       _log.fine('billing pipeline tab abandoned: $e');
     } on NetworkException catch (e) {
+      _failedTabs.add(key);
       _log.fine('billing pipeline tab skipped: ${e.message}');
     } catch (e, st) {
       // Bare, not `on Exception`: nothing awaits this beyond `ensureTabLoaded`,
       // and the repository doubles in the widget suites raise
       // `UnimplementedError`, which is an Error.
+      _failedTabs.add(key);
       _log.warning('billing pipeline tab failed', e, st);
     }
   }

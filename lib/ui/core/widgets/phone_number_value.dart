@@ -151,10 +151,16 @@ class PhoneNumberValue extends StatelessWidget {
         logTarget: logTarget,
       );
       Widget display = dialable
+          // The documented link treatment, the same as `DetailInfoRow`'s:
+          // `accentInk` (the user's `accent` can fall under the contrast
+          // floor), and an underline at rest only where there is no hover.
+          // A client's own number and its contacts' numbers sit on one
+          // screen and used to be two different blues.
           ? LinkText(
               label: phone,
               style: style,
-              color: tokens.accent,
+              color: tokens.accentInk,
+              underlineAtRest: linkNeedsAtRestCue,
               onTap: dial,
             )
           : Text(phone, style: style);

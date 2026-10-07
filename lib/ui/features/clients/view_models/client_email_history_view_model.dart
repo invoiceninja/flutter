@@ -59,6 +59,10 @@ class ClientEmailHistoryViewModel extends ChangeNotifier {
   Future<void> ensureLoaded() async {
     if (_started || _disposed) return;
     _started = true;
+    // The server has never seen an offline-created client, so asking for its
+    // email history is a guaranteed error. There is none; say so by staying
+    // empty rather than by showing a failed request.
+    if (clientId.startsWith('tmp_')) return;
     await refresh();
   }
 

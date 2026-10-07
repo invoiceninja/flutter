@@ -311,14 +311,15 @@ class _DocumentRow extends StatelessWidget {
               dateLabel: dateLabel,
               sizeLabel: sizeLabel,
               tokens: tokens,
-              trailing: readOnly
-                  ? null
-                  : _ActionsMenu(
-                      doc: doc,
-                      onView: onView,
-                      onDelete: onDelete,
-                      onToggleVisibility: onToggleVisibility,
-                    ),
+              // Read-only withholds the two mutating actions, not the
+              // menu: a document that is there to be read must stay openable.
+              // Dropping the whole menu left the row with no way to view it.
+              trailing: _ActionsMenu(
+                doc: doc,
+                onView: onView,
+                onDelete: readOnly ? null : onDelete,
+                onToggleVisibility: readOnly ? null : onToggleVisibility,
+              ),
             )
           : _WideLayout(
               icon: _typeIcon(),
@@ -327,14 +328,15 @@ class _DocumentRow extends StatelessWidget {
               dateLabel: dateLabel,
               sizeLabel: sizeLabel,
               tokens: tokens,
-              trailing: readOnly
-                  ? null
-                  : _ActionsMenu(
-                      doc: doc,
-                      onView: onView,
-                      onDelete: onDelete,
-                      onToggleVisibility: onToggleVisibility,
-                    ),
+              // Read-only withholds the two mutating actions, not the
+              // menu: a document that is there to be read must stay openable.
+              // Dropping the whole menu left the row with no way to view it.
+              trailing: _ActionsMenu(
+                doc: doc,
+                onView: onView,
+                onDelete: readOnly ? null : onDelete,
+                onToggleVisibility: readOnly ? null : onToggleVisibility,
+              ),
             ),
     );
   }
@@ -487,8 +489,10 @@ class _ActionsMenu extends StatelessWidget {
 
   final Document doc;
   final Future<void> Function(Document doc) onView;
-  final Future<void> Function(Document doc) onDelete;
-  final Future<void> Function(Document doc) onToggleVisibility;
+
+  /// Null on a read-only record: the item is left out, not greyed.
+  final Future<void> Function(Document doc)? onDelete;
+  final Future<void> Function(Document doc)? onToggleVisibility;
 
   @override
   Widget build(BuildContext context) {
@@ -500,7 +504,7 @@ class _ActionsMenu extends StatelessWidget {
           case _RowAction.view:
             await onView(doc);
           case _RowAction.toggleVisibility:
-            await onToggleVisibility(doc);
+            await onToggleVisibility?.call(doc);
           case _RowAction.delete:
             // Deliberately NOT behind the "Confirm actions" gate
             // (invoiceninja/flutter#49): `MutationKind.documentDelete` is in
@@ -508,7 +512,7 @@ class _ActionsMenu extends StatelessWidget {
             // sync engine already raises `ConfirmPasswordSheet` — and a
             // password prompt *is* the confirmation. Same reasoning keeps bulk
             // delete untagged in `standardCrudBulkActions`.
-            await onDelete(doc);
+            await onDelete?.call(doc);
         }
       },
       itemBuilder: (context) => [
@@ -519,24 +523,26 @@ class _ActionsMenu extends StatelessWidget {
             title: Text(context.tr('view')),
           ),
         ),
-        PopupMenuItem(
-          value: _RowAction.toggleVisibility,
-          child: ListTile(
-            leading: Icon(
-              doc.isPublic ? Icons.lock_outline : Icons.lock_open_outlined,
-            ),
-            title: Text(
-              context.tr(doc.isPublic ? 'set_private' : 'set_public'),
+        if (onToggleVisibility != null)
+          PopupMenuItem(
+            value: _RowAction.toggleVisibility,
+            child: ListTile(
+              leading: Icon(
+                doc.isPublic ? Icons.lock_outline : Icons.lock_open_outlined,
+              ),
+              title: Text(
+                context.tr(doc.isPublic ? 'set_private' : 'set_public'),
+              ),
             ),
           ),
-        ),
-        PopupMenuItem(
-          value: _RowAction.delete,
-          child: ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: Text(context.tr('delete')),
+        if (onDelete != null)
+          PopupMenuItem(
+            value: _RowAction.delete,
+            child: ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: Text(context.tr('delete')),
+            ),
           ),
-        ),
       ],
     );
   }

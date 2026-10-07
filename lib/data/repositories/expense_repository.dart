@@ -11,6 +11,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
@@ -124,15 +125,21 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     currentUserId: currentUserId,
   );
 
+  /// [activeClientsOnly]: see `ExpenseDao.watchForVendor`.
   Stream<List<Expense>> watchForVendor({
     required String companyId,
     required String vendorId,
+    bool activeClientsOnly = false,
   }) {
     if (vendorId.isEmpty) {
       return Stream<List<Expense>>.value(const <Expense>[]);
     }
     return db.expenseDao
-        .watchForVendor(companyId: companyId, vendorId: vendorId)
+        .watchForVendor(
+          companyId: companyId,
+          vendorId: vendorId,
+          activeClientsOnly: activeClientsOnly,
+        )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
@@ -381,18 +388,20 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
   /// `ExpenseNameLabel` (e.g. the expense a bank transaction matched, which
   /// isn't on the prefetched first page). Deduped / negative-cached in the
   /// template; safe to call unconditionally per rebuild.
-  Future<void> ensureLoaded({required String companyId, required String id}) =>
-      ensureLoadedTemplate(
-        companyId: companyId,
-        id: id,
-        fetch: (id) async => (await api.get(id)).data,
-        idOf: (a) => a.id,
-        toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.expenseDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        ),
-      );
+  Future<EnsureLoadedOutcome> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) => ensureLoadedTemplate(
+    companyId: companyId,
+    id: id,
+    fetch: (id) async => (await api.get(id)).data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.expenseDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+  );
 
   /// Force-refetch expenses by id (e.g. after an invoice billed/un-billed them,
   /// or a PO/bank-transaction created one). See [refreshByIdsTemplate].

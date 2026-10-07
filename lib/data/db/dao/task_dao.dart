@@ -484,19 +484,26 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     return q.map((row) => row.read(tasks.id)!).get();
   }
 
-  /// Active, non-deleted tasks belonging to one project. Used by the
-  /// Project detail's Tasks card. Excludes archived rows — they belong on
-  /// the parent Task list, not in a project's overview.
+  /// Active, non-deleted tasks belonging to one project — what the project
+  /// record screen adds its figures up from and plots (`RelatedRowsProof`
+  /// decides when they are all of them). Excludes archived rows: the same
+  /// rows the project's Tasks tab lists and its count is of, which is what
+  /// lets one be checked against the other.
   ///
   /// Newest first, with an unsynced create (`created_at` 0 until the server
-  /// stamps it) LEADING rather than sinking to the bottom: the card's
-  /// quick-add row sits at the top, and a task typed there has to appear right
-  /// under it, not jump from last to first when it syncs. Same mapping as
+  /// stamps it) LEADING rather than sinking to the bottom: a task typed into
+  /// the quick-add row has to appear at the top, not jump from last to first
+  /// when it syncs. Same mapping as
   /// `InvoiceDao._tieBreakExpression`. Local creates order among themselves by
   /// `updated_at`, which the quick-add stamps.
+  ///
+  /// [activeClientsOnly] leaves out tasks whose client is archived or deleted
+  /// — the rows the project's Tasks tab does not fetch and its count does not
+  /// include (see [clientActiveFilter]).
   Stream<List<TaskRow>> watchForProject({
     required String companyId,
     required String projectId,
+    bool activeClientsOnly = false,
   }) {
     final q = select(tasks)
       ..where(
@@ -504,7 +511,10 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
             t.companyId.equals(companyId) &
             t.projectId.equals(projectId) &
             t.isDeleted.equals(false) &
-            t.archivedAt.isNull(),
+            t.archivedAt.isNull() &
+            (activeClientsOnly
+                ? clientActiveFilter(clientId: t.clientId, companyId: companyId)
+                : const Constant(true)),
       )
       ..orderBy([
         (t) => OrderingTerm(

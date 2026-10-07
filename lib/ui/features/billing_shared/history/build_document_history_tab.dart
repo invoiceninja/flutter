@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/widgets/party_contacts_builder.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
@@ -48,6 +49,10 @@ EntityDetailTab buildDocumentHistoryTab({
 }) {
   final isVendorParty = vendorId.isNotEmpty;
   return EntityDetailTab(
+    // An id like every other tab's: the strip remembers the last tab *by id*,
+    // and without one History was the only tab that fell back to Overview
+    // when stepping from one document to the next.
+    id: DetailTabIds.history,
     label: context.tr('history'),
     icon: Icons.layers_outlined,
     bodyBuilder: (context) => _PartyBuilder(

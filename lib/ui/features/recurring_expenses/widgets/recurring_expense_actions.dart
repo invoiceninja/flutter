@@ -6,10 +6,12 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -69,71 +71,103 @@ class RecurringExpenseActions {
     RecurringExpense recurringExpense,
     void Function(RecurringExpenseAction) onTap,
   ) {
-    final canArchive =
-        recurringExpense.archivedAt == null && !recurringExpense.isDeleted;
-    final canRestore =
-        recurringExpense.archivedAt != null || recurringExpense.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
-    // detail grids. Read lazily here (itemsFor runs per build) so it
-    // re-resolves on a company switch.
+    // Start, stop, archive, restore and delete all need
+    // `edit_recurring_expense`: the server authorizes each through
+    // `EntityPolicy::edit` (there is no `delete_*` permission). Ungated, a
+    // view-only user was offered Restore — one tap from the record's state
+    // banner — for a mutation the server refuses.
+    // The server's rule, not just the permission: the record's creator or
+    // assignee may change it too (`AuthSession.canEditRecord`).
+    final canEdit =
+        context.read<Services>().auth.session.value?.canEditRecord(
+          'recurring_expense',
+          createdBy: recurringExpense.userId,
+          assignedTo: recurringExpense.assignedUserId,
+          recordId: recurringExpense.id,
+        ) ??
+        false;
+    final canArchive =
+        canEdit &&
+        recurringExpense.archivedAt == null &&
+        !recurringExpense.isDeleted;
+    final canRestore =
+        canEdit &&
+        (recurringExpense.archivedAt != null || recurringExpense.isDeleted);
+    // Permission gate for the labelled "go to the vendor" item. Read lazily
+    // here (itemsFor runs per build) so it re-resolves on a company switch.
     final canViewVendor = me?.can('view_vendor') ?? false;
+    // A clone is a new record and needs `create_<entity>` — edit rights never
+    // imply it. Its own module is on, or this record would not be on screen;
+    // a one-off expense is another kind and needs its module as well.
+    final canClone =
+        me?.can(createPermissionFor(EntityType.recurringExpense)) ?? false;
+    final canCloneToExpense =
+        (me?.moduleEnabled(EntityType.expense) ?? false) &&
+        (me?.can(createPermissionFor(EntityType.expense)) ?? false);
 
     return [
-      editActionItem(
-        context: context,
-        kind: RecurringExpenseAction.edit,
-        onTap: () => onTap(RecurringExpenseAction.edit),
-      ),
-      if (recurringExpense.canBeStarted)
-        EntityActionItem(
-          kind: RecurringExpenseAction.start,
-          confirm: true,
-          confirmSubject: _confirmSubject(recurringExpense),
-          icon: Icons.play_arrow_outlined,
-          label: context.tr('start'),
-          enabled: true,
-          onTap: () => onTap(RecurringExpenseAction.start),
+      // Everything that changes the record, runs it or copies it. Hidden
+      // entirely on a soft-deleted one — only the link, the vendor and
+      // Restore remain, as on a deleted client: the server refuses an edit of
+      // a deleted record, and the screen says it is read-only.
+      if (!recurringExpense.isDeleted) ...[
+        editActionItem(
+          context: context,
+          kind: RecurringExpenseAction.edit,
+          onTap: () => onTap(RecurringExpenseAction.edit),
         ),
-      if (recurringExpense.canBeStopped)
+        if (canEdit && recurringExpense.canBeStarted)
+          EntityActionItem(
+            kind: RecurringExpenseAction.start,
+            confirm: true,
+            confirmSubject: _confirmSubject(recurringExpense),
+            icon: Icons.play_arrow_outlined,
+            label: context.tr('start'),
+            enabled: true,
+            onTap: () => onTap(RecurringExpenseAction.start),
+          ),
+        if (canEdit && recurringExpense.canBeStopped)
+          EntityActionItem(
+            kind: RecurringExpenseAction.stop,
+            confirm: true,
+            confirmSubject: _confirmSubject(recurringExpense),
+            icon: Icons.stop_outlined,
+            label: context.tr('stop'),
+            enabled: true,
+            onTap: () => onTap(RecurringExpenseAction.stop),
+          ),
+        if (canClone)
+          EntityActionItem(
+            kind: RecurringExpenseAction.clone,
+            icon: Icons.copy_outlined,
+            label: context.tr('clone_recurring'),
+            enabled: true,
+            onTap: () => onTap(RecurringExpenseAction.clone),
+          ),
+        if (canCloneToExpense)
+          EntityActionItem(
+            kind: RecurringExpenseAction.cloneToExpense,
+            icon: Icons.account_balance_wallet_outlined,
+            label: context.tr('clone_to_expense'),
+            enabled: true,
+            onTap: () => onTap(RecurringExpenseAction.cloneToExpense),
+          ),
         EntityActionItem(
-          kind: RecurringExpenseAction.stop,
-          confirm: true,
-          confirmSubject: _confirmSubject(recurringExpense),
-          icon: Icons.stop_outlined,
-          label: context.tr('stop'),
+          kind: RecurringExpenseAction.addComment,
+          icon: Icons.chat_bubble_outline,
+          label: context.tr('add_comment'),
           enabled: true,
-          onTap: () => onTap(RecurringExpenseAction.stop),
+          onTap: () => onTap(RecurringExpenseAction.addComment),
         ),
-      EntityActionItem(
-        kind: RecurringExpenseAction.clone,
-        icon: Icons.copy_outlined,
-        label: context.tr('clone_recurring'),
-        enabled: true,
-        onTap: () => onTap(RecurringExpenseAction.clone),
-      ),
-      if (me?.moduleEnabled(EntityType.expense) ?? false)
         EntityActionItem(
-          kind: RecurringExpenseAction.cloneToExpense,
-          icon: Icons.account_balance_wallet_outlined,
-          label: context.tr('clone_to_expense'),
+          kind: RecurringExpenseAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
           enabled: true,
-          onTap: () => onTap(RecurringExpenseAction.cloneToExpense),
+          onTap: () => onTap(RecurringExpenseAction.logCall),
         ),
-      EntityActionItem(
-        kind: RecurringExpenseAction.addComment,
-        icon: Icons.chat_bubble_outline,
-        label: context.tr('add_comment'),
-        enabled: true,
-        onTap: () => onTap(RecurringExpenseAction.addComment),
-      ),
-      EntityActionItem(
-        kind: RecurringExpenseAction.logCall,
-        icon: Icons.phone_in_talk_outlined,
-        label: context.tr('log_call'),
-        enabled: true,
-        onTap: () => onTap(RecurringExpenseAction.logCall),
-      ),
+      ],
       if (recurringExpense.vendorId.isNotEmpty && canViewVendor)
         EntityActionItem(
           kind: RecurringExpenseAction.viewVendor,
@@ -169,8 +203,49 @@ class RecurringExpenseActions {
         context: context,
         subject: _confirmSubject(recurringExpense),
         kind: RecurringExpenseAction.delete,
-        canDelete: !recurringExpense.isDeleted,
+        canDelete: canEdit && !recurringExpense.isDeleted,
         onTap: () => onTap(RecurringExpenseAction.delete),
+      ),
+    ];
+  }
+
+  /// The recurring-expense screen's quick-action strip, most-used first. The
+  /// strip shows the first few that apply (`pickQuickActions`); the rest stay
+  /// in the `⋮` menu, which still lists everything.
+  ///
+  /// Every tile is the *same item* [itemsFor] builds, looked up by kind, so
+  /// its permission gates, its confirmation prompt and its unsynced guard
+  /// cannot drift from the menu's. Start and Stop are never both there:
+  /// [itemsFor] offers whichever one the schedule's state allows, so the
+  /// first tile is always the one thing that can be done to the schedule now.
+  static List<EntityQuickAction<RecurringExpenseAction>> quickItemsFor(
+    BuildContext context,
+    RecurringExpense recurringExpense,
+    void Function(RecurringExpenseAction) onTap,
+  ) {
+    // A deleted record is read-only, and an unsynced one would answer Start
+    // with "sync first" — the banner says that once instead.
+    if (recurringExpense.isDeleted || recurringExpense.id.startsWith('tmp_')) {
+      return const [];
+    }
+    final items = itemsFor(context, recurringExpense, onTap);
+    EntityQuickAction<RecurringExpenseAction>? pick(
+      RecurringExpenseAction kind,
+      String shortLabel,
+    ) {
+      final item = findActionItem<RecurringExpenseAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(item: item, shortLabel: shortLabel);
+    }
+
+    return [
+      ?pick(RecurringExpenseAction.start, context.tr('start')),
+      ?pick(RecurringExpenseAction.stop, context.tr('stop')),
+      ?pick(RecurringExpenseAction.clone, context.tr('clone')),
+      // "+ Expense": the one-off copy, named like every other create tile.
+      ?pick(
+        RecurringExpenseAction.cloneToExpense,
+        '+ ${context.tr('expense')}',
       ),
     ];
   }

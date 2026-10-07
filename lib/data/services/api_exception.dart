@@ -96,6 +96,36 @@ class RecordDeletedException extends ServerException {
   const RecordDeletedException(String message) : super(400, message);
 }
 
+/// The server refused **this request**, not this session: the signed-in user
+/// may not do this to this record. HTTP 401 with
+/// `{"message":"This action is unauthorized."}` — Laravel's
+/// `AuthorizationException`, which Invoice Ninja's `Handler` renders as 401.
+///
+/// **Not [UnauthorizedException], and the difference is the whole point.** On
+/// this server a dead token is a **403** (`TokenAuth`: `"Invalid token"`);
+/// a 401 with this message comes from a policy or a form request's
+/// `authorize()`, under a token that is perfectly good. Treating it as a dead
+/// session signed users out for asking about a record they could not see —
+/// most visibly on a company switch, where a screen still mounted from the
+/// company just left asks for one of *its* records under the new company's
+/// token. That is a record in another company, the policy says no, and the
+/// app answered by ending the session.
+///
+/// A [ServerException] so the sync engine's existing "permanent 4xx" handling
+/// applies to a refused write unchanged: the row dies into the Outbox with the
+/// server's own words.
+class PermissionDeniedException extends ServerException {
+  const PermissionDeniedException([
+    String message = 'This action is unauthorized.',
+  ]) : super(401, message);
+}
+
+/// The message that identifies [PermissionDeniedException] on the wire,
+/// lower-cased. Laravel's hardcoded default for `AuthorizationException` — not
+/// `ctrans`, so locale-stable. Matched **exactly**: any other 401 keeps
+/// meaning what it always did.
+const String kPermissionDeniedMessage = 'this action is unauthorized.';
+
 /// Body fragment that identifies [RecordDeletedException] on the wire. Server
 /// side it's a hardcoded English literal in `ChecksEntityStatus::disallowUpdate()`
 /// (not `ctrans`), so it's locale-stable. Single source of truth for both the

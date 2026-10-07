@@ -1,24 +1,40 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
+import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/detail_tab_navigator.dart';
 import 'package:admin/ui/core/list/master_detail_nav_scope.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 
 /// One tab in an [EntityDetailTabs] strip. `label` is the rendered string
-/// (already localized + optionally suffixed with a count badge); the body
-/// is built lazily via [bodyBuilder] so per-tab data fetches don't fire
-/// until the user first activates the tab.
+/// (already localized); the body is built lazily via [bodyBuilder] so per-tab
+/// data fetches don't fire until the user first activates the tab.
 class EntityDetailTab {
   const EntityDetailTab({
     required this.label,
     required this.icon,
     required this.bodyBuilder,
+    this.id,
+    this.count,
   });
 
   final String label;
   final IconData icon;
   final WidgetBuilder bodyBuilder;
+
+  /// A stable name for this tab (`kInvoicesTabId`, …), so a host can ask for it
+  /// by identity instead of by an index that module gating shifts. Optional: a
+  /// strip without ids keeps working by position exactly as before.
+  final String? id;
+
+  /// How many records sit behind this tab, rendered as a badge beside the
+  /// label. **Null means unknown, not zero** — a zero is printed, so the two
+  /// never look alike. Pass it only when the number is exact.
+  final int? count;
 }
 
 /// Host-owned request channel for [EntityDetailTabs.selectTab].
@@ -29,14 +45,39 @@ class EntityDetailTab {
 class TabSelectionController extends ValueNotifier<int> {
   TabSelectionController([super.initialIndex = 0]);
 
+  String? _requestedId;
+
+  /// The id the last request named, or null when it was positional.
+  String? get requestedId => _requestedId;
+
   void select(int index) {
+    _requestedId = null;
     if (value == index) {
       notifyListeners();
     } else {
       value = index;
     }
   }
+
+  /// Asks for the tab whose [EntityDetailTab.id] is [id]. A strip that has no
+  /// such tab (its module is off) ignores the request — which is why a caller
+  /// that draws an affordance for this should gate it on the same list of ids
+  /// the strip was built from.
+  ///
+  /// A separate method rather than an overload of [select] on purpose:
+  /// `comments_surface_wiring_test` reads every `.select(` argument under
+  /// `lib/ui` and requires one of the two named index constants.
+  void selectId(String id) {
+    _requestedId = id;
+    notifyListeners();
+  }
 }
+
+/// Places the strip and the active body. The default stacks them; a host that
+/// wants the strip pinned while the body scrolls (`EntityRecordPage`) puts each
+/// in its own sliver.
+typedef EntityDetailTabsLayoutBuilder =
+    Widget Function(BuildContext context, Widget strip, Widget body);
 
 /// A horizontal tab strip with the active tab's body flush below it (no card
 /// chrome — see `build`, and `_TabStrip` for why the strip scrolls itself).
@@ -52,6 +93,8 @@ class EntityDetailTabs extends StatefulWidget {
     required this.tabs,
     this.initialIndex = 0,
     this.selectTab,
+    this.layoutBuilder,
+    this.onReveal,
   });
 
   final List<EntityDetailTab> tabs;
@@ -67,6 +110,8 @@ class EntityDetailTabs extends StatefulWidget {
   ///
   /// The memory is session-only and keyed on the tab *count*, so reordering a
   /// strip needs no migration: a fresh process has no memory to be off by one.
+  /// A strip whose tabs carry ids is remembered by id instead, which survives
+  /// the count changing too.
   final int initialIndex;
 
   /// Pushed-to by a host that wants to move the user to a tab — the Comments
@@ -83,6 +128,15 @@ class EntityDetailTabs extends StatefulWidget {
   /// on a phone changes a tab several hundred pixels below the fold and
   /// nothing visibly happens.
   final ValueListenable<int>? selectTab;
+
+  /// Null stacks the strip over the body. See [EntityDetailTabsLayoutBuilder].
+  final EntityDetailTabsLayoutBuilder? layoutBuilder;
+
+  /// Brings the strip into view after a [selectTab] request, in place of the
+  /// default `Scrollable.ensureVisible`. A host that supplies [layoutBuilder]
+  /// must supply this too: with the page built *inside* this widget there is
+  /// no enclosing scrollable for the default to find, so it would do nothing.
+  final VoidCallback? onReveal;
 
   @override
   State<EntityDetailTabs> createState() => _EntityDetailTabsState();
@@ -113,10 +167,22 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
   MasterDetailNavController? get _tabMemory =>
       MasterDetailNavScope.maybeOf(context);
 
-  /// The remembered index, but only when it still means the same tab — see
-  /// [MasterDetailNavController.lastTab].
+  /// The scaffold's `[` / `]` channel, bound while this strip is mounted.
+  DetailTabNavigator? _navigator;
+
+  /// The remembered tab, but only when it still means the same tab — see
+  /// [MasterDetailNavController.lastTab]. An id is tried first: it names the
+  /// tab itself, so it stays right across a module-gated count change that
+  /// would make the remembered *index* point somewhere else.
   int? _restoredIndex() {
-    final last = _tabMemory?.lastTab;
+    final memory = _tabMemory;
+    if (memory == null) return null;
+    final id = memory.lastTabId;
+    if (id != null) {
+      final byId = widget.tabs.indexWhere((t) => t.id == id);
+      if (byId >= 0) return byId;
+    }
+    final last = memory.lastTab;
     if (last == null || last.count != widget.tabs.length) return null;
     return last.index;
   }
@@ -159,10 +225,18 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
     // is the order `BillingDocItemsTabs` uses and it keeps at most one live
     // ticker.
     final previousIndex = _controller.index;
+    // Follow the tab the user was on when it has an id: the count changing
+    // means every later index now names a different tab.
+    final previousId = previousIndex < oldWidget.tabs.length
+        ? oldWidget.tabs[previousIndex].id
+        : null;
+    final byId = previousId == null
+        ? -1
+        : widget.tabs.indexWhere((t) => t.id == previousId);
     _controller
       ..removeListener(_onTabChanged)
       ..dispose();
-    _controller = _newController(previousIndex);
+    _controller = _newController(byId >= 0 ? byId : previousIndex);
     // `_activated` is deliberately NOT cleared. Indices shift when the count
     // changes, so some entries now point at a different tab — but the set only
     // gates *eager mounting*, so the cost of a stale entry is a body mounted
@@ -187,29 +261,72 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
     widget.selectTab?.addListener(_onSelectRequested);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final navigator = DetailTabNavigatorScope.maybeOf(context);
+    if (identical(navigator, _navigator)) return;
+    _navigator?.unbind(_stepBy);
+    _navigator = navigator?..bind(_stepBy);
+  }
+
+  /// `[` / `]` from the scaffold: move along the strip, stopping at the ends.
+  void _stepBy(int delta) {
+    if (!mounted || widget.tabs.isEmpty) return;
+    final next = (_controller.index + delta).clamp(0, widget.tabs.length - 1);
+    if (next != _controller.index) _controller.animateTo(next);
+  }
+
   /// Move to the requested tab and bring the strip into view.
   void _onSelectRequested() {
-    final requested = widget.selectTab?.value;
-    if (requested == null || widget.tabs.isEmpty || !mounted) return;
-    final resolved = requested < 0 ? widget.tabs.length + requested : requested;
-    final index = resolved.clamp(0, widget.tabs.length - 1);
+    final select = widget.selectTab;
+    if (select == null || widget.tabs.isEmpty || !mounted) return;
+    final int index;
+    final id = select is TabSelectionController ? select.requestedId : null;
+    if (id != null) {
+      index = widget.tabs.indexWhere((t) => t.id == id);
+      // Gated away (module off): there is nothing to move to.
+      if (index < 0) return;
+    } else {
+      final requested = select.value;
+      final resolved = requested < 0
+          ? widget.tabs.length + requested
+          : requested;
+      index = resolved.clamp(0, widget.tabs.length - 1);
+    }
     if (_controller.index != index) _controller.animateTo(index);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final reveal = widget.onReveal;
+      if (reveal != null) {
+        reveal();
+        return;
+      }
       Scrollable.ensureVisible(
         context,
         duration: const Duration(milliseconds: 200),
       );
     });
+    // A repeat request for the active tab dirties nothing — see
+    // `_TabStripState._onRevealRequested`.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _onTabChanged() {
-    _tabMemory?.lastTab = (index: _controller.index, count: widget.tabs.length);
+    final memory = _tabMemory;
+    if (memory != null && widget.tabs.isNotEmpty) {
+      memory
+        ..lastTab = (index: _controller.index, count: widget.tabs.length)
+        // Written even when null, so a host without ids clears an id a
+        // different strip left behind rather than restoring against it.
+        ..lastTabId = widget.tabs[_controller.index].id;
+    }
     if (_activated.add(_controller.index)) setState(() {});
   }
 
   @override
   void dispose() {
+    _navigator?.unbind(_stepBy);
     widget.selectTab?.removeListener(_onSelectRequested);
     _controller.removeListener(_onTabChanged);
     _controller.dispose();
@@ -222,7 +339,7 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
     // No card chrome: the strip is a standalone row with a full-width
     // underline, the active tab body sits flush below (React-like). The
     // detail page owns the single scrollbar.
-    return Column(
+    final strip = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -232,34 +349,65 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
           revealRequest: widget.selectTab,
         ),
         Divider(height: 1, thickness: 1, color: tokens.border),
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final active = _controller.index;
-            // Not IndexedStack: it lays out *all* children and sizes to
-            // the tallest, which leaves a huge gap under a short tab once
-            // bodies grow to intrinsic height. Offstage keeps activated
-            // tabs alive (sub-VM state + scroll preserved) but contributes
-            // zero size, so height tracks the active tab only. TickerMode
-            // lets an embedded list detect whether it's the visible tab
-            // (only the visible one consumes the page-scroll pagination
-            // signal).
-            return Stack(
-              children: [
-                for (var i = 0; i < widget.tabs.length; i++)
-                  if (_activated.contains(i))
-                    Offstage(
-                      offstage: i != active,
-                      child: TickerMode(
-                        enabled: i == active,
-                        child: Builder(builder: widget.tabs[i].bodyBuilder),
-                      ),
-                    ),
-              ],
-            );
-          },
-        ),
       ],
+    );
+    final body = AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final active = _controller.index;
+        // Not IndexedStack: it lays out *all* children and sizes to
+        // the tallest, which leaves a huge gap under a short tab once
+        // bodies grow to intrinsic height. Offstage keeps activated
+        // tabs alive (sub-VM state + scroll preserved) but contributes
+        // zero size, so height tracks the active tab only. TickerMode
+        // lets an embedded list detect whether it's the visible tab
+        // (only the visible one consumes the page-scroll pagination
+        // signal).
+        return Stack(
+          children: [
+            for (var i = 0; i < widget.tabs.length; i++)
+              if (_activated.contains(i))
+                Offstage(
+                  // Keyed, because this list has holes: only the tabs opened
+                  // so far are in it, so opening an *earlier* one shifts
+                  // every later body down a slot. Unkeyed, Flutter matched
+                  // them by position — the Invoices body's element was handed
+                  // the Comments tab, and Invoices was built again from
+                  // nothing: its filter, search, selection and scroll gone
+                  // and page 1 fetched again. That is the opposite of "an
+                  // opened tab stays alive", and it happened on the comments
+                  // card's View All, on `[`, and on any tap to the left of
+                  // the landing tab. By id where there is one, so the body
+                  // also follows its tab when a module switching on or off
+                  // moves the indices.
+                  key: ValueKey<Object>(widget.tabs[i].id ?? i),
+                  offstage: i != active,
+                  child: TickerMode(
+                    enabled: i == active,
+                    // `Offstage` hides a body; it does not take focus from
+                    // it ("can receive focus and have keyboard input directed
+                    // to them", in its own words — `Visibility` adds exactly
+                    // this). On native touch a text field does not unfocus on
+                    // an outside tap, so a field in the tab the user just
+                    // left kept the keyboard, and their typing went into a
+                    // box they could no longer see. On desktop, every tab
+                    // ever opened stayed in the Tab order.
+                    child: ExcludeFocus(
+                      excluding: i != active,
+                      child: Builder(builder: widget.tabs[i].bodyBuilder),
+                    ),
+                  ),
+                ),
+          ],
+        );
+      },
+    );
+    final layout = widget.layoutBuilder;
+    if (layout != null) return layout(context, strip, body);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [strip, body],
     );
   }
 }
@@ -282,6 +430,11 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
 /// leaves around the tab it reveals: land a button flush against the viewport
 /// edge and the fade above it veils the last 24 px of its own label.
 const double _kStripEdgeFade = 32;
+
+/// The "all tabs" button's side: the touch floor on touch, the app's compact
+/// icon-button size with a pointer. Mirrors `actionButtonSize()` without
+/// importing the list layer into this file.
+double _allTabsButtonSize() => Env.isTouchPrimary ? InSizes.touchTarget : 32;
 
 class _TabStrip extends StatefulWidget {
   const _TabStrip({
@@ -313,7 +466,18 @@ class _TabStripState extends State<_TabStrip> {
   /// simply never looked up (`currentContext` would be null anyway).
   final Map<int, GlobalKey> _keys = <int, GlobalKey>{};
 
+  /// The strip is ONE tab stop: only the active button can take focus, and it
+  /// always takes it through this node, so arrowing along the strip carries
+  /// the focus with the selection instead of leaving it on a tab that is no
+  /// longer the active one.
+  final FocusNode _activeFocus = FocusNode(debugLabel: 'detail tab');
+
   int _lastIndex = 0;
+
+  /// Whether the "all tabs" button was drawn on the last build. Needed to
+  /// recover the strip's full slot width from the scroll metrics — see
+  /// [_overflows].
+  bool _allTabsShown = false;
 
   @override
   void initState() {
@@ -331,6 +495,17 @@ class _TabStripState extends State<_TabStrip> {
       oldWidget.revealRequest?.removeListener(_onRevealRequested);
       widget.revealRequest?.addListener(_onRevealRequested);
     }
+    // A count that arrives after the strip is on screen widens its tab, and
+    // the tabs after it move along. If that pushed the *active* tab's tail
+    // under the all-tabs button — on a phone it does, the landing tab's own
+    // badge is what gets cut off — bring it back. `_revealActive` moves the
+    // strip only as far as it must, so a strip the user has scrolled
+    // elsewhere is not yanked back unless the active tab is actually clipped.
+    if (_countsChanged(oldWidget.tabs, widget.tabs)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealActive(animate: false);
+      });
+    }
     // The parent REPLACES the controller when the tab count changes (toggling a
     // module in Account Management does exactly that), so re-subscribe or the
     // auto-scroll dies silently from then on.
@@ -341,10 +516,22 @@ class _TabStripState extends State<_TabStrip> {
     _scheduleFirstFrame();
   }
 
+  static bool _countsChanged(
+    List<EntityDetailTab> before,
+    List<EntityDetailTab> after,
+  ) {
+    if (before.length != after.length) return false;
+    for (var i = 0; i < after.length; i++) {
+      if (before[i].count != after[i].count) return true;
+    }
+    return false;
+  }
+
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerTick);
     widget.revealRequest?.removeListener(_onRevealRequested);
+    _activeFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -366,14 +553,34 @@ class _TabStripState extends State<_TabStrip> {
   void _onControllerTick() {
     if (widget.controller.index == _lastIndex) return;
     _lastIndex = widget.controller.index;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
+    // The roving node moves to the newly active button during the rebuild.
+    // When that button comes *later* in the row, the old one gives the node
+    // up first — `FocusAttachment.detach` then unfocuses it, and focus lands
+    // on whatever held it before (a tile, a search field), so the next Enter
+    // goes there. Read "the strip had focus" now, before that rebuild, and
+    // take it back after. Here rather than in `_onKey`, because `]`, a click
+    // and the all-tabs list change the tab too, and only arrows went through
+    // there.
+    final hadFocus = _activeFocus.hasFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _revealActive();
+      if (hadFocus) _activeFocus.requestFocus();
+    });
   }
 
   /// A host asked for a tab, whether or not that changes the index. Runs after
   /// the parent's own listener has had its chance to `animateTo`, so the
   /// post-frame read of `controller.index` sees the destination either way.
-  void _onRevealRequested() =>
-      WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
+  ///
+  /// `ensureVisualUpdate` because a post-frame callback does not ask for a
+  /// frame: a request for the tab that is *already* active changes nothing, so
+  /// with no frame otherwise due the reveal would wait for the next unrelated
+  /// repaint.
+  void _onRevealRequested() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
 
   /// Scroll the active tab into view — **minimally**, and only when it is not
   /// already fully visible.
@@ -413,11 +620,15 @@ class _TabStripState extends State<_TabStrip> {
     // costs nothing, because the clamp below pins tab 0 to `minScrollExtent`
     // (whereupon the leading fade is not drawn at all) and the last tab to
     // `maxScrollExtent`.
+    // On the trailing side the "all tabs" button stands where the fade would
+    // be, so that is what the revealed tab has to clear there.
     final bounds = box.paintBounds;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final endGutter = _allTabsShown ? _allTabsSlot : _kStripEdgeFade;
     final withGutter = Rect.fromLTRB(
-      bounds.left - _kStripEdgeFade,
+      bounds.left - (rtl ? endGutter : _kStripEdgeFade),
       bounds.top,
-      bounds.right + _kStripEdgeFade,
+      bounds.right + (rtl ? _kStripEdgeFade : endGutter),
       bounds.bottom,
     );
     final leading = viewport
@@ -448,9 +659,81 @@ class _TabStripState extends State<_TabStrip> {
     }
   }
 
+  /// Whether the tabs run past the strip's **full** slot, i.e. whether the
+  /// "all tabs" button is needed.
+  ///
+  /// Measured on the tabs alone: while the button is showing, the strip pads
+  /// its content by the button's width so the last tab can scroll clear of it,
+  /// and counting that padding would latch — a strip that only overflows
+  /// *because* the button is there would never lose it.
+  bool _overflows() {
+    if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
+      return false;
+    }
+    final p = _scroll.position;
+    final content =
+        p.maxScrollExtent +
+        p.viewportDimension -
+        (_allTabsShown ? _allTabsSlot : 0);
+    // Half a pixel of slack: the two sides come from different layout passes.
+    return content > p.viewportDimension + 0.5;
+  }
+
+  double get _allTabsSlot => _allTabsButtonSize() + InSpacing.xs;
+
+  void _select(int index) {
+    // Reached after an `await` from the all-tabs sheet, by which time the
+    // strip — and its controller — may be gone.
+    if (!mounted) return;
+    if (widget.controller.index != index) widget.controller.animateTo(index);
+  }
+
+  /// Arrow keys walk the strip while one of its buttons has focus. Handled
+  /// here, below the app's `Shortcuts`, so they never reach the framework's
+  /// directional-focus traversal.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent || widget.tabs.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    // A chord is somebody else's: ⌘← / Alt+← are history back, and on web
+    // swallowing them here also cancels the browser's own.
+    final keys = HardwareKeyboard.instance;
+    if (keys.isMetaPressed || keys.isAltPressed || keys.isControlPressed) {
+      return KeyEventResult.ignored;
+    }
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final key = event.logicalKey;
+    final last = widget.tabs.length - 1;
+    final current = widget.controller.index;
+    final int next;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      next = current + (rtl ? 1 : -1);
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      next = current + (rtl ? -1 : 1);
+    } else if (key == LogicalKeyboardKey.home) {
+      next = 0;
+    } else if (key == LogicalKeyboardKey.end) {
+      next = last;
+    } else {
+      return KeyEventResult.ignored;
+    }
+    // Focus follows the new active button from `_onControllerTick`.
+    _select(next.clamp(0, last));
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final overflows = _overflows();
+    if (overflows != _allTabsShown) {
+      _allTabsShown = overflows;
+      // The button just took (or gave back) part of the viewport, so a tab that
+      // was fully revealed a frame ago may now sit under the edge.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _revealActive(animate: false),
+      );
+    }
     // Material ancestor required so each _TabButton's InkWell renders its
     // ink/splash; transparency = no visual change. EntityDetailTabs can be
     // hosted without a Scaffold (EntityDetailScaffold skips its own in
@@ -474,40 +757,52 @@ class _TabStripState extends State<_TabStrip> {
           animation: widget.controller,
           builder: (context, _) {
             final activeIndex = widget.controller.index;
+            // One `Stack` whether or not the button shows: moving the
+            // scroller under a different parent would re-inflate it, and a
+            // fresh `ScrollPosition` starts at 0 — throwing away the reveal
+            // that ran on the very frame the overflow was first measured.
             return Stack(
               children: [
                 SingleChildScrollView(
                   controller: _scroll,
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < widget.tabs.length; i++)
-                        _TabButton(
-                          boxKey: _keys.putIfAbsent(i, GlobalKey.new),
-                          label: widget.tabs[i].label,
-                          icon: widget.tabs[i].icon,
-                          active: i == activeIndex,
-                          tokens: tokens,
-                          onTap: () {
-                            if (widget.controller.index != i) {
-                              widget.controller.animateTo(i);
-                            }
-                          },
-                        ),
-                    ],
+                  // The extra trailing room lets the last tab scroll clear of
+                  // the button laid over that edge.
+                  padding: EdgeInsetsDirectional.only(
+                    start: InSpacing.sm,
+                    end: InSpacing.sm + (overflows ? _allTabsSlot : 0),
+                  ),
+                  child: Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: _onKey,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < widget.tabs.length; i++)
+                          _TabButton(
+                            boxKey: _keys.putIfAbsent(i, GlobalKey.new),
+                            tab: widget.tabs[i],
+                            active: i == activeIndex,
+                            focusNode: i == activeIndex ? _activeFocus : null,
+                            tokens: tokens,
+                            onTap: () => _select(i),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                // Fades hinting that more tabs scroll off-screen (~15 tabs on a
-                // client, and the 440-560 px master-detail pane shows about
-                // three, so the strip almost always overflows). That count is
-                // also why this is a fade rather than a scrollbar. Each edge is
-                // gated on there being something to reveal that way: an
-                // unconditional fade veils the first or last tab's own label
-                // once the strip is scrolled to that end, and both are absent
-                // when the strip fits. Their own builder, so a scroll frame
-                // repaints two gradients rather than fifteen buttons.
+                // A fade hinting that tabs have scrolled off the LEADING edge.
+                // The trailing edge needs none: a strip that runs past it
+                // shows the "all tabs" button there instead, which says the
+                // same thing and also lists them. (~15 tabs on a client, and
+                // the 440-560 px master-detail pane shows about three, so the
+                // strip almost always overflows — which is also why this is a
+                // fade rather than a scrollbar.) Gated on there being
+                // something to reveal: an unconditional fade veils the first
+                // tab's own label once the strip is scrolled back to the
+                // start. Its own builder, so a scroll frame repaints one
+                // gradient rather than fifteen buttons.
                 Positioned.fill(
                   child: IgnorePointer(
                     child: AnimatedBuilder(
@@ -525,18 +820,36 @@ class _TabStripState extends State<_TabStrip> {
                             : null;
                         final atStart =
                             p == null || p.pixels <= p.minScrollExtent;
-                        final atEnd =
-                            p == null || p.pixels >= p.maxScrollExtent;
                         return Stack(
-                          children: [
-                            if (!atStart) _edgeFade(tokens, leading: true),
-                            if (!atEnd) _edgeFade(tokens, leading: false),
-                          ],
+                          children: [if (!atStart) _leadingFade(tokens)],
                         );
                       },
                     ),
                   ),
                 ),
+                if (overflows)
+                  PositionedDirectional(
+                    top: 0,
+                    bottom: 0,
+                    end: 0,
+                    width: _allTabsSlot,
+                    // Opaque, so tabs slide under it rather than through it.
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: tokens.bg,
+                        border: BorderDirectional(
+                          start: BorderSide(color: tokens.border),
+                        ),
+                      ),
+                      child: Center(
+                        child: _AllTabsButton(
+                          tabs: widget.tabs,
+                          activeIndex: activeIndex,
+                          onSelected: _select,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -545,17 +858,18 @@ class _TabStripState extends State<_TabStrip> {
     );
   }
 
-  Widget _edgeFade(InTheme tokens, {required bool leading}) => Positioned(
+  /// Directional, so it lands on the correct physical edge in a right-to-left
+  /// locale.
+  Widget _leadingFade(InTheme tokens) => PositionedDirectional(
     top: 0,
     bottom: 0,
-    left: leading ? 0 : null,
-    right: leading ? null : 0,
+    start: 0,
     child: Container(
       width: _kStripEdgeFade,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: leading ? Alignment.centerRight : Alignment.centerLeft,
-          end: leading ? Alignment.centerLeft : Alignment.centerRight,
+          begin: AlignmentDirectional.centerEnd,
+          end: AlignmentDirectional.centerStart,
           colors: [tokens.bg.withValues(alpha: 0), tokens.bg],
         ),
       ),
@@ -566,9 +880,9 @@ class _TabStripState extends State<_TabStrip> {
 class _TabButton extends StatelessWidget {
   const _TabButton({
     required this.boxKey,
-    required this.label,
-    required this.icon,
+    required this.tab,
     required this.active,
+    required this.focusNode,
     required this.tokens,
     required this.onTap,
   });
@@ -577,9 +891,11 @@ class _TabButton extends StatelessWidget {
   /// real `RenderBox` for `_TabStripState._revealActive` to measure.
   final Key boxKey;
 
-  final String label;
-  final IconData icon;
+  final EntityDetailTab tab;
   final bool active;
+
+  /// Non-null on the active button only — see `_TabStripState._activeFocus`.
+  final FocusNode? focusNode;
   final InTheme tokens;
   final VoidCallback onTap;
 
@@ -589,38 +905,244 @@ class _TabButton extends StatelessWidget {
     // surface bg; ink2 is muted-but-clearly-readable and keeps a clean
     // contrast against the active state.
     final color = active ? tokens.ink : tokens.ink2;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        key: boxKey,
-        padding: EdgeInsets.symmetric(
-          horizontal: InSpacing.md(context),
-          vertical: InSpacing.md(context),
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: active ? tokens.accent : Colors.transparent,
-              width: 2,
+    final vertical = InSpacing.md(context);
+    // The strip's rows were ~36 px tall on a phone. A floor, not a height, so
+    // a large text scale still grows the row rather than clipping the label.
+    final floor = Env.isTouchPrimary ? InSizes.touchTarget : 0.0;
+    final contentFloor = (floor - vertical * 2 - 2).clamp(0.0, double.infinity);
+    final count = tab.count;
+    return MergeSemantics(
+      child: Semantics(
+        selected: active,
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          focusNode: focusNode,
+          canRequestFocus: active,
+          child: Container(
+            key: boxKey,
+            padding: EdgeInsets.symmetric(
+              horizontal: InSpacing.md(context),
+              vertical: vertical,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: active ? tokens.accent : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: contentFloor),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(tab.icon, size: 16, color: color),
+                  const SizedBox(width: InSpacing.sm),
+                  Text(
+                    tab.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                      color: color,
+                    ),
+                  ),
+                  if (count != null) ...[
+                    const SizedBox(width: 6),
+                    _TabCount(count: count, tokens: tokens),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: InSpacing.sm),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                color: color,
-              ),
-            ),
-          ],
+      ),
+    );
+  }
+}
+
+/// The count beside a tab label. A zero stays muted whatever the tab — it is
+/// the one number that means there is nothing to look at.
+class _TabCount extends StatelessWidget {
+  const _TabCount({required this.count, required this.tokens});
+
+  final int count;
+  final InTheme tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.surfaceAlt,
+        borderRadius: BorderRadius.circular(InRadii.r1),
+        border: Border.all(color: tokens.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        child: Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: count == 0 ? tokens.ink3 : tokens.ink2,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ),
     );
+  }
+}
+
+/// Lists every tab, for a strip too long to see at once. A menu with a
+/// pointer; a bottom sheet on touch, where fifteen menu rows would run off a
+/// phone screen.
+class _AllTabsButton extends StatelessWidget {
+  const _AllTabsButton({
+    required this.tabs,
+    required this.activeIndex,
+    required this.onSelected,
+  });
+
+  final List<EntityDetailTab> tabs;
+  final int activeIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _allTabsButtonSize();
+    // Pinned on both axes: left to the theme, an `IconButton` is floored at the
+    // 48 px tap target on touch and would push the strip taller than its tabs.
+    final style = IconButton.styleFrom(
+      fixedSize: Size.square(size),
+      minimumSize: Size.zero,
+      maximumSize: Size.infinite,
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    if (Env.isTouchPrimary) {
+      return IconButton(
+        style: style,
+        tooltip: context.tr('more'),
+        icon: const Icon(Icons.arrow_drop_down),
+        onPressed: () => _openSheet(context),
+      );
+    }
+    return BackDismissibleMenuAnchor(
+      consumeOutsideTap: true,
+      menuChildren: [
+        for (var i = 0; i < tabs.length; i++)
+          // The tick is the only visible mark of the current tab; say it too.
+          Semantics(
+            selected: i == activeIndex,
+            child: MenuItemButton(
+              leadingIcon: Icon(tabs[i].icon, size: 18),
+              trailingIcon: i == activeIndex
+                  ? const Icon(Icons.check, size: 18)
+                  : null,
+              onPressed: () => onSelected(i),
+              child: Text(_menuLabel(tabs[i])),
+            ),
+          ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        style: style,
+        tooltip: context.tr('more'),
+        icon: const Icon(Icons.arrow_drop_down),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+
+  static String _menuLabel(EntityDetailTab tab) =>
+      tab.count == null ? tab.label : '${tab.label}  ${tab.count}';
+
+  Future<void> _openSheet(BuildContext context) async {
+    // Root navigator: inside the master-detail pane the nearest one is the
+    // pane's own, and the sheet would be a slab pinned under a ~500 px column.
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      useRootNavigator: true,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final tokens = sheetContext.inTheme;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: InSpacing.sm),
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  // `MergeSemantics` + `selected`: the tick and the heavier
+                  // weight are the only marks of the current tab, and neither
+                  // is spoken.
+                  MergeSemantics(
+                    child: Semantics(
+                      selected: i == activeIndex,
+                      button: true,
+                      child: InkWell(
+                        onTap: () => Navigator.of(sheetContext).pop(i),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: InSizes.touchTarget,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: InSpacing.lg(sheetContext),
+                              vertical: InSpacing.sm,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  tabs[i].icon,
+                                  size: 18,
+                                  color: i == activeIndex
+                                      ? tokens.ink
+                                      : tokens.ink2,
+                                ),
+                                SizedBox(width: InSpacing.md(sheetContext)),
+                                Expanded(
+                                  child: Text(
+                                    tabs[i].label,
+                                    style: TextStyle(
+                                      fontWeight: i == activeIndex
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                      color: tokens.ink,
+                                    ),
+                                  ),
+                                ),
+                                if (tabs[i].count != null)
+                                  _TabCount(
+                                    count: tabs[i].count!,
+                                    tokens: tokens,
+                                  ),
+                                if (i == activeIndex) ...[
+                                  const SizedBox(width: InSpacing.sm),
+                                  Icon(
+                                    Icons.check,
+                                    size: 18,
+                                    color: tokens.ink,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null) onSelected(picked);
   }
 }

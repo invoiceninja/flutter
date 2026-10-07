@@ -72,17 +72,21 @@ void main() {
     );
   });
 
-  test('no detail KPI strip re-declares the pre-built-Widget cell', () {
-    // Scoped to the `Widget value` variant. CLAUDE.md documents three variants
-    // and only this one is shared — Client's takes a Decimal + Formatter and
-    // Projects' a String with a '—' sentinel, and those must stay separate.
+  test('no feature file declares a KPI cell of its own', () {
+    // A caption over a figure is a `StandingFigure` on a `StandingCard`
+    // (`lib/ui/core/detail/standing_card.dart`). The cell sat hand-copied in
+    // eight `*_kpi_strip.dart` files, then shared as `KpiCell`, and then the
+    // record layout replaced every strip — so the one way left to get it
+    // wrong is to write a ninth.
+    //
+    // Scanned across every feature file: a copy can come back under any name.
     final offenders = <String>[];
     var scanned = 0;
     for (final f
         in Directory('lib/ui/features')
             .listSync(recursive: true)
             .whereType<File>()
-            .where((f) => f.path.endsWith('_kpi_strip.dart'))) {
+            .where((f) => f.path.endsWith('.dart'))) {
       scanned++;
       final src = f.readAsStringSync();
       final declaresCell =
@@ -91,12 +95,13 @@ void main() {
         offenders.add(f.uri.pathSegments.last);
       }
     }
-    expectScanned(scanned, 'KPI strips');
+    expectScanned(scanned, 'feature files');
     expect(
       offenders,
       isEmpty,
       reason:
-          'use KpiCell from lib/ui/core/detail/kpi_cell.dart:\n'
+          'use StandingFigure / StandingCard from '
+          'lib/ui/core/detail/standing_card.dart:\n'
           '  ${offenders.join('\n  ')}',
     );
   });
@@ -181,7 +186,7 @@ void main() {
     for (final path in const [
       'lib/ui/core/list/cell_slot.dart',
       'lib/ui/core/list/entity_list_empty_state.dart',
-      'lib/ui/core/detail/kpi_cell.dart',
+      'lib/ui/core/detail/standing_card.dart',
       'lib/ui/core/list/search/entity_token_search_field.dart',
     ]) {
       expect(File(path).existsSync(), isTrue, reason: '$path is gone');

@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/data/repositories/quote_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
@@ -151,10 +152,10 @@ class _FakeQuoteRepo implements QuoteRepository {
 
 class _FakeClientRepo implements ClientRepository {
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   Client? peek({required String companyId, required String id}) => null;
@@ -560,6 +561,52 @@ void main() {
           'a failed sweep must release its key — otherwise the completed '
           'future stays parked and this bucket can never be retried',
     );
+  });
+
+  // An empty tab whose fetch failed is *unknown*. It used to print "No records
+  // found", as if the server had answered.
+  testWidgets('a failed fetch with nothing cached says so and retries', (
+    tester,
+  ) async {
+    final throwing = _FakeInvoiceRepo()..throwSynchronously = true;
+    final services = _FakeServices(
+      invoices: throwing,
+      quotes: _FakeQuoteRepo(),
+      clients: _FakeClientRepo(),
+    );
+    await _pump(tester, services: services, nav: _Nav());
+    await tester.pumpAndSettle();
+
+    expect(find.text("Couldn't load"), findsOneWidget);
+    expect(find.text('No records found'), findsNothing);
+
+    // The connection is back: Retry fetches again and the claim goes.
+    throwing.throwSynchronously = false;
+    final before = throwing.fetchAttempts;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(throwing.fetchAttempts, greaterThan(before));
+    expect(find.text("Couldn't load"), findsNothing);
+    expect(find.text('No records found'), findsOneWidget);
+  });
+
+  // With rows on screen the cache is doing its job; a failed top-up behind
+  // them is not worth replacing them with an error.
+  testWidgets('a failed fetch over cached rows keeps the rows', (tester) async {
+    final throwing = _FakeInvoiceRepo(rows: [_invoice('i1')])
+      ..throwSynchronously = true;
+    final services = _FakeServices(
+      invoices: throwing,
+      quotes: _FakeQuoteRepo(),
+      clients: _FakeClientRepo(),
+    );
+    await _pump(tester, services: services, nav: _Nav());
+    await tester.pumpAndSettle();
+
+    expect(find.text("Couldn't load"), findsNothing);
+    expect(find.text('No records found'), findsNothing);
+    expect(find.textContaining('i1', findRichText: true), findsWidgets);
   });
 
   testWidgets('rows merge both entities, newest first', (tester) async {

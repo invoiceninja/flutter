@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/timezone.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
@@ -170,12 +171,13 @@ class _Clients implements ClientRepository {
   }
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
   }) async {
     ensureLoadedCalls++;
     if (id == client.id) present = true;
+    return EnsureLoadedOutcome.fetched;
   }
 
   @override
@@ -191,10 +193,10 @@ class _Vendors implements VendorRepository {
       Stream.value(id == vendor.id ? vendor : null);
 
   @override
-  Future<void> ensureLoaded({
+  Future<EnsureLoadedOutcome> ensureLoaded({
     required String companyId,
     required String id,
-  }) async {}
+  }) async => EnsureLoadedOutcome.cached;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

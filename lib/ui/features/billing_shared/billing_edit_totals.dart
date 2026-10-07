@@ -19,8 +19,8 @@ import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 /// `Formatter` cascade, computes the totals at that precision, and renders a
 /// [TotalsWidget] formatted in the same currency. This keeps the live edit
 /// preview consistent with the saved / PDF totals for non-2-decimal
-/// currencies (JPY 0 dp, BHD / KWD 3 dp) — `invoice_detail_screen._Overview`
-/// does the identical resolution for the read-only view; the edit screens
+/// currencies (JPY 0 dp, BHD / KWD 3 dp) — `BillingDocOverviewOf` does the
+/// identical resolution for the read-only view; the edit screens
 /// previously hardcoded precision 2 and rendered money with no currency.
 ///
 /// The currency stream is hoisted into state (keyed by the source id) so it is

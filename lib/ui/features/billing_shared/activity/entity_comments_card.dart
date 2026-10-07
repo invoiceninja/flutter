@@ -63,11 +63,13 @@ class EntityCommentsCard extends StatelessWidget {
   /// Forwarded to [ActivityRecordRow.hostWireName].
   final String? hostWireName;
 
-  /// Match `ClientDetailCardsGrid`'s stacked branch, which wraps itself in a
-  /// [CenteredFormColumn]. Without it this card runs edge-to-edge in the
-  /// 820–1000 px band while the cards below it are centred. The billing screens
-  /// have no such grid, and Payment already centres its whole body — passing
-  /// true there would double-wrap.
+  /// Match a host whose single-column card stack is wrapped in a
+  /// [CenteredFormColumn] (the vendor and project grids). Without it this card
+  /// runs edge-to-edge in the 820–1000 px band while the cards below it are
+  /// centred. The billing screens have no such grid, and Payment already
+  /// centres its whole body — passing true there would double-wrap. Harmless
+  /// under `EntityRecordColumn`, which centres the whole stack at the same
+  /// width: the inner cap is then a no-op.
   final bool matchFormColumn;
 
   /// Whether the Comments tab holds anything this card is not already showing

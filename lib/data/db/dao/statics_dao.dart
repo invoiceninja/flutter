@@ -19,6 +19,19 @@ class StaticsDao extends DatabaseAccessor<AppDatabase> with _$StaticsDaoMixin {
     return (payload: row.payload, fetchedAt: row.fetchedAt);
   }
 
+  /// The stored row's `fetched_at` alone, or null when there is no row. Enough
+  /// to tell whether the cache is present and fresh without reading the whole
+  /// payload across the database isolate.
+  Future<int?> fetchedAt() async {
+    final row =
+        await (selectOnly(statics)
+              ..addColumns([statics.fetchedAt])
+              ..where(statics.id.equals(0))
+              ..limit(1))
+            .getSingleOrNull();
+    return row?.read(statics.fetchedAt);
+  }
+
   Future<void> write({required String payload, required int fetchedAt}) =>
       // Pin the row id to 0. Drift treats an integer primary key with no
       // companion value as a ROWID alias and auto-assigns 1, 2, 3, … on each

@@ -1,5 +1,6 @@
 // Shared responsive-regression pump helper. Extracted from
-// `clients/client_detail_cards_grid_test.dart` (the original ad-hoc `_pump`)
+// `clients/client_detail_cards_grid_test.dart` (the original ad-hoc `_pump`;
+// that file is now `client_detail_profile_test.dart`)
 // so every responsive test sets up the surface, theme, and localization the
 // same way and asserts overflow consistently.
 //

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/domain/email_template_names.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 /// Generic API contract every entity-specific `*Api` implements (by extension
 /// or by composition with [ApiClient]). The shape is uniform so the sync
@@ -38,11 +39,21 @@ abstract class BaseEntityApi<TList, TItem> {
       filters: filters,
     );
     return (
-      data: parseList(result.data as Object),
+      data: traceSync(
+        'page.parse',
+        () => parseList(result.data as Object),
+        args: {'path': basePath},
+      ),
       cursorUpdatedAt: result.cursorUpdatedAt,
       cursorId: result.cursorId,
     );
   }
+
+  /// How many records match [filters] on the server — see
+  /// [ApiClient.getListTotal]. Reads nothing into the local database and
+  /// touches no sync cursor; it is a number for a label, not a fetch.
+  Future<int?> count({Map<String, String> filters = const {}}) =>
+      client.getListTotal(basePath, filters: filters);
 
   Future<TItem> get(String id) async {
     final raw = await client.getOne('$basePath/$id');

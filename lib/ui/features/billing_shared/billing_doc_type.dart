@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/company_settings.dart';
+import 'package:admin/domain/entity_type.dart';
 
 /// The five entity types that share line items, taxes, totals, contacts,
 /// designs, PDF rendering, and email — invoice / quote / credit /
@@ -81,6 +82,70 @@ enum BillingDocType {
     BillingDocType.quote ||
     BillingDocType.recurringInvoice => true,
     BillingDocType.credit || BillingDocType.purchaseOrder => false,
+  };
+
+  // ── The record screen's spec ────────────────────────────────────────
+  //
+  // What the shared record (detail) layout in `billing_shared/detail/` needs
+  // to know to be each document. `billing_doc_type_test.dart` pins every
+  // value.
+
+  /// The entity this document is: its icon in the registry, and what a visit
+  /// to it is filed under in the command palette's Recent list.
+  EntityType get entityType => switch (this) {
+    BillingDocType.invoice => EntityType.invoice,
+    BillingDocType.quote => EntityType.quote,
+    BillingDocType.credit => EntityType.credit,
+    BillingDocType.purchaseOrder => EntityType.purchaseOrder,
+    BillingDocType.recurringInvoice => EntityType.recurringInvoice,
+  };
+
+  /// The list route a record's own routes hang off — `/invoices/<id>`,
+  /// `/invoices/<id>/pdf`.
+  String get routePath => switch (this) {
+    BillingDocType.invoice => '/invoices',
+    BillingDocType.quote => '/quotes',
+    BillingDocType.credit => '/credits',
+    BillingDocType.purchaseOrder => '/purchase_orders',
+    BillingDocType.recurringInvoice => '/recurring_invoices',
+  };
+
+  /// How the standing card words a due date that is still ahead and one that
+  /// has passed; null where the date is not a deadline anyone is held to.
+  ///
+  /// Bare nouns, paired with a count by the caller ("Due: 5 Days", "Past Due:
+  /// 12 Days"), because the bundles have no plural forms and the one sentence
+  /// key that looks made for this, `days_left`, has a broken placeholder in
+  /// five locales (`:day s jours restants`). `past_due`, never `overdue` — the
+  /// French translation of `overdue` reads "unpaid".
+  ({String upcoming, String late})? get dueNoteLabelKeys => switch (this) {
+    BillingDocType.invoice => (upcoming: 'due', late: 'past_due'),
+    BillingDocType.quote => (upcoming: 'expires', late: 'expired'),
+    BillingDocType.credit ||
+    BillingDocType.purchaseOrder ||
+    BillingDocType.recurringInvoice => null,
+  };
+
+  /// What the second figure on the standing card is called, where the
+  /// document has one that is money: what is still owed on an invoice, what
+  /// is still unspent on a credit.
+  String? get balanceLabelKey => switch (this) {
+    BillingDocType.invoice => 'balance_due',
+    BillingDocType.credit => 'credit_remaining',
+    BillingDocType.quote ||
+    BillingDocType.purchaseOrder ||
+    BillingDocType.recurringInvoice => null,
+  };
+
+  /// What "already settled" is called on the standing card: paid on an
+  /// invoice, applied on a credit. Null where nothing is ever settled against
+  /// the document.
+  String? get settledLabelKey => switch (this) {
+    BillingDocType.invoice => 'paid_to_date',
+    BillingDocType.credit => 'applied',
+    BillingDocType.quote ||
+    BillingDocType.purchaseOrder ||
+    BillingDocType.recurringInvoice => null,
   };
 
   // ── The edit layout's capability spec ───────────────────────────────

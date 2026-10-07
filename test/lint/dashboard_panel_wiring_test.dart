@@ -53,16 +53,31 @@ void main() {
     for (final entry in registrars.entries) {
       final src = read(entry.value);
       for (final kind in kinds) {
-        if (entry.key == 'mobile body' && kind == 'pastDue') {
-          // The one documented exception: mobile pins past-due to the hero zone
-          // above the chart and ignores its order slot, so it is rendered
-          // directly rather than through `_trailingPanels`. Assert the pin
-          // instead of exempting the kind outright — dropping it would
+        if (kind == 'pastDue') {
+          // The one documented exception, on both bodies: past-due is the
+          // needs-attention band, pinned to the head of the page. Its order
+          // slot is ignored and only its show / hide switch counts, so it is
+          // rendered directly rather than through a `builders` map. Assert the
+          // pin instead of exempting the kind outright — dropping it would
           // otherwise be as silent as a missing builders entry.
+          expect(
+            src.contains('DashboardAttentionSlot('),
+            isTrue,
+            reason: 'the band must lead the ${entry.key}',
+          );
           expect(
             src.contains('_panelVisible(DashboardKind.pastDue)'),
             isTrue,
-            reason: 'past-due must stay pinned in the mobile hero zone',
+            reason:
+                'the band must still honour past-due\'s show / hide switch '
+                'in the ${entry.key}',
+          );
+          expect(
+            src.contains('DashboardKind.pastDue:'),
+            isFalse,
+            reason:
+                'past-due must not ALSO be a grid panel in the ${entry.key} — '
+                'it would draw the overdue list twice',
           );
           continue;
         }
@@ -75,6 +90,20 @@ void main() {
         );
       }
     }
+  });
+
+  test('figures are refetched when a change leaves the outbox', () {
+    // The dashboard's figures are server-computed and cached, so nothing in
+    // Drift moves when the user enters a payment or sends an invoice from
+    // here. The view model refetches on the falling edge of the outbox's
+    // active count — but only if the screen hands it that stream. Without it
+    // every test still passes and the band keeps showing an invoice the user
+    // just marked paid.
+    expect(
+      read(registrars['wide body']!).contains('outboxActive:'),
+      isTrue,
+      reason: 'DashboardScreen must pass the outbox signal to its view model',
+    );
   });
 
   test('empty panels are hidden through the shared builder everywhere', () {

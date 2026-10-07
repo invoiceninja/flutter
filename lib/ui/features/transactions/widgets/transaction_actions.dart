@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
@@ -7,6 +8,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart'
@@ -23,6 +25,12 @@ enum TransactionAction {
   edit,
   convert,
   unlink,
+
+  /// Quick-action strip only — see [TransactionActions.quickItemsFor]. Not in
+  /// [TransactionActions.itemsFor], so they reach neither the `⋮` menu, the
+  /// list row's menu, nor the edit screen.
+  viewPayment,
+  viewExpense,
   copyLink,
   archive,
   restore,
@@ -57,8 +65,25 @@ class TransactionActions {
     BankTransaction transaction,
     void Function(TransactionAction) onTap,
   ) {
-    final canArchive = transaction.archivedAt == null && !transaction.isDeleted;
-    final canRestore = transaction.archivedAt != null || transaction.isDeleted;
+    // Archive, restore and delete all need `edit_bank_transaction` (the
+    // permission grid's name for a transaction): the server authorizes each
+    // through `EntityPolicy::edit`, and there is no `delete_*` permission.
+    // Ungated, a view-only user was offered Restore — one tap from the
+    // record's state banner — for a mutation the server refuses.
+    //
+    // The policy also lets a transaction's *creator* change it, and the local
+    // row does not carry who that was (no `user_id` column). So a user who
+    // may create transactions is offered these as well — theirs is the
+    // commonest one they will be looking at — rather than every creator
+    // losing Archive on a transaction they entered by hand.
+    final me = context.read<Services>().auth.session.value?.currentCompany;
+    final canEdit =
+        (me?.can('edit_bank_transaction') ?? false) ||
+        (me?.can('create_bank_transaction') ?? false);
+    final canArchive =
+        canEdit && transaction.archivedAt == null && !transaction.isDeleted;
+    final canRestore =
+        canEdit && (transaction.archivedAt != null || transaction.isDeleted);
     final canConvert = transaction.isMatched;
     final canUnlink = transaction.isMatched || transaction.isConverted;
 
@@ -68,7 +93,11 @@ class TransactionActions {
         kind: TransactionAction.edit,
         onTap: () => onTap(TransactionAction.edit),
       ),
-      if (canConvert)
+      // Gated like the lifecycle actions below. The server skips a row this
+      // user may not edit and still answers 200 (`BankTransactionController
+      // ::bulk`), so ungated the app reported a conversion that never
+      // happened.
+      if (canConvert && canEdit)
         EntityActionItem(
           kind: TransactionAction.convert,
           icon: Icons.auto_fix_high_outlined,
@@ -76,7 +105,7 @@ class TransactionActions {
           enabled: true,
           onTap: () => onTap(TransactionAction.convert),
         ),
-      if (canUnlink)
+      if (canUnlink && canEdit)
         EntityActionItem(
           kind: TransactionAction.unlink,
           confirm: true,
@@ -109,9 +138,73 @@ class TransactionActions {
         context: context,
         subject: _confirmSubject(transaction),
         kind: TransactionAction.delete,
-        canDelete: !transaction.isDeleted,
+        canDelete: canEdit && !transaction.isDeleted,
         onTap: () => onTap(TransactionAction.delete),
       ),
+    ];
+  }
+
+  /// The record screen's quick-action tiles: finish a match, open what the
+  /// transaction became, or take the link apart. An unmatched transaction
+  /// gets none — matching it *is* the panel on the screen, and a tile that
+  /// only scrolled to it would be a button for looking down.
+  ///
+  /// Convert and Unlink are second renders of items [itemsFor] already built,
+  /// so Convert keeps its own dialog and Unlink its confirmation. The two
+  /// "open" tiles exist only here (see [TransactionAction.viewPayment]) and
+  /// only navigate.
+  static List<EntityQuickAction<TransactionAction>> quickItemsFor(
+    BuildContext context,
+    BankTransaction transaction,
+    void Function(TransactionAction) onTap,
+  ) {
+    // A deleted transaction is read-only, and an unsynced one would answer
+    // every tile with "sync first" — the banner says that once instead.
+    if (transaction.isDeleted || transaction.id.startsWith('tmp_')) {
+      return const [];
+    }
+    final items = itemsFor(context, transaction, onTap);
+    EntityQuickAction<TransactionAction>? pick(
+      TransactionAction kind,
+      String shortLabel,
+    ) {
+      final item = findActionItem<TransactionAction>(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction(item: item, shortLabel: shortLabel);
+    }
+
+    final me = context.read<Services>().auth.session.value?.currentCompany;
+    bool canOpen(EntityType type, String permission) =>
+        (me?.moduleEnabled(type) ?? false) && (me?.can(permission) ?? false);
+    return [
+      ?pick(TransactionAction.convert, context.tr('convert')),
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: TransactionAction.viewPayment,
+          icon: Icons.payments_outlined,
+          label: context.tr('view_payment'),
+          enabled: canOpen(EntityType.payment, 'view_payment'),
+          // Navigation only — it persists nothing.
+          isNavigationOnly: true,
+          onTap: () => onTap(TransactionAction.viewPayment),
+        ),
+        shortLabel: context.tr('payment'),
+        applies: transaction.isDeposit && transaction.paymentId.isNotEmpty,
+      ),
+      EntityQuickAction(
+        item: EntityActionItem(
+          kind: TransactionAction.viewExpense,
+          icon: Icons.receipt_outlined,
+          label: context.tr('view_expense_label'),
+          enabled: canOpen(EntityType.expense, 'view_expense'),
+          isNavigationOnly: true,
+          onTap: () => onTap(TransactionAction.viewExpense),
+        ),
+        shortLabel: context.tr('expense'),
+        applies:
+            transaction.isWithdrawal && transaction.linkedExpenseIds.isNotEmpty,
+      ),
+      ?pick(TransactionAction.unlink, context.tr('unlink')),
     ];
   }
 
@@ -153,6 +246,14 @@ class TransactionActions {
             goEntityRecord(context, EntityType.transaction, nextId);
           }
         }
+      case TransactionAction.viewPayment:
+        // The payment's own record — never an edit screen.
+        if (transaction.paymentId.isEmpty) return;
+        goEntityFullDetail(context, '/payments', transaction.paymentId);
+      case TransactionAction.viewExpense:
+        final expenseIds = transaction.linkedExpenseIds;
+        if (expenseIds.isEmpty) return;
+        goEntityFullDetail(context, '/expenses', expenseIds.first);
       case TransactionAction.unlink:
         await services.bankTransactions.unlinkTransactions(
           companyId: companyId,

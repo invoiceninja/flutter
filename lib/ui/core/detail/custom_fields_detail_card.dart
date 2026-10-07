@@ -84,9 +84,8 @@ class CustomFieldsDetailCard extends StatelessWidget {
   }
 }
 
-/// Label / value row, mirroring the per-screen `_Row` helpers
-/// (`project_detail_cards_grid.dart:152`) so the card reads identically to the
-/// other detail cards.
+/// Label / value row, so the card reads identically to the other detail
+/// cards.
 class _Row extends StatelessWidget {
   const _Row({required this.label, required this.value});
 

@@ -100,9 +100,8 @@ void main() {
       },
     );
 
-    testWidgets('readOnly mode hides the upload button and per-row menus', (
-      tester,
-    ) async {
+    testWidgets('readOnly mode hides upload and the mutating row actions, '
+        'and keeps View', (tester) async {
       await _pump(
         tester,
         entityId: 'real_123',
@@ -112,10 +111,16 @@ void main() {
       // No upload affordance anywhere.
       expect(find.byType(FileDropZone), findsNothing);
       expect(find.byIcon(Icons.upload_file_outlined), findsNothing);
-      // No actions menu on the row.
-      expect(find.byWidgetPredicate((w) => w is PopupMenuButton), findsNothing);
       // The row itself still renders so users can see what's attached.
       expect(find.text('invoice.pdf'), findsOneWidget);
+
+      // And can still open it. Read-only used to drop the whole menu, which
+      // left a document that was there to be read with no way to read it.
+      await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('View'), findsOneWidget);
+      expect(find.text('Delete'), findsNothing);
+      expect(find.text('Set Private'), findsNothing);
     });
 
     testWidgets(

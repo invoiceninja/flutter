@@ -1101,8 +1101,10 @@ mixin _$CompanyEnvelopeApi {
 // filtered to `updated_at >= <the delta watermark>` — v2 used to drop it on
 // the floor, which is why a long session showed days-old data
 // (invoiceninja/flutter#170). Applied by `refreshDeltaAppliers` on a DELTA
-// refresh only. See `docs/sync.md` § The refresh delta tops up the
-// browsable tables.
+// refresh only; a full snapshot is parsed without them
+// (`LoginResponseApi.fromFullSnapshot`). See `docs/sync.md` § The refresh
+// delta tops up the browsable tables. A new field here must also join
+// `kBrowsableDeltaJsonKeys`.
 //
 // Every one of these MUST parse through `tolerantList`: they sit on the
 // same envelope as the session and the reference bundles, so one malformed
@@ -1725,8 +1727,10 @@ class _CompanyEnvelopeApi implements CompanyEnvelopeApi {
 // filtered to `updated_at >= <the delta watermark>` — v2 used to drop it on
 // the floor, which is why a long session showed days-old data
 // (invoiceninja/flutter#170). Applied by `refreshDeltaAppliers` on a DELTA
-// refresh only. See `docs/sync.md` § The refresh delta tops up the
-// browsable tables.
+// refresh only; a full snapshot is parsed without them
+// (`LoginResponseApi.fromFullSnapshot`). See `docs/sync.md` § The refresh
+// delta tops up the browsable tables. A new field here must also join
+// `kBrowsableDeltaJsonKeys`.
 //
 // Every one of these MUST parse through `tolerantList`: they sit on the
 // same envelope as the session and the reference bundles, so one malformed
@@ -1741,8 +1745,10 @@ class _CompanyEnvelopeApi implements CompanyEnvelopeApi {
 // filtered to `updated_at >= <the delta watermark>` — v2 used to drop it on
 // the floor, which is why a long session showed days-old data
 // (invoiceninja/flutter#170). Applied by `refreshDeltaAppliers` on a DELTA
-// refresh only. See `docs/sync.md` § The refresh delta tops up the
-// browsable tables.
+// refresh only; a full snapshot is parsed without them
+// (`LoginResponseApi.fromFullSnapshot`). See `docs/sync.md` § The refresh
+// delta tops up the browsable tables. A new field here must also join
+// `kBrowsableDeltaJsonKeys`.
 //
 // Every one of these MUST parse through `tolerantList`: they sit on the
 // same envelope as the session and the reference bundles, so one malformed

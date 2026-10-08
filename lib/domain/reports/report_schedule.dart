@@ -91,6 +91,12 @@ String? _serverReportName(String reportIdentifier) {
 bool isReportSchedulable(String reportIdentifier) =>
     _serverReportName(reportIdentifier) != null;
 
+/// The `report_name` a schedule of [reportIdentifier] is stored under, or
+/// null for a report that cannot be scheduled. What the Reports screen
+/// matches existing schedules against, to say a report already has one.
+String? scheduledReportName(String reportIdentifier) =>
+    _serverReportName(reportIdentifier);
+
 /// The `report_name` to store; falls back to `activity` defensively (callers
 /// should gate on [isReportSchedulable], so the fallback is never reached).
 String _scheduleReportName(String reportIdentifier) =>

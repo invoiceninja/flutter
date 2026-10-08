@@ -19,6 +19,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
+import 'package:admin/ui/features/reports/helpers/report_access.dart';
+import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
@@ -89,6 +91,10 @@ EntityType? entityTypeForSearchGroup(String group) {
       return null; // settings + anything unknown → use server path
   }
 }
+
+/// The group of the palette's own report hits. Also the localization key of
+/// its heading ("Reports").
+const String kReportsSearchGroup = 'reports';
 
 /// Groups whose row describes a **contact**, not the record it routes to.
 ///
@@ -308,6 +314,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       // see [_localSettingsHits]. Everything else routes by entity group.
       final merged = [
         ...r.where((hit) => !hit.isSettings),
+        ..._localReportHits(q),
         ..._localSettingsHits(q),
       ];
       setState(() {
@@ -318,11 +325,37 @@ class _CommandPaletteState extends State<_CommandPalette> {
       _revealSelected();
     } catch (_) {
       if (!mounted || seq != _reqSeq) return;
+      // The server could not be asked (offline, most often). What the app
+      // can answer by itself it still does — a report or a settings page is
+      // found in its own catalog, not on the server.
       setState(() {
-        _results = const [];
+        _results = [..._localReportHits(q), ..._localSettingsHits(q)];
+        _selected = 0;
         _loading = false;
       });
     }
+  }
+
+  /// Reports, by name — so "aging" or "invoices" typed here opens the report
+  /// without a trip through the gallery. The server's search knows nothing
+  /// of them. Filtered by [availableReports], the same rule the gallery and
+  /// the route apply, so a report this user may not open is not offered.
+  List<SearchResult> _localReportHits(String query) {
+    final needle = query.trim().toLowerCase();
+    if (needle.isEmpty) return const [];
+    final l10n = Localization.of(context);
+    if (l10n == null) return const [];
+    final company = context.read<Services>().auth.session.value?.currentCompany;
+    return [
+      for (final definition in reportsInGalleryOrder(availableReports(company)))
+        if (l10n.lookup(definition.labelKey).toLowerCase().contains(needle))
+          SearchResult(
+            group: kReportsSearchGroup,
+            name: l10n.lookup(definition.labelKey),
+            id: '',
+            path: reportRoutePath(definition.identifier),
+          ),
+    ];
   }
 
   /// Settings hits, served from the app's own catalog instead of the server's.
@@ -720,6 +753,8 @@ class _CommandPaletteState extends State<_CommandPalette> {
                     final type = entityTypeForSearchGroup(r.group);
                     final icon = r.group == kDeepLinkSearchGroup
                         ? Icons.link
+                        : r.group == kReportsSearchGroup
+                        ? Icons.bar_chart_outlined
                         : (type != null
                                   ? registry[type]?.effectiveOutlinedIcon
                                   : null) ??

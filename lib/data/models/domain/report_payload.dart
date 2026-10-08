@@ -8,6 +8,19 @@ import 'package:admin/data/models/value/date.dart';
 /// is `last365_days` (NOT `last365`), and there is **no** `last90` case — an
 /// unrecognized token silently widens to all-time, so we only expose tokens the
 /// server actually honors. The dashboard keeps its own `DashboardDatePreset`.
+const String _kProfitLoss = 'profitloss';
+
+/// Reports that must be sent `is_income_billed` whatever its value.
+///
+/// A flag that is false used to be left off the wire, which is fine wherever
+/// the server defaults it and fatal where it does not. `ProfitLossRequest`
+/// declares both `is_income_billed` and `include_tax` as `required|bool`, so
+/// the profit-and-loss report answered 422 unless both switches happened to
+/// be on; and `TaxPeriodReport::setAccountingType` reads
+/// `$this->input['is_income_billed']` with no guard, so a missing key killed
+/// the job and the export polled until it timed out.
+const Set<String> _kRequiresIncomeBilled = {_kProfitLoss, 'tax_period_report'};
+
 enum ReportDatePreset {
   allTime,
   last7,
@@ -127,6 +140,22 @@ class ReportPayload {
   /// this; nothing else should.
   final bool sendEmail;
 
+  /// This request reduced to what changes the rows that come back.
+  ///
+  /// Dropped: the template (it shapes a PDF, not the data), the two
+  /// email-attachment switches, `send_email`, and the two profit-and-loss
+  /// flags the server never reads. Two payloads with the same projection are
+  /// the same report — which is what decides whether a result on screen is
+  /// still current, and which cached result answers a request.
+  ReportPayload get forPreview => copyWith(
+    templateId: () => null,
+    documentEmailAttachment: false,
+    pdfEmailAttachment: false,
+    includeTax: false,
+    isExpenseBilled: false,
+    sendEmail: false,
+  );
+
   ReportPayload copyWith({
     ReportDatePreset? datePreset,
     Date? Function()? startDate,
@@ -213,10 +242,18 @@ class ReportPayload {
       if (documentEmailAttachment) 'document_email_attachment': true,
       if (pdfEmailAttachment) 'pdf_email_attachment': true,
       if (includeDeleted) 'include_deleted': true,
-      if (includeTax) 'include_tax': true,
-      if (isExpenseBilled) 'is_expense_billed': true,
-      if (isIncomeBilled) 'is_income_billed': true,
-      if (sendEmail) 'send_email': true,
+      // Sent whenever the report requires the key, not only when it is true.
+      if (isIncomeBilled || _kRequiresIncomeBilled.contains(reportIdentifier))
+        'is_income_billed': isIncomeBilled,
+      if (includeTax || reportIdentifier == _kProfitLoss)
+        'include_tax': includeTax,
+      // Stated on every request, false included. The server defaults a
+      // *missing* `send_email` to true (`GenericReportRequest::
+      // prepareForValidation`), so a request that left it out to mean "no"
+      // was emailed to the user instead of answered — which made opening a
+      // file-only report send it to their inbox and wait for a file that
+      // was never coming.
+      'send_email': sendEmail,
       if (reportKeys.isNotEmpty) 'report_keys': reportKeys,
       if (groupBy != null && groupBy.isNotEmpty) 'group_by': groupBy,
     };

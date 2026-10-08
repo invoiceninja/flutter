@@ -69,6 +69,41 @@ class DashboardCacheDao extends DatabaseAccessor<AppDatabase>
     dashboardCache,
   )..where((c) => c.companyId.equals(companyId))).go();
 
+  /// The `filter_hash` of every row of one `kind`, most recently fetched
+  /// first. For a kind that keeps a bounded history rather than one row per
+  /// fixed key.
+  Future<List<String>> hashesNewestFirst({
+    required String companyId,
+    required String kind,
+  }) async {
+    final q = selectOnly(dashboardCache)
+      ..addColumns([dashboardCache.filterHash])
+      ..where(
+        dashboardCache.companyId.equals(companyId) &
+            dashboardCache.kind.equals(kind),
+      )
+      ..orderBy([OrderingTerm.desc(dashboardCache.fetchedAt)]);
+    final rows = await q.get();
+    return [for (final row in rows) row.read(dashboardCache.filterHash)!];
+  }
+
+  /// Delete the rows of one `kind` whose `filter_hash` is in [hashes].
+  Future<int> deleteHashes({
+    required String companyId,
+    required String kind,
+    required Iterable<String> hashes,
+  }) {
+    final list = hashes.toList();
+    if (list.isEmpty) return Future.value(0);
+    return (delete(dashboardCache)..where(
+          (c) =>
+              c.companyId.equals(companyId) &
+              c.kind.equals(kind) &
+              c.filterHash.isIn(list),
+        ))
+        .go();
+  }
+
   /// Delete every cached row for one `kind` (all filter-hashes). Called when
   /// a configured dashboard card is removed/reconfigured so its per-card
   /// rows don't accumulate across every date-range/currency combination.

@@ -9,17 +9,27 @@ import 'package:admin/data/db/dao/nav_state_dao.dart';
 import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
+import 'package:admin/data/models/value/dashboard_comparison.dart';
+import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
+import 'package:admin/domain/reports/report_document.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_registry.dart';
+import 'package:admin/domain/reports/report_row_currency.dart';
+import 'package:admin/domain/reports/report_row_records.dart';
+import 'package:admin/ui/features/reports/helpers/report_range.dart';
 
 final _log = Logger('ReportsViewModel');
 
 enum ReportRunStatus { idle, loading, ready, error }
+
+/// How a measure over time is drawn.
+enum ReportTimeChartStyle { columns, line }
 
 class ReportRunState {
   const ReportRunState({required this.status, this.preview, this.error});
@@ -68,12 +78,22 @@ class ReportsViewModel extends ChangeNotifier {
     String initialReport = kDefaultReportIdentifier,
     this.navStateDao,
     this.companyId,
+    this.companyCurrencyId,
+    this.fetchRowIds = false,
+    this.autoRun = false,
+    this.canRun,
+    Stream<bool>? online,
     DateTime Function()? now,
     Duration persistDebounce = const Duration(milliseconds: 600),
+    this.autoRunDebounce = const Duration(milliseconds: 400),
+    this.freshFor = const Duration(minutes: 5),
   }) : _reportIdentifier = initialReport,
-       _payload = const ReportPayload(),
+       _payload = _openingPayload(initialReport),
        _now = now ?? DateTime.now,
-       _persistDebounce = persistDebounce {
+       _persistDebounce = persistDebounce,
+       // Nothing to wait for when no loader was given — and the run must not
+       // take an extra turn of the event loop to find that out.
+       _companyCurrencyResolved = companyCurrencyId == null {
     // Restore the last report + filters + view state for this company
     // (CLAUDE.md: app restart restores where the user left off). No-op when
     // persistence isn't wired (tests). Run is gated on [_hydrated] so a
@@ -84,9 +104,68 @@ class ReportsViewModel extends ChangeNotifier {
       _hydrated = true;
       _hydration = Future.value();
     }
+    _applyOpeningView();
     // Persist on every state change (debounced, hydration-gated). The
     // debounce coalesces the flurry; snapshot covers only durable fields.
     addListener(_schedulePersist);
+    _onlineSubscription = online?.listen(_onOnlineChanged);
+  }
+
+  /// Whether the report runs itself: when it is opened or restored, and
+  /// whenever a change is made that alters the rows that come back. The
+  /// screen turns it on; off, nothing is asked of the server until
+  /// [runReport] is called.
+  ///
+  /// The guard rails are what make it affordable — the report routes are
+  /// throttled to twenty requests a minute and a job the app has stopped
+  /// waiting for still runs to completion on the server:
+  /// * a result fetched less than [freshFor] ago is shown and **not** re-run;
+  /// * changes are debounced ([autoRunDebounce]) and a newer run strands an
+  ///   older one;
+  /// * nothing runs while offline or while [canRun] says no (the Pro gate),
+  ///   and the run it owes is made when that changes.
+  final bool autoRun;
+
+  /// Whether the server may be asked at all — false behind the hosted plan
+  /// gate. Read at the moment a run would start. Null allows.
+  final bool Function()? canRun;
+  final Duration autoRunDebounce;
+
+  /// How long a result counts as current — see [autoRun].
+  final Duration freshFor;
+
+  StreamSubscription<bool>? _onlineSubscription;
+  bool _isOnline = true;
+
+  /// Whether the device is believed online. True until told otherwise.
+  bool get isOnline => _isOnline;
+
+  Timer? _autoRunTimer;
+
+  /// A run [autoRun] wanted and could not make (offline, or gated). Made as
+  /// soon as it can be.
+  bool _autoRunOwed = false;
+
+  /// When the result on screen was fetched from the server — now for a live
+  /// run, earlier for one read back from disk. Null with no result.
+  DateTime? _resultFetchedAt;
+  DateTime? get resultFetchedAt => _resultFetchedAt;
+
+  /// The range a report opens on the first time.
+  static ReportPayload _openingPayload(String reportIdentifier) =>
+      ReportPayload(
+        datePreset: reportDefinitionFor(reportIdentifier).defaultRange,
+      );
+
+  /// Group the current report the way it opens the first time
+  /// ([ReportDefinition.openingView]). Only ever applied to a report with no
+  /// remembered state of its own.
+  void _applyOpeningView() {
+    final view = definition.openingView;
+    if (view == null) return;
+    _group = view.group;
+    _subgroup = view.subgroup;
+    _chartColumn = view.measure;
   }
 
   final ReportsRepository repo;
@@ -97,6 +176,37 @@ class ReportsViewModel extends ChangeNotifier {
   /// blob — the exact mechanism list ViewModels use.
   final NavStateDao? navStateDao;
   final String? companyId;
+
+  /// Resolves the company's own currency (a statics id), awaited once before
+  /// the first run. Two things hang off it, and a report is wrong without
+  /// either: the server formats every number with *that* currency's
+  /// separators and precision whatever currency the row is in
+  /// (`BaseExport::formatFloatsForCsv`), so it is what the numbers are parsed
+  /// with; and it is the currency of a row on a report that names none.
+  ///
+  /// A loader rather than a value because the screen learns it from an
+  /// async-built `Formatter`. Null (tests, or before the company is known)
+  /// falls back to the format-agnostic parse and leaves such rows without a
+  /// currency.
+  final Future<String?> Function()? companyCurrencyId;
+  String? _companyCurrencyId;
+  bool _companyCurrencyResolved;
+
+  /// Whether a run also asks the server for each row's own record id
+  /// ([ReportDefinition.rowIdKey]) — what makes a row a link to its record
+  /// and lets a line-item report count a document once. The screen turns it
+  /// on.
+  ///
+  /// It costs a request shape, which is why it is a switch. A non-empty
+  /// `report_keys` *pins* the column set, so the id can only be added to a
+  /// set the server has already described: the first run of a report is a
+  /// plain one, and a second, silent run follows it with the id appended
+  /// (see [_fetchRowIds]). After that the set is remembered and every run
+  /// carries the id — until [_kServerColumnsMaxAge] passes and a plain run
+  /// re-learns it, so a column the server adds later is not locked out for
+  /// good.
+  final bool fetchRowIds;
+
   final DateTime Function() _now;
   final Duration _persistDebounce;
 
@@ -151,12 +261,233 @@ class ReportsViewModel extends ChangeNotifier {
   bool _lastRunIncludeDateColumn = false;
 
   bool get isParamDirty =>
-      _payload != _lastRunPayload ||
+      _payload.forPreview != _lastRunPayload?.forPreview ||
       _includeDateColumn != _lastRunIncludeDateColumn;
 
   // ─── Result ───
   ReportRunState _run = ReportRunState.idle();
   ReportRunState get run => _run;
+
+  /// The report as a document, for one the server only writes as a file
+  /// ([ReportDefinition.readsAsDocument]). Null until its file has been
+  /// fetched and read.
+  ReportDocument? _document;
+  ReportDocument? get document => _document;
+
+  /// The request the server last answered by email rather than with a file
+  /// (`ReportErrorKind.emailedInstead`); see [_showOrRun].
+  ReportPayload? _emailedFor;
+
+  /// The file came back and could not be read as a document — a format the
+  /// reader does not handle, or a layout it does not recognise. The screen
+  /// then offers the download, which always works.
+  bool _documentUnreadable = false;
+  bool get documentUnreadable => _documentUnreadable;
+
+  // ─── Saved views ───
+
+  String? _viewId;
+
+  /// The saved view this report was last opened from or saved as; null when
+  /// it is nobody's. Remembered with the report, so the header can go on
+  /// saying which view this is — and that it has since been changed.
+  String? get viewId => _viewId;
+
+  /// Keys of a report's remembered state that are not part of a *view* of
+  /// it: which view it is, and chrome that is the device's business.
+  static const _kNotViewState = {'viewId', 'panelCollapsed', 'columnWidths'};
+
+  /// The report as it stands, as a saved view holds it.
+  Map<String, dynamic> reportViewState() =>
+      _reportSnapshot()..removeWhere((key, _) => _kNotViewState.contains(key));
+
+  /// Put a saved view's [state] on screen and mark the report as showing
+  /// [viewId]. Runs the report when the view asks for different rows.
+  void applyReportView(String viewId, Map<String, dynamic> state) {
+    _userTouched = true;
+    _runEpoch++;
+    final widths = _columnWidths;
+    _resetReportState();
+    _applyReportSnapshot(state);
+    // Widths are how this device shows the columns, not part of the view.
+    _columnWidths = widths;
+    _viewId = viewId;
+    _syncRanking();
+    _invalidateMemo();
+    // (Every notification schedules a write of the remembered state.)
+    notifyListeners();
+    if (autoRun) unawaited(_showOrRun());
+  }
+
+  /// Say which saved view the report now is — after saving it as one — or,
+  /// with null, that it is no longer any.
+  void setViewId(String? viewId) {
+    if (viewId == _viewId) return;
+    _userTouched = true;
+    _viewId = viewId;
+    notifyListeners();
+  }
+
+  // ─── Compare to the previous period ───
+
+  bool _compare = false;
+
+  /// Whether the report is being read against the period before it.
+  bool get compare => _compare;
+
+  ReportPreview? _comparePreview;
+  DashboardComparison? _compareWindow;
+  int _compareEpoch = 0;
+  int? _compareMemoKey;
+  ReportView? _compareMemoView;
+
+  /// The month the company's financial year starts in (1–12). Set by the
+  /// host from the company's settings; it decides what "the year before
+  /// this year" is. A change re-reads the comparison.
+  int get firstMonthOfYear => _firstMonthOfYear;
+  int _firstMonthOfYear = 1;
+  set firstMonthOfYear(int value) {
+    if (value == _firstMonthOfYear) return;
+    _firstMonthOfYear = value;
+    // The host sets this from `build`; a run notifies, so it waits.
+    if (_compare && _run.preview != null) {
+      scheduleMicrotask(() {
+        if (!_disposed) unawaited(_runCompare());
+      });
+    }
+  }
+
+  /// The windows a comparison of [payload] sets against each other, or null
+  /// when there is no period before it to compare with — "All time", or a
+  /// custom range that is not yet two dates.
+  ///
+  /// The dashboard's rule, not a second one: a period still in progress is
+  /// compared with the same elapsed span of the one before, so the 8th of
+  /// October sets this year to date against last year to the 8th of
+  /// October, not against the whole of last year.
+  DashboardComparison? comparisonFor(ReportPayload payload) {
+    if (payload.datePreset == ReportDatePreset.allTime) return null;
+    if (payload.datePreset == ReportDatePreset.custom &&
+        (payload.startDate == null || payload.endDate == null)) {
+      return null;
+    }
+    final now = _now();
+    return DashboardFilter(
+      range: reportRangeAsPickerValue(payload),
+      firstMonthOfYear: _firstMonthOfYear,
+    ).comparison(today: Date(now.year, now.month, now.day));
+  }
+
+  /// The bucket of the previous window that stands where [periodKey] stands
+  /// in the current one — the third month of last year for the third month
+  /// of this — or null when the earlier window has no such bucket. At the
+  /// granularity the report is grouped by.
+  String? previousPeriodOf(String periodKey) {
+    final window = compareWindow;
+    if (window == null) return null;
+    final ordinal =
+        periodSpan(window.currentStart.toIso(), periodKey).length - 1;
+    if (ordinal < 0) return null;
+    final earlier = periodSpan(
+      window.previousStart.toIso(),
+      window.previousEnd.toIso(),
+    );
+    return ordinal < earlier.length ? earlier[ordinal] : null;
+  }
+
+  /// Whether this report, as it stands, has a previous period to be read
+  /// against: it honours a date range and the range is not open-ended.
+  bool get canCompare =>
+      definition.supportsPreview &&
+      definition.honoursDateRange &&
+      comparisonFor(_payload) != null;
+
+  /// The window the figures on screen are being compared with; null until
+  /// the comparison has been fetched.
+  DashboardComparison? get compareWindow =>
+      _comparePreview == null ? null : _compareWindow;
+
+  void setCompare(bool value) {
+    if (value == _compare) return;
+    _compare = value;
+    if (!value) {
+      _compareEpoch++;
+      _comparePreview = null;
+      _compareWindow = null;
+      _compareMemoKey = null;
+      _compareMemoView = null;
+    }
+    notifyListeners();
+    if (value && _run.preview != null) unawaited(_runCompare());
+  }
+
+  /// Fetch the same report for the period before. A second, quieter run: it
+  /// draws no spinner and reports no error — a comparison that could not be
+  /// had is simply not shown, and the report itself is unaffected.
+  Future<void> _runCompare() async {
+    final epoch = ++_compareEpoch;
+    final window = _compare && canCompare ? comparisonFor(_payload) : null;
+    if (window == null || !_mayRun) {
+      if (_comparePreview != null) {
+        _comparePreview = null;
+        _compareWindow = null;
+        _compareMemoKey = null;
+        _compareMemoView = null;
+        notifyListeners();
+      }
+      return;
+    }
+    final report = _reportIdentifier;
+    try {
+      final raw = await repo.runPreview(
+        reportIdentifier: report,
+        endpoint: definition.endpoint,
+        payload: _payload.copyWith(
+          datePreset: ReportDatePreset.custom,
+          startDate: () => window.previousStart,
+          endDate: () => window.previousEnd,
+        ),
+        numberStyle: _numberStyle,
+        companyId: companyId,
+        // The same columns the result on screen was asked for, so the two
+        // can be cut the same way.
+        reportKeys: _previewReportKeys(),
+        isCancelled: () => _disposed || epoch != _compareEpoch,
+      );
+      if (_disposed || epoch != _compareEpoch || report != _reportIdentifier) {
+        return;
+      }
+      _comparePreview = _augmentPreview(raw);
+      _compareWindow = window;
+      _compareMemoKey = null;
+      _compareMemoView = null;
+      notifyListeners();
+    } on ReportError catch (e) {
+      if (_disposed || epoch != _compareEpoch) return;
+      if (e.kind != ReportErrorKind.cancelled) {
+        _log.fine('Comparison run failed: ${e.kind}');
+      }
+      _comparePreview = null;
+      _compareWindow = null;
+      notifyListeners();
+    } catch (e, st) {
+      if (_disposed || epoch != _compareEpoch) return;
+      _log.warning('Unhandled comparison failure', e, st);
+      _comparePreview = null;
+      _compareWindow = null;
+      notifyListeners();
+    }
+  }
+
+  /// Whether there is anything of this report on screen to keep while it is
+  /// refreshed, or to describe as "from an hour ago" when a refresh fails.
+  bool get hasResult => _run.preview != null || _document != null;
+
+  /// Whether what is on screen answers the request as it now stands — the
+  /// payload has not changed since it was fetched. A document that could
+  /// not be read counts: fetching the same file again reads no better.
+  bool get hasResultForRequest =>
+      (hasResult || _documentUnreadable) && !isParamDirty;
 
   String? _activePollingHash; // for "Keep waiting?" continuation
 
@@ -213,10 +544,60 @@ class ReportsViewModel extends ChangeNotifier {
   /// offer it back.
   List<String> _serverColumnIds = const [];
 
+  /// When [_serverColumnIds] was last learned from a **plain** run — one that
+  /// sent no `report_keys`, so the answer is the server's own current set and
+  /// not an echo of what was asked for. Milliseconds since the epoch; 0 for
+  /// never.
+  int _serverColumnsLearnedAt = 0;
+
+  /// How long a learned column set is trusted before a plain run re-learns
+  /// it. Only matters while runs are pinning the set ([fetchRowIds]).
+  static const Duration _kServerColumnsMaxAge = Duration(days: 7);
+
   String? _sortField;
   bool _sortAscending = true;
+
+  /// Whether the sort in force is the ranking a category grouping opens
+  /// with ([_syncRanking]) rather than one the reader chose. Persisted with
+  /// the sort: an implicit ranking that came back from disk looking like a
+  /// choice would then survive a switch to "by month", and list the months
+  /// largest first.
+  bool _sortIsRanking = false;
   String? get sortField => _sortField;
   bool get sortAscending => _sortAscending;
+
+  /// Further sort keys behind [sortField] — see [toggleSort].
+  List<ReportSort> _thenBy = const [];
+  List<ReportSort> get thenBy => _thenBy;
+
+  /// The row search. Not remembered between sessions: a search is something
+  /// typed to find a row, not a setting of the report.
+  String _search = '';
+  String get search => _search;
+
+  /// The currency the figures are read in, when the reader chose one. Null
+  /// lets the view pick (`resolveReportCurrency`).
+  String? _currencyId;
+  String? get currencyId => _currencyId;
+
+  /// Column widths the reader dragged, by column identifier.
+  Map<String, double> _columnWidths = const {};
+  Map<String, double> get columnWidths => _columnWidths;
+
+  /// Whether a time series is drawn as a running total.
+  bool _cumulative = false;
+  bool get cumulative => _cumulative;
+
+  /// How a time series is drawn; null lets the chart choose by how many
+  /// periods it has.
+  ReportTimeChartStyle? _timeChartStyle;
+  ReportTimeChartStyle? get timeChartStyle => _timeChartStyle;
+
+  /// The groups open in the table (`ReportTableGroupLine.id`). Not
+  /// remembered: which groups were open is a place in the page, not a
+  /// setting.
+  Set<String> _expandedGroups = const {};
+  Set<String> get expandedGroups => _expandedGroups;
 
   String? _group;
   String? get group => _group;
@@ -274,6 +655,7 @@ class ReportsViewModel extends ChangeNotifier {
         case ReportFilterField.clientsMulti:
           changed = (_payload.clients ?? '') != defaultStr('clients');
         case ReportFilterField.clientSingle:
+        case ReportFilterField.clientIdsMulti:
           changed = (_payload.clientId ?? '') != defaultStr('client_id');
         case ReportFilterField.vendorsMulti:
           changed = (_payload.vendors ?? '') != defaultStr('vendors');
@@ -300,11 +682,6 @@ class ReportsViewModel extends ChangeNotifier {
               defaultBool('pdf_email_attachment');
         case ReportFilterField.includeDeleted:
           changed = _payload.includeDeleted != defaultBool('include_deleted');
-        case ReportFilterField.includeTax:
-          changed = _payload.includeTax != defaultBool('include_tax');
-        case ReportFilterField.isExpenseBilled:
-          changed =
-              _payload.isExpenseBilled != defaultBool('is_expense_billed');
         case ReportFilterField.isIncomeBilled:
           changed = _payload.isIncomeBilled != defaultBool('is_income_billed');
       }
@@ -361,8 +738,11 @@ class ReportsViewModel extends ChangeNotifier {
       visibleColumnIds: _visibleColumnIds,
       columnOrder: _columnOrder,
       columnFilters: _columnFilters,
+      search: _search,
       sortField: _sortField,
       sortAscending: _sortAscending,
+      thenBy: _thenBy,
+      currencyId: _currencyId,
       group: _group,
       subgroup: _subgroup,
       periodColumn: _periodColumn,
@@ -398,6 +778,54 @@ class ReportsViewModel extends ChangeNotifier {
     );
     _memoKey = key;
     return _memoView!;
+  }
+
+  /// The previous period cut exactly as [buildView] cuts the current one —
+  /// same columns, filters, search, grouping and granularity — or null when
+  /// there is no comparison on screen. A drill is not carried over: it names
+  /// a bucket of *this* period.
+  ReportView? buildCompareView({
+    String? companyCurrencyId,
+    int firstMonthOfYear = 1,
+    int firstDayOfWeek = 0,
+  }) {
+    final preview = _comparePreview;
+    if (preview == null) return null;
+    final ui = ReportUiState(
+      visibleColumnIds: _visibleColumnIds,
+      columnOrder: _columnOrder,
+      columnFilters: _columnFilters,
+      search: _search,
+      sortField: _sortField,
+      sortAscending: _sortAscending,
+      thenBy: _thenBy,
+      currencyId: _currencyId,
+      group: _group,
+      subgroup: _subgroup,
+      periodColumn: _periodColumn,
+    );
+    final key = Object.hash(
+      identityHashCode(preview),
+      ui.hashCode,
+      companyCurrencyId,
+      firstMonthOfYear,
+      firstDayOfWeek,
+    );
+    if (_compareMemoKey == key && _compareMemoView != null) {
+      return _compareMemoView;
+    }
+    _compareMemoView =
+        ReportEngine(
+          firstMonthOfYear: firstMonthOfYear,
+          firstDayOfWeek: firstDayOfWeek,
+        ).compute(
+          preview: preview,
+          ui: ui,
+          exchangeRates: const {},
+          companyCurrencyId: companyCurrencyId,
+        );
+    _compareMemoKey = key;
+    return _compareMemoView;
   }
 
   /// The contiguous bucket keys a date-grouped chart should plot, or
@@ -436,6 +864,38 @@ class ReportsViewModel extends ChangeNotifier {
     return span;
   }
 
+  /// Every period between two bucket starts at the granularity in force —
+  /// what a chart's time axis is filled with, so a month nothing happened in
+  /// is drawn as a zero rather than left out. Empty when the granularity is
+  /// not declared, or the span is too long to draw (see
+  /// [ReportEngine.dateBucketSpan]); the chart then plots the buckets it has.
+  ///
+  /// Here rather than in the chart because the span depends on the engine's
+  /// fiscal-year and week-start configuration, which only this class holds.
+  List<String> periodSpan(String first, String last) {
+    final subgroup =
+        _subgroup ?? (isSplitByPeriod ? ReportSubgroup.month : null);
+    if (subgroup == null) return const [];
+    return _engine.dateBucketSpan(first, last, subgroup);
+  }
+
+  /// Which colour each group wears in a chart of groups over time — the
+  /// chart model's memory (`ReportChartModels.build`), kept here so it
+  /// outlives a rebuild. A group keeps its colour while the reader narrows
+  /// and widens the filters; it is forgotten with the grouping.
+  final Map<String, int> seriesSlots = {};
+
+  /// The series the reader has switched off in the chart, by group key.
+  Set<String> _hiddenSeries = const {};
+  Set<String> get hiddenSeries => _hiddenSeries;
+
+  void toggleSeries(String key) {
+    final next = {..._hiddenSeries};
+    if (!next.remove(key)) next.add(key);
+    _hiddenSeries = Set.unmodifiable(next);
+    notifyListeners();
+  }
+
   void _invalidateMemo() {
     _memoKey = null;
     _memoView = null;
@@ -472,8 +932,25 @@ class ReportsViewModel extends ChangeNotifier {
     }
   }
 
+  /// How many reports' own state is remembered besides the current one.
+  /// The blob this lives in is shared with every list screen and decoded by
+  /// each of them on every write, so it is kept small.
+  static const int _kRememberedReports = 8;
+
+  /// What is written to disk: the current report's state at the top level —
+  /// the shape every earlier build wrote and reads, so a rolled-back build
+  /// still finds its place — plus, beside it, the state of the reports
+  /// visited before it ([_perReport]) and the order they were visited in.
   Map<String, dynamic> _snapshot() => <String, dynamic>{
     'report': _reportIdentifier,
+    ..._reportSnapshot(),
+    if (_recent.isNotEmpty) 'recent': _recent,
+    if (_perReport.isNotEmpty) 'reports': _perReport,
+  };
+
+  /// The current report's own state — everything that is the reader's
+  /// choice and worth finding again, and nothing that is a result.
+  Map<String, dynamic> _reportSnapshot() => <String, dynamic>{
     'payload': _payloadToMap(_payload),
     'visibleColumns': _visibleColumnIds.toList(),
     if (_columnOrder.isNotEmpty) 'columnOrder': _columnOrder,
@@ -483,16 +960,29 @@ class ReportsViewModel extends ChangeNotifier {
     if (_periodColumn != null) 'periodColumn': _periodColumn,
     if (_sortField != null) 'sortField': _sortField,
     'sortAscending': _sortAscending,
+    if (_sortIsRanking) 'sortIsRanking': true,
+    if (_thenBy.isNotEmpty)
+      'thenBy': [
+        for (final sort in _thenBy)
+          {'column': sort.columnId, 'ascending': sort.ascending},
+      ],
     'panelCollapsed': _panelCollapsed,
     'chartVisible': _chartVisible,
+    if (_compare) 'compare': true,
+    if (_viewId != null) 'viewId': _viewId,
     // The chart's series is as much "where the user left off" as the group
     // it charts; without it a restart re-auto-picks the first numeric column
     // and silently drops a deliberate Count selection.
     if (_chartColumn != null) 'chartColumn': _chartColumn,
+    if (_currencyId != null) 'currency': _currencyId,
+    if (_cumulative) 'cumulative': true,
+    if (_timeChartStyle != null) 'timeChartStyle': _timeChartStyle!.name,
+    if (_columnWidths.isNotEmpty) 'columnWidths': _columnWidths,
     if (_includeDateColumn) 'includeDateColumn': true,
     // Persisted so a restored grouping on the optional date column survives
     // the cold run that would otherwise drop it (see `_previewReportKeys`).
     if (_serverColumnIds.isNotEmpty) 'serverColumns': _serverColumnIds,
+    if (_serverColumnsLearnedAt > 0) 'serverColumnsAt': _serverColumnsLearnedAt,
   };
 
   void _applySnapshot(Map<String, dynamic> s) {
@@ -501,6 +991,32 @@ class ReportsViewModel extends ChangeNotifier {
         kReportDefinitions.any((d) => d.identifier == report)) {
       _reportIdentifier = report;
     }
+    final reports = s['reports'];
+    if (reports is Map) {
+      _perReport = {
+        for (final e in reports.entries)
+          if (e.value is Map && _isKnownReport('${e.key}'))
+            '${e.key}': Map<String, dynamic>.from(e.value as Map),
+      };
+    }
+    final recent = s['recent'];
+    if (recent is List) {
+      _recent = [
+        for (final id in recent)
+          if (_isKnownReport('$id')) '$id',
+      ];
+    }
+    _applyReportSnapshot(s);
+  }
+
+  static bool _isKnownReport(String identifier) =>
+      kReportDefinitions.any((d) => d.identifier == identifier);
+
+  /// Put the current report into the state [s] describes — and into nothing
+  /// else: every field is reset first, so a key [s] does not carry cannot be
+  /// left holding the previous report's value.
+  void _applyReportSnapshot(Map<String, dynamic> s) {
+    _resetReportState();
     final pm = s['payload'];
     if (pm is Map) _payload = _payloadFromMap(Map<String, dynamic>.from(pm));
     final vc = s['visibleColumns'];
@@ -527,18 +1043,101 @@ class ReportsViewModel extends ChangeNotifier {
     if (sf is String) _sortField = sf;
     final sa = s['sortAscending'];
     if (sa is bool) _sortAscending = sa;
+    _sortIsRanking = s['sortIsRanking'] == true && _sortField != null;
+    final tb = s['thenBy'];
+    if (tb is List) {
+      _thenBy = List.unmodifiable([
+        for (final e in tb)
+          if (e is Map && e['column'] is String)
+            ReportSort(
+              e['column'] as String,
+              ascending: e['ascending'] != false,
+            ),
+      ]);
+    }
     final pc = s['panelCollapsed'];
     if (pc is bool) _panelCollapsed = pc;
+    _compare = s['compare'] == true;
+    final vid = s['viewId'];
+    _viewId = vid is String && vid.isNotEmpty ? vid : null;
     final cv = s['chartVisible'];
     if (cv is bool) _chartVisible = cv;
     final cc = s['chartColumn'];
     if (cc is String && cc.isNotEmpty) _chartColumn = cc;
+    final cur = s['currency'];
+    if (cur is String && cur.isNotEmpty) _currencyId = cur;
+    _cumulative = s['cumulative'] == true;
+    final tcs = s['timeChartStyle'];
+    if (tcs is String) {
+      _timeChartStyle = ReportTimeChartStyle.values
+          .where((e) => e.name == tcs)
+          .firstOrNull;
+    }
+    final cw = s['columnWidths'];
+    if (cw is Map) {
+      _columnWidths = Map.unmodifiable({
+        for (final e in cw.entries)
+          if (e.value is num) '${e.key}': (e.value as num).toDouble(),
+      });
+    }
     _includeDateColumn = s['includeDateColumn'] == true;
     final sc = s['serverColumns'];
     if (sc is List) {
       _serverColumnIds = List.unmodifiable(sc.map((e) => '$e'));
     }
+    final sca = s['serverColumnsAt'];
+    if (sca is int) _serverColumnsLearnedAt = sca;
   }
+
+  /// Every per-report field back to blank: no result, no choices.
+  void _resetReportState() {
+    _payload = _openingPayload(_reportIdentifier);
+    _lastRunPayload = null;
+    _visibleColumnIds = const {};
+    _columnOrder = const [];
+    _columnFilters = const {};
+    _columnWidths = const {};
+    _sortField = null;
+    _sortAscending = true;
+    _sortIsRanking = false;
+    _thenBy = const [];
+    _search = '';
+    _group = null;
+    _subgroup = null;
+    _periodColumn = null;
+    _selectedGroup = null;
+    _expandedGroups = const {};
+    _chartColumn = null;
+    _chartVisible = true;
+    _compare = false;
+    _viewId = null;
+    _currencyId = null;
+    _cumulative = false;
+    _timeChartStyle = null;
+    // Both are per-report: the Group by entry that turns the flag on is
+    // itself gated on a loaded preview, so re-picking after a report switch
+    // costs nothing.
+    _includeDateColumn = false;
+    _lastRunIncludeDateColumn = false;
+    _serverColumnIds = const [];
+    _serverColumnsLearnedAt = 0;
+    _resultFetchedAt = null;
+    seriesSlots.clear();
+    _hiddenSeries = const {};
+    _run = ReportRunState.idle();
+    _activePollingHash = null;
+    _invalidateMemo();
+  }
+
+  /// The state of the reports visited before the current one, by identifier
+  /// — each as [_reportSnapshot] wrote it. What makes a report remember its
+  /// own range, filters, grouping and columns across a switch to another.
+  Map<String, Map<String, dynamic>> _perReport = {};
+
+  /// Reports in the order they were last opened, most recent first. Drives
+  /// the gallery's "Recent" row and which of [_perReport] is kept.
+  List<String> _recent = const [];
+  List<String> get recentReports => _recent;
 
   Map<String, dynamic> _payloadToMap(ReportPayload p) => <String, dynamic>{
     'datePreset': p.datePreset.name,
@@ -555,8 +1154,9 @@ class ReportsViewModel extends ChangeNotifier {
     if (p.activityTypeId != null) 'activityTypeId': p.activityTypeId,
     if (p.productKey != null) 'productKey': p.productKey,
     if (p.templateId != null) 'templateId': p.templateId,
-    'documentEmailAttachment': p.documentEmailAttachment,
-    'pdfEmailAttachment': p.pdfEmailAttachment,
+    // Not `documentEmailAttachment` / `pdfEmailAttachment`: they are choices
+    // made when an email is sent, and a switch remembered from last month
+    // would zip every PDF into an email nobody asked that of.
     'includeDeleted': p.includeDeleted,
     'includeTax': p.includeTax,
     'isExpenseBilled': p.isExpenseBilled,
@@ -585,8 +1185,6 @@ class ReportsViewModel extends ChangeNotifier {
       activityTypeId: s(m['activityTypeId']),
       productKey: s(m['productKey']),
       templateId: s(m['templateId']),
-      documentEmailAttachment: m['documentEmailAttachment'] == true,
-      pdfEmailAttachment: m['pdfEmailAttachment'] == true,
       includeDeleted: m['includeDeleted'] == true,
       includeTax: m['includeTax'] == true,
       isExpenseBilled: m['isExpenseBilled'] == true,
@@ -666,44 +1264,85 @@ class ReportsViewModel extends ChangeNotifier {
     }
     if (_sortField != null && !ids.contains(_sortField)) {
       _sortField = null;
+      _sortIsRanking = false;
     }
   }
 
   // ─── Mutations ───
 
+  /// Switch to another report, putting this one's state away and taking the
+  /// other's back out — or, for a report never opened, its opening view.
   void setReport(String identifier) {
     if (identifier == _reportIdentifier) return;
     _userTouched = true;
+    // Strand whatever is in flight. A run only checks its epoch, so without
+    // this a report switched away from mid-run still landed — its rows
+    // appearing under the new report's name, columns and filters.
+    _runEpoch++;
+    _autoRunTimer?.cancel();
+    _autoRunOwed = false;
+    // Another report's document is not this one's — nor its comparison.
+    _document = null;
+    _documentUnreadable = false;
+    _emailedFor = null;
+    _compareEpoch++;
+    _comparePreview = null;
+    _compareWindow = null;
+    _compareMemoKey = null;
+    _compareMemoView = null;
+    _perReport[_reportIdentifier] = _reportSnapshot();
     _reportIdentifier = identifier;
-    // Reset payload-side state to defaults for the new report, but keep the
-    // local-only state (visible columns) cleared so the new report's
-    // server-returned columns are all initially visible.
-    _payload = const ReportPayload();
-    _visibleColumnIds = const {};
-    _columnOrder = const [];
-    _columnFilters = const {};
-    _sortField = null;
-    _group = null;
-    _subgroup = null;
-    _periodColumn = null;
-    _selectedGroup = null;
-    _chartColumn = null;
-    // Both are per-report: the snapshot is one-report-shaped by design, and
-    // the Group by entry that turns the flag on is itself gated on a loaded
-    // preview, so re-picking after a report switch costs nothing.
-    _includeDateColumn = false;
-    _lastRunIncludeDateColumn = false;
-    _serverColumnIds = const [];
-    _run = ReportRunState.idle();
-    _invalidateMemo();
+    final remembered = _perReport.remove(identifier);
+    if (remembered != null) {
+      _applyReportSnapshot(remembered);
+    } else {
+      _resetReportState();
+      _applyOpeningView();
+    }
+    _noteOpened(identifier);
     notifyListeners();
+  }
+
+  /// Move [identifier] to the front of [_recent], and forget the state of
+  /// whatever has fallen out of the remembered few.
+  void _noteOpened(String identifier) {
+    _recent = List.unmodifiable([
+      identifier,
+      for (final id in _recent)
+        if (id != identifier) id,
+    ]);
+    if (_perReport.length > _kRememberedReports) {
+      final keep = _recent.take(_kRememberedReports + 1).toSet();
+      _perReport.removeWhere((id, _) => !keep.contains(id));
+    }
+  }
+
+  /// Show [identifier]: switch to it if it is not the current report, and —
+  /// under [autoRun] — put its last result on screen and refresh it if that
+  /// is stale. What the screen calls when its route names a report.
+  ///
+  /// Waits for the restore first. The route decides which report is shown;
+  /// the restore only supplies what each report remembers, and applied after
+  /// this it would swap the report out from under the route.
+  Future<void> open(String identifier) async {
+    if (!_hydrated) await _hydration;
+    if (_disposed) return;
+    if (identifier != _reportIdentifier) {
+      setReport(identifier);
+    } else if (_recent.firstOrNull != identifier) {
+      _noteOpened(identifier);
+      notifyListeners();
+    }
+    if (autoRun) await _showOrRun();
   }
 
   void setPayload(ReportPayload payload) {
     if (payload == _payload) return;
     _userTouched = true;
+    final changesRows = payload.forPreview != _payload.forPreview;
     _payload = payload;
     notifyListeners();
+    if (changesRows) _scheduleAutoRun();
   }
 
   /// [order], when given, is the full column display order chosen in the
@@ -748,18 +1387,171 @@ class ReportsViewModel extends ChangeNotifier {
   void setChartColumn(String? id) {
     if (_chartColumn == id) return;
     _chartColumn = id;
+    // A ranking follows the figure it ranks by.
+    if (_syncRanking()) _invalidateMemo();
     notifyListeners();
+  }
+
+  /// The figure a category grouping is ranked by: the one the chart is of
+  /// when that is a column, else the report's first headline the result
+  /// carries, else its first figure. Null when the result has none (or the
+  /// chart is of the row count, which is not a column to sort by).
+  String? get _rankingMeasureId {
+    final measures = [
+      for (final c in _run.preview?.columns ?? const <ReportColumn>[])
+        if (c.effectiveAggregation != ReportAggregation.none) c.identifier,
+    ];
+    if (measures.isEmpty) return null;
+    final chosen = _chartColumn;
+    if (chosen != null) return measures.contains(chosen) ? chosen : null;
+    for (final id in definition.headlineMeasureIds) {
+      if (measures.contains(id)) return id;
+    }
+    return measures.first;
+  }
+
+  /// Keep the table's order in step with what the chart above it says.
+  ///
+  /// Grouped by a category — client, status, product — the chart is a
+  /// ranking, largest first, and a table beneath it in alphabetical order is
+  /// a second, different list of the same things. So a category grouping
+  /// opens sorted by its figure, descending, **as an ordinary sort**: the
+  /// header shows the arrow, and one click changes it.
+  ///
+  /// Only ever in place of *no* sort, or of a ranking this put there
+  /// itself; a sort the reader chose is never touched. Grouped by a date, or
+  /// not at all, the ranking is taken off again — months belong in order.
+  ///
+  /// Returns whether the sort changed.
+  bool _syncRanking() {
+    if (_sortField != null && !_sortIsRanking) return false;
+    final group = _group;
+    final ranks = group != null && group.isNotEmpty && !_isDateColumn(group);
+    final measure = ranks ? _rankingMeasureId : null;
+    if (measure == null) {
+      if (!_sortIsRanking) return false;
+      _sortField = null;
+      _sortAscending = true;
+      _sortIsRanking = false;
+      return true;
+    }
+    if (_sortIsRanking && _sortField == measure && !_sortAscending) {
+      return false;
+    }
+    _sortField = measure;
+    _sortAscending = false;
+    _thenBy = const [];
+    _sortIsRanking = true;
+    return true;
   }
 
   /// Click a column header to (re)sort. First click → ascending; second
   /// click on the same column → descending; subsequent clicks toggle.
-  void toggleSort(String columnId) {
-    if (_sortField == columnId) {
+  ///
+  /// With [additive] (a shift-click) the column joins the sort behind the
+  /// ones already there instead of replacing them — or, if it is already
+  /// one of them, flips its own direction in place.
+  void toggleSort(String columnId, {bool additive = false}) {
+    if (additive && _sortField != null && _sortField != columnId) {
+      final at = _thenBy.indexWhere((sort) => sort.columnId == columnId);
+      final next = [..._thenBy];
+      if (at >= 0) {
+        next[at] = ReportSort(columnId, ascending: !next[at].ascending);
+      } else {
+        next.add(ReportSort(columnId));
+      }
+      _thenBy = List.unmodifiable(next);
+    } else if (_sortField == columnId) {
       _sortAscending = !_sortAscending;
     } else {
       _sortField = columnId;
       _sortAscending = true;
+      // A plain click starts the sort over.
+      _thenBy = const [];
     }
+    // Touched by the reader: theirs from here on.
+    _sortIsRanking = false;
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  /// Sort by [columnId] in a stated direction — what a column menu's
+  /// "Sort ascending / descending" does. Null clears the sort.
+  void setSort(String? columnId, {bool ascending = true}) {
+    _sortField = columnId;
+    _sortAscending = ascending;
+    _sortIsRanking = false;
+    _thenBy = const [];
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  void setSearch(String value) {
+    if (value == _search) return;
+    _search = value;
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  /// Read the figures in [currencyId]; null hands the choice back to the
+  /// view.
+  void setCurrency(String? currencyId) {
+    if (currencyId == _currencyId) return;
+    _currencyId = currencyId;
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  void setColumnWidth(String columnId, double width) {
+    _columnWidths = Map.unmodifiable({..._columnWidths, columnId: width});
+    notifyListeners();
+  }
+
+  void setCumulative(bool value) {
+    if (value == _cumulative) return;
+    _cumulative = value;
+    notifyListeners();
+  }
+
+  void setTimeChartStyle(ReportTimeChartStyle? style) {
+    if (style == _timeChartStyle) return;
+    _timeChartStyle = style;
+    notifyListeners();
+  }
+
+  /// Open or close one group in the table.
+  void toggleGroupExpanded(String lineId) {
+    final next = {..._expandedGroups};
+    if (!next.remove(lineId)) next.add(lineId);
+    _expandedGroups = Set.unmodifiable(next);
+    notifyListeners();
+  }
+
+  void setExpandedGroups(Set<String> lineIds) {
+    _expandedGroups = Set.unmodifiable(lineIds);
+    notifyListeners();
+  }
+
+  /// Apply one of the report's ready-made views.
+  void applyStarterView(ReportStarterView view) {
+    _group = view.group;
+    _subgroup = view.subgroup;
+    _periodColumn = null;
+    _selectedGroup = null;
+    _expandedGroups = const {};
+    if (view.measure != null) _chartColumn = view.measure;
+    _chartVisible = true;
+    _syncRanking();
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  /// Drop every filter the reader put on the rows locally — the column
+  /// filters, the search and a drill — leaving the server-side ones.
+  void clearLocalFilters() {
+    _columnFilters = const {};
+    _search = '';
+    _selectedGroup = null;
     _invalidateMemo();
     notifyListeners();
   }
@@ -771,8 +1563,120 @@ class ReportsViewModel extends ChangeNotifier {
     // two non-date columns (User → Assigned User keeps "by month").
     if (columnId == null || _isDateColumn(columnId)) _periodColumn = null;
     _selectedGroup = null;
+    _expandedGroups = const {};
+    seriesSlots.clear();
+    _hiddenSeries = const {};
+    _syncRanking();
     _invalidateMemo();
     notifyListeners();
+  }
+
+  // ─── Grouping, as the reader asks for it ───
+  //
+  // The rules below used to live in two dropdowns' `onChanged` closures. They
+  // are not presentation: each exists because of how the optional date
+  // column is fetched (docs/reports.md § Asking for a column the server
+  // omits), and a second surface that regroups — a column menu, a starter
+  // view — has to obey every one of them.
+
+  /// The column the report is grouped by, when the result carries it.
+  ReportColumn? get groupColumn => _previewColumn(_group);
+
+  ReportColumn? _previewColumn(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final c in _run.preview?.columns ?? const <ReportColumn>[]) {
+      if (c.identifier == id) return c;
+    }
+    return null;
+  }
+
+  /// Whether the grouping is split by period: a non-date group column and a
+  /// date [periodColumn], both in the result. Mirrors the engine's own test
+  /// for a composite key.
+  bool get isSplitByPeriod {
+    final group = groupColumn;
+    if (group == null || isReportDateType(group.type)) return false;
+    final period = _previewColumn(_periodColumn);
+    return period != null && isReportDateType(period.type);
+  }
+
+  /// The report's [ReportDefinition.optionalDateColumnId] when it is worth
+  /// offering: the report has one, and the result on screen does not already
+  /// carry it. Offered only over a loaded result — that is what guarantees
+  /// there is a column list to add it to.
+  String? get offerableDateColumnId {
+    final extra = definition.optionalDateColumnId;
+    final preview = _run.preview;
+    if (extra == null || preview == null) return null;
+    if (preview.columns.any((c) => c.identifier == extra)) return null;
+    return extra;
+  }
+
+  /// Group by [columnId]; null or empty for no grouping.
+  ///
+  /// A date column starts by month. The optional date column is the one
+  /// choice that is not a free local regroup: it has to be fetched, so it
+  /// opts in and — where the report does not run itself — runs it, rather
+  /// than leave the reader to work out that a Run is needed. And once
+  /// fetched, picking it again must keep the opt-in on, or the next run
+  /// sends no `report_keys`, the server omits the column, and the grouping
+  /// is dropped one interaction later with no message.
+  void groupBy(String? columnId) {
+    if (columnId == null || columnId.isEmpty) {
+      setGroup(null);
+      return;
+    }
+    if (columnId == offerableDateColumnId) {
+      setIncludeDateColumn(true);
+      setGroup(columnId, subgroup: ReportSubgroup.month);
+      if (!autoRun) unawaited(runReport());
+      return;
+    }
+    if (columnId == definition.optionalDateColumnId) {
+      setIncludeDateColumn(true);
+    }
+    final column = _previewColumn(columnId);
+    final isDate = column != null && isReportDateType(column.type);
+    setGroup(
+      columnId,
+      subgroup: isDate ? (_subgroup ?? ReportSubgroup.month) : null,
+    );
+  }
+
+  /// The result's date columns a non-date grouping can be split by, the one
+  /// the report's date range filters on first — it is almost always the one
+  /// meant ("per month" of an invoice means its date, of a task its start).
+  List<ReportColumn> get periodCandidates {
+    final columns = _run.preview?.columns ?? const <ReportColumn>[];
+    final dates = columns.where((c) => isReportDateType(c.type)).toList();
+    final key = switch (definition.dateRangeKey) {
+      'calculated_start_date' => 'start_date',
+      final k => k,
+    };
+    if (key == null) return dates;
+    bool matches(ReportColumn c) =>
+        c.identifier == key || c.identifier.endsWith('.$key');
+    return [...dates.where(matches), ...dates.where((c) => !matches(c))];
+  }
+
+  /// Split the grouping by [columnId]'s period; null or empty to stop. The
+  /// optional date column is fetched on pick and kept opted in, exactly as
+  /// [groupBy] does.
+  void splitByPeriod(String? columnId) {
+    if (columnId == null || columnId.isEmpty) {
+      setPeriodColumn(null);
+      return;
+    }
+    if (columnId == offerableDateColumnId) {
+      setIncludeDateColumn(true);
+      setPeriodColumn(columnId);
+      if (!autoRun) unawaited(runReport());
+      return;
+    }
+    if (columnId == definition.optionalDateColumnId) {
+      setIncludeDateColumn(true);
+    }
+    setPeriodColumn(columnId);
   }
 
   /// Split the current non-date grouping by [columnId]'s date (null to stop
@@ -847,6 +1751,7 @@ class ReportsViewModel extends ChangeNotifier {
       isIncomeBilled: defaults['is_income_billed'] == true,
     );
     notifyListeners();
+    _scheduleAutoRun();
   }
 
   /// Reset everything except the report identifier — payload, columns,
@@ -860,15 +1765,29 @@ class ReportsViewModel extends ChangeNotifier {
     _columnFilters = const {};
     _sortField = null;
     _sortAscending = true;
+    _sortIsRanking = false;
     _group = null;
     _subgroup = null;
     _periodColumn = null;
     _selectedGroup = null;
     _chartColumn = null;
     _chartVisible = true;
+    _compare = false;
+    _viewId = null;
+    _comparePreview = null;
+    _compareWindow = null;
+    _compareEpoch++;
     _includeDateColumn = false;
+    _thenBy = const [];
+    _search = '';
+    _currencyId = null;
+    _columnWidths = const {};
+    _cumulative = false;
+    _timeChartStyle = null;
+    _expandedGroups = const {};
     _invalidateMemo();
     notifyListeners();
+    _scheduleAutoRun();
   }
 
   // ─── Server actions ───
@@ -878,17 +1797,37 @@ class ReportsViewModel extends ChangeNotifier {
     // would be clobbered by the "empty → server columns" default below.
     if (!_hydrated) await _hydration;
     if (_disposed) return;
+    if (!definition.supportsPreview) {
+      if (definition.readsAsDocument) await _runDocument();
+      return;
+    }
     final epoch = ++_runEpoch;
     final lastGood = _run.preview;
     _run = ReportRunState.loading(previousPreview: lastGood);
     _activePollingHash = null;
+    // The comparison on screen was with the result being replaced. Deltas
+    // against the wrong period are worse than none for a moment.
+    if (isParamDirty) {
+      _compareEpoch++;
+      _comparePreview = null;
+      _compareWindow = null;
+      _compareMemoKey = null;
+      _compareMemoView = null;
+    }
     notifyListeners();
 
     try {
+      if (!_companyCurrencyResolved) {
+        await _resolveCompanyCurrency();
+        if (_disposed || epoch != _runEpoch) return;
+      }
+      final reportKeys = _previewReportKeys();
       final rawPreview = await repo.runPreview(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
         payload: _payload,
+        numberStyle: _numberStyle,
+        companyId: companyId,
         // Empty = the server's full default column set, which is what the
         // preview wants: column visibility is a purely local concern applied
         // by the engine. Sending the visible *subset* here would narrow the
@@ -899,13 +1838,17 @@ class ReportsViewModel extends ChangeNotifier {
         //
         // The one non-empty case is the opt-in optional date column, which
         // still sends the *full* known set plus that one — never a subset.
-        reportKeys: _previewReportKeys(),
+        reportKeys: reportKeys,
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch) return;
-      _applySuccessfulPreview(rawPreview);
+      _applySuccessfulPreview(rawPreview, plainRun: reportKeys.isEmpty);
       _activePollingHash = null;
       notifyListeners();
+      if (_wantsRowIds && !reportKeys.contains(definition.rowIdKey)) {
+        unawaited(_fetchRowIds(epoch));
+      }
+      if (_compare) unawaited(_runCompare());
     } on ReportError catch (e) {
       if (_disposed || epoch != _runEpoch) return;
       if (e.kind == ReportErrorKind.cancelled) {
@@ -930,6 +1873,86 @@ class ReportsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Fetch a file-only report's file and read it into [document].
+  ///
+  /// The same request the Export menu's "full report" makes, with nothing
+  /// that would change the file's shape: no template (that asks for a PDF),
+  /// no column list, no grouping.
+  Future<void> _runDocument({String? resumeHash}) async {
+    final epoch = ++_runEpoch;
+    _run = ReportRunState.loading();
+    _activePollingHash = null;
+    notifyListeners();
+    final payload = _payload;
+    try {
+      if (!_companyCurrencyResolved) {
+        await _resolveCompanyCurrency();
+        if (_disposed || epoch != _runEpoch) return;
+      }
+      final result = resumeHash != null
+          ? await repo.continueExport(
+              hash: resumeHash,
+              isCancelled: _cancellationFor(epoch),
+            )
+          : await repo.runExport(
+              reportIdentifier: _reportIdentifier,
+              endpoint: definition.endpoint,
+              payload: payload.copyWith(templateId: () => null),
+              isCancelled: _cancellationFor(epoch),
+            );
+      if (_disposed || epoch != _runEpoch) return;
+      _document = result.format == ReportExportFormat.csv
+          ? parseReportDocument(
+              utf8.decode(result.bytes, allowMalformed: true),
+              numberStyleFor: _numberStyleForCode,
+              defaultStyle: _numberStyle,
+            )
+          : null;
+      _documentUnreadable = _document == null;
+      _lastRunPayload = payload;
+      _lastRunIncludeDateColumn = _includeDateColumn;
+      _resultFetchedAt = _now();
+      _run = ReportRunState.idle();
+      notifyListeners();
+    } on ReportError catch (e) {
+      if (_disposed || epoch != _runEpoch) return;
+      if (e.kind == ReportErrorKind.cancelled) {
+        _run = ReportRunState.idle();
+        notifyListeners();
+        return;
+      }
+      _activePollingHash = e.pollingHash;
+      // Emailed instead of returned: asking again is another email. Only
+      // the reader pressing refresh, or a changed request, asks again.
+      if (e.kind == ReportErrorKind.emailedInstead) _emailedFor = payload;
+      // The document on screen, if any, stays: `_document` is not touched.
+      _run = ReportRunState.error(e);
+      notifyListeners();
+    } catch (e, st) {
+      if (_disposed || epoch != _runEpoch) return;
+      _log.warning('Unhandled report document failure', e, st);
+      _run = ReportRunState.error(
+        const ReportError(kind: ReportErrorKind.unknown),
+      );
+      notifyListeners();
+    }
+  }
+
+  /// How the currency with ISO [code] writes its numbers — a per-currency
+  /// table in a report file is in that currency's own notation.
+  FormattedNumberStyle? _numberStyleForCode(String code) {
+    for (final currency in statics.currencies.values) {
+      if (currency.code.toUpperCase() == code) {
+        return FormattedNumberStyle(
+          thousandSeparator: currency.thousandSeparator,
+          decimalSeparator: currency.decimalSeparator,
+          precision: currency.precision,
+        );
+      }
+    }
+    return null;
+  }
+
   /// Everything that must happen when a preview lands, whichever request
   /// produced it.
   ///
@@ -940,7 +1963,16 @@ class ReportsViewModel extends ChangeNotifier {
   /// no refreshed column set, a stale `group`/`sortField`, and `isParamDirty`
   /// stuck true so Run read "Run to refresh" over a current preview. Six
   /// divergences, none of them visible at either call site.
-  void _applySuccessfulPreview(ReportPreview rawPreview) {
+  ///
+  /// [plainRun] is whether the request sent no `report_keys` — the one kind
+  /// of answer that describes the server's current column set rather than
+  /// echoing a list (see [_serverColumnsLearnedAt]). A continuation does not
+  /// know what its original request sent, so it does not claim to be one.
+  void _applySuccessfulPreview(
+    ReportPreview rawPreview, {
+    bool plainRun = false,
+    DateTime? fetchedAt,
+  }) {
     // Inject the synthetic Product-report `stock_value` column, and relabel
     // the optional date column, before either seeds the visible set below.
     final preview = _augmentPreview(rawPreview);
@@ -950,10 +1982,23 @@ class ReportsViewModel extends ChangeNotifier {
     _serverColumnIds = List.unmodifiable(
       preview.columns.map((c) => c.identifier),
     );
+    if (plainRun) _serverColumnsLearnedAt = _now().millisecondsSinceEpoch;
+    _resultFetchedAt = fetchedAt ?? _now();
     if (_visibleColumnIds.isEmpty) {
-      // First Run on this report: default visible columns to the server's
-      // returned set so the column picker has a baseline.
-      _visibleColumnIds = preview.columns.map((c) => c.identifier).toSet();
+      // First run of this report: show its curated columns, in their
+      // curated order (see `ReportDefinition.defaultColumnIds`) — or, where
+      // it has none or the server returned none of them, everything.
+      final returned = preview.columns.map((c) => c.identifier).toSet();
+      final curated = [
+        for (final id in definition.defaultColumnIds)
+          if (returned.contains(id)) id,
+      ];
+      if (curated.isEmpty) {
+        _visibleColumnIds = returned;
+      } else {
+        _visibleColumnIds = Set.unmodifiable(curated);
+        if (_columnOrder.isEmpty) _columnOrder = List.unmodifiable(curated);
+      }
     } else {
       // Hydrated/customized set: keep it but drop columns the report no
       // longer returns and surface any new server columns.
@@ -964,7 +2009,117 @@ class ReportsViewModel extends ChangeNotifier {
     // column is one the user just asked for by name — without this it
     // arrives fetched and invisible, and the switch appears to do nothing.
     _showOptionalDateColumn(preview);
+    // A grouping restored before its columns were known gets its ranking
+    // now that there is a figure to rank by.
+    _syncRanking();
     _invalidateMemo();
+  }
+
+  // ─── Running itself ───
+
+  /// Whether a run may be started right now: online, and not forbidden.
+  bool get _mayRun => _isOnline && (canRun?.call() ?? true);
+
+  /// Whether the result on screen is too old to stand without a refresh.
+  bool get _resultIsStale {
+    final at = _resultFetchedAt;
+    if (at == null) return true;
+    return _now().difference(at) > freshFor;
+  }
+
+  /// After a change that alters the rows: run again, once the reader has
+  /// stopped changing things. No-op unless [autoRun].
+  void _scheduleAutoRun() {
+    if (!autoRun || _disposed) return;
+    _autoRunTimer?.cancel();
+    _autoRunTimer = Timer(autoRunDebounce, () {
+      if (_disposed) return;
+      unawaited(_showOrRun());
+    });
+  }
+
+  /// Put this report's result on screen: the one remembered for exactly
+  /// this request if there is one — at once, before the server is asked
+  /// anything — and then a fresh one if that was stale or missing.
+  ///
+  /// The remembered result is what makes a report open instantly and work
+  /// with no connection; the freshness check is what stops opening the same
+  /// report twice in a minute from costing two server jobs.
+  Future<void> _showOrRun() async {
+    if (_disposed || !definition.showsOnScreen) return;
+    if (!_hydrated) await _hydration;
+    if (!definition.supportsPreview) {
+      // A document: nothing kept on disk to show first, so it is simply
+      // fetched when there is none, or the one on screen is for another
+      // request or has gone stale.
+      if (_run.isLoading) return;
+      if (hasResultForRequest && !_resultIsStale) {
+        _autoRunOwed = false;
+        return;
+      }
+      if (_emailedFor == _payload) return;
+      if (!_mayRun) {
+        _autoRunOwed = true;
+        return;
+      }
+      _autoRunOwed = false;
+      await runReport();
+      return;
+    }
+    final report = _reportIdentifier;
+    final payload = _payload;
+    final cid = companyId;
+    // Nothing on screen for this request yet: look for what it returned last
+    // time. (A result already on screen for it is at least as new.)
+    if (cid != null && (isParamDirty || _run.preview == null)) {
+      if (!_companyCurrencyResolved) await _resolveCompanyCurrency();
+      final hit = await repo.cachedPreview(
+        companyId: cid,
+        reportIdentifier: report,
+        payload: payload,
+        numberStyle: _numberStyle,
+      );
+      if (_disposed || report != _reportIdentifier || payload != _payload) {
+        return;
+      }
+      // A run started while the disk was being read wins.
+      if (hit != null && !_run.isLoading) {
+        _applySuccessfulPreview(hit.preview, fetchedAt: hit.fetchedAt);
+        notifyListeners();
+      }
+    }
+    if (_run.isLoading) return;
+    if (!isParamDirty && !_resultIsStale) {
+      _autoRunOwed = false;
+      // Shown from disk and fresh enough to stand: the comparison is not
+      // kept there, so it is fetched alone.
+      if (_compare && _comparePreview == null && _run.preview != null) {
+        unawaited(_runCompare());
+      }
+      return;
+    }
+    if (!_mayRun) {
+      // Made as soon as it can be — see [_onOnlineChanged] and [retryOwed].
+      _autoRunOwed = true;
+      return;
+    }
+    _autoRunOwed = false;
+    await runReport();
+  }
+
+  void _onOnlineChanged(bool online) {
+    if (online == _isOnline || _disposed) return;
+    _isOnline = online;
+    notifyListeners();
+    if (online) retryOwed();
+  }
+
+  /// Make the run [autoRun] could not make earlier, if it still owes one —
+  /// called when the device comes back online, and by the screen when
+  /// whatever [canRun] guards has changed.
+  void retryOwed() {
+    if (!_autoRunOwed || !autoRun || _disposed) return;
+    unawaited(_showOrRun());
   }
 
   /// Re-poll the in-flight hash for another budget. Only valid when the
@@ -973,6 +2128,11 @@ class ReportsViewModel extends ChangeNotifier {
   Future<void> keepWaiting() async {
     final hash = _activePollingHash;
     if (hash == null) return;
+    if (!definition.supportsPreview) {
+      // A document's job is an export: it is polled where exports are.
+      await _runDocument(resumeHash: hash);
+      return;
+    }
     final epoch = ++_runEpoch;
     final lastGood = _run.preview;
     _run = ReportRunState.loading(previousPreview: lastGood);
@@ -980,12 +2140,14 @@ class ReportsViewModel extends ChangeNotifier {
     try {
       final preview = await repo.continuePreview(
         hash: hash,
+        numberStyle: _numberStyle,
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch) return;
       _applySuccessfulPreview(preview);
       _activePollingHash = null;
       notifyListeners();
+      if (_compare) unawaited(_runCompare());
     } on ReportError catch (e) {
       if (_disposed || epoch != _runEpoch) return;
       _activePollingHash = e.pollingHash;
@@ -1015,7 +2177,6 @@ class ReportsViewModel extends ChangeNotifier {
 
   int _exportEpoch = 0;
   String? _activeExportHash;
-  ReportExportFormat? _activeExportFormat;
 
   /// Timeout error from the last export, if any — drives a "Keep waiting?"
   /// affordance on the export action (mirrors the preview timeout flow).
@@ -1029,20 +2190,24 @@ class ReportsViewModel extends ChangeNotifier {
   /// failure (caller shows a snackbar from [exportError]). Guards against
   /// double-submit via [isExporting]; cancellable via the epoch like
   /// [runReport].
-  Future<ReportExportResult?> runExport(ReportExportFormat format) async {
+  ///
+  /// [templateId] renders the report through one of the company's template
+  /// designs and comes back as a PDF. It is a choice about this one file,
+  /// so it is passed here and never kept on the report.
+  Future<ReportExportResult?> runExport({String? templateId}) async {
     if (_isExporting) return null;
     final epoch = ++_exportEpoch;
     _isExporting = true;
     _exportError = null;
     _activeExportHash = null;
-    _activeExportFormat = format;
     notifyListeners();
     try {
       final result = await repo.runExport(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
-        payload: _payload,
-        format: format,
+        payload: templateId == null
+            ? _payload.copyWith(templateId: () => null)
+            : _payload.copyWith(templateId: () => templateId),
         reportKeys: serverReportKeys(),
         groupBy: serverGroupBy,
         isCancelled: () => _disposed || _exportEpoch != epoch,
@@ -1067,8 +2232,7 @@ class ReportsViewModel extends ChangeNotifier {
   /// an export timeout (the repo surfaces a `pollingHash` then).
   Future<ReportExportResult?> keepWaitingExport() async {
     final hash = _activeExportHash;
-    final format = _activeExportFormat;
-    if (hash == null || format == null || _isExporting) return null;
+    if (hash == null || _isExporting) return null;
     final epoch = ++_exportEpoch;
     _isExporting = true;
     _exportError = null;
@@ -1076,7 +2240,6 @@ class ReportsViewModel extends ChangeNotifier {
     try {
       final result = await repo.continueExport(
         hash: hash,
-        format: format,
         isCancelled: () => _disposed || _exportEpoch != epoch,
       );
       if (_disposed || epoch != _exportEpoch) return null;
@@ -1107,7 +2270,16 @@ class ReportsViewModel extends ChangeNotifier {
   /// table doesn't owe the user an error there). Callers surface their own
   /// snackbar via the rethrown [ReportError]. Guards double-submit via
   /// [isEmailing].
-  Future<void> sendEmail() async {
+  ///
+  /// [attachPdfs] and [attachDocuments] add a zip of each document's PDF, or
+  /// of the files uploaded to them, to the email. Choices about this one
+  /// send, so they are passed here and never kept on the report — a switch
+  /// remembered from last month would zip every PDF into an email nobody
+  /// asked that of.
+  Future<void> sendEmail({
+    bool attachPdfs = false,
+    bool attachDocuments = false,
+  }) async {
     if (_isEmailing) return;
     _isEmailing = true;
     notifyListeners();
@@ -1115,7 +2287,11 @@ class ReportsViewModel extends ChangeNotifier {
       await repo.sendEmail(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
-        payload: _payload,
+        payload: _payload.copyWith(
+          templateId: () => null,
+          pdfEmailAttachment: attachPdfs,
+          documentEmailAttachment: attachDocuments,
+        ),
         reportKeys: serverReportKeys(),
         groupBy: serverGroupBy,
       );
@@ -1129,30 +2305,84 @@ class ReportsViewModel extends ChangeNotifier {
 
   // ─── Optional date column (opt-in, preview-only) ───
 
-  /// `report_keys` for the preview request. Empty — the server's own
-  /// default set — unless the user opted into the optional date column,
-  /// in which case it is the full **known** set plus that column.
+  /// `report_keys` for the preview request. Empty — the server's own default
+  /// set — unless there is a column to add to it: the optional date column
+  /// the user opted into, or the row id ([fetchRowIds]). Then it is the full
+  /// **known** set plus those, never a subset.
   ///
   /// The live preview wins over [_serverColumnIds] so the set is as fresh
   /// as the last answer; with neither we fall back to a plain run rather
   /// than pinning the report to a single column (`prepareForValidation`
   /// would happily accept a one-element list).
   List<String> _previewReportKeys() {
-    final extra = definition.optionalDateColumnId;
-    if (!_includeDateColumn || extra == null) return const [];
+    final dateColumn = definition.optionalDateColumnId;
+    final idColumn = _wantsRowIds ? definition.rowIdKey : null;
+    final extras = [
+      if (_includeDateColumn && dateColumn != null) dateColumn,
+      ?idColumn,
+    ];
+    if (extras.isEmpty) return const [];
+    // A pinned set goes stale: an echo of last week's list will never show a
+    // column the server added since. Only the id pins by default (the date
+    // column is the user's own, deliberate pin), so only it expires.
+    final onlyTheId = extras.length == 1 && extras.first == idColumn;
+    if (onlyTheId && _serverColumnsAreStale) return const [];
     final known =
         _run.preview?.columns.map((c) => c.identifier).toList() ??
         _serverColumnIds;
     if (known.isEmpty) return const [];
     // Strip-then-append, never "skip if already present": after the first
-    // augmented run `known` *contains* `extra` (we asked for it), so a
+    // augmented run `known` *contains* the extra (we asked for it), so a
     // `contains` guard would send `[]` on the very next run and the column
-    // would vanish again — a bug invisible until the second Run.
+    // would vanish again — a bug invisible until the second Run. Stripping
+    // also drops the date column once the user has switched it back off.
+    final drop = {_kStockValueId, ?dateColumn, ?idColumn};
     return [
       for (final id in known)
-        if (id != extra && id != _kStockValueId) id,
-      extra,
+        if (!drop.contains(id)) id,
+      ...extras,
     ];
+  }
+
+  bool get _wantsRowIds => fetchRowIds && definition.rowIdKey != null;
+
+  bool get _serverColumnsAreStale {
+    final age = _now().millisecondsSinceEpoch - _serverColumnsLearnedAt;
+    return age > _kServerColumnsMaxAge.inMilliseconds;
+  }
+
+  /// The second half of a first run: the same report again, now that its
+  /// column set is known, with the row id appended.
+  ///
+  /// Silent in both directions. The rows are already on screen and do not
+  /// change — they gain an id — so the run state stays `ready` rather than
+  /// dimming the table for a refresh nobody asked for; and a failure is
+  /// swallowed, because rows that are not links are exactly what the user
+  /// had a moment ago. It rides the epoch of the run that started it, so a
+  /// newer run or a report switch strands it like any other.
+  Future<void> _fetchRowIds(int epoch) async {
+    final reportKeys = _previewReportKeys();
+    if (!reportKeys.contains(definition.rowIdKey)) return;
+    try {
+      final rawPreview = await repo.runPreview(
+        reportIdentifier: _reportIdentifier,
+        endpoint: definition.endpoint,
+        payload: _payload,
+        numberStyle: _numberStyle,
+        companyId: companyId,
+        reportKeys: reportKeys,
+        isCancelled: _cancellationFor(epoch),
+      );
+      if (_disposed || epoch != _runEpoch) return;
+      _applySuccessfulPreview(rawPreview);
+      notifyListeners();
+    } on ReportError catch (e) {
+      if (e.kind != ReportErrorKind.cancelled) {
+        _log.fine('Row ids not fetched: $e');
+      }
+    } catch (e, st) {
+      _log.warning('Row-id fetch failed', e, st);
+    }
   }
 
   void setIncludeDateColumn(bool value) {
@@ -1178,6 +2408,7 @@ class ReportsViewModel extends ChangeNotifier {
       _invalidateMemo();
     }
     notifyListeners();
+    _scheduleAutoRun();
   }
 
   /// Make the opted-in column visible the first time it arrives.
@@ -1228,7 +2459,66 @@ class ReportsViewModel extends ChangeNotifier {
   /// preview-only — [_serverReportKeys] strips it from export/email, so it never
   /// reaches the server (and so isn't in CSV/PDF output).
   ReportPreview _augmentPreview(ReportPreview preview) {
-    return _relabelOptionalDateColumn(_augmentStockValue(preview));
+    // The id comes out first — it is a column the user never sees, and
+    // everything after it works on the columns that are left. Then currency:
+    // the synthetic stock value below is an amount of the row, and is
+    // totalled under the row's currency like every other.
+    return _relabelOptionalDateColumn(
+      _augmentStockValue(
+        _assignRowCurrencies(
+          withRowGrain(
+            withRowRecords(
+              withTextColumns(preview, definition.textColumnIds),
+              definition,
+            ),
+            definition,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Company currency (number format + the default row currency) ───
+
+  Future<void> _resolveCompanyCurrency() async {
+    final load = companyCurrencyId;
+    if (_companyCurrencyResolved || load == null) return;
+    try {
+      _companyCurrencyId = await load();
+      _companyCurrencyResolved = true;
+    } catch (e, st) {
+      // Not fatal, and not remembered: the run goes ahead on the
+      // format-agnostic parse and the next one asks again.
+      _log.warning('Could not resolve the company currency', e, st);
+    }
+  }
+
+  /// How the server writes numbers for this company, or null while the
+  /// company currency is unknown. See [companyCurrencyId].
+  FormattedNumberStyle? get _numberStyle {
+    final currency = statics.currencies[_companyCurrencyId];
+    if (currency == null) return null;
+    return FormattedNumberStyle(
+      thousandSeparator: currency.thousandSeparator,
+      decimalSeparator: currency.decimalSeparator,
+      precision: currency.precision,
+    );
+  }
+
+  /// Stamp each row with the currency its amounts are in — see
+  /// [withRowCurrencies].
+  ReportPreview _assignRowCurrencies(ReportPreview preview) {
+    final currencies = statics.currencies;
+    return withRowCurrencies(
+      preview,
+      currencyIdByCode: {
+        for (final c in currencies.values)
+          if (c.code.isNotEmpty) c.code.toUpperCase(): c.id,
+      },
+      fallbackCurrencyId: currencies.containsKey(_companyCurrencyId)
+          ? _companyCurrencyId
+          : null,
+    );
   }
 
   /// Replace the optional date column's header. The server resolves it with
@@ -1330,6 +2620,8 @@ class ReportsViewModel extends ChangeNotifier {
     _runEpoch++;
     _exportEpoch++;
     removeListener(_schedulePersist);
+    _autoRunTimer?.cancel();
+    unawaited(_onlineSubscription?.cancel());
     final hadPending = _persistTimer?.isActive ?? false;
     _persistTimer?.cancel();
     // Flush a pending debounced write so a company-switch / app-close

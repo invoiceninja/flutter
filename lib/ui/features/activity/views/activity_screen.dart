@@ -30,7 +30,7 @@ import 'package:admin/utils/formatting.dart';
 ///
 /// Owns the [Formatter] and the [ActivityViewModel] — both rebuilt on
 /// company-switch via the auth session listener (not via `build`, which would
-/// dispose a notifier mid-rebuild). Mirrors `ReportsScreen`.
+/// dispose a notifier mid-rebuild). Mirrors `ReportsHost`.
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
 
@@ -409,7 +409,7 @@ class _Chip extends StatelessWidget {
     // `kMinInteractiveDimension` inflation `padded` gives on iOS/Android, which
     // put the ✕ well under `InSizes.touchTarget` — and this chip is the only
     // way to drop its filter from the header strip. Every other `InputChip` in
-    // the app (`multi_entity_picker`, `multi_product_picker`, `reports_body`)
+    // the app (`multi_entity_picker`, `multi_product_picker`, `report_control_bar`)
     // uses the defaults too.
     //
     // Body *and* ✕ both clear, mirroring the reports drill-down breadcrumb: the

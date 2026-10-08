@@ -240,15 +240,18 @@ jobs:
           ls -la build/ios/ipa
 
       # Resolve the exact .ipa path — Xcode names it after CFBundleDisplayName
-      # ("Admin" here), and the upload action stat's app-path LITERALLY (it does
-      # NOT expand globs), so a "*.ipa" would ENOENT.
+      # ("Ninja Beta" here), and the upload action stat's app-path LITERALLY (it
+      # does NOT expand globs), so a "*.ipa" would ENOENT. The display name has
+      # a space in it, so the file is renamed rather than trusting every later
+      # step to quote the path.
       - name: Resolve .ipa path
         id: ipa
         run: |
           set -euo pipefail
           IPA=$(ls build/ios/ipa/*.ipa | head -n1)
           if [ -z "$IPA" ]; then echo "::error::No .ipa produced by -exportArchive" >&2; exit 1; fi
-          echo "path=$IPA" >> "$GITHUB_OUTPUT"
+          mv "$IPA" build/ios/ipa/InvoiceNinja.ipa
+          echo "path=build/ios/ipa/InvoiceNinja.ipa" >> "$GITHUB_OUTPUT"
 
       # Upload to TestFlight (does NOT submit for App Store review — testers get
       # it on the testing channel). api-private-key is the RAW .p8 text (NOT

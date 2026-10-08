@@ -12,6 +12,7 @@ class ReportColumn {
     required this.identifier,
     required this.displayLabel,
     required this.type,
+    this.aggregation,
   });
 
   /// Stable id, e.g. `client.name` or `invoice.amount`. Used as the dictionary
@@ -23,23 +24,47 @@ class ReportColumn {
 
   final ReportColumnType type;
 
+  /// An explicit answer to "how is this column totalled", or null to take
+  /// the one its name implies. Set when the report's row grain says more
+  /// than the name can — see [ReportAggregation.oncePerRecord].
+  final ReportAggregation? aggregation;
+
+  /// How this column is totalled: [aggregation] when set, otherwise
+  /// [defaultReportAggregation].
+  ReportAggregation get effectiveAggregation =>
+      aggregation ?? defaultReportAggregation(identifier, type);
+
+  ReportColumn copyWith({
+    String? displayLabel,
+    ReportColumnType? type,
+    ReportAggregation? aggregation,
+  }) => ReportColumn(
+    identifier: identifier,
+    displayLabel: displayLabel ?? this.displayLabel,
+    type: type ?? this.type,
+    aggregation: aggregation ?? this.aggregation,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is ReportColumn &&
       other.identifier == identifier &&
       other.displayLabel == displayLabel &&
-      other.type == type;
+      other.type == type &&
+      other.aggregation == aggregation;
 
   @override
-  int get hashCode => Object.hash(identifier, displayLabel, type);
+  int get hashCode => Object.hash(identifier, displayLabel, type, aggregation);
 }
 
 /// Sealed value carried by a single cell of a [ReportRow]. Carries:
-/// - the **raw** typed value (for sort, filter, and aggregation)
-/// - the server's pre-formatted **display value** (for rendering)
-/// - the wire-format entity reference (for drill-down — `entityWire` is the
-///   server's raw string, NOT an `EntityType` enum; mapping happens in
-///   `resolveDrillTarget`).
+/// - the **raw** typed value (for sort, filter, aggregation — and rendering,
+///   for every type but a string)
+/// - the server's own **display value** (what a string cell shows, and the
+///   fallback when a typed value could not be parsed)
+/// - the wire-format reference to the *related* record the cell belongs to,
+///   when there is one (`entityWire` is the server's raw string, NOT an
+///   `EntityType` enum; mapping happens in `resolveDrillTarget`).
 ///
 /// Cell parsing happens in `ReportsRepository._parseCell`. Money uses
 /// `parseMoney` from `lib/data/models/value/money.dart` (Decimal); dates use
@@ -48,15 +73,22 @@ class ReportColumn {
 sealed class ReportCell {
   const ReportCell({this.entityWire, this.entityId, this.displayValue});
 
-  /// Server wire string for the entity this cell belongs to (`client`,
-  /// `invoice`, `invoice_item`, `activity`, …). Drill-down resolves this via
-  /// `resolveDrillTarget` to find the navigable entity (item rows redirect
-  /// to their parent; `activity` is non-clickable).
+  /// The entity this cell's column belongs to — the part of its identifier
+  /// before the dot (`client` for `client.name`, `invoice`, `item`, …).
   final String? entityWire;
 
-  /// Server id for the entity this cell belongs to. Combined with
-  /// `entityWire`'s resolved [EntityHandlers.routePath] to build the drill
-  /// target URL.
+  /// The id of the **related** record this cell belongs to, and null for a
+  /// cell of the row's own entity.
+  ///
+  /// That asymmetry is the server's (`BaseExport::processMetaData`): it sends
+  /// `hashed_id` only when the column's entity is not the row's, so on an
+  /// invoice report a `client.name` cell carries the client's id and an
+  /// `invoice.number` cell carries nothing. The row's own id is
+  /// [ReportRow.recordId], which arrives by a different route.
+  ///
+  /// It is read from `hashed_id`, not from the cell's `id` — that one is the
+  /// *field name* (`"number"`), which this field used to hold and which sent
+  /// every row tap to a record called "number".
   final String? entityId;
 
   /// The server's pre-formatted display string. Used as a fallback when the
@@ -92,10 +124,11 @@ class ReportStringCell extends ReportCell {
   String get filterText => (displayValue ?? value)?.toLowerCase() ?? '';
 }
 
-/// Numeric cell. For money columns set [isMoney] = true and supply
-/// [currencyId]; the engine groups totals by currency. [exchangeRate] is the
-/// row's exchange rate to the company currency when the server emits one —
-/// used by the optional converted-totals calculation.
+/// Numeric cell. For money columns [isMoney] is true. [currencyId] is an
+/// explicit currency for this one cell and is normally null — a row's amounts
+/// share [ReportRow.currencyId], which is where the engine looks next.
+/// [exchangeRate] is the cell's rate to the company currency when a producer
+/// sets one.
 class ReportNumberCell extends ReportCell {
   const ReportNumberCell({
     this.value,
@@ -205,26 +238,40 @@ class ReportDurationCell extends ReportCell {
   Object? get sortKey => seconds;
 }
 
-/// One row of a [ReportPreview]. The first non-null cell's `entityWire` /
-/// `entityId` is taken as the row's drill-down target.
+/// One row of a [ReportPreview].
 class ReportRow {
-  const ReportRow({required this.cells});
+  const ReportRow({
+    required this.cells,
+    this.recordWire,
+    this.recordId,
+    this.currencyId,
+  });
 
   final List<ReportCell> cells;
 
-  String? get entityWire {
-    for (final c in cells) {
-      if (c.entityWire != null && c.entityWire!.isNotEmpty) return c.entityWire;
-    }
-    return null;
-  }
+  /// The wire name of the record this row *is* (`invoice`, `client`, …; on a
+  /// line-item report, the parent document), and its id. Both null until the
+  /// row's id is known — the server does not send it unasked, see
+  /// `ReportDefinition.rowIdKey` — and a row with no id is not a link.
+  final String? recordWire;
+  final String? recordId;
 
-  String? get entityId {
-    for (final c in cells) {
-      if (c.entityId != null && c.entityId!.isNotEmpty) return c.entityId;
-    }
-    return null;
-  }
+  /// The currency this row's amounts are in (a statics currency id), or null
+  /// when the report carries no currency column. The server puts no currency
+  /// on a cell; it puts an ISO code in a column of the row.
+  final String? currencyId;
+
+  ReportRow copyWith({
+    List<ReportCell>? cells,
+    String? recordWire,
+    String? recordId,
+    String? currencyId,
+  }) => ReportRow(
+    cells: cells ?? this.cells,
+    recordWire: recordWire ?? this.recordWire,
+    recordId: recordId ?? this.recordId,
+    currencyId: currencyId ?? this.currencyId,
+  );
 }
 
 /// The decoded server response for one Run of a report — the column header

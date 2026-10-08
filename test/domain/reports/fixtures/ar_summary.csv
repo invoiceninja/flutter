@@ -1,0 +1,17 @@
+
+
+
+
+"Aged Receivable Summary Report"
+"Created On"," ",08/Oct/2026
+Currency,GBP
+"Client Name","Client Number","ID Number",Current,"0 - 30 Days","30 - 60 Days","60 - 90 Days","90 - 120 Days","120+ Days",Total
+"Bradtke, Vandervort and Rodriguez",0004,GI96WPJQB071G7BL3427K79,"£8,427.00",£0.00,£0.00,£0.00,£0.00,£0.00,"£8,427.00"
+"Lowe, King and Sawayn",0019,BA424181077582724717,"£3,509.00",£0.00,£0.00,£0.00,£0.00,£0.00,"£3,509.00"
+Witting-Conroy,0021,MC644214109802E98YW3L66Z458,"£5,422.00",£0.00,£0.00,£0.00,£0.00,£0.00,"£5,422.00"
+
+Currency,EUR
+"Client Name","Client Number","ID Number",Current,"0 - 30 Days","30 - 60 Days","60 - 90 Days","90 - 120 Days","120+ Days",Total
+"Hickle PLC",0022,VG69ZKAP8268821735372796,"€1.717,00","€0,00","€0,00","€0,00","€0,00","€0,00","€1.717,00"
+Pollich-Lueilwitz,0008,TN7264765151952540840227,"€345,00","€0,00","€0,00","€0,00","€0,00","€0,00","€345,00"
+"Schumm LLC",0007,TR135787655574TIV5VV29259A,"€2.864,00","€0,00","€0,00","€0,00","€0,00","€0,00","€2.864,00"

@@ -80,6 +80,36 @@ Map<String, dynamic> normalizeSnapshotStates(Map<String, dynamic> slot) {
 /// `navStateDao.watchCurrent` listener picks up) and the column half into
 /// `user_settings.table_columns_json` (which the VM's existing column
 /// listener picks up).
+/// `saved_views.entity_type` of a saved **report** view.
+///
+/// Not an [EntityType]: a report is not an entity, and the column is text, so
+/// a report view shares the table without a migration. Every entity-typed
+/// read skips these rows (`_decodeRows`), and every report read asks for
+/// exactly this value, so the two kinds never see each other.
+const String kReportSavedViewType = 'report';
+
+/// A named arrangement of one report: its range and filters, its columns,
+/// how it is grouped and sorted, which figure it charts.
+class SavedReportView {
+  const SavedReportView({
+    required this.id,
+    required this.name,
+    required this.reportIdentifier,
+    required this.state,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+
+  /// The report it is a view of (`ReportDefinition.identifier`).
+  final String reportIdentifier;
+
+  /// The report's state as `ReportsViewModel.reportViewState` wrote it.
+  final Map<String, dynamic> state;
+  final int updatedAt;
+}
+
 class SavedViewsRepository {
   SavedViewsRepository({
     required this.db,
@@ -351,6 +381,87 @@ class SavedViewsRepository {
     await db.savedViewsDao.deleteById(viewId);
   }
 
+  // ── Report views ──────────────────────────────────────────────────────
+
+  /// Every saved report view of [companyId], by name.
+  Stream<List<SavedReportView>> watchReportViews(String companyId) => db
+      .savedViewsDao
+      .watchForEntity(companyId, kReportSavedViewType)
+      .map(_decodeReportRows);
+
+  /// One saved report view, or null when it is gone.
+  Future<SavedReportView?> reportView(String viewId) async {
+    final row = await db.savedViewsDao.byId(viewId);
+    if (row == null || row.entityType != kReportSavedViewType) return null;
+    return _decodeReportRows([row]).firstOrNull;
+  }
+
+  Future<SavedReportView> createReportView({
+    required String companyId,
+    required String name,
+    required String reportIdentifier,
+    required Map<String, dynamic> state,
+  }) async {
+    final nowMs = _now().millisecondsSinceEpoch;
+    final id = _uuid.v4();
+    await db.savedViewsDao.insertView(
+      SavedViewsCompanion(
+        id: Value(id),
+        companyId: Value(companyId),
+        entityType: const Value(kReportSavedViewType),
+        name: Value(name),
+        payloadJson: Value(_encodeReport(reportIdentifier, state)),
+        createdAt: Value(nowMs),
+        updatedAt: Value(nowMs),
+      ),
+    );
+    return SavedReportView(
+      id: id,
+      name: name,
+      reportIdentifier: reportIdentifier,
+      state: state,
+      updatedAt: nowMs,
+    );
+  }
+
+  /// Replace what [viewId] holds with the report as it now stands.
+  Future<void> updateReportView({
+    required String viewId,
+    required String reportIdentifier,
+    required Map<String, dynamic> state,
+  }) async {
+    await db.savedViewsDao.updateById(
+      id: viewId,
+      payloadJson: _encodeReport(reportIdentifier, state),
+      now: _now().millisecondsSinceEpoch,
+    );
+  }
+
+  String _encodeReport(String reportIdentifier, Map<String, dynamic> state) =>
+      _encode({'report': reportIdentifier, 'state': state});
+
+  List<SavedReportView> _decodeReportRows(List<SavedViewRow> rows) {
+    final out = <SavedReportView>[];
+    for (final row in rows) {
+      final payload = _decodePayload(row.payloadJson);
+      final report = payload?['report'];
+      final state = payload?['state'];
+      // A row that is not a report view in this shape is skipped, never
+      // thrown on: one bad write must not empty the list.
+      if (report is! String || state is! Map) continue;
+      out.add(
+        SavedReportView(
+          id: row.id,
+          name: row.name,
+          reportIdentifier: report,
+          state: Map<String, dynamic>.from(state),
+          updatedAt: row.updatedAt,
+        ),
+      );
+    }
+    return out;
+  }
+
   /// Apply [viewId]: splice its snapshot into `nav_state.filters_json` at
   /// `companyId → entityType.name` (drives the VM's filter listener), and
   /// — when the snapshot carries a `columnIds` list — write that through to
@@ -478,6 +589,8 @@ class SavedViewsRepository {
   List<SavedView> _decodeRows(List<SavedViewRow> rows) {
     final out = <SavedView>[];
     for (final row in rows) {
+      // A report view is not an entity's; it has readers of its own.
+      if (row.entityType == kReportSavedViewType) continue;
       final entityType = _entityTypeOrNull(row.entityType);
       if (entityType == null) {
         // Drop rows referencing entities the build no longer knows about

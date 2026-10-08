@@ -3,11 +3,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/charts/chart_chrome.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/helpers/chart_series_math.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
@@ -241,7 +241,7 @@ class ChartCard extends StatelessWidget {
     runSpacing: 0,
     children: [
       for (final id in ChartSeriesId.values)
-        _LegendToggle(
+        ChartLegendToggle(
           label: _labelFor(context, id),
           color: _colorFor(tokens, id),
           active: vm.visibleChartSeries.contains(id),
@@ -419,76 +419,11 @@ class ChartCard extends StatelessWidget {
   }
 }
 
-/// One legend entry: a swatch and a label that switch a series on and off.
-///
-/// A real control. It was a bare `GestureDetector` around an 8 px dot and
-/// 11.5 px text — no focus, no role for a screen reader, and on a phone a
-/// target about 16 px tall.
-class _LegendToggle extends StatelessWidget {
-  const _LegendToggle({
-    required this.label,
-    required this.color,
-    required this.active,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color color;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return MergeSemantics(
-      child: Semantics(
-        toggled: active,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(InRadii.r1),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: Env.isTouchPrimary ? InSizes.touchTarget : 28,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: active ? color : Colors.transparent,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: color, width: 1.5),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: active ? tokens.ink : tokens.ink2,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Label every [return]th bucket so at most [maxLabels] dates are drawn —
 /// never more than six, so a year of daily buckets is not a wall of labels,
 /// and never more than fit side by side (see `_RevenueLineChartState.build`).
-int _labelStep(int bucketCount, {int maxLabels = 6}) {
-  final cap = maxLabels.clamp(2, 6);
-  return bucketCount <= cap ? 1 : (bucketCount / cap).ceil();
-}
+int _labelStep(int bucketCount, {int maxLabels = 6}) =>
+    chartLabelStep(bucketCount, maxLabels: maxLabels.clamp(2, 6));
 
 /// The plot itself. A [StatefulWidget] for one reason: its fl_chart callbacks
 /// are [State] methods, so they are the same objects from one build to the
@@ -558,11 +493,7 @@ class _RevenueLineChartState extends State<_RevenueLineChart> {
     return width * 1.5;
   }
 
-  FlLine _gridLine(double _) => FlLine(
-    color: widget.tokens.border,
-    strokeWidth: 1,
-    dashArray: const [4, 4],
-  );
+  FlLine _gridLine(double _) => chartGridLine(widget.tokens);
 
   Widget _valueTitle(double value, TitleMeta meta) {
     // fl_chart labels the axis's own maximum as well as its gridlines. The

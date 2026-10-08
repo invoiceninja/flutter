@@ -13,7 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 
-import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/features/clients/views/client_detail_screen.dart';
 import 'package:admin/ui/features/clients/views/client_list_screen.dart';
@@ -50,7 +49,8 @@ import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_l
 import 'package:admin/ui/features/recurring_invoices/views/recurring_invoice_detail_screen.dart';
 import 'package:admin/ui/features/recurring_invoices/views/recurring_invoice_list_screen.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_list_tile.dart';
-import 'package:admin/ui/features/reports/views/reports_screen.dart';
+import 'package:admin/ui/features/reports/views/report_screen.dart';
+import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/tasks/views/task_detail_screen.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
 import 'package:admin/ui/features/tasks/widgets/task_list_tile.dart';
@@ -141,8 +141,8 @@ void main() {
     if (skipIfUnreachable()) return;
 
     await bootLoggedIn(tester, initialLocation: '/reports');
-    await pumpUntilFound(tester, find.byType(ReportsScreen));
-    expect(find.byType(ReportsScreen), findsOneWidget);
+    await pumpUntilFound(tester, find.byType(ReportsGalleryScreen));
+    expect(find.byType(ReportsGalleryScreen), findsOneWidget);
   });
 
   testWidgets('primary entity detail screens load from the demo server', (
@@ -416,57 +416,23 @@ void main() {
     );
   });
 
-  testWidgets('running the clients report renders results', (tester) async {
+  testWidgets('opening the clients report renders results', (tester) async {
     if (skipIfUnreachable()) return;
 
-    await bootLoggedIn(tester, initialLocation: '/reports');
-    await pumpUntilFound(tester, find.byType(ReportsScreen));
-    // Reports opens on the preselected Clients report ("This year") with an
-    // initial EmptyState until a run is triggered.
+    // A report runs itself when it is opened — there is no Run to press.
+    await bootLoggedIn(tester, initialLocation: '/reports/client');
+    await pumpUntilFound(tester, find.byType(ReportScreen));
+
+    // Queued POST + poll: wait (generously) for the table's toolbar, which
+    // is only drawn over a result.
     await pumpUntilFound(
       tester,
-      find.descendant(
-        of: find.byType(ReportsScreen),
-        matching: find.byType(EmptyState),
-      ),
-    );
-
-    // The Run action is the FilledButton carrying a play arrow (the
-    // in-flight state swaps it for a spinner + Cancel). The wide layout
-    // renders it in more than one on-screen slot — all bound to the same
-    // `vm.runReport` — so accept ≥1 and tap the first.
-    final runBtn = find
-        .widgetWithIcon(FilledButton, Icons.play_arrow)
-        .hitTestable();
-    await pumpUntilFound(tester, runBtn, timeout: const Duration(seconds: 10));
-    expect(
-      runBtn,
-      findsAtLeastNWidgets(1),
-      reason: 'reports screen must expose Run',
-    );
-    await tester.tap(runBtn.first);
-
-    // Queued POST + poll: wait (generously) for the initial EmptyState to
-    // give way to results, and assert the run did not error.
-    await pumpUntilGone(
-      tester,
-      find.descendant(
-        of: find.byType(ReportsScreen),
-        matching: find.byType(EmptyState),
-      ),
+      find.byKey(const Key('report-row-search')),
       timeout: const Duration(seconds: 90),
     );
     expect(
       find.descendant(
-        of: find.byType(ReportsScreen),
-        matching: find.byType(EmptyState),
-      ),
-      findsNothing,
-      reason: 'the report run should leave the initial empty state',
-    );
-    expect(
-      find.descendant(
-        of: find.byType(ReportsScreen),
+        of: find.byType(ReportScreen),
         matching: find.byType(ErrorView),
       ),
       findsNothing,

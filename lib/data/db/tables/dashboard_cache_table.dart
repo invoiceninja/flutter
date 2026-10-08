@@ -15,6 +15,10 @@ import 'package:drift/drift.dart';
 ///   - `recent_payments`                    — GET  `payments?...`
 ///   - `expired_quotes`, `upcoming_quotes`  — GET  `quotes?...`
 ///   - `upcoming_recurring`                 — GET  `recurring_invoices?...`
+///   - `report`                             — POST `reports/<name>?output=json`
+///     (the Reports screen's last results — `ReportCacheStore`; `filter_hash`
+///     is the report and a digest of the request, and the kind keeps a
+///     bounded history rather than one row per key)
 ///
 /// `filter_hash` is `'_'` for list-card kinds (they aren't filter-keyed).
 /// Only `totals_current`, `totals_previous`, and `chart` use a real hash.

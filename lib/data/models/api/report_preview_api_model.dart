@@ -13,7 +13,8 @@ import 'package:admin/utils/notes_html.dart';
 /// ```json
 /// {
 ///   "columns": [{"identifier": "client.name", "display_value": "Client"}],
-///   "0": [{"identifier":"client.name","value":"ACME","display_value":"ACME","entity":"client","id":"abc"}, ...],
+///   "0": [{"identifier":"client.name","value":"ACME","display_value":"ACME",
+///          "entity":"client","id":"name","hashed_id":"Wpmbk5ezJn"}, ...],
 ///   "1": [...],
 ///   ...
 /// }
@@ -23,7 +24,17 @@ import 'package:admin/utils/notes_html.dart';
 /// alongside `columns`. We collect non-`columns` keys, sort numerically, and
 /// map to [ReportRow]s. Column types are inferred via [inferColumnType] —
 /// the server doesn't ship a column-type map.
-ReportPreview decodeReportPreview(Object? raw) {
+///
+/// A cell's `id` is its **field name**, not a record id, and is not read:
+/// the related record's id is `hashed_id` (see [ReportCell.entityId]).
+///
+/// [numberStyle] is how the server wrote its numbers — the company
+/// currency's separators and precision — so they are read back exactly
+/// rather than inferred; see [parseFormattedMoney].
+ReportPreview decodeReportPreview(
+  Object? raw, {
+  FormattedNumberStyle? numberStyle,
+}) {
   if (raw is! Map) {
     throw const FormatException('Report preview must be a JSON object');
   }
@@ -62,31 +73,44 @@ ReportPreview decodeReportPreview(Object? raw) {
     final cells = <ReportCell>[];
     for (var i = 0; i < columns.length; i++) {
       final cellRaw = i < rowRaw.length ? rowRaw[i] : null;
-      cells.add(_parseCell(cellRaw, columns[i].type));
+      cells.add(_parseCell(cellRaw, columns[i].type, numberStyle));
     }
     rows.add(ReportRow(cells: cells));
   }
   return ReportPreview(columns: columns, rows: rows);
 }
 
-ReportCell _parseCell(Object? cellRaw, ReportColumnType type) {
+ReportCell _parseCell(
+  Object? cellRaw,
+  ReportColumnType type,
+  FormattedNumberStyle? numberStyle,
+) {
   Map<String, Object?>? cell;
   if (cellRaw is Map) {
     cell = cellRaw.map((k, v) => MapEntry(k.toString(), v));
   } else if (cellRaw != null) {
     // Some endpoints emit primitives directly when there's no entity ref.
-    return _parseTyped(value: cellRaw, displayValue: null, type: type);
+    return _parseTyped(
+      value: cellRaw,
+      displayValue: null,
+      type: type,
+      numberStyle: numberStyle,
+    );
   }
   final value = cell?['value'];
   final displayValue = cell?['display_value']?.toString();
   final entityWire = cell?['entity']?.toString();
-  final entityId = cell?['id']?.toString();
+  final hashedId = cell?['hashed_id']?.toString();
   return _parseTyped(
     value: value,
     displayValue: displayValue,
     type: type,
+    numberStyle: numberStyle,
     entityWire: entityWire,
-    entityId: entityId,
+    entityId: hashedId == null || hashedId.isEmpty ? null : hashedId,
+    // Not sent today (the row's currency is a column — see
+    // `ReportRow.currencyId`); read so a server that starts sending a
+    // per-cell currency is honoured without a client release.
     currencyId: cell?['currency_id']?.toString(),
     exchangeRate: cell?['exchange_rate'],
   );
@@ -96,6 +120,7 @@ ReportCell _parseTyped({
   required Object? value,
   required String? displayValue,
   required ReportColumnType type,
+  FormattedNumberStyle? numberStyle,
   String? entityWire,
   String? entityId,
   String? currencyId,
@@ -106,19 +131,17 @@ ReportCell _parseTyped({
       return ReportNumberCell(
         // The export formats numeric cells with the currency's separators
         // ("3,238.00"); parseMoney would zero them. See parseFormattedMoney.
-        value: value == null ? null : parseFormattedMoney(value),
+        value: _number(value, numberStyle),
         isMoney: true,
         currencyId: currencyId,
-        exchangeRate: exchangeRate == null
-            ? null
-            : parseFormattedMoney(exchangeRate),
+        exchangeRate: _number(exchangeRate, numberStyle),
         entityWire: entityWire,
         entityId: entityId,
         displayValue: displayValue,
       );
     case ReportColumnType.number:
       return ReportNumberCell(
-        value: value == null ? null : parseFormattedMoney(value),
+        value: _number(value, numberStyle),
         entityWire: entityWire,
         entityId: entityId,
         displayValue: displayValue,
@@ -213,6 +236,25 @@ ReportCell _parseTyped({
       );
   }
 }
+
+/// A numeric cell's value, or null for one the server left blank.
+///
+/// Blank is not zero. A column that is empty on a row — an amount that does
+/// not apply, a payment's `applied_amount` when nothing was applied — used to
+/// come back as `0`, print as an amount, and count as a real value in every
+/// range filter.
+///
+/// Nor is a word a number: `PaymentDecorator` answers `payment.amount` with
+/// "Unpaid" for an invoice that has no payment, and the parser would read
+/// that as zero too. A value with no digit in it stays unparsed, and the cell
+/// shows the server's own string.
+Decimal? _number(Object? value, FormattedNumberStyle? style) {
+  if (value == null) return null;
+  if (value is String && !_kHasDigit.hasMatch(value)) return null;
+  return parseFormattedMoney(value, style: style);
+}
+
+final RegExp _kHasDigit = RegExp(r'\d');
 
 /// One line of readable text for a report cell that may carry markup. A report
 /// row has one line to spend, so the paragraphs collapse.

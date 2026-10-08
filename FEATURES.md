@@ -662,7 +662,7 @@ the honest default.
 
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
-| Report — activity | ✅ | ✅ | ✅ | ✅ | |
+| Report — activity | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). v2 shows it on screen as a searchable log. |
 | Report — client | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Report — contact | ✅ | ✅ | ✅ | ✅ | |
 | Report — credit | ✅ | ✅ | ✅ | ✅ | |
@@ -673,10 +673,10 @@ the honest default.
 | Report — quote | ✅ | ✅ | ✅ | ✅ | |
 | Report — quote item | ✅ | ✅ | ✅ | ✅ | |
 | Report — recurring invoice | ✅ | ✅ | ✅ | ✅ | |
-| Report — recurring invoice item | ✅ | 🟡 | ✅ | ✅ | |
+| Report — recurring invoice item | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — payment | ✅ | ✅ | ✅ | ✅ | |
 | Report — product | ✅ | ✅ | ✅ | ✅ | |
-| Report — product sales | ✅ | ✅ | ✅ | ✅ | |
+| Report — product sales | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — product inventory valuation total (stock value) | — | — | ✅ | | |
 | Report — task | ✅ | ✅ | ✅ | ✅ | |
 | Report — tag filter (every tag-bearing report, and scheduled reports → `tag_ids`) | ✅ | — | ✅ | | |
@@ -684,31 +684,46 @@ the honest default.
 | Report — purchase order | ✅ | ✅ | ✅ | ✅ | |
 | Report — purchase order item | ✅ | 🟡 | ✅ | ✅ | |
 | Report — profit / loss | ✅ | ✅ | ✅ | ✅ | |
-| Report — client balance | ✅ | ✅ | ✅ | ✅ | |
-| Report — client sales | ✅ | ✅ | ✅ | ✅ | |
-| Report — aged receivable (detailed) | ✅ | ✅ | ✅ | ✅ | |
-| Report — aged receivable (summary) | ✅ | ✅ | ✅ | ✅ | |
-| Report — user sales | ✅ | 🟡 | ✅ | ✅ | |
-| Report — tax summary | ✅ | ✅ | ✅ | ✅ | |
+| Report — client balance | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
+| Report — client sales | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
+| Report — aged receivable (detailed) | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
+| Report — aged receivable (summary) | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
+| Report — user sales | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
+| Report — tax summary | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — tax period | ✅ | ❌ | ✅ | ✅ | |
-| Report — project | ✅ | ✅ | ✅ | ✅ | |
+| Report — project | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — custom column selection | ✅ | ✅ | ✅ | ✅ | |
 | Report — date range filters (preset + custom) | ✅ | ✅ | ✅ | ✅ | |
-| Report — export to PDF / CSV | ✅ | ✅ | ✅ | ✅ | |
+| Report — export to PDF / CSV | ✅ | ✅ | ✅ | ✅ | v2 reads the file's type from the file (the server chooses it) and also writes the view on screen — filtered, sorted, arranged — as a CSV locally. |
 | Report — email-scheduled delivery | ✅ | 🟡 | ✅ | ✅ | |
 | Report — grouping by dimension | ✅ | ✅ | ✅ | ✅ | |
 | Report — multi-entity filtering | ✅ | ✅ | ✅ | ✅ | |
 | Report — typed status filter (multi-select) | ✅ | ✅ | ✅ | — | |
-| Report — currency-aware grand totals | — | ✅ | ✅ | — | |
+| Report — currency-aware grand totals | — | ✅ | ✅ | — | v2 totals per currency from each row's own currency column, reads a mixed result in one currency at a time, and counts a line-item report's parent amounts once. |
 | Report — column reorder | ✅ | ❌ | ✅ | — | |
 | Report — per-column table filters (type-aware) | ❌ | ✅ | ✅ | — | |
-| Report — chart (bar + time-series) | ❌ | ✅ | ✅ | — | |
+| Report — chart (bar + time-series) | ❌ | ✅ | ✅ | — | v2's form follows the data: a trend for a date grouping, a ranking for a category, groups over time for a split, and the largest rows when ungrouped. |
 | Report — chart series: record count | ❌ | ❌ | ✅ | — | v1 computes a `count` total but its chart picker only offers numeric *columns*, so it can't be charted there |
 | Report — chart fills empty periods with zero | ❌ | ❌ | ✅ | — | v1 sidesteps gaps with a real time axis rather than filling them; v2 plots period buckets by index, so it fills |
 | Report — date subgroup granularity (day / week / month / quarter / year) | ❌ | ✅ | ✅ | — | |
 | Report — split a grouping by period (e.g. hours per user per month) | ❌ | ❌ | ✅ | — | v1's subgroup only buckets a *date* group column; v2 also splits any non-date grouping by one of the report's date columns (`<group> · <period>` rows). Local-only: exports stay grouped by the primary column |
 | Report — names the date field the range filters | ❌ | 🟡 | ✅ | — | v1 shows a date-field dropdown only when a report has more than one date column |
 | Report — date-created column (client report) | ❌ | ✅ | ✅ | — | v2 also offers it on the contact, vendor and product reports (fetched on pick) |
+| Report — gallery by purpose, with starter views ("by month", "by client"), recent and saved | ❌ | ❌ | ✅ | — | React and v1 pick a report from a dropdown |
+| Report — runs on opening; last result shown at once from disk, and kept when a refresh fails | ❌ | ✅ | ✅ | — | v1 computes locally, so it has no run to wait for; React has a Preview button |
+| Report — a row opens its record | 🟡 | ✅ | ✅ | — | React links only a credit's number, and by its number rather than its id |
+| Report — row search, multi-column sort, column resize, groups that open in place | 🟡 | 🟡 | ✅ | — | React: sort + resize; v1: sort + drill |
+| Report — table header and totals stay pinned; first column held while the rest scroll | ❌ | ❌ | ✅ | — | |
+| Report — file-only reports read back on screen (P&L, aged receivables, client balance / sales, tax summary, user sales, product sales) | ❌ | — | ✅ | — | React downloads them; v1 has none of them. Projects (PDF) and tax period (XLSX) remain downloads in v2 |
+| Report — compare to the previous period (like-with-like for a period in progress) | ❌ | ❌ | ✅ | — | |
+| Report — saved report views | ❌ | ❌ | ✅ | — | |
+| Report — open a report by name from the command palette | ❌ | ❌ | ✅ | — | |
+| Report — shows an existing email schedule of the report | ❌ | ❌ | ✅ | — | |
+| Report — credit item | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
+| Report — task item | ❌ | ✅ | ❌ | — | as above |
+| Report — invoice tax / payment tax / expense tax | ❌ | ✅ | ❌ | — | as above; the server's tax summary and tax period reports cover the ground |
+| Report — recurring expense | ❌ | ✅ | ❌ | — | as above |
+| Report — transaction | ❌ | ✅ | ❌ | — | as above |
 
 ---
 
@@ -1057,7 +1072,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Pro/Enterprise gating: trial-aware (trialing users keep paid features) | ✅ | ✅ | ✅ | ✅ | |
 | Self-hosted license state (White labeled vs Free) | ✅ | 🟡 | ✅ | | |
 | Pro/Enterprise gating: single source of truth (`domain/plan_gate.dart`) | — | — | ✅ | ✅ | |
-| Reports gated at Pro on hosted (banner + disabled Run/Export/Email) | ✅ | ✅ | ✅ | ✅ | |
+| Reports gated at Pro on hosted (banner; nothing runs; Export / Email / Schedule disabled) | ✅ | ✅ | ✅ | ✅ | |
 | Document/attachment upload gated at Enterprise on hosted | ✅ | ✅ | ✅ | ✅ | |
 | E-invoice settings gated at Enterprise on hosted | ✅ | — | ✅ | ✅ | |
 | E-invoicing settings at company level only; PEPPOL hidden for self-hosted companies in France | ✅ | — | ✅ | | |

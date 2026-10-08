@@ -177,6 +177,24 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
           ),
         ],
       ),
+      _Section(
+        icon: Icons.bar_chart_outlined,
+        title: context.tr('reports'),
+        rows: [
+          _Row(
+            chords: const [
+              ['R'],
+            ],
+            description: context.tr('refresh'),
+          ),
+          _Row(
+            chords: const [
+              ['Esc'],
+            ],
+            description: context.tr('clear_filters'),
+          ),
+        ],
+      ),
     ];
 
     // Desktop windows get a wider 2-column layout; narrow viewports
@@ -264,11 +282,13 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
 
   Widget _twoColumnBody(BuildContext context, List<_Section> sections) {
     // Section order from `build`: 0 Global, 1 Records, 2 Navigation,
-    // 3 Search, 4 Forms. The split puts "anywhere" + "record actions"
-    // on the left and "moving within a screen" on the right — close
-    // enough in row count that neither column dwarfs the other.
+    // 3 Search, 4 Forms, 5 Reports. The split puts "anywhere" + "record
+    // actions" on the left and "moving within a screen" on the right —
+    // close enough in row count that neither column dwarfs the other.
+    // Picked by position, so a section added to `build` has to be placed
+    // here too or it is on no column at all.
     final left = [sections[0], sections[1], sections[4]];
-    final right = [sections[2], sections[3]];
+    final right = [sections[2], sections[3], sections[5]];
     final tokens = context.inTheme;
     return SingleChildScrollView(
       child: IntrinsicHeight(

@@ -43,6 +43,29 @@ TextStyle moneyTextStyle({
 /// Read tokens through `context.inTheme.<name>` — the [BuildContext]
 /// extension below resolves to the brightness-appropriate variant
 /// automatically.
+const List<Color> _kSeriesLight = [
+  Color(0xFF2A78D6), // blue
+  Color(0xFFEB6834), // orange
+  Color(0xFF1BAF7A), // aqua
+  Color(0xFFEDA100), // yellow
+  Color(0xFFE87BA4), // magenta
+  Color(0xFF008300), // green
+  Color(0xFF4A3AA7), // violet
+  Color(0xFFE34948), // red
+];
+
+/// The same eight hues, stepped for a dark surface — not a separate palette.
+const List<Color> _kSeriesDark = [
+  Color(0xFF3987E5),
+  Color(0xFFD95926),
+  Color(0xFF199E70),
+  Color(0xFFC98500),
+  Color(0xFFD55181),
+  Color(0xFF008300),
+  Color(0xFF9085E9),
+  Color(0xFFE66767),
+];
+
 class InTheme extends ThemeExtension<InTheme> {
   const InTheme({
     required this.brightness,
@@ -164,6 +187,41 @@ class InTheme extends ThemeExtension<InTheme> {
     final onDark = _contrastRatio(l, _kOnAccentDarkLuminance);
     return onLight >= onDark ? _kOnAccentLight : _kOnAccentDark;
   }
+
+  /// The colours of a chart's series, in assignment order: the first series
+  /// takes the first, the second the next, and a ninth does not exist — past
+  /// eight a chart folds its tail into "Other" ([seriesOther]) rather than
+  /// invent a hue.
+  ///
+  /// **For series that are identities** — these five clients, those three
+  /// users. A series that *means* something keeps the colour that already
+  /// means it everywhere else: paid is [paid], overdue is [overdue] (the
+  /// dashboard's Overview chart is four such series and uses none of these).
+  /// And never [accent]: that one is the user's own choice, so a green or a
+  /// red accent would read as paid or overdue.
+  ///
+  /// **The order is the colour-blind safety mechanism, not a preference.**
+  /// It was chosen by enumerating orderings and keeping one where every
+  /// *adjacent* pair stays apart under simulated protanopia and deuteranopia
+  /// (worst adjacent pair ΔE 9.1 light / 8.4 dark, against a target of 8;
+  /// 19.6 / 19.3 with normal vision, against a floor of 15), and it was
+  /// checked against the card surface of all six presets. Reordering, or
+  /// swapping in a "nicer" hex, undoes that silently — `series_palette_test`
+  /// holds the contrast half of it. Three of the light colours (aqua,
+  /// yellow, magenta) sit under 3:1 on a white card by design, which is why a
+  /// chart drawn with them always has its values in text beside it — a
+  /// legend with figures, and the table.
+  ///
+  /// A getter keyed on [brightness], like [onOverdue], so a new preset needs
+  /// no wiring. A user-overridden surface is not re-checked; the dark steps
+  /// clear 3:1 on anything as dark as the three dark presets.
+  List<Color> get series =>
+      brightness == Brightness.dark ? _kSeriesDark : _kSeriesLight;
+
+  /// The colour of whatever a chart folds together — "Other" — and of a
+  /// series shown only for context (a previous period behind the current
+  /// one). Neutral on purpose: it is not one of the things being compared.
+  Color get seriesOther => ink4;
 
   // ───────────────────────── Light palettes ─────────────────────────
   //

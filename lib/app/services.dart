@@ -69,6 +69,7 @@ import 'package:admin/data/repositories/quickbooks_repository.dart';
 import 'package:admin/data/repositories/quote_repository.dart';
 import 'package:admin/data/repositories/recurring_expense_repository.dart';
 import 'package:admin/data/repositories/recurring_invoice_repository.dart';
+import 'package:admin/data/repositories/report_cache_store.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/repositories/saved_views_repository.dart';
 import 'package:admin/data/repositories/schedule_repository.dart';
@@ -1570,7 +1571,10 @@ class Services implements SidebarBadgeContext {
     final dashboardRepo = DashboardRepository(db: db, api: dashboardApi);
     final projectChartsApi = ProjectChartsApi(apiClient);
     final reportsApi = ReportsApi(apiClient);
-    final reportsRepo = ReportsRepository(api: reportsApi);
+    final reportsRepo = ReportsRepository(
+      api: reportsApi,
+      cache: ReportCacheStore(db: db),
+    );
     final statics = StaticsRepository(
       db: db,
       service: StaticsService(apiClient),
@@ -1598,6 +1602,7 @@ class Services implements SidebarBadgeContext {
     // Stricter there: a null answer (signed out) blocks the write too — see
     // `DashboardRepository._ensureStillActive`.
     dashboardRepo.activeCompanyId = liveCompanyId;
+    reportsRepo.activeCompanyId = liveCompanyId;
     final savedViewsRepo = SavedViewsRepository(
       db: db,
       userSettings: userSettingsRepo,

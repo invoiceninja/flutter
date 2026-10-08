@@ -20,6 +20,7 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
     case 'invoice_item':
       return const [
         (id: 'draft', labelKey: 'draft'),
+        (id: 'sent', labelKey: 'sent'),
         (id: 'paid', labelKey: 'paid'),
         (id: 'unpaid', labelKey: 'unpaid'),
         (id: 'overdue', labelKey: 'past_due'),
@@ -67,7 +68,9 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
         (id: 'invoiced', labelKey: 'invoiced'),
         (id: 'paid', labelKey: 'paid'),
         (id: 'unpaid', labelKey: 'unpaid'),
-        (id: 'uncategorized', labelKey: 'uncategorized'),
+        // No `uncategorized`: `ExpenseExport::addExpenseStatusFilter` has no
+        // arm for it, and an unmatched value leaves the filter empty — the
+        // option returned every expense under an "Uncategorized" heading.
       ];
     case 'purchase_order':
     case 'purchase_order_item':
@@ -80,7 +83,9 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
     case 'recurring_invoice':
     case 'recurring_invoice_item':
       return const [
-        (id: 'draft', labelKey: 'draft'),
+        // No `draft`, for the reason quotes have no `cancelled` above:
+        // `addRecurringInvoiceStatusFilter` knows active / paused / completed
+        // only, and anything else selects every recurring invoice.
         (id: 'active', labelKey: 'active'),
         (id: 'paused', labelKey: 'paused'),
         (id: 'completed', labelKey: 'completed'),

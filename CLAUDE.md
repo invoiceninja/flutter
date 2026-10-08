@@ -614,13 +614,17 @@ here are not obvious:
 
 ## Reports
 
-The whole feature is **server-backed**: `runPreview` POSTs `<endpoint>?output=json`, polls for a hash, and everything after that — filtering, sorting, grouping, totals, the chart — is local `ReportEngine` work over the returned rows. A report is one `const ReportDefinition` in `lib/domain/reports/report_registry.dart`; there is no per-report Dart.
+`/reports` is a gallery; `/reports/:report` runs itself on opening. A report is one `const ReportDefinition` (`report_registry.dart`); rows come from `<endpoint>?output=json` and the rest — filter, sort, group, total, chart — is local `ReportEngine` work.
 
-- **The date range filters a column the report never used to name, and that column is not always one you can group by.** → `docs/reports.md` § The date range filters a column the report never names
-- **A column the server omits can still be asked for, and that is how "new clients per month" works at all.** → `docs/reports.md` § Asking for a column the server omits
-- **A period with no rows has no bucket, so a chart plotting buckets by index closes the gap.** → `docs/reports.md` § A period with no rows has no bucket
-- **`GroupTotals.count` is a chart series, and bucket keys are identity.** → `docs/reports.md` § The count series, and bucket keys as identity
-- **A non-date grouping splits by period (user × month) through a composite `<group>␟<period>` key that only `_rowGroupKeyFn` derives, and it never reaches the server.** → `docs/reports.md` § A non-date grouping splits by period through a composite key
+- **The date range filters a column the report never names, not always one you can group by.** → `docs/reports.md` § The date range filters a column the report never names
+- **A column the server omits can still be asked for ("new clients per month").** → `docs/reports.md` § Asking for a column the server omits
+- **A period with no rows has no bucket; `GroupTotals.count` is a series and bucket keys are identity.** → `docs/reports.md` § A period with no rows has no bucket
+- **A non-date grouping splits by period through a composite key only `_rowGroupKeyFn` derives.** → `docs/reports.md` § A non-date grouping splits by period through a composite key
+- **The view model lives above the routes (`ReportsHost`); a run is debounced, superseding, never offline or plan-gated.** → `docs/reports.md` § A report runs itself
+- **Every report request states `send_email`; the server takes a missing one for true and emails the report.** → `docs/reports.md` § Every request says whether to email
+- **A cell's `id` is its field name, so a row links only through `rowIdKey`; totals never cross currencies or a parent's repeated lines.** → `docs/reports.md` § What a figure may add up
+- **A file-only report is read back as a `ReportDocument`: nothing matches a header's text, and an unreadable file is a download.** → `docs/reports.md` § File-only reports on screen
+- **A comparison pairs periods by position, never by index; a saved view is a `saved_views` row of type `report`, not an `EntityType`.** → `docs/reports.md` § Compared with the period before
 
 ## Visual invoice designer
 

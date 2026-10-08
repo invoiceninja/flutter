@@ -122,6 +122,7 @@ const _rootsOutsideLib = <String>[
   'test_driver',
   'tools',
   'web',
+  'benchmark',
 ];
 
 /// A whole `import` / `export` directive, keyword through `;`.

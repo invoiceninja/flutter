@@ -325,6 +325,15 @@ Future<void> _sweep(
   await _stop(tester, binding, 'expenses-list', route: '/expenses');
   await _stop(tester, binding, 'projects-list', route: '/projects');
   await _stop(tester, binding, 'reports', route: '/reports');
+  // A report runs itself on opening; the queued job needs a longer settle
+  // than a list, or the capture is the skeleton.
+  await _stop(
+    tester,
+    binding,
+    'report-invoices',
+    route: '/reports/invoice',
+    action: () => _settle(tester, frames: 48),
+  );
   await _stop(tester, binding, 'settings', route: '/settings');
   await _stop(
     tester,

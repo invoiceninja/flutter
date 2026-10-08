@@ -1,0 +1,29 @@
+"Profit and Loss"
+"Company Name",Reichert-Stroman
+"Date Range",01/Jan/2026,31/Dec/2026
+--------------------
+"Total Revenue[Tax Exclusive]","$70,114.00"
+"Total Taxes",$0.00
+--------------------
+"No Category Defined",$4.90
+--------------------
+"Total Expenses[Tax Exclusive]",$4.90
+"Total Taxes",$0.00
+--------------------
+"Total Profit","$70,109.10"
+--------------------
+
+
+--------------------
+Revenue
+--------------------
+Currency,Amount,"Total Taxes"
+"US Dollar",19848,0.000000
+"British Pound",29707,0.000000
+Euro,20559,0.000000
+
+
+--------------------
+Expenses
+--------------------
+USD,10,0

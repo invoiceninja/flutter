@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
+import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
@@ -57,6 +58,8 @@ class _FakeRepo implements ReportsRepository {
     required String endpoint,
     required ReportPayload payload,
     List<String> reportKeys = const [],
+    FormattedNumberStyle? numberStyle,
+    String? companyId,
     int maxRetries = ReportsApi.defaultPreviewRetries,
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
@@ -78,6 +81,7 @@ class _FakeRepo implements ReportsRepository {
   @override
   Future<ReportPreview> continuePreview({
     required String hash,
+    FormattedNumberStyle? numberStyle,
     int maxRetries = ReportsApi.defaultPreviewRetries,
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
@@ -88,11 +92,11 @@ class _FakeRepo implements ReportsRepository {
   }
 
   /// Export hook: when [exportError] is set it's thrown; otherwise
-  /// [exportResult] (or a default) is returned. [exportCalls] records each
-  /// invocation's format for assertions.
+  /// [exportResult] (or a default) is returned. [exportCalls] counts the
+  /// invocations.
   ReportExportResult? exportResult;
   Object? exportError;
-  final List<ReportExportFormat> exportCalls = [];
+  int exportCalls = 0;
 
   /// Email hook: throw [sendEmailError] if set; record call count.
   Object? sendEmailError;
@@ -103,14 +107,13 @@ class _FakeRepo implements ReportsRepository {
     required String reportIdentifier,
     required String endpoint,
     required ReportPayload payload,
-    required ReportExportFormat format,
     List<String> reportKeys = const [],
     String? groupBy,
     int maxRetries = ReportsApi.defaultExportRetries,
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
   }) async {
-    exportCalls.add(format);
+    exportCalls++;
     exportReportKeys.add(reportKeys);
     if (isCancelled?.call() == true) {
       throw const ReportError(kind: ReportErrorKind.cancelled);
@@ -123,7 +126,6 @@ class _FakeRepo implements ReportsRepository {
   @override
   Future<ReportExportResult> continueExport({
     required String hash,
-    required ReportExportFormat format,
     int maxRetries = ReportsApi.defaultExportRetries,
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
@@ -147,6 +149,11 @@ class _FakeRepo implements ReportsRepository {
 
   @override
   ReportsApi get api => throw UnsupportedError('not used by tests');
+
+  // Members this fake does not model (the result cache, the company
+  // guard) are never reached by what it is used to test.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -270,7 +277,7 @@ void main() {
       await vm.runReport();
       expect(vm.visibleColumnIds.contains('stock_value'), isTrue);
 
-      await vm.runExport(ReportExportFormat.csv);
+      await vm.runExport();
       expect(repo.exportReportKeys.single, isNot(contains('stock_value')));
       expect(repo.exportReportKeys.single, contains('price'));
     });
@@ -484,33 +491,30 @@ void main() {
     await pending;
   });
 
-  test(
-    'runExport returns result, records format, toggles isExporting',
-    () async {
-      final repo = _FakeRepo()
-        ..exportResult = ReportExportResult(
-          bytes: Uint8List.fromList([7]),
-          hash: 'h7',
-        );
-      final vm = ReportsViewModel(repo: repo, statics: statics);
-      expect(vm.isExporting, isFalse);
+  test('runExport returns result, toggles isExporting', () async {
+    final repo = _FakeRepo()
+      ..exportResult = ReportExportResult(
+        bytes: Uint8List.fromList([7]),
+        hash: 'h7',
+      );
+    final vm = ReportsViewModel(repo: repo, statics: statics);
+    expect(vm.isExporting, isFalse);
 
-      final res = await vm.runExport(ReportExportFormat.csv);
+    final res = await vm.runExport();
 
-      expect(res, isNotNull);
-      expect(res!.bytes, [7]);
-      expect(repo.exportCalls, [ReportExportFormat.csv]);
-      expect(vm.isExporting, isFalse);
-      expect(vm.exportError, isNull);
-    },
-  );
+    expect(res, isNotNull);
+    expect(res!.bytes, [7]);
+    expect(repo.exportCalls, 1);
+    expect(vm.isExporting, isFalse);
+    expect(vm.exportError, isNull);
+  });
 
   test('runExport surfaces error into exportError, returns null', () async {
     final repo = _FakeRepo()
       ..exportError = const ReportError(kind: ReportErrorKind.serverError);
     final vm = ReportsViewModel(repo: repo, statics: statics);
 
-    final res = await vm.runExport(ReportExportFormat.pdf);
+    final res = await vm.runExport();
 
     expect(res, isNull);
     expect(vm.exportError?.kind, ReportErrorKind.serverError);
@@ -525,13 +529,13 @@ void main() {
       );
     final vm = ReportsViewModel(repo: repo, statics: statics);
 
-    final a = vm.runExport(ReportExportFormat.pdf);
-    final b = vm.runExport(ReportExportFormat.pdf); // ignored while in-flight
+    final a = vm.runExport();
+    final b = vm.runExport(); // ignored while in-flight
     await a;
     final second = await b;
 
     expect(second, isNull);
-    expect(repo.exportCalls.length, 1);
+    expect(repo.exportCalls, 1);
   });
 
   test('sendEmail toggles isEmailing and calls repo; error rethrows', () async {
@@ -588,7 +592,7 @@ void main() {
 
         // Hide a column locally, then export → export carries the subset.
         vm.setVisibleColumns({'a', 'c'});
-        await vm.runExport(ReportExportFormat.csv);
+        await vm.runExport();
         expect(repo.exportReportKeys.single, unorderedEquals(['a', 'c']));
       },
     );

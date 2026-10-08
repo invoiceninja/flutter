@@ -410,7 +410,8 @@ These are deliberate beta-posture settings, listed so they aren't mistaken for s
 | `snap/snapcraft.yaml` | `grade: devel` | `grade: stable` — a `devel` snap *cannot* be released to stable/candidate. Blocked until the `password-manager-service` auto-connect issue is resolved. |
 | `pubspec.yaml` `msix_config` | `display_name: Invoice Ninja - Beta` | Drop the ` - Beta` |
 | `appimage.yml` | `prerelease: true` | Decide per release |
-| `ios/Runner/Info.plist` | `CFBundleDisplayName = Admin`, `CFBundleName = admin` | Worth confirming this is intentional — every other platform shows "Invoice Ninja", and the exported `.ipa` filename derives from `CFBundleDisplayName`. |
+| `ios/Runner/Info.plist` | `CFBundleDisplayName = Ninja Beta`, `CFBundleName = admin` | `Invoice Ninja`. The beta installs beside the v1 app, whose home-screen label is "Invoice Ninja", and iOS truncates a label at about 12 characters — "Invoice Ninja Beta" would read "Invoice Ninj…" and look like the old app. The exported `.ipa` filename derives from this value, so `appstore-ios.yml` renames it before the upload. The v1 app's beta invitation names this label (`kBetaAppNameMobile` in admin-portal), so change the two together. |
+| `android/app/src/main/AndroidManifest.xml` | `android:label="Ninja Beta"` | `Invoice Ninja` — same reason and same pairing as the iOS label. |
 
 ---
 

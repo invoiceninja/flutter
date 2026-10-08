@@ -348,20 +348,30 @@ class ApiClient {
     _raiseFromResponse(response);
   }
 
-  /// Like [postRaw], but tuned for the queued export poll where a 2xx with a
-  /// **non-binary** content-type means "job still running" (the server
-  /// replies with a small JSON status envelope until the file is ready) —
-  /// NOT an error. Returns [RawOrPending.pending] in that case instead of
-  /// throwing, so the caller can keep polling. A 2xx with the expected
-  /// binary content-type returns the bytes; any non-2xx still goes through
-  /// [_raiseFromResponse] (so a real 4xx/5xx — and the entity-missing →
-  /// ConflictException "still queued" mapping — behave exactly as everywhere
-  /// else and are not swallowed as "pending").
+  /// Like [postRaw], but tuned for the queued export poll where a 2xx **JSON**
+  /// body means "job still running" (the server replies with a small status
+  /// envelope until the file is ready) — NOT an error. Returns
+  /// [RawOrPending.pending] in that case instead of throwing, so the caller
+  /// can keep polling. Any non-2xx still goes through [_raiseFromResponse]
+  /// (so a real 4xx/5xx — and the entity-missing → ConflictException "still
+  /// queued" mapping — behave exactly as everywhere else and are not
+  /// swallowed as "pending").
+  ///
+  /// **The caller names the types it will take, not the one it wants.** The
+  /// export endpoint decides the file's type itself (`ReportExportController`
+  /// sniffs the bytes: XLSX, PDF, else CSV) and forgets the hash once it has
+  /// answered, so a single expected type had two failure modes at once: asking
+  /// for a PDF of a report that renders CSV read the finished file as
+  /// "pending", threw it away, and then polled a hash the server no longer
+  /// had until the budget ran out.
+  ///
+  /// A 2xx that is neither on the list nor a status envelope — a proxy's HTML
+  /// page, a captive portal — throws rather than being saved as the file.
   Future<RawOrPending> postRawOrPending(
     String path, {
     Map<String, dynamic>? body,
     bool readOnly = false,
-    required String expectedContentType,
+    required Set<String> acceptedContentTypes,
   }) async {
     if (!readOnly && Env.demoMode) {
       throw const DemoModeException();
@@ -380,13 +390,19 @@ class ApiClient {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final ct = response.headers['content-type'] ?? '';
       final actualType = ct.split(';').first.trim().toLowerCase();
-      if (actualType == expectedContentType.toLowerCase()) {
-        return RawOrPending.ready(response.bodyBytes);
+      if (acceptedContentTypes.contains(actualType)) {
+        return RawOrPending.ready(response.bodyBytes, contentType: actualType);
       }
-      // 2xx but not the binary we asked for → the export job hasn't
-      // finished; the server is returning its JSON status envelope. Tell
-      // the caller to keep polling rather than treating this as an error.
-      return const RawOrPending.pending();
+      // The job hasn't finished: the server is returning its JSON status
+      // envelope. (No content-type at all is read the same way — the
+      // envelope is the only thing this endpoint sends without one.)
+      if (actualType.isEmpty || actualType == 'application/json') {
+        return const RawOrPending.pending();
+      }
+      throw ServerException(
+        response.statusCode,
+        'Unexpected content type: $actualType',
+      );
     }
     _raiseFromResponse(response);
   }
@@ -1214,10 +1230,17 @@ dynamic _decodeJson(String body) => jsonDecode(body);
 /// ([bytes] non-null) or a "still processing, poll again" signal
 /// ([isPending] true). Never both.
 class RawOrPending {
-  const RawOrPending.ready(this.bytes) : isPending = false;
-  const RawOrPending.pending() : bytes = null, isPending = true;
+  const RawOrPending.ready(this.bytes, {this.contentType}) : isPending = false;
+  const RawOrPending.pending()
+    : bytes = null,
+      contentType = null,
+      isPending = true;
 
   final Uint8List? bytes;
+
+  /// The response's media type, lower-cased and without parameters. Set only
+  /// when [bytes] is.
+  final String? contentType;
   final bool isPending;
 }
 

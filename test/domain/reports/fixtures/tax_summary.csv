@@ -1,0 +1,35 @@
+
+
+
+
+"Tax Summary"
+"Created On"," ",08/Oct/2026
+"Date Range"," ",01/Jan/2026," - ",31/Dec/2026
+
+"Accrual accounting"
+
+Gross,"$70,114.00","70,114.00"
+"Taxable Amount",$0.00,0.00
+"Tax Exempt","$70,114.00","70,114.00"
+
+"Tax Name","Tax Amount"
+
+"Cash accounting"
+
+Gross,"$47,830.00","47,830.00"
+"Taxable Amount",$0.00,0.00
+"Tax Exempt","$47,830.00","47,830.00"
+
+"Tax Name","Tax Amount"
+
+
+"Accrual accounting",Date,Amount,Amount,"Tax Name","Tax Rate","Taxable Amount"
+"Invoice 0007",18/Aug/2026,$0.00,0.00,"Tax Exempt",0,0
+"Invoice 0003",09/Aug/2026,$0.00,0.00,"Tax Exempt",0,0
+"Invoice 0009",13/Jul/2026,$0.00,0.00,"Tax Exempt",0,0
+
+
+"Cash accounting",Date,Amount,Amount,"Tax Name","Tax Rate","Taxable Amount"
+"Invoice 0001",08/Oct/2026,$0.00,0.00,"Tax Exempt",0,0
+"Invoice 0002",08/Oct/2026,$0.00,0.00,"Tax Exempt",0,0
+"Invoice 0004",08/Oct/2026,$0.00,0.00,"Tax Exempt",0,0

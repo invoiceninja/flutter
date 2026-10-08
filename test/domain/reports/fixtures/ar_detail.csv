@@ -1,0 +1,19 @@
+
+
+
+
+"Aged Receivable Detailed Report"
+"Created On"," ",08/Oct/2026
+Currency,GBP
+Date,"Due Date","Invoice Number",Status,"Client Name","Client Number","ID Number",Age,Amount,Balance
+28/Jul/2026,,0011,Sent,"Bradtke, Vandervort and Rodriguez",0004,GI96WPJQB071G7BL3427K79,0,"£1,743.00","£1,743.00"
+18/Aug/2026,,0007,Sent,"Bradtke, Vandervort and Rodriguez",0004,GI96WPJQB071G7BL3427K79,0,"£6,684.00","£6,684.00"
+09/Aug/2026,,0003,Sent,"Lowe, King and Sawayn",0019,BA424181077582724717,0,"£3,509.00","£3,509.00"
+11/Jul/2026,,0014,Sent,Witting-Conroy,0021,MC644214109802E98YW3L66Z458,0,"£2,024.00","£2,024.00"
+13/Jul/2026,,0009,Sent,Witting-Conroy,0021,MC644214109802E98YW3L66Z458,0,"£3,398.00","£3,398.00"
+
+Currency,EUR
+Date,"Due Date","Invoice Number",Status,"Client Name","Client Number","ID Number",Age,Amount,Balance
+24/Dec/2026,,0010,Sent,"Hickle PLC",0022,VG69ZKAP8268821735372796,0,"€1.717,00","€1.717,00"
+18/Jul/2026,,0019,Sent,Pollich-Lueilwitz,0008,TN7264765151952540840227,0,"€345,00","€345,00"
+02/Sep/2026,,0016,Sent,"Schumm LLC",0007,TR135787655574TIV5VV29259A,0,"€2.864,00","€2.864,00"

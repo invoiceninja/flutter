@@ -27,9 +27,8 @@ import 'package:admin/main.dart';
 import 'package:admin/ui/features/auth/views/lock_screen.dart';
 import 'package:admin/ui/features/auth/views/login_screen.dart';
 import 'package:admin/ui/features/auth/views/setup_wizard_screen.dart';
-import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
-import 'package:admin/ui/features/reports/views/reports_screen.dart';
+import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 
 // Entity list screens — exercised by the per-route mount tests below.
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart';
@@ -333,7 +332,7 @@ void main() {
   );
 
   testWidgets(
-    '/reports lands on ReportsScreen for a company with view_reports',
+    '/reports lands on the report gallery for a company with view_reports',
     (tester) async {
       final seed = await _seedSession(
         permissions: '',
@@ -356,12 +355,12 @@ void main() {
           initialLocation: '/reports',
         ),
       );
-      await _pumpUntilFound(tester, find.byType(ReportsScreen));
+      await _pumpUntilFound(tester, find.byType(ReportsGalleryScreen));
 
-      expect(find.byType(ReportsScreen), findsOneWidget);
-      // First-paint state should be the initial EmptyState — confirms the
-      // screen mounted with content, not just an empty scaffold.
-      expect(find.byType(EmptyState), findsOneWidget);
+      expect(find.byType(ReportsGalleryScreen), findsOneWidget);
+      // The gallery mounted with content, not just an empty scaffold: an
+      // admin sees a card for the invoice report.
+      expect(find.byKey(const Key('report-card-invoice')), findsOneWidget);
     },
   );
 

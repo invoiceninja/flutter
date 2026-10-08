@@ -1,0 +1,76 @@
+
+
+
+
+"Customer sales report"
+"Created On"," ",08/Oct/2026
+Currency,GBP
+"Client Name","Client Number","ID Number",Invoices,Amount,Balance,"Total Taxes","Amount Paid"
+"Bradtke, Vandervort and Rodriguez",0004,GI96WPJQB071G7BL3427K79,2,"£8,427.00","£8,427.00",£0.00,£0.00
+Witting-Conroy,0021,MC644214109802E98YW3L66Z458,4,"£10,724.00","£5,422.00",£0.00,"£5,302.00"
+"Lowe, King and Sawayn",0019,BA424181077582724717,2,"£3,525.00","£3,509.00",£0.00,£16.00
+"Morar, Bosco and Reynolds",0001,DE24003748059059342426,2,"£7,031.00",£0.00,£0.00,"£7,031.00"
+
+Currency,EUR
+"Client Name","Client Number","ID Number",Invoices,Amount,Balance,"Total Taxes","Amount Paid"
+"Schumm LLC",0007,TR135787655574TIV5VV29259A,3,"€10.605,00","€2.864,00","€0,00","€7.741,00"
+"Hickle PLC",0022,VG69ZKAP8268821735372796,1,"€1.717,00","€1.717,00","€0,00","€0,00"
+Pollich-Lueilwitz,0008,TN7264765151952540840227,1,"€345,00","€345,00","€0,00","€0,00"
+"Medhurst, Schuster and Koss",0014,CZ9134819642130667599312,1,"€3.832,00","€0,00","€0,00","€3.832,00"
+"Boehm, Crooks and Krajcik",0020,EG890698008658193896979982876,1,"€2.298,00","€0,00","€0,00","€2.298,00"
+"Hickle Ltd",0025,MT26ZZGT26673HT14QBF0U0J27B39YM,1,"€1.762,00","€0,00","€0,00","€1.762,00"
+
+Currency,USD
+"Client Name","Client Number","ID Number",Invoices,Amount,Balance,"Total Taxes","Amount Paid"
+Wehner-Koelpin,0003,BG57CODO472591K47284DF,1,"$4,292.00",$0.00,$0.00,"$4,292.00"
+"Schiller, Cartwright and Cummings",0005,PL44950720675778646073873247,1,"$1,005.00",$0.00,$0.00,"$1,005.00"
+Rosenbaum-Nader,0006,SK4863506350647337658614,1,"$6,171.00",$0.00,$0.00,"$6,171.00"
+"West, Walter and Macejkovic",0011,AD839955742964TP94P49P1L,1,"$2,115.00",$0.00,$0.00,"$2,115.00"
+Turner-Denesik,0018,GT09KX0XIU14612B5PU60B1NYQK5,3,"$6,265.00",$0.00,$0.00,"$6,265.00"
+
+"Invoices by month"
+Currency,EUR
+"Client Name",July-2026,August-2026,September-2026,October-2026,November-2026,December-2026
+"Boehm, Crooks and Krajcik",,,,,"€2.298,00",
+"Hickle Ltd",,,,"€1.762,00",,
+"Hickle PLC",,,,,,"€1.717,00"
+"Medhurst, Schuster and Koss",,,,"€3.832,00",,
+Pollich-Lueilwitz,"€345,00",,,,,
+"Schumm LLC",,,"€6.848,00",,,"€3.757,00"
+
+Currency,GBP
+"Client Name",July-2026,August-2026,September-2026,October-2026,November-2026,December-2026
+"Bradtke, Vandervort and Rodriguez","£1,743.00","£6,684.00",,,,
+"Lowe, King and Sawayn",,"£3,509.00",,£16.00,,
+"Morar, Bosco and Reynolds",,,"£2,892.00",,"£4,139.00",
+Witting-Conroy,"£5,422.00","£3,800.00",,,,"£1,502.00"
+
+Currency,USD
+"Client Name",July-2026,August-2026,September-2026,October-2026,November-2026,December-2026
+Rosenbaum-Nader,,,,"$6,171.00",,
+"Schiller, Cartwright and Cummings",,,,,"$1,005.00",
+Turner-Denesik,,,,$578.00,,"$5,687.00"
+Wehner-Koelpin,"$4,292.00",,,,,
+"West, Walter and Macejkovic",,,,,"$2,115.00",
+
+"Payments by month"
+Currency,EUR
+"Client Name",October-2026,November-2026,December-2026
+"Boehm, Crooks and Krajcik","€2.298,00",,
+"Hickle Ltd","€1.762,00",,
+"Medhurst, Schuster and Koss","€3.832,00",,
+"Schumm LLC","€7.741,00",,
+
+Currency,GBP
+"Client Name",October-2026,November-2026,December-2026
+"Lowe, King and Sawayn",£16.00,,
+"Morar, Bosco and Reynolds","£7,031.00",,
+Witting-Conroy,"£5,302.00",,
+
+Currency,USD
+"Client Name",October-2026,November-2026,December-2026
+Rosenbaum-Nader,"$6,171.00",,
+"Schiller, Cartwright and Cummings","$1,005.00",,
+Turner-Denesik,"$6,265.00",,
+Wehner-Koelpin,"$4,292.00",,
+"West, Walter and Macejkovic","$2,115.00",,

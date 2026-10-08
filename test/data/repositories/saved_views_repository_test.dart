@@ -831,4 +831,77 @@ void main() {
       expect(reloaded.snapshot['search'], 'new');
     });
   });
+
+  group('report views', () {
+    test('round-trip, in the same table as a list\'s views', () async {
+      final view = await repo.createReportView(
+        companyId: 'co',
+        name: 'Unpaid by client',
+        reportIdentifier: 'invoice',
+        state: {'group': 'client.name', 'sortAscending': false},
+      );
+      final views = await repo.watchReportViews('co').first;
+      expect(views.single.id, view.id);
+      expect(views.single.name, 'Unpaid by client');
+      expect(views.single.reportIdentifier, 'invoice');
+      expect(views.single.state, {
+        'group': 'client.name',
+        'sortAscending': false,
+      });
+      expect((await repo.reportView(view.id))?.name, 'Unpaid by client');
+    });
+
+    test(
+      'an entity\'s readers never see one, and it never sees theirs',
+      () async {
+        await repo.createReportView(
+          companyId: 'co',
+          name: 'By month',
+          reportIdentifier: 'invoice',
+          state: const {},
+        );
+        final entityView = await repo.create(
+          companyId: 'co',
+          entityType: EntityType.invoice,
+          name: 'Drafts',
+          snapshot: const {'search': ''},
+        );
+        // The sidebar's stream: the report view is skipped, not an "unknown
+        // entity" it has to log about on every emission.
+        final all = await repo.watchAll('co').first;
+        expect([for (final v in all) v.name], ['Drafts']);
+        final reports = await repo.watchReportViews('co').first;
+        expect([for (final v in reports) v.name], ['By month']);
+        // An entity view's id is not a report view.
+        expect(await repo.reportView(entityView.id), isNull);
+      },
+    );
+
+    test('update replaces what it holds; delete removes it', () async {
+      final view = await repo.createReportView(
+        companyId: 'co',
+        name: 'By month',
+        reportIdentifier: 'invoice',
+        state: const {'group': 'invoice.date'},
+      );
+      await repo.updateReportView(
+        viewId: view.id,
+        reportIdentifier: 'invoice',
+        state: const {'group': 'client.name'},
+      );
+      expect((await repo.reportView(view.id))?.state, {'group': 'client.name'});
+      await repo.delete(view.id);
+      expect(await repo.watchReportViews('co').first, isEmpty);
+    });
+
+    test('a view of another company is not this one\'s', () async {
+      await repo.createReportView(
+        companyId: 'other',
+        name: 'Theirs',
+        reportIdentifier: 'invoice',
+        state: const {},
+      );
+      expect(await repo.watchReportViews('co').first, isEmpty);
+    });
+  });
 }

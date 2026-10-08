@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:collection/collection.dart';
 import 'package:decimal/decimal.dart';
 import 'package:logging/logging.dart';
@@ -53,6 +55,49 @@ extension ReportSubgroupLabel on ReportSubgroup {
   }
 }
 
+/// One further sort key behind the primary one — see [ReportUiState.thenBy].
+class ReportSort {
+  const ReportSort(this.columnId, {this.ascending = true});
+
+  final String columnId;
+  final bool ascending;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReportSort &&
+      other.columnId == columnId &&
+      other.ascending == ascending;
+
+  @override
+  int get hashCode => Object.hash(columnId, ascending);
+}
+
+/// Prefix of a column filter that keeps the rows whose value is one of a
+/// set — the rest of the string is a JSON array of the accepted display
+/// values (`in:["Paid","Sent"]`). A blank entry matches an empty cell.
+const String kReportOneOfFilterPrefix = 'in:';
+
+/// A one-of column filter accepting exactly [values] — see
+/// [kReportOneOfFilterPrefix].
+String reportOneOfFilter(Iterable<String> values) =>
+    '$kReportOneOfFilterPrefix${jsonEncode(values.toList())}';
+
+/// The accepted values of a one-of [filter], or null when it is not one (or
+/// does not parse — a hand-edited or truncated value is then treated as the
+/// text it is).
+Set<String>? reportOneOfFilterValues(String filter) {
+  if (!filter.startsWith(kReportOneOfFilterPrefix)) return null;
+  try {
+    final decoded = jsonDecode(
+      filter.substring(kReportOneOfFilterPrefix.length),
+    );
+    if (decoded is! List) return null;
+    return {for (final v in decoded) '$v'};
+  } on FormatException {
+    return null;
+  }
+}
+
 /// All user-mutable knobs the engine reads. Held on the VM; passed in by
 /// value so the engine itself stays pure (no Provider / context reach).
 class ReportUiState {
@@ -60,8 +105,11 @@ class ReportUiState {
     this.visibleColumnIds = const {},
     this.columnOrder = const [],
     this.columnFilters = const {},
+    this.search = '',
     this.sortField,
     this.sortAscending = true,
+    this.thenBy = const [],
+    this.currencyId,
     this.group,
     this.subgroup,
     this.periodColumn,
@@ -87,8 +135,23 @@ class ReportUiState {
   /// dates; age bucket for age; "true"/"false" for bool).
   final Map<String, String> columnFilters;
 
+  /// Free-text row search: a row is kept when any of its cells contains
+  /// this, ignoring case. Empty for none. Searches every column the report
+  /// returned, visible or not — a hidden column is still part of the row.
+  final String search;
+
   final String? sortField;
   final bool sortAscending;
+
+  /// Further sort keys, applied in order where the ones before them tie.
+  final List<ReportSort> thenBy;
+
+  /// The currency the figures are read in when a report holds more than one
+  /// (see [ReportView.grandTotalsByCurrency]). Here only so a sort by an
+  /// amount can order the *groups* by that amount, which needs to know whose.
+  /// Null takes a group's only currency, and leaves a group that has several
+  /// unordered by amount.
+  final String? currencyId;
 
   /// Column identifier the rows are grouped by, or null for no grouping.
   final String? group;
@@ -119,8 +182,11 @@ class ReportUiState {
     Set<String>? visibleColumnIds,
     List<String>? columnOrder,
     Map<String, String>? columnFilters,
+    String? search,
     String? Function()? sortField,
     bool? sortAscending,
+    List<ReportSort>? thenBy,
+    String? Function()? currencyId,
     String? Function()? group,
     ReportSubgroup? Function()? subgroup,
     String? Function()? periodColumn,
@@ -131,8 +197,11 @@ class ReportUiState {
       visibleColumnIds: visibleColumnIds ?? this.visibleColumnIds,
       columnOrder: columnOrder ?? this.columnOrder,
       columnFilters: columnFilters ?? this.columnFilters,
+      search: search ?? this.search,
       sortField: sortField == null ? this.sortField : sortField(),
       sortAscending: sortAscending ?? this.sortAscending,
+      thenBy: thenBy ?? this.thenBy,
+      currencyId: currencyId == null ? this.currencyId : currencyId(),
       group: group == null ? this.group : group(),
       subgroup: subgroup == null ? this.subgroup : subgroup(),
       periodColumn: periodColumn == null ? this.periodColumn : periodColumn(),
@@ -151,6 +220,7 @@ class ReportUiState {
   static const _setEq = SetEquality<String>();
   static const _mapEq = MapEquality<String, String>();
   static const _listEq = ListEquality<String>();
+  static const _sortEq = ListEquality<ReportSort>();
 
   @override
   bool operator ==(Object other) =>
@@ -158,8 +228,11 @@ class ReportUiState {
       _setEq.equals(visibleColumnIds, other.visibleColumnIds) &&
       _listEq.equals(columnOrder, other.columnOrder) &&
       _mapEq.equals(columnFilters, other.columnFilters) &&
+      search == other.search &&
       sortField == other.sortField &&
       sortAscending == other.sortAscending &&
+      _sortEq.equals(thenBy, other.thenBy) &&
+      currencyId == other.currencyId &&
       group == other.group &&
       subgroup == other.subgroup &&
       periodColumn == other.periodColumn &&
@@ -171,8 +244,11 @@ class ReportUiState {
     _setEq.hash(visibleColumnIds),
     _listEq.hash(columnOrder),
     _mapEq.hash(columnFilters),
+    search,
     sortField,
     sortAscending,
+    _sortEq.hash(thenBy),
+    currencyId,
     group,
     subgroup,
     periodColumn,
@@ -211,7 +287,17 @@ class ReportView {
     required this.totalRowCount,
     required this.exchangeRatesAvailable,
     required this.cellIndexByColumn,
+    this.currencyId = '',
   });
+
+  /// The currency this view's figures are read in — see
+  /// [resolveViewCurrency]. `''` for a report with no currency, which is
+  /// also the key such a report's totals are filed under.
+  ///
+  /// Decided by the engine, once, because the engine uses it: a sort by an
+  /// amount ranks the groups by their totals *in this currency*, and the
+  /// figures, the chart and the table have to be reading the same one.
+  final String currencyId;
 
   /// Columns the table renders, in display order. When grouped, the group
   /// column moves to index 0 (matches v1's `sortedColumns()` behavior).
@@ -266,6 +352,36 @@ class ReportView {
   );
 }
 
+/// The currency a result's figures are read in, given how many of its rows
+/// are in each ([rowCountByCurrency]).
+///
+/// [chosen] when the rows still hold it; otherwise the company's own
+/// currency when any row is in it; otherwise the one most rows are in. `''`
+/// for a report with no currency.
+///
+/// Figures are never added across currencies, so a result holding several
+/// has to be read in one of them at a time — and it should open on the one
+/// the reader thinks in.
+String resolveViewCurrency(
+  Map<String, int> rowCountByCurrency, {
+  String? chosen,
+  String? companyCurrencyId,
+}) {
+  final entries = [
+    for (final e in rowCountByCurrency.entries)
+      if (e.key.isNotEmpty) e,
+  ];
+  if (entries.isEmpty) return '';
+  bool has(String? id) => id != null && entries.any((e) => e.key == id);
+  if (has(chosen)) return chosen!;
+  if (has(companyCurrencyId)) return companyCurrencyId!;
+  entries.sort((a, b) {
+    final byCount = b.value.compareTo(a.value);
+    return byCount != 0 ? byCount : a.key.compareTo(b.key);
+  });
+  return entries.first.key;
+}
+
 /// Pure compute over a [ReportPreview] + [ReportUiState]. No I/O, no
 /// services, no globals — easy to unit-test and easy to micro-task off the
 /// main isolate when the row count gets big.
@@ -298,9 +414,14 @@ class ReportEngine {
     // 1. Visible columns + group-first reorder.
     final visible = _visibleColumns(preview, ui);
 
-    // 2. Column filters.
+    // 2. Column filters, then the row search.
+    final needle = ui.search.trim().toLowerCase();
     var filtered = preview.rows
-        .where((row) => _passesFilters(row, preview.columns, ui))
+        .where(
+          (row) =>
+              _passesFilters(row, preview.columns, ui) &&
+              (needle.isEmpty || _matchesSearch(row, needle)),
+        )
         .toList(growable: false);
 
     // 3. Drill-down narrows further when active.
@@ -316,11 +437,9 @@ class ReportEngine {
       }
     }
 
-    // 4. Sort.
-    final sortIdx = ui.sortField == null
-        ? -1
-        : _columnIndex(preview.columns, ui.sortField!);
-    if (sortIdx >= 0) {
+    // 4. Sort — the primary key, then each further one where it ties.
+    final sorts = _sortKeys(preview.columns, ui);
+    if (sorts.isNotEmpty) {
       // Stable sort: Dart's List.sort isn't stable, so equal-key rows could
       // reshuffle between rebuilds (and within group buckets). Carry the
       // pre-sort index as a tie-breaker to keep the order deterministic.
@@ -328,12 +447,15 @@ class ReportEngine {
         for (var i = 0; i < filtered.length; i++) (i, filtered[i]),
       ];
       indexed.sort((a, b) {
-        final cmp = _compareCells(
-          a.$2.cells[sortIdx],
-          b.$2.cells[sortIdx],
-          ui.sortAscending,
-        );
-        return cmp != 0 ? cmp : a.$1.compareTo(b.$1);
+        for (final (idx, ascending) in sorts) {
+          final cmp = _compareCells(
+            a.$2.cells[idx],
+            b.$2.cells[idx],
+            ascending,
+          );
+          if (cmp != 0) return cmp;
+        }
+        return a.$1.compareTo(b.$1);
       });
       filtered = [for (final e in indexed) e.$2];
     }
@@ -352,14 +474,19 @@ class ReportEngine {
         ui.group!.isNotEmpty &&
         _columnIndex(preview.columns, ui.group!) >= 0 &&
         (ui.selectedGroup == null || ui.selectedGroup!.isEmpty);
+    final rowCountByCurrency = _rowCountByCurrency(filtered, preview.columns);
+    final currencyId = resolveViewCurrency(
+      rowCountByCurrency,
+      chosen: ui.currencyId,
+      companyCurrencyId: companyCurrencyId,
+    );
     final groups = isGrouping
-        ? _bucket(filtered, preview.columns, ui)
+        ? _bucket(filtered, preview.columns, ui, currencyId)
         : <GroupTotals>[];
     final renderedRows = isGrouping ? <ReportRow>[] : filtered;
 
     // 6. Per-currency totals + (optional) converted totals.
     final perCurrencyTotals = _perCurrencyTotals(filtered, preview.columns);
-    final rowCountByCurrency = _rowCountByCurrency(filtered, preview.columns);
     final (converted, ratesAvailable) = ui.convertCurrency
         ? _convertedTotals(perCurrencyTotals, exchangeRates, companyCurrencyId)
         : (null, false);
@@ -371,6 +498,7 @@ class ReportEngine {
       grandTotalsByCurrency: perCurrencyTotals,
       convertedGrandTotals: converted,
       rowCountByCurrency: rowCountByCurrency,
+      currencyId: currencyId,
       totalRowCount: filtered.length,
       exchangeRatesAvailable: ratesAvailable,
       // Map covers every preview column, not just the visible subset —
@@ -432,6 +560,32 @@ class ReportEngine {
     return out;
   }
 
+  /// The sort as `(cell index, ascending)` pairs, primary first. A key naming
+  /// a column the preview does not carry is dropped, and so is a repeat of
+  /// one already listed — it could never break a tie.
+  List<(int, bool)> _sortKeys(List<ReportColumn> columns, ReportUiState ui) {
+    final out = <(int, bool)>[];
+    final seen = <int>{};
+    void add(String? columnId, bool ascending) {
+      if (columnId == null) return;
+      final idx = _columnIndex(columns, columnId);
+      if (idx >= 0 && seen.add(idx)) out.add((idx, ascending));
+    }
+
+    add(ui.sortField, ui.sortAscending);
+    for (final sort in ui.thenBy) {
+      add(sort.columnId, sort.ascending);
+    }
+    return out;
+  }
+
+  bool _matchesSearch(ReportRow row, String needle) {
+    for (final cell in row.cells) {
+      if (cell.filterText.contains(needle)) return true;
+    }
+    return false;
+  }
+
   int _columnIndex(List<ReportColumn> columns, String identifier) {
     for (var i = 0; i < columns.length; i++) {
       if (columns[i].identifier == identifier) return i;
@@ -456,6 +610,12 @@ class ReportEngine {
   }
 
   bool _matchCell(ReportCell cell, ReportColumn column, String filter) {
+    // "One of these values", whatever the column's type: matched on the
+    // exact text the cell shows, which is what the picker listed.
+    final oneOf = reportOneOfFilterValues(filter);
+    if (oneOf != null) {
+      return oneOf.contains(_groupKey(cell, column));
+    }
     switch (column.type) {
       case ReportColumnType.boolean:
         if (cell is! ReportBoolCell) return false;
@@ -617,6 +777,7 @@ class ReportEngine {
     List<ReportRow> rows,
     List<ReportColumn> columns,
     ReportUiState ui,
+    String currencyId,
   ) {
     final groupIdx = _columnIndex(columns, ui.group!);
     final keyOf = _rowGroupKeyFn(columns, ui);
@@ -644,8 +805,36 @@ class ReportEngine {
       return bySortKey != 0 ? bySortKey : ga.compareTo(gb);
     }
 
+    final totals = {
+      for (final key in keys) key: _perCurrencyTotals(buckets[key]!, columns),
+    };
+
+    // A sort by an amount orders the groups by that amount — it used to
+    // order the rows inside them and leave the groups alphabetical, so the
+    // header arrow pointed at a column the table was visibly not sorted by.
+    final byAmount = _groupAmounts(keys, totals, columns, ui, currencyId);
+    final groupDescending = ui.sortField == ui.group && !ui.sortAscending;
+
     keys.sort((a, b) {
-      final byGroup = compareGroupPart(a, b);
+      final ga = splitReportGroupKey(a).$1;
+      final gb = splitReportGroupKey(b).$1;
+      var byGroup = 0;
+      if (ga != gb) {
+        if (byAmount != null) {
+          final va = byAmount[ga];
+          final vb = byAmount[gb];
+          if (va == null || vb == null) {
+            // A group with no figure in this currency goes last either way.
+            byGroup = va == vb ? 0 : (va == null ? 1 : -1);
+          } else {
+            byGroup = ui.sortAscending ? va.compareTo(vb) : vb.compareTo(va);
+          }
+        }
+        if (byGroup == 0) {
+          byGroup = compareGroupPart(a, b);
+          if (groupDescending) byGroup = -byGroup;
+        }
+      }
       if (byGroup != 0) return byGroup;
       // Composite keys: periods chronologically (ISO sorts as a date), the
       // no-date bucket last.
@@ -656,12 +845,43 @@ class ReportEngine {
     });
     return [
       for (final key in keys)
-        GroupTotals(
-          key: key,
-          rows: buckets[key]!,
-          numericTotals: _perCurrencyTotals(buckets[key]!, columns),
-        ),
+        GroupTotals(key: key, rows: buckets[key]!, numericTotals: totals[key]!),
     ];
+  }
+
+  /// Each group's total of the sorted column, keyed by the group part of its
+  /// key, when the sort is by a column that is totalled; null otherwise.
+  ///
+  /// The group part, so that a grouping split by period ranks whole groups —
+  /// "Acme" by everything it was invoiced, not month against month — and
+  /// keeps each group's periods together beneath it.
+  ///
+  /// Read in [currencyId], the one the view is read in. A group with nothing
+  /// in that currency has no figure here and sorts last: a client billed
+  /// €53,000 is not "between" one billed $65,000 and one billed $50,000, and
+  /// ranking the bare numbers against each other said that it was.
+  Map<String, Decimal>? _groupAmounts(
+    List<String> keys,
+    Map<String, Map<String, Map<String, Decimal>>> totals,
+    List<ReportColumn> columns,
+    ReportUiState ui,
+    String currencyId,
+  ) {
+    final sortField = ui.sortField;
+    if (sortField == null || sortField == ui.group) return null;
+    final idx = _columnIndex(columns, sortField);
+    if (idx < 0) return null;
+    if (columns[idx].effectiveAggregation == ReportAggregation.none) {
+      return null;
+    }
+    final out = <String, Decimal>{};
+    for (final key in keys) {
+      final value = totals[key]![sortField]?[currencyId];
+      if (value == null) continue;
+      final group = splitReportGroupKey(key).$1;
+      out[group] = (out[group] ?? Decimal.zero) + value;
+    }
+    return out;
   }
 
   /// The bucket key of a row under [ui]'s grouping, or null when the group
@@ -826,6 +1046,18 @@ class ReportEngine {
     return Date(zeroBased ~/ 12, zeroBased % 12 + 1, 1);
   }
 
+  /// `{columnId: {currencyId: total}}` over [rows], for every column that is
+  /// totalled at all (see [ReportAggregation]).
+  ///
+  /// **The currency is the row's.** Every figure of a row — its amounts, but
+  /// its quantities and hours too — lands under [_rowCurrency], so "USD" names
+  /// one set of rows whichever column is read. A report with no currency
+  /// column buckets everything under `''`.
+  ///
+  /// A [ReportAggregation.oncePerRecord] column counts each record's value
+  /// once, however many rows repeat it, and is left out entirely when no row
+  /// carries a record id: a total that is ten times too large is worse than
+  /// no total.
   Map<String, Map<String, Decimal>> _perCurrencyTotals(
     List<ReportRow> rows,
     List<ReportColumn> columns,
@@ -833,16 +1065,26 @@ class ReportEngine {
     final out = <String, Map<String, Decimal>>{};
     for (var i = 0; i < columns.length; i++) {
       final col = columns[i];
-      if (!isAggregatable(col.type)) continue;
+      final aggregation = col.effectiveAggregation;
+      if (aggregation == ReportAggregation.none) continue;
+      final oncePerRecord = aggregation == ReportAggregation.oncePerRecord;
+      final seen = oncePerRecord ? <String>{} : null;
       final perCurrency = <String, Decimal>{};
       for (final row in rows) {
         if (i >= row.cells.length) continue;
+        if (seen != null) {
+          final id = row.recordId;
+          if (id == null || id.isEmpty || !seen.add(id)) continue;
+        }
         final cell = row.cells[i];
         Decimal? add;
-        String currencyId = '';
+        String currencyId = row.currencyId ?? '';
         if (cell is ReportNumberCell && cell.value != null) {
           add = cell.value;
-          currencyId = cell.currencyId ?? '';
+          // An explicit per-cell currency wins for the amount it is on.
+          if (cell.isMoney && cell.currencyId != null) {
+            currencyId = cell.currencyId!;
+          }
         } else if (cell is ReportDurationCell && cell.seconds != null) {
           add = Decimal.fromInt(cell.seconds!);
         }
@@ -857,13 +1099,22 @@ class ReportEngine {
     return out;
   }
 
+  /// The currency a row counts under: its own, else the first amount on it
+  /// that names one, else `''` (a report with no currency at all).
+  String _rowCurrency(ReportRow row, int moneyIdx) {
+    final own = row.currencyId;
+    if (own != null) return own;
+    if (moneyIdx >= 0 && moneyIdx < row.cells.length) {
+      final c = row.cells[moneyIdx];
+      if (c is ReportNumberCell) return c.currencyId ?? '';
+    }
+    return '';
+  }
+
   Map<String, int> _rowCountByCurrency(
     List<ReportRow> rows,
     List<ReportColumn> columns,
   ) {
-    // Pick the first money column we find — its currencyId labels the row.
-    // For non-money reports (Tasks, Activity), bucket under '' so the
-    // totals card shows a single row-count line.
     var moneyIdx = -1;
     for (var i = 0; i < columns.length; i++) {
       if (columns[i].type == ReportColumnType.money) {
@@ -873,11 +1124,7 @@ class ReportEngine {
     }
     final out = <String, int>{};
     for (final row in rows) {
-      String cid = '';
-      if (moneyIdx >= 0 && moneyIdx < row.cells.length) {
-        final c = row.cells[moneyIdx];
-        if (c is ReportNumberCell) cid = c.currencyId ?? '';
-      }
+      final cid = _rowCurrency(row, moneyIdx);
       out[cid] = (out[cid] ?? 0) + 1;
     }
     return out;

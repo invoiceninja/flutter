@@ -158,13 +158,78 @@ EntityHandlers? resolveDrillTarget(EntityRegistry registry, String wire) {
   return registry.byWireName(wire);
 }
 
-/// True for column types that the totals card can sum over. Age is
+/// True for column types whose values are quantities at all. Age is
 /// deliberately excluded — a "sum of ages" (e.g. 612 days across 30 invoices)
 /// is meaningless, so age columns show per-row values but no grand total.
+///
+/// Necessary, not sufficient: whether a particular column is *totalled* is
+/// [ReportAggregation] — a tax rate is a number and must never be summed.
 bool isAggregatable(ReportColumnType type) =>
     type == ReportColumnType.money ||
     type == ReportColumnType.number ||
     type == ReportColumnType.duration;
+
+/// How a column's values combine into a total.
+enum ReportAggregation {
+  /// Added up across rows — an amount, a quantity, a duration.
+  sum,
+
+  /// Belongs to the row's parent record and repeats on every one of its rows,
+  /// so it is counted once per record — and not at all when the rows carry
+  /// no record id to tell the repeats apart.
+  ///
+  /// The line-item reports are the case: `InvoiceItemExport` merges the whole
+  /// invoice row into each line, so an invoice of ten lines reports its
+  /// `invoice.amount` ten times. Summed, the figure is ten times too large,
+  /// and nothing on screen says so.
+  oncePerRecord,
+
+  /// Shown per row and never totalled — a rate, a unit price, a discount
+  /// that may be a percentage.
+  none,
+}
+
+/// Column tails that are quantities by type but not by meaning.
+///
+/// `cost` and `price` are unit prices (`item.cost`, the product report's
+/// `price`): forty products do not have a "total price". `discount` is a
+/// percentage or an amount depending on the row's own `is_amount_discount`.
+/// `max_quantity` is a limit, not a count.
+const Set<String> _kNonAdditiveTails = {
+  'rate',
+  'rate1',
+  'rate2',
+  'rate3',
+  'tax_rate1',
+  'tax_rate2',
+  'tax_rate3',
+  'exchange_rate',
+  'cost',
+  'price',
+  'product_cost',
+  'discount',
+  'max_quantity',
+};
+
+/// The aggregation a column gets from its name alone — [ReportAggregation.sum]
+/// for a quantity, [ReportAggregation.none] for one of the [_kNonAdditiveTails]
+/// and for every type that is not a quantity.
+///
+/// It never answers [ReportAggregation.oncePerRecord]: which columns belong to
+/// a parent record depends on the report's row grain, which a column name
+/// cannot know. `reportColumnAggregation` in the registry layers that on.
+ReportAggregation defaultReportAggregation(
+  String identifier,
+  ReportColumnType type,
+) {
+  if (!isAggregatable(type)) return ReportAggregation.none;
+  final id = identifier.toLowerCase();
+  final tail = id.contains('.') ? id.split('.').last : id;
+  if (_kNonAdditiveTails.contains(tail) || tail.endsWith('_rate')) {
+    return ReportAggregation.none;
+  }
+  return ReportAggregation.sum;
+}
 
 /// Whether [type] is bucketed by a `ReportSubgroup` when grouped — i.e. a
 /// column that can be a date grouping or a period split.

@@ -36,12 +36,24 @@ Decimal parseMoney(Object? raw) {
 /// 2-decimal currency and every both-separator case; the only residual is a
 /// 3-decimal-currency value < 1000 with a single separator (e.g. BHD `"3,238"`),
 /// which the server disambiguates with a grouping separator once ≥ 1000.
-Decimal parseFormattedMoney(Object? raw) {
+///
+/// **Pass [style] whenever the writer's format is known.** The report export
+/// formats with the *company* currency (`BaseExport::formatFloatsForCsv`), so
+/// the caller can name the separators and the precision, and the inference
+/// above stops being a guess. It matters for a currency with no decimals and
+/// a `.` grouping separator (CLP, and several others): the server writes one
+/// thousand two hundred and thirty-four as `"1.234"`, which the fast path
+/// below reads as a little over one.
+Decimal parseFormattedMoney(Object? raw, {FormattedNumberStyle? style}) {
   if (raw == null) return Decimal.zero;
   if (raw is num) return Decimal.parse(raw.toString());
   if (raw is! String) return Decimal.zero;
   final trimmed = raw.trim();
   if (trimmed.isEmpty) return Decimal.zero;
+  if (style != null) {
+    final styled = style.tryParse(trimmed);
+    if (styled != null) return styled;
+  }
   // Fast path: an ungrouped machine number ("1234.00", "0.5", "-100") parses.
   final direct = Decimal.tryParse(trimmed);
   if (direct != null) return direct;
@@ -70,4 +82,62 @@ Decimal parseFormattedMoney(Object? raw) {
       '${negative ? '-' : ''}${intPart.isEmpty ? '0' : intPart}'
       '${fracPart.isEmpty ? '' : '.$fracPart'}';
   return Decimal.tryParse(normalized) ?? Decimal.zero;
+}
+
+/// How a number was written by PHP's `number_format`: the two separators and
+/// the number of decimals. Used to read a formatted amount back exactly —
+/// see [parseFormattedMoney].
+class FormattedNumberStyle {
+  FormattedNumberStyle({
+    required this.thousandSeparator,
+    required this.decimalSeparator,
+    required this.precision,
+  }) : _shape = _shapeFor(thousandSeparator, decimalSeparator, precision);
+
+  final String thousandSeparator;
+  final String decimalSeparator;
+  final int precision;
+
+  /// Exactly what `number_format(value, precision, decimal, thousand)` can
+  /// produce — digits in groups of three, then the decimals if there are any.
+  final RegExp _shape;
+
+  static RegExp _shapeFor(String thousand, String decimal, int precision) {
+    final t = RegExp.escape(thousand);
+    final d = RegExp.escape(decimal);
+    final integer = thousand.isEmpty ? r'\d+' : '\\d{1,3}(?:$t\\d{3})*';
+    final fraction = precision > 0 ? '$d\\d{$precision}' : '';
+    return RegExp('^-?$integer$fraction\$');
+  }
+
+  /// [text] as a number, or null when it is not in this style's exact shape.
+  ///
+  /// Null rather than a best effort, and that is the point: not every numeric
+  /// cell is formatted. A float is, but a decimal column the export hands
+  /// over as a string arrives raw (`"4544.000000"` on the recurring-invoice
+  /// report). Stripping the `.` from that as a grouping separator would turn
+  /// four and a half thousand into four and a half billion; six decimals do
+  /// not fit a two-decimal shape, so it falls through to the plain parse.
+  Decimal? tryParse(String text) {
+    if (!_shape.hasMatch(text)) return null;
+    var plain = text;
+    if (thousandSeparator.isNotEmpty) {
+      plain = plain.replaceAll(thousandSeparator, '');
+    }
+    if (precision > 0 && decimalSeparator != '.') {
+      plain = plain.replaceAll(decimalSeparator, '.');
+    }
+    return Decimal.tryParse(plain);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is FormattedNumberStyle &&
+      other.thousandSeparator == thousandSeparator &&
+      other.decimalSeparator == decimalSeparator &&
+      other.precision == precision;
+
+  @override
+  int get hashCode =>
+      Object.hash(thousandSeparator, decimalSeparator, precision);
 }

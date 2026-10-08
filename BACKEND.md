@@ -718,6 +718,34 @@ deployed code, so the header can be trusted. Drop the self-hosted gate once ever
 install is past 5.13.44. The same helper gates the task calendar's `activity_dates` month fetch
 at 5.13.43, with the same hosted exemption.
 
+### R. Reports — what the client works around — **O**
+
+Found while rebuilding the Reports screen (2026-10), from `app/Export/CSV/BaseExport.php`, the
+`Reports/*Controller`s, `app/Services/Report/*` and probes of `demo.invoiceninja.com`. Each row
+is something the client now works around; none blocks it. Ordered by what a fix would buy.
+`docs/reports.md` has the client side of each.
+
+| # | What the server does | What it costs | Fix |
+|---|---|---|---|
+| R1 | **A preview cell's `id` is the field name, and `hashed_id` is null for the row's own entity** (`BaseExport::processMetaData`). | A row cannot be linked to its record. The client asks for `<entity>.id` as an extra column (a second request the first time, because a non-empty `report_keys` pins the column set) and strips it back out. | Put the row's own hashed id in `hashed_id`. One line. |
+| R2 | **`product.id` in `report_keys` returns the raw integer**; `product.hashed_id` returns the hashed one. `RecurringInvoiceItemExport` resolves its parent under the `invoice.` prefix. | Per-report exceptions in the client's row-id table. | Hash `product.id` like every other entity's; accept `recurring_invoice.id` on the item export. |
+| R3 | **No cell carries its currency.** The row's currency is a separate ISO-code column whose key differs by report (`client.currency_id`, `payment.currency`, `expense.currency_id`, `vendor.currency`). | The client keeps a per-report "which column is the currency" declaration; a report with none is treated as the company's currency. | A `currency_id` on money cells (or on the row). |
+| R4 | **Numbers are formatted with the *company* currency's separators and precision**, whatever the row's currency, and per-row exchange rates arrive rounded. `ClientExport` / `CreditExport` re-format an already formatted string for `display_value`. | The client parses with the company currency's notation and ignores `display_value` for figures; converted cross-currency totals are not offered because the rates would make them wrong. | Send the raw decimal in `value`. |
+| R5 | **Service reports have no JSON form** (profit and loss, aged receivables ×2, client balance, client sales, tax summary, user sales; `ProductSalesExport` has no `returnJson` either). | The client reads the CSV back with a generic heading / facts / table parser and falls back to the download when a file does not fit. Headers are localized, so nothing can be matched by name. | `?output=json` for the service reports, even as `{sections: [{title, currency, columns, rows}]}`. |
+| R6 | **A failed report job has no failure signal** — the hash is never written, so `reports/preview/{hash}` and `exports/preview/{hash}` answer 409 "Still working" for ever. | The client polls to its budget and offers *Keep waiting*, which can never succeed. | Write a failure marker under the hash and answer 422/500 with a message. |
+| R7 | **Profit and loss requires `is_income_billed` and `include_tax`** (422 without them) **but never reads `include_tax` or `is_expense_billed`** (`ProfitLoss.php`). `TaxPeriodReport` reads `is_income_billed` unguarded. | Two of the three P&L toggles did nothing; the client stopped offering them and always sends what is required. | Either honour them or stop requiring them; guard the tax-period read. |
+| R8 | **Filters accepted and ignored**: `include_deleted` on payments, contacts and documents; the date range on the aged-receivable summary and the project report; a status value the report does not know (recurring `draft`, expense `uncategorized`, quote `cancelled`) returns *everything* rather than nothing. | The client offers only the filters a report honours (`ReportDefinition.filterFields`), audited by hand. | Reject or honour; an unknown status should match no rows. |
+| R9 | **Purchase-order reports filter on `client_id`**, not the vendor; **the task report has no project filter**. | Neither filter can be offered. | `vendors` on the PO exports; `projects` on the task export. |
+| R10 | **`ARDetailReport` calls `count()` on `clients` when it is a string** (TypeError → the job dies → R6). | The client offers that report a single-client filter (`client_id`) rather than the multi-select. | Normalize `clients` to an array. |
+| R11 | **The activity report's `date` is written in the company's display format**, not ISO. | The client shows the column as text; it cannot be sorted or grouped by date. | ISO in `value`, formatted in `display_value`. |
+| R12 | **The optional `created_at` column answers with the header `"texts."`** — the key is in none of the report-key maps, so `ctrans('texts.')` resolves nothing. | The client relabels it. | Add the keys. |
+| R13 | **A missing `send_email` is taken for `true`** (`GenericReportRequest::prepareForValidation`, likewise the product-sales and project requests), and the email branch answers `{"message": "working..."}` — the same key and shape a job id arrives in. A user with neither admin rights nor `view_reports` has it forced to `true` and their filters blanked. | Any client that omits the key to mean "no" gets the report emailed instead of returned, and polls the words "working..." as a job id. This shipped: opening a file-only report emailed it. The client now always sends the key and refuses to poll a reply that is not a token. | Default a missing `send_email` to `false`; answer the email branch with a distinct key (`{"queued": true}`) or status (202). |
+
+The report routes are throttled at 20 a minute. The client's auto-run is debounced, superseded
+rather than queued, and never retried on its own, and a comparison is a second request — so a
+reader changing filters quickly can still reach the limit; a 429 is shown as a state with a
+Retry.
+
 ### G. Hygiene — highest leverage
 
 1. **R (non-breaking first).** Unknown filter param → surface in a

@@ -91,22 +91,48 @@ void main() {
       expect(json.containsKey('client_id'), isFalse);
     });
 
-    test('boolean flags only appear when true', () {
+    test('an optional flag only appears when true', () {
       final flagged = const ReportPayload(
         includeDeleted: true,
-        includeTax: true,
-        isExpenseBilled: true,
+      ).toJson(reportIdentifier: 'invoice');
+      expect(flagged['include_deleted'], true);
+      final empty = const ReportPayload().toJson(reportIdentifier: 'invoice');
+      expect(empty.containsKey('include_deleted'), isFalse);
+      // Reports that neither require nor read these never see them.
+      expect(empty.containsKey('is_income_billed'), isFalse);
+      expect(empty.containsKey('include_tax'), isFalse);
+    });
+
+    test('profit and loss always carries the two flags it requires', () {
+      // `ProfitLossRequest` declares both `required|bool`. Left off when
+      // false, the report answered 422 in three of its four switch states
+      // (probed live: "The is income billed field is required.").
+      final off = const ReportPayload().toJson(reportIdentifier: 'profitloss');
+      expect(off['is_income_billed'], false);
+      expect(off['include_tax'], false);
+
+      final on = const ReportPayload(
         isIncomeBilled: true,
       ).toJson(reportIdentifier: 'profitloss');
-      expect(flagged['include_deleted'], true);
-      expect(flagged['include_tax'], true);
-      expect(flagged['is_expense_billed'], true);
-      expect(flagged['is_income_billed'], true);
-      final empty = const ReportPayload().toJson(
-        reportIdentifier: 'profitloss',
+      expect(on['is_income_billed'], true);
+      expect(on['include_tax'], false);
+    });
+
+    test('tax period always carries is_income_billed', () {
+      // `TaxPeriodReport::setAccountingType` reads the key unguarded.
+      final off = const ReportPayload().toJson(
+        reportIdentifier: 'tax_period_report',
       );
-      expect(empty.containsKey('include_deleted'), isFalse);
-      expect(empty.containsKey('is_expense_billed'), isFalse);
+      expect(off['is_income_billed'], false);
+      expect(off.containsKey('include_tax'), isFalse);
+    });
+
+    test('is_expense_billed is never sent', () {
+      // The server stores it and never reads it again.
+      final json = const ReportPayload(
+        isExpenseBilled: true,
+      ).toJson(reportIdentifier: 'profitloss');
+      expect(json.containsKey('is_expense_billed'), isFalse);
     });
 
     test('report_keys + group_by passed through when set', () {
@@ -119,13 +145,17 @@ void main() {
       expect(json['group_by'], 'client.country');
     });
 
-    test('send_email only emits when sendEmail flag is on', () {
+    test('send_email is stated on every request, false included', () {
       final json = const ReportPayload(
         sendEmail: true,
       ).toJson(reportIdentifier: 'clients');
       expect(json['send_email'], true);
+      // Left out, the server takes it for true (`GenericReportRequest::
+      // prepareForValidation`) and emails the report instead of answering —
+      // which made opening a file-only report send it to the user's inbox.
       final off = const ReportPayload().toJson(reportIdentifier: 'clients');
-      expect(off.containsKey('send_email'), isFalse);
+      expect(off.containsKey('send_email'), isTrue);
+      expect(off['send_email'], false);
     });
   });
 

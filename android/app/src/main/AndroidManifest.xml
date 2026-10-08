@@ -16,7 +16,7 @@
     <uses-feature android:name="android.hardware.CALL_PHONE" android:required="false" />
 
     <application
-        android:label="Invoice Ninja"
+        android:label="Ninja Beta"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -140,9 +140,13 @@
              launcher-shaped intent), and finishes.
              `configChanges` because a recreation mid-copy would lose the share:
              the new instance has nothing to copy, and the old one deletes what
-             it copied. See docs/sharing-files-into-the-app.md. -->
+             it copied. See docs/sharing-files-into-the-app.md.
+             Its own label, because the application's is "Ninja Beta" while the
+             beta installs beside the v1 app: the share sheet keeps the product
+             name, as the iOS extension does. -->
         <activity
             android:name=".ShareReceiverActivity"
+            android:label="Invoice Ninja"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"

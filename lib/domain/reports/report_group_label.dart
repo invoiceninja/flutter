@@ -77,6 +77,77 @@ String _dateLabel(String key, ReportSubgroup? subgroup, Formatter? formatter) {
   }
 }
 
+/// A date bucket as an **axis label**: as short as the bucket allows.
+///
+/// An axis has room for a dozen "Jan"s and for three "January 2026"s, and
+/// which of the two it gets is the difference between a labelled chart and
+/// one the reader has to count along. The year is said once, where it is
+/// needed — pass [withYear] for the first tick and for each one that starts
+/// a new year — rather than on every label.
+///
+/// The full label ([reportGroupDisplayLabel]) is still what a tooltip, a
+/// group row and a chip show; this is for the axis alone.
+String reportGroupAxisLabel({
+  required String key,
+  required ReportSubgroup? subgroup,
+  required Formatter? formatter,
+  bool withYear = false,
+}) {
+  final date = Date.tryParse(key);
+  if (date == null) return key;
+  switch (subgroup ?? ReportSubgroup.day) {
+    case ReportSubgroup.day:
+    case ReportSubgroup.week:
+      return _skeleton(
+        formatter,
+        (tag) => withYear ? DateFormat.yMMMd(tag) : DateFormat.MMMd(tag),
+        date,
+        key,
+      );
+    case ReportSubgroup.month:
+      return _skeleton(
+        formatter,
+        (tag) => withYear ? DateFormat.yMMM(tag) : DateFormat.MMM(tag),
+        date,
+        key,
+      );
+    case ReportSubgroup.quarter:
+      return _skeleton(
+        formatter,
+        (tag) => withYear ? DateFormat.yQQQ(tag) : DateFormat.QQQ(tag),
+        date,
+        key,
+      );
+    case ReportSubgroup.year:
+      return _skeleton(formatter, (tag) => DateFormat.y(tag), date, key);
+  }
+}
+
+/// Axis labels for a run of date bucket [keys], in order: the year on the
+/// first, and again wherever it changes.
+List<String> reportGroupAxisLabels({
+  required List<String> keys,
+  required ReportSubgroup? subgroup,
+  required Formatter? formatter,
+}) {
+  final out = <String>[];
+  int? year;
+  for (final key in keys) {
+    final date = Date.tryParse(key);
+    final changed = date != null && date.year != year;
+    out.add(
+      reportGroupAxisLabel(
+        key: key,
+        subgroup: subgroup,
+        formatter: formatter,
+        withYear: changed,
+      ),
+    );
+    if (date != null) year = date.year;
+  }
+  return out;
+}
+
 /// Runs [build] against the company's locale, falling back to the raw key
 /// if that locale's date symbols were never loaded. `DateFormat` throws
 /// rather than degrading, and a report is not worth a crash: the app's

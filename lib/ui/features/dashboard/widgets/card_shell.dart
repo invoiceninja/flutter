@@ -51,8 +51,7 @@ class DashboardCardShell extends StatelessWidget {
   /// today, most would be actively wrong here. A header reads as a label, so
   /// a tap on it may only do what the visible affordance beside it promises —
   /// `client_edit_shipping_address_section.dart` would overwrite the shipping
-  /// address, the two expense edit layouts would toggle a collapse, and
-  /// `reports_chart_card.dart` has two pickers and no single answer.
+  /// address, and the two expense edit layouts would toggle a collapse.
   /// Leave this null wherever the trailing widget is an action rather than a
   /// destination.
   ///

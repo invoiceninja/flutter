@@ -20,7 +20,10 @@ import 'package:admin/ui/features/auth/views/login_screen.dart';
 import 'package:admin/ui/features/auth/views/setup_wizard_screen.dart';
 import 'package:admin/ui/features/auth/views/signup_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
-import 'package:admin/ui/features/reports/views/reports_screen.dart';
+import 'package:admin/ui/features/reports/helpers/report_access.dart';
+import 'package:admin/ui/features/reports/views/report_screen.dart';
+import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
+import 'package:admin/ui/features/reports/views/reports_host.dart';
 import 'package:admin/ui/features/settings/settings_routes.dart';
 import 'package:admin/ui/features/settings/views/settings_screen.dart';
 import 'package:admin/ui/features/settings/views/settings_shell.dart';
@@ -789,9 +792,48 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
     case FixedBranchKind.reports:
       return StatefulShellBranch(
         routes: [
-          GoRoute(
-            path: '/reports',
-            builder: (context, state) => const ReportsScreen(),
+          // A host above both routes: it owns the reports view model, which
+          // has to outlive a move between the gallery and a report (see
+          // `ReportsHost`).
+          ShellRoute(
+            builder: (context, state, child) => ReportsHost(child: child),
+            routes: [
+              GoRoute(
+                path: '/reports',
+                builder: (context, state) => const ReportsGalleryScreen(),
+                routes: [
+                  // Nested, not a sibling: a report restored on a cold start
+                  // has no history behind it, and Android's back must then
+                  // go up to the gallery rather than leave the app.
+                  GoRoute(
+                    path: ':report',
+                    // An unknown report, or one this company may not open —
+                    // a stale restored address, a typed one — goes back to
+                    // the gallery instead of to a report that cannot draw.
+                    redirect: (context, state) {
+                      final company = context
+                          .read<Services>()
+                          .auth
+                          .session
+                          .value
+                          ?.currentCompany;
+                      final id = state.pathParameters['report'];
+                      return openableReport(id, company) == null
+                          ? '/reports'
+                          : null;
+                    },
+                    builder: (context, state) => ReportScreen(
+                      reportId: state.pathParameters['report']!,
+                      starterIndex: int.tryParse(
+                        state.uri.queryParameters[kReportStarterViewParam] ??
+                            '',
+                      ),
+                      viewId: state.uri.queryParameters[kReportSavedViewParam],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       );

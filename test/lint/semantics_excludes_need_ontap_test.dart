@@ -42,7 +42,7 @@ const String _kAllowMarker = 'lint: allow-semantics-no-ontap';
 /// Not flagged, deliberately: an exclude with no interactive role
 /// (`key_cap.dart` labels a decorative chip), and one paired with
 /// `IgnorePointer` / `enabled: false` to *suppress* interaction
-/// (`reports_body.dart`, `task_calendar_card.dart`, `activity_filter_sheet.dart`,
+/// (`task_calendar_card.dart`, `activity_filter_sheet.dart`,
 /// `shortcut_hint_overlay.dart`). Both are correct by construction: there is no
 /// action to re-declare.
 ///
@@ -196,7 +196,6 @@ Semantics(
     // an action from a decorative or a disabled subtree, and says so here.
     for (final inert in const [
       'key_cap.dart', // a labelled, decorative chip
-      'reports_body.dart', // `enabled: false` + IgnorePointer
       'task_calendar_card.dart', // suppressed while unloaded
       'activity_filter_sheet.dart', // suppressed while the lens is narrowed
       'shortcut_hint_overlay.dart', // IgnorePointer over the whole overlay

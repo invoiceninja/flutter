@@ -1,0 +1,19 @@
+Date,Product,Notes,Quantity,Currency,Cost,Price,"Markup (%)",Discount,"Net Total",Profit,"Line Total","Gross Line Total",Status,"Tax Name 1","Tax Name 2","Tax Name 3","Tax Rate 1","Tax Rate 2","Tax Rate 3","Tax Amount 1","Tax Amount 2","Tax Amount 3","Tax Amount","Is Amount Discount",Client,"Custom Value 1","Custom Value 2","Custom Value 3","Custom Value 4"
+11/Jul/2026,Quo.,"Molestiae facere.",1,GBP,0.00,349,"34,900.00",0.00,349.00,349.00,349,349.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,92,"Facere doloremque.","Assumenda quia qui."
+11/Jul/2026,Et.,"Nisi hic modi.",1,GBP,0.00,659,"65,900.00",0.00,659.00,659.00,659,659.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,45,"Et numquam.",Reprehenderit.
+11/Jul/2026,Facere.,"Ab iure sunt.",1,GBP,0.00,527,"52,700.00",0.00,527.00,527.00,527,527.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,99,"Eos doloribus.","Eaque omnis sed eum."
+11/Jul/2026,Et.,"Exercitationem nemo.",1,GBP,0.00,489,"48,900.00",0.00,489.00,489.00,489,489.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,57,"Ea aliquid sint.","Non voluptatum."
+13/Jul/2026,Iste.,"Sunt magni est iure.",1,GBP,0.00,578,"57,800.00",0.00,578.00,578.00,578,578.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,73,"Autem adipisci odit.","Veniam odit non sit."
+13/Jul/2026,"Id est.","Tempora ea.",1,GBP,0.00,376,"37,600.00",0.00,376.00,376.00,376,376.00,Sent,,,,0,0,0,0,0,0,0.00,1,Witting-Conroy,https://picsum.photos/200,5,"Et ut dolores sit.","Quo soluta est."
+
+
+
+
+Clients,Type,"Start Date","End Date"
+"All Clients","Product Sales",2026-01-01,2026-12-31
+
+Product,Quantity,Markup,Profit,"Net Total",Discount,"Line Total","Tax Name 1","Tax Name 2","Tax Name 3","Tax Amount 1","Tax Amount 2","Tax Amount 3","Tax Amount","Gross Line Total"
+Quo.,4,"139,600.00","1,396.00","1,396.00",0.00,1396,,,,0,0,0,0.00,"1,396.00"
+Et.,5,"266,100.00","2,661.00","2,661.00",0.00,2661,,,,0,0,0,0.00,"2,661.00"
+Facere.,4,"210,800.00","2,108.00","2,108.00",0.00,2108,,,,0,0,0,0.00,"2,108.00"
+Iste.,3,"173,400.00","1,734.00","1,734.00",0.00,1734,,,,0,0,0,0.00,"1,734.00"

@@ -14,7 +14,7 @@ import 'package:admin/ui/features/activity/view_models/activity_view_model.dart'
 typedef ActivityTypeOption = ({String id, String name});
 
 /// Localized, name-sorted activity-type options. Built the same way the
-/// Activity report's filter builds them (`reports_body.dart`), but rendered
+/// Activity report's filter builds them (`report_filters.dart`), but rendered
 /// through the public [MultiEntityPicker] rather than that file's private
 /// `_MultiEntityField`.
 List<ActivityTypeOption> activityTypeOptions(BuildContext context) => [

@@ -133,6 +133,10 @@ void main() {
       expect(find.text('Search'), findsOneWidget);
       expect(find.text('Search everything'), findsOneWidget);
       expect(find.text('Forms'), findsOneWidget);
+      // The columns are filled by position: a section added to the list and
+      // not to the split is on neither. By one of its own rows — "Reports"
+      // is also the name of a `G`-leader destination.
+      expect(find.text('Clear Filters'), findsOneWidget);
     });
   });
 }

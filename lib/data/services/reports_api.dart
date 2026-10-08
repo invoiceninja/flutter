@@ -4,21 +4,19 @@ import 'dart:typed_data';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_exception.dart';
 
-/// Format choices for the queued export flow.
+/// The file type an export came back as.
+///
+/// **Detected, never requested.** The export endpoints take no format
+/// parameter: the server renders what the report is (CSV for the entity
+/// reports, a PDF when a `template_id` is set and for the project report, an
+/// XLSX workbook for the tax-period report) and `ReportExportController`
+/// labels the response by sniffing its own bytes. This enum used to be a menu
+/// of three the user picked from, sent nowhere, and used only to decide which
+/// content-type counted as "finished" — so two of the three choices could
+/// never complete.
 enum ReportExportFormat { pdf, csv, xlsx }
 
 extension ReportExportFormatWire on ReportExportFormat {
-  String get wire {
-    switch (this) {
-      case ReportExportFormat.pdf:
-        return 'pdf';
-      case ReportExportFormat.csv:
-        return 'csv';
-      case ReportExportFormat.xlsx:
-        return 'xlsx';
-    }
-  }
-
   String get defaultExtension {
     switch (this) {
       case ReportExportFormat.pdf:
@@ -30,6 +28,59 @@ extension ReportExportFormatWire on ReportExportFormat {
     }
   }
 }
+
+const String _kPdfType = 'application/pdf';
+const String _kXlsxType =
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/// Every media type the export endpoint answers a finished job with. The CSV
+/// family is listed in full because what a proxy or an older server calls a
+/// CSV varies; `text/html` is deliberately absent — that is an error page.
+const Set<String> kReportExportContentTypes = {
+  _kPdfType,
+  _kXlsxType,
+  'text/csv',
+  'text/plain',
+  'application/csv',
+  'application/octet-stream',
+};
+
+/// What [bytes] are, by their own signature first and the response's
+/// [contentType] second.
+///
+/// The signature wins because it is what the server itself goes by, and
+/// because `application/octet-stream` says nothing. A PDF opens with `%PDF-`
+/// (the server trims leading whitespace before checking, so this does too);
+/// an XLSX is a zip, `PK\x03\x04`. Anything else is the CSV.
+ReportExportFormat detectReportExportFormat(
+  List<int> bytes, {
+  String? contentType,
+}) {
+  var start = 0;
+  while (start < bytes.length && _isAsciiWhitespace(bytes[start])) {
+    start++;
+  }
+  bool startsWith(List<int> signature) {
+    if (bytes.length - start < signature.length) return false;
+    for (var i = 0; i < signature.length; i++) {
+      if (bytes[start + i] != signature[i]) return false;
+    }
+    return true;
+  }
+
+  if (startsWith(const [0x25, 0x50, 0x44, 0x46, 0x2D])) {
+    return ReportExportFormat.pdf;
+  }
+  if (startsWith(const [0x50, 0x4B, 0x03, 0x04])) {
+    return ReportExportFormat.xlsx;
+  }
+  if (contentType == _kPdfType) return ReportExportFormat.pdf;
+  if (contentType == _kXlsxType) return ReportExportFormat.xlsx;
+  return ReportExportFormat.csv;
+}
+
+bool _isAsciiWhitespace(int byte) =>
+    byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D;
 
 /// Stop polling cleanly when the caller (VM) has lost interest — e.g. the
 /// user clicked Cancel or the screen was disposed. Throw `false` and the
@@ -48,6 +99,20 @@ class ReportPollingTimeout implements Exception {
   final String hash;
   @override
   String toString() => 'ReportPollingTimeout($hash)';
+}
+
+/// The server answered a request for a report's rows or file by emailing
+/// the report instead — its reply was not a job id. It does that when the
+/// request carries (or the server forces) `send_email: true`; the client
+/// never asks for it on a preview or an export.
+class ReportEmailedInstead implements Exception {
+  const ReportEmailedInstead(this.reply);
+
+  /// What the server said in place of a job id (`working...`).
+  final String reply;
+
+  @override
+  String toString() => 'ReportEmailedInstead($reply)';
 }
 
 /// Thin HTTP service for the report endpoints. Does not extend
@@ -117,21 +182,6 @@ class ReportsApi {
     );
   }
 
-  /// Expected binary content-type for each export format. The poll endpoint
-  /// returns its JSON status envelope (a different content-type) until the
-  /// file is ready, which `ApiClient.postRawOrPending` treats as "pending".
-  static String _contentTypeFor(ReportExportFormat format) {
-    switch (format) {
-      case ReportExportFormat.pdf:
-        return 'application/pdf';
-      case ReportExportFormat.csv:
-        return 'text/csv';
-      case ReportExportFormat.xlsx:
-        return 'application/vnd.openxmlformats-officedocument'
-            '.spreadsheetml.sheet';
-    }
-  }
-
   /// Export flow. `POST <endpoint>` → hash → poll
   /// `/api/v1/exports/preview/<hash>` until the binary file is ready.
   ///
@@ -139,52 +189,47 @@ class ReportsApi {
   /// 404 (`ConflictException` = job still queued) or a 2xx JSON status
   /// envelope (`RawOrPending.isPending`) is retried; a real 4xx/5xx bubbles
   /// immediately so a failed job never burns the whole budget.
+  ///
+  /// The result says what the file turned out to be — see
+  /// [ReportExportFormat].
   Future<ReportExportResult> runExport({
     required String endpoint,
     required Map<String, dynamic> payload,
-    required ReportExportFormat format,
     int maxRetries = defaultExportRetries,
     Duration pollInterval = defaultPollInterval,
     ReportPollingCancellation? isCancelled,
   }) async {
     final hash = await _postForHash(path: endpoint, payload: payload);
-    final bytes = await _pollExport(
+    return _pollExport(
       hash: hash,
-      format: format,
       maxRetries: maxRetries,
       pollInterval: pollInterval,
       isCancelled: isCancelled,
     );
-    return ReportExportResult(bytes: bytes, hash: hash);
   }
 
   /// Continue polling an in-flight export hash for another budget — the
   /// "Keep waiting?" affordance, same as [continuePreview].
   Future<ReportExportResult> continueExport({
     required String hash,
-    required ReportExportFormat format,
     int maxRetries = defaultExportRetries,
     Duration pollInterval = defaultPollInterval,
     ReportPollingCancellation? isCancelled,
-  }) async {
-    final bytes = await _pollExport(
+  }) {
+    return _pollExport(
       hash: hash,
-      format: format,
       maxRetries: maxRetries,
       pollInterval: pollInterval,
       isCancelled: isCancelled,
     );
-    return ReportExportResult(bytes: bytes, hash: hash);
   }
 
-  Future<Uint8List> _pollExport({
+  Future<ReportExportResult> _pollExport({
     required String hash,
-    required ReportExportFormat format,
     required int maxRetries,
     required Duration pollInterval,
     required ReportPollingCancellation? isCancelled,
   }) async {
-    final expected = _contentTypeFor(format);
     for (var attempt = 0; attempt < maxRetries; attempt++) {
       if (isCancelled?.call() == true) {
         throw const ReportPollingCancelled();
@@ -193,10 +238,18 @@ class ReportsApi {
         final res = await client.postRawOrPending(
           '/api/v1/exports/preview/$hash',
           readOnly: true,
-          expectedContentType: expected,
+          acceptedContentTypes: kReportExportContentTypes,
         );
-        if (!res.isPending && res.bytes != null) {
-          return res.bytes!;
+        final bytes = res.bytes;
+        if (!res.isPending && bytes != null) {
+          return ReportExportResult(
+            bytes: bytes,
+            hash: hash,
+            format: detectReportExportFormat(
+              bytes,
+              contentType: res.contentType,
+            ),
+          );
         }
         // Pending JSON status envelope — fall through to wait + retry.
       } on ConflictException catch (_) {
@@ -244,8 +297,20 @@ class ReportsApi {
         'Report endpoint did not return a polling hash',
       );
     }
+    // The same `message` key carries two different answers: a job id to
+    // poll, or — when the server decided to email the report — the words
+    // "working...". Polling that is a hundred seconds of 404s for a file
+    // that is in the user's inbox.
+    if (!_kJobId.hasMatch(hash)) throw ReportEmailedInstead(hash);
     return hash;
   }
+
+  /// What a job id looks like: one token. Today's server writes a UUID
+  /// (`Str::uuid()` in every report controller), but the test is for "a
+  /// token" rather than "a UUID" on purpose — an older self-hosted server
+  /// that wrote some other id must keep working, and the reply this exists
+  /// to catch (`working...`) is not a token of any kind.
+  static final _kJobId = RegExp(r'^[A-Za-z0-9_-]+$');
 
   static String? _extractHash(Object? raw) {
     if (raw is Map) {
@@ -308,7 +373,14 @@ class ReportsApi {
 }
 
 class ReportExportResult {
-  const ReportExportResult({required this.bytes, required this.hash});
+  const ReportExportResult({
+    required this.bytes,
+    required this.hash,
+    this.format = ReportExportFormat.csv,
+  });
   final Uint8List bytes;
   final String hash;
+
+  /// What [bytes] are — detected from the file, see [ReportExportFormat].
+  final ReportExportFormat format;
 }

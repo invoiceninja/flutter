@@ -457,7 +457,20 @@ Decimal _serverLineTotal(
   LineItem item,
   BillingTotalsInput input,
   int precision,
-) {
+) => computeLineTotal(
+  item,
+  isAmountDiscount: input.isAmountDiscount,
+  precision: precision,
+);
+
+/// One line's total, by the rule above — for a surface that shows a line on
+/// its own (the invoice designer draws a real invoice's rows) and must agree
+/// with the subtotal those lines add up to.
+Decimal computeLineTotal(
+  LineItem item, {
+  required bool isAmountDiscount,
+  required int precision,
+}) {
   final qty = _round(item.quantity, 5);
   final cost = _round(item.cost, 5);
   final itemDiscount = _round(item.discount, 5);
@@ -466,7 +479,7 @@ Decimal _serverLineTotal(
     // `setDiscount`: an amount discount is formatted at the currency precision
     // and subtracted; a percent one is applied unrounded and the RESULT is
     // formatted. Both then pass through `setLineTotal`'s round-at-2.
-    final reduced = input.isAmountDiscount
+    final reduced = isAmountDiscount
         ? lineTotal - _round(itemDiscount, precision)
         : lineTotal - _mulRate(lineTotal, itemDiscount);
     lineTotal = _round2(_round(reduced, precision));

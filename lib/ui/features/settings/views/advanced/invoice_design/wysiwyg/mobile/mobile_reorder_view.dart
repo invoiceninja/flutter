@@ -2,43 +2,69 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/design.dart';
+import 'package:admin/data/models/domain/design_block_layout.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_library.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_menu.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/palette/component_palette.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_panel.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
-/// Phone (<600 px) layout. Replaces the unusable 12-col canvas with a
-/// `ReorderableListView` of full-width block previews; tap to edit
-/// properties in a bottom sheet; "+" FAB opens the categorized block
-/// palette as a sheet. Switching back to desktop preserves the layout
-/// (each block has `gridPosition.x = 0`, `w = 12`, `y` = row index ×
-/// height).
+/// The phone (<600 px) layout: the page as an outline.
+///
+/// A phone is too narrow to show the page at a size anyone could drag things
+/// around on, so it shows the page's *structure* instead — one card per row,
+/// each card split into its blocks in proportion to their widths. A card is
+/// dragged to reorder its row; a block is tapped to edit it, or held for the
+/// same menu the canvas has (move up, into the row above, wider…).
+///
+/// It used to be a flat list of blocks in the order they were added, and its
+/// one gesture — a reorder — rewrote every block on the page to full width.
+/// Here nothing changes that the user did not move.
 class MobileReorderView extends StatelessWidget {
-  const MobileReorderView({super.key, required this.vm});
+  const MobileReorderView({super.key, required this.vm, this.onPageSettings});
 
   final WysiwygDesignViewModel vm;
 
+  /// Opens the page's settings. The toolbar has its own button for them;
+  /// this is for the "Page" tab of a block's sheet, which has to close the
+  /// sheet and open the page's instead.
+  final VoidCallback? onPageSettings;
+
   @override
   Widget build(BuildContext context) {
-    final blocks = vm.blocks;
+    final rows = [
+      for (final (index, row) in vm.rows.indexed)
+        (index: index, cells: explicitRow(row, (_) => 'outline-gap-$index')),
+    ].where((r) => r.cells.isNotEmpty).toList();
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [
-        Column(
-          children: [
-            _HintBanner(),
-            Expanded(
-              child: blocks.isEmpty
-                  ? _EmptyState(vm: vm)
-                  : _ReorderableList(vm: vm, blocks: blocks),
+        if (rows.isEmpty)
+          _EmptyOutline(vm: vm)
+        else
+          ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            itemCount: rows.length,
+            onReorderItem: (from, to) =>
+                vm.moveRow(rows[from].index, rows[to].index),
+            header: const _OutlineHint(),
+            // Room for the add button over the last card.
+            padding: EdgeInsets.only(bottom: 88 + bottomInset),
+            itemBuilder: (context, i) => _RowCard(
+              key: ValueKey('row-${rows[i].cells.first.id}'),
+              vm: vm,
+              onPageSettings: onPageSettings,
+              listIndex: i,
+              rowIndex: rows[i].index,
+              cells: rows[i].cells,
             ),
-          ],
-        ),
+          ),
         Positioned(
           right: InSpacing.lg(context),
-          bottom: InSpacing.lg(context) + MediaQuery.of(context).padding.bottom,
+          bottom: InSpacing.lg(context) + bottomInset,
           child: FloatingActionButton(
-            onPressed: () => _showPaletteSheet(context, vm),
+            onPressed: () => showDesignerPaletteSheet(context, vm),
             tooltip: context.tr('add_block'),
             child: const Icon(Icons.add),
           ),
@@ -48,135 +74,95 @@ class MobileReorderView extends StatelessWidget {
   }
 }
 
-class _HintBanner extends StatelessWidget {
+class _OutlineHint extends StatelessWidget {
+  const _OutlineHint();
+
   @override
   Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Container(
-      width: double.infinity,
-      color: tokens.accentSoft,
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.lg(context),
-        vertical: InSpacing.md(context),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.lg(context),
+        InSpacing.md(context),
+        InSpacing.lg(context),
+        InSpacing.sm,
       ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, size: 16, color: tokens.ink),
-          SizedBox(width: InSpacing.sm),
-          Expanded(
-            child: Text(
-              context.tr('mobile_reorder_hint'),
-              style: TextStyle(fontSize: 12, color: tokens.ink),
-            ),
-          ),
-        ],
+      child: Text(
+        context.tr('outline_hint'),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink3),
       ),
     );
   }
 }
 
-class _ReorderableList extends StatelessWidget {
-  const _ReorderableList({required this.vm, required this.blocks});
-
-  final WysiwygDesignViewModel vm;
-  final List<DesignBlock> blocks;
-
-  @override
-  Widget build(BuildContext context) {
-    return ReorderableListView.builder(
-      buildDefaultDragHandles: false,
-      itemCount: blocks.length,
-      onReorderItem: vm.reorderBlocks,
-      // Add bottom padding so the FAB doesn't cover the last row.
-      padding: EdgeInsets.only(
-        top: InSpacing.md(context),
-        bottom: 88 + MediaQuery.of(context).padding.bottom,
-      ),
-      itemBuilder: (context, index) {
-        final block = blocks[index];
-        return _MobileBlockRow(
-          key: ValueKey(block.id),
-          vm: vm,
-          block: block,
-          index: index,
-        );
-      },
-    );
-  }
-}
-
-/// Compact row for the mobile reorder list — icon + label + drag handle +
-/// delete. The full `BlockPreview` is too tall for a list row at 320 px;
-/// we lean on the palette spec's icon + label, plus a small subtitle
-/// showing the block's grid position so the user has spatial context.
-class _MobileBlockRow extends StatelessWidget {
-  const _MobileBlockRow({
+/// One row of the page: a drag handle, then its cells side by side in
+/// proportion to their widths.
+class _RowCard extends StatelessWidget {
+  const _RowCard({
     super.key,
     required this.vm,
-    required this.block,
-    required this.index,
+    required this.listIndex,
+    required this.rowIndex,
+    required this.cells,
+    this.onPageSettings,
   });
 
   final WysiwygDesignViewModel vm;
-  final DesignBlock block;
-  final int index;
+  final VoidCallback? onPageSettings;
+  final int listIndex;
+  final int rowIndex;
+  final DesignRow cells;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final spec = blockSpecFor(block.type);
-    final label = spec != null ? context.tr(spec.labelKey) : block.type;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: InSpacing.lg(context),
-        vertical: InSpacing.sm,
+        vertical: InSpacing.xs,
       ),
       child: Material(
         color: tokens.surface,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-        elevation: 1,
-        child: InkWell(
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: tokens.border),
           borderRadius: BorderRadius.circular(InRadii.r2),
-          onTap: () => _openPropertySheet(context, vm, block),
-          child: Padding(
-            padding: EdgeInsets.all(InSpacing.md(context)),
-            child: Row(
-              children: [
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Icon(Icons.drag_handle, color: tokens.ink3, size: 24),
-                ),
-                SizedBox(width: InSpacing.md(context)),
-                Icon(
-                  spec?.icon ?? Icons.crop_square,
-                  size: 24,
-                  color: tokens.ink,
-                ),
-                SizedBox(width: InSpacing.md(context)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        label,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '${block.gridPosition.w}×${block.gridPosition.h}'
-                        '${block.locked ? '  ·  ${context.tr('locked')}' : ''}',
-                        style: TextStyle(fontSize: 11, color: tokens.ink3),
-                      ),
-                    ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ReorderableDragStartListener(
+                index: listIndex,
+                child: Semantics(
+                  label: '${context.tr('row')} ${rowIndex + 1}',
+                  child: SizedBox(
+                    width: InSizes.touchTarget,
+                    child: Icon(
+                      Icons.drag_handle,
+                      color: tokens.ink3,
+                      size: 22,
+                    ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  onPressed: () => vm.deleteBlock(block.id),
+              ),
+              VerticalDivider(width: 1, color: tokens.border),
+              for (final (i, cell) in cells.indexed) ...[
+                if (i > 0) VerticalDivider(width: 1, color: tokens.border),
+                Expanded(
+                  flex: cell.gridPosition.w,
+                  child: isGapBlock(cell)
+                      ? const _GapCell()
+                      : _BlockCell(
+                          vm: vm,
+                          block: cell,
+                          alone: cells.length == 1,
+                          onPageSettings: onPageSettings,
+                        ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -184,8 +170,110 @@ class _MobileBlockRow extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.vm});
+class _GapCell extends StatelessWidget {
+  const _GapCell();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: context.tr('empty_space'),
+    child: ColoredBox(
+      color: context.inTheme.surfaceAlt,
+      child: const SizedBox(height: 56),
+    ),
+  );
+}
+
+class _BlockCell extends StatelessWidget {
+  const _BlockCell({
+    required this.vm,
+    required this.block,
+    required this.alone,
+    this.onPageSettings,
+  });
+
+  final WysiwygDesignViewModel vm;
+  final DesignBlock block;
+  final VoidCallback? onPageSettings;
+
+  /// The only cell of its row — it then has room for a menu button of its
+  /// own. A cell that shares its row keeps the whole width for its name and
+  /// answers a long press with the same menu.
+  final bool alone;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final spec = blockSpecFor(block.type);
+    final label = spec != null ? context.tr(spec.labelKey) : block.type;
+    return InkWell(
+      onTap: () => showDesignerBlockSheet(
+        context,
+        vm,
+        block.id,
+        onPageSettings: onPageSettings,
+      ),
+      onLongPress: () => _menu(context),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: EdgeInsets.only(left: InSpacing.md(context)),
+          child: Row(
+            children: [
+              Icon(
+                spec?.icon ?? Icons.extension_outlined,
+                size: 20,
+                color: spec?.printed == false ? tokens.overdue : tokens.ink2,
+              ),
+              SizedBox(width: InSpacing.sm),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (!alone)
+                      Text(
+                        '${block.gridPosition.w}/$kDesignerGridCols',
+                        style: TextStyle(fontSize: 11, color: tokens.ink3),
+                      ),
+                  ],
+                ),
+              ),
+              if (alone)
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: context.tr('more_actions'),
+                    onPressed: () => _menu(buttonContext),
+                  ),
+                )
+              else
+                SizedBox(width: InSpacing.sm),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _menu(BuildContext anchor) {
+    final box = anchor.findRenderObject()! as RenderBox;
+    showBlockMenu(
+      anchor,
+      vm,
+      block.id,
+      globalPosition: box.localToGlobal(box.size.centerRight(Offset.zero)),
+    );
+  }
+}
+
+class _EmptyOutline extends StatelessWidget {
+  const _EmptyOutline({required this.vm});
   final WysiwygDesignViewModel vm;
 
   @override
@@ -202,18 +290,12 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: tokens.ink3,
             ),
-            SizedBox(height: InSpacing.md(context)),
-            Text(
-              context.tr('drag_and_drop_to_add'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: tokens.ink3),
-            ),
             SizedBox(height: InSpacing.lg(context)),
             FilledButton.icon(
               icon: const Icon(Icons.add),
               label: Text(context.tr('add_block')),
               style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: () => _showPaletteSheet(context, vm),
+              onPressed: () => showDesignerPaletteSheet(context, vm),
             ),
           ],
         ),
@@ -222,15 +304,25 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-void _openPropertySheet(
+/// The property panel for one block, as a sheet.
+///
+/// The sheet closes itself when its block is gone — deleted from the panel's
+/// own header, or moved out from under it. It does so **once**: the builder
+/// below re-runs on every frame of a closing keyboard, and a second
+/// `maybePop()` after the sheet has started to leave lands on the route
+/// beneath it — the designer — closing it, or raising "Discard changes?".
+void showDesignerBlockSheet(
   BuildContext context,
   WysiwygDesignViewModel vm,
-  DesignBlock block,
-) {
-  vm.selectBlock(block.id);
+  String blockId, {
+  VoidCallback? onPageSettings,
+}) {
+  vm.selectBlock(blockId);
+  var leaving = false;
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    showDragHandle: true,
     // The property panel is mostly text fields, and `showModalBottomSheet`
     // lifts nothing by itself — pad by the keyboard inset. The height also
     // reads the *builder's* context: the outer one was captured before the
@@ -241,24 +333,57 @@ void _openPropertySheet(
         padding: EdgeInsets.only(bottom: insets),
         child: SizedBox(
           height: (MediaQuery.sizeOf(ctx).height - insets) * 0.8,
-          child: PropertyPanel(vm: vm),
+          child: ListenableBuilder(
+            listenable: vm,
+            builder: (sheetContext, _) {
+              if (vm.selectedBlock == null) {
+                if (!leaving) {
+                  leaving = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (sheetContext.mounted &&
+                        (ModalRoute.of(sheetContext)?.isCurrent ?? false)) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  });
+                }
+                return const SizedBox.shrink();
+              }
+              return PropertyPanel(
+                vm: vm,
+                // A sheet for a block has no page to show: the Page tab
+                // closes it and opens the page's own sheet.
+                onShowPage: onPageSettings == null
+                    ? null
+                    : () {
+                        leaving = true;
+                        Navigator.of(sheetContext).pop();
+                        onPageSettings();
+                      },
+              );
+            },
+          ),
         ),
       );
     },
   );
 }
 
-void _showPaletteSheet(BuildContext context, WysiwygDesignViewModel vm) {
+/// The palette, as a sheet that closes once a block is picked.
+void showDesignerPaletteSheet(BuildContext context, WysiwygDesignViewModel vm) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    // No text input here, so no keyboard inset to take — but read the height
-    // from the *builder's* context for the same reason its sibling above does:
-    // the outer one was captured before the sheet opened and never sees a
-    // rotation.
+    showDragHandle: true,
+    // A list of names: on a wide pane it does not want the pane's width.
+    constraints: const BoxConstraints(maxWidth: 480),
+    // Read the height from the *builder's* context, as its sibling above
+    // does: the outer one never sees a rotation.
     builder: (ctx) => SizedBox(
       height: MediaQuery.sizeOf(ctx).height * 0.7,
-      child: ComponentPalette(vm: vm),
+      child: ComponentPalette(
+        vm: vm,
+        onAdded: () => Navigator.of(ctx).maybePop(),
+      ),
     ),
   );
 }

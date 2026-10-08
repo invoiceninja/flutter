@@ -33,6 +33,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 - `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
+- Visual (block) designs — five renderer gaps the client now works around: no `tasks-table` renderer, an empty `blocks` list read as a block design, unguarded `properties`, a lone block's width ignored, unknown page sizes dropping the orientation; plus an archived design never reaching the refresh bundle (**O**, § Visual designer).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -2922,4 +2923,55 @@ per-currency amount.
 `disable_emails` before it looks at the record. Every Send Email action in the
 client now gates on that token too (`AuthCompany.maySendEmails`); it used to
 offer the action and fail on send.
+
+## Visual designer — five renderer gaps the client works around — **O**
+
+The block renderer (`app/Services/Pdf/JsonDesignService.php`,
+`JsonToSectionsAdapter.php`), read at `fd321ae8e1` and probed against the demo
+server on 2026-10-08 with `POST /api/v1/preview?html=true`. Probe table and the
+client-side rules: `docs/invoice-designer.md`. Each of these also affects the
+React builder.
+
+1. **No `tasks-table` renderer.** `convertBlockToSection` has arms for
+   `table` but not `tasks-table`, and `detectTableType` returns `'product'`
+   on every path, so `getFilteredLineItems('product')` (types 1/4/5/6) is the
+   only filter that ever runs. A task line (type 2) is printed by **no**
+   block: an invoice of billed time renders an empty products table. Both
+   builders offer a "Tasks" block; the Flutter one now hides it.
+   *Ask:* a `tasks-table` arm calling the table converter with
+   `$tableType = 'task'`.
+2. **`isset($design['blocks'])` is true for `[]`.** `PdfService::isJsonDesign`
+   and both `PreviewController` branches test key presence, so a Twig design
+   whose JSON happens to carry an empty `blocks` list renders as an empty block
+   design. The Flutter client sent that key with every design until
+   2026-10-08; designs it saved before then still carry it.
+   *Ask:* `!empty($design['blocks'])`.
+3. **`$block['properties']` is read unguarded** by every converter, and
+   `convertSpacerBlock` reads `$props['height']` the same way — a block
+   without them is an HTTP 500 for the whole document rather than an empty
+   cell. *Ask:* `$block['properties'] ?? []` and `$props['height'] ?? '0px'`.
+4. **A block alone in its row gets no width.** The single-block branch of
+   `generateBaseTemplate` emits only the `rowAlign` margin, on a full-width
+   div where it does nothing, so `gridPosition.w` and `x` have no effect; a
+   multi-block row honours `w`. A half-width block alone on its row therefore
+   prints full width. *Ask:* emit `width: {w/12}%` there too.
+5. **An unknown `pageSize` drops the orientation.** `cssSizeFor` returns null
+   for a size outside its allow-list (the React builder offers `B5`, `B4`,
+   `JIS-B5`, `JIS-B4`), and the fallback is `A4 portrait` whatever
+   `pageLayout` says. *Ask:* keep the orientation on the fallback, or accept
+   the sizes the builders offer.
+
+Smaller, same pass: `documentSettings.secondaryFont` is written nowhere in the
+output, and a `qrcode` block's `size` is ignored (the SVG is always 150px).
+
+Also found on this pass, not a renderer gap: **an archived design never
+reaches the refresh bundle.** `Company::designs()` is a plain `hasMany` on a
+`SoftDeletes` model and the `company.designs` closures in
+`BaseController::refreshResponse` add no `withTrashed()`, so a design archived
+on one device stays an active row on every other (the bundle is upsert-only
+and the row simply stops arriving) — it keeps showing in the design pickers
+there. The client's Custom Designs → Show archived runs a full
+`GET /designs` sweep, which heals it, but nothing prompts that. *Ask:*
+`->withTrashed()` on the `company.designs` closures, so an archive travels
+with the delta like any other change.
 

@@ -34,6 +34,10 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
   VoidCallback? _unregisterBeforeSave;
   static const _kContentDebounce = Duration(milliseconds: 300);
 
+  /// Takes the caret when the canvas asks for it — a second press on the
+  /// selected block, or Enter.
+  final FocusNode _contentFocus = FocusNode(debugLabel: 'text block content');
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +46,20 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
     // Save / ⌘S can fire within the 300 ms debounce window before the pending
     // content write lands in the draft; flush it synchronously first (mirrors
     // markdown_notes_section.dart). Otherwise the last-typed text is dropped.
-    _unregisterBeforeSave = widget.vm.addBeforeSaveHook(_flushContent);
+    // A *flush* hook: it only commits what was typed, and Save is not the
+    // only thing that needs the draft current — undo does, and so does ⌘S
+    // deciding whether there is anything to save.
+    _unregisterBeforeSave = widget.vm.addFlushHook(_flushContent);
+    widget.vm.contentFocusRequest.addListener(_focusContent);
+  }
+
+  void _focusContent() {
+    if (!mounted) return;
+    _contentFocus.requestFocus();
+    _content.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _content.text.length,
+    );
   }
 
   void _sync() {
@@ -71,6 +88,8 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
 
   @override
   void dispose() {
+    widget.vm.contentFocusRequest.removeListener(_focusContent);
+    _contentFocus.dispose();
     _unregisterBeforeSave?.call();
     // A block-switch tears down this State via the `ValueKey(block.id)` in the
     // property panel, so a pending debounced edit would otherwise be lost.
@@ -114,8 +133,12 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
   }
 
   Future<void> _insertVariable() async {
-    final picked = await showVariablePicker(context);
-    if (picked == null || !mounted) return;
+    final pick = await showVariablePicker(
+      context,
+      customFieldLabels: widget.vm.customFieldLabels,
+    );
+    if (pick == null || !mounted) return;
+    final picked = pick.token;
     final sel = _content.selection;
     final text = _content.text;
     final insertAt = sel.isValid ? sel.start : text.length;
@@ -140,22 +163,32 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                context.tr('content'),
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+            Text(
+              context.tr('content'),
+              style: Theme.of(context).textTheme.labelMedium,
             ),
-            TextButton.icon(
-              icon: const Icon(Icons.code, size: 16),
-              label: Text(context.tr('insert_variable')),
-              onPressed: _insertVariable,
+            SizedBox(width: InSpacing.sm),
+            // Takes what the label leaves, so a long translation ellipsizes
+            // instead of pushing the row past the panel's width.
+            Expanded(
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.code, size: 16),
+                  label: Text(
+                    context.tr('insert_variable'),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: _insertVariable,
+                ),
+              ),
             ),
           ],
         ),
         SizedBox(height: InSpacing.sm),
         TextField(
           controller: _content,
+          focusNode: _contentFocus,
           minLines: 3,
           maxLines: null,
           decoration: const InputDecoration(border: OutlineInputBorder()),
@@ -167,20 +200,17 @@ class _TextBlockPropertiesState extends State<TextBlockProperties> {
           value: props['fontSize'] as String?,
           onChanged: (v) => _write('fontSize', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         FontStyleInput(
           fontWeight: props['fontWeight'] as String?,
           fontStyle: props['fontStyle'] as String?,
           onFontWeightChanged: (v) => _write('fontWeight', v),
           onFontStyleChanged: (v) => _write('fontStyle', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         LineHeightInput(
           labelKey: 'line_height',
           value: props['lineHeight'] as String?,
           onChanged: (v) => _write('lineHeight', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'color',
           value: props['color'] as String?,

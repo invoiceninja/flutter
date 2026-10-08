@@ -2,22 +2,26 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/sync/unconfirmed_change_actions.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
+import 'package:admin/ui/core/widgets/shortcut_hint_scope.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_overflow_menu.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -58,6 +62,12 @@ class SettingsEntityEditScaffold<T, VM extends GenericEditViewModel<T>>
     this.customBodyBuilder,
     this.guardUnsavedChanges = false,
     this.onDiscard,
+    this.stayOpenAfterSave = false,
+    this.savedMessageKey = 'saved',
+    this.saveDisabledReason,
+    this.titleBuilder,
+    this.actionsBuilder,
+    this.savedActionBuilder,
     required this.isArchivedOf,
     required this.isDeletedOf,
   }) : assert(
@@ -128,6 +138,34 @@ class SettingsEntityEditScaffold<T, VM extends GenericEditViewModel<T>>
   /// [guardUnsavedChanges] is true — the discard dialog calls it so picked
   /// "Discard" doesn't leave stale edits behind on a preserved route.
   final void Function(VM)? onDiscard;
+
+  /// Keep the screen open after a successful save and toast
+  /// [savedMessageKey] instead of leaving. For an editor the user works in —
+  /// the visual designer — rather than a form they fill and close. The view
+  /// model must then make a second save of a new record an update, not
+  /// another create.
+  final bool stayOpenAfterSave;
+
+  /// Toast shown after a save when [stayOpenAfterSave] is set.
+  final String savedMessageKey;
+
+  /// Why Save is disabled, for its tooltip — null when there is nothing to
+  /// say (the form is simply untouched). Only consulted while [canSave] is
+  /// false.
+  final String? Function(BuildContext, VM)? saveDisabledReason;
+
+  /// Replaces the AppBar's title text — the visual designer puts the design's
+  /// name field there, so the screen has one toolbar rather than two.
+  final Widget Function(BuildContext, VM)? titleBuilder;
+
+  /// Extra AppBar actions, ahead of the overflow menu and Save.
+  final List<Widget> Function(BuildContext, VM)? actionsBuilder;
+
+  /// A follow-up offered on the "Saved" toast when [stayOpenAfterSave] is
+  /// set — the screen is still there to act on it. Null (or returning null)
+  /// leaves the toast plain.
+  final NotifyAction? Function(BuildContext context, VM vm, T saved)?
+  savedActionBuilder;
 
   /// Lifecycle accessors on `T`. The scaffold uses them to decide which
   /// overflow-menu items to show. Wired by callers as
@@ -493,6 +531,18 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     }
     await _cleanupPriorDeadRow(vm);
     if (!mounted) return;
+    if (widget.stayOpenAfterSave) {
+      Notify.success(
+        context,
+        context.tr(
+          vm.lastSaveWasOptimistic
+              ? 'saving_in_background'
+              : widget.savedMessageKey,
+        ),
+        action: widget.savedActionBuilder?.call(context, vm, saved),
+      );
+      return;
+    }
     _leave();
   }
 
@@ -585,10 +635,36 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
               ),
             ),
           );
-          final scaffold = SettingsScreenScaffold(
+          final disabledReason = canSave || vm.isSaving
+              ? null
+              : widget.saveDisabledReason?.call(context, vm);
+          final saveButton = FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(64, 36)),
+            onPressed: canSave ? _onSave : null,
+            child: vm.isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(context.tr('save')),
+          );
+          final page = SettingsScreenScaffold(
             titleKey: titleKey,
+            // In a scope of its own — the body's does not reach the app
+            // bar — so Enter in a title field saves like any other field.
+            title: widget.titleBuilder == null
+                ? null
+                : FormSaveScope(
+                    onSubmit: _onSave,
+                    enabled: canSave,
+                    child: Builder(
+                      builder: (context) => widget.titleBuilder!(context, vm),
+                    ),
+                  ),
             leading: const BackButton(),
             actions: [
+              ...?widget.actionsBuilder?.call(context, vm),
               if (!isCreate)
                 SettingsEntityOverflowMenu(
                   isArchived: widget.isArchivedOf(vm.draft),
@@ -600,22 +676,48 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
                 ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 36),
-                  ),
-                  onPressed: canSave ? _onSave : null,
-                  child: vm.isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(context.tr('save')),
-                ),
+                child: disabledReason == null
+                    ? saveButton
+                    : Tooltip(message: disabledReason, child: saveButton),
               ),
             ],
             body: body,
+          );
+          // ⌘S mirrors the Save button — same gate, same handler — as in
+          // `EntityEditScaffold`. Around the whole page, AppBar included: a
+          // screen that puts a field up there must not lose the shortcut
+          // while it is being typed in.
+          final scaffold = ShortcutHintScope(
+            hints: [
+              ShortcutHint(
+                keys: [platformModifierLabel(), 'S'],
+                labelKey: 'save',
+              ),
+            ],
+            child: Shortcuts(
+              shortcuts: const <ShortcutActivator, Intent>{
+                SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                    _SaveFormIntent(),
+                SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                    _SaveFormIntent(),
+              },
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  _SaveFormIntent: CallbackAction<_SaveFormIntent>(
+                    onInvoke: (_) {
+                      // An editor may still be holding the last keystrokes
+                      // in a debounce. Until they are on the draft the form
+                      // is not dirty, so `canSave` as built is stale and ⌘S
+                      // pressed straight after typing did nothing.
+                      vm.flushPendingEdits();
+                      if (widget.canSave(vm)) _onSave();
+                      return null;
+                    },
+                  ),
+                },
+                child: page,
+              ),
+            ),
           );
           if (!widget.guardUnsavedChanges) return scaffold;
           return UnsavedChangesScope(
@@ -638,4 +740,8 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
       ),
     );
   }
+}
+
+class _SaveFormIntent extends Intent {
+  const _SaveFormIntent();
 }

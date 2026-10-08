@@ -33,7 +33,11 @@ class FormattedTextBlock extends StatelessWidget {
     final source = (rawContent == null || rawContent.isEmpty)
         ? (defaultContent ?? '')
         : rawContent;
-    final resolved = replaceVariables(source, data: sample);
+    final resolved = replaceVariables(
+      source,
+      data: sample,
+      formatter: DesignerRenderScope.formatterOf(context),
+    );
 
     final padding = parsePx(props['padding']) ?? 0.0;
     return Container(
@@ -43,7 +47,7 @@ class FormattedTextBlock extends StatelessWidget {
         resolved,
         textAlign: parseTextAlign(props['align'] as String?),
         style: TextStyle(
-          fontSize: parsePx(props['fontSize']) ?? 14,
+          fontSize: parsePx(props['fontSize']) ?? inheritedFontSize(context),
           fontWeight: parseFontWeight(props['fontWeight'] as String?),
           fontStyle: parseFontStyle(props['fontStyle'] as String?),
           color: parseCssColor(props['color'] as String?),

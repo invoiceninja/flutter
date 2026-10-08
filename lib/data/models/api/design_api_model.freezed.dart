@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DesignTemplateApi {
 
- String get body; String get header; String get footer; String get includes; String get product; String get task; List<DesignBlockApi> get blocks;@JsonKey(includeIfNull: false) DocumentSettingsApi? get documentSettings;
+ String get body; String get header; String get footer; String get includes; String get product; String get task; List<DesignBlockApi> get blocks;@JsonKey(includeIfNull: false) DocumentSettingsApi? get documentSettings;@JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) Map<String, dynamic>? get extra;
 /// Create a copy of DesignTemplateApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $DesignTemplateApiCopyWith<DesignTemplateApi> get copyWith => _$DesignTemplateAp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings);
+int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings,const DeepCollectionEquality().hash(extra));
 
 @override
 String toString() {
-  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings)';
+  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $DesignTemplateApiCopyWith<$Res>  {
   factory $DesignTemplateApiCopyWith(DesignTemplateApi value, $Res Function(DesignTemplateApi) _then) = _$DesignTemplateApiCopyWithImpl;
 @useResult
 $Res call({
- String body, String header, String footer, String includes, String product, String task, List<DesignBlockApi> blocks,@JsonKey(includeIfNull: false) DocumentSettingsApi? documentSettings
+ String body, String header, String footer, String includes, String product, String task, List<DesignBlockApi> blocks,@JsonKey(includeIfNull: false) DocumentSettingsApi? documentSettings,@JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -65,7 +65,7 @@ class _$DesignTemplateApiCopyWithImpl<$Res>
 
 /// Create a copy of DesignTemplateApi
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = freezed,}) {
   return _then(_self.copyWith(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
@@ -75,7 +75,8 @@ as String,product: null == product ? _self.product : product // ignore: cast_nul
 as String,task: null == task ? _self.task : task // ignore: cast_nullable_to_non_nullable
 as String,blocks: null == blocks ? _self.blocks : blocks // ignore: cast_nullable_to_non_nullable
 as List<DesignBlockApi>,documentSettings: freezed == documentSettings ? _self.documentSettings : documentSettings // ignore: cast_nullable_to_non_nullable
-as DocumentSettingsApi?,
+as DocumentSettingsApi?,extra: freezed == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 /// Create a copy of DesignTemplateApi
@@ -172,10 +173,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DesignTemplateApi() when $default != null:
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   return orElse();
 
 }
@@ -193,10 +194,10 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false)  Map<String, dynamic>? extra)  $default,) {final _that = this;
 switch (_that) {
 case _DesignTemplateApi():
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -213,10 +214,10 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlockApi> blocks, @JsonKey(includeIfNull: false)  DocumentSettingsApi? documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DesignTemplateApi() when $default != null:
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   return null;
 
 }
@@ -228,7 +229,7 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 @JsonSerializable()
 
 class _DesignTemplateApi implements DesignTemplateApi {
-  const _DesignTemplateApi({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlockApi> blocks = const <DesignBlockApi>[], @JsonKey(includeIfNull: false) this.documentSettings}): _blocks = blocks;
+  const _DesignTemplateApi({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlockApi> blocks = const <DesignBlockApi>[], @JsonKey(includeIfNull: false) this.documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _blocks = blocks,_extra = extra;
   factory _DesignTemplateApi.fromJson(Map<String, dynamic> json) => _$DesignTemplateApiFromJson(json);
 
 @override@JsonKey() final  String body;
@@ -245,6 +246,15 @@ class _DesignTemplateApi implements DesignTemplateApi {
 }
 
 @override@JsonKey(includeIfNull: false) final  DocumentSettingsApi? documentSettings;
+ final  Map<String, dynamic>? _extra;
+@override@JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) Map<String, dynamic>? get extra {
+  final value = _extra;
+  if (value == null) return null;
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(value);
+}
+
 
 /// Create a copy of DesignTemplateApi
 /// with the given fields replaced by the non-null parameter values.
@@ -259,16 +269,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings);
+int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
 
 @override
 String toString() {
-  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings)';
+  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -279,7 +289,7 @@ abstract mixin class _$DesignTemplateApiCopyWith<$Res> implements $DesignTemplat
   factory _$DesignTemplateApiCopyWith(_DesignTemplateApi value, $Res Function(_DesignTemplateApi) _then) = __$DesignTemplateApiCopyWithImpl;
 @override @useResult
 $Res call({
- String body, String header, String footer, String includes, String product, String task, List<DesignBlockApi> blocks,@JsonKey(includeIfNull: false) DocumentSettingsApi? documentSettings
+ String body, String header, String footer, String includes, String product, String task, List<DesignBlockApi> blocks,@JsonKey(includeIfNull: false) DocumentSettingsApi? documentSettings,@JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -296,7 +306,7 @@ class __$DesignTemplateApiCopyWithImpl<$Res>
 
 /// Create a copy of DesignTemplateApi
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = freezed,}) {
   return _then(_DesignTemplateApi(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
@@ -306,7 +316,8 @@ as String,product: null == product ? _self.product : product // ignore: cast_nul
 as String,task: null == task ? _self.task : task // ignore: cast_nullable_to_non_nullable
 as String,blocks: null == blocks ? _self._blocks : blocks // ignore: cast_nullable_to_non_nullable
 as List<DesignBlockApi>,documentSettings: freezed == documentSettings ? _self.documentSettings : documentSettings // ignore: cast_nullable_to_non_nullable
-as DocumentSettingsApi?,
+as DocumentSettingsApi?,extra: freezed == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 
@@ -329,7 +340,7 @@ $DocumentSettingsApiCopyWith<$Res>? get documentSettings {
 /// @nodoc
 mixin _$DesignBlockApi {
 
- String get id; String get type; GridPositionApi get gridPosition;@JsonKey(includeIfNull: false) Map<String, dynamic>? get properties;@JsonKey(includeIfNull: false) bool? get locked;@JsonKey(includeIfNull: false) String? get rowAlign;@JsonKey(includeIfNull: false) String? get rowWidth;@JsonKey(includeIfNull: false) int? get colStart;@JsonKey(includeIfNull: false) int? get colSpan;
+ String get id; String get type; GridPositionApi get gridPosition;@JsonKey(includeIfNull: false, fromJson: _blockProperties) Map<String, dynamic>? get properties;@JsonKey(includeIfNull: false) bool? get locked;@JsonKey(includeIfNull: false) String? get rowAlign;@JsonKey(includeIfNull: false) String? get rowWidth;@JsonKey(includeIfNull: false) int? get colStart;@JsonKey(includeIfNull: false) int? get colSpan;@JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) Map<String, dynamic>? get extra;
 /// Create a copy of DesignBlockApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -342,16 +353,16 @@ $DesignBlockApiCopyWith<DesignBlockApi> get copyWith => _$DesignBlockApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked,rowAlign,rowWidth,colStart,colSpan);
+int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked,rowAlign,rowWidth,colStart,colSpan,const DeepCollectionEquality().hash(extra));
 
 @override
 String toString() {
-  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan)';
+  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan, extra: $extra)';
 }
 
 
@@ -362,7 +373,7 @@ abstract mixin class $DesignBlockApiCopyWith<$Res>  {
   factory $DesignBlockApiCopyWith(DesignBlockApi value, $Res Function(DesignBlockApi) _then) = _$DesignBlockApiCopyWithImpl;
 @useResult
 $Res call({
- String id, String type, GridPositionApi gridPosition,@JsonKey(includeIfNull: false) Map<String, dynamic>? properties,@JsonKey(includeIfNull: false) bool? locked,@JsonKey(includeIfNull: false) String? rowAlign,@JsonKey(includeIfNull: false) String? rowWidth,@JsonKey(includeIfNull: false) int? colStart,@JsonKey(includeIfNull: false) int? colSpan
+ String id, String type, GridPositionApi gridPosition,@JsonKey(includeIfNull: false, fromJson: _blockProperties) Map<String, dynamic>? properties,@JsonKey(includeIfNull: false) bool? locked,@JsonKey(includeIfNull: false) String? rowAlign,@JsonKey(includeIfNull: false) String? rowWidth,@JsonKey(includeIfNull: false) int? colStart,@JsonKey(includeIfNull: false) int? colSpan,@JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -379,7 +390,7 @@ class _$DesignBlockApiCopyWithImpl<$Res>
 
 /// Create a copy of DesignBlockApi
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = freezed,Object? locked = freezed,Object? rowAlign = freezed,Object? rowWidth = freezed,Object? colStart = freezed,Object? colSpan = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = freezed,Object? locked = freezed,Object? rowAlign = freezed,Object? rowWidth = freezed,Object? colStart = freezed,Object? colSpan = freezed,Object? extra = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -390,7 +401,8 @@ as bool?,rowAlign: freezed == rowAlign ? _self.rowAlign : rowAlign // ignore: ca
 as String?,rowWidth: freezed == rowWidth ? _self.rowWidth : rowWidth // ignore: cast_nullable_to_non_nullable
 as String?,colStart: freezed == colStart ? _self.colStart : colStart // ignore: cast_nullable_to_non_nullable
 as int?,colSpan: freezed == colSpan ? _self.colSpan : colSpan // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,extra: freezed == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 /// Create a copy of DesignBlockApi
@@ -484,10 +496,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false, fromJson: _blockProperties)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DesignBlockApi() when $default != null:
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan,_that.extra);case _:
   return orElse();
 
 }
@@ -505,10 +517,10 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false, fromJson: _blockProperties)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false)  Map<String, dynamic>? extra)  $default,) {final _that = this;
 switch (_that) {
 case _DesignBlockApi():
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -525,10 +537,10 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String type,  GridPositionApi gridPosition, @JsonKey(includeIfNull: false, fromJson: _blockProperties)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false)  bool? locked, @JsonKey(includeIfNull: false)  String? rowAlign, @JsonKey(includeIfNull: false)  String? rowWidth, @JsonKey(includeIfNull: false)  int? colStart, @JsonKey(includeIfNull: false)  int? colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DesignBlockApi() when $default != null:
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.rowAlign,_that.rowWidth,_that.colStart,_that.colSpan,_that.extra);case _:
   return null;
 
 }
@@ -540,14 +552,14 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 @JsonSerializable()
 
 class _DesignBlockApi implements DesignBlockApi {
-  const _DesignBlockApi({this.id = '', this.type = '', this.gridPosition = const GridPositionApi(), @JsonKey(includeIfNull: false) final  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false) this.locked, @JsonKey(includeIfNull: false) this.rowAlign, @JsonKey(includeIfNull: false) this.rowWidth, @JsonKey(includeIfNull: false) this.colStart, @JsonKey(includeIfNull: false) this.colSpan}): _properties = properties;
+  const _DesignBlockApi({this.id = '', this.type = '', this.gridPosition = const GridPositionApi(), @JsonKey(includeIfNull: false, fromJson: _blockProperties) final  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false) this.locked, @JsonKey(includeIfNull: false) this.rowAlign, @JsonKey(includeIfNull: false) this.rowWidth, @JsonKey(includeIfNull: false) this.colStart, @JsonKey(includeIfNull: false) this.colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _properties = properties,_extra = extra;
   factory _DesignBlockApi.fromJson(Map<String, dynamic> json) => _$DesignBlockApiFromJson(json);
 
 @override@JsonKey() final  String id;
 @override@JsonKey() final  String type;
 @override@JsonKey() final  GridPositionApi gridPosition;
  final  Map<String, dynamic>? _properties;
-@override@JsonKey(includeIfNull: false) Map<String, dynamic>? get properties {
+@override@JsonKey(includeIfNull: false, fromJson: _blockProperties) Map<String, dynamic>? get properties {
   final value = _properties;
   if (value == null) return null;
   if (_properties is EqualUnmodifiableMapView) return _properties;
@@ -560,6 +572,15 @@ class _DesignBlockApi implements DesignBlockApi {
 @override@JsonKey(includeIfNull: false) final  String? rowWidth;
 @override@JsonKey(includeIfNull: false) final  int? colStart;
 @override@JsonKey(includeIfNull: false) final  int? colSpan;
+ final  Map<String, dynamic>? _extra;
+@override@JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) Map<String, dynamic>? get extra {
+  final value = _extra;
+  if (value == null) return null;
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(value);
+}
+
 
 /// Create a copy of DesignBlockApi
 /// with the given fields replaced by the non-null parameter values.
@@ -574,16 +595,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,rowAlign,rowWidth,colStart,colSpan);
+int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,rowAlign,rowWidth,colStart,colSpan,const DeepCollectionEquality().hash(_extra));
 
 @override
 String toString() {
-  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan)';
+  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan, extra: $extra)';
 }
 
 
@@ -594,7 +615,7 @@ abstract mixin class _$DesignBlockApiCopyWith<$Res> implements $DesignBlockApiCo
   factory _$DesignBlockApiCopyWith(_DesignBlockApi value, $Res Function(_DesignBlockApi) _then) = __$DesignBlockApiCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String type, GridPositionApi gridPosition,@JsonKey(includeIfNull: false) Map<String, dynamic>? properties,@JsonKey(includeIfNull: false) bool? locked,@JsonKey(includeIfNull: false) String? rowAlign,@JsonKey(includeIfNull: false) String? rowWidth,@JsonKey(includeIfNull: false) int? colStart,@JsonKey(includeIfNull: false) int? colSpan
+ String id, String type, GridPositionApi gridPosition,@JsonKey(includeIfNull: false, fromJson: _blockProperties) Map<String, dynamic>? properties,@JsonKey(includeIfNull: false) bool? locked,@JsonKey(includeIfNull: false) String? rowAlign,@JsonKey(includeIfNull: false) String? rowWidth,@JsonKey(includeIfNull: false) int? colStart,@JsonKey(includeIfNull: false) int? colSpan,@JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -611,7 +632,7 @@ class __$DesignBlockApiCopyWithImpl<$Res>
 
 /// Create a copy of DesignBlockApi
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = freezed,Object? locked = freezed,Object? rowAlign = freezed,Object? rowWidth = freezed,Object? colStart = freezed,Object? colSpan = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = freezed,Object? locked = freezed,Object? rowAlign = freezed,Object? rowWidth = freezed,Object? colStart = freezed,Object? colSpan = freezed,Object? extra = freezed,}) {
   return _then(_DesignBlockApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -622,7 +643,8 @@ as bool?,rowAlign: freezed == rowAlign ? _self.rowAlign : rowAlign // ignore: ca
 as String?,rowWidth: freezed == rowWidth ? _self.rowWidth : rowWidth // ignore: cast_nullable_to_non_nullable
 as String?,colStart: freezed == colStart ? _self.colStart : colStart // ignore: cast_nullable_to_non_nullable
 as int?,colSpan: freezed == colSpan ? _self.colSpan : colSpan // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,extra: freezed == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 
@@ -914,7 +936,7 @@ as int,
 /// @nodoc
 mixin _$DocumentSettingsApi {
 
- String get pageLayout; String get pageSize; int get globalFontSize; String get primaryFont; String get secondaryFont; bool get showPaidStamp; bool get showShippingAddress; bool get embedDocuments; bool get hideEmptyColumns; bool get pageNumbering; int get pageMarginTop; int get pageMarginRight; int get pageMarginBottom; int get pageMarginLeft; int get pagePaddingTop; int get pagePaddingRight; int get pagePaddingBottom; int get pagePaddingLeft;
+ String get pageLayout; String get pageSize; int get globalFontSize; String get primaryFont; String get secondaryFont; bool get showPaidStamp; bool get showShippingAddress; bool get embedDocuments; bool get hideEmptyColumns; bool get pageNumbering; int get pageMarginTop; int get pageMarginRight; int get pageMarginBottom; int get pageMarginLeft; int get pagePaddingTop; int get pagePaddingRight; int get pagePaddingBottom; int get pagePaddingLeft;@JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) Map<String, dynamic>? get extra;
 /// Create a copy of DocumentSettingsApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -927,16 +949,16 @@ $DocumentSettingsApiCopyWith<DocumentSettingsApi> get copyWith => _$DocumentSett
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft);
+int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(extra)]);
 
 @override
 String toString() {
-  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft)';
+  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 
@@ -947,7 +969,7 @@ abstract mixin class $DocumentSettingsApiCopyWith<$Res>  {
   factory $DocumentSettingsApiCopyWith(DocumentSettingsApi value, $Res Function(DocumentSettingsApi) _then) = _$DocumentSettingsApiCopyWithImpl;
 @useResult
 $Res call({
- String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft
+ String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft,@JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -964,7 +986,7 @@ class _$DocumentSettingsApiCopyWithImpl<$Res>
 
 /// Create a copy of DocumentSettingsApi
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = freezed,}) {
   return _then(_self.copyWith(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
@@ -984,7 +1006,8 @@ as int,pagePaddingTop: null == pagePaddingTop ? _self.pagePaddingTop : pagePaddi
 as int,pagePaddingRight: null == pagePaddingRight ? _self.pagePaddingRight : pagePaddingRight // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingBottom: null == pagePaddingBottom ? _self.pagePaddingBottom : pagePaddingBottom // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingLeft: null == pagePaddingLeft ? _self.pagePaddingLeft : pagePaddingLeft // ignore: cast_nullable_to_non_nullable
-as int,
+as int,extra: freezed == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 
@@ -1069,10 +1092,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DocumentSettingsApi() when $default != null:
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   return orElse();
 
 }
@@ -1090,10 +1113,10 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false)  Map<String, dynamic>? extra)  $default,) {final _that = this;
 switch (_that) {
 case _DocumentSettingsApi():
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1110,10 +1133,10 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false)  Map<String, dynamic>? extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DocumentSettingsApi() when $default != null:
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   return null;
 
 }
@@ -1125,7 +1148,7 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 @JsonSerializable()
 
 class _DocumentSettingsApi implements DocumentSettingsApi {
-  const _DocumentSettingsApi({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30});
+  const _DocumentSettingsApi({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _extra = extra;
   factory _DocumentSettingsApi.fromJson(Map<String, dynamic> json) => _$DocumentSettingsApiFromJson(json);
 
 @override@JsonKey() final  String pageLayout;
@@ -1146,6 +1169,15 @@ class _DocumentSettingsApi implements DocumentSettingsApi {
 @override@JsonKey() final  int pagePaddingRight;
 @override@JsonKey() final  int pagePaddingBottom;
 @override@JsonKey() final  int pagePaddingLeft;
+ final  Map<String, dynamic>? _extra;
+@override@JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) Map<String, dynamic>? get extra {
+  final value = _extra;
+  if (value == null) return null;
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(value);
+}
+
 
 /// Create a copy of DocumentSettingsApi
 /// with the given fields replaced by the non-null parameter values.
@@ -1160,16 +1192,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft);
+int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
 
 @override
 String toString() {
-  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft)';
+  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 
@@ -1180,7 +1212,7 @@ abstract mixin class _$DocumentSettingsApiCopyWith<$Res> implements $DocumentSet
   factory _$DocumentSettingsApiCopyWith(_DocumentSettingsApi value, $Res Function(_DocumentSettingsApi) _then) = __$DocumentSettingsApiCopyWithImpl;
 @override @useResult
 $Res call({
- String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft
+ String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft,@JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) Map<String, dynamic>? extra
 });
 
 
@@ -1197,7 +1229,7 @@ class __$DocumentSettingsApiCopyWithImpl<$Res>
 
 /// Create a copy of DocumentSettingsApi
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = freezed,}) {
   return _then(_DocumentSettingsApi(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
@@ -1217,7 +1249,8 @@ as int,pagePaddingTop: null == pagePaddingTop ? _self.pagePaddingTop : pagePaddi
 as int,pagePaddingRight: null == pagePaddingRight ? _self.pagePaddingRight : pagePaddingRight // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingBottom: null == pagePaddingBottom ? _self.pagePaddingBottom : pagePaddingBottom // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingLeft: null == pagePaddingLeft ? _self.pagePaddingLeft : pagePaddingLeft // ignore: cast_nullable_to_non_nullable
-as int,
+as int,extra: freezed == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,
   ));
 }
 

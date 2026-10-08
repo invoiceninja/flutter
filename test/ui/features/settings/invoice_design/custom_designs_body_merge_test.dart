@@ -135,4 +135,36 @@ void main() {
       expect(rows.where((r) => r.isCustom), hasLength(2));
     });
   });
+
+  group('which editor a design opens in', () {
+    // The server renders a design with blocks from the blocks alone and
+    // ignores its HTML, so only the visual builder can edit one. The list used
+    // to send every custom design to the HTML editor — the one way back into
+    // a saved visual design opened the one editor that could not change it.
+    test('a design with blocks is a visual design', () {
+      final visual = _d(id: 'v', name: 'Visual', isCustom: true).copyWith(
+        template: const DesignTemplate(
+          blocks: [
+            DesignBlock(
+              id: 'text-1',
+              type: 'text',
+              gridPosition: GridPosition(x: 0, y: 0, w: 12, h: 2),
+            ),
+          ],
+        ),
+      );
+      final html = _d(
+        id: 'h',
+        name: 'Html',
+        isCustom: true,
+      ).copyWith(template: const DesignTemplate(body: '<h1>hi</h1>'));
+      final rows = mergeDesignRows([visual, html]);
+      expect(rows.firstWhere((r) => r.id == 'v').isVisual, isTrue);
+      expect(rows.firstWhere((r) => r.id == 'h').isVisual, isFalse);
+    });
+
+    test('a catalog row with no template loaded is not', () {
+      expect(mergeDesignRows(const []).first.isVisual, isFalse);
+    });
+  });
 }

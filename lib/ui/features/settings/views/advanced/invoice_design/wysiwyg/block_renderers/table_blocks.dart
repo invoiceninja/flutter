@@ -44,7 +44,8 @@ class TableBlock extends StatelessWidget {
     final rowColor = parseCssColor(props['rowColor'] as String?);
     final alternateRows = props['alternateRows'] as bool? ?? true;
     final padding = parsePx(props['padding']) ?? 8;
-    final fontSize = parsePx(props['fontSize']) ?? 12;
+    final fontSize = parsePx(props['fontSize']) ?? inheritedFontSize(context);
+    final formatter = DesignerRenderScope.formatterOf(context);
     final headerBorder = parseTableRegionBorders(
       propMap(props, 'headerBorders'),
     );
@@ -77,6 +78,7 @@ class TableBlock extends StatelessWidget {
                 text: resolveTableHeaderLabel(
                   context,
                   col['header'] as String?,
+                  blockType: block.type,
                 ),
                 align: parseTextAlign(col['align'] as String?),
                 // Header cell uses the column's `labelStyle` cascade —
@@ -106,6 +108,7 @@ class TableBlock extends StatelessWidget {
                     (col['field'] as String?) ?? '',
                     sample.lineItems[i],
                     data: sample,
+                    formatter: formatter,
                   ),
                   align: parseTextAlign(col['align'] as String?),
                   // Body cell uses the column's `valueStyle` cascade.

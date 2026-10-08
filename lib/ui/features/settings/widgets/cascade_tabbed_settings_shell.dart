@@ -93,7 +93,9 @@ class CascadeTabbedSettingsShell extends StatefulWidget {
   ///   * `< Breakpoints.wide`: tab content + an in-body "Preview" button that
   ///     opens the fullscreen route built by [sidePaneFullScreenBuilder].
   /// All three modes key off the body's own `LayoutBuilder` width — never the
-  /// window — so a sidebar-narrowed detail pane can't strand the preview.
+  /// window — so a sidebar-narrowed detail pane can't strand the preview. The
+  /// active tab's [TabbedSettingsTab.topBarLeading] sits above the tab content
+  /// in every one of them.
   /// Null (the default) preserves the original full-width `TabBarView`
   /// behavior — all existing callers are unaffected.
   final Widget? sidePane;
@@ -265,7 +267,7 @@ class _CascadeTabbedSettingsShellState extends State<CascadeTabbedSettingsShell>
       children: [for (final tab in widget.tabs) tab.body],
     );
     final content = hasSidePane
-        ? _SidePaneLayout(
+        ? CascadeSidePaneLayout(
             tabBarView: tabBarView,
             sidePane: widget.sidePane!,
             previewShown: _previewShown,
@@ -292,8 +294,15 @@ class _CascadeTabbedSettingsShellState extends State<CascadeTabbedSettingsShell>
 ///     for the full-width pane.
 ///   * `< Breakpoints.wide`: tab content + a "Preview" button that opens the
 ///     fullscreen-dialog pane (phone fallback).
-class _SidePaneLayout extends StatelessWidget {
-  const _SidePaneLayout({
+///
+/// The active tab's [TabbedSettingsTab.topBarLeading] is drawn above the tab
+/// content in **all three** modes. The side-by-side one has no preview button
+/// and so had no bar, which is how Custom Designs lost its "+ New Design" on
+/// exactly the widest layout.
+@visibleForTesting
+class CascadeSidePaneLayout extends StatelessWidget {
+  const CascadeSidePaneLayout({
+    super.key,
     required this.tabBarView,
     required this.sidePane,
     required this.previewShown,
@@ -309,9 +318,8 @@ class _SidePaneLayout extends StatelessWidget {
   final TabController tabController;
   final List<TabbedSettingsTab> tabs;
 
-  /// Read the active tab's `topBarLeading` and rebuild when it changes.
-  /// Wrap in [AnimatedBuilder] at call sites so the preview bar refreshes
-  /// when the user switches tabs.
+  /// The active tab's `topBarLeading`. Call it inside an [AnimatedBuilder] on
+  /// [tabController] so the bar refreshes when the user switches tabs.
   Widget? _currentLeading() {
     final i = tabController.index;
     if (i < 0 || i >= tabs.length) return null;
@@ -331,7 +339,28 @@ class _SidePaneLayout extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: tabBarView),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // No preview button here, but the tab's own action still
+                    // needs its slot. Always a child, collapsing to nothing
+                    // for a tab without one: the tab view below then keeps
+                    // its place in the tree, so a tab switch — which flips
+                    // the index as the slide *starts* — can't remount it.
+                    AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final leading = _currentLeading();
+                        return leading == null
+                            ? const SizedBox.shrink()
+                            : _TabTopBar(leading: leading);
+                      },
+                    ),
+                    Expanded(child: tabBarView),
+                  ],
+                ),
+              ),
               VerticalDivider(width: 1, color: tokens.border),
               Expanded(child: sidePane),
             ],
@@ -387,10 +416,40 @@ class _SidePaneLayout extends StatelessWidget {
   }
 }
 
-/// Top bar holding the preview toggle / open button on the right, plus
-/// an optional per-tab [leading] widget on the left (currently used by
-/// Custom Designs to inject its "+ New Design" button). Shared by the
-/// tablet (toggle) and phone (open-modal) branches of [_SidePaneLayout].
+/// The bar above the tab content: the active tab's own action on the left
+/// ([TabbedSettingsTab.topBarLeading] — Custom Designs' "+ New Design") and,
+/// where the layout has one, the preview button on the right. Every branch of
+/// [CascadeSidePaneLayout] draws it, so a tab's action can't go missing at
+/// one width.
+class _TabTopBar extends StatelessWidget {
+  const _TabTopBar({this.leading, this.trailing});
+
+  final Widget? leading;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.lg(context),
+        InSpacing.md(context),
+        InSpacing.lg(context),
+        InSpacing.md(context),
+      ),
+      child: Row(
+        children: [
+          if (leading != null) leading!,
+          const Spacer(),
+          if (trailing != null) trailing!,
+        ],
+      ),
+    );
+  }
+}
+
+/// [_TabTopBar] with the preview toggle / open button on the right. Shared by
+/// the tablet (toggle) and phone (open-modal) branches of
+/// [CascadeSidePaneLayout].
 class _PreviewBarButton extends StatelessWidget {
   const _PreviewBarButton({
     required this.icon,
@@ -412,17 +471,7 @@ class _PreviewBarButton extends StatelessWidget {
       label: Text(label),
       onPressed: onPressed,
     );
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        InSpacing.lg(context),
-        InSpacing.md(context),
-        InSpacing.lg(context),
-        InSpacing.md(context),
-      ),
-      child: Row(
-        children: [if (leading != null) leading!, const Spacer(), previewBtn],
-      ),
-    );
+    return _TabTopBar(leading: leading, trailing: previewBtn);
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/design_api_model.dart';
 import 'package:admin/data/models/domain/design_block_layout.dart';
+import 'package:admin/data/models/domain/design_block_wire.dart';
 import 'package:admin/data/models/value/parsing.dart';
 
 part 'design.freezed.dart';
@@ -63,6 +64,10 @@ abstract class DesignTemplate with _$DesignTemplate {
     @Default('') String task,
     @Default(<DesignBlock>[]) List<DesignBlock> blocks,
     DocumentSettings? documentSettings,
+
+    /// Fields the server sent that this model has no name for — carried so a
+    /// save hands them back (`kDesignExtraKey`).
+    @Default(<String, dynamic>{}) Map<String, dynamic> extra,
   }) = _DesignTemplate;
 
   factory DesignTemplate.fromApi(DesignTemplateApi a) => DesignTemplate(
@@ -76,15 +81,15 @@ abstract class DesignTemplate with _$DesignTemplate {
     documentSettings: a.documentSettings == null
         ? null
         : DocumentSettings.fromApi(a.documentSettings!),
+    extra: a.extra ?? const <String, dynamic>{},
   );
 }
 
 extension DesignTemplateApiMapper on DesignTemplate {
-  /// Round-trip back to the API shape for outbox payloads. Blocks are
-  /// projected through [annotateBlocksAsApi] so each block carries the
-  /// `rowAlign` / `rowWidth` / `colStart` / `colSpan` fields the
-  /// server-side HTML generator needs to place them in flex rows.
-  /// Legacy designs (empty blocks) emit `blocks: []` unchanged.
+  /// Round-trip back to the API shape. Blocks are projected through
+  /// [annotateBlocksAsApi] so each carries the `rowAlign` the server-side HTML
+  /// generator places it by. This is the local payload shape; what the server
+  /// is sent is `toApi().toWireJson()`, which also drops an empty `blocks`.
   DesignTemplateApi toApi() => DesignTemplateApi(
     body: body,
     header: header,
@@ -94,6 +99,7 @@ extension DesignTemplateApiMapper on DesignTemplate {
     task: task,
     blocks: annotateBlocksAsApi(blocks),
     documentSettings: documentSettings?.toApi(),
+    extra: extra.isEmpty ? null : extra,
   );
 }
 
@@ -109,6 +115,9 @@ abstract class DesignBlock with _$DesignBlock {
     required GridPosition gridPosition,
     @Default(<String, dynamic>{}) Map<String, dynamic> properties,
     @Default(false) bool locked,
+
+    /// Unknown fields, as on [DesignTemplate.extra] — e.g. a block's `region`.
+    @Default(<String, dynamic>{}) Map<String, dynamic> extra,
   }) = _DesignBlock;
 
   factory DesignBlock.fromApi(DesignBlockApi a) => DesignBlock(
@@ -119,18 +128,23 @@ abstract class DesignBlock with _$DesignBlock {
         ? const <String, dynamic>{}
         : Map<String, dynamic>.from(a.properties!),
     locked: a.locked ?? false,
+    extra: a.extra ?? const <String, dynamic>{},
   );
 }
 
 extension DesignBlockApiMapper on DesignBlock {
+  /// `properties` is always present, and passes through
+  /// [wireBlockProperties]: the server reads it unguarded, so a block without
+  /// one is a failed render of the whole document.
   DesignBlockApi toApi() => DesignBlockApi(
     id: id,
     type: type,
     gridPosition: gridPosition.toApi(),
-    properties: properties.isEmpty
-        ? null
-        : Map<String, dynamic>.from(properties),
+    properties: Map<String, dynamic>.from(
+      wireBlockProperties(type, properties),
+    ),
     locked: locked ? true : null,
+    extra: extra.isEmpty ? null : extra,
   );
 }
 
@@ -176,6 +190,9 @@ abstract class DocumentSettings with _$DocumentSettings {
     @Default(30) int pagePaddingRight,
     @Default(30) int pagePaddingBottom,
     @Default(30) int pagePaddingLeft,
+
+    /// Unknown fields, as on [DesignTemplate.extra] — e.g. `pagination`.
+    @Default(<String, dynamic>{}) Map<String, dynamic> extra,
   }) = _DocumentSettings;
 
   factory DocumentSettings.fromApi(DocumentSettingsApi a) => DocumentSettings(
@@ -197,6 +214,7 @@ abstract class DocumentSettings with _$DocumentSettings {
     pagePaddingRight: a.pagePaddingRight,
     pagePaddingBottom: a.pagePaddingBottom,
     pagePaddingLeft: a.pagePaddingLeft,
+    extra: a.extra ?? const <String, dynamic>{},
   );
 }
 
@@ -220,6 +238,7 @@ extension DocumentSettingsApiMapper on DocumentSettings {
     pagePaddingRight: pagePaddingRight,
     pagePaddingBottom: pagePaddingBottom,
     pagePaddingLeft: pagePaddingLeft,
+    extra: extra.isEmpty ? null : extra,
   );
 }
 
@@ -233,7 +252,7 @@ extension DesignPayload on Design {
       'is_template': isTemplate,
       'is_free': isFree,
       'entities': entities.join(','),
-      'design': template.toApi().toJson(),
+      'design': template.toApi().toWireJson(),
     };
   }
 }

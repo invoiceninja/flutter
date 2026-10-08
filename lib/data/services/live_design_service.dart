@@ -65,7 +65,10 @@ class LiveDesignService {
   /// Endpoint + payload were probed against the live server (2026-05-18):
   /// `POST /api/v1/preview?html=false` returns `application/pdf` for body
   /// `{ design: <Design.toApiJson()>, entity: <type>, entity_id: "-1" }`.
-  /// `entity_id:"-1"` makes the server render against generic sample data.
+  /// `entity_id:"-1"` leaves the choice of document to the server (it picks
+  /// one of the company's own, or fakes one); a real id — [entityId] — renders
+  /// that record in the request's design, which is how the designer shows the
+  /// same invoice on its page and in its preview (`docs/invoice-designer.md`).
   /// There is **no `settings_type`** here (that's a `/live_design` field).
   ///
   /// - [entityType] one of `invoice` / `quote` / `credit` / `purchase_order`.
@@ -80,6 +83,7 @@ class LiveDesignService {
   Future<Uint8List> renderDesignPreview({
     required String entityType,
     required Design design,
+    String? entityId,
   }) {
     // A brand-new design has an empty id; `toApiJson()` still emits the key
     // (`''` doesn't start with `tmp_`). The demo server tolerates `"id":""`,
@@ -95,7 +99,11 @@ class LiveDesignService {
       body: <String, dynamic>{
         'design': designJson,
         'entity': entityType,
-        'entity_id': '-1',
+        // An id the server has never seen (an unsynced record) would 4xx.
+        'entity_id':
+            entityId == null || entityId.isEmpty || entityId.startsWith('tmp_')
+            ? '-1'
+            : entityId,
       },
       // Read-equivalent: the server renders but persists nothing. Demo-safe.
       readOnly: true,

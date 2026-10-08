@@ -23,7 +23,9 @@ class SpacerBlockProperties extends StatelessWidget {
       labelKey: 'height',
       value: block.properties['height'],
       hintText: '40',
-      resettable: true,
+      // Not clearable: the server reads the height unguarded.
+      minPx: 1,
+      maxPx: 400,
       onChanged: (v) => vm.updateBlock(
         block.copyWith(
           properties: mergePropertyOrOmit(block.properties, 'height', v),

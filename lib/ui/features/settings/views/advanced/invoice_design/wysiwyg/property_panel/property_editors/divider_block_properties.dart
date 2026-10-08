@@ -41,7 +41,6 @@ class DividerBlockProperties extends StatelessWidget {
           resettable: true,
           onChanged: (v) => _write('thickness', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'color',
           value: props['color'] as String?,
@@ -71,7 +70,6 @@ class DividerBlockProperties extends StatelessWidget {
           resettable: true,
           onChanged: (v) => _write('marginTop', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'margin_bottom',
           value: props['marginBottom'],

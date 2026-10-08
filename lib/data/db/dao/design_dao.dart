@@ -85,6 +85,32 @@ class DesignDao extends DatabaseAccessor<AppDatabase>
     return q.watch().distinctRows();
   }
 
+  /// The company's archived designs — the ones [watchAll] leaves out, which
+  /// used to make an archived design unreachable (and so unrestorable). A
+  /// deleted one is not listed: the server keeps none of it to bring back.
+  Stream<List<DesignRow>> watchArchived({required String companyId}) {
+    final q = select(designs)
+      ..where(
+        (d) =>
+            d.companyId.equals(companyId) &
+            d.isDeleted.equals(false) &
+            d.archivedAt.isNotNull(),
+      )
+      ..orderBy([(d) => OrderingTerm(expression: d.name.lower())]);
+    return q.watch().distinctRows();
+  }
+
+  /// The name of every design this device knows of, **whatever its state**.
+  /// The server's `unique:designs,name` rule counts archived and deleted
+  /// designs too, so a name offered for a new one has to avoid them all.
+  Future<Set<String>> allNames({required String companyId}) async {
+    final q = selectOnly(designs)
+      ..addColumns([designs.name])
+      ..where(designs.companyId.equals(companyId));
+    final rows = await q.get();
+    return {for (final row in rows) row.read(designs.name) ?? ''}..remove('');
+  }
+
   Stream<DesignRow?> watchById({
     required String companyId,
     required String id,

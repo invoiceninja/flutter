@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/_shared.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/cell_typography_editor.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/expandable_property_row.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/variable_picker.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
 /// Shared property editor for `client-info`, `company-info`,
@@ -100,44 +102,80 @@ class _InfoBlockPropertiesState extends State<InfoBlockProperties> {
   }
 
   Future<void> _addField() async {
+    final isDetails = widget.block.type == 'invoice-details';
     final categories = switch (widget.block.type) {
       'client-shipping-info' => {
         VariableCategory.shipping,
         VariableCategory.client,
       },
       'company-info' => {VariableCategory.company},
+      // The document's own fields — it used to offer the client's.
+      'invoice-details' => {VariableCategory.invoice},
       _ => {VariableCategory.client, VariableCategory.contact},
     };
-    final picked = await showVariablePicker(context, categories: categories);
-    if (picked == null) return;
+    final pick = await showVariablePicker(
+      context,
+      categories: categories,
+      customFieldLabels: widget.vm.customFieldLabels,
+    );
+    if (pick == null) return;
     final fields = _fields();
-    final id = picked.replaceAll(RegExp(r'[\$.]'), '_');
-    final label = picked.split('.').last;
-    fields.add({
-      'id': id,
-      'label': label,
-      'variable': picked,
-      'hideIfEmpty': true,
-    });
+    final token = pick.token;
+    final id = token.replaceAll(RegExp(r'[\$.]'), '_');
+    if (!isDetails) {
+      // An info block prints the value alone; the label is only this row's
+      // name in the panel.
+      fields.add({
+        'id': id,
+        'label': pick.labelKey,
+        'variable': token,
+        'hideIfEmpty': true,
+      });
+    } else {
+      // The details block prints "Label  value", and prints the label as it
+      // is stored — so it must be a token the server translates, never this
+      // app's translation key (which printed `custom1` and `public_notes`
+      // verbatim). The flat form where the page knows it (`$number_label`,
+      // as the block's defaults are); otherwise the token's own label,
+      // which the server makes for every value it knows.
+      final flat = '\$${token.substring(1).split('.').last}';
+      final flatLabel = '${flat}_label';
+      final known = kLabelTranslationMap.containsKey(flatLabel);
+      fields.add({
+        'id': id,
+        'label': known ? flatLabel : '${token}_label',
+        'variable': known ? flat : token,
+        'hideIfEmpty': true,
+      });
+    }
     _replaceFields(fields);
   }
 
   @override
   Widget build(BuildContext context) {
     final props = widget.block.properties;
-    final showTitle = (props['showTitle'] as bool?) ?? false;
+    final type = widget.block.type;
+    // What the server prints differs by block, and a control for something
+    // it ignores is a control that lies (probed on the demo server,
+    // `docs/invoice-designer.md`): a title prints for the client and ship-to
+    // blocks only — never for the company block or the details block — and
+    // a field's prefix / suffix for the company and client blocks, never for
+    // the details block.
+    final printsTitle = type == 'client-info' || type == 'client-shipping-info';
+    final printsAffixes = type != 'invoice-details';
+    final showTitle = printsTitle && ((props['showTitle'] as bool?) ?? false);
     final title = (props['title'] as String?) ?? '';
     final fields = _fields();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_title')),
-          value: showTitle,
-          onChanged: (v) => _updateProperty('showTitle', v),
-        ),
+        if (printsTitle)
+          PropertySwitch(
+            labelKey: 'show_title',
+            value: showTitle,
+            onChanged: (v) => _updateProperty('showTitle', v),
+          ),
         if (showTitle)
           Padding(
             padding: EdgeInsets.only(bottom: InSpacing.md(context)),
@@ -190,6 +228,7 @@ class _InfoBlockPropertiesState extends State<InfoBlockProperties> {
               onToggleExpanded: () => _toggleExpanded(index),
               onDelete: () => _delete(index),
               onFieldChanged: (k, v) => _updateField(index, k, v),
+              printsAffixes: printsAffixes,
             ),
           ),
         const SectionDivider(labelKey: 'typography'),
@@ -198,13 +237,11 @@ class _InfoBlockPropertiesState extends State<InfoBlockProperties> {
           value: props['fontSize'] as String?,
           onChanged: (v) => _updateProperty('fontSize', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         LineHeightInput(
           labelKey: 'line_height',
           value: props['lineHeight'] as String?,
           onChanged: (v) => _updateProperty('lineHeight', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'color',
           value: props['color'] as String?,
@@ -216,7 +253,6 @@ class _InfoBlockPropertiesState extends State<InfoBlockProperties> {
           value: props['align'] as String?,
           onChanged: (v) => _updateProperty('align', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'padding',
           value: props['padding'],
@@ -231,20 +267,17 @@ class _InfoBlockPropertiesState extends State<InfoBlockProperties> {
             resettable: true,
             onChanged: (v) => _updateProperty('titleFontSize', v),
           ),
-          SizedBox(height: InSpacing.md(context)),
           FontStyleInput(
             fontWeight: props['titleFontWeight'] as String?,
             fontStyle: props['titleFontStyle'] as String?,
             onFontWeightChanged: (v) => _updateProperty('titleFontWeight', v),
             onFontStyleChanged: (v) => _updateProperty('titleFontStyle', v),
           ),
-          SizedBox(height: InSpacing.md(context)),
           ColorInput(
             labelKey: 'color',
             value: props['titleColor'] as String?,
             onChanged: (v) => _updateProperty('titleColor', v),
           ),
-          SizedBox(height: InSpacing.md(context)),
           AlignmentInput(
             labelKey: 'alignment',
             value: props['titleAlign'] as String?,
@@ -270,6 +303,7 @@ class _FieldRow extends StatelessWidget {
     required this.onToggleExpanded,
     required this.onDelete,
     required this.onFieldChanged,
+    required this.printsAffixes,
   });
 
   final int index;
@@ -278,13 +312,23 @@ class _FieldRow extends StatelessWidget {
   final VoidCallback onToggleExpanded;
   final VoidCallback onDelete;
   final void Function(String key, Object? value) onFieldChanged;
+  final bool printsAffixes;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final labelKey = (field['label'] as String?) ?? '';
     final variable = (field['variable'] as String?) ?? '';
-    final displayLabel = labelKey.isEmpty ? variable : context.tr(labelKey);
+    // A key for an info row, a `$…_label` token for a details row.
+    final displayLabel = labelKey.isEmpty
+        ? variable
+        : labelKey.startsWith(r'$')
+        ? replaceLabelVariables(
+            labelKey,
+            context.tr,
+            customFieldLabels: DesignerRenderScope.customFieldLabelsOf(context),
+          )
+        : context.tr(labelKey);
     return ExpandablePropertyRow(
       index: index,
       title: Text(
@@ -292,13 +336,11 @@ class _FieldRow extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium,
         overflow: TextOverflow.ellipsis,
       ),
+      // An example of what the row prints, where the sample document has
+      // one; the bare `$token` only as a last resort.
       subtitle: Text(
-        variable,
-        style: TextStyle(
-          fontSize: 11,
-          fontFamily: kMonoFontFamily,
-          color: tokens.ink3,
-        ),
+        _exampleOf(context, variable),
+        style: TextStyle(fontSize: 11.5, color: tokens.ink3),
         overflow: TextOverflow.ellipsis,
       ),
       expanded: expanded,
@@ -310,24 +352,41 @@ class _FieldRow extends StatelessWidget {
       expandedChild: _ExpandedFieldEditor(
         field: field,
         onFieldChanged: onFieldChanged,
+        printsAffixes: printsAffixes,
       ),
     );
   }
+}
+
+/// What the row prints for the document on the page; a dash when that
+/// document has nothing there.
+String _exampleOf(BuildContext context, String variable) {
+  final example = replaceVariables(
+    variable,
+    data: DesignerRenderScope.sampleOf(context),
+    formatter: DesignerRenderScope.formatterOf(context),
+  );
+  return example.trim().isEmpty ? '—' : example;
 }
 
 class _ExpandedFieldEditor extends StatelessWidget {
   const _ExpandedFieldEditor({
     required this.field,
     required this.onFieldChanged,
+    required this.printsAffixes,
   });
 
   final Map<String, dynamic> field;
   final void Function(String key, Object? value) onFieldChanged;
 
+  /// Whether the server prints a field's prefix and suffix for this block.
+  final bool printsAffixes;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final hideIfEmpty = (field['hideIfEmpty'] as bool?) ?? false;
+    // Absent is on, as on the server (`$config['hideIfEmpty'] ?? true`).
+    final hideIfEmpty = (field['hideIfEmpty'] as bool?) ?? true;
     return Container(
       margin: EdgeInsets.only(top: InSpacing.sm, left: 24),
       padding: EdgeInsets.all(InSpacing.md(context)),
@@ -352,29 +411,30 @@ class _ExpandedFieldEditor extends StatelessWidget {
               ),
               onChanged: (v) => onFieldChanged('label', v),
             ),
-            SizedBox(height: InSpacing.md(context)),
-            TextFormField(
-              initialValue: (field['prefix'] as String?) ?? '',
-              decoration: InputDecoration(
-                labelText: context.tr('prefix'),
-                border: const OutlineInputBorder(),
+            if (printsAffixes) ...[
+              SizedBox(height: InSpacing.md(context)),
+              TextFormField(
+                initialValue: (field['prefix'] as String?) ?? '',
+                decoration: InputDecoration(
+                  labelText: context.tr('prefix'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (v) => onFieldChanged('prefix', v),
+                autocorrect: false,
               ),
-              onChanged: (v) => onFieldChanged('prefix', v),
-              autocorrect: false,
-            ),
-            SizedBox(height: InSpacing.md(context)),
-            TextFormField(
-              initialValue: (field['suffix'] as String?) ?? '',
-              decoration: InputDecoration(
-                labelText: context.tr('suffix'),
-                border: const OutlineInputBorder(),
+              SizedBox(height: InSpacing.md(context)),
+              TextFormField(
+                initialValue: (field['suffix'] as String?) ?? '',
+                decoration: InputDecoration(
+                  labelText: context.tr('suffix'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (v) => onFieldChanged('suffix', v),
+                autocorrect: false,
               ),
-              onChanged: (v) => onFieldChanged('suffix', v),
-              autocorrect: false,
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(context.tr('hide_if_empty')),
+            ],
+            PropertySwitch(
+              labelKey: 'hide_if_empty',
               value: hideIfEmpty,
               onChanged: (v) => onFieldChanged('hideIfEmpty', v),
             ),

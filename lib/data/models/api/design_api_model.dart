@@ -31,11 +31,148 @@ abstract class DesignTemplateApi with _$DesignTemplateApi {
     @Default('') String task,
     @Default(<DesignBlockApi>[]) List<DesignBlockApi> blocks,
     @JsonKey(includeIfNull: false) DocumentSettingsApi? documentSettings,
+    @JsonKey(
+      name: kDesignExtraKey,
+      readValue: _readTemplateExtra,
+      includeIfNull: false,
+    )
+    Map<String, dynamic>? extra,
   }) = _DesignTemplateApi;
 
   factory DesignTemplateApi.fromJson(Map<String, dynamic> json) =>
       _$DesignTemplateApiFromJson(json);
 }
+
+/// Key the local Drift payload keeps a design's unknown fields under. It never
+/// reaches the server: [DesignTemplateWire.toWireJson] spreads the fields back
+/// to where they came from.
+///
+/// The other client's builder writes fields this app has no model for
+/// (`builderGridVersion`, `layout`, `customCss`, a block's `region`, the
+/// pagination settings). A typed model that only knows its own fields drops
+/// them on the first save, so each of the three shapes carries the leftovers.
+const kDesignExtraKey = '__extra';
+
+const _kTemplateKeys = <String>{
+  'body',
+  'header',
+  'footer',
+  'includes',
+  'product',
+  'task',
+  'blocks',
+  'documentSettings',
+};
+
+const _kBlockKeys = <String>{
+  'id',
+  'type',
+  'gridPosition',
+  'properties',
+  'locked',
+  'rowAlign',
+  'rowWidth',
+  'colStart',
+  'colSpan',
+};
+
+const _kDocumentSettingsKeys = <String>{
+  'pageLayout',
+  'pageSize',
+  'globalFontSize',
+  'primaryFont',
+  'secondaryFont',
+  'showPaidStamp',
+  'showShippingAddress',
+  'embedDocuments',
+  'hideEmptyColumns',
+  'pageNumbering',
+  'pageMarginTop',
+  'pageMarginRight',
+  'pageMarginBottom',
+  'pageMarginLeft',
+  'pagePaddingTop',
+  'pagePaddingRight',
+  'pagePaddingBottom',
+  'pagePaddingLeft',
+};
+
+/// The fields of [json] that [known] does not name, plus whatever a local
+/// payload already parked under [kDesignExtraKey]. Null when there are none,
+/// so a design this app wrote serializes exactly as before.
+Map<String, dynamic>? _unknownFields(
+  Map<dynamic, dynamic> json,
+  Set<String> known,
+) {
+  final out = <String, dynamic>{};
+  final parked = json[kDesignExtraKey];
+  if (parked is Map) {
+    for (final e in parked.entries) {
+      out['${e.key}'] = e.value;
+    }
+  }
+  for (final e in json.entries) {
+    final key = '${e.key}';
+    if (key == kDesignExtraKey || known.contains(key)) continue;
+    out[key] = e.value;
+  }
+  return out.isEmpty ? null : out;
+}
+
+Object? _readTemplateExtra(Map<dynamic, dynamic> json, String _) =>
+    _unknownFields(json, _kTemplateKeys);
+
+Object? _readBlockExtra(Map<dynamic, dynamic> json, String _) =>
+    _unknownFields(json, _kBlockKeys);
+
+Object? _readDocumentSettingsExtra(Map<dynamic, dynamic> json, String _) =>
+    _unknownFields(json, _kDocumentSettingsKeys);
+
+Map<String, dynamic> _spreadExtra(Map<String, dynamic> json) {
+  final extra = json.remove(kDesignExtraKey);
+  if (extra is Map) {
+    for (final e in extra.entries) {
+      json.putIfAbsent('${e.key}', () => e.value);
+    }
+  }
+  return json;
+}
+
+extension DesignTemplateWire on DesignTemplateApi {
+  /// The JSON the server is sent — for a save and for a preview alike.
+  ///
+  /// Differs from [toJson] (the local payload shape) in two ways. Unknown
+  /// fields go back to the level they were read from. And **`blocks` is left
+  /// out when there are none**: the server takes a custom design for a block
+  /// design whenever the key is present (`isset`, so an empty list counts) and
+  /// then ignores its HTML, which rendered every HTML design this app saved as
+  /// a blank page.
+  Map<String, dynamic> toWireJson() {
+    final json = _spreadExtra(toJson());
+    if (blocks.isEmpty) {
+      json.remove('blocks');
+    } else {
+      json['blocks'] = [for (final b in blocks) _spreadExtra(b.toJson())];
+    }
+    final settings = documentSettings;
+    if (settings != null) {
+      json['documentSettings'] = _spreadExtra(settings.toJson());
+    }
+    return json;
+  }
+}
+
+/// A block's `properties` as a map, whatever came back.
+///
+/// PHP has one array type, so an object with no keys is re-encoded as `[]`
+/// — and a block with no properties is always sent with the key. A hard
+/// cast threw on that echo: the save's response was never applied, and
+/// `tolerantList` then dropped the whole design from every list.
+Map<String, dynamic>? _blockProperties(Object? raw) => switch (raw) {
+  null => null,
+  final Map<dynamic, dynamic> map => Map<String, dynamic>.from(map),
+  _ => const <String, dynamic>{},
+};
 
 /// A single block on the WYSIWYG canvas. `properties` stays opaque
 /// (`Map<String, dynamic>`) at the API boundary — React uses
@@ -46,7 +183,7 @@ abstract class DesignTemplateApi with _$DesignTemplateApi {
 /// (`tasks-table`, `client-shipping-info`, etc.).
 ///
 /// `rowAlign` / `rowWidth` / `colStart` / `colSpan` are **derived at save
-/// time** by `annotateBlocksAsApi` (see `grid_model.dart`). They are not
+/// time** by `annotateBlocksAsApi` (`design_block_layout.dart`). They are not
 /// stored on the in-memory [DesignBlock] domain object — a fresh value is
 /// projected every save from `gridPosition` + the block's row siblings.
 /// The server's HTML generator uses them to place blocks within flex rows.
@@ -56,12 +193,19 @@ abstract class DesignBlockApi with _$DesignBlockApi {
     @Default('') String id,
     @Default('') String type,
     @Default(GridPositionApi()) GridPositionApi gridPosition,
-    @JsonKey(includeIfNull: false) Map<String, dynamic>? properties,
+    @JsonKey(includeIfNull: false, fromJson: _blockProperties)
+    Map<String, dynamic>? properties,
     @JsonKey(includeIfNull: false) bool? locked,
     @JsonKey(includeIfNull: false) String? rowAlign,
     @JsonKey(includeIfNull: false) String? rowWidth,
     @JsonKey(includeIfNull: false) int? colStart,
     @JsonKey(includeIfNull: false) int? colSpan,
+    @JsonKey(
+      name: kDesignExtraKey,
+      readValue: _readBlockExtra,
+      includeIfNull: false,
+    )
+    Map<String, dynamic>? extra,
   }) = _DesignBlockApi;
 
   factory DesignBlockApi.fromJson(Map<String, dynamic> json) =>
@@ -112,6 +256,12 @@ abstract class DocumentSettingsApi with _$DocumentSettingsApi {
     @Default(30) int pagePaddingRight,
     @Default(30) int pagePaddingBottom,
     @Default(30) int pagePaddingLeft,
+    @JsonKey(
+      name: kDesignExtraKey,
+      readValue: _readDocumentSettingsExtra,
+      includeIfNull: false,
+    )
+    Map<String, dynamic>? extra,
   }) = _DocumentSettingsApi;
 
   factory DocumentSettingsApi.fromJson(Map<String, dynamic> json) =>

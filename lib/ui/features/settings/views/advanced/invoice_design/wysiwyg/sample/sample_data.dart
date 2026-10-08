@@ -12,12 +12,91 @@ class DesignerSampleData {
     required this.client,
     required this.company,
     required this.lineItems,
+    this.currencyId,
+    this.isAmountDiscount = true,
   });
 
   final DesignerSampleInvoice invoice;
   final DesignerSampleClient client;
   final DesignerSampleCompany company;
   final List<DesignerSampleLineItem> lineItems;
+
+  /// The currency this document's amounts are in — its client's. Null is the
+  /// company's own, which is right for the sample and wrong for a real
+  /// invoice of a client billed in another currency.
+  final String? currencyId;
+
+  /// Whether a line's discount is an amount. When it is a percentage the
+  /// server prints `10%`, not ten of the currency.
+  final bool isAmountDiscount;
+
+  /// This fixture with the company's own name, address, contact details and
+  /// logo in place of the made-up ones — whichever of them the company has
+  /// set. The client and the invoice stay sample data.
+  ///
+  /// A designer that opens on "Your Company LLC" beside a grey box makes the
+  /// user imagine their own letterhead; the app already knows it.
+  DesignerSampleData withCompany({
+    String? name,
+    String? logo,
+    String? address1,
+    String? address2,
+    String? city,
+    String? state,
+    String? postalCode,
+    String? phone,
+    String? email,
+    String? website,
+    String? vatNumber,
+    String? idNumber,
+  }) {
+    String pick(String? own, String sample) =>
+        (own == null || own.trim().isEmpty) ? sample : own.trim();
+    final base = company;
+    // Only when the company has an address of its own does the sample's
+    // second line and city go: half of each would be nobody's address.
+    final hasAddress = [
+      address1,
+      city,
+      postalCode,
+    ].any((v) => v != null && v.trim().isNotEmpty);
+    final cityState = [
+      if ((city ?? '').trim().isNotEmpty) city!.trim(),
+      if ((state ?? '').trim().isNotEmpty) state!.trim(),
+    ].join(', ');
+    final postal = (postalCode ?? '').trim();
+    return DesignerSampleData(
+      invoice: invoice,
+      client: client,
+      lineItems: lineItems,
+      currencyId: currencyId,
+      isAmountDiscount: isAmountDiscount,
+      company: DesignerSampleCompany(
+        name: pick(name, base.name),
+        logo: pick(logo, base.logo),
+        address: hasAddress ? (address1 ?? '').trim() : base.address,
+        address1: hasAddress ? (address1 ?? '').trim() : base.address1,
+        address2: hasAddress ? (address2 ?? '').trim() : base.address2,
+        cityStatePostal: hasAddress
+            ? [cityState, postal].where((v) => v.isNotEmpty).join(' ')
+            : base.cityStatePostal,
+        postalCityState: hasAddress
+            ? [postal, cityState].where((v) => v.isNotEmpty).join(' ')
+            : base.postalCityState,
+        country: base.country,
+        idNumber: pick(idNumber, base.idNumber),
+        phone: pick(phone, base.phone),
+        email: pick(email, base.email),
+        customValue1: base.customValue1,
+        customValue2: base.customValue2,
+        customValue3: base.customValue3,
+        customValue4: base.customValue4,
+        website: pick(website, base.website),
+        vatNumber: pick(vatNumber, base.vatNumber),
+        tags: base.tags,
+      ),
+    );
+  }
 
   /// Default fixture matching React's `SAMPLE_INVOICE_DATA`. Dates are ISO
   /// strings (formatted on render by the company [Formatter]); money values
@@ -46,7 +125,9 @@ class DesignerSampleData {
       terms:
           'Payment is due within 14 days of invoice date. Late payments may be '
           'subject to a 1.5% monthly service charge.',
-      label: 'INVOICE',
+      // `$entity_label` on the server is the translated document type in
+      // title case ("Invoice", "Quote") — probed, not upper case.
+      label: 'Invoice',
       customValue1: 'Custom Invoice Field 1',
       customValue2: 'Custom Invoice Field 2',
       customValue3: 'Custom Invoice Field 3',
@@ -179,7 +260,21 @@ class DesignerSampleInvoice {
     required this.updatedAt,
     required this.partialDueDate,
     required this.tags,
+    this.partial,
+    this.balanceDue,
   });
+
+  /// The deposit asked for (`$partial`); zero when there is none.
+  final Decimal? partial;
+
+  /// What `$balance_due` prints, which is not always [balance]: the deposit
+  /// while one is asked for, the full amount on a draft, nothing once paid
+  /// (`HtmlEngine.php`). Null is [balance].
+  final Decimal? balanceDue;
+
+  /// Whether a deposit is being asked for — the server then also relabels
+  /// the balance-due row "Partial Due" and prints the deposit's due date.
+  bool get hasPartial => (partial ?? Decimal.zero) > Decimal.zero;
 
   final String number;
   final String date;

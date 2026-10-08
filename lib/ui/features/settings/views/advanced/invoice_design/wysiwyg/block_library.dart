@@ -20,6 +20,7 @@ class BlockSpec {
     required this.defaultProperties,
     required this.category,
     this.essential = false,
+    this.printed = true,
   });
 
   /// Stable wire identifier (matches React BlockType). Preserve casing —
@@ -38,6 +39,12 @@ class BlockSpec {
   /// Marked `essential: true` in React — products/tasks tables and the totals
   /// block. Reserved for future hint chips.
   final bool essential;
+
+  /// False for a block type the server has no renderer for: it is kept out
+  /// of the palette, and one already on a design says it will not print.
+  /// Today that is `tasks-table` — `JsonToSectionsAdapter::convertBlockToSection`
+  /// has no arm for it, so the block prints nothing (`BACKEND.md`).
+  final bool printed;
 
   DesignBlock newInstance({
     required String idPrefix,
@@ -119,7 +126,7 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
         _field('phone', 'phone', r'$company.phone'),
         _field('email', 'email', r'$company.email'),
       ],
-      titleKey: 'company_details',
+      title: r'$from_label',
     ),
     category: BlockCategory.branding,
   ),
@@ -160,7 +167,7 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
         _field('phone', 'phone', r'$client.phone'),
         _field('email', 'email', r'$client.email'),
       ],
-      titleKey: 'bill_to',
+      title: r'$bill_to_label',
     ),
     category: BlockCategory.content,
   ),
@@ -179,7 +186,7 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
           r'$client.shipping_city_state_postal',
         ),
       ],
-      titleKey: 'ship_to',
+      title: r'$ship_to_label',
     ),
     category: BlockCategory.content,
   ),
@@ -301,11 +308,35 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
     defaultHeight: 8,
     defaultProperties: _tableDefaults(
       columns: [
-        _col('product_key', 'item', 'item.product_key', '25%', 'left'),
-        _col('notes', 'description', 'item.notes', '30%', 'left'),
-        _col('quantity', 'qty', 'item.quantity', '10%', 'center'),
-        _col('cost', 'unit_cost', 'item.cost', '15%', 'right'),
-        _col('line_total', 'line_total', 'item.line_total', '15%', 'right'),
+        _col(
+          'product_key',
+          r'$product.item_label',
+          'item.product_key',
+          '25%',
+          'left',
+        ),
+        _col(
+          'notes',
+          r'$product.description_label',
+          'item.notes',
+          '30%',
+          'left',
+        ),
+        _col(
+          'quantity',
+          r'$product.quantity_label',
+          'item.quantity',
+          '10%',
+          'center',
+        ),
+        _col('cost', r'$product.unit_cost_label', 'item.cost', '15%', 'right'),
+        _col(
+          'line_total',
+          r'$product.line_total_label',
+          'item.line_total',
+          '15%',
+          'right',
+        ),
       ],
     ),
     category: BlockCategory.data,
@@ -319,15 +350,28 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
     defaultHeight: 8,
     defaultProperties: _tableDefaults(
       columns: [
-        _col('service', 'service', 'item.product_key', '25%', 'left'),
-        _col('notes', 'description', 'item.notes', '30%', 'left'),
-        _col('hours', 'hours', 'item.quantity', '10%', 'center'),
-        _col('rate', 'rate', 'item.cost', '15%', 'right'),
-        _col('line_total', 'line_total', 'item.line_total', '15%', 'right'),
+        _col(
+          'service',
+          r'$task.service_label',
+          'item.product_key',
+          '25%',
+          'left',
+        ),
+        _col('notes', r'$task.description_label', 'item.notes', '30%', 'left'),
+        _col('hours', r'$task.hours_label', 'item.quantity', '10%', 'center'),
+        _col('rate', r'$task.rate_label', 'item.cost', '15%', 'right'),
+        _col(
+          'line_total',
+          r'$task.line_total_label',
+          'item.line_total',
+          '15%',
+          'right',
+        ),
       ],
     ),
     category: BlockCategory.data,
     essential: true,
+    printed: false,
   ),
   BlockSpec(
     type: 'total',
@@ -466,14 +510,14 @@ Map<String, dynamic> _col(
 
 Map<String, dynamic> _infoBlockDefaults({
   required List<Map<String, dynamic>> fieldConfigs,
-  required String titleKey,
+  required String title,
 }) => <String, dynamic>{
   'fieldConfigs': fieldConfigs,
   'lineHeight': '1.3',
   'align': 'left',
   'color': _defaultValueColor,
   'showTitle': false,
-  'title': titleKey,
+  'title': title,
   'titleFontWeight': 'bold',
 };
 

@@ -12,13 +12,13 @@ DesignBlock _b(String id) => DesignBlock(
 void main() {
   group('DesignerHistoryStack', () {
     test('starts empty and reports false for canUndo/canRedo', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       expect(h.canUndo, isFalse);
       expect(h.canRedo, isFalse);
     });
 
     test('record + undo returns the recorded snapshot', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       final initial = [_b('a')];
       h.record(initial);
       expect(h.canUndo, isTrue);
@@ -29,7 +29,7 @@ void main() {
     });
 
     test('undo + redo round-trips the blocks list', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       final v0 = [_b('a')];
       final v1 = [_b('a'), _b('b')];
       h.record(v0); // snapshot v0 before applying v1
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('record clears the redo tail', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       final v0 = [_b('a')];
       final v1 = [_b('a'), _b('b')];
       final v2 = [_b('a'), _b('b'), _b('c')];
@@ -54,13 +54,13 @@ void main() {
     });
 
     test('undo/redo return null when nothing to apply', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       expect(h.undo([_b('a')]), isNull);
       expect(h.redo([_b('a')]), isNull);
     });
 
     test('cap (maxSize) drops oldest entries', () {
-      final h = DesignerHistoryStack(maxSize: 3);
+      final h = DesignerHistoryStack<List<DesignBlock>>(maxSize: 3);
       for (var i = 0; i < 5; i++) {
         h.record([_b('v$i')]);
       }
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('clear empties both stacks', () {
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       h.record([_b('a')]);
       h.undo([_b('b')]);
       expect(h.canRedo, isTrue);
@@ -80,10 +80,23 @@ void main() {
       expect(h.canRedo, isFalse);
     });
 
+    test('discardLast drops the newest snapshot only', () {
+      // A gesture records on its first frame; one that then changed nothing
+      // must not leave a step whose undo visibly does nothing.
+      final h = DesignerHistoryStack<List<DesignBlock>>();
+      h.record([_b('a')]);
+      h.record([_b('b')]);
+      h.discardLast();
+      expect(h.undoDepth, 1);
+      expect(h.undo([_b('live')]), equals([_b('a')]));
+      h.discardLast(); // nothing left — a no-op, not an error
+      expect(h.canUndo, isFalse);
+    });
+
     test('snapshots are independent of caller mutations (shallow copy)', () {
       // List<DesignBlock>.of copies the list, so the caller can mutate
       // their own list without affecting the snapshot.
-      final h = DesignerHistoryStack();
+      final h = DesignerHistoryStack<List<DesignBlock>>();
       final mutable = [_b('a')];
       h.record(mutable);
       mutable.add(_b('b'));

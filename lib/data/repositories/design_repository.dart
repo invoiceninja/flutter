@@ -63,6 +63,44 @@ class DesignRepository extends BaseEntityRepository<Design, DesignApi> {
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
+  /// Watch the archived designs. The login bundle never carries one (the
+  /// server's relation leaves soft-deleted rows out), so a list showing these
+  /// should [refreshAll] first — that sweep asks for every state.
+  Stream<List<Design>> watchArchived({required String companyId}) {
+    return db.designDao
+        .watchArchived(companyId: companyId)
+        .map((rows) => rows.map(_fromRow).toList(growable: false));
+  }
+
+  /// Every design name this device knows of, archived and deleted included
+  /// — see [DesignDao.allNames].
+  Future<Set<String>> knownNames({required String companyId}) =>
+      db.designDao.allNames(companyId: companyId);
+
+  /// Fetch [ids] again and upsert them, keeping a row with unsynced edits.
+  ///
+  /// The builder asks for the one design it is about to open: designs arrive
+  /// in the login bundle, and a *delta* refresh re-sends only what changed —
+  /// so a row can be as old as the last full sync, and one written by an
+  /// earlier build has none of the fields this build round-trips.
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<DesignApi, DesignsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.designDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Stream<Design?> watchByRealId({
     required String companyId,

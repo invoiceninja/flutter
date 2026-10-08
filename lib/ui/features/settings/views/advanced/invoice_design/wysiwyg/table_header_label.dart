@@ -1,31 +1,38 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:admin/data/models/domain/design_block_wire.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 
-/// Header keys that have no localization entry of their own, mapped onto the
-/// one the server prints for that column.
+/// A table column's `header` as the PDF will print it.
 ///
-/// `net_cost` is in no locale file. `HtmlEngine::generateLabelsAndValues`
-/// labels `$product.net_cost` with `ctrans('texts.unit_cost')` and React does
-/// the same, so without the alias the designer shows a raw slug for a column
-/// the PDF titles "Unit Cost".
-const _kHeaderKeyAliases = <String, String>{'net_cost': 'unit_cost'};
-
-/// A table column's `header` rendered for display.
+/// The server prints the value exactly as stored and translates only a
+/// `$…_label` token, so that is what a column is seeded with. Designs saved
+/// before that carried a bare localization key (`unit_cost`, `qty`), which the
+/// canvas translated and the PDF printed as the key itself; `DesignBlock.toApi`
+/// rewrites those on the next save, and this resolves them the same way so the
+/// canvas shows the heading the saved design will have. Anything else is the
+/// user's own text and is passed through **verbatim**.
 ///
-/// The value is a hybrid: the shipped column definitions (`block_library.dart`,
-/// `table_block_properties._kAvailableColumns`) store a localization key
-/// (`unit_cost`, `qty`, `line_total`), but the property panel exposes the same
-/// field as a free-text input, so a user can type a literal heading. Resolve
-/// the key when the bundle knows it and pass anything else through
-/// **verbatim** — title-casing an unknown value would mangle a user's text.
-///
-/// Both the WYSIWYG canvas and the property panel's column list call this so
-/// they can't disagree: the canvas used to paint the raw key (`unit_cost` in
-/// the header cell) while the panel beside it read "Unit Cost"
-/// (invoiceninja/flutter#84).
-String resolveTableHeaderLabel(BuildContext context, String? header) {
+/// Both the canvas and the property panel's column list call this so they
+/// can't disagree (invoiceninja/flutter#84).
+String resolveTableHeaderLabel(
+  BuildContext context,
+  String? header, {
+  String blockType = 'table',
+}) {
   final raw = header?.trim() ?? '';
   if (raw.isEmpty) return '';
-  return context.trIfDefined(_kHeaderKeyAliases[raw] ?? raw) ?? raw;
+  return replaceLabelVariables(
+    upgradeLegacyColumnHeader(blockType, raw),
+    context.tr,
+  );
+}
+
+/// An info block's `title` as the PDF will print it — the same rule as
+/// [resolveTableHeaderLabel].
+String resolveBlockTitle(BuildContext context, String? title) {
+  final raw = title?.trim() ?? '';
+  if (raw.isEmpty) return '';
+  return replaceLabelVariables(upgradeLegacyTitle(raw), context.tr);
 }

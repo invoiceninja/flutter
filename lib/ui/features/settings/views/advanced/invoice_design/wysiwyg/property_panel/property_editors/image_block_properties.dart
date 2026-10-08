@@ -9,6 +9,7 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/designer_image.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
@@ -46,10 +47,17 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
     _sync();
   }
 
+  /// What the block draws: a token, a URL, or an uploaded image's data.
+  String get _stored => (widget.block.properties['source'] as String?) ?? '';
+
   void _sync() {
     if (_lastBlockId == widget.block.id) return;
     _lastBlockId = widget.block.id;
-    _source.text = (widget.block.properties['source'] as String?) ?? '';
+    // An upload is not something to read or edit — and megabytes of base64
+    // in a text field is laid out on every frame. The field stays empty for
+    // one; typing an address into it replaces the upload.
+    final stored = _stored;
+    _source.text = stored.startsWith('data:') ? '' : stored;
   }
 
   @override
@@ -91,7 +99,7 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
     }
     final mime = _mimeFor(filename);
     final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-    setState(() => _source.text = dataUrl);
+    setState(_source.clear);
     _write('source', dataUrl);
   }
 
@@ -110,12 +118,9 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
   @override
   Widget build(BuildContext context) {
     final props = widget.block.properties;
-    final src = _source.text;
+    final src = _stored;
     final isLogo = widget.block.type == 'logo';
-    final hasImage =
-        src.startsWith('data:') ||
-        src.startsWith('http://') ||
-        src.startsWith('https://');
+    final hasImage = DesignerImage.canShow(src);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,7 +175,6 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
           resettable: true,
           onChanged: (v) => _write('maxWidth', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'max_height',
           value: props['maxHeight'],
@@ -260,10 +264,9 @@ class _ImageUploader extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(InRadii.r2),
-                    child: Image.network(
-                      src,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => Center(
+                    child: DesignerImage(
+                      source: src,
+                      placeholder: Center(
                         child: Icon(
                           Icons.broken_image_outlined,
                           color: tokens.ink3,

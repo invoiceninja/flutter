@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/design.dart';
-import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_editors/info_block_properties.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
@@ -41,26 +39,22 @@ class InvoiceDetailsBlockProperties extends StatelessWidget {
         // editors. Same drag handle + hideIfEmpty + delete + add-field
         // contract.
         InfoBlockProperties(vm: vm, block: block),
-        const SectionDivider(labelKey: 'layout'),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_labels')),
+        const SectionDivider(labelKey: 'labels'),
+        PropertySwitch(
+          labelKey: 'show_labels',
           value: (props['showLabels'] as bool?) ?? true,
           onChanged: (v) => _write('showLabels', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         AlignmentInput(
           labelKey: 'label_align',
           value: props['labelAlign'] as String?,
           onChanged: (v) => _write('labelAlign', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         AlignmentInput(
           labelKey: 'value_align',
           value: props['valueAlign'] as String?,
           onChanged: (v) => _write('valueAlign', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'label_color',
           value: props['labelColor'] as String?,
@@ -74,14 +68,12 @@ class InvoiceDetailsBlockProperties extends StatelessWidget {
           resettable: true,
           onChanged: (v) => _write('labelPadding', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'value_padding',
           value: props['valuePadding'],
           resettable: true,
           onChanged: (v) => _write('valuePadding', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'label_value_gap',
           value: props['labelValueGap'],
@@ -89,14 +81,12 @@ class InvoiceDetailsBlockProperties extends StatelessWidget {
           resettable: true,
           onChanged: (v) => _write('labelValueGap', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'row_spacing',
           value: props['rowSpacing'],
           resettable: true,
           onChanged: (v) => _write('rowSpacing', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'value_min_width',
           value: props['valueMinWidth'],

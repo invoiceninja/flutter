@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_library.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 
 /// Catalog-level smoke checks for every block spec. None of these assertions
 /// exercise a renderer — they protect the *contract* that every spec is
@@ -139,6 +140,50 @@ void main() {
     test('unknown types resolve to null', () {
       expect(blockSpecFor('not-a-real-block'), isNull);
       expect(blockSpecFor(''), isNull);
+    });
+  });
+
+  group('what the server prints', () {
+    test('the tasks table is the one block it has no renderer for', () {
+      // `JsonToSectionsAdapter::convertBlockToSection` has no `tasks-table`
+      // arm: the block prints nothing. Flip this when the server gains one.
+      expect(
+        [
+          for (final s in kBlockLibrary)
+            if (!s.printed) s.type,
+        ],
+        ['tasks-table'],
+      );
+    });
+
+    test('table columns and info titles are seeded with label tokens', () {
+      // The server prints a header exactly as stored and translates only a
+      // `$…_label` token — a bare key prints as the key.
+      for (final type in ['table', 'tasks-table']) {
+        final columns =
+            blockSpecFor(type)!.defaultProperties['columns'] as List;
+        for (final column in columns) {
+          final header = (column as Map)['header'] as String;
+          expect(
+            header,
+            matches(RegExp(r'^\$[\w.]+_label$')),
+            reason: '$type column ${column['id']}',
+          );
+          expect(
+            kLabelTranslationMap.containsKey(header),
+            isTrue,
+            reason: 'the canvas must be able to translate $header',
+          );
+        }
+      }
+      for (final type in [
+        'client-info',
+        'company-info',
+        'client-shipping-info',
+      ]) {
+        final title = blockSpecFor(type)!.defaultProperties['title'] as String;
+        expect(kLabelTranslationMap.containsKey(title), isTrue, reason: type);
+      }
     });
   });
 }

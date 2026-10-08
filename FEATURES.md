@@ -1240,17 +1240,21 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Custom design editor — inline 422 Twig/HTML error per section | ✅ | ❌ | ✅ | ✅ | |
 | Custom design editor — unsaved-changes guard + "used for" warning | 🟡 | 🟡 | ✅ | ✅ | |
 | **WYSIWYG invoice designer** — three-pane drag/drop builder | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — 17 block types (logo, info blocks, tables, totals, text, divider, spacer, etc.) | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — 12-column grid canvas with drag/drop reposition | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — corner + edge resize handles with grid snap | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — ghost preview + alignment guides during drag | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — undo/redo with Cmd-Z / Cmd-Shift-Z + Cmd-S | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — arrow-key nudging (move) + Shift+arrow resize | — | ❌ | ✅ | — | |
-| WYSIWYG — fix-overlaps toolbar action | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — block types (logo, info blocks, products table, totals, text, divider, spacer, etc.). The Tasks table is withheld in v2 until the server can print one (`BACKEND.md`) | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — free-position grid canvas (any x / y / height). v2 dropped it: the server prints rows and never reads `x` or `h` (`docs/invoice-designer.md`) | ✅ | ❌ | — | — | |
+| WYSIWYG — row canvas: a scrolling true-size page (size, orientation, margins, font), rows drawn as the server prints them, empty space as gap cells | — | ❌ | ✅ | — | |
+| WYSIWYG — drag from the palette or the page to a new row or beside a block, with an insertion bar, edge auto-scroll, long-press drag on touch | 🟡 | ❌ | ✅ | — | |
+| WYSIWYG — corner + edge resize handles (height included). v2: width handles on every boundary in a row; a block's height is its content's, as in the PDF | ✅ | ❌ | — | — | |
+| WYSIWYG — width handles on row boundaries, gap cells included (12-column snap, per-block minimums) | — | ❌ | ✅ | — | |
+| WYSIWYG — ghost preview + alignment guides during drag (free grid only; v2 shows an insertion bar instead) | ✅ | ❌ | — | — | |
+| WYSIWYG — undo/redo with Cmd-Z / Cmd-Shift-Z + Cmd-S; covers property and page-setting edits, one step per gesture; deleting a block offers Undo | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — keyboard: arrows move the selection, Alt+arrows move the block, Shift+←/→ change width, Enter edits text, Delete / Esc / ⌘D — all standing down while a property field has focus | — | ❌ | ✅ | — | |
+| WYSIWYG — fix-overlaps toolbar action (rows cannot overlap, so v2 has nothing to fix) | ✅ | ❌ | — | — | |
 | WYSIWYG — server-PDF live preview button | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — type-specific property editors (text / info / table / total / image / logo) | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — document settings panel (page layout / size / margins / fonts) | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — mobile reorder mode (full-width list, no canvas) | — | ❌ | ✅ | — | |
+| WYSIWYG — phone outline: rows as reorderable cards that keep their side-by-side blocks, same block menu as the canvas | — | ❌ | ✅ | — | |
+| WYSIWYG — tablet layout: canvas full width, palette as an Add block sheet, property panel as a drawer | — | ❌ | ✅ | — | |
 | WYSIWYG — Twig coexistence banner on legacy custom designs | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — Pro gate (Save disabled for free users) | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — export design JSON (copy to clipboard or download .json file) | ✅ | ❌ | ✅ | — | |
@@ -1269,7 +1273,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | WYSIWYG — table column add (catalog picker) + remove | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — image upload (base64 → properties.source) | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — variable picker for info-block fieldConfigs | ✅ | ❌ | ✅ | — | |
-| WYSIWYG — template gallery (Standard / Minimal / Quote-friendly starters) | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — starter gallery with page thumbnails (Blank / Standard / Bold / Minimal / Quote-friendly), and Replace layout from the builder | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — real QR rendering via `qr_flutter` | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — Google Fonts loading for `documentSettings.primaryFont`/`secondaryFont` | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — `design.blocks` + `documentSettings` schema round-trip | ✅ | ❌ | ✅ | — | |
@@ -1282,6 +1286,19 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | WYSIWYG — desktop drag-and-drop image upload (`desktop_drop`) | — | ❌ | ✅ | — | |
 | WYSIWYG — text-content 300 ms debounce on the canvas | ✅ | ❌ | ✅ | — | |
 | WYSIWYG — table border width clamped to `[0, 20]` + page margins/padding clamped to `[0, 500]` | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — a saved visual design reopens in the builder (`Visual` pill in the list); Save keeps the builder open | ✅ | ❌ | ✅ | — | |
+| WYSIWYG — a new visual design applies to invoices, quotes, credits and purchase orders, with an Applies-to control | 🟡 | ❌ | ✅ | — | |
+| WYSIWYG — block menu (⋮ / right-click): move up / down, join the row above / below, own row, position left / centre / right, wider / narrower, duplicate, delete | — | ❌ | ✅ | — | |
+| WYSIWYG — row grip: drag a whole row, duplicate / delete it, remove its gaps | — | ❌ | ✅ | — | |
+| WYSIWYG — property panel in two tabs (Block / Page), colour picker (in this design / company colours / custom), steppers with presets, margins as one inset with presets | 🟡 | ❌ | ✅ | — | |
+| WYSIWYG — searchable variable picker showing each field's value, with the company's own custom-field names | 🟡 | ❌ | ✅ | — | |
+| WYSIWYG — the page is filled in with one of the company's recent invoices (picker under the canvas), and the server preview renders the same invoice | — | ❌ | ✅ | — | |
+| WYSIWYG — preview in place of the canvas (Design / Preview switch), document type remembered, Retry on failure | 🟡 | ❌ | ✅ | — | |
+| WYSIWYG — layout suggestions (no line items, no totals, two totals, logo without a company logo), with one-press fixes | — | ❌ | ✅ | — | |
+| WYSIWYG — "Use this design for…" (sets the default design per document type, optionally existing documents) and a Used-for indicator | — | ❌ | ✅ | — | |
+| WYSIWYG — fields written by another client (`customCss`, `region`, `builderGridVersion`, unknown block types) survive a save | — | ❌ | ✅ | — | |
+| WYSIWYG — custom CSS field (Page → Advanced) | ✅ | ❌ | ✅ | — | |
+| Custom designs — Show archived, with Restore | ✅ | ❌ | ✅ | — | |
 
 ### Custom Fields
 

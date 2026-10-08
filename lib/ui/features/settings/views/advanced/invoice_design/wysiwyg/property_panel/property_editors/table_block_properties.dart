@@ -107,77 +107,77 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
   static const List<Map<String, dynamic>> _kAvailableColumns = [
     {
       'id': 'product_key',
-      'header': 'item',
+      'header': r'$product.item_label',
       'field': 'item.product_key',
       'width': '25%',
       'align': 'left',
     },
     {
       'id': 'notes',
-      'header': 'description',
+      'header': r'$product.description_label',
       'field': 'item.notes',
       'width': '30%',
       'align': 'left',
     },
     {
       'id': 'quantity',
-      'header': 'qty',
+      'header': r'$product.quantity_label',
       'field': 'item.quantity',
       'width': '10%',
       'align': 'center',
     },
     {
       'id': 'cost',
-      'header': 'unit_cost',
+      'header': r'$product.unit_cost_label',
       'field': 'item.cost',
       'width': '15%',
       'align': 'right',
     },
     {
       'id': 'line_total',
-      'header': 'line_total',
+      'header': r'$product.line_total_label',
       'field': 'item.line_total',
       'width': '15%',
       'align': 'right',
     },
     {
       'id': 'net_cost',
-      'header': 'net_cost',
+      'header': r'$product.net_cost_label',
       'field': 'item.net_cost',
       'width': '15%',
       'align': 'right',
     },
     {
       'id': 'gross_line_total',
-      'header': 'gross_line_total',
+      'header': r'$product.gross_line_total_label',
       'field': 'item.gross_line_total',
       'width': '15%',
       'align': 'right',
     },
     {
       'id': 'discount',
-      'header': 'discount',
+      'header': r'$product.discount_label',
       'field': 'item.discount',
       'width': '10%',
       'align': 'right',
     },
     {
       'id': 'tax_rate1',
-      'header': 'tax',
+      'header': r'$product.tax_label',
       'field': 'item.tax_rate1',
       'width': '10%',
       'align': 'right',
     },
     {
       'id': 'custom_value1',
-      'header': 'custom1',
+      'header': r'$product.product1_label',
       'field': 'item.custom_value1',
       'width': '15%',
       'align': 'left',
     },
     {
       'id': 'custom_value2',
-      'header': 'custom2',
+      'header': r'$product.product2_label',
       'field': 'item.custom_value2',
       'width': '15%',
       'align': 'left',
@@ -198,7 +198,9 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
           for (final col in available)
             ListTile(
               dense: true,
-              title: Text(ctx.tr(col['header'] as String)),
+              title: Text(
+                resolveTableHeaderLabel(ctx, col['header'] as String),
+              ),
               subtitle: Text(
                 col['field'] as String,
                 style: TextStyle(
@@ -262,36 +264,33 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
               onToggleExpanded: () => _toggleExpanded(index),
               onDelete: () => _delete(index),
               onColumnChanged: (k, v) => _updateColumn(index, k, v),
+              othersWidth: [
+                for (var i = 0; i < cols.length; i++)
+                  if (i != index) _percentOf(cols[i]['width']),
+              ].fold<double>(0, (a, b) => a + b),
             ),
           ),
         SizedBox(height: InSpacing.lg(context)),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('alternate_row_colors')),
+        PropertySwitch(
+          labelKey: 'alternate_row_colors',
           value: (props['alternateRows'] as bool?) ?? true,
           onChanged: (v) => _writeProperty('alternateRows', v),
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_borders')),
-          value: (props['showBorders'] as bool?) ?? true,
-          onChanged: (v) => _writeProperty('showBorders', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        _ColorField(
+        ColorInput(
           labelKey: 'header_background',
+          defaultValue: '#F3F4F6',
           value: props['headerBg'] as String?,
           onChanged: (v) => _writeProperty('headerBg', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
-        _ColorField(
+        ColorInput(
           labelKey: 'row_background',
+          defaultValue: '#FFFFFF',
           value: props['rowBg'] as String?,
           onChanged: (v) => _writeProperty('rowBg', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
-        _ColorField(
+        ColorInput(
           labelKey: 'alternate_row_background',
+          defaultValue: '#F9FAFB',
           value: props['alternateRowBg'] as String?,
           onChanged: (v) => _writeProperty('alternateRowBg', v),
         ),
@@ -302,14 +301,13 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
           value: props['headerColor'] as String?,
           onChanged: (v) => _writeProperty('headerColor', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         FontStyleInput(
           fontWeight: props['headerFontWeight'] as String?,
           fontStyle: null,
+          showItalic: false,
           onFontWeightChanged: (v) => _writeProperty('headerFontWeight', v),
           onFontStyleChanged: (_) {},
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'row_color',
           value: props['rowColor'] as String?,
@@ -322,18 +320,34 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
           resettable: true,
           onChanged: (v) => _writeProperty('padding', v),
         ),
-        // Phase 7e: per-region border editor. Reads/writes the
-        // `{color, width, sides: {top,right,bottom,left}}` sub-map shape
-        // that React's `mergeTableRegion` constructs.
-        const SectionDivider(labelKey: 'header_borders'),
-        _TableRegionBordersEditor(
-          value: props['headerBorders'] as Map<String, dynamic>?,
-          onChanged: (v) => _writeProperty('headerBorders', v),
-        ),
-        const SectionDivider(labelKey: 'row_borders'),
-        _TableRegionBordersEditor(
-          value: props['rowBorders'] as Map<String, dynamic>?,
-          onChanged: (v) => _writeProperty('rowBorders', v),
+        // Per-region borders: the `{color, width, sides}` sub-maps React's
+        // `mergeTableRegion` builds. Rarely touched, so they start closed.
+        PropertyDisclosure(
+          titleKey: 'borders',
+          children: [
+            Padding(
+              padding: EdgeInsets.only(bottom: InSpacing.sm),
+              child: Text(
+                context.tr('header'),
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+            _TableRegionBordersEditor(
+              value: props['headerBorders'] as Map<String, dynamic>?,
+              onChanged: (v) => _writeProperty('headerBorders', v),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: InSpacing.sm),
+              child: Text(
+                context.tr('rows'),
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+            _TableRegionBordersEditor(
+              value: props['rowBorders'] as Map<String, dynamic>?,
+              onChanged: (v) => _writeProperty('rowBorders', v),
+            ),
+          ],
         ),
       ],
     );
@@ -372,20 +386,13 @@ class _TableRegionBordersEditor extends StatelessWidget {
     onChanged(merged.isEmpty ? null : merged);
   }
 
+  /// A side is stored `true` or `false`, never left out: the server draws a
+  /// side unless it is *strictly* false, so removing the key to turn one off
+  /// — which is what this did — turned it off on the page and nowhere else.
   void _setSide(String side, bool on) {
     final merged = _read();
-    final sides = _sides(merged);
-    if (on) {
-      sides[side] = true;
-    } else {
-      sides.remove(side);
-    }
-    if (sides.isEmpty) {
-      merged.remove('sides');
-    } else {
-      merged['sides'] = sides;
-    }
-    onChanged(merged.isEmpty ? null : merged);
+    merged['sides'] = _sides(merged)..[side] = on;
+    onChanged(merged);
   }
 
   @override
@@ -408,7 +415,6 @@ class _TableRegionBordersEditor extends StatelessWidget {
             onChanged: (v) => _set('color', v),
             defaultValue: '#E5E7EB',
           ),
-          SizedBox(height: InSpacing.md(context)),
           PxInput(
             labelKey: 'width',
             value: region['width'],
@@ -431,7 +437,8 @@ class _TableRegionBordersEditor extends StatelessWidget {
               for (final side in const ['top', 'right', 'bottom', 'left'])
                 FilterChip(
                   label: Text(context.tr(side)),
-                  selected: (sides[side] as bool?) ?? false,
+                  // Missing is on, as on the server.
+                  selected: sides[side] != false,
                   onSelected: (on) => _setSide(side, on),
                 ),
             ],
@@ -442,6 +449,13 @@ class _TableRegionBordersEditor extends StatelessWidget {
   }
 }
 
+/// A column's stored `width` as a percentage; 0 for one that has none (the
+/// server shares what is left between those).
+double _percentOf(Object? width) =>
+    width is String && width.trim().endsWith('%')
+    ? double.tryParse(width.trim().replaceAll('%', '')) ?? 0
+    : 0;
+
 class _ColumnRow extends StatelessWidget {
   const _ColumnRow({
     super.key,
@@ -451,9 +465,11 @@ class _ColumnRow extends StatelessWidget {
     required this.onToggleExpanded,
     required this.onDelete,
     required this.onColumnChanged,
+    required this.othersWidth,
   });
 
   final int index;
+  final double othersWidth;
   final Map<String, dynamic> column;
   final bool expanded;
   final VoidCallback onToggleExpanded;
@@ -474,13 +490,12 @@ class _ColumnRow extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium,
         overflow: TextOverflow.ellipsis,
       ),
+      // What the user set — its share of the table and its alignment — in
+      // words. The field path (`item.product_key`) is the server's name for
+      // the column, not the user's.
       subtitle: Text(
-        '$field  ·  $width  ·  $align',
-        style: TextStyle(
-          fontSize: 11,
-          fontFamily: kMonoFontFamily,
-          color: tokens.ink3,
-        ),
+        [if (width.isNotEmpty) width, context.tr(align)].join('  ·  '),
+        style: TextStyle(fontSize: 11.5, color: tokens.ink3),
         overflow: TextOverflow.ellipsis,
       ),
       expanded: expanded,
@@ -492,6 +507,7 @@ class _ColumnRow extends StatelessWidget {
       expandedChild: _ExpandedColumnEditor(
         column: column,
         onColumnChanged: onColumnChanged,
+        othersWidth: othersWidth,
       ),
     );
   }
@@ -501,8 +517,10 @@ class _ExpandedColumnEditor extends StatelessWidget {
   const _ExpandedColumnEditor({
     required this.column,
     required this.onColumnChanged,
+    required this.othersWidth,
   });
 
+  final double othersWidth;
   final Map<String, dynamic> column;
   final void Function(String key, Object? value) onColumnChanged;
 
@@ -529,26 +547,15 @@ class _ExpandedColumnEditor extends StatelessWidget {
             onChanged: (v) => onColumnChanged('header', v),
           ),
           SizedBox(height: InSpacing.md(context)),
-          TextFormField(
-            initialValue: (column['field'] as String?) ?? '',
-            decoration: InputDecoration(
-              labelText: context.tr('field'),
-              border: const OutlineInputBorder(),
-              hintText: 'item.product_key',
-            ),
+          _ColumnFieldPicker(
+            value: (column['field'] as String?) ?? '',
             onChanged: (v) => onColumnChanged('field', v),
           ),
-          SizedBox(height: InSpacing.md(context)),
-          TextFormField(
-            initialValue: (column['width'] as String?) ?? '',
-            decoration: InputDecoration(
-              labelText: context.tr('width'),
-              border: const OutlineInputBorder(),
-              hintText: '25%',
-            ),
+          _ColumnWidthSlider(
+            value: (column['width'] as String?) ?? '',
+            othersTotal: othersWidth,
             onChanged: (v) => onColumnChanged('width', v),
           ),
-          SizedBox(height: InSpacing.md(context)),
           AlignmentInput(
             labelKey: 'alignment',
             value: column['align'] as String?,
@@ -572,27 +579,123 @@ class _ExpandedColumnEditor extends StatelessWidget {
   }
 }
 
-class _ColorField extends StatelessWidget {
-  const _ColorField({
-    required this.labelKey,
-    required this.value,
-    required this.onChanged,
-  });
+/// The line-item value a column shows: one of the fields the server knows,
+/// by name — it used to be `item.product_key` typed into a text field.
+class _ColumnFieldPicker extends StatelessWidget {
+  const _ColumnFieldPicker({required this.value, required this.onChanged});
 
-  final String labelKey;
-  final String? value;
+  final String value;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      initialValue: value ?? '',
-      decoration: InputDecoration(
-        labelText: context.tr(labelKey),
-        hintText: '#FFFFFF',
-        border: const OutlineInputBorder(),
+    final tokens = context.inTheme;
+    final known = [
+      for (final c in _TableBlockPropertiesState._kAvailableColumns)
+        (
+          field: c['field'] as String,
+          label: resolveTableHeaderLabel(context, c['header'] as String),
+        ),
+    ];
+    final current = known.any((k) => k.field == value) ? value : null;
+    return PropertyRow(
+      label: context.tr('field'),
+      child: DropdownButtonHideUnderline(
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: tokens.border),
+            borderRadius: BorderRadius.circular(InRadii.r1),
+          ),
+          child: DropdownButton<String>(
+            value: current,
+            isDense: true,
+            isExpanded: true,
+            // A field this list does not know — another client's, or a
+            // newer server's — is shown as it is stored, never replaced.
+            hint: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: tokens.ink3),
+            ),
+            style: DefaultTextStyle.of(
+              context,
+            ).style.copyWith(fontSize: 13, color: tokens.ink),
+            items: [
+              for (final k in known)
+                DropdownMenuItem(
+                  value: k.field,
+                  child: Text(k.label, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+          ),
+        ),
       ),
-      onChanged: (v) => onChanged(v.trim()),
+    );
+  }
+}
+
+/// A column's width as a share of the table, in steps of 5%. The server
+/// gives whatever the columns leave over to the description column.
+class _ColumnWidthSlider extends StatelessWidget {
+  const _ColumnWidthSlider({
+    required this.value,
+    required this.othersTotal,
+    required this.onChanged,
+  });
+
+  final String value;
+
+  /// What the table's other columns add up to, in percent. This one stops
+  /// at what they leave: columns that total more than the table are squeezed
+  /// by the browser in an order nobody chose.
+  final double othersTotal;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final room = (100 - othersTotal).clamp(5.0, 80.0);
+    final percent = (double.tryParse(value.replaceAll('%', '').trim()) ?? 15)
+        .clamp(5.0, 80.0);
+    return PropertyRow(
+      label: context.tr('width'),
+      child: Row(
+        children: [
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 3,
+                overlayShape: SliderComponentShape.noOverlay,
+              ),
+              child: Slider(
+                value: percent,
+                min: 5,
+                max: 80,
+                divisions: 15,
+                label: '${percent.round()}%',
+                onChanged: (v) {
+                  // Never past what is left — unless it is already past it,
+                  // when narrowing must still be possible.
+                  final capped = v > room && v > percent ? room : v;
+                  onChanged('${(capped / 5).round() * 5}%');
+                },
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 40,
+            child: Text(
+              '${percent.round()}%',
+              textAlign: TextAlign.end,
+              style: TextStyle(fontSize: 12.5, color: context.inTheme.ink2),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

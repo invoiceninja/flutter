@@ -24,6 +24,7 @@ _DesignTemplateApi _$DesignTemplateApiFromJson(Map<String, dynamic> json) =>
           : DocumentSettingsApi.fromJson(
               json['documentSettings'] as Map<String, dynamic>,
             ),
+      extra: _readTemplateExtra(json, '__extra') as Map<String, dynamic>?,
     );
 
 Map<String, dynamic> _$DesignTemplateApiToJson(_DesignTemplateApi instance) =>
@@ -36,6 +37,7 @@ Map<String, dynamic> _$DesignTemplateApiToJson(_DesignTemplateApi instance) =>
       'task': instance.task,
       'blocks': instance.blocks,
       'documentSettings': ?instance.documentSettings,
+      '__extra': ?instance.extra,
     };
 
 _DesignBlockApi _$DesignBlockApiFromJson(Map<String, dynamic> json) =>
@@ -47,12 +49,13 @@ _DesignBlockApi _$DesignBlockApiFromJson(Map<String, dynamic> json) =>
           : GridPositionApi.fromJson(
               json['gridPosition'] as Map<String, dynamic>,
             ),
-      properties: json['properties'] as Map<String, dynamic>?,
+      properties: _blockProperties(json['properties']),
       locked: json['locked'] as bool?,
       rowAlign: json['rowAlign'] as String?,
       rowWidth: json['rowWidth'] as String?,
       colStart: (json['colStart'] as num?)?.toInt(),
       colSpan: (json['colSpan'] as num?)?.toInt(),
+      extra: _readBlockExtra(json, '__extra') as Map<String, dynamic>?,
     );
 
 Map<String, dynamic> _$DesignBlockApiToJson(_DesignBlockApi instance) =>
@@ -66,6 +69,7 @@ Map<String, dynamic> _$DesignBlockApiToJson(_DesignBlockApi instance) =>
       'rowWidth': ?instance.rowWidth,
       'colStart': ?instance.colStart,
       'colSpan': ?instance.colSpan,
+      '__extra': ?instance.extra,
     };
 
 _GridPositionApi _$GridPositionApiFromJson(Map<String, dynamic> json) =>
@@ -104,6 +108,8 @@ _DocumentSettingsApi _$DocumentSettingsApiFromJson(Map<String, dynamic> json) =>
       pagePaddingRight: (json['pagePaddingRight'] as num?)?.toInt() ?? 30,
       pagePaddingBottom: (json['pagePaddingBottom'] as num?)?.toInt() ?? 30,
       pagePaddingLeft: (json['pagePaddingLeft'] as num?)?.toInt() ?? 30,
+      extra:
+          _readDocumentSettingsExtra(json, '__extra') as Map<String, dynamic>?,
     );
 
 Map<String, dynamic> _$DocumentSettingsApiToJson(
@@ -127,6 +133,7 @@ Map<String, dynamic> _$DocumentSettingsApiToJson(
   'pagePaddingRight': instance.pagePaddingRight,
   'pagePaddingBottom': instance.pagePaddingBottom,
   'pagePaddingLeft': instance.pagePaddingLeft,
+  '__extra': ?instance.extra,
 };
 
 _DesignApi _$DesignApiFromJson(Map<String, dynamic> json) => _DesignApi(

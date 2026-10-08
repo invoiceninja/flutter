@@ -80,6 +80,37 @@ void main() {
     );
 
     test(
+      'a real record id is sent; one the server cannot know is not',
+      () async {
+        final sent = <Object?>[];
+        final service = LiveDesignService(
+          ApiClient(
+            credentials: _creds(),
+            passwordCache: PasswordCache(),
+            onUnauthorized: () async {},
+            httpClient: MockClient((req) async {
+              sent.add((jsonDecode(req.body) as Map)['entity_id']);
+              return http.Response.bytes(
+                utf8.encode('%PDF-1.4 fake'),
+                200,
+                headers: const {'content-type': 'application/pdf'},
+              );
+            }),
+          ),
+        );
+        for (final id in ['Wpmbk5ezJn', null, '', 'tmp_1f0c']) {
+          await service.renderDesignPreview(
+            entityType: 'invoice',
+            design: _design(),
+            entityId: id,
+          );
+        }
+        // An unsynced record's id would be a 400 from the server.
+        expect(sent, ['Wpmbk5ezJn', '-1', '-1', '-1']);
+      },
+    );
+
+    test(
       'a brand-new design (empty id) omits the id key from the payload',
       () async {
         http.Request? captured;

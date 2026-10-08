@@ -26,7 +26,7 @@ String replaceVariables(
   if (data == null) return template;
 
   var r = template;
-  String money(Decimal v) => _formatMoney(v, formatter);
+  String money(Decimal v) => _formatMoney(v, formatter, data.currencyId);
   String date(String iso) => _formatDate(iso, formatter);
 
   // ── Company variables ────────────────────────────────────────────────
@@ -176,7 +176,10 @@ String replaceVariables(
 
   // ── Flat total variables ─────────────────────────────────────────────
   r = r
-      .replaceAll(RegExp(r'\$balance_due\b'), money(inv.balance))
+      .replaceAll(
+        RegExp(r'\$balance_due\b'),
+        money(inv.balanceDue ?? inv.balance),
+      )
       .replaceAll(RegExp(r'\$paid_to_date\b'), money(inv.paidToDate))
       .replaceAll(RegExp(r'\$subtotal\b'), money(inv.subtotal))
       .replaceAll(RegExp(r'\$discount\b'), money(inv.discount))
@@ -187,7 +190,11 @@ String replaceVariables(
       .replaceAll(RegExp(r'\$taxes\b'), money(inv.totalTaxes))
       .replaceAll(RegExp(r'\$total\b'), money(inv.total))
       .replaceAll(RegExp(r'\$balance\b'), money(inv.balance))
-      .replaceAll(RegExp(r'\$partial\b'), money(Decimal.zero));
+      .replaceAll(
+        RegExp(r'\$partial_due\b'),
+        money(inv.partial ?? Decimal.zero),
+      )
+      .replaceAll(RegExp(r'\$partial\b'), money(inv.partial ?? Decimal.zero));
 
   // ── QR code placeholders ─────────────────────────────────────────────
   r = r
@@ -199,6 +206,15 @@ String replaceVariables(
 
   return r;
 }
+
+/// Whether a row whose variable resolved to [resolved] prints nothing — the
+/// server's `resolvesEmpty` (`PdfBuilder.php`), which "hide if empty" turns
+/// on: blank once trimmed, **or still holding a `$token`** nothing replaced.
+/// A literal the user typed in place of a variable is neither, and prints.
+bool resolvesEmpty(String resolved) =>
+    resolved.trim().isEmpty || _unresolvedToken.hasMatch(resolved);
+
+final RegExp _unresolvedToken = RegExp(r'\$[A-Za-z_][A-Za-z0-9_.]*');
 
 /// Resolve a single `item.<field>` variable to its line-item value. Used
 /// by tables and tasks-tables when rendering each row.
@@ -228,13 +244,15 @@ String resolveItemVariable(
       _ => '',
     };
     if (value is Decimal) {
+      String plain(Decimal v) =>
+          v == v.truncate() ? v.toBigInt().toString() : v.toString();
       // Money fields go through Formatter; quantity stays a plain count.
-      if (field == 'quantity') {
-        return value == value.truncate()
-            ? value.toBigInt().toString()
-            : value.toString();
+      if (field == 'quantity') return plain(value);
+      // A percentage discount is a rate, not an amount.
+      if (field == 'discount' && !data.isAmountDiscount) {
+        return '${plain(value)}%';
       }
-      return _formatMoney(value, formatter);
+      return _formatMoney(value, formatter, data.currencyId);
     }
     return value.toString();
   }
@@ -242,9 +260,9 @@ String resolveItemVariable(
   return replaceVariables(variable, data: data, formatter: formatter);
 }
 
-String _formatMoney(Decimal amount, Formatter? formatter) {
+String _formatMoney(Decimal amount, Formatter? formatter, String? currencyId) {
   if (formatter != null) {
-    return formatter.money(amount);
+    return formatter.money(amount, clientCurrencyId: currencyId);
   }
   // Fallback — matches React's hardcoded Intl.NumberFormat('en-US', USD).
   return NumberFormat.currency(
@@ -281,7 +299,9 @@ const Map<String, String> kLabelTranslationMap = {
   r'$po_number_label': 'po_number',
   r'$amount_label': 'amount',
   r'$balance_label': 'balance',
-  r'$partial_label': 'partial_deposit',
+  // "Partial Due" — the server's label for `$partial` is `$partial_due`'s
+  // (probed), not the form field's "Partial/Deposit".
+  r'$partial_label': 'partial_due',
   r'$subtotal_label': 'subtotal',
   r'$discount_label': 'discount',
   r'$taxes_label': 'taxes',
@@ -334,17 +354,37 @@ const Map<String, String> kLabelTranslationMap = {
   r'$company.custom2_label': 'custom2',
   r'$company.custom3_label': 'custom3',
   r'$company.custom4_label': 'custom4',
-  // Product/item labels.
-  r'$product.product_key_label': 'item',
+  // Product/item labels — keys are the ones `HtmlEngine` passes to `ctrans`.
+  r'$product.item_label': 'item',
+  r'$product.product_key_label': 'product_key',
   r'$product.description_label': 'description',
   r'$product.notes_label': 'description',
-  r'$product.quantity_label': 'qty',
+  r'$product.quantity_label': 'quantity',
   r'$product.unit_cost_label': 'unit_cost',
+  r'$product.net_cost_label': 'unit_cost',
   r'$product.line_total_label': 'line_total',
+  r'$product.gross_line_total_label': 'gross_line_total',
   r'$product.discount_label': 'discount',
+  r'$product.tax_label': 'tax',
+  r'$product.tax_amount_label': 'tax_amount',
   r'$product.tax_name1_label': 'tax',
   r'$product.tax_name2_label': 'tax',
   r'$product.tax_name3_label': 'tax',
+  r'$product.tax_rate1_label': 'tax',
+  r'$product.tax_rate2_label': 'tax',
+  r'$product.tax_rate3_label': 'tax',
+  r'$product.date_label': 'date',
+  r'$product.product1_label': 'product1',
+  r'$product.product2_label': 'product2',
+  r'$product.product3_label': 'product3',
+  r'$product.product4_label': 'product4',
+  // Section headings.
+  r'$bill_to_label': 'bill_to',
+  r'$ship_to_label': 'ship_to',
+  r'$shipping_label': 'shipping_address',
+  r'$from_label': 'from',
+  r'$to_label': 'to',
+  r'$details_label': 'details',
   // Contact labels.
   r'$contact.first_name_label': 'first_name',
   r'$contact.last_name_label': 'last_name',
@@ -372,22 +412,67 @@ const Map<String, String> kLabelTranslationMap = {
   r'$invoice.custom3_label': 'custom3',
   r'$invoice.custom4_label': 'custom4',
   // Task labels.
+  r'$task.service_label': 'service',
   r'$task.description_label': 'description',
   r'$task.hours_label': 'hours',
   r'$task.rate_label': 'rate',
-  r'$task.service_label': 'service',
+  r'$task.cost_label': 'cost',
   r'$task.line_total_label': 'line_total',
+  r'$task.gross_line_total_label': 'gross_line_total',
+  r'$task.discount_label': 'discount',
+  r'$task.tax_label': 'tax',
+  r'$task.tax_amount_label': 'tax_amount',
+  r'$task.date_label': 'date',
 };
 
-/// Replace every `$..._label` token in [text] with its translated string.
-/// Tokens not in [kLabelTranslationMap] are left untouched so the user
-/// still sees something useful instead of an empty cell. Mirrors React
-/// `replaceLabelVariables(text, t)`.
-String replaceLabelVariables(String text, LabelTranslator tr) {
+/// Replace every `$..._label` token in [text] with what the server prints
+/// for it.
+///
+/// - A custom field's label is **the name the company gave the field**
+///   ([customFieldLabels], by slot) — `HtmlEngine` builds it with
+///   `makeCustomField`, so a translation of "custom1" was never what printed.
+///   A slot with no name prints nothing.
+/// - While [document] asks for a deposit, the balance-due row is relabelled
+///   "Partial Due".
+/// - A token [kLabelTranslationMap] lists is that string.
+/// - Any other is read from the token's own last word
+///   (`$client.vat_number_label` → the `vat_number` string): the server
+///   makes a label for every value it knows.
+/// - One with no such string is left as typed, which is also what prints.
+String replaceLabelVariables(
+  String text,
+  LabelTranslator tr, {
+  DesignerSampleData? document,
+  Map<String, String>? customFieldLabels,
+}) {
   return text.replaceAllMapped(RegExp(r'\$[\w.]+_label\b'), (m) {
     final token = m.group(0)!;
+    final custom = _customFieldToken.firstMatch(token);
+    // Null is "not known here" (a thumbnail, a test): the generic string.
+    if (custom != null && customFieldLabels != null) {
+      final owner = custom.group(1);
+      final slot = switch (owner) {
+        null || 'entity' => 'invoice',
+        _ => owner,
+      };
+      return customFieldLabels['$slot${custom.group(2)}']?.trim() ?? '';
+    }
+    if (token == r'$balance_due_label' &&
+        (document?.invoice.hasPartial ?? false)) {
+      return tr('partial_due');
+    }
     final key = kLabelTranslationMap[token];
-    if (key == null) return token;
-    return tr(key);
+    if (key != null) return tr(key);
+    final word = token
+        .substring(1, token.length - '_label'.length)
+        .split('.')
+        .last;
+    final translated = tr(word);
+    return translated == word ? token : translated;
   });
 }
+
+/// `$invoice.custom1_label`, `$client.custom3_label`, bare `$custom2_label`.
+final RegExp _customFieldToken = RegExp(
+  r'^\$(?:(client|contact|company|invoice|entity)\.)?custom([1-4])_label$',
+);

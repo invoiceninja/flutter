@@ -153,7 +153,7 @@ void main() {
       final hideSwitch = find
           .ancestor(
             of: find.text('Hide if Empty'),
-            matching: find.byType(SwitchListTile),
+            matching: find.byType(PropertySwitch),
           )
           .first;
       await tester.tap(hideSwitch);
@@ -219,12 +219,9 @@ void main() {
         // Sub-card lands.
         expect(find.byType(CellTypographyEditor), findsOneWidget);
         // Italic toggle inside the sub-card flips fontStyle.
-        final italic = find
-            .ancestor(
-              of: find.text('Italic'),
-              matching: find.byType(OutlinedButton),
-            )
-            .first;
+        final italic = find.byTooltip('Italic').first;
+        await tester.ensureVisible(italic);
+        await tester.pump();
         await tester.tap(italic);
         await tester.pump();
         final items = vm.blocks.single.properties['items'] as List;
@@ -296,39 +293,59 @@ void main() {
         _wrap(TotalBlockProperties(vm: vm, block: vm.blocks.single)),
       );
       await tester.pump();
-      // Defaults to false; tap the switch via its title text. Editor
-      // is tall — scroll the switch into the visible viewport first.
-      final pageBreakSwitch = find
-          .ancestor(
-            of: find.text('Force page break before this block'),
-            matching: find.byType(SwitchListTile),
-          )
-          .first;
-      await tester.ensureVisible(pageBreakSwitch);
+      // It lives in the Advanced group, which starts closed (and remembers
+      // being opened for the rest of the session).
+      Finder pageBreak() => find.ancestor(
+        of: find.text('Force page break before this block'),
+        matching: find.byType(PropertySwitch),
+      );
+      if (pageBreak().evaluate().isEmpty) {
+        final advanced = find.text('ADVANCED');
+        await tester.ensureVisible(advanced);
+        await tester.pump();
+        await tester.tap(advanced);
+        await tester.pump();
+      }
+      await tester.ensureVisible(pageBreak().first);
       await tester.pump();
-      await tester.tap(pageBreakSwitch);
+      await tester.tap(pageBreak().first);
       await tester.pump();
       expect(vm.blocks.single.properties['keepTogether'], isTrue);
     });
   });
 
   group('Phase 9b — Total block-level fontSize', () {
-    testWidgets('selecting a font-size chip writes the block-level value', (
-      tester,
-    ) async {
+    testWidgets('typing a size, stepping it and clearing it', (tester) async {
       final vm = WysiwygDesignViewModel(repo: repo, companyId: companyId);
       vm.addBlock(_spec('total'));
       await tester.pumpWidget(
-        _wrap(TotalBlockProperties(vm: vm, block: vm.blocks.single)),
+        _wrap(
+          ListenableBuilder(
+            listenable: vm,
+            builder: (_, _) =>
+                TotalBlockProperties(vm: vm, block: vm.blocks.single),
+          ),
+        ),
       );
       await tester.pump();
-      // FontSizeInput exposes presets as ChoiceChips. Pick 18px.
-      final chip = find.widgetWithText(ChoiceChip, '18px').first;
-      await tester.ensureVisible(chip);
+      final row = find.widgetWithText(PropertyRow, 'Font Size').first;
+      final field = find.descendant(of: row, matching: find.byType(TextField));
+      await tester.ensureVisible(field);
       await tester.pump();
-      await tester.tap(chip);
+      await tester.enterText(field, '18');
       await tester.pump();
       expect(vm.blocks.single.properties['fontSize'], '18px');
+
+      await tester.tap(
+        find.descendant(of: row, matching: find.byIcon(Icons.add)),
+      );
+      await tester.pump();
+      expect(vm.blocks.single.properties['fontSize'], '19px');
+
+      // Empty is "the document's size": the key leaves the block.
+      await tester.enterText(field, '');
+      await tester.pump();
+      expect(vm.blocks.single.properties.containsKey('fontSize'), isFalse);
     });
   });
 
@@ -372,13 +389,9 @@ void main() {
     });
   });
 
-  group('Phase 19b / 20d — _Quad direction labels render above inputs', () {
-    // PropertyPanel renders the document form for an unselected block.
-    // The Phase 19b restructure pushed each _NumberField's label up as
-    // a static Text widget above a dense TextFormField; the previous
-    // Material InputDecoration(labelText:) was truncating to "T..." /
-    // "Ri..." at the panel's 280 px width inside a 4-cell _Quad row.
-    // This guard catches a regression that flips back.
+  group('page margins — four numbers for four distances', () {
+    // The design stores a margin and a padding per side and the server adds
+    // them into one `@page` margin. The panel used to show all eight.
     Widget bareWrap(Widget child) => MaterialApp(
       localizationsDelegates: kTestLocalizationsDelegates,
       supportedLocales: kTestSupportedLocales,
@@ -387,109 +400,187 @@ void main() {
       home: Scaffold(body: child),
     );
 
+    testWidgets('each side appears once and edits the whole inset', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(420, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final vm = WysiwygDesignViewModel(repo: repo, companyId: companyId);
+      await tester.pumpWidget(
+        bareWrap(
+          ListenableBuilder(
+            listenable: vm,
+            builder: (_, _) => PropertyPanel(vm: vm),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      for (final side in const ['Top', 'Right', 'Bottom', 'Left']) {
+        expect(find.text(side), findsOneWidget, reason: side);
+      }
+      Finder fieldOf(String side) => find.descendant(
+        of: find.widgetWithText(PropertyRow, side),
+        matching: find.byType(TextField),
+      );
+      // Defaults: margin 0 + padding 30.
+      expect(tester.widget<TextField>(fieldOf('Top')).controller!.text, '30');
+
+      // Wider than the padding: the margin takes the difference.
+      await tester.enterText(fieldOf('Top'), '50');
+      await tester.pump();
+      expect(vm.documentSettings.pagePaddingTop, 30);
+      expect(vm.documentSettings.pageMarginTop, 20);
+
+      // Narrower than the padding: the padding gives way.
+      await tester.enterText(fieldOf('Left'), '10');
+      await tester.pump();
+      expect(vm.documentSettings.pagePaddingLeft, 10);
+      expect(vm.documentSettings.pageMarginLeft, 0);
+
+      // A preset sets all four.
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Wide'));
+      await tester.pump();
+      final ds = vm.documentSettings;
+      expect(
+        [
+          ds.pageMarginTop + ds.pagePaddingTop,
+          ds.pageMarginRight + ds.pagePaddingRight,
+          ds.pageMarginBottom + ds.pagePaddingBottom,
+          ds.pageMarginLeft + ds.pagePaddingLeft,
+        ],
+        [60, 60, 60, 60],
+      );
+    });
+
+    testWidgets('a stored value the lists do not hold is shown as stored', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(420, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final vm = WysiwygDesignViewModel(repo: repo, companyId: companyId);
+      vm.setDocumentSettings(
+        vm.documentSettings.copyWith(pageSize: 'B5', primaryFont: 'Zilla_Slab'),
+      );
+      await tester.pumpWidget(bareWrap(PropertyPanel(vm: vm)));
+      await tester.pump();
+      // Not a silent "A4", and not "Roboto".
+      expect(find.textContaining('B5'), findsOneWidget);
+      expect(find.textContaining('prints as A4'), findsOneWidget);
+      expect(find.text('Zilla Slab'), findsOneWidget);
+    });
+
     testWidgets(
-      'each direction label renders twice — once per Quad (margin + padding)',
+      'a size the server prints is not called A4, whatever its case',
       (tester) async {
-        // PropertyPanel's document form uses a ListView; switches below
-        // the default 600 px viewport don't mount, but the two _Quad
-        // rows sit near the top so we just need a small bump.
-        await tester.binding.setSurfaceSize(const Size(420, 1600));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-
-        // The font-picker DropdownButtonFormField has a pre-existing
-        // 68 px horizontal overflow at the panel's fixed 280 px width
-        // — unrelated to Phase 19b. Suppress it so the assertions
-        // below aren't pre-empted by the framework's error handler.
-        final originalOnError = FlutterError.onError;
-        FlutterError.onError = (details) {
-          final s = details.exceptionAsString();
-          if (s.contains('RenderFlex overflowed')) return;
-          originalOnError?.call(details);
-        };
-        addTearDown(() => FlutterError.onError = originalOnError);
-
-        final vm = WysiwygDesignViewModel(repo: repo, companyId: companyId);
-        await tester.pumpWidget(bareWrap(PropertyPanel(vm: vm)));
-        await tester.pump();
-
-        // Both `_Quad`s (Page margin + Padding) render T / R / B / L
-        // labels — 2 occurrences per direction.
-        for (final dir in const ['Top', 'Right', 'Bottom', 'Left']) {
-          expect(find.text(dir), findsNWidgets(2), reason: 'label $dir');
-        }
-
-        // Each direction Text sits ABOVE a TextFormField in the same
-        // Column — spot-check the first 'Top' resolves to a parent
-        // Column also containing a TextFormField.
-        final topText = find.text('Top').first;
-        final ancestorColumn = find.ancestor(
-          of: topText,
-          matching: find.byType(Column),
-        );
-        expect(ancestorColumn, findsAtLeast(1));
-        // Regression guard against reverting to Material floating
-        // labels: TextFormField's inner TextField must not carry a
-        // labelText decoration matching one of the direction words.
-        // (TextFormField wraps TextField → InputDecorator; check the
-        // inner TextField for the decoration.)
-        final allTextFields = tester.widgetList<TextField>(
-          find.byType(TextField),
-        );
-        for (final field in allTextFields) {
-          final lbl = field.decoration?.labelText;
-          if (lbl != null) {
-            expect(
-              const <String>{'Top', 'Right', 'Bottom', 'Left'}.contains(lbl),
-              isFalse,
-              reason:
-                  '_NumberField must not regress to a floating '
-                  'direction label (found "$lbl")',
-            );
-          }
+        tester.view.physicalSize = const Size(420, 1600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        for (final (stored, shown) in [
+          ('a4', 'A4'),
+          ('letter', 'Letter'),
+          ('A1', 'A1'),
+        ]) {
+          final vm = WysiwygDesignViewModel(repo: repo, companyId: companyId);
+          vm.setDocumentSettings(
+            vm.documentSettings.copyWith(pageSize: stored),
+          );
+          await tester.pumpWidget(
+            bareWrap(PropertyPanel(key: ValueKey(stored), vm: vm)),
+          );
+          await tester.pump();
+          expect(
+            find.textContaining('prints as A4'),
+            findsNothing,
+            reason: stored,
+          );
+          expect(find.text(shown), findsWidgets, reason: stored);
         }
       },
     );
   });
 
-  group('Phase 19a — AlignmentInput is icon-only with tooltips', () {
-    testWidgets('segments carry only icons + tooltips, no per-segment text', (
+  group('AlignmentInput', () {
+    testWidgets('three icon buttons with spoken names; a press reports it', (
       tester,
     ) async {
+      String? picked;
       await tester.pumpWidget(
         _wrap(
           AlignmentInput(
             labelKey: 'alignment',
             value: 'left',
-            onChanged: (_) {},
+            onChanged: (v) => picked = v,
           ),
         ),
       );
       await tester.pump();
 
-      // The three format_align icons render.
       expect(find.byIcon(Icons.format_align_left), findsOneWidget);
       expect(find.byIcon(Icons.format_align_center), findsOneWidget);
       expect(find.byIcon(Icons.format_align_right), findsOneWidget);
-
-      // Each segment carries a tooltip (per ButtonSegment.tooltip).
-      final segmented = tester.widget<SegmentedButton<String>>(
-        find.byType(SegmentedButton<String>),
-      );
-      expect(segmented.segments, hasLength(3));
-      for (final seg in segmented.segments) {
-        expect(
-          seg.tooltip,
-          isNotNull,
-          reason: 'segment ${seg.value} should expose a tooltip',
-        );
-        // The wordy label was removed in Phase 19a — no per-segment
-        // text widget should be embedded.
-        expect(
-          seg.label,
-          isNull,
-          reason: 'segment ${seg.value} should not carry a text label',
-        );
+      // Icon-only, so each carries its name as a tooltip.
+      for (final name in const ['Left', 'Center', 'Right']) {
+        expect(find.byTooltip(name), findsOneWidget, reason: name);
       }
+      await tester.tap(find.byTooltip('Right'));
+      expect(picked, 'right');
+    });
+  });
+
+  group('ColorInput', () {
+    testWidgets('opens a picker; a swatch sets it and Default clears it', (
+      tester,
+    ) async {
+      String? value = '#111111';
+      await tester.pumpWidget(
+        _wrap(
+          StatefulBuilder(
+            builder: (context, setState) => DesignerPaletteScope(
+              inUse: const ['#AB12CD'],
+              brand: const [],
+              child: ColorInput(
+                labelKey: 'color',
+                value: value,
+                defaultValue: '#000000',
+                onChanged: (v) => setState(() => value = v),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('#111111'), findsOneWidget);
+
+      await tester.tap(find.text('#111111'));
+      await tester.pumpAndSettle();
+      // Colours the design already uses come first.
+      expect(find.text('In this design'), findsOneWidget);
+      await tester.tap(find.text('Default'));
+      await tester.pumpAndSettle();
+      expect(value, '');
+      // Unset reads "Default", not a hex code nobody chose.
+      expect(find.text('Default'), findsOneWidget);
+    });
+
+    test('collects the colours a design already uses, once each', () {
+      expect(
+        collectHexColors([
+          {
+            'color': '#ff0000',
+            'headerBg': '#F3F4F6',
+            'items': [
+              {'color': '#FF0000'},
+              {'color': 'not a colour'},
+            ],
+          },
+        ]),
+        ['#FF0000', '#F3F4F6'],
+      );
     });
   });
 }

@@ -37,11 +37,12 @@ class TabbedSettingsTab {
   /// Theme + Language) — a Save button there would read as a no-op.
   final bool contributesToSave;
 
-  /// Optional widget that the cascade shell renders at the **left** of the
-  /// preview toggle bar (`_PreviewBarButton` row) when this tab is active.
-  /// Lets a tab inject its primary action (e.g. Custom Designs' "New
-  /// design") so it sits on the same horizontal line as the Show Preview
-  /// toggle instead of duplicating a vertical stack inside the body.
+  /// Optional widget that the cascade shell renders at the **top-left** of
+  /// the tab content while this tab is active, at every width — beside the
+  /// preview button where the layout has one, on its own where the preview
+  /// sits alongside. Lets a tab inject its primary action (e.g. Custom
+  /// Designs' "New design") so it shares a line with the Show Preview toggle
+  /// instead of duplicating a vertical stack inside the body.
   final Widget? topBarLeading;
 }
 

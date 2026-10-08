@@ -207,11 +207,92 @@ void main() {
       }
     });
 
-    test('unknown tokens stay literal', () {
+    // A translator that, like the app's, hands back the key for a string
+    // it does not have.
+    String known(String key) =>
+        const {
+          'vat_number': 'VAT Number',
+          'balance_due': 'Balance Due',
+          'partial_due': 'Partial Due',
+          'custom1': 'Custom1',
+        }[key] ??
+        key;
+
+    test('a token with no string of its own stays as typed', () {
+      // …which is also what the server prints for one it does not know.
       expect(
-        replaceLabelVariables(r'$totally_made_up_label', upper),
+        replaceLabelVariables(r'$totally_made_up_label', known),
         r'$totally_made_up_label',
       );
+    });
+
+    test('a token the map does not list is read from its last word', () {
+      // The server makes a label for every value it knows; "Add field" on
+      // a details block stores exactly this form.
+      expect(
+        replaceLabelVariables(r'$client.vat_number_label', known),
+        'VAT Number',
+      );
+    });
+
+    test('a custom field is labelled with the name the company gave it', () {
+      const names = {'invoice1': 'Project code', 'client2': 'Region'};
+      String label(String token) =>
+          replaceLabelVariables(token, known, customFieldLabels: names);
+      expect(label(r'$invoice.custom1_label'), 'Project code');
+      expect(label(r'$entity.custom1_label'), 'Project code');
+      expect(label(r'$custom1_label'), 'Project code');
+      expect(label(r'$client.custom2_label'), 'Region');
+      // A slot the company has not named prints nothing — not "Custom3".
+      expect(label(r'$invoice.custom3_label'), '');
+    });
+
+    test('balance due is "Partial Due" while a deposit is asked for', () {
+      final base = DesignerSampleData.fallback;
+      DesignerSampleData withPartial(Decimal? partial) => DesignerSampleData(
+        company: base.company,
+        client: base.client,
+        lineItems: base.lineItems,
+        invoice: DesignerSampleInvoice(
+          number: '1',
+          date: '',
+          dueDate: '',
+          poNumber: '',
+          subtotal: Decimal.zero,
+          discount: Decimal.zero,
+          total: Decimal.zero,
+          paidToDate: Decimal.zero,
+          balance: Decimal.zero,
+          totalTaxes: Decimal.zero,
+          customSurcharge1: Decimal.zero,
+          customSurcharge2: Decimal.zero,
+          customSurcharge3: Decimal.zero,
+          customSurcharge4: Decimal.zero,
+          publicUrl: '',
+          publicNotes: '',
+          footer: '',
+          terms: '',
+          label: '',
+          customValue1: '',
+          customValue2: '',
+          customValue3: '',
+          customValue4: '',
+          tax: Decimal.zero,
+          createdAt: '',
+          updatedAt: '',
+          partialDueDate: '',
+          tags: '',
+          partial: partial,
+        ),
+      );
+      String label(Decimal? partial) => replaceLabelVariables(
+        r'$balance_due_label',
+        known,
+        document: withPartial(partial),
+      );
+      expect(label(null), 'Balance Due');
+      expect(label(Decimal.zero), 'Balance Due');
+      expect(label(Decimal.fromInt(50)), 'Partial Due');
     });
 
     test('non-label text passes through unchanged', () {

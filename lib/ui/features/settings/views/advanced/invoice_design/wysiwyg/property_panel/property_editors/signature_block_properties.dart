@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
@@ -74,33 +73,27 @@ class _SignatureBlockPropertiesState extends State<SignatureBlockProperties> {
           ),
           onChanged: (v) => _write('label', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_line')),
+        PropertySwitch(
+          labelKey: 'show_line',
           value: (props['showLine'] as bool?) ?? true,
           onChanged: (v) => _write('showLine', v),
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_date')),
+        PropertySwitch(
+          labelKey: 'show_date',
           value: (props['showDate'] as bool?) ?? false,
           onChanged: (v) => _write('showDate', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         AlignmentInput(
           labelKey: 'alignment',
           value: props['align'] as String?,
           onChanged: (v) => _write('align', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'color',
           value: props['color'] as String?,
           onChanged: (v) => _write('color', v),
           defaultValue: '#6B7280',
         ),
-        SizedBox(height: InSpacing.md(context)),
         PxInput(
           labelKey: 'font_size',
           value: props['fontSize'],

@@ -115,4 +115,50 @@ void main() {
     await tester.pump();
     expect(find.text('[Acme Corporation]'), findsOneWidget);
   });
+
+  testWidgets(
+    'invoice details: the longest value keeps its gap from the label',
+    (tester) async {
+      // The gap was a third table column pinned to zero width, so the row
+      // with the longest value printed as "Due DateDec 23, 2025".
+      final spec = blockSpecFor('invoice-details')!;
+      final block = DesignBlock(
+        id: 'details-1',
+        type: 'invoice-details',
+        gridPosition: const GridPosition(x: 0, y: 0, w: 6, h: 4),
+        properties: {
+          ...spec.defaultProperties,
+          'labelValueGap': '12px',
+          'fieldConfigs': [
+            {'id': 'a', 'label': 'Due Date', 'variable': 'Dec 23, 2025'},
+            {'id': 'b', 'label': 'No.', 'variable': '7'},
+          ],
+        },
+      );
+      await tester.pumpWidget(
+        _wrap(
+          SizedBox(
+            width: 400,
+            child: InvoiceDetailsBlock(
+              block: block,
+              sample: DesignerSampleData.fallback,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      for (final (label, value) in [
+        ('Due Date', 'Dec 23, 2025'),
+        ('No.', '7'),
+      ]) {
+        final labelRight = tester.getTopRight(find.text(label)).dx;
+        final valueLeft = tester.getTopLeft(find.text(value)).dx;
+        expect(
+          valueLeft - labelRight,
+          greaterThanOrEqualTo(12),
+          reason: '$label / $value',
+        );
+      }
+    },
+  );
 }

@@ -81,15 +81,9 @@ class QrcodeBlockProperties extends StatelessWidget {
               ),
           ],
         ),
-        const SectionDivider(labelKey: 'appearance'),
-        PxInput(
-          labelKey: 'size',
-          value: block.properties['size'],
-          hintText: '100',
-          resettable: true,
-          onChanged: (v) => _writeProperty('size', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
+        // No size control: the server draws the code at 150px whatever the
+        // block says (`docs/invoice-designer.md`).
+        const SectionDivider(labelKey: 'layout'),
         AlignmentInput(
           labelKey: 'alignment',
           value: block.properties['align'] as String?,

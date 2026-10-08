@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/sample/sample_data.dart';
+import 'package:admin/utils/formatting.dart';
+
 /// Parsers that turn React-shaped CSS-string property values into typed
 /// Flutter values. Every renderer reads `properties: Map<String, dynamic>`
 /// and these helpers project the strings to `Color`, `double`, `TextAlign`,
@@ -145,20 +148,21 @@ BoxFit parseObjectFit(String? value) {
 
 /// Parse a `{color, width, sides: {top, right, bottom, left}}` map (used
 /// by `table` / `tasks-table` blocks for `headerBorders` / `rowBorders`)
-/// into a Flutter [Border]. Returns null when the input is missing or has
-/// no enabled sides.
+/// into a Flutter [Border], by the server's rules
+/// (`resolveTableRegionBorders`): a missing region is every side at 1px
+/// `#E5E7EB`, and **a side is drawn unless it is strictly `false`** — a
+/// missing one is on. Null when no side would be drawn.
 Border? parseTableRegionBorders(Map<String, dynamic>? raw) {
-  if (raw == null) return null;
-  final sides = raw['sides'];
-  if (sides is! Map<String, dynamic>) return null;
+  final sides = raw?['sides'];
   final color = parseCssColor(
-    raw['color'] as String?,
+    raw?['color'] as String?,
     fallback: const Color(0xFFE5E7EB),
   );
-  final width = parsePx(raw['width']) ?? 1.0;
-  BorderSide sideFor(String key) => (sides[key] as bool? ?? false)
-      ? BorderSide(color: color, width: width)
-      : BorderSide.none;
+  final width = (parsePx(raw?['width']) ?? 1.0).clamp(0.0, 20.0);
+  if (width <= 0) return null;
+  BorderSide sideFor(String key) => sides is Map && sides[key] == false
+      ? BorderSide.none
+      : BorderSide(color: color, width: width);
   final top = sideFor('top');
   final right = sideFor('right');
   final bottom = sideFor('bottom');
@@ -260,3 +264,55 @@ List<Map<String, dynamic>> propMapList(Map<String, dynamic> props, String key) {
       if (item is Map<String, dynamic>) item,
   ];
 }
+
+/// What the designer's widgets take from around them: the company's
+/// [Formatter], so amounts and dates read as they will on the PDF rather
+/// than as en-US dollars, and the document everything is filled in with —
+/// so an example value in the property panel is the value on the page.
+class DesignerRenderScope extends InheritedWidget {
+  const DesignerRenderScope({
+    super.key,
+    required this.formatter,
+    this.sample,
+    this.customFieldLabels,
+    required super.child,
+  });
+
+  final Formatter? formatter;
+
+  /// The names the company gave its custom fields, by slot (`invoice1`,
+  /// `client2`) — what the server prints for `$invoice.custom1_label`. Null
+  /// where nothing knows them.
+  final Map<String, String>? customFieldLabels;
+
+  /// Null where nothing set one: [sampleOf] then answers with the made-up
+  /// document.
+  final DesignerSampleData? sample;
+
+  static Formatter? formatterOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<DesignerRenderScope>()
+      ?.formatter;
+
+  static DesignerSampleData? maybeSampleOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DesignerRenderScope>()?.sample;
+
+  static DesignerSampleData sampleOf(BuildContext context) =>
+      maybeSampleOf(context) ?? DesignerSampleData.fallback;
+
+  static Map<String, String>? customFieldLabelsOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<DesignerRenderScope>()
+          ?.customFieldLabels;
+
+  @override
+  bool updateShouldNotify(DesignerRenderScope old) =>
+      old.formatter != formatter ||
+      !identical(old.sample, sample) ||
+      !identical(old.customFieldLabels, customFieldLabels);
+}
+
+/// The size a block's text takes when it sets none of its own: the
+/// document's, which the page puts in its `DefaultTextStyle` — as on the
+/// server, where a block without a `font-size` inherits the body's.
+double inheritedFontSize(BuildContext context) =>
+    DefaultTextStyle.of(context).style.fontSize ?? 16;

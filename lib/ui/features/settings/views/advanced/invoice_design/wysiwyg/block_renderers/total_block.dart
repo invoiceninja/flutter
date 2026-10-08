@@ -46,11 +46,12 @@ class TotalBlock extends StatelessWidget {
     final totalFontWeight = parseFontWeight(
       props['totalFontWeight'] as String? ?? 'bold',
     );
-    final fontSize = parsePx(props['fontSize']) ?? 12;
+    final fontSize = parsePx(props['fontSize']) ?? inheritedFontSize(context);
     final labelPad = parsePx(props['labelPadding']) ?? 0;
     final valuePad = parsePx(props['valuePadding']) ?? 0;
     final spacing = parsePx(props['spacing']) ?? 0;
-    final gap = parsePx(props['labelValueGap']) ?? 10;
+    // The server's own fallback for a totals block.
+    final gap = parsePx(props['labelValueGap']) ?? 20;
     final showLabels = props['showLabels'] as bool? ?? true;
     // Phase 9a: block-level alignment positions the totals table
     // left/center/right within the surrounding grid cell. Mirrors
@@ -136,8 +137,14 @@ class _TotalRow extends StatelessWidget {
     final label = replaceLabelVariables(
       replaceVariables(rawLabel, data: sample),
       context.tr,
+      document: sample,
+      customFieldLabels: DesignerRenderScope.customFieldLabelsOf(context),
     );
-    final value = replaceVariables(rawField, data: sample);
+    final value = replaceVariables(
+      rawField,
+      data: sample,
+      formatter: DesignerRenderScope.formatterOf(context),
+    );
     final isTotal = item['isTotal'] as bool? ?? false;
     final isBalance = item['isBalance'] as bool? ?? false;
 

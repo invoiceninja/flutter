@@ -103,8 +103,32 @@ void main() {
       expect(b.bottom.color, const Color(0xFFE5E7EB));
       expect(b.left, BorderSide.none);
     });
-    test('returns null when input is null or all sides off', () {
-      expect(parseTableRegionBorders(null), isNull);
+    test('a missing region is every side, as the server draws it', () {
+      // `resolveTableRegionBorders`: not an array, or an empty one, is all
+      // four sides at 1px #E5E7EB. The page used to draw none.
+      for (final region in [null, <String, dynamic>{}]) {
+        final b = parseTableRegionBorders(region)!;
+        for (final side in [b.top, b.right, b.bottom, b.left]) {
+          expect(side.width, 1.0);
+          expect(side.color, const Color(0xFFE5E7EB));
+        }
+      }
+    });
+    test('a side left out is on; only `false` turns one off', () {
+      // The editor used to turn a side off by removing its key, which the
+      // server reads as on — off on the page, drawn in the PDF.
+      final b = parseTableRegionBorders({
+        'sides': {'top': true, 'left': false},
+      })!;
+      expect(b.top.width, 1.0);
+      expect(b.right.width, 1.0, reason: 'left out');
+      expect(b.bottom.width, 1.0, reason: 'left out');
+      expect(b.left, BorderSide.none);
+    });
+    test('a zero width draws nothing', () {
+      expect(parseTableRegionBorders({'width': 0}), isNull);
+    });
+    test('returns null when all sides are off', () {
       expect(
         parseTableRegionBorders({
           'color': '#000',

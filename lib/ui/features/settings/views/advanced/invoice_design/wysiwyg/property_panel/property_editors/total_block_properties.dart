@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/_shared.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/cell_typography_editor.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/expandable_property_row.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
 /// Property editor for the `total` block. Reorderable items + per-row
@@ -105,6 +107,53 @@ class _TotalBlockPropertiesState extends State<TotalBlockProperties> {
     });
   }
 
+  /// The rows a totals block can carry: `(label token, value token)`. The
+  /// block used to be fixed at the six it was created with, with no way to
+  /// show a surcharge or a deposit.
+  static const List<(String, String)> _kRows = [
+    (r'$subtotal_label', r'$subtotal'),
+    (r'$discount_label', r'$discount'),
+    (r'$taxes_label', r'$taxes'),
+    (r'$custom_surcharge1_label', r'$custom_surcharge1'),
+    (r'$custom_surcharge2_label', r'$custom_surcharge2'),
+    (r'$custom_surcharge3_label', r'$custom_surcharge3'),
+    (r'$custom_surcharge4_label', r'$custom_surcharge4'),
+    (r'$total_label', r'$total'),
+    (r'$paid_to_date_label', r'$paid_to_date'),
+    (r'$partial_label', r'$partial'),
+    (r'$balance_due_label', r'$balance_due'),
+  ];
+
+  List<(String, String)> _missingRows(List<Map<String, dynamic>> items) {
+    final present = {for (final it in items) it['field']};
+    return [
+      for (final row in _kRows)
+        if (!present.contains(row.$2)) row,
+    ];
+  }
+
+  Future<void> _addRow(List<Map<String, dynamic>> items) async {
+    final picked = await showDialog<(String, String)>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(ctx.tr('add_row')),
+        children: [
+          for (final row in _missingRows(items))
+            ListTile(
+              dense: true,
+              title: Text(replaceLabelVariables(row.$1, ctx.tr)),
+              onTap: () => Navigator.of(ctx).pop(row),
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    _writeItems([
+      ..._items(),
+      {'label': picked.$1, 'field': picked.$2, 'show': true},
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final props = widget.block.properties;
@@ -112,16 +161,27 @@ class _TotalBlockPropertiesState extends State<TotalBlockProperties> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('show_labels')),
+        PropertySwitch(
+          labelKey: 'show_labels',
           value: (props['showLabels'] as bool?) ?? true,
           onChanged: (v) => _writeProperty('showLabels', v),
         ),
         SizedBox(height: InSpacing.md(context)),
-        Text(
-          context.tr('totals'),
-          style: Theme.of(context).textTheme.labelMedium,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.tr('totals'),
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+            if (_missingRows(items).isNotEmpty)
+              TextButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: Text(context.tr('add_row')),
+                onPressed: () => _addRow(items),
+              ),
+          ],
         ),
         SizedBox(height: InSpacing.sm),
         if (items.isEmpty)
@@ -159,13 +219,11 @@ class _TotalBlockPropertiesState extends State<TotalBlockProperties> {
           value: props['align'] as String?,
           onChanged: (v) => _writeProperty('align', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         AlignmentInput(
           labelKey: 'label_align',
           value: props['labelAlign'] as String?,
           onChanged: (v) => _writeProperty('labelAlign', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         AlignmentInput(
           labelKey: 'value_align',
           value: props['valueAlign'] as String?,
@@ -180,87 +238,78 @@ class _TotalBlockPropertiesState extends State<TotalBlockProperties> {
           value: props['fontSize'] as String?,
           onChanged: (v) => _writeProperty('fontSize', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         FontStyleInput(
           fontWeight: props['totalFontWeight'] as String?,
           fontStyle: null,
+          showItalic: false,
           onFontWeightChanged: (v) => _writeProperty('totalFontWeight', v),
           onFontStyleChanged: (_) {},
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'label_color',
           value: props['labelColor'] as String?,
           onChanged: (v) => _writeProperty('labelColor', v),
           defaultValue: '#6B7280',
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'amount_color',
           value: props['amountColor'] as String?,
           onChanged: (v) => _writeProperty('amountColor', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'total_color',
           value: props['totalColor'] as String?,
           onChanged: (v) => _writeProperty('totalColor', v),
         ),
-        SizedBox(height: InSpacing.md(context)),
         ColorInput(
           labelKey: 'balance_color',
           value: props['balanceColor'] as String?,
           onChanged: (v) => _writeProperty('balanceColor', v),
         ),
-        const SectionDivider(labelKey: 'spacing'),
-        PxInput(
-          labelKey: 'spacing',
-          value: props['spacing'],
-          resettable: true,
-          onChanged: (v) => _writeProperty('spacing', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        PxInput(
-          labelKey: 'label_padding',
-          value: props['labelPadding'],
-          resettable: true,
-          onChanged: (v) => _writeProperty('labelPadding', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        PxInput(
-          labelKey: 'value_padding',
-          value: props['valuePadding'],
-          resettable: true,
-          onChanged: (v) => _writeProperty('valuePadding', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        PxInput(
-          labelKey: 'label_value_gap',
-          value: props['labelValueGap'],
-          resettable: true,
-          onChanged: (v) => _writeProperty('labelValueGap', v),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        PxInput(
-          labelKey: 'value_min_width',
-          value: props['valueMinWidth'],
-          resettable: true,
-          onChanged: (v) => _writeProperty('valueMinWidth', v),
-        ),
-        // Phase 8j: page-break control. Server-only — Flutter's canvas
-        // preview doesn't paginate, but the wire payload round-trips
-        // the boolean and the server's PDF generator honors it.
-        // Mirrors React TotalBlockProperties.tsx lines 474-482.
-        const SectionDivider(labelKey: 'page_break'),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(context.tr('keep_together')),
-          subtitle: Text(
-            context.tr('keep_together_hint'),
-            style: TextStyle(fontSize: 11, color: context.inTheme.ink3),
-          ),
-          value: (props['keepTogether'] as bool?) ?? false,
-          onChanged: (v) => _writeProperty('keepTogether', v),
+        // Cell padding, gaps and the page-break rule: rarely touched.
+        PropertyDisclosure(
+          children: [
+            PxInput(
+              labelKey: 'spacing',
+              value: props['spacing'],
+              resettable: true,
+              onChanged: (v) => _writeProperty('spacing', v),
+            ),
+            PxInput(
+              labelKey: 'label_padding',
+              value: props['labelPadding'],
+              resettable: true,
+              onChanged: (v) => _writeProperty('labelPadding', v),
+            ),
+            PxInput(
+              labelKey: 'value_padding',
+              value: props['valuePadding'],
+              resettable: true,
+              onChanged: (v) => _writeProperty('valuePadding', v),
+            ),
+            PxInput(
+              labelKey: 'label_value_gap',
+              value: props['labelValueGap'],
+              resettable: true,
+              onChanged: (v) => _writeProperty('labelValueGap', v),
+            ),
+            PxInput(
+              labelKey: 'value_min_width',
+              value: props['valueMinWidth'],
+              resettable: true,
+              onChanged: (v) => _writeProperty('valueMinWidth', v),
+            ),
+            // Page-break control. Server-only — Flutter's canvas
+            // preview doesn't paginate, but the wire payload round-trips
+            // the boolean and the server's PDF generator honors it.
+            // Mirrors React TotalBlockProperties.tsx lines 474-482.
+            PropertySwitch(
+              labelKey: 'keep_together',
+              hintKey: 'keep_together_hint',
+              value: (props['keepTogether'] as bool?) ?? false,
+              onChanged: (v) => _writeProperty('keepTogether', v),
+            ),
+          ],
         ),
       ],
     );
@@ -305,12 +354,8 @@ class _TotalItemRow extends StatelessWidget {
       subtitle: Row(
         children: [
           Text(
-            field,
-            style: TextStyle(
-              fontSize: 11,
-              fontFamily: kMonoFontFamily,
-              color: tokens.ink3,
-            ),
+            _exampleOf(context, field),
+            style: TextStyle(fontSize: 11.5, color: tokens.ink3),
           ),
           if (isTotal || isBalance) ...[
             SizedBox(width: InSpacing.sm),
@@ -403,21 +448,17 @@ class _ExpandedTotalEditor extends StatelessWidget {
                 'color': next?['color'],
               }),
             ),
-            SizedBox(height: InSpacing.md(context)),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(context.tr('is_total')),
+            PropertySwitch(
+              labelKey: 'is_total',
               value: isTotal,
               onChanged: (v) => onItemChanged('isTotal', v),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(context.tr('is_balance')),
+            PropertySwitch(
+              labelKey: 'is_balance',
               value: isBalance,
               onChanged: (v) => onItemChanged('isBalance', v),
             ),
             if (isBalance) ...[
-              SizedBox(height: InSpacing.md(context)),
               ColorInput(
                 labelKey: 'balance_color',
                 value: item['balanceColor'] as String?,
@@ -443,4 +484,15 @@ class _ExpandedTotalEditor extends StatelessWidget {
     }
     return out.isEmpty ? null : out;
   }
+}
+
+/// What the row prints for the document on the page; a dash when that
+/// document has nothing there.
+String _exampleOf(BuildContext context, String field) {
+  final example = replaceVariables(
+    field,
+    data: DesignerRenderScope.sampleOf(context),
+    formatter: DesignerRenderScope.formatterOf(context),
+  );
+  return example.trim().isEmpty ? '—' : example;
 }

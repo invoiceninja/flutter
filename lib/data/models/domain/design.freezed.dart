@@ -331,7 +331,9 @@ $DesignTemplateCopyWith<$Res> get template {
 /// @nodoc
 mixin _$DesignTemplate {
 
- String get body; String get header; String get footer; String get includes; String get product; String get task; List<DesignBlock> get blocks; DocumentSettings? get documentSettings;
+ String get body; String get header; String get footer; String get includes; String get product; String get task; List<DesignBlock> get blocks; DocumentSettings? get documentSettings;/// Fields the server sent that this model has no name for — carried so a
+/// save hands them back (`kDesignExtraKey`).
+ Map<String, dynamic> get extra;
 /// Create a copy of DesignTemplate
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -342,16 +344,16 @@ $DesignTemplateCopyWith<DesignTemplate> get copyWith => _$DesignTemplateCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings);
+int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings,const DeepCollectionEquality().hash(extra));
 
 @override
 String toString() {
-  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings)';
+  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -362,7 +364,7 @@ abstract mixin class $DesignTemplateCopyWith<$Res>  {
   factory $DesignTemplateCopyWith(DesignTemplate value, $Res Function(DesignTemplate) _then) = _$DesignTemplateCopyWithImpl;
 @useResult
 $Res call({
- String body, String header, String footer, String includes, String product, String task, List<DesignBlock> blocks, DocumentSettings? documentSettings
+ String body, String header, String footer, String includes, String product, String task, List<DesignBlock> blocks, DocumentSettings? documentSettings, Map<String, dynamic> extra
 });
 
 
@@ -379,7 +381,7 @@ class _$DesignTemplateCopyWithImpl<$Res>
 
 /// Create a copy of DesignTemplate
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = null,}) {
   return _then(_self.copyWith(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
@@ -389,7 +391,8 @@ as String,product: null == product ? _self.product : product // ignore: cast_nul
 as String,task: null == task ? _self.task : task // ignore: cast_nullable_to_non_nullable
 as String,blocks: null == blocks ? _self.blocks : blocks // ignore: cast_nullable_to_non_nullable
 as List<DesignBlock>,documentSettings: freezed == documentSettings ? _self.documentSettings : documentSettings // ignore: cast_nullable_to_non_nullable
-as DocumentSettings?,
+as DocumentSettings?,extra: null == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 /// Create a copy of DesignTemplate
@@ -486,10 +489,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings,  Map<String, dynamic> extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DesignTemplate() when $default != null:
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   return orElse();
 
 }
@@ -507,10 +510,10 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings,  Map<String, dynamic> extra)  $default,) {final _that = this;
 switch (_that) {
 case _DesignTemplate():
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -527,10 +530,10 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String body,  String header,  String footer,  String includes,  String product,  String task,  List<DesignBlock> blocks,  DocumentSettings? documentSettings,  Map<String, dynamic> extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DesignTemplate() when $default != null:
-return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings);case _:
+return $default(_that.body,_that.header,_that.footer,_that.includes,_that.product,_that.task,_that.blocks,_that.documentSettings,_that.extra);case _:
   return null;
 
 }
@@ -542,7 +545,7 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 
 
 class _DesignTemplate implements DesignTemplate {
-  const _DesignTemplate({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlock> blocks = const <DesignBlock>[], this.documentSettings}): _blocks = blocks;
+  const _DesignTemplate({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlock> blocks = const <DesignBlock>[], this.documentSettings, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _blocks = blocks,_extra = extra;
   
 
 @override@JsonKey() final  String body;
@@ -559,6 +562,17 @@ class _DesignTemplate implements DesignTemplate {
 }
 
 @override final  DocumentSettings? documentSettings;
+/// Fields the server sent that this model has no name for — carried so a
+/// save hands them back (`kDesignExtraKey`).
+ final  Map<String, dynamic> _extra;
+/// Fields the server sent that this model has no name for — carried so a
+/// save hands them back (`kDesignExtraKey`).
+@override@JsonKey() Map<String, dynamic> get extra {
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_extra);
+}
+
 
 /// Create a copy of DesignTemplate
 /// with the given fields replaced by the non-null parameter values.
@@ -570,16 +584,16 @@ _$DesignTemplateCopyWith<_DesignTemplate> get copyWith => __$DesignTemplateCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings);
+int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
 
 @override
 String toString() {
-  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings)';
+  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -590,7 +604,7 @@ abstract mixin class _$DesignTemplateCopyWith<$Res> implements $DesignTemplateCo
   factory _$DesignTemplateCopyWith(_DesignTemplate value, $Res Function(_DesignTemplate) _then) = __$DesignTemplateCopyWithImpl;
 @override @useResult
 $Res call({
- String body, String header, String footer, String includes, String product, String task, List<DesignBlock> blocks, DocumentSettings? documentSettings
+ String body, String header, String footer, String includes, String product, String task, List<DesignBlock> blocks, DocumentSettings? documentSettings, Map<String, dynamic> extra
 });
 
 
@@ -607,7 +621,7 @@ class __$DesignTemplateCopyWithImpl<$Res>
 
 /// Create a copy of DesignTemplate
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = null,}) {
   return _then(_DesignTemplate(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
@@ -617,7 +631,8 @@ as String,product: null == product ? _self.product : product // ignore: cast_nul
 as String,task: null == task ? _self.task : task // ignore: cast_nullable_to_non_nullable
 as String,blocks: null == blocks ? _self._blocks : blocks // ignore: cast_nullable_to_non_nullable
 as List<DesignBlock>,documentSettings: freezed == documentSettings ? _self.documentSettings : documentSettings // ignore: cast_nullable_to_non_nullable
-as DocumentSettings?,
+as DocumentSettings?,extra: null == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 
@@ -639,7 +654,8 @@ $DocumentSettingsCopyWith<$Res>? get documentSettings {
 /// @nodoc
 mixin _$DesignBlock {
 
- String get id; String get type; GridPosition get gridPosition; Map<String, dynamic> get properties; bool get locked;
+ String get id; String get type; GridPosition get gridPosition; Map<String, dynamic> get properties; bool get locked;/// Unknown fields, as on [DesignTemplate.extra] — e.g. a block's `region`.
+ Map<String, dynamic> get extra;
 /// Create a copy of DesignBlock
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -650,16 +666,16 @@ $DesignBlockCopyWith<DesignBlock> get copyWith => _$DesignBlockCopyWithImpl<Desi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked);
+int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked,const DeepCollectionEquality().hash(extra));
 
 @override
 String toString() {
-  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked)';
+  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, extra: $extra)';
 }
 
 
@@ -670,7 +686,7 @@ abstract mixin class $DesignBlockCopyWith<$Res>  {
   factory $DesignBlockCopyWith(DesignBlock value, $Res Function(DesignBlock) _then) = _$DesignBlockCopyWithImpl;
 @useResult
 $Res call({
- String id, String type, GridPosition gridPosition, Map<String, dynamic> properties, bool locked
+ String id, String type, GridPosition gridPosition, Map<String, dynamic> properties, bool locked, Map<String, dynamic> extra
 });
 
 
@@ -687,14 +703,15 @@ class _$DesignBlockCopyWithImpl<$Res>
 
 /// Create a copy of DesignBlock
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = null,Object? locked = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = null,Object? locked = null,Object? extra = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as String,gridPosition: null == gridPosition ? _self.gridPosition : gridPosition // ignore: cast_nullable_to_non_nullable
 as GridPosition,properties: null == properties ? _self.properties : properties // ignore: cast_nullable_to_non_nullable
 as Map<String, dynamic>,locked: null == locked ? _self.locked : locked // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,extra: null == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 /// Create a copy of DesignBlock
@@ -788,10 +805,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked,  Map<String, dynamic> extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DesignBlock() when $default != null:
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.extra);case _:
   return orElse();
 
 }
@@ -809,10 +826,10 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked,  Map<String, dynamic> extra)  $default,) {final _that = this;
 switch (_that) {
 case _DesignBlock():
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -829,10 +846,10 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String type,  GridPosition gridPosition,  Map<String, dynamic> properties,  bool locked,  Map<String, dynamic> extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DesignBlock() when $default != null:
-return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked);case _:
+return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.locked,_that.extra);case _:
   return null;
 
 }
@@ -844,7 +861,7 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 
 
 class _DesignBlock implements DesignBlock {
-  const _DesignBlock({required this.id, required this.type, required this.gridPosition, final  Map<String, dynamic> properties = const <String, dynamic>{}, this.locked = false}): _properties = properties;
+  const _DesignBlock({required this.id, required this.type, required this.gridPosition, final  Map<String, dynamic> properties = const <String, dynamic>{}, this.locked = false, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _properties = properties,_extra = extra;
   
 
 @override final  String id;
@@ -858,6 +875,15 @@ class _DesignBlock implements DesignBlock {
 }
 
 @override@JsonKey() final  bool locked;
+/// Unknown fields, as on [DesignTemplate.extra] — e.g. a block's `region`.
+ final  Map<String, dynamic> _extra;
+/// Unknown fields, as on [DesignTemplate.extra] — e.g. a block's `region`.
+@override@JsonKey() Map<String, dynamic> get extra {
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_extra);
+}
+
 
 /// Create a copy of DesignBlock
 /// with the given fields replaced by the non-null parameter values.
@@ -869,16 +895,16 @@ _$DesignBlockCopyWith<_DesignBlock> get copyWith => __$DesignBlockCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked);
+int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,const DeepCollectionEquality().hash(_extra));
 
 @override
 String toString() {
-  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked)';
+  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, extra: $extra)';
 }
 
 
@@ -889,7 +915,7 @@ abstract mixin class _$DesignBlockCopyWith<$Res> implements $DesignBlockCopyWith
   factory _$DesignBlockCopyWith(_DesignBlock value, $Res Function(_DesignBlock) _then) = __$DesignBlockCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String type, GridPosition gridPosition, Map<String, dynamic> properties, bool locked
+ String id, String type, GridPosition gridPosition, Map<String, dynamic> properties, bool locked, Map<String, dynamic> extra
 });
 
 
@@ -906,14 +932,15 @@ class __$DesignBlockCopyWithImpl<$Res>
 
 /// Create a copy of DesignBlock
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = null,Object? locked = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = null,Object? locked = null,Object? extra = null,}) {
   return _then(_DesignBlock(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as String,gridPosition: null == gridPosition ? _self.gridPosition : gridPosition // ignore: cast_nullable_to_non_nullable
 as GridPosition,properties: null == properties ? _self._properties : properties // ignore: cast_nullable_to_non_nullable
 as Map<String, dynamic>,locked: null == locked ? _self.locked : locked // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,extra: null == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 
@@ -1198,7 +1225,8 @@ as int,
 /// @nodoc
 mixin _$DocumentSettings {
 
- String get pageLayout; String get pageSize; int get globalFontSize; String get primaryFont; String get secondaryFont; bool get showPaidStamp; bool get showShippingAddress; bool get embedDocuments; bool get hideEmptyColumns; bool get pageNumbering; int get pageMarginTop; int get pageMarginRight; int get pageMarginBottom; int get pageMarginLeft; int get pagePaddingTop; int get pagePaddingRight; int get pagePaddingBottom; int get pagePaddingLeft;
+ String get pageLayout; String get pageSize; int get globalFontSize; String get primaryFont; String get secondaryFont; bool get showPaidStamp; bool get showShippingAddress; bool get embedDocuments; bool get hideEmptyColumns; bool get pageNumbering; int get pageMarginTop; int get pageMarginRight; int get pageMarginBottom; int get pageMarginLeft; int get pagePaddingTop; int get pagePaddingRight; int get pagePaddingBottom; int get pagePaddingLeft;/// Unknown fields, as on [DesignTemplate.extra] — e.g. `pagination`.
+ Map<String, dynamic> get extra;
 /// Create a copy of DocumentSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1209,16 +1237,16 @@ $DocumentSettingsCopyWith<DocumentSettings> get copyWith => _$DocumentSettingsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft);
+int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(extra)]);
 
 @override
 String toString() {
-  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft)';
+  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 
@@ -1229,7 +1257,7 @@ abstract mixin class $DocumentSettingsCopyWith<$Res>  {
   factory $DocumentSettingsCopyWith(DocumentSettings value, $Res Function(DocumentSettings) _then) = _$DocumentSettingsCopyWithImpl;
 @useResult
 $Res call({
- String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft
+ String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft, Map<String, dynamic> extra
 });
 
 
@@ -1246,7 +1274,7 @@ class _$DocumentSettingsCopyWithImpl<$Res>
 
 /// Create a copy of DocumentSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = null,}) {
   return _then(_self.copyWith(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
@@ -1266,7 +1294,8 @@ as int,pagePaddingTop: null == pagePaddingTop ? _self.pagePaddingTop : pagePaddi
 as int,pagePaddingRight: null == pagePaddingRight ? _self.pagePaddingRight : pagePaddingRight // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingBottom: null == pagePaddingBottom ? _self.pagePaddingBottom : pagePaddingBottom // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingLeft: null == pagePaddingLeft ? _self.pagePaddingLeft : pagePaddingLeft // ignore: cast_nullable_to_non_nullable
-as int,
+as int,extra: null == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 
@@ -1351,10 +1380,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft,  Map<String, dynamic> extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DocumentSettings() when $default != null:
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   return orElse();
 
 }
@@ -1372,10 +1401,10 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft,  Map<String, dynamic> extra)  $default,) {final _that = this;
 switch (_that) {
 case _DocumentSettings():
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1392,10 +1421,10 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String pageLayout,  String pageSize,  int globalFontSize,  String primaryFont,  String secondaryFont,  bool showPaidStamp,  bool showShippingAddress,  bool embedDocuments,  bool hideEmptyColumns,  bool pageNumbering,  int pageMarginTop,  int pageMarginRight,  int pageMarginBottom,  int pageMarginLeft,  int pagePaddingTop,  int pagePaddingRight,  int pagePaddingBottom,  int pagePaddingLeft,  Map<String, dynamic> extra)?  $default,) {final _that = this;
 switch (_that) {
 case _DocumentSettings() when $default != null:
-return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft);case _:
+return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.primaryFont,_that.secondaryFont,_that.showPaidStamp,_that.showShippingAddress,_that.embedDocuments,_that.hideEmptyColumns,_that.pageNumbering,_that.pageMarginTop,_that.pageMarginRight,_that.pageMarginBottom,_that.pageMarginLeft,_that.pagePaddingTop,_that.pagePaddingRight,_that.pagePaddingBottom,_that.pagePaddingLeft,_that.extra);case _:
   return null;
 
 }
@@ -1407,7 +1436,7 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 
 
 class _DocumentSettings implements DocumentSettings {
-  const _DocumentSettings({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30});
+  const _DocumentSettings({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _extra = extra;
   
 
 @override@JsonKey() final  String pageLayout;
@@ -1428,6 +1457,15 @@ class _DocumentSettings implements DocumentSettings {
 @override@JsonKey() final  int pagePaddingRight;
 @override@JsonKey() final  int pagePaddingBottom;
 @override@JsonKey() final  int pagePaddingLeft;
+/// Unknown fields, as on [DesignTemplate.extra] — e.g. `pagination`.
+ final  Map<String, dynamic> _extra;
+/// Unknown fields, as on [DesignTemplate.extra] — e.g. `pagination`.
+@override@JsonKey() Map<String, dynamic> get extra {
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_extra);
+}
+
 
 /// Create a copy of DocumentSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -1439,16 +1477,16 @@ _$DocumentSettingsCopyWith<_DocumentSettings> get copyWith => __$DocumentSetting
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other._extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft);
+int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
 
 @override
 String toString() {
-  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft)';
+  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 
@@ -1459,7 +1497,7 @@ abstract mixin class _$DocumentSettingsCopyWith<$Res> implements $DocumentSettin
   factory _$DocumentSettingsCopyWith(_DocumentSettings value, $Res Function(_DocumentSettings) _then) = __$DocumentSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft
+ String pageLayout, String pageSize, int globalFontSize, String primaryFont, String secondaryFont, bool showPaidStamp, bool showShippingAddress, bool embedDocuments, bool hideEmptyColumns, bool pageNumbering, int pageMarginTop, int pageMarginRight, int pageMarginBottom, int pageMarginLeft, int pagePaddingTop, int pagePaddingRight, int pagePaddingBottom, int pagePaddingLeft, Map<String, dynamic> extra
 });
 
 
@@ -1476,7 +1514,7 @@ class __$DocumentSettingsCopyWithImpl<$Res>
 
 /// Create a copy of DocumentSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = null,}) {
   return _then(_DocumentSettings(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
@@ -1496,7 +1534,8 @@ as int,pagePaddingTop: null == pagePaddingTop ? _self.pagePaddingTop : pagePaddi
 as int,pagePaddingRight: null == pagePaddingRight ? _self.pagePaddingRight : pagePaddingRight // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingBottom: null == pagePaddingBottom ? _self.pagePaddingBottom : pagePaddingBottom // ignore: cast_nullable_to_non_nullable
 as int,pagePaddingLeft: null == pagePaddingLeft ? _self.pagePaddingLeft : pagePaddingLeft // ignore: cast_nullable_to_non_nullable
-as int,
+as int,extra: null == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
   ));
 }
 

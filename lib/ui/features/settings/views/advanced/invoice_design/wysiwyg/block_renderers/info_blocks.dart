@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/_shared.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/sample/sample_data.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/table_header_label.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 
 /// Renders `client-info`, `company-info`, `client-shipping-info`. Iterates
@@ -23,13 +24,16 @@ class InfoBlock extends StatelessWidget {
     final props = block.properties;
     final fields = propMapList(props, 'fieldConfigs');
     final color = parseCssColor(props['color'] as String?);
-    final fontSize = parsePx(props['fontSize']) ?? 12;
+    final fontSize = parsePx(props['fontSize']) ?? inheritedFontSize(context);
     final align = parseTextAlign(props['align'] as String?);
     final lineHeight =
         parsePx(props['lineHeight']) ??
         double.tryParse((props['lineHeight'] as String?) ?? '') ??
         1.3;
-    final showTitle = props['showTitle'] as bool? ?? false;
+    // The company block has no title on the server; only the client and
+    // ship-to blocks print one.
+    final showTitle =
+        block.type != 'company-info' && (props['showTitle'] as bool? ?? false);
 
     final children = <Widget>[
       if (showTitle) _titleRow(context, props, align),
@@ -56,17 +60,17 @@ class InfoBlock extends StatelessWidget {
     Map<String, dynamic> props,
     TextAlign align,
   ) {
-    final titleKey = (props['title'] as String?) ?? '';
     final prefix = (props['titlePrefix'] as String?) ?? '';
     final suffix = (props['titleSuffix'] as String?) ?? '';
-    final resolved = context.tr(titleKey);
+    final resolved = resolveBlockTitle(context, props['title'] as String?);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
         '$prefix$resolved$suffix',
         textAlign: align,
         style: TextStyle(
-          fontSize: parsePx(props['titleFontSize']) ?? 13,
+          fontSize:
+              parsePx(props['titleFontSize']) ?? inheritedFontSize(context),
           fontWeight: parseFontWeight(props['titleFontWeight'] as String?),
           fontStyle: parseFontStyle(props['titleFontStyle'] as String?),
           color: parseCssColor(
@@ -105,13 +109,18 @@ class _FieldRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final variable = (field['variable'] as String?) ?? '';
-    final value = replaceVariables(variable, data: sample);
-    final hideIfEmpty = field['hideIfEmpty'] as bool? ?? false;
-    if (hideIfEmpty && (value.isEmpty || value == variable)) {
-      return const SizedBox.shrink();
-    }
-    final prefix = (field['prefix'] as String?) ?? '';
-    final suffix = (field['suffix'] as String?) ?? '';
+    final value = replaceVariables(
+      variable,
+      data: sample,
+      formatter: DesignerRenderScope.formatterOf(context),
+    );
+    // Absent is on, as on the server.
+    final hideIfEmpty = field['hideIfEmpty'] as bool? ?? true;
+    if (hideIfEmpty && resolvesEmpty(value)) return const SizedBox.shrink();
+    // Trimmed, because that is how they are stored: the server trims every
+    // string of a saved design, so a prefix typed as "Tel: " prints "Tel:".
+    final prefix = ((field['prefix'] as String?) ?? '').trim();
+    final suffix = ((field['suffix'] as String?) ?? '').trim();
     // Info-block rows are a single line — `valueStyle` is the natural
     // override since the label is concatenated as prefix text. We fall
     // back to `labelStyle` when only the label side has overrides so
@@ -162,7 +171,7 @@ class InvoiceDetailsBlock extends StatelessWidget {
       props['labelColor'] as String?,
       fallback: valueColor,
     );
-    final fontSize = parsePx(props['fontSize']) ?? 12;
+    final fontSize = parsePx(props['fontSize']) ?? inheritedFontSize(context);
     final labelAlign = parseTextAlign(props['labelAlign'] as String?);
     final valueAlign = parseTextAlign(props['valueAlign'] as String?);
     final labelPad = parsePx(props['labelPadding']) ?? 0;
@@ -175,13 +184,18 @@ class InvoiceDetailsBlock extends StatelessWidget {
         double.tryParse((props['lineHeight'] as String?) ?? '') ??
         1.3;
 
+    final formatter = DesignerRenderScope.formatterOf(context);
     final rows = <TableRow>[];
     for (var i = 0; i < fields.length; i++) {
       final f = fields[i];
       final variable = (f['variable'] as String?) ?? '';
-      final value = replaceVariables(variable, data: sample);
-      final hideIfEmpty = f['hideIfEmpty'] as bool? ?? false;
-      if (hideIfEmpty && (value.isEmpty || value == variable)) continue;
+      final value = replaceVariables(
+        variable,
+        data: sample,
+        formatter: formatter,
+      );
+      final hideIfEmpty = f['hideIfEmpty'] as bool? ?? true;
+      if (hideIfEmpty && resolvesEmpty(value)) continue;
 
       final rawLabel = (f['label'] as String?) ?? '';
       // Labels are typically `$..._label` tokens — translate through
@@ -192,6 +206,10 @@ class InvoiceDetailsBlock extends StatelessWidget {
           : replaceLabelVariables(
               replaceVariables(rawLabel, data: sample),
               context.tr,
+              document: sample,
+              customFieldLabels: DesignerRenderScope.customFieldLabelsOf(
+                context,
+              ),
             );
 
       final pad = EdgeInsets.only(
@@ -221,7 +239,11 @@ class InvoiceDetailsBlock extends StatelessWidget {
           children: [
             if (showLabels)
               Padding(
-                padding: pad + EdgeInsets.symmetric(horizontal: labelPad),
+                // The gap is the label cell's right padding, as on the
+                // server (`padding-right: labelValueGap`). It used to be a
+                // third column pinned to zero width, so the longest value
+                // printed hard against its label.
+                padding: pad + EdgeInsets.only(left: labelPad, right: gap),
                 child: Text(
                   label,
                   textAlign: labelAlign,
@@ -230,7 +252,6 @@ class InvoiceDetailsBlock extends StatelessWidget {
               )
             else
               const SizedBox.shrink(),
-            SizedBox(width: gap),
             Padding(
               padding: pad + EdgeInsets.symmetric(horizontal: valuePad),
               child: Text(
@@ -246,14 +267,16 @@ class InvoiceDetailsBlock extends StatelessWidget {
 
     if (rows.isEmpty) return const SizedBox.shrink();
 
-    return Table(
-      columnWidths: const {
-        0: IntrinsicColumnWidth(),
-        1: FixedColumnWidth(0), // gap column — width set per-row
-        2: IntrinsicColumnWidth(),
-      },
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: rows,
+    // The server's table is `width: fit-content`, placed by the block's
+    // `align`. A `Table` under a tight width would stretch to it instead and
+    // sit at the left whatever the alignment said.
+    return Align(
+      alignment: parseAlignment(props['align'] as String?),
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: rows,
+      ),
     );
   }
 }

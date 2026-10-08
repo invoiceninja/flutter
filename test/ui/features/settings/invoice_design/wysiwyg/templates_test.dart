@@ -1,18 +1,55 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/grid/grid_model.dart';
+import 'package:admin/data/models/domain/design_block_layout.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/templates.dart';
 
 void main() {
   group('buildStarterTemplates', () {
-    test('returns three starters with unique ids', () {
+    test('returns the starters, each under its own id', () {
       final starters = buildStarterTemplates();
-      expect(starters, hasLength(3));
-      expect(starters.map((s) => s.id).toSet(), {
+      expect(starters.map((s) => s.id).toList(), [
         'standard',
+        'bold',
         'minimal',
         'quote_friendly',
-      });
+      ]);
+    });
+
+    test('no two starters are the same blocks in the same style', () {
+      // A gallery of thumbnails is only a choice if the pictures differ:
+      // three of these were once the library defaults in a different order.
+      String fingerprint(DesignTemplateStarter s) => [
+        for (final b in s.blocks)
+          '${b.type}@${b.gridPosition.x},${b.gridPosition.y}'
+              ':${b.properties['headerBg']}:${b.properties['fontSize']}',
+      ].join('|');
+      final prints = buildStarterTemplates().map(fingerprint).toSet();
+      expect(prints, hasLength(buildStarterTemplates().length));
+    });
+
+    test('Bold takes the company colour, and a neutral one without it', () {
+      Map<String, dynamic> table(String? accent) =>
+          buildStarterTemplates(accent: accent)
+              .firstWhere((s) => s.id == 'bold')
+              .blocks
+              .firstWhere((b) => b.type == 'table')
+              .properties;
+      expect(table('#2f7dc3')['headerBg'], '#2F7DC3');
+      expect(table(null)['headerBg'], kStarterInk);
+      // Not a hex colour the server could print: fall back, do not store it.
+      expect(table('teal')['headerBg'], kStarterInk);
+      expect(table('#2F7DC3')['headerColor'], '#FFFFFF');
+    });
+
+    test('a starter block keeps every default its style does not set', () {
+      final table = buildStarterTemplates()
+          .firstWhere((s) => s.id == 'minimal')
+          .blocks
+          .firstWhere((b) => b.type == 'table');
+      expect(table.properties['alternateRows'], isFalse);
+      // The columns, borders and padding are still the library's.
+      expect(table.properties['columns'], isNotEmpty);
+      expect(table.properties['padding'], '8px');
     });
 
     test('every starter ships a non-empty blocks list', () {
@@ -36,17 +73,20 @@ void main() {
       }
     });
 
-    test('blocks within a starter never overlap on the grid', () {
+    test('no row of a starter is wider than the page, or overlaps', () {
       for (final s in buildStarterTemplates()) {
-        for (var i = 0; i < s.blocks.length; i++) {
-          for (var j = i + 1; j < s.blocks.length; j++) {
+        for (final row in rowsOf(s.blocks)) {
+          var right = 0;
+          for (final b in row) {
+            final p = b.gridPosition;
             expect(
-              blocksOverlap(s.blocks[i], s.blocks[j]),
-              isFalse,
-              reason:
-                  'starter ${s.id}: ${s.blocks[i].type} and ${s.blocks[j].type} overlap',
+              p.x,
+              greaterThanOrEqualTo(right),
+              reason: 'starter ${s.id}: ${b.type} overlaps its neighbour',
             );
+            right = p.x + p.w;
           }
+          expect(right, lessThanOrEqualTo(kDesignerGridCols));
         }
       }
     });

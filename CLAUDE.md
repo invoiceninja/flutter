@@ -28,7 +28,7 @@ Plus two non-negotiables carried from admin-portal:
 | When you're doing… | Look at |
 |---|---|
 | Adding a new entity | § Adding a new entity + `docs/adding-an-entity.md` |
-| Adding / editing a settings screen | § Settings screens + `docs/settings-screens.md` |
+| Adding / editing a settings screen, or anything in the visual invoice designer | § Settings screens + `docs/settings-screens.md` · § Visual invoice designer + `docs/invoice-designer.md` |
 | Wiring a form field, picker, or Enter-to-save | § Forms · `docs/pickers.md` · `docs/form-fields.md` |
 | Keyboard type, autofill, capitalization, or a negative amount on touch | § Forms — Input types · `docs/form-fields.md` · `test/lint/field_input_types_test.dart` |
 | A picker popover that won't close on touch or Android back, the ✕, or the ▾ on a picker | `docs/popup-dismissal.md` · `lib/ui/core/widgets/picker_dismissal.dart` · `test/lint/picker_popover_wiring_test.dart` |
@@ -73,7 +73,7 @@ Plus two non-negotiables carried from admin-portal:
 | A pull-to-refresh that won't start on a short list, or giving a refreshable list a `ScrollController` | `docs/pull-to-refresh.md` · `test/lint/refresh_indicator_physics_test.dart` · `test/ui/core/list/entity_list_pull_to_refresh_test.dart` |
 | Deciding whether a zero renders, dashes, or disappears | `docs/row-actions-and-values.md` §§ An empty value… · A zero in a detail KPI cell… |
 | An "Email History" tab listing contacts nothing was sent to, an invisible spam complaint, or either email tab's empty copy | `docs/contacts-and-invitations.md` § An invitation is created when the document is saved · `lib/data/models/domain/billing/invitation.dart` |
-| Localization / Transifex import | § Localization |
+| Localization / Transifex import, or a string showing `&#39;` / a raw `:placeholder` | § Localization · `docs/translated-string-rendering.md` |
 | Email-template `$variables` as chips (T&R subject/body, Send Email subject/body), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets, "Sign in with Google" missing on iOS / Android | `docs/setup.md` (§ Google Sign-In client IDs) |
@@ -622,6 +622,19 @@ The whole feature is **server-backed**: `runPreview` POSTs `<endpoint>?output=js
 - **`GroupTotals.count` is a chart series, and bucket keys are identity.** → `docs/reports.md` § The count series, and bucket keys as identity
 - **A non-date grouping splits by period (user × month) through a composite `<group>␟<period>` key that only `_rowGroupKeyFn` derives, and it never reaches the server.** → `docs/reports.md` § A non-date grouping splits by period through a composite key
 
+## Visual invoice designer
+
+The block designer (`invoice_design/wysiwyg/`) is a picture of what the server prints, so its rules are the server's.
+
+- **`blocks` is sent only when there are blocks — the server takes the key's presence, `[]` included, as a block design and ignores the Twig.** → `docs/invoice-designer.md` § `blocks` is sent only when there are blocks
+- **A row is the blocks sharing an integer `y`; `x` is never a position and `h` is never read — go through `rowsOf` / `blocksFromRows`, never grid arithmetic.** → `docs/invoice-designer.md` § The row model
+- **Empty space in a row is a gap cell (a zero-height spacer), so a row the user edits always totals 12 columns.** → `docs/invoice-designer.md` § Empty space is a gap cell
+- **A table `header` / info `title` prints verbatim (store `$…_label` tokens, not translation keys), and a block never ships without `properties`.** → `docs/invoice-designer.md` § A block's `properties` are normalised on the way out
+- **Fields this app does not model ride in `extra` and are written back.** → `docs/invoice-designer.md` § Fields this app does not model are carried, not dropped
+- **Every key the workspace binds is a `GuardedShortcutAction`, and a bare key (arrows, Enter, Delete, Esc) acts only while the workspace's own node has focus — else Backspace on a focused panel control deletes the block.** → `docs/invoice-designer.md` § Every key the workspace binds is guarded
+- **The designer's layout measures its pane (`DesignerPane`), never `MediaQuery` — the sidebar has 232px of the window — and every `showMenu` anchor goes through `menuAnchor`.** → `docs/invoice-designer.md` § The layout follows the pane
+- **The page, the panel's example values and the preview are filled from one document (`DesignerDocumentController`, `DesignerRenderScope.sampleOf`).** → `docs/invoice-designer.md` § The page and the preview show the same document
+
 ## Localization
 
 - Source of truth: **Transifex** (`explore.transifex.com/invoice-ninja/invoice-ninja`).
@@ -630,17 +643,10 @@ The whole feature is **server-backed**: `runPreview` POSTs `<endpoint>?output=js
 - Workflow per release: download zip → run the importer → commit the changed JSONs.
 - Runtime: `Localization` loads the active locale's JSON from `rootBundle`. English is always loaded as a fallback. There is **no** server fetch and **no** override table — the bundle is the only source.
 - Adding a locale = (a) add it to `kSupportedLocales`, (b) re-run the importer.
-- **The upstream PHP is HTML-escaped — the importer decodes entities, don't bypass it.** Transifex ships `&#39;`, `&quot;`, `&gt;`, `&amp;`, `&eacute;` inside translated strings, and Flutter's `Text` has no HTML layer to undo them, so whatever lands in the JSON is literally what the user reads: Italian Settings showed `Colore dell&#39;accento`, French `Cl&eacute; d&#39;acc&egrave;s`. 504 strings across 7 locales shipped that way, invisible to the team because **English has zero entities**. `TransifexPhpParser.parse` now runs values through `decodeHtmlEntities` (`lib/l10n/transifex_php_parser.dart`, mirrored in the importer's own inline copy — keep them in sync). That function is the app's single entity decoder, not an l10n-private one — `lib/utils/notes_html.dart` imports it for the read-only notes surfaces — so don't narrow it to the importer's needs. It is deliberately a **single pass** so `&amp;#39;` stays the literal text `&#39;` rather than double-decoding to an apostrophe, and it leaves unrecognized entities, bare `&`, and markup tags (`<p>`, `<br>`) alone. `test/l10n/no_html_entities_test.dart` fails the build if an escaped string reaches `assets/i18n/`.
-- **`_app_pending.json` can only *add* a key, never override one.** Lookup order is active locale → `en.json` → pending → raw key, so a pending entry whose key already has a non-blank `en.json` value is dead and never renders. 41 such entries had accumulated — one of them (`fees_sample`) left the gateway fee preview naming the *total* as the fee. `no_unsubstituted_placeholders_test` now fails the build on a shadowed entry; give deliberate rewordings a distinct name (`*_label` / `*_short` / `*_detailed`).
-- **A placeholder name that prefixes another needs no care — because `lookup` sorts longest-first.**
-  `":time in :timezone"` substituted in map-insertion order rewrites the second token to
-  `"<value>zone"`, which then never matches: rendered garbage, not a missing string, so no `tr()`
-  lint sees it, and which token wins depends on the caller's literal map order. `Localization.lookup`
-  therefore replaces the longest name first (the single-param hot path returns before the sort).
-  Five bundled keys have this shape — `activity_10`/`_39`/`_40`/`_41` (`:payment` + `:payment_amount`)
-  and `entity_number_placeholder` (`:entity` + `:entity_number`); the activity templates dodge it
-  only because `activity_description.dart` tokenizes with a regex instead of coming through `lookup`.
-- **Never render a string carrying a `:placeholder` without filling it.** Many Transifex keys ship in two flavours: a parameterised one for when the app knows the value (`add_to_invoice` = "Add to invoice :invoice") and a plain verb for when it doesn't (`action_add_to_invoice` = "Add To Invoice"). Pointing a menu label at the former leaks the raw token (invoiceninja/flutter#35). Fix one, in this order: **(1) pass the params** — usually possible and always keeps the translation (`copyToClipboard` fills `:value` this way, with a `label:` when the payload is a blob); **(2) point at a placeholder-free Transifex sibling** (`action_add_to_invoice`, `invoice_sent_notification_label`, `min_amount`); **(3) last resort, add a distinctly-named app-local key** — that file is English-only, so this costs every non-English user their translation, and it's only right when the bundle has no clean variant (`view_expense_label`, `download_documents_label`). **Don't blank the token and `.trim()`**: German and Japanese put `:invoice` mid-string, so that leaves a double space. `test/lint/no_unsubstituted_placeholders_test.dart` fails the build on a leak it can see; keys reached through a variable, a const list, or a positional arg are invisible to it, so a renderer that looks up keys from a structure needs the invariant asserted in that structure's own test (`settings_search_catalog_test` does this).
+- **The upstream PHP is HTML-escaped — the importer decodes entities (`decodeHtmlEntities`: a single pass, and the app's one entity decoder), don't bypass it.** → `docs/translated-string-rendering.md` § The upstream PHP is HTML-escaped — the importer decodes entities
+- **`_app_pending.json` can only *add* a key, never override one — an entry whose key has a non-blank `en.json` value is dead, so a deliberate rewording takes a distinct name (`*_label` / `*_short` / `*_detailed`).** → `docs/translated-string-rendering.md` § `_app_pending.json` can only add a key, never override one
+- **A placeholder name that prefixes another needs no care — `Localization.lookup` substitutes longest-first.** → `docs/translated-string-rendering.md` § A placeholder name that prefixes another needs no care
+- **Never render a string carrying a `:placeholder` without filling it — pass the params; else point at a placeholder-free Transifex sibling; only last add a distinctly-named app-local key, and never blank the token and `.trim()`.** → `docs/translated-string-rendering.md` § Never render a string carrying a `:placeholder` without filling it
 
 ## Rich text editing
 

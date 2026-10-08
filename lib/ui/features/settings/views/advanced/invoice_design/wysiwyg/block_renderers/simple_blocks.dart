@@ -31,9 +31,9 @@ class DividerBlock extends StatelessWidget {
   }
 }
 
-/// Renders `spacer`. Just a `SizedBox` with the configured height. The
-/// canvas already gives the block its grid-cell footprint; the height
-/// here is mostly visual reference inside the cell.
+/// Renders `spacer`: empty space of the configured height, as it prints.
+/// What marks it on the canvas — it is otherwise invisible — is the editor's
+/// placeholder, drawn around it by `BlockPreview`.
 class SpacerBlock extends StatelessWidget {
   const SpacerBlock({super.key, required this.block});
   final DesignBlock block;
@@ -44,6 +44,9 @@ class SpacerBlock extends StatelessWidget {
     return SizedBox(height: height, width: double.infinity);
   }
 }
+
+/// The size the server draws every QR code at.
+const double kQrcodePrintedSize = 150;
 
 /// Renders `qrcode`. Phase 5a wires the real `qr_flutter` `QrImageView`.
 /// The block's `data` property carries either a template token (e.g.
@@ -59,7 +62,8 @@ class QrcodeBlockPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alignment = parseAlignment(block.properties['align'] as String?);
-    final size = parsePx(block.properties['size']) ?? 100.0;
+    // The server draws the code at 150px whatever `size` says.
+    const size = kQrcodePrintedSize;
     final raw = (block.properties['data'] as String?)?.trim() ?? '';
     final resolved = sample == null ? raw : replaceVariables(raw, data: sample);
     final hasData = resolved.isNotEmpty && resolved != raw
@@ -68,25 +72,29 @@ class QrcodeBlockPreview extends StatelessWidget {
 
     return Align(
       alignment: alignment,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: hasData ? Colors.white : context.inTheme.surfaceAlt,
-          border: Border.all(color: context.inTheme.border, width: 0.5),
+      // Scales down rather than overflowing a column narrower than the code.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: hasData ? Colors.white : context.inTheme.surfaceAlt,
+            border: Border.all(color: context.inTheme.border, width: 0.5),
+          ),
+          child: hasData
+              ? QrImageView(
+                  data: resolved.isEmpty ? raw : resolved,
+                  size: size,
+                  padding: const EdgeInsets.all(4),
+                  backgroundColor: Colors.white,
+                )
+              : Icon(
+                  Icons.qr_code,
+                  color: context.inTheme.ink3,
+                  size: size * 0.6,
+                ),
         ),
-        child: hasData
-            ? QrImageView(
-                data: resolved.isEmpty ? raw : resolved,
-                size: size,
-                padding: const EdgeInsets.all(4),
-                backgroundColor: Colors.white,
-              )
-            : Icon(
-                Icons.qr_code,
-                color: context.inTheme.ink3,
-                size: size * 0.6,
-              ),
       ),
     );
   }
@@ -103,9 +111,11 @@ class SignatureBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final props = block.properties;
+    final formatter = DesignerRenderScope.formatterOf(context);
     final label = replaceVariables(
       (props['label'] as String?) ?? '',
       data: sample,
+      formatter: formatter,
     );
     final showLine = props['showLine'] as bool? ?? true;
     final showDate = props['showDate'] as bool? ?? false;
@@ -114,7 +124,7 @@ class SignatureBlock extends StatelessWidget {
       props['color'] as String?,
       fallback: const Color(0xFF6B7280),
     );
-    final fontSize = parsePx(props['fontSize']) ?? 12;
+    final fontSize = parsePx(props['fontSize']) ?? inheritedFontSize(context);
 
     return Align(
       alignment: align,
@@ -143,7 +153,7 @@ class SignatureBlock extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
-                replaceVariables(r'$date', data: sample),
+                replaceVariables(r'$date', data: sample, formatter: formatter),
                 style: TextStyle(fontSize: fontSize - 2, color: color),
               ),
             ),

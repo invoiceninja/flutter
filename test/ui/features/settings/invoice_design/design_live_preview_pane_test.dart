@@ -34,6 +34,7 @@ class _CountingService implements LiveDesignService {
   Future<Uint8List> renderDesignPreview({
     required String entityType,
     required Design design,
+    String? entityId,
   }) async {
     calls++;
     lastEntity = entityType;

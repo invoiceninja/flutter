@@ -1,603 +1,1058 @@
-import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/l10n/localization.dart';
+import 'package:admin/app/env.dart';
+import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/design.dart';
+import 'package:admin/data/models/domain/design_block_layout.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_library.dart';
-import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_sizing.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_menu.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/_shared.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/canvas/block_preview.dart';
-import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/grid/grid_model.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/canvas/drop_resolver.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/canvas/page_metrics.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/sample/sample_data.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
+import 'package:admin/utils/formatting.dart';
 
-/// Drag payload accepted by the canvas. The same `DragTarget` accepts
-/// both fresh palette blocks ([PalettePayload]) and reposition gestures
-/// on existing blocks ([BlockMovePayload]); the canvas switches on the
-/// payload at drop time.
+/// What is being dragged over the canvas.
 sealed class CanvasDropPayload {
   const CanvasDropPayload();
 }
 
+/// A new block, from the palette.
 class PalettePayload extends CanvasDropPayload {
   const PalettePayload(this.spec);
   final BlockSpec spec;
 }
 
+/// A block already on the page.
 class BlockMovePayload extends CanvasDropPayload {
-  const BlockMovePayload(this.block);
-  final DesignBlock block;
+  const BlockMovePayload(this.blockId);
+  final String blockId;
 }
 
-/// 12-column drag/drop canvas. Built on `Stack` + `Positioned` over a
-/// `LayoutBuilder`-measured grid (matching React's `react-grid-layout`
-/// coordinate model). Drop target for [BlockSpec] payloads from the
-/// palette; clicking a block selects it; long-press + drag repositions.
+/// A whole row, by its grip.
+class RowMovePayload extends CanvasDropPayload {
+  const RowMovePayload(this.rowIndex);
+  final int rowIndex;
+}
+
+/// Space between the page and the edge of its pane.
+const double _kPanePadding = 24;
+
+/// The designer's canvas: the page as it will print.
 ///
-/// Phase-1 scope: drag-from-palette, tap-select, tap-empty-cell-to-deselect,
-/// click-and-drag to move blocks. Resize handles, alignment guides, and
-/// fine-grained block renderers land in Phase 2.
+/// A sheet at its true size (`DesignerPageMetrics`), scaled down to fit the
+/// pane and scrolling when the layout runs long. On it, the rows the server
+/// will print (`rowsOf`), each as tall as its content — there is no grid and
+/// nothing has a height to drag, because the PDF has neither
+/// (`docs/invoice-designer.md`).
+///
+/// A block is dragged to the space between two rows (a row of its own) or to
+/// the side of another block (into that row); a bar shows which. The selected
+/// block has a handle on each side that moves that edge by whole columns.
+/// Everything a drag can do is also in the block's menu.
 class WysiwygCanvas extends StatefulWidget {
-  const WysiwygCanvas({super.key, required this.vm, this.showGrid});
+  const WysiwygCanvas({
+    super.key,
+    required this.vm,
+    this.sample,
+    this.formatter,
+    this.bottomInset = 0,
+  });
 
   final WysiwygDesignViewModel vm;
 
-  /// Phase 16: workspace-owned `ValueNotifier<bool>` that toggles the
-  /// column + row guide lines. `null` keeps the legacy always-on
-  /// behaviour so callers that don't wire the toggle (e.g. preview-
-  /// only test setups) still see the grid.
-  final ValueListenable<bool>? showGrid;
+  /// Extra room under the page, for whatever floats over the pane's bottom
+  /// edge (the "Add block" button) — so the last row can scroll clear of it.
+  final double bottomInset;
+
+  /// The document the blocks are filled from. Defaults to the fixture.
+  final DesignerSampleData? sample;
+
+  /// The company's formatter, for amounts and dates.
+  final Formatter? formatter;
 
   @override
   State<WysiwygCanvas> createState() => _WysiwygCanvasState();
 }
 
-/// Fallback notifier handed to [ValueListenableBuilder] when the
-/// canvas caller doesn't wire its own `showGrid` toggle — keeps the
-/// grid permanently visible without per-call boilerplate.
-final ValueNotifier<bool> _alwaysShown = ValueNotifier<bool>(true);
+class _DisplayRow {
+  const _DisplayRow(this.index, this.cells, this.slots);
+  final int index;
+
+  /// The row with its empty space spelled out as gap cells
+  /// ([explicitRow]) — what the user would get by touching it.
+  final DesignRow cells;
+  final List<RowSlot> slots;
+}
 
 class _WysiwygCanvasState extends State<WysiwygCanvas> {
-  /// Grid units high — chosen so a portrait A4-shaped canvas fits at
-  /// 600 px wide × ~850 px tall on most laptop screens. Each row is
-  /// `width / kGridCols * rowAspect`.
-  static const double _rowAspect = 0.08;
+  static final ThemeData _paperTheme = buildInTheme(InTheme.light);
 
-  /// Identifies the canvas RenderBox so the drop callback can convert
-  /// global offset → local grid coords. Each canvas instance gets its own
-  /// key — multiple canvases can mount simultaneously without clashing.
-  final GlobalKey _canvasKey = GlobalKey(debugLabel: 'WysiwygCanvasGrid');
+  final ScrollController _scroll = ScrollController();
 
-  /// Step 5b: the snapped grid target while a drag is in progress —
-  /// drives the translucent "ghost" preview and the alignment guides
-  /// overlay. Null when nothing is being dragged over the canvas.
-  ({int x, int y, int w, int h})? _dragGhost;
+  /// The block content's box: the coordinate space drops are resolved in.
+  final GlobalKey _contentKey = GlobalKey(debugLabel: 'designer content');
+  final GlobalKey _selectedCellKey = GlobalKey(debugLabel: 'selected block');
+  final List<GlobalKey> _rowKeys = [];
+
+  /// Anchors for the two bits of chrome that sit *outside* a block's own box
+  /// — its chip and its row's grip. They are followers in a layer above the
+  /// page rather than children of the block, because a child drawn outside
+  /// its parent's bounds cannot be hit: that is what once made the selection
+  /// toolbar of a block at the top of the page unclickable.
+  final LayerLink _blockLink = LayerLink();
+  final LayerLink _rowLink = LayerLink();
+
+  final ValueNotifier<ResolvedDrop?> _drop = ValueNotifier<ResolvedDrop?>(null);
+  final ValueNotifier<String?> _hovered = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> _dragging = ValueNotifier<bool>(false);
+
+  List<_DisplayRow> _display = const [];
+  double _layoutWidth = 1;
+  double _scale = 1;
+
+  EdgeDraggingAutoScroller? _autoScroller;
+  Offset? _lastPointer;
+  CanvasDropPayload? _payload;
+
+  // Width-handle gesture.
+  double _resizeStartX = 0;
+  int _resizeRow = 0;
+  int _resizeBoundary = 0;
+  int _resizeCols = 0;
+
+  String? _revealedSelection;
 
   WysiwygDesignViewModel get vm => widget.vm;
 
-  /// Convert a global drag offset to a `{x, y, w, h}` snapped grid cell
-  /// based on the canvas's current RenderBox. Returns null if the canvas
-  /// hasn't been laid out yet.
-  ({int x, int y, int w, int h})? _snapDragToGrid({
-    required Offset globalOffset,
-    required int width,
-    required int height,
-    required double cellWidth,
-    required double cellHeight,
-  }) {
-    final box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return null;
-    final local = box.globalToLocal(globalOffset);
-    final gx = (local.dx / cellWidth).floor().clamp(0, kGridCols - width);
-    final gy = (local.dy / cellHeight).floor();
-    return (x: gx, y: gy < 0 ? 0 : gy, w: width, h: height);
+  @override
+  void dispose() {
+    // A drag in progress will never report its end now.
+    vm.endGesture();
+    _autoScroller?.stopAutoScroll();
+    _scroll.dispose();
+    _drop.dispose();
+    _hovered.dispose();
+    _dragging.dispose();
+    super.dispose();
   }
 
-  ({int w, int h}) _payloadSize(CanvasDropPayload payload) => switch (payload) {
-    PalettePayload(:final spec) => (
-      w: spec.defaultWidth,
-      h: spec.defaultHeight,
-    ),
-    BlockMovePayload(:final block) => (
-      w: block.gridPosition.w,
-      h: block.gridPosition.h,
-    ),
-  };
+  // ── Drag and drop ─────────────────────────────────────────────────
+
+  void _onDragMove(DragTargetDetails<CanvasDropPayload> details) {
+    _payload = details.data;
+    _lastPointer = details.offset;
+    _dragging.value = true;
+    _resolve();
+    if (_scroll.hasClients) {
+      final scroller = _autoScroller ??= EdgeDraggingAutoScroller(
+        _scroll.position.context as ScrollableState,
+        onScrollViewScrolled: _onAutoScrolled,
+        velocityScalar: 20,
+      );
+      scroller.startAutoScrollIfNecessary(_scrollProbe(details.offset));
+    }
+  }
+
+  /// A box around the pointer: once it pokes past the viewport's edge the
+  /// page scrolls.
+  Rect _scrollProbe(Offset pointer) =>
+      Rect.fromCenter(center: pointer, width: 40, height: 96);
+
+  /// The scroller moves the page one step and stops; asking again is what
+  /// keeps it going under a pointer held still at the edge (`ReorderableList`
+  /// does the same). Without this the page crept 48px and waited for the
+  /// pointer to move.
+  void _onAutoScrolled() {
+    _resolve();
+    final pointer = _lastPointer;
+    if (pointer != null) {
+      _autoScroller?.startAutoScrollIfNecessary(_scrollProbe(pointer));
+    }
+  }
+
+  void _endDrag() {
+    _autoScroller?.stopAutoScroll();
+    _lastPointer = null;
+    _payload = null;
+    _drop.value = null;
+    _dragging.value = false;
+  }
+
+  /// Work out where the dragged thing would land, in the content's own
+  /// (unscaled) coordinates — `globalToLocal` undoes the page's scaling.
+  void _resolve() {
+    final pointer = _lastPointer;
+    final payload = _payload;
+    final content = _contentKey.currentContext?.findRenderObject();
+    if (pointer == null || payload == null || content is! RenderBox) return;
+    final local = content.globalToLocal(pointer);
+
+    final rows = <DropRow>[];
+    for (final row in _display) {
+      final box = _rowKeys[row.index].currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero, ancestor: content).dy;
+      rows.add(
+        DropRow(
+          top: top,
+          bottom: top + box.size.height,
+          cells: [
+            for (final slot in row.slots)
+              DropCell(
+                id: slot.block.id,
+                left: slot.left,
+                right: slot.right,
+                isGap: isGapBlock(slot.block),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final thickness = 3 / _scale;
+    if (payload is RowMovePayload) {
+      // A row only ever goes between rows.
+      var index = 0;
+      for (final row in rows) {
+        if (local.dy > (row.top + row.bottom) / 2) index++;
+      }
+      final y = rows.isEmpty
+          ? 0.0
+          : index >= rows.length
+          ? rows.last.bottom + kDesignerRowGapPx / 2
+          : rows[index].top - kDesignerRowGapPx / 2;
+      _drop.value = ResolvedDrop(
+        DropNewRow(index),
+        Rect.fromLTWH(0, y - thickness / 2, _layoutWidth, thickness),
+      );
+      return;
+    }
+
+    final movingId = payload is BlockMovePayload ? payload.blockId : null;
+    _drop.value = resolveDrop(
+      point: local,
+      rows: rows,
+      width: _layoutWidth,
+      thickness: thickness,
+      edgeBand: 14 / _scale,
+      movingId: movingId,
+      canJoin: (anchorId) => switch (payload) {
+        PalettePayload(:final spec) => vm.canPlaceBeside(
+          anchorId,
+          type: spec.type,
+        ),
+        BlockMovePayload(:final blockId) => vm.canPlaceBeside(
+          anchorId,
+          movingId: blockId,
+        ),
+        RowMovePayload() => false,
+      },
+    );
+  }
+
+  void _onDrop(DragTargetDetails<CanvasDropPayload> details) {
+    _payload = details.data;
+    _lastPointer = details.offset;
+    _resolve();
+    final target = _drop.value?.target;
+    final payload = details.data;
+    _endDrag();
+    if (target == null) {
+      if (payload is PalettePayload) vm.addBlock(payload.spec);
+      return;
+    }
+    switch ((payload, target)) {
+      case (PalettePayload(:final spec), DropNewRow(:final rowIndex)):
+        vm.insertRow(spec, rowIndex);
+      case (
+        PalettePayload(:final spec),
+        DropBeside(:final anchorId, :final before),
+      ):
+        vm.insertBeside(spec, anchorId, before: before);
+      case (BlockMovePayload(:final blockId), DropNewRow(:final rowIndex)):
+        vm.moveBlockToNewRow(blockId, rowIndex);
+      case (
+        BlockMovePayload(:final blockId),
+        DropBeside(:final anchorId, :final before),
+      ):
+        vm.moveBlockBeside(blockId, anchorId, before: before);
+      case (RowMovePayload(:final rowIndex), DropNewRow(rowIndex: final to)):
+        vm.moveRow(rowIndex, to > rowIndex ? to - 1 : to);
+      case (RowMovePayload(), DropBeside()):
+        break;
+    }
+  }
+
+  // ── Width handles ─────────────────────────────────────────────────
+
+  void _resizeStart(double globalX, int rowIndex, int boundary) {
+    vm.beginGesture();
+    _resizeStartX = globalX;
+    _resizeRow = rowIndex;
+    _resizeBoundary = boundary;
+    _resizeCols = 0;
+  }
+
+  void _resizeUpdate(double globalX) {
+    // One column on screen, gaps included — near enough for snapping.
+    final column = _layoutWidth / kDesignerGridCols * _scale;
+    final cols = ((globalX - _resizeStartX) / column).round();
+    if (cols == _resizeCols) return;
+    _resizeCols = cols;
+    vm.dragBoundary(_resizeRow, _resizeBoundary, cols);
+  }
+
+  void _resizeEnd() => vm.endGesture();
+
+  // ── Selection ─────────────────────────────────────────────────────
+
+  void _select(String id) {
+    if (vm.selectedBlockId == id) {
+      // A second press on the selected block goes for its text.
+      vm.requestContentFocus();
+    } else {
+      vm.selectBlock(id);
+    }
+  }
+
+  /// Open a block's menu from the canvas's own context — not the cell's.
+  /// The menu selects the block, and selecting re-keys the cell, so a menu
+  /// opened on the cell's context lost it before an entry could be picked
+  /// (right-click → Duplicate on an unselected block did nothing). The cell
+  /// is also inside the page's light theme, which the menu must not inherit.
+  void _openBlockMenu(String id, Offset globalPosition) =>
+      showBlockMenu(context, vm, id, globalPosition: globalPosition);
+
+  /// Scroll a newly selected block into view — one just added from the
+  /// palette lands wherever its row is, which may be off-screen.
+  void _revealSelection() {
+    final id = vm.selectedBlockId;
+    if (id == _revealedSelection) return;
+    _revealedSelection = id;
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final cell = _selectedCellKey.currentContext?.findRenderObject();
+      final viewport = context.findRenderObject();
+      if (cell is! RenderBox || viewport is! RenderBox || !cell.hasSize) return;
+      final top = cell.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      final bottom = cell
+          .localToGlobal(Offset(0, cell.size.height), ancestor: viewport)
+          .dy;
+      const margin = 40.0;
+      double? delta;
+      if (top < margin) {
+        delta = top - margin;
+      } else if (bottom > viewport.size.height - margin) {
+        delta = math.min(bottom - viewport.size.height + margin, top - margin);
+      }
+      if (delta == null || delta.abs() < 1) return;
+      final position = _scroll.position;
+      _scroll.animateTo(
+        (position.pixels + delta).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        ),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final blocks = vm.blocks;
-    final sample = DesignerSampleData.fallback;
-    // Phase 5c: apply the document's primary font to every Text inside
-    // the canvas via a DefaultTextStyle. GoogleFonts.getFont fetches and
-    // caches lazily; unknown families fall back to the default.
-    final primaryFont = vm.documentSettings.primaryFont;
-    TextStyle? fontStyle;
-    try {
-      fontStyle = GoogleFonts.getFont(primaryFont);
-    } catch (_) {
-      // Unknown font name — keep the default style. We swallow rather
-      // than rebuild on every keystroke in the font field.
-      fontStyle = null;
+    final settings = vm.documentSettings;
+    final metrics = DesignerPageMetrics.of(settings);
+    final rows = vm.rows;
+    while (_rowKeys.length < rows.length) {
+      _rowKeys.add(GlobalKey(debugLabel: 'designer row ${_rowKeys.length}'));
     }
+    final display = <_DisplayRow>[];
+    for (var i = 0; i < rows.length; i++) {
+      var n = 0;
+      final cells = explicitRow(rows[i], (_) => 'display-gap-$i-${n++}');
+      if (cells.isEmpty) continue;
+      display.add(_DisplayRow(i, cells, layoutRow(cells, metrics.layoutWidth)));
+    }
+    _display = display;
+    _layoutWidth = metrics.layoutWidth;
+    _revealSelection();
 
-    return Container(
-      color: tokens.bg,
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: DefaultTextStyle.merge(
-        style: fontStyle ?? const TextStyle(),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: AspectRatio(
-              aspectRatio: 210 / 297, // A4 portrait
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final cellWidth = constraints.maxWidth / kGridCols;
-                  final cellHeight = constraints.maxWidth * _rowAspect;
-                  final selectedBlock = vm.selectedBlock;
-                  return DragTarget<CanvasDropPayload>(
-                    // Step 5b: as the user drags, snap the cursor to a grid
-                    // cell and store it as `_dragGhost` so the ghost overlay
-                    // + alignment guides render at the snap target.
-                    onMove: (details) {
-                      final size = _payloadSize(details.data);
-                      final snap = _snapDragToGrid(
-                        globalOffset: details.offset,
-                        width: size.w,
-                        height: size.h,
-                        cellWidth: cellWidth,
-                        cellHeight: cellHeight,
-                      );
-                      if (snap == null) return;
-                      if (snap != _dragGhost) {
-                        setState(() => _dragGhost = snap);
-                      }
-                    },
-                    onLeave: (_) {
-                      if (_dragGhost != null) {
-                        setState(() => _dragGhost = null);
-                      }
-                    },
-                    // Drop at cursor coords. Convert the global drop offset
-                    // to local Stack coords via the canvas RenderBox, snap
-                    // to grid cells, then either add a fresh block from the
-                    // palette or move an existing block to the drop target.
-                    onAcceptWithDetails: (details) {
-                      setState(() => _dragGhost = null);
-                      final box =
-                          _canvasKey.currentContext?.findRenderObject()
-                              as RenderBox?;
-                      final payload = details.data;
-                      if (box == null) {
-                        // Safe fallback: append at next-free slot.
-                        if (payload is PalettePayload) {
-                          vm.addBlock(payload.spec);
-                        }
-                        return;
-                      }
-                      final local = box.globalToLocal(details.offset);
-                      final gx = (local.dx / cellWidth).floor();
-                      final gy = (local.dy / cellHeight).floor();
-                      switch (payload) {
-                        case PalettePayload(:final spec):
-                          vm.addBlockAt(spec, gx, gy);
-                        case BlockMovePayload(:final block):
-                          // Drop coord is the new top-left; reuse the
-                          // existing w/h.
-                          vm.moveBlock(
-                            block.id,
-                            GridPosition(
-                              x: gx.clamp(0, kGridCols - block.gridPosition.w),
-                              y: gy < 0 ? 0 : gy,
-                              w: block.gridPosition.w,
-                              h: block.gridPosition.h,
+    final selectedId = vm.selectedBlockId;
+    final selectedAt = selectedId == null
+        ? null
+        : locateBlock(rows, selectedId);
+    final sample = widget.sample ?? DesignerSampleData.fallback;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth - _kPanePadding * 2;
+        final fit = (available / metrics.size.width).clamp(0.1, 1.0);
+        final scale = fit * kDesignerBodyZoom;
+        _scale = scale;
+
+        final content = Stack(
+          key: _contentKey,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (display.isEmpty) const _EmptyPage(),
+                for (final row in display)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: row == display.last ? 0 : kDesignerRowGapPx,
+                    ),
+                    child: _linked(
+                      _rowLink,
+                      selectedAt?.row == row.index && row.cells.length > 1,
+                      _RowView(
+                        key: _rowKeys[row.index],
+                        row: row,
+                        vm: vm,
+                        sample: sample,
+                        scale: scale,
+                        accent: tokens.accent,
+                        selectedId: selectedId,
+                        selectedCellKey: _selectedCellKey,
+                        blockLink: _blockLink,
+                        hovered: _hovered,
+                        dragging: _dragging,
+                        onSelect: _select,
+                        onMenu: _openBlockMenu,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ValueListenableBuilder<ResolvedDrop?>(
+                  valueListenable: _drop,
+                  builder: (_, drop, _) => drop == null
+                      ? const SizedBox.shrink()
+                      : CustomPaint(
+                          painter: _DropPainter(drop.indicator, tokens.accent),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        );
+
+        final sheet = _Sheet(
+          metrics: metrics,
+          fontName: settings.primaryFont,
+          fontSize: settings.globalFontSize.toDouble(),
+          formatter: widget.formatter,
+          theme: _paperTheme,
+          child: content,
+        );
+
+        final selected = selectedAt == null
+            ? null
+            : rows[selectedAt.row][selectedAt.index];
+        // Whether the selected block starts its row — it then has the
+        // page's margin to its left.
+        final atRowStart =
+            selectedAt != null &&
+            display.any(
+              (d) =>
+                  d.index == selectedAt.row && d.cells.first.id == selected?.id,
+            );
+        // The selected block's place among its row's cells *as drawn* —
+        // gaps included — which is what the width handles count edges in.
+        var selectedCell = -1;
+        if (selectedAt != null) {
+          for (final d in display) {
+            if (d.index != selectedAt.row) continue;
+            selectedCell = d.cells.indexWhere((c) => c.id == selected?.id);
+          }
+        }
+        // A grip only where it adds something: a row with more than one
+        // cell. A block alone in its row is moved by dragging the block.
+        final showGrip =
+            selectedAt != null &&
+            display.any((d) => d.index == selectedAt.row && d.cells.length > 1);
+        return DragTarget<CanvasDropPayload>(
+          onWillAcceptWithDetails: (_) => true,
+          onMove: _onDragMove,
+          onLeave: (_) => _endDrag(),
+          onAcceptWithDetails: _onDrop,
+          builder: (context, _, _) => ColoredBox(
+            color: tokens.bg,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => vm.selectBlock(null),
+              child: Scrollbar(
+                controller: _scroll,
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          _kPanePadding,
+                          _kPanePadding,
+                          _kPanePadding,
+                          _kPanePadding + widget.bottomInset,
+                        ),
+                        child: Center(
+                          child: SizedBox(
+                            width: metrics.size.width * fit,
+                            child: FittedBox(
+                              fit: BoxFit.fitWidth,
+                              alignment: Alignment.topCenter,
+                              child: sheet,
                             ),
-                          );
-                      }
-                    },
-                    builder: (context, candidate, rejected) {
-                      final highlighted = candidate.isNotEmpty;
-                      return Container(
-                        key: _canvasKey,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(
-                            color: highlighted ? tokens.accent : tokens.border,
-                            width: highlighted ? 2 : 1,
                           ),
-                          borderRadius: BorderRadius.circular(InRadii.r2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            // Phase 16: hidden when the workspace's
-                            // showGrid notifier is false. Wrapped in
-                            // its own ValueListenableBuilder so a toggle
-                            // doesn't trigger the surrounding block
-                            // tree to rebuild.
-                            ValueListenableBuilder<bool>(
-                              valueListenable: widget.showGrid ?? _alwaysShown,
-                              key: const ValueKey('canvas-grid-guides'),
-                              builder: (_, shown, _) => shown
-                                  ? _GridGuides(
-                                      cellWidth: cellWidth,
-                                      cellHeight: cellHeight,
-                                      color: tokens.border,
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                            // Deselect when the user clicks empty canvas.
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onTap: () => vm.selectBlock(null),
-                              ),
-                            ),
-                            if (blocks.isEmpty)
-                              const Center(child: _EmptyHint()),
-                            for (final block in blocks)
-                              _CanvasBlock(
-                                vm: vm,
-                                block: block,
-                                cellWidth: cellWidth,
-                                cellHeight: cellHeight,
-                                sample: sample,
-                                selected: block.id == vm.selectedBlockId,
-                              ),
-                            // Phase 1.5 #4: render the selection toolbar in
-                            // the outer canvas Stack (not inside the block's
-                            // tree) so it can render above a y=0 block
-                            // without being clipped by the block's bounds.
-                            if (selectedBlock != null)
-                              _FloatingSelectionToolbar(
-                                vm: vm,
-                                block: selectedBlock,
-                                cellWidth: cellWidth,
-                                cellHeight: cellHeight,
-                              ),
-                            // Resize handles overlay (Step 4c). Only on the
-                            // currently-selected, non-locked block.
-                            if (selectedBlock != null && !selectedBlock.locked)
-                              _ResizeHandles(
-                                vm: vm,
-                                block: selectedBlock,
-                                cellWidth: cellWidth,
-                                cellHeight: cellHeight,
-                              ),
-                            // Step 5b + 5c: ghost preview + alignment guides
-                            // during drag. Drawn last so they render on top
-                            // of blocks. `_dragGhost` is set by `onMove`
-                            // above and cleared on `onLeave`/`onAccept`.
-                            if (_dragGhost != null) ...[
-                              _AlignmentGuides(
-                                ghost: _dragGhost!,
-                                blocks: blocks,
-                                cellWidth: cellWidth,
-                                cellHeight: cellHeight,
-                                color: tokens.accent,
-                              ),
-                              _DragGhost(
-                                ghost: _dragGhost!,
-                                cellWidth: cellWidth,
-                                cellHeight: cellHeight,
-                                color: tokens.accent,
-                              ),
-                            ],
-                          ],
+                      ),
+                      if (selected != null)
+                        ..._selectionChrome(
+                          selected: selected,
+                          rowIndex: selectedAt!.row,
+                          cellIndex: selectedCell,
+                          atRowStart: atRowStart,
+                          showGrip: showGrip,
+                          // Room beside the page for the tab: the page's own
+                          // margin plus the pane's padding.
+                          gutter: metrics.insetLeft * fit + _kPanePadding,
+                          scale: scale,
                         ),
-                      );
-                    },
-                  );
-                },
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
-}
 
-class _GridGuides extends StatelessWidget {
-  const _GridGuides({
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.color,
-  });
-
-  final double cellWidth;
-  final double cellHeight;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: CustomPaint(
-          painter: _GuidesPainter(
-            cellWidth: cellWidth,
-            cellHeight: cellHeight,
-            color: color,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GuidesPainter extends CustomPainter {
-  _GuidesPainter({
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.color,
-  });
-  final double cellWidth;
-  final double cellHeight;
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.5)
-      ..strokeWidth = 0.5;
-    // Column separators (11 lines between the 12 grid columns).
-    for (var i = 1; i < kGridCols; i++) {
-      final x = cellWidth * i;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    // Phase 16: row separators — derived from the actual canvas
-    // height (the row count grows with the tallest block + slack,
-    // so there's no fixed `kGridRows`).
-    if (cellHeight > 0) {
-      for (var y = cellHeight; y < size.height; y += cellHeight) {
-        canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GuidesPainter old) =>
-      old.cellWidth != cellWidth ||
-      old.cellHeight != cellHeight ||
-      old.color != color;
-}
-
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint();
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.all(InSpacing.lg(context)),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.dashboard_customize_outlined,
-          size: 48,
-          color: context.inTheme.ink3,
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        Text(
-          context.tr('drag_and_drop_to_add'),
-          textAlign: TextAlign.center,
-          style: TextStyle(color: context.inTheme.ink3),
-        ),
-      ],
-    ),
-  );
-}
-
-class _CanvasBlock extends StatelessWidget {
-  const _CanvasBlock({
-    required this.vm,
-    required this.block,
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.sample,
-    required this.selected,
-  });
-
-  final WysiwygDesignViewModel vm;
-  final DesignBlock block;
-  final double cellWidth;
-  final double cellHeight;
-  final DesignerSampleData sample;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = block.gridPosition;
+  /// The selected block's tab and, for a row of several cells, the row's
+  /// grip — followers in the layer above the page.
+  ///
+  /// The tab goes in the page's left margin, level with the block's top,
+  /// whenever the block starts its row and the margin is wide enough: there
+  /// it covers nothing. Otherwise it sits above the block's corner, over the
+  /// end of the row above. The grip takes the margin beside the row's middle,
+  /// or drops under the tab when both are there.
+  List<Widget> _selectionChrome({
+    required DesignBlock selected,
+    required int rowIndex,
+    required int cellIndex,
+    required bool atRowStart,
+    required bool showGrip,
+    required double gutter,
+    required double scale,
+  }) {
     final tokens = context.inTheme;
-    final width = p.w * cellWidth;
-    final height = p.h * cellHeight;
-
-    final body = GestureDetector(
-      onTap: () => vm.selectBlock(block.id),
-      child: RepaintBoundary(
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(InRadii.r2),
-            border: Border.all(
-              color: selected ? tokens.accent : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          // Phase 1.5 #4: the inline _SelectionToolbar moved up to the
-          // canvas Stack as _FloatingSelectionToolbar so it can render
-          // above a y=0 block without being clipped by this block's
-          // bounds.
-          child: BlockPreview(block: block, sample: sample),
+    final tab = _BlockChip(vm: vm, block: selected);
+    final grip = _RowGrip(vm: vm, rowIndex: rowIndex);
+    Widget follower({
+      required LayerLink link,
+      required Alignment target,
+      required Alignment anchor,
+      required Offset offset,
+      required Widget child,
+    }) => Positioned(
+      left: 0,
+      top: 0,
+      child: CompositedTransformFollower(
+        link: link,
+        showWhenUnlinked: false,
+        targetAnchor: target,
+        followerAnchor: anchor,
+        offset: offset,
+        // The follower inherits the page's scaling; undo it so the chrome
+        // is a constant size on screen.
+        child: Transform.scale(
+          scale: 1 / scale,
+          alignment: anchor,
+          child: child,
         ),
       ),
     );
 
-    return Positioned(
-      left: p.x * cellWidth,
-      top: p.y * cellHeight,
-      width: width,
-      height: height,
-      // Locked blocks omit the Draggable wrap — drag attempts no-op.
-      child: block.locked
-          ? body
-          : _DraggableBlock(
-              block: block,
-              width: width,
-              height: height,
-              child: body,
-            ),
-    );
+    // The two width handles, centred on the block's vertical edges. In the
+    // layer above the page, like the tab: a handle drawn as a child of the
+    // row reached past the content box at the row's ends, and nothing out
+    // there is hit-tested — on a block alone in its row neither grip could
+    // be pressed. Sized to the grip rather than to the block's height, so a
+    // press on the block beside its edge still reaches the block.
+    final handles = cellIndex < 0
+        ? const <Widget>[]
+        : [
+            for (final (target, boundary, side) in [
+              (Alignment.centerLeft, cellIndex, 'L'),
+              (Alignment.centerRight, cellIndex + 1, 'R'),
+            ])
+              KeyedSubtree(
+                // Stable through the drag, which rebuilds the row under it.
+                key: ValueKey('handle-${selected.id}-$side'),
+                child: follower(
+                  link: _blockLink,
+                  target: target,
+                  anchor: Alignment.center,
+                  // The grip sits on the selection outline, just outside
+                  // the block, so it never covers the first or last letter.
+                  offset: Offset((side == 'L' ? -3 : 3) / scale, 0),
+                  child: _WidthHandle(
+                    accent: tokens.accent,
+                    onStart: (gx) => _resizeStart(gx, rowIndex, boundary),
+                    onUpdate: _resizeUpdate,
+                    onEnd: _resizeEnd,
+                  ),
+                ),
+              ),
+          ];
+
+    if (atRowStart && gutter >= 48) {
+      return [
+        ...handles,
+        follower(
+          link: _blockLink,
+          target: Alignment.topLeft,
+          anchor: Alignment.topRight,
+          offset: Offset(-9 / scale, -3 / scale),
+          child: showGrip
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [tab, const SizedBox(height: 4), grip],
+                )
+              : tab,
+        ),
+      ];
+    }
+    return [
+      ...handles,
+      follower(
+        link: _blockLink,
+        target: Alignment.topLeft,
+        anchor: Alignment.bottomLeft,
+        offset: Offset(-4 / scale, -5 / scale),
+        child: tab,
+      ),
+      if (showGrip)
+        follower(
+          link: _rowLink,
+          target: Alignment.centerLeft,
+          anchor: Alignment.centerRight,
+          offset: Offset(-8 / scale, 0),
+          child: grip,
+        ),
+    ];
   }
+
+  Widget _linked(LayerLink link, bool on, Widget child) =>
+      on ? CompositedTransformTarget(link: link, child: child) : child;
 }
 
-/// Wraps the block body in a `Draggable<CanvasDropPayload>` on desktop
-/// and a `LongPressDraggable` on touch so the same gesture system supports
-/// both input modes. The feedback widget is a translucent copy of the
-/// block at its actual size; `childWhenDragging` fades the original.
-class _DraggableBlock extends StatelessWidget {
-  const _DraggableBlock({
-    required this.block,
-    required this.width,
-    required this.height,
+/// The sheet of paper: true size, the document's margins, its font and size,
+/// and — whatever theme the app is in — white with dark ink.
+class _Sheet extends StatelessWidget {
+  const _Sheet({
+    required this.metrics,
+    required this.fontName,
+    required this.fontSize,
+    required this.formatter,
+    required this.theme,
     required this.child,
   });
 
-  final DesignBlock block;
-  final double width;
-  final double height;
+  final DesignerPageMetrics metrics;
+  final String fontName;
+  final double fontSize;
+  final Formatter? formatter;
+  final ThemeData theme;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux;
-    final payload = BlockMovePayload(block);
-    final feedback = Material(
-      color: Colors.transparent,
-      child: Opacity(
-        opacity: 0.7,
-        child: SizedBox(width: width, height: height, child: child),
-      ),
+    // The server's body rule: `color: #374151; line-height: 1.5`.
+    var style = TextStyle(
+      fontSize: fontSize,
+      color: const Color(0xFF374151),
+      height: 1.5,
     );
-    final childWhenDragging = Opacity(
-      opacity: 0.3,
-      child: IgnorePointer(child: child),
-    );
-
-    if (isDesktop) {
-      return Draggable<CanvasDropPayload>(
-        data: payload,
-        feedback: feedback,
-        childWhenDragging: childWhenDragging,
-        child: child,
+    try {
+      // Stored as the catalog id (`Abril_Fatface`) or as a name.
+      style = GoogleFonts.getFont(
+        fontName.replaceAll('_', ' '),
+        textStyle: style,
       );
+    } catch (_) {
+      // Not a Google font this build knows — keep the default face.
     }
-    return LongPressDraggable<CanvasDropPayload>(
-      data: payload,
-      feedback: feedback,
-      childWhenDragging: childWhenDragging,
-      child: child,
+    return Container(
+      width: metrics.size.width,
+      constraints: BoxConstraints(minHeight: metrics.size.height),
+      padding: EdgeInsets.fromLTRB(
+        metrics.insetLeft,
+        metrics.insetTop,
+        metrics.insetRight,
+        metrics.insetBottom,
+      ),
+      decoration: BoxDecoration(
+        // Paper is white in either theme.
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: metrics.contentWidth,
+        // The body's 80% zoom: laid out wider, painted smaller.
+        child: FittedBox(
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: metrics.layoutWidth,
+            child: Theme(
+              data: theme,
+              child: MediaQuery.withNoTextScaling(
+                child: DesignerRenderScope(
+                  formatter: formatter,
+                  sample: DesignerRenderScope.maybeSampleOf(context),
+                  customFieldLabels: DesignerRenderScope.customFieldLabelsOf(
+                    context,
+                  ),
+                  child: DefaultTextStyle(style: style, child: child),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// Floating toolbar layered into the canvas Stack above the blocks. When
-/// the selected block sits at `y > 0` the toolbar renders above it; for a
-/// block at `y == 0` it slides inside the block's top edge so it stays
-/// visible (previously clipped by the canvas's borders).
-class _FloatingSelectionToolbar extends StatelessWidget {
-  const _FloatingSelectionToolbar({
-    required this.vm,
-    required this.block,
-    required this.cellWidth,
-    required this.cellHeight,
-  });
-
-  final WysiwygDesignViewModel vm;
-  final DesignBlock block;
-  final double cellWidth;
-  final double cellHeight;
-
-  static const double _toolbarHeight = 28;
-  // Phase 20a: approximate intrinsic width of the toolbar. Used to
-  // keep it inside the canvas on the LEFT for narrow blocks near x=0
-  // — anchoring by `right: canvasWidth - blockRight` alone lets the
-  // natural-width toolbar overhang past x=0 when its width exceeds
-  // `blockLeft + blockWidth`. The toolbar is 3 IconButtons (each at
-  // Material's default 48-px tap target — `Icon(size: 18)` doesn't
-  // shrink the surrounding hit area) + Padding(4,2) on the Material
-  // wrapper, so measured intrinsic is ~150 px. Round up to be safe;
-  // `MainAxisSize.min` keeps actual painting tight regardless.
-  static const double _toolbarApproxWidth = 160;
+class _EmptyPage extends StatelessWidget {
+  const _EmptyPage();
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final p = block.gridPosition;
-    final blockLeft = p.x * cellWidth;
-    final blockTop = p.y * cellHeight;
-    final blockWidth = p.w * cellWidth;
-    // Above the block when there's room; inside the top edge when the
-    // block sits at y=0 (avoids canvas-border clipping).
-    final top = blockTop >= _toolbarHeight + 2
-        ? blockTop - _toolbarHeight - 2
-        : blockTop + 2;
-    final blockRight = blockLeft + blockWidth;
-    final canvasWidth = cellWidth * kGridCols;
-    // Anchor the toolbar to the block's right edge and let it size to its
-    // content instead of forcing it into `width: blockWidth`. A narrow
-    // selected block (w≈3) is thinner than the three-button toolbar
-    // (~92px), which RenderFlex-overflowed this Row — "overflowed by 8.5
-    // pixels on the right" in the diagnostics log.
-    //
-    // Phase 20a: clamp the right-anchor so the toolbar's implied left
-    // edge stays >= 0 — without this, a 1-cell block at x=0 anchored to
-    // its right edge would paint ~70 px past the canvas's left edge.
-    // `maxRight` is the largest `Positioned.right` that keeps the
-    // intrinsic-width toolbar inside the canvas on the left.
-    final rawRight = canvasWidth - blockRight;
-    final maxRight = canvasWidth - _toolbarApproxWidth;
-    final right = maxRight <= 0
-        ? 0.0
-        : rawRight.clamp(0.0, maxRight).toDouble();
-    return Positioned(
-      top: top,
-      right: right,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 120),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.dashboard_customize_outlined,
+            size: 56,
+            color: tokens.ink3,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            context.tr('start_with_a_block'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, color: tokens.ink3, height: 1.3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RowView extends StatelessWidget {
+  const _RowView({
+    super.key,
+    required this.row,
+    required this.vm,
+    required this.sample,
+    required this.scale,
+    required this.accent,
+    required this.selectedId,
+    required this.selectedCellKey,
+    required this.blockLink,
+    required this.hovered,
+    required this.dragging,
+    required this.onSelect,
+    required this.onMenu,
+  });
+
+  final _DisplayRow row;
+  final WysiwygDesignViewModel vm;
+  final DesignerSampleData sample;
+  final double scale;
+  final Color accent;
+  final String? selectedId;
+  final GlobalKey selectedCellKey;
+  final LayerLink blockLink;
+  final ValueNotifier<String?> hovered;
+  final ValueNotifier<bool> dragging;
+  final ValueChanged<String> onSelect;
+  final void Function(String id, Offset globalPosition) onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = row.cells.any((c) => c.id == selectedId);
+    final inline = <Widget>[];
+    final overlays = <Widget>[];
+    var x = 0.0;
+    for (var i = 0; i < row.slots.length; i++) {
+      final slot = row.slots[i];
+      final block = slot.block;
+      if (slot.left > x) inline.add(SizedBox(width: slot.left - x));
+      x = slot.right;
+
+      if (isGapBlock(block)) {
+        inline.add(SizedBox(width: slot.width));
+        overlays.add(
+          Positioned(
+            left: slot.left,
+            width: slot.width,
+            top: 0,
+            bottom: 0,
+            child: _GapCell(
+              dragging: dragging,
+              alwaysShown: hasSelection,
+              scale: scale,
+              accent: accent,
+            ),
+          ),
+        );
+        continue;
+      }
+
+      final selected = block.id == selectedId;
+      Widget cell = _BlockCell(
+        key: selected ? selectedCellKey : ValueKey('cell-${block.id}'),
+        vm: vm,
+        block: block,
+        rowNumber: row.index + 1,
+        sample: sample,
+        scale: scale,
+        accent: accent,
+        selected: selected,
+        hovered: hovered,
+        dragging: dragging,
+        onSelect: onSelect,
+        onMenu: onMenu,
+      );
+      if (selected) {
+        cell = CompositedTransformTarget(link: blockLink, child: cell);
+      }
+      inline.add(SizedBox(width: slot.width, child: cell));
+    }
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: inline),
+        ...overlays,
+      ],
+    );
+  }
+}
+
+/// Empty space in a row. Invisible on the page — it is nothing — and shown,
+/// faintly, only when it matters: while something is being dragged (it is a
+/// place to drop) and while its row holds the selection (its edge can be
+/// moved).
+class _GapCell extends StatelessWidget {
+  const _GapCell({
+    required this.dragging,
+    required this.alwaysShown,
+    required this.scale,
+    required this.accent,
+  });
+
+  final ValueNotifier<bool> dragging;
+  final bool alwaysShown;
+  final double scale;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: ValueListenableBuilder<bool>(
+        valueListenable: dragging,
+        builder: (context, isDragging, _) {
+          if (!isDragging && !alwaysShown) return const SizedBox.shrink();
+          return Semantics(
+            label: context.tr('empty_space'),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.06),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.35),
+                  width: 1 / scale,
+                ),
+                borderRadius: BorderRadius.circular(InRadii.r1 / scale),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BlockCell extends StatelessWidget {
+  const _BlockCell({
+    super.key,
+    required this.vm,
+    required this.block,
+    required this.rowNumber,
+    required this.sample,
+    required this.scale,
+    required this.accent,
+    required this.selected,
+    required this.hovered,
+    required this.dragging,
+    required this.onSelect,
+    required this.onMenu,
+  });
+
+  final WysiwygDesignViewModel vm;
+  final DesignBlock block;
+  final int rowNumber;
+  final DesignerSampleData sample;
+  final double scale;
+  final Color accent;
+  final bool selected;
+  final ValueNotifier<String?> hovered;
+  final ValueNotifier<bool> dragging;
+  final ValueChanged<String> onSelect;
+  final void Function(String id, Offset globalPosition) onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = blockSpecFor(block.type);
+    final label = spec != null ? context.tr(spec.labelKey) : block.type;
+
+    // Drawn just *outside* the block's box. Inside, it sat on the first
+    // column of pixels of left-aligned text and shaved the first letter.
+    final outlined = ValueListenableBuilder<String?>(
+      valueListenable: hovered,
+      child: BlockPreview(block: block, sample: sample),
+      builder: (context, hoveredId, child) => CustomPaint(
+        foregroundPainter: _OutlinePainter(
+          color: selected
+              ? accent
+              : hoveredId == block.id
+              ? accent.withValues(alpha: 0.5)
+              : null,
+          width: (selected ? 2 : 1.5) / scale,
+          gap: 3 / scale,
+          radius: InRadii.r1 / scale,
+        ),
+        child: child,
+      ),
+    );
+
+    final interactive = MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      onEnter: (_) => hovered.value = block.id,
+      onExit: (_) {
+        if (hovered.value == block.id) hovered.value = null;
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onSelect(block.id),
+        onSecondaryTapUp: (d) => onMenu(block.id, d.globalPosition),
+        child: outlined,
+      ),
+    );
+
+    final feedback = _DragChip(icon: spec?.icon, label: label);
+    final whenDragging = Opacity(opacity: 0.35, child: outlined);
+    void started() => dragging.value = true;
+    void ended() => dragging.value = false;
+    final payload = BlockMovePayload(block.id);
+
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      label:
+          '$label, ${context.tr('row')} $rowNumber, '
+          '${block.gridPosition.w}/$kDesignerGridCols',
+      onTap: () => onSelect(block.id),
+      // On touch a drag starts with a long press, so the page still scrolls
+      // under a finger; on a pointer it starts at once.
+      child: Env.isTouchPrimary
+          ? LongPressDraggable<CanvasDropPayload>(
+              data: payload,
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: feedback,
+              childWhenDragging: whenDragging,
+              onDragStarted: started,
+              onDragEnd: (_) => ended(),
+              onDraggableCanceled: (_, _) => ended(),
+              child: interactive,
+            )
+          : Draggable<CanvasDropPayload>(
+              data: payload,
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: feedback,
+              childWhenDragging: whenDragging,
+              onDragStarted: started,
+              onDragEnd: (_) => ended(),
+              onDraggableCanceled: (_, _) => ended(),
+              child: interactive,
+            ),
+    );
+  }
+}
+
+/// What follows the pointer during a drag: the block's name, not a ghost of
+/// the block. The bar on the page says where it will land; a full-size ghost
+/// would only cover it.
+class _DragChip extends StatelessWidget {
+  const _DragChip({required this.icon, required this.label});
+
+  final IconData? icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Transform.translate(
+      offset: const Offset(12, 12),
       child: Material(
-        color: tokens.accent,
-        borderRadius: BorderRadius.circular(InRadii.r1),
-        elevation: 2,
+        elevation: 6,
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(InRadii.r2),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _IconAction(
-                icon: Icons.copy_outlined,
-                tooltip: context.tr('duplicate'),
-                onPressed: () => vm.duplicateBlock(block.id),
-              ),
-              _IconAction(
-                icon: block.locked
-                    ? Icons.lock_outline
-                    : Icons.lock_open_outlined,
-                tooltip: context.tr(block.locked ? 'unlock' : 'lock'),
-                onPressed: () => vm.toggleLock(block.id),
-              ),
-              _IconAction(
-                icon: Icons.close,
-                tooltip: context.tr('delete'),
-                onPressed: () => vm.deleteBlock(block.id),
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: tokens.ink2),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: tokens.ink,
+                ),
               ),
             ],
           ),
@@ -607,378 +1062,264 @@ class _FloatingSelectionToolbar extends StatelessWidget {
   }
 }
 
-/// 8-handle resize overlay drawn around the selected block. Each handle is
-/// a small filled circle at a corner or edge midpoint. Dragging a handle
-/// adjusts the block's grid `(x, y, w, h)` by converting pixel deltas to
-/// grid cells and clamping via [clampSize]. The gesture snapshots once to
-/// history at the start (so the whole drag is one undoable step) and runs
-/// [WysiwygDesignViewModel.fixOverlaps] on release to resolve any new
-/// overlaps.
-class _ResizeHandles extends StatefulWidget {
-  const _ResizeHandles({
-    required this.vm,
-    required this.block,
-    required this.cellWidth,
-    required this.cellHeight,
+/// A draggable edge of the selected block. Moves in whole columns.
+///
+/// It reports the end of a drag it never finished: a recognizer that is
+/// disposed mid-drag fires neither `onEnd` nor `onCancel`, and pressing Esc
+/// or Delete while dragging unmounts the handle. Left open, the gesture
+/// swallowed every later change's undo step — and the next drag replayed
+/// from the stale start, reverting whatever had been done in between.
+class _WidthHandle extends StatefulWidget {
+  const _WidthHandle({
+    required this.accent,
+    required this.onStart,
+    required this.onUpdate,
+    required this.onEnd,
   });
 
-  final WysiwygDesignViewModel vm;
-  final DesignBlock block;
-  final double cellWidth;
-  final double cellHeight;
+  final Color accent;
+  final ValueChanged<double> onStart;
+  final ValueChanged<double> onUpdate;
+  final VoidCallback onEnd;
 
   @override
-  State<_ResizeHandles> createState() => _ResizeHandlesState();
+  State<_WidthHandle> createState() => _WidthHandleState();
 }
 
-class _ResizeHandlesState extends State<_ResizeHandles> {
-  /// Pointer position in **global** screen coordinates at the start of the
-  /// gesture. We compute cell deltas from
-  /// `(currentGlobalPosition - _startGlobal)` rather than accumulating
-  /// per-frame `details.delta`. The delta version was broken: Flutter
-  /// reports `DragUpdateDetails.delta` in the *event receiver's local*
-  /// coords, and the receiver (this handle's `Positioned`) moves with the
-  /// block as it resizes. The result was a polluted accumulator that
-  /// stopped growing past +1 cell. Global coords are immune to that.
-  Offset _startGlobal = Offset.zero;
-  late GridPosition _initial;
+class _WidthHandleState extends State<_WidthHandle> {
+  bool _dragging = false;
 
-  static const double _handleSize = 8;
-  static const double _hitSize = 18;
-
-  void _startDrag(DragStartDetails details) {
-    widget.vm.recordHistorySnapshot();
-    _initial = widget.block.gridPosition;
-    _startGlobal = details.globalPosition;
+  void _end() {
+    if (!_dragging) return;
+    _dragging = false;
+    widget.onEnd();
   }
 
-  void _updateDrag(DragUpdateDetails details, ResizeHandleKind kind) {
-    final accumulated = details.globalPosition - _startGlobal;
-    final next = computeResizedGridPosition(
-      initial: _initial,
-      accumulatedPixels: accumulated,
-      cellWidth: widget.cellWidth,
-      cellHeight: widget.cellHeight,
-      blockType: widget.block.type,
-      touchesLeft: kind.touchesLeft,
-      touchesRight: kind.touchesRight,
-      touchesTop: kind.touchesTop,
-      touchesBottom: kind.touchesBottom,
-    );
-    if (next != widget.block.gridPosition) {
-      widget.vm.updateBlock(widget.block.copyWith(gridPosition: next));
-    }
-  }
-
-  void _endDrag() {
-    widget.vm.fixOverlaps();
+  @override
+  void dispose() {
+    _end();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.block.gridPosition;
-    final left = p.x * widget.cellWidth;
-    final top = p.y * widget.cellHeight;
-    final width = p.w * widget.cellWidth;
-    final height = p.h * widget.cellHeight;
+    final touch = Env.isTouchPrimary;
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // Swallowed: a press that is not a drag used to fall through to the
+        // page's background, which deselects.
+        onTap: () {},
+        onHorizontalDragStart: (d) {
+          _dragging = true;
+          widget.onStart(d.globalPosition.dx);
+        },
+        onHorizontalDragUpdate: (d) => widget.onUpdate(d.globalPosition.dx),
+        onHorizontalDragEnd: (_) => _end(),
+        onHorizontalDragCancel: _end,
+        child: SizedBox(
+          width: touch ? InSizes.touchTarget : 14,
+          height: touch ? InSizes.touchTarget : 36,
+          child: Center(
+            child: Container(
+              width: 5,
+              height: 30,
+              decoration: BoxDecoration(
+                color: widget.accent,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-    Widget handle(ResizeHandleKind kind, double dx, double dy) {
-      return Positioned(
-        left: left + dx - _hitSize / 2,
-        top: top + dy - _hitSize / 2,
-        width: _hitSize,
-        height: _hitSize,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onPanStart: _startDrag,
-          onPanUpdate: (d) => _updateDrag(d, kind),
-          onPanEnd: (_) => _endDrag(),
-          child: MouseRegion(
-            cursor: kind.cursor,
-            child: Center(
-              child: Container(
-                width: _handleSize,
-                height: _handleSize,
-                decoration: BoxDecoration(
-                  color: context.inTheme.accent,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1),
+/// The selected block's tab, just above its top-left corner: its icon, and
+/// the button for its menu.
+///
+/// Deliberately small. It sits over whatever is above the block — rows are
+/// only a few pixels apart — and a tab with the block's name across it hid a
+/// whole line of the row above. The name is in the property panel's header.
+class _BlockChip extends StatelessWidget {
+  const _BlockChip({required this.vm, required this.block});
+
+  final WysiwygDesignViewModel vm;
+  final DesignBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final spec = blockSpecFor(block.type);
+    final label = spec != null ? context.tr(spec.labelKey) : block.type;
+    final touch = Env.isTouchPrimary;
+    return Material(
+      color: tokens.accent,
+      borderRadius: BorderRadius.circular(InRadii.r1),
+      clipBehavior: Clip.antiAlias,
+      child: Builder(
+        builder: (buttonContext) => InkWell(
+          onTap: () {
+            final box = buttonContext.findRenderObject()! as RenderBox;
+            showBlockMenu(
+              context,
+              vm,
+              block.id,
+              globalPosition: box.localToGlobal(
+                box.size.bottomLeft(Offset.zero),
+              ),
+            );
+          },
+          child: Semantics(
+            button: true,
+            label: '$label, ${context.tr('more_actions')}',
+            child: SizedBox(
+              height: touch ? InSizes.touchTarget : 20,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: touch ? 9 : 5),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (spec != null) ...[
+                      Icon(spec.icon, size: 13, color: tokens.onAccent),
+                      const SizedBox(width: 2),
+                    ],
+                    Icon(Icons.more_vert, size: 14, color: tokens.onAccent),
+                  ],
                 ),
               ),
             ),
           ),
         ),
-      );
-    }
-
-    return Stack(
-      key: const ValueKey('wysiwyg-resize-handles'),
-      children: [
-        handle(ResizeHandleKind.topLeft, 0, 0),
-        handle(ResizeHandleKind.top, width / 2, 0),
-        handle(ResizeHandleKind.topRight, width, 0),
-        handle(ResizeHandleKind.right, width, height / 2),
-        handle(ResizeHandleKind.bottomRight, width, height),
-        handle(ResizeHandleKind.bottom, width / 2, height),
-        handle(ResizeHandleKind.bottomLeft, 0, height),
-        handle(ResizeHandleKind.left, 0, height / 2),
-      ],
-    );
-  }
-}
-
-/// Promoted to `@visibleForTesting` so the cursor-mapping regression test
-/// can import it without exposing the rest of the canvas internals.
-@visibleForTesting
-enum ResizeHandleKind {
-  // macOS NSCursor has no diagonal-corner resize cursor — both the
-  // per-corner names (`resizeUpLeft` etc.) AND the diagonal pair
-  // (`resizeUpLeftDownRight` / `resizeUpRightDownLeft`) fall back to the
-  // basic arrow on macOS (verified against the Flutter SDK source's
-  // per-platform docstrings). Use the bidirectional cursors that DO
-  // render on macOS, differentiating the two diagonal pairs:
-  //   NW-SE corners → resizeLeftRight (maps to NSCursor.resizeLeftRight)
-  //   NE-SW corners → resizeUpDown    (maps to NSCursor.resizeUpDown)
-  // Axes don't perfectly match the diagonal direction but the cursor
-  // change is clear and the two pairs are visually distinct from each
-  // other and from the edge cursors.
-  topLeft(
-    touchesTop: true,
-    touchesLeft: true,
-    cursor: SystemMouseCursors.resizeLeftRight,
-  ),
-  top(touchesTop: true, cursor: SystemMouseCursors.resizeUp),
-  topRight(
-    touchesTop: true,
-    touchesRight: true,
-    cursor: SystemMouseCursors.resizeUpDown,
-  ),
-  right(touchesRight: true, cursor: SystemMouseCursors.resizeRight),
-  bottomRight(
-    touchesBottom: true,
-    touchesRight: true,
-    cursor: SystemMouseCursors.resizeLeftRight,
-  ),
-  bottom(touchesBottom: true, cursor: SystemMouseCursors.resizeDown),
-  bottomLeft(
-    touchesBottom: true,
-    touchesLeft: true,
-    cursor: SystemMouseCursors.resizeUpDown,
-  ),
-  left(touchesLeft: true, cursor: SystemMouseCursors.resizeLeft);
-
-  const ResizeHandleKind({
-    this.touchesTop = false,
-    this.touchesRight = false,
-    this.touchesBottom = false,
-    this.touchesLeft = false,
-    required this.cursor,
-  });
-
-  final bool touchesTop;
-  final bool touchesRight;
-  final bool touchesBottom;
-  final bool touchesLeft;
-  final MouseCursor cursor;
-}
-
-/// Step 5b: translucent rectangle at the snapped drop target while a drag
-/// is in progress. Helps the user see WHERE the block will land (the
-/// `Draggable.feedback` rides under the cursor; this rides on the grid).
-class _DragGhost extends StatelessWidget {
-  const _DragGhost({
-    required this.ghost,
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.color,
-  });
-
-  final ({int x, int y, int w, int h}) ghost;
-  final double cellWidth;
-  final double cellHeight;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: ghost.x * cellWidth,
-      top: ghost.y * cellHeight,
-      width: ghost.w * cellWidth,
-      height: ghost.h * cellHeight,
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            border: Border.all(color: color, width: 2),
-            borderRadius: BorderRadius.circular(InRadii.r2),
-          ),
-        ),
       ),
     );
   }
 }
 
-/// Step 5c: alignment guide lines. Renders magenta accent lines spanning
-/// the canvas whenever the dragged ghost's left / right / top / bottom
-/// edge aligns with the corresponding edge of another block. Cheap O(n)
-/// scan per build — only runs while dragging.
-class _AlignmentGuides extends StatelessWidget {
-  const _AlignmentGuides({
-    required this.ghost,
-    required this.blocks,
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.color,
-  });
+/// The handle of a row that holds more than one cell: drag it to move the
+/// whole row, press it for the row's menu.
+class _RowGrip extends StatelessWidget {
+  const _RowGrip({required this.vm, required this.rowIndex});
 
-  final ({int x, int y, int w, int h}) ghost;
-  final List<DesignBlock> blocks;
-  final double cellWidth;
-  final double cellHeight;
-  final Color color;
+  final WysiwygDesignViewModel vm;
+  final int rowIndex;
 
   @override
   Widget build(BuildContext context) {
-    final verticals = <int>{};
-    final horizontals = <int>{};
-    final ghostL = ghost.x;
-    final ghostR = ghost.x + ghost.w;
-    final ghostT = ghost.y;
-    final ghostB = ghost.y + ghost.h;
-    for (final b in blocks) {
-      final p = b.gridPosition;
-      final l = p.x;
-      final r = p.x + p.w;
-      final t = p.y;
-      final btm = p.y + p.h;
-      if (ghostL == l || ghostL == r) verticals.add(ghostL);
-      if (ghostR == l || ghostR == r) verticals.add(ghostR);
-      if (ghostT == t || ghostT == btm) horizontals.add(ghostT);
-      if (ghostB == t || ghostB == btm) horizontals.add(ghostB);
-    }
-    if (verticals.isEmpty && horizontals.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: CustomPaint(
-          painter: _AlignmentGuidesPainter(
-            verticals: verticals,
-            horizontals: horizontals,
-            cellWidth: cellWidth,
-            cellHeight: cellHeight,
-            color: color,
+    final tokens = context.inTheme;
+    final grip = Material(
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: tokens.border),
+        borderRadius: BorderRadius.circular(InRadii.r1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Builder(
+        builder: (gripContext) => InkWell(
+          onTap: () {
+            final box = gripContext.findRenderObject()! as RenderBox;
+            showRowMenu(
+              context,
+              vm,
+              rowIndex,
+              globalPosition: box.localToGlobal(
+                box.size.bottomLeft(Offset.zero),
+              ),
+            );
+          },
+          child: Semantics(
+            button: true,
+            label: context.tr('row'),
+            child: SizedBox(
+              width: Env.isTouchPrimary ? InSizes.touchTarget : 18,
+              height: Env.isTouchPrimary ? InSizes.touchTarget : 26,
+              child: Icon(Icons.drag_indicator, size: 15, color: tokens.ink3),
+            ),
           ),
         ),
       ),
     );
+    final feedback = _DragChip(
+      icon: Icons.table_rows_outlined,
+      label: context.tr('row'),
+    );
+    final payload = RowMovePayload(rowIndex);
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Env.isTouchPrimary
+          ? LongPressDraggable<CanvasDropPayload>(
+              data: payload,
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: feedback,
+              child: grip,
+            )
+          : Draggable<CanvasDropPayload>(
+              data: payload,
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: feedback,
+              child: grip,
+            ),
+    );
   }
 }
 
-class _AlignmentGuidesPainter extends CustomPainter {
-  _AlignmentGuidesPainter({
-    required this.verticals,
-    required this.horizontals,
-    required this.cellWidth,
-    required this.cellHeight,
-    required this.color,
-  });
+class _DropPainter extends CustomPainter {
+  _DropPainter(this.rect, this.color);
 
-  final Set<int> verticals;
-  final Set<int> horizontals;
-  final double cellWidth;
-  final double cellHeight;
+  final Rect rect;
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5;
-    for (final x in verticals) {
-      final px = x * cellWidth;
-      canvas.drawLine(Offset(px, 0), Offset(px, size.height), paint);
-    }
-    for (final y in horizontals) {
-      final py = y * cellHeight;
-      canvas.drawLine(Offset(0, py), Offset(size.width, py), paint);
-    }
+    final radius = Radius.circular(rect.shortestSide / 2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, radius),
+      Paint()..color = color,
+    );
   }
 
   @override
-  bool shouldRepaint(_AlignmentGuidesPainter old) =>
-      old.verticals != verticals ||
-      old.horizontals != horizontals ||
-      old.cellWidth != cellWidth ||
-      old.cellHeight != cellHeight ||
-      old.color != color;
+  bool shouldRepaint(_DropPainter old) =>
+      old.rect != rect || old.color != color;
 }
 
-/// Pure helper for the resize gesture: given a starting [GridPosition], a
-/// pixel-space accumulated offset, the cell size, and which edges/corners
-/// the handle touches, compute the new (clamped) grid position. Extracted
-/// from `_ResizeHandlesState` so the gesture math is unit-testable without
-/// pumping a widget.
-///
-/// `accumulatedPixels` is the displacement of the cursor since the
-/// gesture started — typically `details.globalPosition - startGlobal`
-/// (NOT a per-frame delta, which would be polluted by the receiver's own
-/// motion as the block resizes).
-@visibleForTesting
-GridPosition computeResizedGridPosition({
-  required GridPosition initial,
-  required Offset accumulatedPixels,
-  required double cellWidth,
-  required double cellHeight,
-  required String blockType,
-  required bool touchesLeft,
-  required bool touchesRight,
-  required bool touchesTop,
-  required bool touchesBottom,
-}) {
-  final dxCells = (accumulatedPixels.dx / cellWidth).round();
-  final dyCells = (accumulatedPixels.dy / cellHeight).round();
-  var nx = initial.x;
-  var ny = initial.y;
-  var nw = initial.w;
-  var nh = initial.h;
-  if (touchesLeft) {
-    nx = (initial.x + dxCells).clamp(0, initial.x + initial.w - 1);
-    nw = initial.w - (nx - initial.x);
-  } else if (touchesRight) {
-    nw = initial.w + dxCells;
-  }
-  if (touchesTop) {
-    ny = (initial.y + dyCells).clamp(0, initial.y + initial.h - 1);
-    nh = initial.h - (ny - initial.y);
-  } else if (touchesBottom) {
-    nh = initial.h + dyCells;
-  }
-  final clamped = clampSize(
-    type: blockType,
-    desiredW: nw,
-    desiredH: nh,
-    x: nx,
-    y: ny,
-  );
-  return GridPosition(x: nx, y: ny, w: clamped.w, h: clamped.h);
-}
-
-class _IconAction extends StatelessWidget {
-  const _IconAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
+/// A rounded outline [gap] outside the box it is painted on.
+class _OutlinePainter extends CustomPainter {
+  _OutlinePainter({
+    required this.color,
+    required this.width,
+    required this.gap,
+    required this.radius,
   });
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
+
+  final Color? color;
+  final double width;
+  final double gap;
+  final double radius;
+
   @override
-  Widget build(BuildContext context) => IconButton(
-    icon: Icon(icon, color: Colors.white, size: 16),
-    tooltip: tooltip,
-    padding: const EdgeInsets.all(4),
-    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-    onPressed: onPressed,
-  );
+  void paint(Canvas canvas, Size size) {
+    final color = this.color;
+    if (color == null) return;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        (Offset.zero & size).inflate(gap),
+        Radius.circular(radius),
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_OutlinePainter old) =>
+      old.color != color ||
+      old.width != width ||
+      old.gap != gap ||
+      old.radius != radius;
 }

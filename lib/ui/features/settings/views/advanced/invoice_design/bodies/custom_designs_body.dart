@@ -9,13 +9,16 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/static/built_in_designs_catalog.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/import_design_json_dialog.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/design_edit_screen.dart';
-import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/templates.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/company_context.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/starter_gallery.dart';
 import 'package:admin/ui/features/settings/views/settings_shell.dart'
     show hideSettingsListSidebar;
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_screen.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 
 /// Custom Designs tab body — second tab on the Invoice Design shell
@@ -37,10 +40,11 @@ class CustomDesignsBody extends StatelessWidget {
   Widget build(BuildContext context) => const _BodyImpl();
 }
 
-/// Top-bar action injected into the cascade shell's preview-toggle row
-/// for the Custom Designs tab (see `TabbedSettingsTab.topBarLeading`).
-/// Lives outside `CustomDesignsBody` so the shell can render it alongside
-/// "Show Preview" instead of stacking it below.
+/// Top-bar action injected above the Custom Designs tab's content by the
+/// cascade shell (see `TabbedSettingsTab.topBarLeading`). Lives outside
+/// `CustomDesignsBody` so the shell can render it alongside "Show Preview"
+/// instead of stacking it below — and on its own where the preview sits
+/// beside the list and there is no such button.
 class CustomDesignsNewDesignButton extends StatelessWidget {
   const CustomDesignsNewDesignButton({super.key});
 
@@ -123,12 +127,8 @@ Future<void> showDesignDetailScreen(BuildContext context, Design design) {
   );
 }
 
-/// Entry chooser. Three options (Phase 11): the visual builder
-/// pre-seeded with the standard starter so users land on a populated
-/// canvas; the tabbed Twig editor open to the HTML tab (the
-/// "Edit HTML" path absorbs the old "Duplicate a built-in" + "Edit
-/// the HTML" entries since they routed to the same screen); and a
-/// paste-JSON importer.
+/// Entry chooser: the visual builder (which goes on to a gallery of starting
+/// layouts), the HTML editor, and a paste-JSON importer.
 Future<void> _showNewDesignChooser(BuildContext context) async {
   await showDialog<void>(
     context: context,
@@ -138,19 +138,33 @@ Future<void> _showNewDesignChooser(BuildContext context) async {
         ListTile(
           leading: const Icon(Icons.dashboard_customize_outlined),
           title: Text(ctx.tr('visual_designer')),
-          subtitle: Text(ctx.tr('drag_and_drop_to_add')),
-          onTap: () {
+          subtitle: Text(ctx.tr('starter_templates_hint')),
+          onTap: () async {
             Navigator.of(ctx).pop();
-            // Phase 11: pre-seed with the `standard` starter so users
-            // land on a populated canvas instead of an empty grid.
-            final starters = buildStarterTemplates();
-            final standard = starters.firstWhere(
-              (s) => s.id == 'standard',
-              orElse: () => starters.first,
-            );
-            showWysiwygDesignScreen(
+            // Choose what to start from — it used to open on one starter
+            // with no say, and the others could not be reached.
+            final services = context.read<Services>();
+            final companyId = services.auth.session.value?.currentCompanyId;
+            final company = companyId == null
+                ? null
+                : await services.company.watchCompany(companyId).first;
+            if (!context.mounted) return;
+            final layout = await showStarterGallery(
               context,
-              seedFrom: _seedFromStarter(standard),
+              // The thumbnails show the company's own letterhead and colour.
+              sample: company == null
+                  ? null
+                  : designerSampleFor(company.settings),
+              accent: company == null
+                  ? null
+                  : designerBrandColors(company.settings).firstOrNull,
+            );
+            if (layout == null || !context.mounted) return;
+            unawaited(
+              showWysiwygDesignScreen(
+                context,
+                seedFrom: _seedFromBlocks(layout),
+              ),
             );
           },
         ),
@@ -179,18 +193,16 @@ Future<void> _showNewDesignChooser(BuildContext context) async {
   );
 }
 
-/// Synthesize an unsaved `Design` that wraps a starter template's
-/// blocks. Used by the Visual Designer entry (pre-seeded with
-/// `standard`) and any future template-gallery flow.
-Design _seedFromStarter(DesignTemplateStarter starter) => Design(
+/// An unsaved `Design` holding a starter layout's blocks (none for Blank).
+Design _seedFromBlocks(List<DesignBlock> blocks) => Design(
   id: '',
   name: '',
   isCustom: true,
   isActive: true,
   isTemplate: false,
   isFree: false,
-  entities: const ['invoice'],
-  template: DesignTemplate(blocks: starter.blocks),
+  entities: WysiwygDesignViewModel.defaultEntities,
+  template: DesignTemplate(blocks: blocks),
   updatedAt: DateTime.utc(2000),
   createdAt: DateTime.utc(2000),
   archivedAt: null,
@@ -222,6 +234,19 @@ Future<void> showWysiwygDesignScreen(
 Future<void> _promptImportJson(BuildContext context) async {
   final json = await showImportDesignJsonDialog(context);
   if (json == null || json.trim().isEmpty || !context.mounted) return;
+  // A design made of blocks is a visual design: opened in the HTML editor
+  // it showed an empty body and saved over the blocks. Its name is left for
+  // the builder to choose — the one in the file is, as often as not, taken.
+  final template = designTemplateFromJson(json);
+  if (template != null && template.blocks.isNotEmpty) {
+    unawaited(
+      showWysiwygDesignScreen(
+        context,
+        seedFrom: _seedFromBlocks(const []).copyWith(template: template),
+      ),
+    );
+    return;
+  }
   unawaited(showDesignEditScreen(context, importJson: json));
 }
 
@@ -256,10 +281,11 @@ class _DesignsListView extends StatelessWidget {
         vertical: InSpacing.md(context),
       ),
       // "+ New design" used to live here; it's been hoisted into the
-      // shell's preview-toggle bar via `TabbedSettingsTab.topBarLeading`
+      // shell's top bar via `TabbedSettingsTab.topBarLeading`
       // (see `CustomDesignsNewDesignButton` + `invoice_design_shell.dart`)
       // so it sits on the same horizontal line as "Show preview"
-      // instead of stacking below it.
+      // instead of stacking below it. The shell draws that bar at every
+      // width, including the one with no "Show preview" in it.
       children: [
         const PlanGateBanner(style: PlanGateStyle.inset),
         if (custom.isNotEmpty) ...[
@@ -268,6 +294,178 @@ class _DesignsListView extends StatelessWidget {
         ],
         _SectionHeader(label: context.tr('built_in')),
         for (final r in builtIn) _DesignTile(row: r, canEdit: canEdit),
+        SizedBox(height: InSpacing.lg(context)),
+        _ArchivedDesigns(canEdit: canEdit),
+      ],
+    );
+  }
+}
+
+/// "Show archived" and, behind it, the archived custom designs with a way
+/// back for each.
+///
+/// Archiving a design used to make it vanish: the list watches active rows
+/// only, so there was nowhere to find one again and nothing to restore it
+/// with. The switch is off by default and forgotten when the tab is left —
+/// it is a place to go looking, not a way to browse.
+class _ArchivedDesigns extends StatefulWidget {
+  const _ArchivedDesigns({required this.canEdit});
+
+  final bool canEdit;
+
+  @override
+  State<_ArchivedDesigns> createState() => _ArchivedDesignsState();
+}
+
+class _ArchivedDesignsState extends State<_ArchivedDesigns> {
+  bool _show = false;
+  bool _fetching = false;
+  Stream<List<Design>>? _stream;
+
+  Future<void> _toggle(bool show) async {
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    setState(() {
+      _show = show;
+      // Hoisted: a stream made in `build` would re-subscribe every frame.
+      _stream = show && companyId != null
+          ? services.designs.watchArchived(companyId: companyId)
+          : null;
+    });
+    if (!show || companyId == null) return;
+    // The bundle designs arrive in never includes an archived one, so ask
+    // — for everything (`full`): the default is a delta from the cursor the
+    // bundle left, and a design archived before that cursor is not in it.
+    // Offline, or on any failure, the list shows what this device knows.
+    setState(() => _fetching = true);
+    try {
+      await services.designs.refreshAll(companyId: companyId, full: true);
+    } catch (_) {
+      // Best effort.
+    } finally {
+      if (mounted) setState(() => _fetching = false);
+    }
+  }
+
+  Future<void> _restore(Design design) async {
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId == null) return;
+    final toasts = Notify.capture(context);
+    final done = context.tr('restored_design');
+    final queued = context.tr('offline_changes_will_sync');
+    final failed = context.tr('an_error_occurred');
+    try {
+      await services.designs.restore(companyId: companyId, id: design.id);
+    } catch (_) {
+      toasts?.error(failed);
+      return;
+    }
+    // A design has no local restore to apply ahead of the server: the row
+    // goes when the server has answered. So "restored" is said then — and
+    // offline, where the row is still sitting there, what is true instead.
+    final left = await services.designs
+        .watchArchived(companyId: companyId)
+        .firstWhere((rows) => !rows.any((d) => d.id == design.id))
+        .then((_) => true)
+        .timeout(const Duration(seconds: 6), onTimeout: () => false)
+        .catchError((Object _) => false);
+    if (left) {
+      toasts?.success(done);
+    } else {
+      toasts?.info(queued);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MergeSemantics(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(InRadii.r2),
+            onTap: () => _toggle(!_show),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.tr('show_archived'),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleSmall?.copyWith(color: tokens.ink2),
+                    ),
+                  ),
+                  if (_fetching)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  Switch(value: _show, onChanged: _toggle),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_show)
+          StreamBuilder<List<Design>>(
+            stream: _stream,
+            builder: (context, snapshot) {
+              final archived = [
+                for (final d in snapshot.data ?? const <Design>[])
+                  if (d.isCustom) d,
+              ];
+              if (archived.isEmpty) {
+                // Nothing yet may only mean the answer has not arrived.
+                if (_fetching || !snapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: InSpacing.sm),
+                  child: Text(
+                    context.tr('no_archived_designs'),
+                    style: TextStyle(color: tokens.ink3),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (final design in archived)
+                    Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        title: Text(
+                          design.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: tokens.ink2),
+                        ),
+                        subtitle: Text(
+                          context.tr('archived'),
+                          style: TextStyle(color: tokens.ink3),
+                        ),
+                        trailing: widget.canEdit
+                            ? OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(64, 40),
+                                ),
+                                onPressed: () => _restore(design),
+                                child: Text(context.tr('restore')),
+                              )
+                            : null,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
       ],
     );
   }
@@ -307,6 +505,7 @@ class _DesignTile extends StatelessWidget {
     // "Edit a copy" seeds a NEW custom design, so it's Pro-only; hide it for
     // free users. Export is read-only (clipboard) and stays available to all.
     final showCopy = row.design != null && canEdit;
+    final isVisual = row.isVisual;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
@@ -320,6 +519,8 @@ class _DesignTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isVisual)
+              _Pill(label: context.tr('visual'), tone: _PillTone.neutral),
             if (row.isTemplate)
               _Pill(label: context.tr('template'), tone: _PillTone.neutral),
             if (!row.isCustom && !row.isFree)
@@ -343,7 +544,16 @@ class _DesignTile extends StatelessWidget {
                 ],
                 onSelected: (v) {
                   if (v == 'copy') {
-                    showDesignEditScreen(context, seedFrom: row.design);
+                    // A copy of a visual design opens where it can be
+                    // edited; the blank name takes the builder's default.
+                    if (isVisual) {
+                      showWysiwygDesignScreen(
+                        context,
+                        seedFrom: row.design!.copyWith(name: ''),
+                      );
+                    } else {
+                      showDesignEditScreen(context, seedFrom: row.design);
+                    }
                   } else if (v == 'export') {
                     unawaited(_exportDesign(context, row.design!));
                   }
@@ -364,11 +574,17 @@ class _DesignTile extends StatelessWidget {
   /// designs are the gated feature) — mirrors the "+ New design" button.
   /// Built-in designs open read-only detail for everyone; static catalog rows
   /// with no loaded template (`design == null`) aren't tappable.
+  ///
+  /// A design with blocks opens in the visual builder, never the HTML editor:
+  /// the server renders a block design from its blocks alone and ignores its
+  /// HTML, so that editor's changes would never reach a PDF — and it was the
+  /// only way back into a saved visual design.
   VoidCallback? _onTap(BuildContext context) {
     if (row.isCustom) {
-      return canEdit
-          ? () => showDesignEditScreen(context, existingId: row.id)
-          : () => unawaited(openUpgradeFlow(context));
+      if (!canEdit) return () => unawaited(openUpgradeFlow(context));
+      return row.isVisual
+          ? () => showWysiwygDesignScreen(context, existingId: row.id)
+          : () => showDesignEditScreen(context, existingId: row.id);
     }
     if (row.design == null) return null;
     return () => showDesignDetailScreen(context, row.design!);
@@ -587,4 +803,8 @@ class _Row {
   final bool isTemplate;
   final bool isFree;
   final Design? design;
+
+  /// Built in the visual designer: it carries blocks, which is also how the
+  /// server tells such a design from an HTML one.
+  bool get isVisual => design?.template.blocks.isNotEmpty ?? false;
 }

@@ -34,6 +34,11 @@ class WysiwygPreviewSheet extends StatefulWidget {
     this.initialEntityType,
     this.debounce = const Duration(milliseconds: 800),
     this.isPro = true,
+    this.onClose,
+    this.embedded = false,
+    this.entityId,
+    this.documentPicker,
+    this.onEntityTypeChanged,
   });
 
   final LiveDesignService service;
@@ -52,6 +57,28 @@ class WysiwygPreviewSheet extends StatefulWidget {
   /// so existing call sites + tests aren't affected; the WYSIWYG screen
   /// passes the auth-derived value explicitly.
   final bool isPro;
+
+  /// What the header's close button does. Null pops the route — right for a
+  /// sheet; the designer shows the preview in place of its canvas and passes
+  /// the switch back.
+  final VoidCallback? onClose;
+
+  /// Shown in place of the designer's canvas rather than as a sheet: the
+  /// screen's own Design | Preview switch is the title and the way back, so
+  /// the header carries neither.
+  final bool embedded;
+
+  /// The invoice to render, when previewing an invoice. Null leaves the
+  /// choice of document to the server.
+  final String? entityId;
+
+  /// The control that chooses [entityId], shown in the header beside the
+  /// document type while that type is `invoice`.
+  final Widget? documentPicker;
+
+  /// Reports the document type picked, so the owner can open the next
+  /// preview on it instead of back on the first.
+  final ValueChanged<String>? onEntityTypeChanged;
 
   @override
   State<WysiwygPreviewSheet> createState() => _WysiwygPreviewSheetState();
@@ -81,7 +108,10 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
     super.didUpdateWidget(old);
     // Re-render when the design draft changes (parent rebuilds with a new
     // [Design] reference each time the VM notifies).
-    if (!identical(old.design, widget.design)) {
+    if (old.entityId != widget.entityId) {
+      // A different document is a different picture: no waiting.
+      _scheduleRender(immediate: true);
+    } else if (!identical(old.design, widget.design)) {
       _scheduleRender();
     }
   }
@@ -95,8 +125,13 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
   void _onEntityChanged(String? next) {
     if (next == null || next == _entityType) return;
     setState(() => _entityType = next);
+    widget.onEntityTypeChanged?.call(next);
     _scheduleRender(immediate: true);
   }
+
+  /// The chosen invoice, while it is an invoice being previewed.
+  String? get _realEntityId =>
+      _entityType == 'invoice' ? widget.entityId : null;
 
   void _scheduleRender({bool immediate = false}) {
     _debounce?.cancel();
@@ -119,6 +154,7 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
       final bytes = await widget.service.renderDesignPreview(
         entityType: _entityType,
         design: widget.design,
+        entityId: _realEntityId,
       );
       if (!mounted || seq != _requestSeq) return;
       setState(() {
@@ -144,11 +180,20 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
         _loading = false;
         _errorMessage = context.tr('network_error');
       });
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted || seq != _requestSeq) return;
       setState(() {
         _loading = false;
-        _errorMessage = e.toString();
+        _errorMessage = e.message.trim().isEmpty
+            ? context.tr('an_error_occurred')
+            : e.message;
+      });
+    } catch (_) {
+      // Not a sentence for a user: say that it failed, and offer Retry.
+      if (!mounted || seq != _requestSeq) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = context.tr('an_error_occurred');
       });
     }
   }
@@ -172,17 +217,40 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
           entityOptions: entityOptions,
           loading: _loading,
           onChanged: _onEntityChanged,
+          onClose: widget.onClose,
+          embedded: widget.embedded,
+          documentPicker: _entityType == 'invoice'
+              ? widget.documentPicker
+              : null,
+          serverPicksDocument: _realEntityId == null,
         ),
         if (_errorMessage != null)
-          _ErrorBanner(message: _errorMessage!, fieldErrors: _fieldErrors),
+          _ErrorBanner(
+            message: _errorMessage!,
+            fieldErrors: _fieldErrors,
+            onRetry: _loading ? null : _render,
+          ),
         Expanded(
           child: _pdf == null
               ? Center(
                   child: _loading
                       ? const CircularProgressIndicator()
-                      : Text(
-                          context.tr('no_preview_available'),
-                          style: TextStyle(color: tokens.ink3),
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              context.tr('no_preview_available'),
+                              style: TextStyle(color: tokens.ink3),
+                            ),
+                            SizedBox(height: InSpacing.sm),
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(64, 40),
+                              ),
+                              onPressed: _render,
+                              child: Text(context.tr('retry')),
+                            ),
+                          ],
                         ),
                 )
               : Stack(
@@ -217,12 +285,23 @@ class _Header extends StatelessWidget {
     required this.entityOptions,
     required this.loading,
     required this.onChanged,
+    this.onClose,
+    this.embedded = false,
+    this.documentPicker,
+    this.serverPicksDocument = false,
   });
 
   final String entityType;
   final List<String> entityOptions;
   final bool loading;
   final ValueChanged<String?> onChanged;
+  final VoidCallback? onClose;
+  final bool embedded;
+  final Widget? documentPicker;
+
+  /// No particular record was asked for, so what is shown is the server's
+  /// choice — said, because it is not the document on the designer's page.
+  final bool serverPicksDocument;
 
   @override
   Widget build(BuildContext context) {
@@ -238,11 +317,13 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            context.tr('preview'),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          SizedBox(width: InSpacing.lg(context)),
+          if (!embedded) ...[
+            Text(
+              context.tr('preview'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            SizedBox(width: InSpacing.lg(context)),
+          ],
           DropdownButton<String>(
             value: entityType,
             underline: const SizedBox.shrink(),
@@ -252,6 +333,18 @@ class _Header extends StatelessWidget {
             ],
             onChanged: onChanged,
           ),
+          if (documentPicker != null) Flexible(child: documentPicker!),
+          if (embedded && serverPicksDocument)
+            Flexible(
+              child: Padding(
+                padding: EdgeInsets.only(left: InSpacing.sm),
+                child: Text(
+                  context.tr('preview_server_sample'),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: context.inTheme.ink3),
+                ),
+              ),
+            ),
           const Spacer(),
           if (loading)
             const SizedBox(
@@ -259,11 +352,15 @@ class _Header extends StatelessWidget {
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: context.tr('close'),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
+          if (!embedded)
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: context.tr('close'),
+              onPressed: onClose ?? () => Navigator.of(context).maybePop(),
+            )
+          else
+            // Keeps the row the height the close button gave it.
+            const SizedBox(height: 40),
         ],
       ),
     );
@@ -298,10 +395,13 @@ class _PreviewWatermark extends StatelessWidget {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message, this.fieldErrors});
+  const _ErrorBanner({required this.message, this.fieldErrors, this.onRetry});
 
   final String message;
   final Map<String, List<String>>? fieldErrors;
+
+  /// Null while a render is already running.
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +425,16 @@ class _ErrorBanner extends StatelessWidget {
                 firstFieldError ?? message,
                 style: TextStyle(color: context.inTheme.overdue),
               ),
+            ),
+            SizedBox(width: InSpacing.sm),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: context.inTheme.overdue,
+                minimumSize: const Size(44, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: onRetry,
+              child: Text(context.tr('retry')),
             ),
           ],
         ),

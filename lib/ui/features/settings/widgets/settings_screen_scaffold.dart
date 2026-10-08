@@ -20,12 +20,17 @@ class SettingsScreenScaffold extends StatelessWidget {
     super.key,
     required this.titleKey,
     required this.body,
+    this.title,
     this.actions,
     this.bottom,
     this.leading,
   });
 
   final String titleKey;
+
+  /// Replaces the localized [titleKey] text in the AppBar — for an editor
+  /// whose title *is* an editable name. [titleKey] still picks the docs link.
+  final Widget? title;
   final Widget body;
   final List<Widget>? actions;
   final PreferredSizeWidget? bottom;
@@ -74,7 +79,10 @@ class SettingsScreenScaffold extends StatelessWidget {
       // menu.
       drawer: showHamburger ? const AppDrawer() : null,
       appBar: AppBar(
-        title: Text(context.tr(titleKey)),
+        title: title ?? Text(context.tr(titleKey)),
+        // A custom title is a control, and sits at the start on every
+        // platform rather than centred as iOS and macOS would have it.
+        centerTitle: title == null ? null : false,
         leading: resolvedLeading,
         // Explicit rather than inferred. It was previously inert — `AppBar`
         // only consults it when `leading` is null, which the old code never

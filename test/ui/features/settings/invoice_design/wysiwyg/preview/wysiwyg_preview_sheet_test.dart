@@ -23,6 +23,7 @@ class _StubLiveDesignService implements LiveDesignService {
   Uint8List result = Uint8List.fromList(utf8.encode('%PDF-1.4 fake\n%%EOF'));
   Object? throwOnNext;
   String? lastEntityType;
+  String? lastEntityId;
   Design? lastDesign;
   int callCount = 0;
 
@@ -30,9 +31,11 @@ class _StubLiveDesignService implements LiveDesignService {
   Future<Uint8List> renderDesignPreview({
     required String entityType,
     required Design design,
+    String? entityId,
   }) async {
     callCount++;
     lastEntityType = entityType;
+    lastEntityId = entityId;
     lastDesign = design;
     final t = throwOnNext;
     if (t != null) {
@@ -406,6 +409,176 @@ void main() {
       // recognisable hint surfaces.
       expect(find.textContaining('SocketException'), findsNothing);
       expect(find.textContaining('Network error'), findsOneWidget);
+    });
+  });
+
+  group('the document it is asked to render', () {
+    // Not `pumpAndSettle`: the PDF view spins for as long as it rasterizes.
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('the chosen invoice, while it is an invoice being previewed', (
+      tester,
+    ) async {
+      final service = _StubLiveDesignService();
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+            embedded: true,
+            entityId: 'inv42',
+            documentPicker: const Text('Invoice 0042'),
+          ),
+        ),
+      );
+      await settle(tester);
+      expect(service.lastEntityType, 'invoice');
+      expect(service.lastEntityId, 'inv42');
+      expect(find.text('Invoice 0042'), findsOneWidget);
+      expect(find.text('Sample data chosen by the server'), findsNothing);
+
+      // A quote is not that invoice: the server picks, and the header says
+      // so instead of offering an invoice picker that would do nothing.
+      await tester.tap(find.byType(DropdownButton<String>));
+      await settle(tester);
+      await tester.tap(find.text('Quote').last);
+      await settle(tester);
+      expect(service.lastEntityType, 'quote');
+      expect(service.lastEntityId, isNull);
+      expect(find.text('Invoice 0042'), findsNothing);
+      expect(find.text('Sample data chosen by the server'), findsOneWidget);
+    });
+
+    testWidgets('a different invoice renders at once', (tester) async {
+      final service = _StubLiveDesignService();
+      Widget sheet(String? id) => _wrap(
+        WysiwygPreviewSheet(
+          service: service,
+          design: _design(),
+          // A long debounce: only an immediate render can pass below.
+          debounce: const Duration(seconds: 30),
+          embedded: true,
+          entityId: id,
+        ),
+      );
+      await tester.pumpWidget(sheet('a'));
+      await settle(tester);
+      expect(service.lastEntityId, 'a');
+      await tester.pumpWidget(sheet('b'));
+      await settle(tester);
+      expect(service.lastEntityId, 'b');
+      expect(service.callCount, 2);
+    });
+
+    testWidgets('the type picked is reported, and opens the next preview', (
+      tester,
+    ) async {
+      final service = _StubLiveDesignService();
+      String? remembered;
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+            embedded: true,
+            onEntityTypeChanged: (t) => remembered = t,
+          ),
+        ),
+      );
+      await settle(tester);
+      await tester.tap(find.byType(DropdownButton<String>));
+      await settle(tester);
+      await tester.tap(find.text('Credit').last);
+      await settle(tester);
+      expect(remembered, 'credit');
+
+      // Leaving and coming back — a new State — starts where it was left.
+      await tester.pumpWidget(_wrap(const SizedBox()));
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+            embedded: true,
+            initialEntityType: remembered,
+          ),
+        ),
+      );
+      await settle(tester);
+      expect(service.lastEntityType, 'credit');
+    });
+  });
+
+  group('in place of the canvas', () {
+    testWidgets('no title and no close: the switch above is both', (
+      tester,
+    ) async {
+      final service = _StubLiveDesignService();
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+            embedded: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Preview'), findsNothing);
+      expect(find.byTooltip('Close'), findsNothing);
+    });
+  });
+
+  group('when the render fails', () {
+    testWidgets('Retry asks again', (tester) async {
+      final service = _StubLiveDesignService()
+        ..throwOnNext = const NetworkException('offline');
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.callCount, 1);
+      expect(find.byType(PdfPreview), findsNothing);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(service.callCount, 2);
+      expect(find.byType(PdfPreview), findsOneWidget);
+    });
+
+    testWidgets('an unexpected failure is a sentence, not a stack frame', (
+      tester,
+    ) async {
+      final service = _StubLiveDesignService()
+        ..throwOnNext = StateError('Bad state: _pdfium was null');
+      await tester.pumpWidget(
+        _wrap(
+          WysiwygPreviewSheet(
+            service: service,
+            design: _design(),
+            debounce: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.textContaining('_pdfium'), findsNothing);
+      expect(find.text('An error occurred'), findsOneWidget);
     });
   });
 }

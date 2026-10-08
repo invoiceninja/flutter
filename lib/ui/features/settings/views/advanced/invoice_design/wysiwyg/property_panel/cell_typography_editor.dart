@@ -76,14 +76,12 @@ class CellTypographyEditor extends StatelessWidget {
             onChanged: (next) => _set('fontSize', next),
             resettable: true,
           ),
-          SizedBox(height: InSpacing.md(context)),
           FontStyleInput(
             fontWeight: v['fontWeight'] as String?,
             fontStyle: v['fontStyle'] as String?,
             onFontWeightChanged: (next) => _set('fontWeight', next),
             onFontStyleChanged: (next) => _set('fontStyle', next),
           ),
-          SizedBox(height: InSpacing.md(context)),
           ColorInput(
             labelKey: 'color',
             value: v['color'] as String?,

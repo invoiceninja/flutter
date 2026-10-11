@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/language.dart';
 import 'package:admin/l10n/localization.dart';
@@ -43,7 +44,7 @@ class UserDetailsDetailsScreen extends StatelessWidget {
               title: context.tr('profile'),
               children: const [_DetailsForm()],
             ),
-            const _SignOutSection(),
+            if (!Env.isDemoBuild) const _SignOutSection(),
           ],
         );
       },

@@ -72,6 +72,12 @@ class Env {
     defaultValue: 'https://demo.invoiceninja.com',
   );
 
+  /// True in the pre-authenticated demo build. A sign-out there strands the
+  /// visitor on `/login` with no credentials (only a page reload re-runs the
+  /// token bootstrap), and End All Sessions would rotate the shared token for
+  /// every visitor — so the sign-out surfaces hide themselves on this flag.
+  static const bool isDemoBuild = demoApiToken != '';
+
   /// Google OAuth Web/server client ID. Required on Android: the v7
   /// `google_sign_in` plugin routes through Credential Manager, which needs
   /// the Web OAuth client ID passed to `initialize(serverClientId:)` — it does

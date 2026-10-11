@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
@@ -285,30 +286,31 @@ class _AccountManagementSecuritySettingsScreenState
             ),
           ],
         ),
-        FormSection(
-          title: context.tr('end_all_sessions'),
-          children: [
-            Text(
-              context.tr('end_all_sessions_help'),
-              style: TextStyle(color: context.inTheme.ink2),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                icon: Icon(Icons.logout, color: context.inTheme.overdue),
-                label: Text(
-                  context.tr('end_all_sessions'),
-                  style: TextStyle(color: context.inTheme.overdue),
-                ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(160, 44),
-                  side: BorderSide(color: context.inTheme.overdue),
-                ),
-                onPressed: _endingSessions ? null : _onEndAllSessions,
+        if (!Env.isDemoBuild)
+          FormSection(
+            title: context.tr('end_all_sessions'),
+            children: [
+              Text(
+                context.tr('end_all_sessions_help'),
+                style: TextStyle(color: context.inTheme.ink2),
               ),
-            ),
-          ],
-        ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.logout, color: context.inTheme.overdue),
+                  label: Text(
+                    context.tr('end_all_sessions'),
+                    style: TextStyle(color: context.inTheme.overdue),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(160, 44),
+                    side: BorderSide(color: context.inTheme.overdue),
+                  ),
+                  onPressed: _endingSessions ? null : _onEndAllSessions,
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

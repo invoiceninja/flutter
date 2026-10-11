@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -242,14 +243,16 @@ class _CompanyPickerState extends State<CompanyPicker> {
                     );
                   },
                 ),
-                const SizedBox(height: 6),
-                Divider(height: 1, color: tokens.border),
-                const SizedBox(height: 6),
-                _ActionRow(
-                  icon: Icons.logout,
-                  label: context.tr('logout'),
-                  onTap: _switching ? null : () => _signOut(),
-                ),
+                if (!Env.isDemoBuild) ...[
+                  const SizedBox(height: 6),
+                  Divider(height: 1, color: tokens.border),
+                  const SizedBox(height: 6),
+                  _ActionRow(
+                    icon: Icons.logout,
+                    label: context.tr('logout'),
+                    onTap: _switching ? null : () => _signOut(),
+                  ),
+                ],
               ],
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/env.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth_repository.dart'
@@ -52,6 +53,9 @@ class SettingsActions {
     BuildContext context, {
     VoidCallback? onStart,
   }) async {
+    // The demo build has no way back in short of a reload; its surfaces hide
+    // the affordance, and this is the backstop for one that forgets to.
+    if (Env.isDemoBuild) return false;
     final services = context.read<Services>();
     // Names the account, not the company: sign-out is account-wide (hence
     // `checkAllCompanies: true` below), and the picker this is most often

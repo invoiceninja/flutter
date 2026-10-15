@@ -135,6 +135,56 @@ void main() {
         expect(body['design_id'], 'design_42');
       },
     );
+
+    test('storedPdfKey + the invoice\'s own design → GET the stored render, '
+        'not live_preview', () async {
+      http.BaseRequest? captured;
+      final fake = MockClient((req) async {
+        captured = req;
+        return _pdf();
+      });
+      await InvoicesApi(_client(fake)).downloadPdf(
+        entityJson: {'id': 'inv_1', 'design_id': 'design_1'},
+        designId: 'design_1',
+        storedPdfKey: 'key_abc',
+      );
+      expect(captured!.method, 'GET');
+      expect(captured!.url.path, '/api/v1/invoice/key_abc/download');
+    });
+
+    test('storedPdfKey + a different design picked → live_preview, since the '
+        'download route cannot override the design', () async {
+      http.BaseRequest? captured;
+      final fake = MockClient((req) async {
+        captured = req;
+        return _pdf();
+      });
+      await InvoicesApi(_client(fake)).downloadPdf(
+        entityJson: {'id': 'inv_1', 'design_id': 'design_1'},
+        designId: 'design_42',
+        storedPdfKey: 'key_abc',
+      );
+      expect(captured!.method, 'POST');
+      expect(captured!.url.path, '/api/v1/live_preview');
+    });
+
+    test(
+      'storedPdfKey + deliveryNote → still the delivery_note route',
+      () async {
+        http.BaseRequest? captured;
+        final fake = MockClient((req) async {
+          captured = req;
+          return _pdf();
+        });
+        await InvoicesApi(_client(fake)).downloadPdf(
+          entityJson: {'id': 'inv_1'},
+          deliveryNote: true,
+          storedPdfKey: 'key_abc',
+        );
+        expect(captured!.method, 'GET');
+        expect(captured!.url.path, '/api/v1/invoices/inv_1/delivery_note');
+      },
+    );
   });
 
   // Regression guards for the launch-blocker where status/lifecycle/email

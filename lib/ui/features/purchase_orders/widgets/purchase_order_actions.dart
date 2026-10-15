@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
@@ -451,6 +452,7 @@ class PurchaseOrderActions {
           final bytes = await services.purchaseOrders.api.downloadPdf(
             entityJson: po.toApiJson(),
             designId: po.designId.isEmpty ? null : po.designId,
+            storedPdfKey: po.storedPdfInvitationKey,
           );
           if (!context.mounted) return;
           if (action == PurchaseOrderAction.downloadPdf) {

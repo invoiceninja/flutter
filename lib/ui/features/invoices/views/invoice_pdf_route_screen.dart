@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -91,6 +92,7 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
                           designId ??
                           (invoice.designId.isEmpty ? null : invoice.designId),
                       deliveryNote: deliveryNote,
+                      storedPdfKey: invoice.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

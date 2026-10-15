@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/invoice.dart';
@@ -217,6 +218,7 @@ class _BillingDocEmailRouteScreenState
             _services.invoices.api.downloadPdf(
               entityJson: e.toApiJson(),
               designId: designId ?? (e.designId.isEmpty ? null : e.designId),
+              storedPdfKey: e.storedPdfInvitationKey,
               deliveryNote: deliveryNote,
             ),
       );
@@ -266,6 +268,7 @@ class _BillingDocEmailRouteScreenState
             _services.quotes.api.downloadPdf(
               entityJson: e.toApiJson(),
               designId: designId ?? (e.designId.isEmpty ? null : e.designId),
+              storedPdfKey: e.storedPdfInvitationKey,
             ),
       );
     },
@@ -314,6 +317,7 @@ class _BillingDocEmailRouteScreenState
             _services.credits.api.downloadPdf(
               entityJson: e.toApiJson(),
               designId: designId ?? (e.designId.isEmpty ? null : e.designId),
+              storedPdfKey: e.storedPdfInvitationKey,
             ),
       );
     },
@@ -362,6 +366,7 @@ class _BillingDocEmailRouteScreenState
             _services.purchaseOrders.api.downloadPdf(
               entityJson: e.toApiJson(),
               designId: designId ?? (e.designId.isEmpty ? null : e.designId),
+              storedPdfKey: e.storedPdfInvitationKey,
             ),
       );
     },

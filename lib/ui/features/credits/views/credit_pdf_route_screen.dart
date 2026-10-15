@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -73,6 +74,7 @@ class _CreditPdfRouteScreenState extends State<CreditPdfRouteScreen>
                       designId:
                           designId ??
                           (credit.designId.isEmpty ? null : credit.designId),
+                      storedPdfKey: credit.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

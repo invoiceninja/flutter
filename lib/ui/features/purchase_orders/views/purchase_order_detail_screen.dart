@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/models/domain/purchase_order_status.dart';
@@ -481,6 +482,7 @@ class _PdfPane extends StatelessWidget {
                 (purchaseOrder.designId.isEmpty
                     ? null
                     : purchaseOrder.designId),
+            storedPdfKey: purchaseOrder.storedPdfInvitationKey,
           ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
@@ -248,6 +249,7 @@ class PurchaseOrderListScreen extends StatelessWidget {
                 designId: items.first.designId.isEmpty
                     ? null
                     : items.first.designId,
+                storedPdfKey: items.first.storedPdfInvitationKey,
               ),
               singleFileName:
                   '${sanitizeFileName('purchase_order_${items.first.number.isEmpty ? items.first.id : items.first.number}')}.pdf',

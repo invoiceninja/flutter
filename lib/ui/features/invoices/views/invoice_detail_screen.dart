@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show OutboxRow;
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/invoice.dart';
@@ -692,6 +693,7 @@ class _PdfPane extends StatelessWidget {
                 designId ??
                 (invoice.designId.isEmpty ? null : invoice.designId),
             deliveryNote: deliveryNote,
+            storedPdfKey: invoice.storedPdfInvitationKey,
           ),
     );
   }

@@ -82,6 +82,22 @@ abstract interface class BillingDocFields {
   DateTime? get archivedAt;
 }
 
+extension BillingDocStoredPdf on BillingDocFields {
+  /// The invitation whose server render is this document as its recipient
+  /// gets it (`fetchStoredPdf`), or null when that render isn't the one to
+  /// show: an unsaved (`tmp_`) record has none, and one with an unsynced
+  /// local edit (`isDirty`) has one that predates the edit — both go through
+  /// `live_preview` of the local JSON instead. The first invitation with a
+  /// key, as React picks it.
+  String? get storedPdfInvitationKey {
+    if (id.isEmpty || id.startsWith('tmp_') || isDirty) return null;
+    for (final invitation in invitations) {
+      if (invitation.key.isNotEmpty) return invitation.key;
+    }
+    return null;
+  }
+}
+
 /// A billing document that can ask for a partial payment (a deposit) —
 /// every one but the purchase order.
 abstract interface class BillingDocPartialFields implements BillingDocFields {

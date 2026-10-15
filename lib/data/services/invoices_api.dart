@@ -5,6 +5,7 @@ import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/base_entity_api.dart';
+import 'package:admin/data/services/stored_pdf.dart';
 import 'package:admin/data/services/upload_source.dart';
 
 /// Result of `POST /api/v1/einvoice/validateEntity`. [passes] is the
@@ -228,7 +229,12 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
 
   /// Fetch a server-rendered PDF for this invoice.
   ///
-  /// Two endpoints, picked by [deliveryNote]:
+  /// Three endpoints, picked by [deliveryNote] and [storedPdfKey]:
+  ///
+  /// * Stored render — `GET /api/v1/invoice/<storedPdfKey>/download`
+  ///   (`fetchStoredPdf`) for a saved, synced invoice with no design
+  ///   override: the PDF the client gets, the only one carrying a DocuNinja
+  ///   signature, merged public documents and the e-invoice.
   ///
   /// * Normal layout — `POST /api/v1/live_preview?entity=invoice[&entity_id=<id>]`,
   ///   body = the **full invoice entity** (`Invoice.toApiJson()` — the same
@@ -253,6 +259,7 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
     required Map<String, dynamic> entityJson,
     String? designId,
     bool deliveryNote = false,
+    String? storedPdfKey,
   }) {
     final id = (entityJson['id'] as String?) ?? '';
     final saved = id.isNotEmpty && !id.startsWith('tmp_');
@@ -265,6 +272,17 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
         '/api/v1/invoices/$id/delivery_note$qs',
         readOnly: true,
       );
+    }
+
+    if (!deliveryNote) {
+      final stored = fetchStoredPdf(
+        client: client,
+        entity: 'invoice',
+        storedPdfKey: storedPdfKey,
+        entityJson: entityJson,
+        designId: designId,
+      );
+      if (stored != null) return stored;
     }
 
     final path = StringBuffer('/api/v1/live_preview?entity=invoice')

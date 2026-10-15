@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -83,6 +84,7 @@ class _PurchaseOrderPdfRouteScreenState
                       designId:
                           designId ??
                           (po.designId.isEmpty ? null : po.designId),
+                      storedPdfKey: po.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

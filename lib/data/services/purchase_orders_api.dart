@@ -4,6 +4,7 @@ import 'package:admin/data/services/upload_source.dart';
 
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/services/base_entity_api.dart';
+import 'package:admin/data/services/stored_pdf.dart';
 
 /// Concrete API for `/api/v1/purchase_orders`. Mirrors `QuotesApi` /
 /// `CreditsApi` shape, vendor-centric. Adds PO-specific actions:
@@ -104,7 +105,9 @@ class PurchaseOrdersApi
     extra: {'template_id': templateId},
   );
 
-  /// Server-rendered PDF via the purchase-order sub-path
+  /// Server-rendered PDF: the stored render when [storedPdfKey] allows it
+  /// (`fetchStoredPdf` — the only path that carries the vendor's DocuNinja
+  /// signature), else the purchase-order sub-path
   /// `POST /api/v1/live_preview/purchase_order?entity=purchase_order
   /// [&entity_id=<id>]` (React + admin-portal both use this sub-path) with the
   /// full PO entity (`PurchaseOrder.toApiJson()`) as the body — see
@@ -112,7 +115,16 @@ class PurchaseOrdersApi
   Future<Uint8List> downloadPdf({
     required Map<String, dynamic> entityJson,
     String? designId,
+    String? storedPdfKey,
   }) {
+    final stored = fetchStoredPdf(
+      client: client,
+      entity: 'purchase_order',
+      storedPdfKey: storedPdfKey,
+      entityJson: entityJson,
+      designId: designId,
+    );
+    if (stored != null) return stored;
     final id = (entityJson['id'] as String?) ?? '';
     final saved = id.isNotEmpty && !id.startsWith('tmp_');
     final path = StringBuffer(

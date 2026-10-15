@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/invoice.dart';
@@ -617,6 +618,7 @@ class InvoiceActions {
           final bytes = await services.invoices.api.downloadPdf(
             entityJson: invoice.toApiJson(),
             designId: invoice.designId.isEmpty ? null : invoice.designId,
+            storedPdfKey: invoice.storedPdfInvitationKey,
           );
           if (!context.mounted) return;
           if (action == InvoiceAction.downloadPdf) {

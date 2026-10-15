@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/quote.dart';
@@ -478,6 +479,7 @@ class QuoteActions {
           final bytes = await services.quotes.api.downloadPdf(
             entityJson: quote.toApiJson(),
             designId: quote.designId.isEmpty ? null : quote.designId,
+            storedPdfKey: quote.storedPdfInvitationKey,
           );
           if (!context.mounted) return;
           if (action == QuoteAction.downloadPdf) {

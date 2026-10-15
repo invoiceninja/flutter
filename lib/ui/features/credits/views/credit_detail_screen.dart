@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/credit_status.dart';
@@ -436,6 +437,7 @@ class _PdfPane extends StatelessWidget {
             entityJson: credit.toApiJson(),
             designId:
                 designId ?? (credit.designId.isEmpty ? null : credit.designId),
+            storedPdfKey: credit.storedPdfInvitationKey,
           ),
     );
   }

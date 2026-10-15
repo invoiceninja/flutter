@@ -4,6 +4,7 @@ import 'package:admin/data/services/upload_source.dart';
 
 import 'package:admin/data/models/api/credit_api_model.dart';
 import 'package:admin/data/services/base_entity_api.dart';
+import 'package:admin/data/services/stored_pdf.dart';
 import 'package:admin/data/services/invoices_api.dart'
     show EInvoiceValidation, validateEInvoiceEntity;
 
@@ -111,14 +112,24 @@ class CreditsApi extends BaseEntityApi<CreditListApi, CreditItemApi> {
     extra: {'template_id': templateId},
   );
 
-  /// Server-rendered PDF via `POST /api/v1/live_preview?entity=credit
+  /// Server-rendered PDF: the stored render when [storedPdfKey] allows it
+  /// (`fetchStoredPdf`), else `POST /api/v1/live_preview?entity=credit
   /// [&entity_id=<id>]` with the full credit entity (`Credit.toApiJson()`) as
   /// the body — see `InvoicesApi.downloadPdf` for why `/api/v1/preview` is
   /// wrong here.
   Future<Uint8List> downloadPdf({
     required Map<String, dynamic> entityJson,
     String? designId,
+    String? storedPdfKey,
   }) {
+    final stored = fetchStoredPdf(
+      client: client,
+      entity: 'credit',
+      storedPdfKey: storedPdfKey,
+      entityJson: entityJson,
+      designId: designId,
+    );
+    if (stored != null) return stored;
     final id = (entityJson['id'] as String?) ?? '';
     final saved = id.isNotEmpty && !id.startsWith('tmp_');
     final path = StringBuffer('/api/v1/live_preview?entity=credit')

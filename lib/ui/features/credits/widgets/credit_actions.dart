@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/credit.dart';
@@ -398,6 +399,7 @@ class CreditActions {
           final bytes = await services.credits.api.downloadPdf(
             entityJson: credit.toApiJson(),
             designId: credit.designId.isEmpty ? null : credit.designId,
+            storedPdfKey: credit.storedPdfInvitationKey,
           );
           if (!context.mounted) return;
           if (action == CreditAction.downloadPdf) {

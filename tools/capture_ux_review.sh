@@ -28,6 +28,9 @@ set -euo pipefail
 #
 # With no arguments runs the default matrix. A pass is
 # "VIEWPORT:PLATFORM:THEME:SCALEx100:LOCALE", e.g. "390x844:android:dark:140:de".
+# VIEWPORT may end in @DPR ("360x800@3"): Chrome then emulates a phone at that
+# pixel ratio, so the PNGs are full-resolution (1080x2400 here) — what the
+# F-Droid listing's screenshots are made with (docs/fdroid.md).
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -75,6 +78,8 @@ echo "==> writing to $UX_OUT_DIR"
 
 for pass in "${passes[@]}"; do
   IFS=':' read -r viewport platform theme scale locale <<< "$pass"
+  # The test sizes its surface in logical pixels, so it gets WxH without @DPR.
+  logical="${viewport%@*}"
   echo ""
   echo "=============================================================="
   echo "==> $viewport  platform='${platform:-pointer}'  $theme  ${scale}%  $locale"
@@ -91,7 +96,7 @@ for pass in "${passes[@]}"; do
     --dart-define=IN_DEMO_API_TOKEN="$demo_token" \
     --dart-define=IN_DEMO_API_URL="$demo_url" \
     --dart-define=IN_DEMO_MODE=true \
-    --dart-define=UX_VIEWPORT="$viewport" \
+    --dart-define=UX_VIEWPORT="$logical" \
     --dart-define=UX_PLATFORM="$platform" \
     --dart-define=UX_THEME="$theme" \
     --dart-define=UX_TEXT_SCALE_X100="$scale" \

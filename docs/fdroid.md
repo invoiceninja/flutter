@@ -437,8 +437,22 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
   - `title.txt`. Without it, checkupdates would rename the app after the APK label, "Ninja Beta".
   - `short_description.txt` (≤ 80 characters) and `full_description.txt` (≤ 4000).
   - `images/icon.png`, one of the `tools/gen_app_icons.dart` outputs.
-  - **Not yet written:** phone screenshots (`images/phoneScreenshots/1.png` …), and changelogs
-    (`changelogs/<versionCode>.txt`, three per release with split APKs).
+  - `images/phoneScreenshots/1.png` … `8.png`: 1080×2400 captures of the real app against the
+    demo account, made by the UX sweep in phone emulation, with Android touch sizing and demo
+    writes blocked:
+    ```sh
+    UX_OUT_DIR=build/fdroid-screens tools/capture_ux_review.sh "360x800@3:android:light:100:en"
+    UX_OUT_DIR=build/fdroid-screens-dark tools/capture_ux_review.sh "360x800@3:android:dark:100:en"
+    ```
+    It needs a chromedriver on :4444 (see the script's header). The `@3` is what makes them
+    full-resolution: Chrome emulates a 3× phone, where a plain `360x800` gives 360×800 images.
+    - The eight, in order: dashboard; invoices; clients; the dashboard further down (overview
+      chart, invoices and quotes); the invoice report (dark); payments; the task board; the
+      report gallery (dark). Each screen appears once, and two are dark to show the theme.
+    - The demo account's products and task titles are lorem ipsum, so the product and task lists
+      are left out. The task board keeps its lorem titles, because the board is the point.
+  - **Not yet written:** changelogs (`changelogs/<versionCode>.txt`, three per release with
+    split APKs).
 
 Decisions (2026-10):
 

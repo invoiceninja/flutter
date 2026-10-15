@@ -46,6 +46,8 @@ const _icoOutput = 'windows/runner/resources/app_icon.ico';
 // default FLUTTER-logo assets, which is exactly what issue #25 reported.
 const _storeLogoOutput = 'windows/runner/resources/store_logo.png';
 const _snapOutput = 'snap/gui/invoiceninja.png';
+// The F-Droid listing's icon, read from the source tree (docs/fdroid.md).
+const _fdroidOutput = 'fastlane/metadata/android/en-US/images/icon.png';
 const _webIconDir = 'web/icons';
 
 // Sizes Windows picks between for the taskbar, Alt-Tab, Explorer and title bar.
@@ -73,6 +75,7 @@ void main() {
   _writeIco(_icoOutput, disc, _icoSizes);
   _writePng(_storeLogoOutput, disc);
   _writePng(_snapOutput, _resize(disc, 512));
+  _writePng(_fdroidOutput, _resize(disc, 512));
 
   for (final size in [192, 512]) {
     _writePng('$_webIconDir/Icon-$size.png', _resize(disc, size));

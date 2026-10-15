@@ -6,6 +6,13 @@ name: Deploy to GitHub Releases
 # it's distributed as a file attached to a GitHub Release. Ships a per-version
 # `prerelease` (mirroring the snap's edge / grade: devel + the README "Beta"
 # posture); set the `publish` input to false for a build-only dry run.
+#
+# The same Release carries the F-Droid APKs (one per ABI), which F-Droid
+# publishes under our signature only when its own rebuild matches them byte-for-
+# byte. So they are built by F-Droid's tooling from tools/foss/
+# com.invoiceninja.admin.yml, rebuilt in a varied environment, and checked with
+# F-Droid's own verify step before anything is published (docs/fdroid.md § The
+# F-Droid APK is built by F-Droid's own tooling).
 on:
   workflow_dispatch:
     inputs:
@@ -14,13 +21,14 @@ on:
         type: boolean
         default: true
 
-# contents: write is the LONE exception among the publish workflows (every other
-# one is contents: read) — it's required for action-gh-release to create the
-# v<version> tag + Release. No external secret is needed (the built-in
-# GITHUB_TOKEN suffices); the repo's Actions token policy must allow write
-# (Settings -> Actions -> General -> Workflow permissions).
+# Read-only by default. `preflight` and `publish` get contents: write — the
+# only jobs in any publish workflow that do: publish creates the v<version> tag
+# + Release, and preflight needs push access only because GitHub lists draft
+# releases to nobody else. No external secret is needed for either (the
+# built-in GITHUB_TOKEN suffices); the repo's Actions token policy must allow
+# write (Settings -> Actions -> General -> Workflow permissions).
 permissions:
-  contents: write
+  contents: read
 
 # Only tag/release-writing workflow in the repo — serialize dispatches so two
 # can't race on the same v<version> tag.
@@ -29,6 +37,66 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Decides what this run may publish, before anything is built:
+  #  - the tag must not already point at another commit — F-Droid builds the
+  #    tag, so APKs from github.sha would never verify;
+  #  - APKs already attached are never replaced (F-Droid may have verified those
+  #    bytes), so a re-dispatch only replaces the AppImage, as it always has.
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      fdroid_needed: ${{ steps.check.outputs.fdroid_needed }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the tag, the Release and the recipe
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          # Single source for the asset names AND the git tag: 5.1.4+7 -> 5.1.4.
+          raw="$(grep -m1 '^version:' pubspec.yaml)"
+          v="${raw#*version:}"; v="${v//[\"\' ]/}"; v="${v%%+*}"; v="${v%$'\r'}"
+          tag="v$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+          # A dry run publishes nothing, so it always rehearses the full build.
+          if [ "$PUBLISH" != true ]; then
+            echo "fdroid_needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The commit an annotated tag peels to (^{}), else the lightweight tag's own.
+          refs="$(git ls-remote --tags origin)"
+          tag_sha="$(awk -v r="refs/tags/$tag^{}" '$2 == r { print $1 }' <<<"$refs")"
+          [ -n "$tag_sha" ] || tag_sha="$(awk -v r="refs/tags/$tag" '$2 == r { print $1 }' <<<"$refs")"
+          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::$tag already points at $tag_sha, not $GITHUB_SHA. F-Droid builds the tag, so APKs from this commit would never verify. Bump the version in pubspec.yaml."
+            exit 1
+          fi
+
+          drafts="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq "[.[] | select(.draft and .tag_name == \"$tag\")] | length")"
+          if [ "$drafts" != 0 ]; then
+            echo "::error::A draft Release for $tag is left over from a failed run. Delete it (Releases page) and re-dispatch."
+            exit 1
+          fi
+
+          apks="$(gh release view "$tag" --json assets \
+            --jq '[.assets[].name | select(endswith(".apk"))] | length' 2>/dev/null || echo 0)"
+          case "$apks" in
+            0) echo "fdroid_needed=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "fdroid_needed=false" >> "$GITHUB_OUTPUT"
+               echo "$tag already carries its F-Droid APKs; they are never replaced." ;;
+            *) echo "::error::$tag carries $apks of its 3 F-Droid APKs. Delete them by hand and re-dispatch."
+               exit 1 ;;
+          esac
+
   # Test gate — mirrors appstore-ios.yml, and matters most here: this is the one
   # workflow that tags the repo and publishes a public GitHub Release. CI is
   # workflow_dispatch-only, so without this the suite might never have run for the
@@ -37,9 +105,9 @@ jobs:
   test:
     uses: ./.github/workflows/_test.yaml
 
-  deploy-appimage:
+  build-appimage:
     needs: test
-    name: Build and Publish AppImage
+    name: Build AppImage
     # REQUIRED: build on 22.04 (glibc 2.35) for broad distro compatibility — an
     # AppImage requires host glibc >= build glibc, so a 24.04 build (glibc 2.39)
     # would refuse to start on older hosts. Same constraint/reason as
@@ -133,17 +201,194 @@ jobs:
           path: build/appimage/InvoiceNinja-*-x86_64.AppImage
           if-no-files-found: error
 
-      # Gated on the boolean input (never bare github.event.inputs.publish — the
-      # string "false" is truthy). Re-dispatch on an existing tag updates the
-      # release in place and replaces the asset. target_commitish binds the tag to
-      # the built commit on first creation.
-      - name: Publish GitHub Release (prerelease)
-        if: ${{ inputs.publish }}
-        uses: softprops/action-gh-release@v2
+  # The F-Droid APKs, built twice per ABI by `fdroid build` in F-Droid's own
+  # image: `build` is what gets signed, `rebuild` runs on 2 CPUs with another
+  # timezone, umask and hostname, so the comparison below proves the first did
+  # not depend on them. Starts beside the test gate rather than after it —
+  # nothing here publishes, and the builds are the long pole.
+  fdroid-build:
+    needs: preflight
+    if: needs.preflight.outputs.fdroid_needed == 'true'
+    name: F-Droid ${{ matrix.variant }} (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
+        variant: [build, rebuild]
+    steps:
+      - uses: actions/checkout@v5
+
+      # The image, a full Flutter clone, the NDK, Gradle caches and the build
+      # outgrow the runner's free disk. The build never touches the host's
+      # toolchains (the image brings its own), so drop the big ones.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h /
+
+      - name: fdroid build
+        run: >-
+          tools/fdroid_build.sh build ${{ matrix.abi }} --commit ${{ github.sha }}
+          ${{ matrix.variant == 'rebuild' && '--vary' || '' }}
+
+      - name: Upload the unsigned APK
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          name: Invoice Ninja ${{ steps.ver.outputs.version }}
-          files: build/appimage/InvoiceNinja-*-x86_64.AppImage
-          prerelease: true
-          generate_release_notes: true
+          name: fdroid-unsigned-${{ matrix.abi }}-${{ matrix.variant }}
+          path: build/fdroid/${{ matrix.abi }}${{ matrix.variant == 'rebuild' && '-vary' || '' }}/out/
+          if-no-files-found: error
+
+  # Signs the `build` APKs on the host — the third-party image never shares a
+  # job with the key. The secrets live in the `fdroid-signing` Environment,
+  # limited to main, so a pushed branch cannot dispatch a workflow that reads
+  # them. Without them the APKs are signed with an ephemeral key: good enough
+  # to prove the signature copies across, never published.
+  fdroid-sign:
+    needs: [preflight, fdroid-build]
+    name: Sign F-Droid APKs
+    runs-on: ubuntu-latest
+    environment: fdroid-signing
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download the unsigned APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fdroid-unsigned-*-build
+          path: build/fdroid-unsigned
+
+      - name: Sign
+        env:
+          FDROID_KEYSTORE_BASE64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+          FDROID_KEYSTORE_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+          FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          FDROID_KEY_PASSWORD: ${{ secrets.FDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for abi in armeabi-v7a arm64-v8a x86_64; do
+            tools/fdroid_build.sh sign "$abi" \
+              build/fdroid-unsigned/fdroid-unsigned-$abi-build/com.invoiceninja.admin_*.apk \
+              build/fdroid-signed
+          done
+
+      # tools/fdroid_build.sh deletes the decoded keystore itself; this covers a
+      # run killed mid-step.
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$RUNNER_TEMP"/fdroid-sign.*
+
+      - name: Upload the signed APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fdroid-signed
+          path: build/fdroid-signed/
+          if-no-files-found: error
+
+  # F-Droid's own publish check, per ABI: copy the signature onto an unsigned
+  # APK and verify it. Against our own build first (signing preserved every
+  # byte), then against the varied rebuild (the build is reproducible).
+  fdroid-compare:
+    needs: [fdroid-build, fdroid-sign]
+    name: F-Droid verify (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download the APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fdroid-*
+          path: build/fdroid-artifacts
+
+      - name: The signature copies onto our own unsigned build
+        run: >-
+          tools/fdroid_build.sh compare
+          build/fdroid-artifacts/fdroid-signed/InvoiceNinja-*-${{ matrix.abi }}.apk
+          build/fdroid-artifacts/fdroid-unsigned-${{ matrix.abi }}-build/com.invoiceninja.admin_*.apk
+
+      - name: The signature copies onto the varied rebuild
+        run: >-
+          tools/fdroid_build.sh compare
+          build/fdroid-artifacts/fdroid-signed/InvoiceNinja-*-${{ matrix.abi }}.apk
+          build/fdroid-artifacts/fdroid-unsigned-${{ matrix.abi }}-rebuild/com.invoiceninja.admin_*.apk
+
+      # Mismatch runbook: docs/fdroid.md § The reproducibility gate. The two
+      # unsigned APKs are this run's artifacts, ready for diffoscope.
+      - name: Toolchain differences between the two builds
+        if: failure()
+        run: >-
+          diff build/fdroid-artifacts/fdroid-unsigned-${{ matrix.abi }}-build/toolchain.txt
+          build/fdroid-artifacts/fdroid-unsigned-${{ matrix.abi }}-rebuild/toolchain.txt || true
+
+  # One Release per version, carrying the AppImage and the three APKs. A new
+  # Release is created as a draft with every asset and only then published, so
+  # the tag never exists without its APKs. Gated on the boolean input (never
+  # bare github.event.inputs.publish — the string "false" is truthy).
+  publish:
+    needs: [preflight, build-appimage, fdroid-build, fdroid-sign, fdroid-compare]
+    if: >-
+      always() && inputs.publish
+      && needs.preflight.result == 'success'
+      && needs.build-appimage.result == 'success'
+      && (needs.preflight.outputs.fdroid_needed == 'false'
+          || needs.fdroid-compare.result == 'success')
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.preflight.outputs.version }}
+      ATTACH_APKS: ${{ needs.preflight.outputs.fdroid_needed }}
+    steps:
+      - name: Download the AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: InvoiceNinja-AppImage
+          path: assets
+
+      - name: Download the signed APKs
+        if: env.ATTACH_APKS == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: fdroid-signed
+          path: fdroid-signed
+
+      - name: Publish
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if [ "$ATTACH_APKS" = true ]; then
+            # Every APK must carry the pinned key, not the ephemeral one.
+            signed="$(grep -l '^publishable=true$' fdroid-signed/*.signing | wc -l || true)"
+            if [ "$signed" != 3 ]; then
+              echo "::error::The F-Droid APKs were signed with an ephemeral key: the fdroid-signing Environment has no FDROID_* secrets (docs/store-deployment-setup.md § F-Droid signing key)."
+              exit 1
+            fi
+            cp fdroid-signed/*.apk assets/
+          fi
+          ls -l assets
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # Re-dispatch: replace the AppImage in place; preflight guaranteed
+            # no APK is attached yet, so these uploads never clobber one.
+            gh release upload "$tag" assets/*.AppImage --clobber
+            if [ "$ATTACH_APKS" = true ]; then gh release upload "$tag" assets/*.apk; fi
+          else
+            gh release create "$tag" assets/* --draft --prerelease \
+              --target "$GITHUB_SHA" --title "Invoice Ninja $VERSION" --generate-notes
+            # A draft has no tag yet, so it is found by listing, not by tag.
+            id="$(gh api "repos/$GH_REPO/releases?per_page=100" \
+              --jq "[.[] | select(.draft and .tag_name == \"$tag\")][0].id")"
+            test -n "$id" && test "$id" != null
+            gh api -X PATCH "repos/$GH_REPO/releases/$id" -F draft=false >/dev/null
+            gh release view "$tag" --json url,isDraft,isPrerelease,assets \
+              --jq '{url, isDraft, isPrerelease, assets: [.assets[].name]}'
+          fi

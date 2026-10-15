@@ -25,7 +25,8 @@ two of them break something if taken early.
 - [ ] **1c** A device build signs and an archive completes
 - [ ] **2a** SHA-256 of the Play **app signing** key copied from Play Console
 - [ ] **2b** SHA-256 of the **upload** key copied too, so a locally-built release verifies
-- [ ] **2c** Both set as `APP_LINKS_ANDROID_FINGERPRINTS` (comma-separated) or as the default in `config/ninja.php`
+- [ ] **2c** SHA-256 of the **F-Droid** key too — F-Droid ships our own signature (`docs/fdroid.md`), so its installs carry neither Play key
+- [ ] **2d** All of them set as `APP_LINKS_ANDROID_FINGERPRINTS` (comma-separated) or as the default in `config/ninja.php`
 - [ ] **3a** Server deployed; both `.well-known` documents return **JSON**, not the SPA shell
 - [ ] **3b** Google's and Apple's verifiers both resolve the domain
 - [ ] **4a** Apps released; `pm get-app-links` reports `verified` on a device
@@ -100,6 +101,13 @@ with scheme v2/v3 only, which `keytool` cannot read.)
 If the app turns out **not** to be enrolled in Play App Signing, there is no app
 signing key page at all, and the local keystore *is* the signing key:
 `keytool -list -v -keystore android/app/key.jks -alias key`
+
+**The F-Droid key is a third fingerprint.** F-Droid publishes the APK we sign
+with our own dedicated key (`docs/fdroid.md` § Signing the F-Droid APK), not
+either Play key, so without it links on an F-Droid install open in the browser.
+It is the `AllowedAPKSigningKeys` value in `tools/foss/com.invoiceninja.admin.yml`
+— lowercase and unbroken there, so reformat it with the `sed` above
+(`toupper`, then pairs) before adding it to the list.
 
 > This repo records neither the fingerprint nor whether Play App Signing is
 > enrolled. Write the answer down here once it is known.

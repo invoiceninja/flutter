@@ -12,6 +12,13 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
+// Real keystore when key.properties is present (local/release machines); fall
+// back to debug signing so CI and keystore-less contributors can still run the
+// release compile gate. Chosen here, not inline, so the release type's
+// `signingConfig` stays the one space-free line F-Droid's build strips — its
+// APK must come out unsigned, not debug-signed (docs/fdroid.md § F-Droid's
+// signing stripper must leave an unsigned build).
+val releaseSigningConfig = if (keystorePropertiesFile.exists()) "release" else "debug"
 
 android {
     namespace = "com.invoiceninja.admin"
@@ -47,15 +54,14 @@ android {
 
     buildTypes {
         release {
-            // Real keystore when key.properties is present (local/release machines);
-            // fall back to debug signing so CI and keystore-less contributors can still
-            // run the release compile gate.
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName(releaseSigningConfig)
         }
+    }
+
+    // The dependency-metadata block AGP writes into a signed APK is encrypted
+    // to Google, so F-Droid flags it. Play reads the bundle's copy, which stays.
+    dependenciesInfo {
+        includeInApk = false
     }
 }
 

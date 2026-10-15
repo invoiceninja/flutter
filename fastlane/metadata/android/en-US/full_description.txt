@@ -1,0 +1,36 @@
+Invoice Ninja is invoicing, payments, expenses and time-tracking for freelancers and small businesses. It works with the hosted service at invoicing.co or with your own self-hosted Invoice Ninja server.
+
+Work offline
+* Every change is saved on your device first and syncs when you are back online.
+* Lists load a page at a time, so large accounts stay fast.
+* Reopen the app exactly where you left off.
+
+Invoice and get paid
+* Invoices, quotes, credits, recurring invoices and purchase orders.
+* Record payments, apply credits and send documents by email.
+* Preview the PDF, and open any earlier saved version of a document.
+* Clients, vendors and a product library to fill line items quickly.
+
+Track time and expenses
+* Start and stop timers on tasks, and book time ahead.
+* List, daily, weekly, calendar and kanban views of your tasks.
+* Projects, expenses with categories, and documents attached to any record.
+
+See how the business is doing
+* A dashboard of revenue, outstanding and overdue invoices, and recent activity.
+* Reports you can filter, group, chart and compare with the previous period.
+
+Built for the way you work
+* Switch between several companies in one app.
+* Lock the app with your fingerprint or face.
+* Call or text a client from their record, and share a link to any record.
+* Light and dark themes, and many languages.
+
+About the F-Droid build
+This build contains no Google services and no crash reporting. Sign in with your email and password; upgrading to a paid plan opens the web portal.
+
+Switching from the Google Play version? The two are signed with different keys, so Android makes you uninstall one before installing the other, and uninstalling deletes the app's local data. Sync first: open the Outbox and make sure every change has been sent.
+
+Source code: https://github.com/invoiceninja/flutter
+Terms of Service: https://www.invoiceninja.com/terms/
+Privacy Policy: https://www.invoiceninja.com/privacy-policy/

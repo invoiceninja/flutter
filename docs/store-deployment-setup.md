@@ -12,18 +12,18 @@ Six workflows publish the app. Every one of them:
 
 - is **manual only** — GitHub → **Actions** → pick the workflow → **Run workflow** (on the default branch). There is no push, tag, or schedule trigger anywhere in this repo.
 - **runs the full test suite first** (`_test.yaml`, always on `ubuntu-latest`, ~8–12 min). A red suite stops the release before anything is built or uploaded.
-- ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A).
+- ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
 
 | Target | Workflow | Lands in | Store credentials |
 |---|---|---|---|
-| Linux AppImage | `appimage.yml` | GitHub Release (prerelease) | **none** — a repo setting instead |
+| Linux AppImage + F-Droid APKs | `appimage.yml` | GitHub Release (prerelease) → F-Droid | a repo setting, plus the F-Droid signing key (4, in an Environment) |
 | Linux Snap | `snapcraft.yml` | Snap Store `edge` | 1 |
 | Android | `playstore.yml` | Play **Internal testing** | 5 |
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 6 |
 | macOS | `appstore-macos.yml` | TestFlight | 6 (3 shared with iOS) |
 
-All six additionally read `IN_SENTRY_DSN`, which is optional — 21 secret names in total, plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
+All six additionally read `IN_SENTRY_DSN`, which is optional — 25 secret names in total (four of them the F-Droid signing key, kept in an Environment), plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
 
 ### First: find out what's already set
 
@@ -93,6 +93,17 @@ All 22, plus the two optional Google client IDs, grouped by what they unlock. `I
 |---|---|---|---|
 | `IN_SENTRY_DSN` | all 6 | Sentry DSN, baked in at compile time via `--dart-define` | Copy from the Sentry project settings. Safe to leave unset. |
 
+### F-Droid — `appimage.yml`, Environment `fdroid-signing`
+
+Environment secrets, not repository secrets: only the `fdroid-sign` job can read them, and only on `main` (§3A, F-Droid signing key).
+
+| Secret | What it is | How to produce it |
+|---|---|---|
+| `FDROID_KEYSTORE_BASE64` | The F-Droid keystore, base64 — **a dedicated key, never the Play upload key** | `base64 -i fdroid.jks` |
+| `FDROID_KEYSTORE_PASSWORD` | Its store password | Whatever you set in `keytool -genkeypair` |
+| `FDROID_KEY_ALIAS` | Its key alias | `fdroid` if you followed §3A |
+| `FDROID_KEY_PASSWORD` | Its key password | **The same value as `FDROID_KEYSTORE_PASSWORD`**: `keytool` makes a PKCS12 keystore, which has a single password |
+
 ### Snap — `snapcraft.yml`
 
 | Secret | What it is | How to produce it |
@@ -160,14 +171,43 @@ The only workflow that needs no store credential — it still reads the optional
 
 **One-time setup**
 
-1. Settings → Actions → General → **Workflow permissions** → **Read and write permissions**. Without it, `action-gh-release` fails at the very end, after a full build.
+1. Settings → Actions → General → **Workflow permissions** → **Read and write permissions**. Without it, `preflight` cannot see draft Releases and `publish` cannot create the Release — the latter fails at the very end, after a full build.
 2. Nothing else. GitHub Releases need no enabling.
 
 **Verify** — dispatch `Deploy to GitHub Releases` with the **`publish` checkbox unchecked**. That's a build-only dry run: it still runs the test gate, builds the AppImage, smoke-checks it, and uploads it as a run artifact — but creates no tag and no Release. Download the artifact from the run summary to confirm.
 
 This single dry run exercises checkout → test gate → Flutter build → packaging → artifact upload. If it's green, the shared half of every other workflow is known good.
 
+The same dry run builds the three F-Droid APKs twice each with F-Droid's own tooling, signs them (with a throwaway key until the secrets below exist), and checks them the way F-Droid will — `docs/fdroid.md` § The reproducibility gate. Those jobs take ~20–30 min and run in parallel with the test gate.
+
 > A `v*` tag-protection rule or repository ruleset would block this workflow. If the release step fails on the tag rather than the upload, check Settings → Rules.
+
+#### F-Droid signing key
+
+F-Droid publishes the APK **we** sign, after checking it against its own rebuild, and pins the key's fingerprint for good — every later release must be signed with the same key, and **losing it ends the listing**. Do this once, before the recipe is submitted (`docs/fdroid.md` § Signing the F-Droid APK):
+
+1. **Make the key** on a trusted machine — a dedicated one, never the Play upload key:
+   ```sh
+   keytool -genkeypair -v -keystore fdroid.jks -alias fdroid \
+     -keyalg RSA -keysize 4096 -validity 36500 \
+     -dname "CN=Invoice Ninja, O=Invoice Ninja"
+   ```
+2. **Back it up offline** — the `.jks` and both passwords, somewhere that outlives this laptop and this repo's secrets.
+3. **Create the Environment**: Settings → Environments → **New environment** → `fdroid-signing` → Deployment branches and tags → **Selected branches** → add `main`. Add the four secrets of §2 *to the Environment* (not as repository secrets).
+4. **Read its fingerprint** in both forms (each asks for the password):
+   ```sh
+   keytool -list -v -keystore fdroid.jks -alias fdroid | grep 'SHA256:'
+   #   → colon pairs: goes in APP_LINKS_ANDROID_FINGERPRINTS on the server (APP_LINKS.md § 2)
+   keytool -list -v -keystore fdroid.jks -alias fdroid \
+     | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr 'A-F' 'a-f'
+   #   → lowercase hex: goes in AllowedAPKSigningKeys in tools/foss/com.invoiceninja.admin.yml
+   ```
+   Not `keytool -exportcert … | openssl dgst`: on a PKCS12 keystore without the password,
+   `-exportcert` fails and writes its error to **stdout**, so that pipe prints the hash of an error
+   message, which looks just like a fingerprint. The `-list` form prints nothing on a wrong password.
+5. **Commit the lowercase one** as `AllowedAPKSigningKeys` in `tools/foss/com.invoiceninja.admin.yml`. Done for the current key on 2026-10-15 (`d17fac8d…c17d`); repeat only for a rotation. From then on the APKs are mandatory and must carry exactly this key — the `sign` step fails on any other, and `publish` fails on an APK signed with the ephemeral key (missing Environment secrets).
+
+**Verify** — a dry run now reports `publishable=true` from the sign step instead of the ephemeral-key warning, and `apksigner verify --print-certs` on a downloaded `fdroid-signed` APK prints the same SHA-256.
 
 ### B. Snap — 1 secret
 

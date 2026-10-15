@@ -1,0 +1,179 @@
+AntiFeatures:
+  NonFreeNet:
+    en-US: App is tethered to its server, which is using a non-FSF/OSI approved license.
+Categories:
+  - Finance Manager
+License: AAL
+AuthorName: Invoice Ninja
+AuthorEmail: contact@invoiceninja.com
+AuthorWebSite: https://www.invoiceninja.com/
+WebSite: https://www.invoiceninja.org/
+SourceCode: https://github.com/invoiceninja/flutter
+IssueTracker: https://github.com/invoiceninja/flutter/issues
+Translation: https://explore.transifex.com/invoice-ninja/invoice-ninja/
+
+AutoName: Invoice Ninja
+
+RepoType: git
+Repo: https://github.com/invoiceninja/flutter.git
+
+Builds:
+  - versionName: 5.1.15
+    versionCode: 1018
+    commit: v5.1.15
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-21-jdk-headless
+      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
+      - mkdir -p /build
+      - chown -R vagrant /build
+    output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-armeabi-v7a.apk
+    srclibs:
+      - flutter@3.44.1
+    rm:
+      - appimage
+      - ios
+      - linux
+      - macos
+      - snap
+      - test_driver
+      - web
+      - windows
+    prebuild:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
+      - popd
+      - mv $repo com.invoiceninja.admin
+    scandelete:
+      - .pub-cache
+    build:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - export ANDROID_NDK_HOME=$$NDK$$
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
+      - popd
+      - mv $repo com.invoiceninja.admin
+    ndk: 28.2.13676358
+
+  - versionName: 5.1.15
+    versionCode: 2018
+    commit: v5.1.15
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-21-jdk-headless
+      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
+      - mkdir -p /build
+      - chown -R vagrant /build
+    output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-arm64-v8a.apk
+    srclibs:
+      - flutter@3.44.1
+    rm:
+      - appimage
+      - ios
+      - linux
+      - macos
+      - snap
+      - test_driver
+      - web
+      - windows
+    prebuild:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
+      - popd
+      - mv $repo com.invoiceninja.admin
+    scandelete:
+      - .pub-cache
+    build:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - export ANDROID_NDK_HOME=$$NDK$$
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
+      - popd
+      - mv $repo com.invoiceninja.admin
+    ndk: 28.2.13676358
+
+  - versionName: 5.1.15
+    versionCode: 4018
+    commit: v5.1.15
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-21-jdk-headless
+      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
+      - mkdir -p /build
+      - chown -R vagrant /build
+    output: build/app/outputs/flutter-apk/app-x86_64-release.apk
+    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-x86_64.apk
+    srclibs:
+      - flutter@3.44.1
+    rm:
+      - appimage
+      - ios
+      - linux
+      - macos
+      - snap
+      - test_driver
+      - web
+      - windows
+    prebuild:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
+      - popd
+      - mv $repo com.invoiceninja.admin
+    scandelete:
+      - .pub-cache
+    build:
+      - export repo=/build/com.invoiceninja.admin
+      - cd ..
+      - mv com.invoiceninja.admin $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - export ANDROID_NDK_HOME=$$NDK$$
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-x64
+      - popd
+      - mv $repo com.invoiceninja.admin
+    ndk: 28.2.13676358
+
+AllowedAPKSigningKeys: d17fac8d589599231c31ce52a5e6fde72bba9b7ddc8b180307e25cc68803c17d
+
+MaintainerNotes: |-
+  Upstream builds and signs this exact recipe with fdroid build, in the
+  fdroidserver:buildserver-trixie image, before publishing the binaries
+  (tools/fdroid_build.sh, docs/fdroid.md in the source repo). The server it
+  talks to uses the Elastic-2.0 license, which is approved neither by OSI nor
+  FSF, see https://invoiceninja.github.io/docs/legal/license/
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
+VercodeOperation:
+  - '%c + 1000'
+  - '%c + 2000'
+  - '%c + 4000'
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 5.1.15
+CurrentVersionCode: 4018

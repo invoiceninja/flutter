@@ -15,7 +15,8 @@
 #      fetch the pinned sqlite3mc amalgamation, check its sha256, and point
 #      the sqlite3 hook at it (`source: source`). Hook user-defines can only
 #      live in pubspec.yaml, so this one edits it.
-#   3. `flutter pub get`, then fail if a non-free package is still resolved.
+#   3. `flutter pub get`, then fail if a non-free package is still resolved,
+#      or if any package resolved differently from the store build's lock.
 #
 # Needs network for the sqlite3mc download and pub get — run it where F-Droid
 # runs `prebuild`. Set FLUTTER to the SDK's flutter binary if it isn't on PATH.
@@ -64,6 +65,27 @@ unprepared_pubspec() {
   perl -0pe \
     "s|\n      source: source\n      path: \Q$SQLITE3MC_C\E\n|\n      source: sqlite3mc\n|" \
     pubspec.yaml
+}
+
+# One line per locked package, `name source version pin`: the sha256 of a
+# hosted package, the resolved-ref of a git one. Path packages are skipped —
+# swapping store_services for its twin is the point — and `dependency:` is
+# left out because dropping the store SDKs legitimately changes it.
+lock_pins() {
+  awk '
+    function flush() {
+      if (name != "" && source != "path") print name, source, version, pin
+      name = ""; source = ""; version = ""; pin = ""
+    }
+    /^packages:/ { in_packages = 1; next }
+    /^[^ ]/ { flush(); in_packages = 0 }
+    !in_packages { next }
+    /^  [^ ]/ { flush(); name = $1; sub(/:$/, "", name) }
+    /^      sha256: / || /^      resolved-ref: / { pin = $2 }
+    /^    source: / { source = $2 }
+    /^    version: / { version = $2 }
+    END { flush() }
+  ' | tr -d '"' | sort
 }
 
 sqlite3mc_present() {
@@ -171,6 +193,20 @@ fi
 if grep -nE "^  ($NONFREE_PACKAGES)[a-z_]*:" pubspec.lock; then
   echo "Non-free packages are still resolved (above) — the FOSS build would" >&2
   echo "ship them. Something outside packages/store_services depends on them." >&2
+  exit 1
+fi
+
+# `pub get --enforce-lockfile` can't run here, since the swap has to rewrite
+# pubspec.lock. This is the same guarantee: every package the FOSS graph
+# resolves is one the store build locked, at the same version and content
+# hash, so F-Droid builds exactly what the store build tested
+# (docs/fdroid.md § The FOSS lock is a subset of the store lock).
+drifted="$(comm -23 <(lock_pins <pubspec.lock) \
+  <(tar -xOf "$BACKUP" pubspec.lock | lock_pins))"
+if [[ -n "$drifted" ]]; then
+  echo "The FOSS build resolved packages the store lock does not pin:" >&2
+  echo "$drifted" >&2
+  echo "Run \`flutter pub get\` on the store build and commit its pubspec.lock first." >&2
   exit 1
 fi
 

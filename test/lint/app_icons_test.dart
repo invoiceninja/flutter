@@ -26,6 +26,7 @@ void main() {
     'windows/runner/resources/app_icon.ico',
     'windows/runner/resources/store_logo.png',
     'snap/gui/invoiceninja.png',
+    'fastlane/metadata/android/en-US/images/icon.png',
     'web/icons/Icon-192.png',
     'web/icons/Icon-512.png',
     'web/icons/Icon-maskable-192.png',

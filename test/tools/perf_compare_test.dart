@@ -672,10 +672,12 @@ void main() {
       expect(renderIssueBody(c), contains('--name "a.b"'));
     });
 
-    test('sparkline runs low to high, and flat is flat', () {
+    test('sparkline runs low to high, flat is flat, one point is none', () {
       expect(sparkline([1, 2, 3, 4, 5, 6, 7, 8]), '▁▂▃▄▅▆▇█');
       expect(sparkline([5, 5, 5]), '▄▄▄');
       expect(sparkline(const []), '');
+      // A first run: one value is no trend, not a mid-height bar.
+      expect(sparkline([5]), '');
     });
   });
 }

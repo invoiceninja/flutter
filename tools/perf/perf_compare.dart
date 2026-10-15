@@ -850,9 +850,10 @@ String _pctAbs(double fraction) => '${(fraction.abs() * 100).round()}%';
 
 const _sparks = '▁▂▃▄▅▆▇█';
 
-/// [values] as a row of block characters, low to high.
+/// [values] as a row of block characters, low to high. Fewer than two
+/// values have no trend to draw.
 String sparkline(List<double> values) {
-  if (values.isEmpty) return '';
+  if (values.length < 2) return '';
   final lo = values.reduce(math.min);
   final hi = values.reduce(math.max);
   if (hi - lo <= hi * 0.02) return _sparks[3] * values.length;

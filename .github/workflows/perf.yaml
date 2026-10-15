@@ -25,7 +25,10 @@ permissions:
 
 jobs:
   perf:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: a new image moves every number at once (kernel,
+    # libc, the toolchain that builds sqlite3mc), which the calibration does not
+    # absorb. Bump it in its own commit, with `defaults.since` set in budgets.json.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read
@@ -114,7 +117,7 @@ jobs:
 
       - name: Upload this run
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perf-run-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -167,7 +170,7 @@ jobs:
       # step would leave it recorded as open and never announced.
       - name: Keep the history
         if: env.ON_MAIN == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perf-history
           path: build/perf/history.json

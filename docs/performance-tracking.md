@@ -287,6 +287,11 @@ part of what is measured. The alerts it opens stay open, because the baseline le
 out: set `defaults.since` to the bump's date in the same commit (§ Slower: the recent baseline),
 and re-derive the budgets once three runs exist.
 
+The runner image is pinned (`runs-on: ubuntu-24.04` in `perf.yaml`), not `ubuntu-latest`: a new
+image changes the kernel, libc and the toolchain that builds sqlite3mc all at once, and the
+calibration corrects for CPU speed only. Bumping it is a runner change: same commit, same
+`defaults.since`.
+
 ## Not measured yet
 
 Paths users wait on that no benchmark covers, roughly by how much they are waited on:

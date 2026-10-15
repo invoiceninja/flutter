@@ -10,7 +10,6 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
-import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';

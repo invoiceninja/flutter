@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/services/api_client.dart';

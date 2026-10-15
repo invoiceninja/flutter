@@ -429,8 +429,15 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
     scanignores that repo for the same reason.
   - The lint test requires a `scanignore` for every resolved plugin that names an unknown repo,
     and no others, because an unused `scanignore` path fails F-Droid's scan.
-- **The version fields here are informational.** F-Droid's checkupdates bot adds the blocks for
-  each new tag, and our CI rewrites them for each build.
+- **The version fields follow `pubspec.yaml`, automatically.** `tools/bump_client_version.sh`
+  rewrites each block's `versionName`, `versionCode` (ABI digit × 1000 + build) and
+  `commit: v<version>`, plus `CurrentVersion` / `CurrentVersionCode`, as it does
+  `snap/snapcraft.yaml`.
+  - So the recipe already names the release that gets tagged, ready to submit.
+  - The lint test fails if the recipe and pubspec disagree.
+  - The bump refuses a build number of 1000 or more, where the ABIs' versionCodes would collide.
+  - Once listed, F-Droid's checkupdates bot adds blocks for each new tag in fdroiddata's copy.
+    Our CI rewrites the version lines for each build anyway.
 - **After the fdroiddata merge request lands, fdroiddata's copy is authoritative.** Reviewers do
   edit recipes, so copy any change back here; otherwise our CI builds something F-Droid doesn't.
 - **Listing text** lives in `fastlane/metadata/android/en-US/`:

@@ -17,6 +17,12 @@ set -euo pipefail
 # same MAJOR.MINOR.PATCH — it was a documented manual step that demonstrably
 # never happened (drifted 4 releases behind).
 #
+# And the F-Droid recipe (tools/foss/com.invoiceninja.admin.yml): each ABI
+# block's versionName, versionCode (abi digit x 1000 + build) and commit
+# (v<version>), plus CurrentVersion/CurrentVersionCode — so the recipe already
+# names the release that gets tagged, ready to submit (docs/fdroid.md § The
+# F-Droid recipe).
+#
 # Does NOT touch kMinServerVersion (bumped only when depending on a server change).
 #
 # Usage:
@@ -94,6 +100,14 @@ fi
 new_build=$(( pubspec_build + 1 ))
 new_pubspec="${new_version}+${new_build}"
 
+# Flutter's split-per-ABI APKs (the F-Droid build) get <abi digit> * 1000 +
+# build, so from build 1000 on the ABIs' versionCodes would collide.
+if (( new_build >= 1000 )); then
+  echo "!! build $new_build reaches 1000: the F-Droid APKs' versionCodes (abi*1000+build)" >&2
+  echo "   would collide across ABIs — re-plan the scheme first (docs/fdroid.md)" >&2
+  exit 1
+fi
+
 perl -i -pe "s/^version:.*/version: ${new_pubspec}/" "$pubspec"
 
 pubspec_updated="$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' "$pubspec")"
@@ -119,7 +133,31 @@ if [[ "$snap_updated" != "$new_version" ]]; then
   exit 1
 fi
 
+# --- F-Droid recipe: the version lines fdroiddata needs for this release ---
+# Flutter's split-per-ABI versionCode is <abi digit> * 1000 + build, so the
+# digit is read back off each code (1018 -> 1) and the build swapped in.
+recipe="tools/foss/com.invoiceninja.admin.yml"
+recipe_current="$(sed -n 's/^CurrentVersion:[[:space:]]*\(.*\)$/\1/p' "$recipe")"
+perl -i -pe "
+  s/^(  - versionName:) .*/\$1 ${new_version}/;
+  s/^(    versionCode:) (\d+)\$/\$1 . ' ' . (int(\$2 \/ 1000) * 1000 + ${new_build})/e;
+  s/^(    commit:) v.*/\$1 v${new_version}/;
+  s/^(CurrentVersion:) .*/\$1 ${new_version}/;
+  s/^(CurrentVersionCode:) (\d+)\$/\$1 . ' ' . (int(\$2 \/ 1000) * 1000 + ${new_build})/e;
+" "$recipe"
+
+recipe_codes="$(sed -n 's/^    versionCode: //p' "$recipe" | tr '\n' ' ')"
+expected_codes="$(( 1000 + new_build )) $(( 2000 + new_build )) $(( 4000 + new_build )) "
+if [[ "$(grep -c "^  - versionName: ${new_version}\$" "$recipe")" != 3 ||
+  "$(grep -c "^    commit: v${new_version}\$" "$recipe")" != 3 ||
+  "$recipe_codes" != "$expected_codes" ||
+  "$(sed -n 's/^CurrentVersionCode: //p' "$recipe")" != "$(( 4000 + new_build ))" ]]; then
+  echo "!! F-Droid recipe update failed — check $recipe (versionCodes: $recipe_codes)" >&2
+  exit 1
+fi
+
 echo "==> kClientVersion: $current -> $new_version"
 echo "==> pubspec version: $pubspec_line -> $new_pubspec"
 echo "==> snapcraft version: $snap_current -> $new_version"
+echo "==> F-Droid recipe: $recipe_current -> $new_version (versionCodes $recipe_codes)"
 echo "    next: flutter analyze $file && flutter test test/app/version_test.dart"

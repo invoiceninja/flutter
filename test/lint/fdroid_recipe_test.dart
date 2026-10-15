@@ -112,6 +112,31 @@ void main() {
     );
   });
 
+  test('the recipe names the version in pubspec.yaml', () {
+    final pubspec = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$',
+      multiLine: true,
+    ).firstMatch(File('pubspec.yaml').readAsStringSync());
+    expect(pubspec, isNotNull);
+    final (name, build) = (pubspec!.group(1)!, int.parse(pubspec.group(2)!));
+    for (final b in blocks) {
+      expect(_one(b, r'^  - versionName: (\S+)$'), name, reason: _abiOf(b));
+      expect(
+        int.parse(_one(b, r'^    versionCode: (\d+)$')) % 1000,
+        build,
+        reason: _abiOf(b),
+      );
+    }
+    expect(
+      _one(recipe, r'^CurrentVersion: (\S+)$'),
+      name,
+      reason:
+          'tools/bump_client_version.sh rewrites the recipe with '
+          'pubspec.yaml, so the recipe already names the release that gets '
+          'tagged. Run it rather than editing either by hand.',
+    );
+  });
+
   test('each block builds its own ABI the way the template does', () {
     for (final b in blocks) {
       final abi = _abiOf(b);

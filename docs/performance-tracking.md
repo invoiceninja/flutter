@@ -15,7 +15,7 @@ inputs (`benchmark/workloads.dart`).
 | Budgets and tolerances | `benchmark/perf/budgets.json` |
 | Runner and judge | `tools/perf/main.dart` (`run` / `compare` / `budgets`), rules in `tools/perf/perf_compare.dart` |
 | The rules' tests | `test/tools/perf_compare_test.dart` — part of the normal unit suite |
-| CI | `.github/workflows/perf.yaml` — nightly at 04:17 UTC, by hand, and as the `perf` job of `ci.yaml` |
+| CI | `.github/workflows/perf.yaml` — only by hand: Actions → Performance → Run workflow |
 
 Locally:
 
@@ -41,7 +41,7 @@ Four files, by layer. Every id is `<area>.<what>`; the title is what a person re
 | | `screens.invoice_list_scroll_phone`, `screens.invoice_edit_items_tab_phone` | The same list at 390 × 844 (touch, narrow rows), and the phone editor's Items tab opening on a 50-line invoice — its lines are cards, built when the tab opens |
 | | `screens.invoice_edit_open` / `_typing` | The invoice editor on a 50-line invoice: mounting it, and one keystroke in a line cell through the 250 ms debounce and the totals recompute |
 | | `screens.client_record_open` | The client record screen until its standing card draws |
-| Database | `invoices.list_first_page` / `_deep_scroll` / `_search` / `_status_tab` | The invoice list's Drift query over 5,000 rows, its rows already decoded (see the note below): page 1, ten loaded pages, a search, the Overdue tab. Fixture dates are all in the past, so "overdue" is the same rows every night |
+| Database | `invoices.list_first_page` / `_deep_scroll` / `_search` / `_status_tab` | The invoice list's Drift query over 5,000 rows, its rows already decoded (see the note below): page 1, ten loaded pages, a search, the Overdue tab. Fixture dates are all in the past, so "overdue" is the same rows every run |
 | | `invoices.list_first_page_cold` | Page 1 with nothing decoded yet — the query plus fifty payload decodes (`jsonDecode` → `fromJson` → `fromApi`), what a first look at a page costs |
 | | `invoices.page_write` | Storing a page of 50 from the server — DTO to companion to dirty-preserving upsert |
 | | `invoices.save_edit` | An offline save: the row and its outbox entry, in one transaction |
@@ -82,7 +82,7 @@ for the first time also pays its decode, about 0.1 ms a row in debug.
 
 **A run's times are multiplied by `reference.calibrationMs / this run's calibration` before
 anything compares them.** GitHub's `ubuntu-latest` is not one machine: hosts differ by a third or
-more in single-thread speed, so raw milliseconds from two nights cannot be compared, and a budget
+more in single-thread speed, so raw milliseconds from two runs cannot be compared, and a budget
 in raw milliseconds would trip whenever a slower host came up.
 
 `perfCalibration()` times a fixed workload — building, JSON-encoding, decoding and sorting 4,000
@@ -113,7 +113,7 @@ busy neighbour can.
 `over_budget` alert, from the very first run — and it fails every run until fixed (§ What fails
 the run).** The first budgets are this Mac's medians × 3, rounded up to two significant figures:
 generous, because a budget set on one machine and scaled to another by the calibration is only as
-good as the scaling, and an `over_budget` that is really a scaling error would turn every night
+good as the scaling, and an `over_budget` that is really a scaling error would turn every run
 red. After a week of CI runs, re-derive them from CI's own history:
 
 ```
@@ -128,12 +128,12 @@ warnings on stderr, so the redirect captures only the file.
 **A run more than `regression` (25%; 30% for screens) above the median of the last ten clean main
 runs that were not themselves alerting is a `regression` alert — unless the rise is inside the
 baseline's own noise or under `minDeltaMs`.** The threshold is `max(regression, 3 × MAD / median)`
-of those ten runs: a benchmark that wanders ±15% from night to night must not page anyone at +20%.
+of those ten runs: a benchmark that wanders ±15% from run to run must not page anyone at +20%.
 `minDeltaMs` (0.1 ms) keeps a microsecond benchmark from alerting on a doubling that is still
 noise. Fewer than three earlier runs: no regression check, only the budget.
 
 **While a regression is open the baseline does not move.** The runs that alerted are left out of
-it. Were they counted, five slow nights would put the median half-way up and widen the noise
+it. Were they counted, five slow runs would put the median half-way up and widen the noise
 threshold with it, and the alert would clear itself — "No performance alerts remain" — with nothing
 fixed. So an open regression stays open until the benchmark comes back down, or until somebody
 accepts the slowdown:
@@ -160,7 +160,7 @@ hits one.
 **The median of the last five runs more than `drift` (40%) above the median of the runs 30–90
 days old (leaving out any that were alerting) is a `drift` alert.** It is not asked while a
 regression of the same benchmark is open — that would be one slowdown listed twice. A run-to-run check cannot see a slowdown made of small steps: +2%
-a night for a month never trips +25% against the ten runs before it, and the baseline climbs with
+a run across a month of runs never trips +25% against the ten runs before it, and the baseline climbs with
 it. `test/tools/perf_compare_test.dart` › drift pins exactly that case. Past 90 days nothing is
 compared; the budget is the backstop.
 
@@ -178,26 +178,25 @@ ids its regex matches, and leaves the alerts of the rest as they were.
 downloads the newest unexpired one uploaded by a main run, appends itself (main only, `--record`),
 and uploads the result. No branch, no external service, nothing to provision.
 
-- Artifacts expire after 90 days, so a nightly run with nothing to measure — main has not moved
-  — still re-uploads the history unchanged. Ninety days with no main run at all would lose it; the
-  suite then falls back to budgets until three runs build a baseline again.
+- **It only grows when someone runs it.** The workflow has no schedule, so the baseline (ten
+  runs), the drift check (runs 30–90 days old) and the history itself all depend on running it on
+  main regularly — after merging something that could matter, and before a release. Artifacts
+  expire after 90 days: ninety days with no main run loses the history, and the suite falls back
+  to budgets until three runs build a baseline again.
 - Runs on main never overlap (`concurrency`): two at once would both read the same history and
   the second upload would drop the first's entry. GitHub keeps one pending run per group, so a third
-  arrival cancels the waiting one — a nightly can cancel a queued CI `perf` job, which loses
-  nothing, since the run that goes measures the newer commit.
+  arrival cancels the waiting one, which loses nothing: the run that goes measures the newer
+  commit.
 - A branch run reads main's history and records nothing.
 - **A history that exists but cannot be listed, downloaded or read fails the run on main.**
   Carrying on would record a one-entry history and upload it as the newest, and every later run
   would chain from it. Only "there is no history yet" falls back to budgets. Every step runs under
   `bash -eo pipefail` for the same reason — without `pipefail` a failed artifact listing read as an
   empty one. `compare --record` refuses an unreadable file; a branch run, which records nothing,
-  warns and judges by budgets.
-- **The nightly skips a commit already measured — unless that measurement could not judge it**:
-  a noisy run, or one where benchmarks failed to run. Then it measures again, so those alerts are
-  re-judged rather than left as they were (and the night green) until the next commit. A schema bump therefore needs a reader for the old schema —
-  or the `perf-history` artifacts deleted, on purpose.
+  warns and judges by budgets. A schema bump therefore needs a reader for the old schema — or the
+  `perf-history` artifacts deleted, on purpose.
 - **A commit already in the history is judged against what preceded its first measurement.** The
-  last commit measured again (a re-run, or a CI dispatch at a commit the nightly already did)
+  last commit measured again (a re-run, or a second dispatch at the same commit)
   replaces its own entry and announces nothing it already announced. An older commit measured
   again — a late re-run of an old job — is judged but not recorded, and leaves the issue alone.
 - **The history is uploaded after the issue step, and only if it succeeded.** It records which
@@ -211,17 +210,15 @@ and uploads the result. No branch, no external service, nothing to provision.
   `perf-regression`.** The first alert opens it; each later run rewrites its body to the current
   alerts; an alert that was not up on the previous run adds a comment — except a `drift` taking
   over from an open `regression` of the same benchmark (a partial fix can bring it inside the
-  regression threshold while it is still well over a month ago), or the reverse, which is the same
-  news and neither new nor resolved; the run that clears the
-  last alert closes it with a comment. One thread, so a regression that persists for a week is one
-  notification, not seven.
-- **Set the repository variable `PERF_NOTIFY`** (Settings → Secrets and variables → Actions →
-  Variables) to the handles to ping, e.g. `@octocat @hubot`. The comment starts with it; an
-  @mention notifies whatever the person's watch settings are. Unset, the issue notifies only
-  people watching the repository.
+  regression threshold while it is still well over a month ago), which is the same news; the run
+  that clears the last alert closes it with a comment. One thread, so a regression that persists
+  across several runs is one notification, not several.
+- **A new alert's comment tags `@hillelcoren`.** The repository variable `PERF_NOTIFY` (Settings →
+  Secrets and variables → Actions → Variables) replaces that when set — e.g. `@octocat @hubot`.
+  An @mention notifies whatever the person's watch settings are.
 - **The run goes red** by the rule in § What fails the run, so the Actions page and GitHub's
-  failed-run email (for a scheduled workflow it goes to whoever last edited the `cron` line) say
-  so too. Dispatch Performance (or CI) on a branch to ask "is this branch slower than main?"
+  failed-run email to whoever started it say so too. Run Performance on a branch to ask "is this
+  branch slower than main?"
   before merging, and read the job summary — rebased first: the branch is judged against main's
   recent runs, so a branch that predates a speed-up on main reads as having lost it.
 - Every run writes the full table, with a trend sparkline per benchmark, to the job summary, and
@@ -238,8 +235,8 @@ it, and the workflow's Verdict step turns each failing key into an error on the 
 - **Over budget and failed stay red on every run.** A budget is the line nobody crosses quietly,
   and a benchmark that stopped running is a hole in the suite; both stay red until fixed, or the
   budget is raised in a reviewed commit (§ Too slow: the budget).
-- **A regression or drift is red the night it appears**, then lives in the issue — a slowdown that
-  stays does not turn every night red. It stays open in the issue until fixed or accepted with
+- **A regression or drift is red the run it appears in**, then lives in the issue — a slowdown that
+  stays does not turn every run red. It stays open in the issue until fixed or accepted with
   `since` (§ Slower: the recent baseline). A `drift` taking over from an open `regression` of the
   same benchmark is not new; a `regression` appearing while a `drift` is open is — a step on top
   of the creep.

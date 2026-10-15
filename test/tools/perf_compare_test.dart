@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../tools/perf/perf_compare.dart';
 
-/// The rules that decide whether the nightly Performance workflow raises an
+/// The rules that decide whether the Performance workflow raises an
 /// alert (docs/performance-tracking.md). A rule that is wrong here either
 /// pages someone over runner noise — and the alerts stop being read — or
 /// stays quiet over a real slowdown, which is the thing the suite exists for.
@@ -533,7 +533,7 @@ void main() {
   });
 
   group('what fails the run', () {
-    test('a new regression fails it once; the same regression the next night '
+    test('a new regression fails it once; the same regression the next run '
         'does not — it lives in the issue', () {
       final steady = daily('a.b', [10, 10, 10, 10, 10]);
       final first = compare(

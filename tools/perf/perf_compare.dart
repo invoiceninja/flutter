@@ -442,9 +442,9 @@ class PerfComparison {
 
   /// The alert keys that fail the run — the gate CI applies.
   ///
-  /// - **Every new alert.** A slowdown turns the run red the night it
-  ///   appears; after that it lives in the issue, so a regression that stays
-  ///   is not a red run every night.
+  /// - **Every new alert.** A slowdown turns red the run it appears in;
+  ///   after that it lives in the issue, so a regression that stays does not
+  ///   turn every later run red.
   /// - **Every `over_budget` and every `failed`, new or not.** Over its budget
   ///   is "too slow" — the line nobody may cross quietly — and a benchmark
   ///   that stopped running is a hole in the suite. Both stay red on every
@@ -496,7 +496,7 @@ PerfComparison compare({
   }
 
   // A commit already in the history is being measured again — a re-run, or
-  // a CI dispatch at a commit the nightly already measured. It is judged
+  // a second dispatch at a commit already measured. It is judged
   // against what came before its first measurement, never against itself.
   final at = run.sha.isEmpty
       ? -1
@@ -1006,7 +1006,8 @@ String renderSummary(PerfComparison c) {
 String renderIssueBody(PerfComparison c) {
   final b = StringBuffer()
     ..writeln(
-      'The nightly **Performance** workflow keeps this issue up to date and '
+      'The **Performance** workflow (run by hand from the Actions tab) keeps '
+      'this issue up to date and '
       'closes it when no alert remains. What each '
       'alert means and how to reproduce it locally: '
       '`docs/performance-tracking.md`.',

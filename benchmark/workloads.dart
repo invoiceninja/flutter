@@ -169,7 +169,7 @@ Map<String, dynamic> invoiceJson(
 }) {
   final r = rng ?? Lcg(1000 + n);
   // All in the past, so "overdue" — a comparison with today — is the same
-  // set of rows on every night the suite runs.
+  // set of rows every time the suite runs.
   final year = 2021 + r.next(3);
   final month = 1 + r.next(12);
   final day = 1 + r.next(28);

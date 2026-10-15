@@ -110,19 +110,6 @@ jobs:
   unit-tests:
     uses: ./.github/workflows/_test.yaml
 
-  # Performance — benchmark/perf against its budgets and main's run history.
-  # Defined once in perf.yaml, which also runs nightly on its own; see there
-  # and docs/performance-tracking.md. On a branch it goes red when the branch
-  # is slower than main; on main it records the run and keeps the
-  # `perf-regression` issue current. Deliberately not in the apple job's
-  # `needs`: a slowdown is a reason to look, not a broken build.
-  perf:
-    uses: ./.github/workflows/perf.yaml
-    permissions:
-      contents: read
-      actions: read
-      issues: write
-
   # Web compile gate. The authoritative check for web-platform regressions:
   # `flutter analyze` runs against the VM target and won't catch a native-only
   # API leaking into the reachable web tree. Built with `--wasm` so it doubles

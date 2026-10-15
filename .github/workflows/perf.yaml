@@ -5,25 +5,20 @@ name: Performance
 # snapshot parse, … (benchmark/perf/) — and says when one is too slow or is
 # getting slower. docs/performance-tracking.md is the whole story; in short:
 #
-#  * nightly on main, skipped when main has not moved since the last run;
+#  * only when started by hand — Actions → Performance → Run workflow;
 #  * each run is compared with the budgets in benchmark/perf/budgets.json and
 #    with the history of earlier main runs, which travels from run to run as
 #    the `perf-history` artifact (no branch, no external service);
 #  * on main, alerts are kept in ONE open issue labelled `perf-regression`:
-#    a new alert comments on it (mentioning `vars.PERF_NOTIFY`, e.g.
-#    "@octocat"), and it closes itself when no alert remains;
-#  * on any other ref (a manual dispatch, or ci.yaml's dispatch) the run is
-#    compared with main's history and fails on an alert main does not already
-#    have — the way to ask "did my branch make something slower?" before
-#    merging;
+#    a new alert comments on it, tagging `vars.PERF_NOTIFY` (@hillelcoren
+#    when the variable is unset), and it closes itself when no alert remains;
+#  * on any other ref the run is compared with main's history and fails on
+#    an alert main does not already have — the way to ask "did my branch
+#    make something slower?" before merging;
 #  * on any ref, a benchmark over its budget or that failed to run fails
 #    every run until it is fixed — see the Verdict step.
 on:
-  schedule:
-    # 04:17 UTC — off the top of the hour, when scheduled runs queue longest.
-    - cron: '17 4 * * *'
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -41,8 +36,8 @@ jobs:
     # The history is a chain — each main run reads the last one's artifact and
     # uploads the next — so two at once would fork it. One runs, one waits;
     # GitHub keeps a single pending run per group, so a third arrival cancels
-    # the waiting one (a nightly can cancel a queued CI `perf` job). Nothing
-    # is lost by that: the run that does go measures the newer commit.
+    # the waiting one. Nothing is lost by that: the run that does go measures
+    # the newer commit.
     concurrency:
       group: perf-${{ github.ref }}
       cancel-in-progress: false
@@ -81,7 +76,7 @@ jobs:
         run: |
           mkdir -p build/perf/previous
           # Every page, newest by date: the API's order is not documented, and
-          # the nightly runs plus CI's can outgrow one page. Its own assignment,
+          # ninety days of runs can outgrow one page. Its own assignment,
           # so an API failure fails the step rather than reading as "none".
           listed="$(gh api --paginate "repos/$GH_REPO/actions/artifacts?name=perf-history&per_page=100" \
             --jq '.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == "main")
@@ -99,31 +94,14 @@ jobs:
             exit 1
           fi
 
-      # Nightly runs measure each commit once. A skip still re-uploads the
-      # history below, so a quiet month cannot let it expire. Not skipped when
-      # that one measurement could not judge — a noisy machine, or benchmarks
-      # that failed to run: skipping would leave those unjudged (and every
-      # night green) until the next commit.
-      - name: Already measured?
-        id: skip
-        if: github.event_name == 'schedule'
-        run: |
-          last="$(jq -r '.entries[-1] // {} | if .noisy or any(.alerts[]?; startswith("failed:")) then "" else .sha // "" end' \
-            build/perf/previous/history.json 2>/dev/null || true)"
-          if [ -n "$last" ] && [ "$last" = "$GITHUB_SHA" ]; then
-            echo "main has not moved since the last measured run ($last)."
-            cp build/perf/previous/history.json build/perf/history.json
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Run the benchmarks
-        if: steps.skip.outputs.skip != 'true'
         run: dart tools/perf/main.dart run --passes 2
 
       - name: Compare
-        if: steps.skip.outputs.skip != 'true'
         env:
-          PERF_NOTIFY: ${{ vars.PERF_NOTIFY }}
+          # Who a new alert's comment tags. The repository variable wins when
+          # set (Settings → Secrets and variables → Actions → Variables).
+          PERF_NOTIFY: ${{ vars.PERF_NOTIFY || '@hillelcoren' }}
         run: |
           record=()
           if [ "$ON_MAIN" = "true" ]; then record=(--record); fi
@@ -135,7 +113,7 @@ jobs:
           cat build/perf/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload this run
-        if: ${{ !cancelled() && steps.skip.outputs.skip != 'true' }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: perf-run-${{ github.run_id }}-${{ github.run_attempt }}
@@ -150,7 +128,7 @@ jobs:
       # A stale run — a late re-run of a commit with newer ones recorded after
       # it — leaves the issue alone: the issue describes the newer commits.
       - name: Update the regression issue
-        if: env.ON_MAIN == 'true' && steps.skip.outputs.skip != 'true'
+        if: env.ON_MAIN == 'true'
         run: |
           if [ "$(jq '.stale' build/perf/alerts.json)" = "true" ]; then
             echo "::notice title=Performance::A re-run of an older commit — the issue is left as it is."
@@ -203,9 +181,8 @@ jobs:
       # already have — and, new or not, for every benchmark OVER ITS BUDGET or
       # that FAILED TO RUN. Those two stay red on every run until fixed or the
       # budget is raised in a reviewed commit; a regression that stays is
-      # tracked in the issue instead of turning every night red.
+      # tracked in the issue instead of turning every run red.
       - name: Verdict
-        if: steps.skip.outputs.skip != 'true'
         run: |
           jq -r '.active[]' build/perf/alerts.json | while read -r key; do
             echo "::warning title=Performance::$key"

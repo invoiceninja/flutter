@@ -52,6 +52,8 @@ Builds:
       - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
       - popd
       - mv $repo com.invoiceninja.admin
+    scanignore:
+      - .pub-cache/hosted/pub.dev/flutter_contacts-*/android/build.gradle
     scandelete:
       - .pub-cache
     build:
@@ -100,6 +102,8 @@ Builds:
       - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
       - popd
       - mv $repo com.invoiceninja.admin
+    scanignore:
+      - .pub-cache/hosted/pub.dev/flutter_contacts-*/android/build.gradle
     scandelete:
       - .pub-cache
     build:
@@ -148,6 +152,8 @@ Builds:
       - FLUTTER=$$flutter$$/bin/flutter tools/prepare_foss.sh
       - popd
       - mv $repo com.invoiceninja.admin
+    scanignore:
+      - .pub-cache/hosted/pub.dev/flutter_contacts-*/android/build.gradle
     scandelete:
       - .pub-cache
     build:

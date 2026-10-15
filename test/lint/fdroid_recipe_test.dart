@@ -15,6 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 ///  * a build that doesn't pin `ANDROID_NDK_HOME`: Flutter then compiles the
 ///    SQLite hook with whichever NDK is newest on the buildserver;
 ///  * a malformed signing key or download URL;
+///  * a plugin whose Android build file names a Maven repo F-Droid's scanner
+///    doesn't know, without a `scanignore:` for it: `scandelete: .pub-cache`
+///    then deletes that whole file, and Gradle fails configuring the plugin;
 ///  * `android/app/build.gradle.kts` in a shape F-Droid's signing stripper
 ///    doesn't fully remove: F-Droid's APK then comes out debug-signed and can
 ///    never carry our signature.
@@ -163,6 +166,76 @@ void main() {
             'fails on any other layout',
       );
     }
+  });
+
+  test("every plugin naming a repo F-Droid's scanner flags is scanignored", () {
+    // The packages this build resolved, from `pub get`'s package_config.
+    final config = File('.dart_tool/package_config.json').readAsStringSync();
+    final roots = {
+      for (final m in RegExp(
+        r'"name":\s*"([^"]+)",\s*"rootUri":\s*"file://([^"]+)"',
+      ).allMatches(config))
+        m.group(1)!: Uri.decodeFull(m.group(2)!),
+    };
+    expect(roots, isNotEmpty, reason: 'run `flutter pub get` first');
+
+    // fdroidserver/scanner.py `allowed_repos` (fdroidserver 5806784d).
+    const allowed = [
+      'repo1.maven.org/maven2',
+      'jitpack.io',
+      'www.jitpack.io',
+      'repo.maven.apache.org/maven2',
+      'oss.jfrog.org/artifactory/oss-snapshot-local',
+      'central.sonatype.com/repository/maven-snapshots',
+      'oss.sonatype.org/content/',
+      's01.oss.sonatype.org/content/',
+      'clojars.org/repo',
+      'repo.clojars.org',
+      's3.amazonaws.com/repo.commonsware.com',
+      'plugins.gradle.org/m2',
+      'maven.google.com',
+    ];
+    final repoUrl = RegExp(
+      r'''url\s*[=(]?\s*(?:uri\()?\s*['"]https://([^'"]+)''',
+    );
+    final flagged = <String>{};
+    for (final MapEntry(key: name, value: root) in roots.entries) {
+      // Only what lands in the build's `.pub-cache` gets scanned: hosted and
+      // git packages, wherever PUB_CACHE points. Flutter SDK packages live
+      // in the srclib, which F-Droid doesn't scan.
+      if (!RegExp(r'/(hosted|git)/').hasMatch(root)) continue;
+      for (final file in ['build.gradle', 'build.gradle.kts']) {
+        final f = File('$root/android/$file');
+        if (!f.existsSync()) continue;
+        for (final m in repoUrl.allMatches(f.readAsStringSync())) {
+          if (!allowed.any(m.group(1)!.startsWith)) flagged.add(name);
+        }
+      }
+    }
+
+    final ignored = <String>{};
+    for (final b in blocks) {
+      final entries = _commands(b, 'scanignore');
+      final names = {
+        for (final e in entries)
+          RegExp(
+                r'^\.pub-cache/hosted/pub\.dev/([a-z0-9_]+)-\*/android/'
+                r'build\.gradle(?:\.kts)?$',
+              ).firstMatch(e)?.group(1) ??
+              e,
+      };
+      if (ignored.isEmpty) ignored.addAll(names);
+      expect(names, ignored, reason: 'every ABI block scans the same tree');
+    }
+    expect(
+      ignored,
+      flagged,
+      reason:
+          'One `.pub-cache/hosted/pub.dev/<plugin>-*/android/build.gradle` '
+          'scanignore per plugin naming an unknown Maven repo — no more: '
+          "F-Droid's scan fails on an unused scanignore entry "
+          '(docs/fdroid.md § The F-Droid recipe).',
+    );
   });
 
   test('the signing key is a SHA-256 fingerprint', () {

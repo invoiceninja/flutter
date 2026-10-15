@@ -416,6 +416,19 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
   - Measured: the arm64 APK is 59.7 MB; the universal one was 169.5 MB.
 - **`binary:`** per block, naming the asset `InvoiceNinja-<version>-<abi>.apk`. `sign` derives the
   file name from the same line.
+- **`scanignore:` exists for one plugin, and the scan deletes rather than skips.**
+  - `scandelete: .pub-cache` makes F-Droid's scanner delete every flagged file in the pub cache
+    (`removeproblem` → `os.remove`), not just skip it.
+  - `flutter_contacts` declares the Flutter engine's Maven repo,
+    `https://storage.googleapis.com/download.flutter.io`, in its `android/build.gradle`, and that
+    repo isn't on the scanner's `allowed_repos` list. The first CI run lost the file, and Gradle
+    then failed configuring `:flutter_contacts` with a bare `NullPointerException`, under a
+    misleading "AGP 9+ / android.newDsl" hint.
+  - Ignoring it downloads nothing new: Flutter's Gradle plugin adds the same repo to
+    `rootProject.allprojects` anyway (`FlutterPlugin.kt`). fdroiddata's Flutter template
+    scanignores that repo for the same reason.
+  - The lint test requires a `scanignore` for every resolved plugin that names an unknown repo,
+    and no others, because an unused `scanignore` path fails F-Droid's scan.
 - **The version fields here are informational.** F-Droid's checkupdates bot adds the blocks for
   each new tag, and our CI rewrites them for each build.
 - **After the fdroiddata merge request lands, fdroiddata's copy is authoritative.** Reviewers do

@@ -849,7 +849,11 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     );
   }
 
-  Task _fromRow(TaskRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Task _fromRow(TaskRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Task _decode(TaskRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = TaskApi.fromJson(json);
     // is_dirty / is_deleted are local-authoritative columns; documents live

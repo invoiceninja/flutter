@@ -5,6 +5,8 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:crypto/crypto.dart';
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor, Variable;
 import 'package:drift/native.dart';
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,6 +53,10 @@ void main() {
     10: '603ef90e495e502e8526107a50d57baf58286e2e05b1ff9e026bb05b2b3cdf4f',
     11: '40ff0b42ef0fdd14988a566af67df71c5e14d0b109184e3c1227489fb82ea573',
     12: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
+    // Byte-identical to v12: v13 adds only `createListSortIndexes`, which
+    // drift does not model, so the dump cannot see it — the index tests
+    // below are what pin it.
+    13: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -247,7 +253,7 @@ void main() {
       expect(prefs.read(DevicePrefKeys.sidebarCollapsed), isTrue);
       // Keys added after v12 have no `nav_state` column to carry from — they
       // start unset, which is what their defaults are for.
-      const addedAfterV12 = {'default_items_tab'};
+      const addedAfterV12 = {'default_items_tab', 'list_density'};
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {
           expect(prefs.read(key), isNull, reason: key.name);
@@ -336,6 +342,23 @@ void main() {
       await verifier.migrateAndValidate(db, schemaVersion);
       final queued = await db.outboxDao.nextReady(companyId: 'co', now: 1);
       expect(queued.single.idempotencyKey, 'k1');
+      await db.close();
+    });
+
+    test('an installed v12 database gains the list sort indexes', () async {
+      final connection = await verifier.startAt(12);
+      final db = AppDatabase(connection);
+      await verifier.migrateAndValidate(db, schemaVersion);
+      for (final t in kNumberSortedTables) {
+        final rows = await db.customSelect('PRAGMA index_list($t)').get();
+        expect(
+          rows.map((r) => r.data['name']),
+          contains('idx_${t}_company_number'),
+          reason:
+              'the upgrade must reach installed databases, not only '
+              'fresh ones',
+        );
+      }
       await db.close();
     });
 
@@ -504,5 +527,76 @@ void main() {
       );
       await db.close();
     });
+
+    test('each billing list opens on its sort index, not a sort of every '
+        'row', () async {
+      // The DAOs' real page-1 statements, recorded as drift sends them — the
+      // index only helps while its expression matches theirs exactly.
+      final recorder = _SelectRecorder();
+      final db = AppDatabase(NativeDatabase.memory().interceptWith(recorder));
+      await db.customSelect('SELECT 1').getSingle();
+
+      final reads = <String, Future<Object?> Function()>{
+        'invoices': () => db.invoiceDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'quotes': () =>
+            db.quoteDao.watchPage(companyId: 'co', offset: 0, limit: 50).first,
+        'credits': () =>
+            db.creditDao.watchPage(companyId: 'co', offset: 0, limit: 50).first,
+        'purchase_orders': () => db.purchaseOrderDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'recurring_invoices': () => db.recurringInvoiceDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+      };
+      expect(reads.keys, unorderedEquals(kNumberSortedTables));
+
+      for (final MapEntry(key: table, value: read) in reads.entries) {
+        recorder.selects.clear();
+        await read();
+        final (sql, args) = recorder.selects.firstWhere(
+          (s) => s.$1.contains('FROM "$table"'),
+        );
+        // Qualified or not, depending on whether the DAO joins.
+        expect(sql, matches(RegExp('LOWER\\(("$table"\\.)?"number"\\)')));
+        final plan = await db
+            .customSelect(
+              'EXPLAIN QUERY PLAN $sql',
+              variables: [for (final a in args) Variable(a)],
+            )
+            .get();
+        final detail = plan.map((r) => r.data['detail'] as String).join(' | ');
+        expect(
+          detail,
+          contains('idx_${table}_company_number'),
+          reason: '$table page 1 should walk its sort index, got: $detail',
+        );
+        expect(
+          detail,
+          isNot(contains('USE TEMP B-TREE FOR ORDER BY')),
+          reason:
+              '$table page 1 must not sort every row (a temp B-tree for the '
+              'LAST TERM — the id tie-break — is fine), got: $detail',
+        );
+      }
+      await db.close();
+    });
   });
+}
+
+/// Every SELECT the database runs, with its arguments.
+class _SelectRecorder extends QueryInterceptor {
+  final List<(String, List<Object?>)> selects = [];
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    selects.add((statement, args));
+    return executor.runSelect(statement, args);
+  }
 }

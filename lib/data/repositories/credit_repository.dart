@@ -592,7 +592,11 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     );
   }
 
-  Credit _fromRow(CreditRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Credit _fromRow(CreditRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Credit _decode(CreditRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = CreditApi.fromJson(json);
     return Credit.fromApi(api).copyWith(

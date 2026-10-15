@@ -15,6 +15,15 @@ class LineItemCustomField {
   /// The company's parsed `"Label|type"` definition. The label is never empty
   /// — [lineItemCustomFields] drops unconfigured slots.
   final ParsedCustomField field;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LineItemCustomField &&
+      other.slot == slot &&
+      other.field == field;
+
+  @override
+  int get hashCode => Object.hash(slot, field);
 }
 
 /// The custom-field slots a line item shows, in slot order.

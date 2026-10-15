@@ -563,7 +563,11 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     );
   }
 
-  Expense _fromRow(ExpenseRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Expense _fromRow(ExpenseRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Expense _decode(ExpenseRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = ExpenseApi.fromJson(json);
     // is_dirty is local-only; documents live in their own column. Overlay

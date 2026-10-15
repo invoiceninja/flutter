@@ -582,7 +582,11 @@ class PurchaseOrderRepository
     );
   }
 
-  PurchaseOrder _fromRow(PurchaseOrderRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  PurchaseOrder _fromRow(PurchaseOrderRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  PurchaseOrder _decode(PurchaseOrderRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = PurchaseOrderApi.fromJson(json);
     return PurchaseOrder.fromApi(api).copyWith(

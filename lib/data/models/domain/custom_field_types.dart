@@ -11,6 +11,8 @@
 /// diverge. Deliberately Flutter-free so it stays trivially unit-testable.
 library;
 
+import 'package:collection/collection.dart';
+
 /// Single-line text input.
 const String kFieldTypeSingleLineText = 'single_line_text';
 
@@ -68,6 +70,20 @@ class ParsedCustomField {
 
   /// Dropdown options; `const []` for every non-dropdown type.
   final List<String> options;
+
+  // Value equality: a company's definitions are re-parsed on every company
+  // emission, and the line-item table compares its column config to decide
+  // whether a row needs rebuilding.
+  @override
+  bool operator ==(Object other) =>
+      other is ParsedCustomField &&
+      other.label == label &&
+      other.type == type &&
+      const ListEquality<String>().equals(other.options, options);
+
+  @override
+  int get hashCode =>
+      Object.hash(label, type, const ListEquality<String>().hash(options));
 }
 
 /// Parse a raw `custom_fields` slot value into label + type + options.

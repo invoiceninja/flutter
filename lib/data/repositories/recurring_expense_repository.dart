@@ -585,7 +585,11 @@ class RecurringExpenseRepository
     );
   }
 
-  RecurringExpense _fromRow(RecurringExpenseRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  RecurringExpense _fromRow(RecurringExpenseRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  RecurringExpense _decode(RecurringExpenseRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = RecurringExpenseApi.fromJson(json);
     return RecurringExpense.fromApi(api).copyWith(

@@ -981,7 +981,11 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
-  Client _fromRow(ClientRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Client _fromRow(ClientRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Client _decode(ClientRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = ClientApi.fromJson(json);
     // is_dirty is local-only (not in the API payload), so we layer it on

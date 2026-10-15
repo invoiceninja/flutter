@@ -20,11 +20,14 @@ The schema lives in the Dart table classes under `lib/data/db/`; `AppDatabase`
    with `m.createTable` (drift emits `IF NOT EXISTS`). Each step transforms the previous
    version's shape into the next. Leave `onCreate` as the fresh-install path. See
    § Every upgrade step is idempotent and transactional.
-4. **Re-create new indexes inside `onUpgrade` too.** The performance and Client-filter
-   indexes are created in `onCreate` via `createPerformanceIndexes(this)` /
-   `createClientFilterIndexes(this)`, which **existing users never re-run**. Both use
-   `CREATE INDEX IF NOT EXISTS` (idempotent), so call them again at the end of the relevant
-   upgrade step so a new index reaches already-installed databases.
+4. **Re-create new indexes inside `onUpgrade` too.** The performance, Client-filter and list
+   sort indexes are created in `onCreate` via `createPerformanceIndexes(this)` /
+   `createClientFilterIndexes(this)` / `createListSortIndexes(this)`, which **existing users
+   never re-run**. All use `CREATE INDEX IF NOT EXISTS` (idempotent), and the end of
+   `onUpgrade` calls them again, so a new index reaches already-installed databases — but only
+   on an upgrade: **an index-only change still bumps `schemaVersion`** (v13 did exactly that),
+   and since drift does not model these indexes the new dump is byte-identical to the last.
+   Pin the index with a test of its own (`migration_test` › the list sort indexes).
 5. **Regenerate codegen:**
    ```sh
    dart run build_runner build --delete-conflicting-outputs

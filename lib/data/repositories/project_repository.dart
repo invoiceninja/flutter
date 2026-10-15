@@ -592,7 +592,11 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     );
   }
 
-  Project _fromRow(ProjectRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Project _fromRow(ProjectRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Project _decode(ProjectRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = ProjectApi.fromJson(json);
     // is_dirty is local-only; documents live in their own column. Overlay

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/ui/core/utils/company_labels.dart';
@@ -102,6 +104,29 @@ class LineItemColumnConfig {
             task: isTaskTable,
           ),
         );
+
+  // Value equality: [forCompany] builds a new config on every editor build,
+  // and the desktop table reuses a row's widget only while its config is
+  // unchanged — by identity, no row could ever be reused.
+  @override
+  bool operator ==(Object other) =>
+      other is LineItemColumnConfig &&
+      listEquals(other.customFields, customFields) &&
+      other.taxColumnCount == taxColumnCount &&
+      other.showDiscount == showDiscount &&
+      other.useTaxCategories == useTaxCategories &&
+      other.labels == labels &&
+      other.isTaskTable == isTaskTable;
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(customFields),
+    taxColumnCount,
+    showDiscount,
+    useTaxCategories,
+    labels,
+    isTaskTable,
+  );
 
   LineItemColumnConfig copyWith({
     List<LineItemCustomField>? customFields,

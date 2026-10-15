@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
@@ -153,15 +154,84 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   @visibleForTesting
   static const int peekCacheLimit = 128;
 
+  /// Each record's last decoded entity, with the stored row it came from.
+  ///
+  /// Every Drift change to a table re-emits each mounted list's whole window
+  /// — page 1 plus every page scrolled through — and every row in it used to
+  /// be decoded again from its JSON payload (`jsonDecode` → `fromJson` →
+  /// `fromApi`) on the UI isolate: ~50 ms for one edit while ten pages of
+  /// invoices were loaded (`invoices.list_deep_scroll`,
+  /// docs/performance-tracking.md). A row equal to the one a record was last
+  /// decoded from is now looked up; scrolling a page further decodes only
+  /// the new page.
+  ///
+  /// One entry per record (`companyId/id`), so an edit replaces the record's
+  /// previous version rather than leaving it behind. A hit needs the whole
+  /// row to match — Drift's row classes compare every column — so a row whose
+  /// payload, dirty flag, archive stamp, any column, changed is decoded fresh.
+  /// **That is correct only while a repository's row decoder is a pure
+  /// function of its row**: no clock, no settings, no other table. Every one
+  /// is today; the date-dependent questions (`Invoice.isPastDue`,
+  /// `Quote.isExpired`, …) are getters, asked on access.
+  /// `test/lint/row_decoder_purity_test.dart` holds every `_decode` to it.
+  ///
+  /// Least-recently-used, capped at [decodedRowCacheLimit]. A list window
+  /// past the cap re-read in order misses on every row — each lookup evicts
+  /// the next row it is about to need — which costs what decoding cost before
+  /// the cache, plus a lookup. Dropped on logout ([clearPeekCache]) because
+  /// decoded records are user data, and when the OS reports memory pressure
+  /// (`Services.releaseMemory`).
+  final LinkedHashMap<String, ({Object row, TDomain entity})> _decoded =
+      LinkedHashMap();
+
+  /// Cap on [_decoded]: twenty loaded pages of one list.
+  @visibleForTesting
+  static const int decodedRowCacheLimit = 1000;
+
+  /// How many records [_decoded] holds.
+  @visibleForTesting
+  int get decodedRowCount => _decoded.length;
+
+  /// [row] — the stored row of record [key] (`companyId/id`) — decoded by
+  /// [decode], or the entity the record was last decoded to when its row is
+  /// unchanged: the same instance. See [_decoded] for when that is correct.
+  @protected
+  TDomain decodeRow<R extends Object>(
+    String key,
+    R row,
+    TDomain Function(R row) decode,
+  ) {
+    final cached = _decoded.remove(key);
+    if (cached != null && cached.row == row) {
+      // Re-inserted, so it is the most recently used.
+      _decoded[key] = cached;
+      return cached.entity;
+    }
+    final entity = decode(row);
+    _decoded[key] = (row: row, entity: entity);
+    if (_decoded.length > decodedRowCacheLimit) {
+      _decoded.remove(_decoded.keys.first);
+    }
+    return entity;
+  }
+
+  /// Drop every decoded record. They are rebuilt from Drift as lists read
+  /// them again.
+  void clearDecodedRows() => _decoded.clear();
+
   /// The last value [watch] emitted for `(companyId, id)`, or null if this
   /// session has never observed it. Read the contract on [_lastSeen] before
   /// using this: it is a first-frame seed, not a source of truth.
   TDomain? peek({required String companyId, required String id}) =>
       _lastSeen['$companyId/$id'];
 
-  /// Drop every seed. Called on logout — display names are user data, and a
-  /// second user on the same install must not inherit them.
-  void clearPeekCache() => _lastSeen.clear();
+  /// Drop every seed, and every decoded record ([clearDecodedRows]). Called
+  /// on logout — display names and records are user data, and a second user
+  /// on the same install must not inherit them.
+  void clearPeekCache() {
+    _lastSeen.clear();
+    clearDecodedRows();
+  }
 
   /// Mirror an emission into [_lastSeen] and pass it through unchanged.
   TDomain? _remember(String companyId, String id, TDomain? value) {

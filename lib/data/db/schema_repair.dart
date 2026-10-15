@@ -119,6 +119,7 @@ Future<SchemaRepairReport> repairSchema(
     }
     await createPerformanceIndexes(db);
     await createClientFilterIndexes(db);
+    await createListSortIndexes(db);
 
     final cacheChanged = [
       ...created,

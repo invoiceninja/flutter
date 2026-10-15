@@ -637,7 +637,11 @@ class RecurringInvoiceRepository
     );
   }
 
-  RecurringInvoice _fromRow(RecurringInvoiceRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  RecurringInvoice _fromRow(RecurringInvoiceRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  RecurringInvoice _decode(RecurringInvoiceRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = RecurringInvoiceApi.fromJson(json);
     return RecurringInvoice.fromApi(api).copyWith(

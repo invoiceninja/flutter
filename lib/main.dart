@@ -19,6 +19,7 @@ import 'package:admin/app/diagnostics_log.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
+import 'package:admin/app/memory_pressure_observer.dart';
 import 'package:admin/app/native_splash.dart';
 import 'package:admin/app/native_window.dart';
 import 'package:admin/app/native_window_theme.dart';
@@ -514,8 +515,9 @@ void _installCaptureHandlers(DebugCaptureStore store) {
 ///   - Build the [GoRouter] from `Services` (auth, client-version, biometric
 ///     gating; nothing app-wide is built lower in the tree).
 ///   - Attach a [NavStatePersister] so the user's last route survives restart.
-///   - Register two [WidgetsBindingObserver]s — password-cache wipe on
-///     background, sync drain on resume.
+///   - Register the [WidgetsBindingObserver]s — password-cache wipe on
+///     background, sync drain on resume, idle timeout, and giving memory back
+///     under pressure.
 ///   - Render [MaterialApp.router], rebuilt only when the persisted theme or
 ///     locale changes (see `build` below).
 class InvoiceNinjaApp extends StatefulWidget {
@@ -620,6 +622,9 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
   late final PasswordCacheLifecycleObserver _passwordCacheObserver =
       PasswordCacheLifecycleObserver(widget.services.passwordCache);
 
+  late final MemoryPressureObserver _memoryPressureObserver =
+      MemoryPressureObserver(widget.services.releaseMemory);
+
   late final SyncLifecycleObserver _syncObserver = SyncLifecycleObserver(
     auth: widget.services.auth,
     sync: widget.services.sync,
@@ -671,6 +676,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     WidgetsBinding.instance.addObserver(_passwordCacheObserver);
     WidgetsBinding.instance.addObserver(_syncObserver);
     WidgetsBinding.instance.addObserver(_idleTimeout);
+    WidgetsBinding.instance.addObserver(_memoryPressureObserver);
     // Dismiss the splash once Flutter has actually painted — keeps the logo
     // on screen through the router redirect chain instead of a fixed timer.
     // Two-frame deferral: the first post-frame lets GoRouter's synchronous
@@ -707,6 +713,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(_memoryPressureObserver);
     WidgetsBinding.instance.removeObserver(_idleTimeout);
     WidgetsBinding.instance.removeObserver(_syncObserver);
     WidgetsBinding.instance.removeObserver(_passwordCacheObserver);

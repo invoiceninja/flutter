@@ -544,7 +544,11 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
-  Product _fromRow(ProductRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Product _fromRow(ProductRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Product _decode(ProductRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = ProductApi.fromJson(json);
     // is_dirty is local-only (not in the API payload), so we layer it on

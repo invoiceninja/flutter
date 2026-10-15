@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:admin/data/models/domain/company.dart';
@@ -49,6 +50,17 @@ class CompanyLabels {
   }
 
   final Map<String, String> _overrides;
+
+  // Value equality: rebuilt from the company row on every emission, and part
+  // of [LineItemColumnConfig], which the line-item table compares.
+  @override
+  bool operator ==(Object other) =>
+      other is CompanyLabels && mapEquals(other._overrides, _overrides);
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    _overrides.entries.map((e) => Object.hash(e.key, e.value)),
+  );
 
   /// The company's override for [key], or `null` when it has none.
   String? operator [](String key) => _overrides[key];

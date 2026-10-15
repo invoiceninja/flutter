@@ -744,7 +744,11 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     );
   }
 
-  Payment _fromRow(PaymentRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Payment _fromRow(PaymentRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Payment _decode(PaymentRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     // Overlay the nested-array columns onto the payload so the domain
     // factory sees the freshest data without re-parsing payload-embedded

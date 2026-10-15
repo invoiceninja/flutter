@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
 import 'package:decimal/decimal.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -113,6 +114,12 @@ class LineItemTableDesktopController {
   void flushPending() => _flushHandler?.call();
 }
 
+/// Every build of a table row, counted in debug builds only.
+/// `line_item_table_row_reuse_test` reads it to pin that an edit rebuilds the
+/// row it changed and no other — see [_RowInputs].
+@visibleForTesting
+int debugLineItemRowBuilds = 0;
+
 /// Inline-editable desktop line-item table. Each cell is its own editor
 /// (product autocomplete, debounced text fields, tax dropdown). Drag
 /// handles + per-row overflow menu cover reorder / clone / insert /
@@ -191,6 +198,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   /// The authoritative item list: what we last emitted while the parent has yet
   /// to catch up, else the props.
   List<LineItem> get _items => _emitted ?? widget.items;
+
   Formatter? _formatter;
 
   bool get _useComma => _formatter?.settings.useCommaAsDecimalPlace ?? false;
@@ -218,6 +226,16 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
           // Formatter read failed (statics not loaded yet) — keep default.
         }
       });
+    }
+  }
+
+  /// A hot reload must rebuild every row with the new code, not hand back
+  /// widgets — and closures — the old code built.
+  @override
+  void reassemble() {
+    super.reassemble();
+    for (final row in _rows) {
+      row.built = null;
     }
   }
 
@@ -703,12 +721,42 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         final errors = isGhost
                             ? null
                             : widget.rowErrors?[index];
-                        return _Row(
-                          key: ValueKey(row.id),
+                        // A row is rebuilt only when something it shows — or
+                        // a value its callbacks below capture — has changed.
+                        // Every VM notification rebuilds this table, and before
+                        // this one keystroke's commit rebuilt all fifty rows of
+                        // a fifty-line invoice to change one
+                        // (docs/performance-tracking.md, the
+                        // `screens.invoice_edit_typing` benchmark).
+                        final inputs = _RowInputs(
                           index: index,
                           isLast: index == _rows.length - 1,
                           isGhost: isGhost,
                           lastRealIndex: items.length - 1,
+                          config: widget.config,
+                          companyId: widget.companyId,
+                          company: company,
+                          showStockQuantity: widget.showStockQuantity,
+                          useComma: _useComma,
+                          formatter: _formatter,
+                          currencyId: widget.currencyId,
+                          currentItem: current,
+                          errors: errors,
+                          canCreateTask:
+                              !isGhost &&
+                              widget.onCreateTaskFromLineItem != null &&
+                              (current.taskId ?? '').isEmpty,
+                        );
+                        final cached = row.built;
+                        if (cached != null && cached.inputs == inputs) {
+                          return cached.widget;
+                        }
+                        final built = _Row(
+                          key: ValueKey(row.id),
+                          index: index,
+                          isLast: inputs.isLast,
+                          isGhost: isGhost,
+                          lastRealIndex: inputs.lastRealIndex,
                           config: widget.config,
                           companyId: widget.companyId,
                           company: company,
@@ -811,10 +859,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                           // disabled — but `_createTask` would no-op on it, so
                           // keep the intent local rather than load-bearing at a
                           // distance.
-                          canCreateTask:
-                              !isGhost &&
-                              widget.onCreateTaskFromLineItem != null &&
-                              (current.taskId ?? '').isEmpty,
+                          canCreateTask: inputs.canCreateTask,
                           onTabFromLastCell: () {
                             if (isGhost) {
                               _addBlankRow();
@@ -825,6 +870,8 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                             }
                           },
                         );
+                        row.built = _BuiltRow(inputs, built);
+                        return built;
                       },
                     ),
                     Divider(height: 1, color: tokens.border),
@@ -1047,10 +1094,100 @@ Decimal _taxRateOf(LineItem item, int slot) => switch (slot) {
   _ => item.taxRate3,
 };
 
+/// What a [_Row] was built from, and the widget it was built as.
+class _BuiltRow {
+  _BuiltRow(this.inputs, this.widget);
+
+  final _RowInputs inputs;
+  final _Row widget;
+}
+
+/// Everything that can differ between two builds of one row: the row's own
+/// props, and the values the table's callbacks capture when it builds the row
+/// (`index`, `isGhost`, the item, the company). Equal inputs mean the earlier
+/// widget is still right, closures included.
+///
+/// What is deliberately absent:
+///
+/// - **The closures themselves** — new each build, so comparing them would
+///   never match. They read everything else through the State at call time
+///   (`widget.*`, `_items`, `_rows`), which is always current.
+/// - **`services`** — one instance for the app's life.
+/// - **Theme, locale, media query** — a row depends on those through its
+///   context, and an inherited change marks it dirty on its own, reused
+///   widget or not.
+/// - **The cells' own data** — the tax cell watches the tax rates itself, and
+///   the text controllers live on [_RowState] and notify their fields.
+///
+/// A prop added to [_Row] — or a local a callback starts capturing — belongs
+/// here too, or a row keeps showing the old value until something else about
+/// it changes.
+@immutable
+class _RowInputs {
+  const _RowInputs({
+    required this.index,
+    required this.isLast,
+    required this.isGhost,
+    required this.lastRealIndex,
+    required this.config,
+    required this.companyId,
+    required this.company,
+    required this.showStockQuantity,
+    required this.useComma,
+    required this.formatter,
+    required this.currencyId,
+    required this.currentItem,
+    required this.errors,
+    required this.canCreateTask,
+  });
+
+  final int index;
+  final bool isLast;
+  final bool isGhost;
+  final int lastRealIndex;
+  final LineItemColumnConfig config;
+  final String companyId;
+  final Company? company;
+  final bool showStockQuantity;
+  final bool useComma;
+  final Formatter? formatter;
+  final String? currencyId;
+  final LineItem currentItem;
+  final Map<String, String>? errors;
+  final bool canCreateTask;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _RowInputs &&
+      other.index == index &&
+      other.isLast == isLast &&
+      other.isGhost == isGhost &&
+      other.lastRealIndex == lastRealIndex &&
+      other.config == config &&
+      other.companyId == companyId &&
+      // By identity: a new company row from Drift is a new object, and the
+      // row reads several of its fields.
+      identical(other.company, company) &&
+      other.showStockQuantity == showStockQuantity &&
+      other.useComma == useComma &&
+      identical(other.formatter, formatter) &&
+      other.currencyId == currencyId &&
+      other.currentItem == currentItem &&
+      mapEquals(other.errors, errors) &&
+      other.canCreateTask == canCreateTask;
+
+  @override
+  int get hashCode => Object.hash(index, isGhost, currentItem);
+}
+
 /// Per-row mutable state. Survives parent rebuilds so cursor position
 /// stays put while typing.
 class _RowState {
   _RowState();
+
+  /// The widget this row was last built as — handed back while its
+  /// [_RowInputs] are unchanged (see the table's `itemBuilder`).
+  _BuiltRow? built;
 
   final String id = UniqueKey().toString();
   final TextEditingController product = TextEditingController();
@@ -1311,6 +1448,10 @@ class _RowStateW extends State<_Row> {
 
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      debugLineItemRowBuilds++;
+      return true;
+    }());
     final tokens = context.inTheme;
 
     void commitNow() {

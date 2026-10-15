@@ -1012,7 +1012,11 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     );
   }
 
-  Invoice _fromRow(InvoiceRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Invoice _fromRow(InvoiceRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Invoice _decode(InvoiceRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = InvoiceApi.fromJson(json);
     // is_dirty is local-only; documents live in their own column. Overlay

@@ -581,7 +581,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
-  Vendor _fromRow(VendorRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Vendor _fromRow(VendorRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Vendor _decode(VendorRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = VendorApi.fromJson(json);
     // is_dirty is local-only (not in the API payload), so we layer it on

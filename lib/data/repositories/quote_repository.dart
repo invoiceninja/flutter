@@ -671,7 +671,11 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     );
   }
 
-  Quote _fromRow(QuoteRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  Quote _fromRow(QuoteRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  Quote _decode(QuoteRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = QuoteApi.fromJson(json);
     return Quote.fromApi(api).copyWith(

@@ -196,7 +196,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -217,6 +217,7 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
       await createPerformanceIndexes(this);
       await createClientFilterIndexes(this);
+      await createListSortIndexes(this);
     },
     // v1 → v2: add `nav_state.keyboard_shortcuts_json` (device-local keyboard
     // shortcut overrides). A single nullable column — no data backfill needed
@@ -289,6 +290,12 @@ class AppDatabase extends _$AppDatabase {
     // preference column, and a new preference is now a `DevicePrefKeys` entry
     // with no schema change at all. The old columns stay (rollback-safe) and
     // frozen — `test/lint/nav_state_columns_frozen_test.dart`.
+    //
+    // v12 → v13: no table or column — the bump exists so installed databases
+    // run the index pass at the end of the steps below and gain
+    // `createListSortIndexes` (the five billing documents' default list order,
+    // `LOWER(number)`, which no index served: page 1 of an invoice list sorted
+    // every row in the table to return fifty — docs/performance-tracking.md).
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -392,6 +399,7 @@ class AppDatabase extends _$AppDatabase {
           // current indexes.
           await createPerformanceIndexes(this);
           await createClientFilterIndexes(this);
+          await createListSortIndexes(this);
         });
       } catch (e, st) {
         // The steps rolled back. Before declaring the upgrade failed — which
@@ -880,6 +888,41 @@ Future<void> createClientFilterIndexes(AppDatabase db) async {
     'CREATE INDEX IF NOT EXISTS idx_clients_company_group '
     'ON clients (company_id, group_settings_id)',
   );
+}
+
+/// The tables whose list opens sorted by `LOWER(number)` — the five billing
+/// documents (`InvoiceDao._sortExpression` and its siblings).
+const kNumberSortedTables = <String>[
+  'invoices',
+  'quotes',
+  'credits',
+  'purchase_orders',
+  'recurring_invoices',
+];
+
+/// An expression index matching the billing documents' default list order.
+///
+/// Each of their lists opens on `ORDER BY LOWER(number) <dir>, id`, and no
+/// index served `LOWER(number)`, so SQLite sorted every row of the company —
+/// whole rows, payload included — in a temporary B-tree to return the first
+/// fifty: 20 ms of SQL for page 1 of 5,000 invoices, on every emission of the
+/// list (`invoices.list_first_page`, docs/performance-tracking.md). With the
+/// index it walks the first fifty in order and stops: 1 ms. Two columns, not
+/// three — SQLite walks the index backwards for a descending sort, so it
+/// serves either direction, and the `id` tie-break only orders the rare run
+/// of equal numbers.
+///
+/// The expression must stay byte-for-byte what drift emits for
+/// `number.lower()` — `LOWER("number")` matches `LOWER(number)` — or the
+/// planner silently stops using it; `migration_test` checks the plan of each
+/// table's real first-page query.
+Future<void> createListSortIndexes(AppDatabase db) async {
+  for (final t in kNumberSortedTables) {
+    await db.customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_${t}_company_number '
+      'ON $t (company_id, LOWER(number))',
+    );
+  }
 }
 
 /// Shared denormalized columns every entity table carries: id, company id,

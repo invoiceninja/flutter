@@ -561,7 +561,11 @@ class BankTransactionRepository
     );
   }
 
-  BankTransaction _fromRow(BankTransactionRow row) {
+  /// Decoded once per distinct row — see [decodeRow].
+  BankTransaction _fromRow(BankTransactionRow row) =>
+      decodeRow('${row.companyId}/${row.id}', row, _decode);
+
+  BankTransaction _decode(BankTransactionRow row) {
     final apiJson = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = BankTransactionApi.fromJson(apiJson);
     return BankTransaction.fromApi(api).copyWith(

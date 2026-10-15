@@ -1375,6 +1375,15 @@ class Services implements SidebarBadgeContext {
 
   final Map<String, Future<Formatter>> _formatterCache = {};
 
+  /// Give back what can be rebuilt on demand — every entity repository's
+  /// decoded records (`BaseEntityRepository.clearDecodedRows`). Called when
+  /// the OS reports memory pressure (`MemoryPressureObserver`, `main.dart`):
+  /// the lists decode their rows again from Drift as they next read them.
+  void releaseMemory() => _releaseMemory?.call();
+
+  /// Set by [build], where the repositories are in reach.
+  void Function()? _releaseMemory;
+
   /// Construct the full graph. The DB is passed in so `main.dart` can pick
   /// the open-with-recovery code path and surface a banner if needed.
   static Services build({
@@ -2149,6 +2158,11 @@ class Services implements SidebarBadgeContext {
       firstPagePrefetchers: entities.firstPagePrefetchers,
       refreshDeltaAppliers: entities.refreshDeltaAppliers,
     );
+    services._releaseMemory = () {
+      for (final repo in entities.repos.values) {
+        repo.clearDecodedRows();
+      }
+    };
     return services;
   }
 }

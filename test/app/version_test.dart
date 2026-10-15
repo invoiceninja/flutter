@@ -43,6 +43,22 @@ void main() {
     });
   });
 
+  group('AppVersion.supportVersionLabel', () {
+    const client = AppVersion.kClientVersion;
+
+    test('leads with the server version, then the client build', () {
+      expect(
+        AppVersion.supportVersionLabel(serverVersion: ' 5.13.44 '),
+        '5.13.44+$build',
+      );
+    });
+
+    test('is just the client version before the server has answered', () {
+      expect(AppVersion.supportVersionLabel(serverVersion: null), client);
+      expect(AppVersion.supportVersionLabel(serverVersion: '  '), client);
+    });
+  });
+
   test('snapcraft.yaml display version matches the pubspec triplet — '
       'tools/bump_client_version.sh keeps them in lockstep (the manual bump '
       'drifted 4 releases before it was automated)', () {

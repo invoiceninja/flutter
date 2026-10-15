@@ -37,6 +37,18 @@ class AppVersion {
     final clientBuild = kClientVersion.split('.').last;
     return 'v$server-$platformLetter$clientBuild';
   }
+
+  /// Version sent with a Contact Us message, which the server prints as the
+  /// email footer's `Version:` line: `<serverVersion>+<clientBuild>` (e.g.
+  /// `5.13.44+15`), the backend version leading as it did in admin-portal's
+  /// footer. `clientBuild` is the last dotted segment of [kClientVersion], as
+  /// in [versionLabel]. Without a server version yet it is the full
+  /// [kClientVersion], so the client half still reads unambiguously.
+  static String supportVersionLabel({required String? serverVersion}) {
+    final server = (serverVersion ?? '').trim();
+    if (server.isEmpty) return kClientVersion;
+    return '$server+${kClientVersion.split('.').last}';
+  }
 }
 
 /// Compare two semver-ish strings (`a.b.c[-pre]`). Returns -1, 0, 1. A missing

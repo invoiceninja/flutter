@@ -14,8 +14,9 @@ class SupportApi {
 
   final ApiClient _api;
 
-  /// Send a support message. [appVersion] is `${PackageInfo.version}+${buildNumber}`
-  /// or whatever the caller has at hand — recorded server-side for triage.
+  /// Send a support message. [appVersion] is printed verbatim as the email's
+  /// `Version:` line — the Contact Us dialog passes
+  /// `AppVersion.supportVersionLabel` (`<server>+<clientBuild>`).
   ///
   /// [includeLogs] is wired now so the wire shape doesn't drift, but the UI
   /// always passes `false` until log collection lands in a later milestone.

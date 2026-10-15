@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -72,17 +72,12 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
     final navigator = Navigator.of(context);
     final loc = Localization.of(context);
     String tr(String key) => loc?.lookup(key) ?? key;
-    String version;
-    try {
-      final info = await PackageInfo.fromPlatform();
-      version = '${info.version}+${info.buildNumber}';
-    } catch (_) {
-      version = 'unknown';
-    }
     try {
       await services.support.sendMessage(
         message: _controller.text.trim(),
-        appVersion: version,
+        appVersion: AppVersion.supportVersionLabel(
+          serverVersion: services.serverVersion.value,
+        ),
       );
     } catch (e) {
       if (!mounted) return;

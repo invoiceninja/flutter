@@ -73,8 +73,9 @@ Measured by scanning every Android plugin's `build.gradle` (2026-09):
 
 Everything else is androidx, Kotlin, Tink (`flutter_secure_storage`) or Apache Tika
 (`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 13
-packages no longer depended on, and `prepare_foss.sh` fails if any of them is still in
-`pubspec.lock`.
+packages no longer depended on. `tools/foss/pubspec.lock` is the store lock without them.
+`prepare_foss.sh` fails if a store SDK is in it, and `store_sdk_boundary_test` fails if any of the
+13 is (§ F-Droid resolves a committed FOSS lock).
 
 **Adding a new store-only SDK**:
 
@@ -90,7 +91,8 @@ compiles the app against the twin.
 - `build-android-foss` is in `ci.yaml`, which runs only when CI is dispatched. It builds the
   variant natively, as a quick compile gate.
 - Every release workflow calls `_test.yaml`, so every release runs the boundary lint test and
-  `test/lint/fdroid_recipe_test.dart`.
+  `test/lint/fdroid_recipe_test.dart`. The boundary test includes the check that
+  `tools/foss/pubspec.lock` is current.
 - "Deploy to GitHub Releases" builds the real F-Droid APKs, with F-Droid's tooling, and checks
   them before it tags the version — § The F-Droid APK is built by F-Droid's own tooling.
 
@@ -164,6 +166,9 @@ flutter build apk --release
 tools/prepare_foss.sh --restore      # back to the store build, byte-for-byte
 ```
 
+`tools/prepare_foss.sh --update-lock` is the exception: it only rewrites `tools/foss/pubspec.lock`,
+working on a copy, so it is safe in the shared checkout (§ F-Droid resolves a committed FOSS lock).
+
 **`--restore` restores a snapshot; it does not re-resolve.** Before it touches anything, `prepare`
 tars every tracked file it can change into `.dart_tool/foss_store_backup.tar`. Re-resolving is
 not enough: once the store SDKs have left `pubspec.lock`, a fresh `pub get` picks *newer* versions
@@ -188,26 +193,42 @@ That local build is a compile check. The APK F-Droid publishes is built differen
 ABI, at a fixed path, by F-Droid's own tooling — § The F-Droid APK is built by F-Droid's own
 tooling.
 
-## The FOSS lock is a subset of the store lock
+## F-Droid resolves a committed FOSS lock
 
-**Rule: after its `pub get`, `prepare_foss.sh` fails unless every package the FOSS graph resolves is
-in the store build's `pubspec.lock`, at the same version and the same content pin.**
+**Rule: `prepare_foss.sh` copies `tools/foss/pubspec.lock` over `pubspec.lock` and runs
+`flutter pub get --enforce-lockfile`. That lock is the store build's `pubspec.lock` minus the store
+SDKs. Regenerate it with `tools/prepare_foss.sh --update-lock` whenever `pubspec.lock` changes.**
 
-- **Why not `--enforce-lockfile`.** fdroiddata's Flutter template uses it, but it can't run here:
-  the swap has to rewrite the lock. Dropping the store SDKs removes 13 packages, and
-  `store_services` points somewhere else.
-- **What is compared.** One `name source version pin` line per package. The pin is `sha256` for
-  a hosted package and `resolved-ref` for a git one (`super_editor`).
-  - Path packages are skipped, because swapping `store_services` is the point.
-  - `dependency:` is ignored, because dropping the SDKs legitimately turns some `direct`
-    entries into `transitive` ones and back.
-- **Against what.** The snapshot `prepare` takes before it changes anything
-  (`.dart_tool/foss_store_backup.tar`), which is the committed store lock.
+- **Why a committed lock.** F-Droid now asks Flutter recipes for `--enforce-lockfile`, and its
+  Flutter template uses it. A lock the swap rewrites at build time can't pass it: dropping the
+  store SDKs removes 13 packages and repoints `store_services`. admin-portal's listing broke on
+  exactly this (invoiceninja/admin-portal#780), and Oinkoin's recipe was asked to put the flag
+  back (fdroiddata!47100).
+- **How `--update-lock` makes it.** It copies `pubspec.yaml`, `pubspec.lock`, `packages/` and the
+  overrides file to a temp directory and runs `pub get` there, starting from the store lock. Pub
+  keeps every locked version and only drops what nothing depends on any more. Working on a copy
+  leaves the checkout's plugin registrants and SwiftPM pins alone. It refuses on a prepared tree.
+- **What `prepare_foss.sh` checks**, in both modes, against the store lock (during `prepare`, the
+  snapshot's):
+  - no store SDK is in the FOSS lock;
+  - every package is pinned as the store lock pins it. One `name source version pin` line per
+    package: `sha256` for a hosted package, `resolved-ref` for a git one (`super_editor`). Path
+    packages are skipped, because swapping `store_services` is the point. `dependency:` is
+    ignored, because dropping the SDKs legitimately turns some `direct` entries `transitive`.
+- **What the lint test checks.** `test/lint/store_sdk_boundary_test.dart` walks the FOSS graph
+  from `.dart_tool/package_config.json` and each package's pubspec, reading `store_services` from
+  its twin. It fails unless the FOSS lock holds exactly that set, pinned as `pubspec.lock` pins
+  it. It runs on every release, so a `flutter pub upgrade` without `--update-lock` fails the
+  release's tests rather than F-Droid's build.
 - **Why it matters.** Pub checks every download against its locked `sha256`. So F-Droid's build
   resolves exactly the code the store build was tested with, which is also the precondition for
   F-Droid and us resolving the *same* code.
-- **Measured** (2026-10-15): 238 pins, every one present in the store lock, and 13 store-only
-  packages dropped. Changing one version on the store side makes the check name that package.
+- **Measured** (2026-10-15): the store lock holds 239 packages and the FOSS lock 226. The 13
+  dropped are the `google_sign_in*` family (with `google_identity_services_web`), the
+  `in_app_purchase*` family, `sentry`, `sentry_flutter` and `jni`; the only other difference is
+  `store_services`' path. Editing a version in the FOSS lock fails `prepare` at
+  `--enforce-lockfile`. Moving a pin in the store lock fails the pin check, which names the
+  package.
 
 ## The F-Droid APK is built by F-Droid's own tooling
 

@@ -177,6 +177,10 @@ MaintainerNotes: |-
   talks to uses the Elastic-2.0 license, which is approved neither by OSI nor
   FSF, see https://invoiceninja.github.io/docs/legal/license/
 
+  tools/prepare_foss.sh runs `flutter pub get --enforce-lockfile` against
+  tools/foss/pubspec.lock, the committed lock of the FOSS dependency graph:
+  the store build's pubspec.lock minus the store SDKs, checked in CI.
+
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
 VercodeOperation:

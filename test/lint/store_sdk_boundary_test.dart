@@ -19,7 +19,10 @@ import 'package:flutter_test/flutter_test.dart';
 ///    longer compiles, and nothing on the store side would notice;
 ///  * `tools/foss/pubspec_overrides.yaml` missing one of `pubspec.yaml`'s
 ///    `dependency_overrides`: that file REPLACES them rather than merging, so
-///    the FOSS build would silently lose an upstream workaround.
+///    the FOSS build would silently lose an upstream workaround;
+///  * `tools/foss/pubspec.lock` behind `pubspec.lock`: F-Droid's
+///    `pub get --enforce-lockfile` fails, or builds versions the store build
+///    never tested.
 void main() {
   const nonFree = [
     'google_sign_in',
@@ -143,6 +146,71 @@ void main() {
       );
     }
   });
+
+  test('tools/foss/pubspec.lock is pubspec.lock minus the store SDKs', () {
+    const fix =
+        'Run tools/prepare_foss.sh --update-lock and commit '
+        'tools/foss/pubspec.lock (docs/fdroid.md).';
+    final store = _lockEntries(File('pubspec.lock').readAsStringSync());
+    final foss = _lockEntries(
+      File('tools/foss/pubspec.lock').readAsStringSync(),
+    );
+    expect(store, isNotEmpty, reason: 'failed to parse pubspec.lock');
+
+    // The FOSS graph: everything the root depends on, with store_services
+    // read from its twin, walked through each package's own pubspec.
+    final config = File('.dart_tool/package_config.json').readAsStringSync();
+    final roots = {
+      for (final m in RegExp(
+        r'"name":\s*"([^"]+)",\s*"rootUri":\s*"file://([^"]+)"',
+      ).allMatches(config))
+        m.group(1)!: Uri.decodeFull(m.group(2)!),
+      'store_services': 'packages/store_services_foss',
+    };
+    expect(
+      roots.length,
+      greaterThan(100),
+      reason: 'run `flutter pub get` first',
+    );
+    final root = File('pubspec.yaml').readAsStringSync();
+    final pending = [
+      ..._section(root, 'dependencies').keys,
+      ..._section(root, 'dev_dependencies').keys,
+    ];
+    final graph = <String>{};
+    while (pending.isNotEmpty) {
+      final name = pending.removeLast();
+      if (!graph.add(name)) continue;
+      final dir = roots[name];
+      expect(dir, isNotNull, reason: '$name: run `flutter pub get` first');
+      final pubspec = File('$dir/pubspec.yaml').readAsStringSync();
+      pending.addAll(_section(pubspec, 'dependencies').keys);
+    }
+
+    expect(
+      graph.where((name) => !foss.containsKey(name)),
+      isEmpty,
+      reason: 'The FOSS graph needs these, and the FOSS lock lacks them. $fix',
+    );
+    expect(
+      foss.keys.where((name) => !graph.contains(name)),
+      isEmpty,
+      reason: 'The FOSS lock holds these, and nothing needs them. $fix',
+    );
+    expect(
+      foss['store_services'],
+      contains('path: "packages/store_services_foss"'),
+      reason: 'store_services must point at its FOSS twin. $fix',
+    );
+    for (final MapEntry(:key, :value) in foss.entries) {
+      if (key == 'store_services') continue;
+      expect(
+        value,
+        store[key],
+        reason: '$key is locked differently from pubspec.lock. $fix',
+      );
+    }
+  });
 }
 
 /// The children of a top-level YAML mapping [key], each mapped to its body
@@ -153,7 +221,8 @@ Map<String, String> _section(String yaml, String key) {
   String? current;
   var inSection = false;
   for (final raw in yaml.split('\n')) {
-    final line = raw.replaceFirst(RegExp(r'\s+#.*$'), '');
+    // trimRight: a dependency's pubspec may end its lines in `\r`.
+    final line = raw.replaceFirst(RegExp(r'\s+#.*$'), '').trimRight();
     if (line.trim().isEmpty || line.trimLeft().startsWith('#')) continue;
     if (!line.startsWith(' ')) {
       inSection = line == '$key:';
@@ -168,6 +237,32 @@ Map<String, String> _section(String yaml, String key) {
     } else if (current != null) {
       final body = out[current]!;
       out[current] = [if (body.isNotEmpty) body, line.trim()].join(' ');
+    }
+  }
+  return out;
+}
+
+/// Each package in a pubspec.lock, mapped to its entry without the
+/// `dependency:` line — dropping the store SDKs legitimately turns some
+/// `direct` entries `transitive`.
+Map<String, String> _lockEntries(String lock) {
+  final out = <String, String>{};
+  String? name;
+  var inPackages = false;
+  for (final raw in lock.split('\n')) {
+    final line = raw.trimRight();
+    if (!line.startsWith(' ')) {
+      inPackages = line == 'packages:';
+      name = null;
+      continue;
+    }
+    if (!inPackages) continue;
+    final entry = RegExp(r'^  (\w+):$').firstMatch(line);
+    if (entry != null) {
+      name = entry.group(1);
+      out[name!] = '';
+    } else if (name != null && !line.trimLeft().startsWith('dependency:')) {
+      out[name] = '${out[name]}${line.trim()}\n';
     }
   }
   return out;

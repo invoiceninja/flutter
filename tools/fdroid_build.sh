@@ -73,12 +73,14 @@ pubspec_version() {
   esac
 }
 
-# The `binary:` URL of the recipe block that outputs <abi>'s APK.
+# The `binary:` URL of the recipe block that outputs <abi>'s APK. fdroid
+# rewritemeta puts a long value on the line after its key, so read either.
 recipe_binary() {
   awk -v abi="$1" '
     /^  - versionName:/ { if (out ~ "/app-" abi "-release\\.apk$") print bin; out = ""; bin = "" }
     /^    output: / { out = $2 }
-    /^    binary: / { bin = $2 }
+    wrapped { bin = $1; wrapped = 0 }
+    /^    binary:/ { if (NF > 1) bin = $2; else wrapped = 1 }
     END { if (out ~ "/app-" abi "-release\\.apk$") print bin }
   ' "$RECIPE"
 }

@@ -149,10 +149,18 @@ void main() {
         expect(step.last, r'mv $repo com.invoiceninja.admin');
       }
       expect(
-        _one(b, r'^    binary: (\S+)$'),
+        _one(b, r'^    binary:\s+(\S+)$'),
         'https://github.com/invoiceninja/flutter/releases/download/'
         'v%v/InvoiceNinja-%v-$abi.apk',
         reason: '$abi: tools/fdroid_build.sh sign names the asset from this',
+      );
+      expect(
+        b,
+        contains('    binary: \n      https://'),
+        reason:
+            '$abi: `fdroid rewritemeta` moves a value this long to the '
+            'next line (after a trailing space), and the release lint step '
+            'fails on any other layout',
       );
     }
   });

@@ -29,7 +29,8 @@ Builds:
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-armeabi-v7a.apk
+    binary: 
+      https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-armeabi-v7a.apk
     srclibs:
       - flutter@3.44.1
     rm:
@@ -76,7 +77,8 @@ Builds:
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-arm64-v8a.apk
+    binary: 
+      https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-arm64-v8a.apk
     srclibs:
       - flutter@3.44.1
     rm:
@@ -123,7 +125,8 @@ Builds:
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
-    binary: https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-x86_64.apk
+    binary: 
+      https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-x86_64.apk
     srclibs:
       - flutter@3.44.1
     rm:

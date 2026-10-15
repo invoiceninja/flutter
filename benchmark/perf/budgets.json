@@ -1,0 +1,118 @@
+{
+  "_doc": "Limits for benchmark/perf. Every id here is expected on every run; one that is missing is an alert. budgetMs is the ceiling in milliseconds ON THE REFERENCE MACHINE — a run elsewhere is scaled by its calibration time first. regression / drift are the fractional rise that alerts against the recent baseline / the runs 30-90 days ago (never narrower than the baseline's own noise); minDeltaMs is the smallest rise that can alert at all. Re-derive budgets with `dart tools/perf/main.dart budgets --history <history.json>`. docs/performance-tracking.md.",
+  "reference": {
+    "machine": "Apple M2 Pro, Flutter 3.44.1 (flutter test, debug JIT)",
+    "calibrationMs": 9.4
+  },
+  "defaults": {
+    "regression": 0.25,
+    "drift": 0.4,
+    "minDeltaMs": 0.1
+  },
+  "benchmarks": {
+    "billing.invoice_totals": {
+      "budgetMs": 54
+    },
+    "clients.list_first_page": {
+      "budgetMs": 3.5
+    },
+    "clients.list_search": {
+      "budgetMs": 3.8
+    },
+    "expenses.list_first_page": {
+      "budgetMs": 5.9
+    },
+    "invoices.badge_counts": {
+      "budgetMs": 16
+    },
+    "invoices.list_deep_scroll": {
+      "budgetMs": 32
+    },
+    "invoices.list_first_page": {
+      "budgetMs": 3.8
+    },
+    "invoices.list_first_page_cold": {
+      "budgetMs": 20
+    },
+    "invoices.list_search": {
+      "budgetMs": 36
+    },
+    "invoices.list_status_tab": {
+      "budgetMs": 3.8
+    },
+    "invoices.page_write": {
+      "budgetMs": 16
+    },
+    "invoices.save_edit": {
+      "budgetMs": 2.8
+    },
+    "payments.list_first_page": {
+      "budgetMs": 7.2
+    },
+    "products.list_first_page": {
+      "budgetMs": 4.1
+    },
+    "reports.group_and_sort": {
+      "budgetMs": 17
+    },
+    "rich_text.legacy_html_to_markdown": {
+      "budgetMs": 7.3
+    },
+    "rich_text.notes_plain_text": {
+      "budgetMs": 11
+    },
+    "screens.client_record_open": {
+      "regression": 0.3,
+      "budgetMs": 140
+    },
+    "screens.invoice_edit_items_tab_phone": {
+      "budgetMs": 12,
+      "regression": 0.3
+    },
+    "screens.invoice_edit_open": {
+      "regression": 0.3,
+      "budgetMs": 1800
+    },
+    "screens.invoice_edit_typing": {
+      "regression": 0.3,
+      "budgetMs": 110
+    },
+    "screens.invoice_list_open": {
+      "regression": 0.3,
+      "budgetMs": 440
+    },
+    "screens.invoice_list_resize": {
+      "regression": 0.3,
+      "budgetMs": 120
+    },
+    "screens.invoice_list_scroll": {
+      "regression": 0.3,
+      "budgetMs": 60
+    },
+    "screens.invoice_list_scroll_phone": {
+      "budgetMs": 20,
+      "regression": 0.3
+    },
+    "startup.restore_session": {
+      "budgetMs": 16
+    },
+    "startup.snapshot_load": {
+      "budgetMs": 95
+    },
+    "sync.invoice_page_parse": {
+      "budgetMs": 0.73
+    },
+    "sync.outbox_drain": {
+      "budgetMs": 140
+    },
+    "sync.refresh_delta_apply": {
+      "budgetMs": 66
+    },
+    "sync.refresh_delta_parse": {
+      "budgetMs": 4
+    },
+    "transactions.list_first_page": {
+      "budgetMs": 3.9
+    }
+  }
+}

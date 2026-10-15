@@ -24,15 +24,12 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:admin/data/models/api/login_response_api_model.dart';
-import 'package:admin/data/models/domain/billing/line_item.dart';
-import 'package:admin/data/models/domain/billing/line_item_type.dart';
-import 'package:admin/data/models/domain/report_preview.dart';
-import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
-import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/main.dart' as app;
 import 'package:admin/utils/legacy_html_markdown.dart';
+
+import 'workloads.dart';
 
 const _gitSha = String.fromEnvironment('BENCH_GIT_SHA');
 
@@ -185,7 +182,7 @@ Map<String, Object?> _scrollableAt(double x, double y) {
 Future<Map<String, Object?>> _compute(String name) async {
   switch (name) {
     case 'totals':
-      final inputs = _totalsInputs();
+      final inputs = totalsInputs();
       return _time(name, iterations: 20, ops: inputs.length, () {
         var sum = Decimal.zero;
         for (final input in inputs) {
@@ -194,7 +191,7 @@ Future<Map<String, Object?>> _compute(String name) async {
         return sum.toString();
       });
     case 'report':
-      final preview = _reportPreview();
+      final preview = reportPreview();
       const engine = ReportEngine();
       const ui = ReportUiState(
         group: 'client.name',
@@ -215,7 +212,7 @@ Future<Map<String, Object?>> _compute(String name) async {
         return check;
       });
     case 'html_markdown':
-      final html = _legacyHtml();
+      final html = legacyHtml();
       return _time(name, iterations: 15, ops: 60, () {
         var length = 0;
         for (var i = 0; i < 60; i++) {
@@ -283,143 +280,4 @@ Future<String> _snapshotText() async {
   return _snapshot ??= await http.read(
     Uri.base.resolve('/__bench/refresh.json'),
   );
-}
-
-/// A tiny deterministic generator, so both compilers get the same inputs.
-/// Park–Miller, whose products stay far below 2^53: dart2js integers are JS
-/// doubles, and a generator that overflows them yields a different sequence
-/// there than under dart2wasm's 64-bit ints.
-class _Lcg {
-  _Lcg(this._state);
-  int _state;
-
-  int next(int bound) {
-    _state = (_state * 48271) % 2147483647;
-    return _state % bound;
-  }
-}
-
-/// 5 invoices of 50 lines each, with item discounts, three tax slots and
-/// surcharges, half of them tax-inclusive.
-List<BillingTotalsInput> _totalsInputs() {
-  final rng = _Lcg(20261008);
-  Decimal cents(int value) => Decimal.fromInt(value).shift(-2);
-  return [
-    for (var invoice = 0; invoice < 5; invoice++)
-      BillingTotalsInput(
-        lineItems: [
-          for (var line = 0; line < 50; line++)
-            LineItem(
-              productKey: 'P$line',
-              notes: '',
-              cost: cents(100 + rng.next(250000)),
-              productCost: Decimal.zero,
-              quantity: cents(25 + rng.next(2000)),
-              taxName1: 'VAT',
-              taxName2: line.isEven ? 'City' : '',
-              taxName3: '',
-              taxRate1: cents(500 + rng.next(2000)),
-              taxRate2: line.isEven ? cents(rng.next(900)) : Decimal.zero,
-              taxRate3: Decimal.zero,
-              typeId: LineItemType.standard,
-              customValue1: '',
-              customValue2: '',
-              customValue3: '',
-              customValue4: '',
-              discount: cents(rng.next(1500)),
-              taxCategoryId: '',
-            ),
-        ],
-        discount: cents(rng.next(1000)),
-        isAmountDiscount: invoice % 3 == 0,
-        usesInclusiveTaxes: invoice.isOdd,
-        taxName1: 'State',
-        taxRate1: cents(rng.next(800)),
-        customSurcharge1: cents(rng.next(5000)),
-        customTaxes1: invoice % 4 == 0,
-      ),
-  ];
-}
-
-/// 5,000 invoice rows across 60 clients: grouped by client, sorted by amount.
-ReportPreview _reportPreview() {
-  final rng = _Lcg(77);
-  const columns = [
-    ReportColumn(
-      identifier: 'client.name',
-      displayLabel: 'Client',
-      type: ReportColumnType.string,
-    ),
-    ReportColumn(
-      identifier: 'invoice.number',
-      displayLabel: 'Number',
-      type: ReportColumnType.string,
-    ),
-    ReportColumn(
-      identifier: 'invoice.amount',
-      displayLabel: 'Amount',
-      type: ReportColumnType.money,
-    ),
-    ReportColumn(
-      identifier: 'invoice.balance',
-      displayLabel: 'Balance',
-      type: ReportColumnType.money,
-    ),
-    ReportColumn(
-      identifier: 'invoice.date',
-      displayLabel: 'Date',
-      type: ReportColumnType.date,
-    ),
-    ReportColumn(
-      identifier: 'invoice.status',
-      displayLabel: 'Status',
-      type: ReportColumnType.string,
-    ),
-  ];
-  const statuses = ['Draft', 'Sent', 'Partial', 'Paid', 'Overdue'];
-  return ReportPreview(
-    columns: columns,
-    rows: [
-      for (var i = 0; i < 5000; i++)
-        ReportRow(
-          cells: [
-            ReportStringCell(value: 'Client ${rng.next(60)}'),
-            ReportStringCell(value: 'INV-${10000 + i}'),
-            ReportNumberCell(
-              value: Decimal.fromInt(rng.next(900000)).shift(-2),
-              isMoney: true,
-              currencyId: '1',
-            ),
-            ReportNumberCell(
-              value: Decimal.fromInt(rng.next(90000)).shift(-2),
-              isMoney: true,
-              currencyId: '1',
-            ),
-            ReportDateCell(
-              value: Date(
-                2024 + rng.next(3),
-                1 + rng.next(12),
-                1 + rng.next(28),
-              ),
-            ),
-            ReportStringCell(value: statuses[rng.next(statuses.length)]),
-          ],
-        ),
-    ],
-  );
-}
-
-/// About 40 KB of the tag soup a legacy notes field carries.
-String _legacyHtml() {
-  final buffer = StringBuffer();
-  for (var i = 0; i < 120; i++) {
-    buffer
-      ..write('<p>Thank you for your <b>business</b>, invoice <i>#$i</i> is ')
-      ..write('due on receipt.<br>Pay at <a href="https://example.com/pay/$i">')
-      ..write('example.com/pay/$i</a> &amp; quote ref&nbsp;<u>R-$i</u>.</p>')
-      ..write('<ul><li>Net 30 &ndash; late fee 1.5%</li><li><strong>Wire')
-      ..write('</strong> or <em>card</em></li><li>Questions&#39; welcome</li>')
-      ..write('</ul><div>Terms &amp; conditions apply.<br/><br/>Regards</div>');
-  }
-  return buffer.toString();
 }

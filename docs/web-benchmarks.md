@@ -216,6 +216,8 @@ What the numbers say:
 
 - `benchmark/web_bench_main.dart` — the entrypoint and the bridge (frame timings, a hit-test scroll
   probe, the compute workloads).
+- `benchmark/workloads.dart` — the compute workloads' seeded inputs, shared with the CI suite
+  (`docs/performance-tracking.md`); changing one moves both harnesses' numbers.
 - `tools/web_bench/build.sh` — the two builds. `BENCH_SRC` points it at a clean export when the
   working tree has edits in flight.
 - `tools/web_bench/main.dart` — the CLI and the scripted session.

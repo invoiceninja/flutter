@@ -85,7 +85,7 @@ Plus two non-negotiables carried from admin-portal:
 | Probing the demo API for live response shapes | `docs/probing-the-demo-api.md` |
 | Server-side filter gaps / required API changes | `BACKEND.md` |
 | Running integration tests | `docs/integration-tests.md` |
-| Editing a CI / release workflow (test gate, job wiring) | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores |
+| Editing a CI / release workflow (test gate, job wiring), or a perf benchmark, budget or alert | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores · `docs/performance-tracking.md` |
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Changing the desktop title bar, its drawn window buttons, or where the nav arrows live — including hiding them behind the browser's own | `docs/desktop-window-state.md` § Drawn window buttons · § The sidebar's history arrows hide behind the browser's own · `lib/ui/features/shell/widgets/window_frame.dart` · `lib/app/browser_chrome.dart` |
@@ -143,6 +143,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Android system back == the sidebar `←` (history back), and three things keep it working.** → `docs/architecture.md` § Why Android system back needs three things to keep working
 - **Boot must always reach `runApp()` — every await in front of it is bounded and caught, and on web the failure has to be printed or it is invisible.** → `docs/architecture.md` § Why boot must always reach `runApp()`
 - **Launch-time work is measured with `traceSync` / `traceAsync`, not guessed.** → `docs/startup-responsiveness.md` § A cold start is measured, not guessed
+- **A path users wait on gets a benchmark in `benchmark/perf/` and a budget; never rename a benchmark id — its history is filed under it.** → `docs/performance-tracking.md` § Adding a benchmark
 - **Workarounds for open upstream bugs are logged in `docs/upstream-workarounds.md`.** When you add, change, or remove a workaround for an open Flutter/package bug, update that file — issue link, exact files/changes tagged KEEP vs MUST-REVERT, and revert steps — so it can be cleanly undone when the upstream fix ships.
 
 ## Architecture — at a glance
@@ -459,7 +460,7 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **Anything that must fetch once a Sync pass is over listens to `ResyncController.lastCompletion` — the idle falling edge also fires for a cancelled pass.** → `docs/sync.md` § A screen that refetches after a Sync pass listens to `lastCompletion`
 - **A pushed server event never writes an entity — it only schedules the `/refresh` delta (`RefreshScheduler.requestSoon`), except a download-ready notice, which is shown, not refreshed — and only `main.dart` opens the socket (`Services.build(realtimeUpdates:)` defaults off).** → `docs/realtime-updates.md` § A pushed server event never writes an entity
 - **An edit of a record whose create failed saves as a create — `performSave` branches on `savesAsCreate`, never `isCreate`.** → `docs/sync.md` § An edit of a record whose create failed saves as a create
-- The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._fromRow` (e.g. `ClientRepository._fromRow`) — `<Entity>.fromApi` defaults it to `false`, the repo overlays the value from the Drift row. Without the overlay, an unsaved edit shows up as clean after app restart.
+- The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._decode` — `<Entity>.fromApi` defaults it to `false`, the repo overlays the Drift row's, or an unsaved edit reads clean after restart. **`_decode` reads its row and nothing else**: `decodeRow` reuses its result while the row is unchanged (`test/lint/row_decoder_purity_test.dart`).
 
 ## Document version history
 
@@ -680,7 +681,7 @@ The four widgets in `lib/ui/core/widgets/` (`EmptyState`, `ErrorView`, `StatusPi
 
 ## Integration tests
 
-`integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` with in-memory Drift + `InMemoryTokenStorage` and a `MockClient`, guarding the DI graph, router, theme, and localization wiring. On CI (manual `workflow_dispatch`) only the `integration-web` job runs it — `app_smoke_test.dart` on headless Chrome, and it is **blocking** (the old `continue-on-error: true` is gone; don't re-add it to quiet a red run). The macOS-desktop suite (incl. the live `demo/*` CRUD tests) is **local/manual only**: a headless hosted runner has no Metal device (`MTLCreateSystemDefaultDevice()` is nil) so the desktop app can't launch, so it runs via `tools/run_integration_local.sh`, not on CI.
+- **CI runs only `app_smoke_test.dart`, on headless Chrome, and it blocks — never re-add `continue-on-error`; the macOS suite (incl. `demo/*`) is local-only, via `tools/run_integration_local.sh` (no Metal on hosted runners).** → `docs/integration-tests.md`
 
 ## Diagnostics log
 

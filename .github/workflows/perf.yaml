@@ -1,0 +1,219 @@
+name: Performance
+
+# Times the parts of the app users wait on — opening and scrolling the
+# invoice list, typing in a 50-line invoice, saving offline, a cold start's
+# snapshot parse, … (benchmark/perf/) — and says when one is too slow or is
+# getting slower. docs/performance-tracking.md is the whole story; in short:
+#
+#  * nightly on main, skipped when main has not moved since the last run;
+#  * each run is compared with the budgets in benchmark/perf/budgets.json and
+#    with the history of earlier main runs, which travels from run to run as
+#    the `perf-history` artifact (no branch, no external service);
+#  * on main, alerts are kept in ONE open issue labelled `perf-regression`:
+#    a new alert comments on it (mentioning `vars.PERF_NOTIFY`, e.g.
+#    "@octocat"), and it closes itself when no alert remains;
+#  * on any other ref (a manual dispatch, or ci.yaml's dispatch) the run is
+#    compared with main's history and fails on an alert main does not already
+#    have — the way to ask "did my branch make something slower?" before
+#    merging;
+#  * on any ref, a benchmark over its budget or that failed to run fails
+#    every run until it is fixed — see the Verdict step.
+on:
+  schedule:
+    # 04:17 UTC — off the top of the hour, when scheduled runs queue longest.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Download the previous run's `perf-history` artifact.
+      actions: read
+      # Open, update and close the `perf-regression` issue (main only).
+      issues: write
+    # The history is a chain — each main run reads the last one's artifact and
+    # uploads the next — so two at once would fork it. One runs, one waits;
+    # GitHub keeps a single pending run per group, so a third arrival cancels
+    # the waiting one (a nightly can cancel a queued CI `perf` job). Nothing
+    # is lost by that: the run that does go measures the newer commit.
+    concurrency:
+      group: perf-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
+    # `bash -eo pipefail`. Without `shell:` a step runs under `bash -e` alone,
+    # where a failing command at the head of a pipeline is invisible — the
+    # history fetch below then read an API error as "no history yet", and a
+    # main run would have uploaded a one-entry history over the real one.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned — keep in lockstep with ci.yaml. A Flutter bump moves every
+      # number a little; the calibration absorbs the machine, not the SDK.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # The newest unexpired `perf-history` uploaded by a main run. None (the
+      # first run, or 90 days without one) means budgets only until a
+      # baseline builds up again.
+      - name: Fetch the history
+        run: |
+          mkdir -p build/perf/previous
+          # Every page, newest by date: the API's order is not documented, and
+          # the nightly runs plus CI's can outgrow one page. Its own assignment,
+          # so an API failure fails the step rather than reading as "none".
+          listed="$(gh api --paginate "repos/$GH_REPO/actions/artifacts?name=perf-history&per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == "main")
+                  | "\(.created_at) \(.workflow_run.id)"')"
+          run_id="$(printf '%s\n' "$listed" | sort | tail -n 1 | cut -d' ' -f2)"
+          if [ -z "$run_id" ]; then
+            echo "::notice title=Performance::No perf history yet — this run checks budgets only."
+          elif ! gh run download "$run_id" --name perf-history --dir build/perf/previous \
+            || [ ! -f build/perf/previous/history.json ]; then
+            # Never carry on without it: a main run would record a one-entry
+            # history and upload it as the newest, and every later run would
+            # chain from that — the whole history silently gone. (`compare
+            # --record` refuses an unreadable one for the same reason.)
+            echo "::error title=Performance::Could not download the perf history of run $run_id."
+            exit 1
+          fi
+
+      # Nightly runs measure each commit once. A skip still re-uploads the
+      # history below, so a quiet month cannot let it expire. Not skipped when
+      # that one measurement could not judge — a noisy machine, or benchmarks
+      # that failed to run: skipping would leave those unjudged (and every
+      # night green) until the next commit.
+      - name: Already measured?
+        id: skip
+        if: github.event_name == 'schedule'
+        run: |
+          last="$(jq -r '.entries[-1] // {} | if .noisy or any(.alerts[]?; startswith("failed:")) then "" else .sha // "" end' \
+            build/perf/previous/history.json 2>/dev/null || true)"
+          if [ -n "$last" ] && [ "$last" = "$GITHUB_SHA" ]; then
+            echo "main has not moved since the last measured run ($last)."
+            cp build/perf/previous/history.json build/perf/history.json
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the benchmarks
+        if: steps.skip.outputs.skip != 'true'
+        run: dart tools/perf/main.dart run --passes 2
+
+      - name: Compare
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          PERF_NOTIFY: ${{ vars.PERF_NOTIFY }}
+        run: |
+          record=()
+          if [ "$ON_MAIN" = "true" ]; then record=(--record); fi
+          dart tools/perf/main.dart compare \
+            --history build/perf/previous/history.json \
+            --mention "${PERF_NOTIFY:-}" \
+            --fail-on never \
+            "${record[@]}"
+          cat build/perf/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run
+        if: ${{ !cancelled() && steps.skip.outputs.skip != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/perf/*.json
+            build/perf/*.jsonl
+            build/perf/*.md
+          retention-days: 30
+
+      # One standing issue, on main only: opened by the first alert, commented
+      # on by each new one, its body kept current, closed when none is left.
+      # A stale run — a late re-run of a commit with newer ones recorded after
+      # it — leaves the issue alone: the issue describes the newer commits.
+      - name: Update the regression issue
+        if: env.ON_MAIN == 'true' && steps.skip.outputs.skip != 'true'
+        run: |
+          if [ "$(jq '.stale' build/perf/alerts.json)" = "true" ]; then
+            echo "::notice title=Performance::A re-run of an older commit — the issue is left as it is."
+            exit 0
+          fi
+          title='Performance regressions'
+          label='perf-regression'
+          gh label create "$label" --color D93F0B \
+            --description 'Opened and closed by the Performance workflow' \
+            --force >/dev/null
+          number="$(gh issue list --label "$label" --state open --json number,title \
+            --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
+          active="$(jq '.active | length' build/perf/alerts.json)"
+          new="$(jq '.new | length' build/perf/alerts.json)"
+          if [ "$active" -gt 0 ]; then
+            if [ -z "$number" ]; then
+              # Opened by a first alert — or again after someone closed it by
+              # hand while alerts were open. The body lists what is open; only
+              # a new alert is worth a ping.
+              url="$(gh issue create --title "$title" --label "$label" \
+                --body-file build/perf/issue.md)"
+              number="${url##*/}"
+            else
+              gh issue edit "$number" --body-file build/perf/issue.md
+            fi
+            if [ "$new" -gt 0 ]; then
+              gh issue comment "$number" --body-file build/perf/comment.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "$(cat build/perf/resolved.md)"
+          fi
+
+      # After the issue step, and only if it succeeded: the history records
+      # which alerts are open, and the next run announces only what is not.
+      # Uploaded before the issue had heard of a new alert, a failed issue
+      # step would leave it recorded as open and never announced.
+      - name: Keep the history
+        if: env.ON_MAIN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-history
+          path: build/perf/history.json
+          if-no-files-found: error
+          retention-days: 90
+          # A re-run attempt of this run uploads it again under the same name.
+          overwrite: true
+
+      # Red when `compare` says so (`PerfComparison.failingKeys`): for every
+      # NEW alert — on main one not open before, on a branch one main does not
+      # already have — and, new or not, for every benchmark OVER ITS BUDGET or
+      # that FAILED TO RUN. Those two stay red on every run until fixed or the
+      # budget is raised in a reviewed commit; a regression that stays is
+      # tracked in the issue instead of turning every night red.
+      - name: Verdict
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          jq -r '.active[]' build/perf/alerts.json | while read -r key; do
+            echo "::warning title=Performance::$key"
+          done
+          count="$(jq '.failing | length' build/perf/alerts.json)"
+          if [ "$count" -gt 0 ]; then
+            jq -r '.failing[]' build/perf/alerts.json | while read -r key; do
+              echo "::error title=Performance::$key — see the job summary"
+            done
+            exit 1
+          fi

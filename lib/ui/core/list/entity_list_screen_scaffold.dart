@@ -200,6 +200,7 @@ class EntityListBulkAction {
     this.preflight,
     this.onSelection,
     this.successKeysFor,
+    this.isAvailable,
   });
 
   /// Must match a `BulkAction.id` registered on `vm.bulkActions`. Stable
@@ -262,6 +263,12 @@ class EntityListBulkAction {
   /// entity type in the handler.
   final Future<void> Function(BuildContext context, List<Object?> selected)?
   onSelection;
+
+  /// Whether the server can take this action at all, asked each time the bulk
+  /// bar renders — not when the screen builds, because a self-hosted server's
+  /// version (`Services.serverVersion`) is unknown until its first response,
+  /// and a list restored at launch is built before that. Null = always.
+  final bool Function(BuildContext context)? isAvailable;
 }
 
 // ─── Scaffold ────────────────────────────────────────────────────────────
@@ -706,6 +713,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   List<EntityActionItem<String>> _bulkActionItems(BuildContext context) => [
     for (final a in widget.bulkActions)
       if (_bulkActionAllowed(a.actionId) &&
+          (a.isAvailable?.call(context) ?? true) &&
           _vm.bulkActionAppliesToSelection(a.actionId))
         EntityActionItem<String>(
           kind: a.actionId,

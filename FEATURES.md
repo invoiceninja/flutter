@@ -77,6 +77,7 @@ the honest default.
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
 | Two-step login (email → Continue → only the credentials the account needs, via `/login/precheck`) | ✅ | ❌ | ✅ | | |
 | Passkey login | ✅ | ❌ | ❌ | | |
+| Generic OIDC sign-in (self-hosted identity provider) | ✅ | ❌ | ❌ | | Blocked: the server returns the code to React's own `/oauth-callback` only (BACKEND.md § OIDC) |
 | Disable 2FA from login (SMS reset for a lost authenticator) | ✅ | ✅ | ✅ | | |
 | Two-factor SMS verification | ✅ | ✅ | ✅ | ✅ | |
 | Password reset / recovery email | ✅ | ✅ | ✅ | ✅ | |
@@ -121,7 +122,7 @@ the honest default.
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | v2 draws the nearest grouping the range can show (one month by month is a single line) and the control shows the one in effect |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
-| Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | — | — | ✅ | | |
+| Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | ✅ | — | ✅ | | React on its develop branch (ui#3356), unreleased |
 | Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
 | Hide empty dashboard panels — list panels with nothing to show are left off, with an "N empty panels hidden" link on phones (device-local; on by default on phones, off on tablets / desktop) | — | — | ✅ | | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
@@ -187,6 +188,8 @@ the honest default.
 | Client — purge (hard delete, admin only) | ✅ | ✅ | ✅ | ✅ | |
 | Client — bulk archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
 | Client — bulk update (mass-edit fields) | ✅ | ✅ | ✅ |  | |
+| Client — Check VAT (VIES lookup of the saved VAT number; EU clients; sets Valid VAT number) | ✅ | ❌ | ✅ | | Hosted, or self-hosted ≥ 5.13.45; React on its develop branch (ui#3415), unreleased |
+| Client — Check PEPPOL delivery (can an e-invoice reach this client; hosted, PEPPOL company) | ✅ | ❌ | ✅ | | React on its develop branch (ui#3415), unreleased |
 | Client — import (CSV / JSON) | ✅ | 🟡 | ✅ | ✅ | |
 | Client — cross-entity "New invoice / recurring / quote / credit / payment / task / expense" | ✅ | ✅ | ✅ | ✅ | |
 | Client — view client invoices / quotes / payments / credits / recurring / projects / tasks / expenses | ✅ | ✅ | ✅ | ✅ | |
@@ -238,6 +241,9 @@ the honest default.
 | Invoice — email history | ✅ | ✅ | ✅ | | |
 | Invoice — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
 | Invoice — list bounce status badge | 🟡 | ✅ | ✅ | | |
+| Invoice / credit — list PEPPOL sent / failed icon (`backup.guid`), hideable | ✅ | ❌ | ❌ | | React on its develop branch (ui#3410), unreleased |
+| Invoice / quote / recurring — list footer totals, incl. Net Amount | ✅ | ❌ | ❌ | | |
+| Invoice — guided step-by-step editor (Who → Items → Payment → Notes → Send) | ✅ | ❌ | ❌ | | React on its develop branch (ui#3288), unreleased; its default for users created since 2026-08-09 |
 | Invoice — activities | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — payment schedule view | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — unapplied payments view | ✅ | ✅ | ✅ | ✅ | |
@@ -269,6 +275,7 @@ the honest default.
 | Quote — cancel (Sent only, irreversible; hosted, or a self-hosted server ≥ 5.13.44 — 5.13.43 rejects it) | ✅ | — | ✅ | | |
 | Quote — bulk cancel from the list (skips non-Sent / expired; hosted, or self-hosted ≥ 5.13.44) | ✅ | — | ✅ | | |
 | Quote — email to client | ✅ | ✅ | ✅ | ✅ | |
+| Quote — past its valid-until date: Mark Sent / Email not offered, and a past date can't be saved | ❌ | — | ✅ | | The server rejects all three (5.13.44); React offers them and shows the error |
 | Quote — schedule email | ✅ | ❌ | ✅ | ✅ | |
 | Quote — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Quote — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
@@ -331,7 +338,8 @@ the honest default.
 | Recurring invoice — start / activate | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — stop / pause | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — send now | ✅ | ✅ | ✅ | ✅ | |
-| Recurring invoice — bulk update / increase prices | ✅ | ✅ | ✅ | ✅ | |
+| Recurring invoice — bulk update prices / increase prices | ✅ | ✅ | ✅ | ✅ | |
+| Recurring invoice — bulk update (mass-edit taxes, custom fields, notes, terms, footer, remaining cycles, auto bill) | ✅ | ❌ | ✅ | | Fields are the server's own whitelist (`statics.bulk_updates`); Auto Bill also sets `auto_bill_enabled`, as the edit form does |
 | Recurring invoice — filter by status | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — view next-occurrence schedule | ✅ | ✅ | ✅ | ✅ | |
@@ -360,6 +368,7 @@ the honest default.
 | Payment — edit | ✅ | ✅ | ✅ | ✅ | |
 | Payment — record manual payment | ✅ | ✅ | ✅ | ✅ | |
 | Payment — apply to specific invoice | ✅ | ✅ | ✅ | ✅ | |
+| Payment — new payment starts from an invoice (fills the client, currency and full balance) | ✅ | ❌ | ❌ | | v2 asks for the client first |
 | Payment — apply unapplied funds to the oldest unpaid invoice from the record, naming the invoice and the amount before anything moves | — | — | ✅ | | It applied on one tap before; an allocation cannot be undone from the app |
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |
@@ -415,6 +424,7 @@ the honest default.
 | Task — kanban board view | ✅ | ✅ | ✅ | ✅ | |
 | Task — daily view | ✅ | ❌ | ✅ |  | |
 | Task — weekly view | ✅ | ❌ | ✅ |  | |
+| Task — weekly view shows hours as decimal or HH:MM (toggle) | ✅ | ❌ | ❌ | | React on its develop branch (ui#3422), unreleased; v2 accepts `1:30` typed but always shows decimal |
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
 | Task — calendar places a task on every day one of its time entries touches (hosted, or self-hosted ≥ 5.13.43, fetches the month by `activity_dates`) | ✅ | ❌ | ✅ |  | |
 | Task — calendar month window fetched from the server (`date_range` on `calculated_start_date`), shared by the calendar view and the dashboard panel | — | — | ✅ |  | |
@@ -428,10 +438,10 @@ the honest default.
 | Task — timer stop | ✅ | ✅ | ✅ | ✅ | |
 | Task — timer resume from time log | ✅ | ✅ | ✅ | ✅ | |
 | Task — time-log entries (edit each row) | ✅ | ✅ | ✅ | ✅ | |
-| Task — due date (`tasks.due_date`) | ❌ | ❌ | ✅ |  | Server field added 2026-08-31 |
+| Task — due date (`tasks.due_date`) | ✅ | ❌ | ✅ |  | Server field added 2026-08-31; React on its develop branch, unreleased |
 | Task — `Overdue` status tab + sidebar counter (due date passed, not invoiced; local-only) | ✅ | ❌ | ✅ |  | |
 | Task — due-date range filter (`due_date:` → `due_date_range`) | ✅ | ❌ | ✅ |  | |
-| Task — estimated duration (`tasks.estimated_duration`) | ❌ | ❌ | ✅ |  | Allocated time, beside worked time on the detail strip |
+| Task — estimated duration (`tasks.estimated_duration`) | ✅ | ❌ | ✅ |  | Allocated time, beside worked time on the detail strip; React on its develop branch, unreleased |
 | Task — booked time vs. time worked (a future time-log block is a booking, not hours) | ❌ | ❌ | ✅ |  | flutter#149; billing counts worked time only |
 | Task — starting a booked job claims the booking instead of overlapping it | ❌ | ❌ | ✅ |  | The server rejects a running entry beside a future block |
 | Task — `Upcoming` status tab + sidebar counter | ❌ | ❌ | ✅ |  | flutter#149 |
@@ -461,6 +471,7 @@ the honest default.
 | Task — tags (attach via picker, list `tag_ids` filter + column, local sort) | ✅ | — | ✅ | | |
 | Task — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Task — bulk actions | ✅ | ✅ | ✅ | ✅ | |
+| Task — bulk update (mass-edit status, client, project, assigned user; invoiced tasks skipped) | ✅ | ❌ | ✅ | | Hosted, or self-hosted ≥ 5.13.44 (task `bulk_update` 500'd before) |
 | Task — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 
 ---
@@ -557,6 +568,7 @@ the honest default.
 | Expense — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Expense — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Expense — bulk actions | ✅ | ✅ | ✅ | ✅ | |
+| Expense — bulk update (mass-edit taxes, custom fields, notes, invoiceable, inclusive taxes, client, project) | ✅ | ❌ | ✅ | | Fields are the server's own whitelist (`statics.bulk_updates`) |
 | Expense — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Expense — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
@@ -789,7 +801,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Document list / preview | ✅ | ✅ | ✅ | ✅ | |
 | Document download | ✅ | ✅ | ✅ | ✅ | |
 | Document delete | ✅ | ✅ | ✅ | ✅ | |
-| Documents public by default (company setting) | ❌ | ✅ | ✅ | | |
+| Documents public by default (company setting) | ✅ | ✅ | ✅ | | |
 
 #### Company Details — Custom Fields tab
 
@@ -1043,7 +1055,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Auto Archive Paid Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Auto Archive Cancelled Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Lock Invoices (off / when sent / when paid / end of month) | ✅ | ✅ | ✅ | ✅ | Enforced: client-side cascade computation hard-blocks edit entry (action menu + deep-link guard) + repo/outbox backstop; reason-specific dialog/banner |
-| Global Tag Inheritance | — | — | ✅ |  | Company-level toggle (`settings.global_tag_inheritance`), company scope only — server reads it via `Company::getSetting()`, no client/group cascade. Server applies the tag cascade on entity create (`BaseRepository`); client only persists the flag. App now surfaces tags on all 14 tag-bearing entities, so the inherited tags are visible across the board |
+| Global Tag Inheritance | ✅ | — | ✅ |  | Company-level toggle (`settings.global_tag_inheritance`), company scope only — server reads it via `Company::getSetting()`, no client/group cascade. Server applies the tag cascade on entity create (`BaseRepository`); client only persists the flag. App now surfaces tags on all 14 tag-bearing entities, so the inherited tags are visible across the board |
 
 #### Workflow Settings — Quotes tab
 
@@ -1062,8 +1074,9 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Plan tier (Free / Pro / Enterprise) | ✅ | ✅ | ✅ | ✅ | |
 | Free trial banner | ✅ | ✅ | ✅ | ✅ | |
 | Plan expires-on date | ✅ | ✅ | ✅ | ✅ | |
+| Hosted account billing — Billing History (pay / download plan invoices), payment methods, account-wide user list | ✅ | ❌ | ❌ | | Hosted billing app's `/api/client/account_management/*`, not the open-source server; v2 sends plan changes to the portal |
 | Plan expiry read as the server does (UTC day + 23 h grace) — it read as expired a day early | ✅ | — | ✅ | | |
-| Plan expired — pay-now footer in the sidebar (hosted owners, once `plan_expires` passes; React ships its banner switched off) | ✅ | — | ✅ | | |
+| Plan expired — pay-now footer in the sidebar (hosted owners, once `plan_expires` passes; React's banner opens its in-app Billing History) | ✅ | — | ✅ | | |
 | Hosted — ask for the user's first and last name (once per launch; required before upgrading) | ✅ | — | ✅ | | |
 | Days-left countdown | ✅ | ✅ | ✅ | ✅ | |
 | Change Plan (action) | ✅ | ✅ | ✅ | ✅ | |
@@ -1528,7 +1541,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Invoice-outstanding-tasks schedule | ✅ | ✅ | ✅ | ✅ | |
 | Payment-schedule (split invoice into dated installments) | ✅ | ✅ | ✅ | ✅ | |
 | Pause / resume schedule | — | — | ✅ | ✅ | |
-| Starter cards on empty state | — | — | ✅ | ✅ | |
+| Starter cards on empty state | ✅ | — | ✅ | ✅ | React on its develop branch (ui#3405), unreleased |
 
 ### User Management
 

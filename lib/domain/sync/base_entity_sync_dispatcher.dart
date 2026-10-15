@@ -234,9 +234,11 @@ class BaseEntitySyncDispatcher<TItem, TInner> implements SyncDispatcher {
       // Multi-entity — wired via `reactivateEmailHandlers` in
       // `customActions` on the Client + the five billing-doc dispatchers.
       case MutationKind.reactivateEmail:
+      // Wired via `bulkUpdateHandler` in `customActions` on the Client, Task,
+      // Expense and Recurring Invoice dispatchers.
+      case MutationKind.bulkUpdate:
       // Client-only — wired via `customActions` on the Client dispatcher.
       case MutationKind.merge:
-      case MutationKind.bulkUpdate:
       case MutationKind.locationCreate:
       case MutationKind.locationUpdate:
       case MutationKind.locationDelete:

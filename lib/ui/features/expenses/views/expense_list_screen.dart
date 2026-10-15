@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/domain/bulk_update_columns.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 import 'package:admin/data/db/dao/expense_dao.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -163,6 +165,18 @@ class ExpenseListScreen extends StatelessWidget {
           singleSuccessKey: 'deleted_expense',
           pluralSuccessKey: 'deleted_expenses',
           nothingKey: 'nothing_to_delete',
+        ),
+        EntityListBulkAction(
+          actionId: 'bulk_update',
+          icon: Icons.edit_outlined,
+          tooltipKey: 'bulk_update',
+          singleSuccessKey: 'updated_expense',
+          pluralSuccessKey: 'updated_expenses',
+          nothingKey: 'nothing_to_update',
+          prepare: (context) =>
+              showBulkUpdateDialog(context, entity: kBulkUpdateExpense),
+          isAvailable: (context) =>
+              bulkUpdateOffered(context.read<Services>(), kBulkUpdateExpense),
         ),
         // One invoice from the whole selection (React #3382) — only where an
         // invoice could be created at all.

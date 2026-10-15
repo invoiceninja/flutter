@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/labeled_switch_group.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/clients/view_models/client_edit_view_model.dart';
 import 'package:admin/ui/features/clients/widgets/edit/client_edit_field_pair.dart';
+import 'package:admin/ui/features/clients/widgets/edit/client_verification_checks.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
 /// Per-client "Settings" card on the edit screen — the cascade overrides
@@ -186,6 +187,7 @@ class ClientEditSettingsSection extends StatelessWidget {
               ),
             ],
           ),
+          ClientVerificationChecks(vm: vm),
         ],
       ),
     );

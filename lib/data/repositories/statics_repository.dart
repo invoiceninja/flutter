@@ -231,6 +231,18 @@ class StaticsRepository {
     return _templates = out;
   }
 
+  /// The columns the server lets the `bulk_update` bulk action set on
+  /// [entity] (`client`, `task`, `expense`, `recurring_invoice`) —
+  /// `statics.bulk_updates`, an object of string lists. Null when the catalog
+  /// isn't loaded or this server sends none (it has since 2024).
+  List<String>? bulkUpdateColumns(String entity) {
+    final raw = _memo?['bulk_updates'];
+    if (raw is! Map) return null;
+    final list = raw[entity];
+    if (list is! List) return null;
+    return [for (final c in list) c.toString()];
+  }
+
   /// Gateway-provider catalog (Stripe, PayPal, Authorize.Net, …). Keyed by
   /// `Gateway.id` — the server's `key` field on the statics payload (a
   /// 32-char hash). Each entry describes one available provider; users

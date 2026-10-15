@@ -92,4 +92,37 @@ class ClientsApi extends BaseEntityApi<ClientListApi, ClientItemApi> {
     );
     return parseItem(raw as Object).data;
   }
+
+  /// `POST /clients/{id}/check_vat` — queue a VIES lookup of the client's
+  /// *saved* VAT number (`CheckVat` job, server 5.13.45). The verdict lands
+  /// in the server's cache for [vatStatus] to read, and the job writes
+  /// `has_valid_vat_number` itself.
+  ///
+  /// Direct, not through the outbox: it's a check the user runs and reads
+  /// the answer to straight away, like the mailer check — queued, a result
+  /// would arrive with nobody waiting for it.
+  Future<void> checkVat(String id) =>
+      client.postJson('$basePath/$id/check_vat');
+
+  /// `GET /clients/{id}/vat_status` — `pending`, `valid`, `invalid` or
+  /// `unavailable` (VIES gave no verdict), or null once the cached result has
+  /// expired or been read: the server forgets a verdict on the first read
+  /// that isn't `pending`.
+  Future<String?> vatStatus(String id) async {
+    final raw = await client.getOne('$basePath/$id/vat_status');
+    final message = raw is Map<String, dynamic> ? raw['message'] : null;
+    return message is String ? message : null;
+  }
+
+  /// `POST /clients/{id}/peppol_discovery` — whether the client can be found
+  /// on the PEPPOL network, so an e-invoice can reach it (hosted, 5.13.45).
+  /// Null when the reply isn't the boolean it should be. Read-only.
+  Future<bool?> peppolDiscovery(String id) async {
+    final raw = await client.postJson(
+      '$basePath/$id/peppol_discovery',
+      readOnly: true,
+    );
+    final message = raw is Map<String, dynamic> ? raw['message'] : null;
+    return message is bool ? message : null;
+  }
 }

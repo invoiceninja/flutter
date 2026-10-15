@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -21,7 +22,9 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/bulk_update_columns.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
 /// Source of truth for Expense data. The UI watches Drift via [watchPage]
@@ -283,6 +286,38 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
       );
     });
     return SaveResult(entity: expense, outboxRowId: rowId);
+  }
+
+  /// Mass-update one whitelisted column on [expense] — the `bulk_update` bulk
+  /// action, fired once per selected expense by the list view model. Writes
+  /// the patched row to Drift (`is_dirty=true`) so the change shows at once,
+  /// then queues a per-id `MutationKind.bulkUpdate` row. See
+  /// `ClientRepository.bulkUpdate`, which this mirrors. [projectClientId] is
+  /// the picked project's client, which the server moves the expense onto.
+  Future<void> bulkUpdate({
+    required String companyId,
+    required Expense expense,
+    required String column,
+    required String newValue,
+    String? projectClientId,
+  }) async {
+    final patched = expenseWithBulkUpdate(
+      expense,
+      column,
+      newValue,
+      projectClientId: projectClientId,
+    );
+    await db.transaction(() async {
+      await db.expenseDao.upsert(
+        _domainToCompanion(patched, companyId, isDirty: true),
+      );
+      await enqueueMutation(
+        companyId: companyId,
+        entityId: expense.id,
+        kind: MutationKind.bulkUpdate,
+        payload: {'id': expense.id, 'column': column, 'new_value': newValue},
+      );
+    });
   }
 
   /// Apply a design / email template to this expense. Mirrors
@@ -610,4 +645,52 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
             (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
           ))
           .write(ExpensesCompanion(documents: Value(json)));
+}
+
+/// [e] with a `bulk_update` [column] applied the way the server applies it
+/// (`BaseRepository::bulkUpdate`): a tax is `name||rate`, a new client drops
+/// the project, and a project brings its client ([projectClientId], when
+/// known).
+Expense expenseWithBulkUpdate(
+  Expense e,
+  String column,
+  String newValue, {
+  String? projectClientId,
+}) {
+  final tax = parseBulkUpdateTaxValue(newValue);
+  final name = tax?.name ?? '';
+  final rate = tax == null ? Decimal.zero : parseMoney(tax.rate);
+  switch (column) {
+    case 'tax1':
+      return e.copyWith(taxName1: name, taxRate1: rate);
+    case 'tax2':
+      return e.copyWith(taxName2: name, taxRate2: rate);
+    case 'tax3':
+      return e.copyWith(taxName3: name, taxRate3: rate);
+    case 'custom_value1':
+      return e.copyWith(customValue1: newValue);
+    case 'custom_value2':
+      return e.copyWith(customValue2: newValue);
+    case 'custom_value3':
+      return e.copyWith(customValue3: newValue);
+    case 'custom_value4':
+      return e.copyWith(customValue4: newValue);
+    case 'uses_inclusive_taxes':
+      return e.copyWith(usesInclusiveTaxes: newValue == '1');
+    case 'should_be_invoiced':
+      return e.copyWith(shouldBeInvoiced: newValue == '1');
+    case 'private_notes':
+      return e.copyWith(privateNotes: newValue);
+    case 'public_notes':
+      return e.copyWith(publicNotes: newValue);
+    case 'client_id':
+      return e.copyWith(clientId: newValue, projectId: '');
+    case 'project_id':
+      return e.copyWith(
+        projectId: newValue,
+        clientId: projectClientId ?? e.clientId,
+      );
+    default:
+      throw ArgumentError('Unsupported expense bulk_update column: $column');
+  }
 }

@@ -25,6 +25,7 @@ import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/clients/vat_check.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
 /// Source of truth for Client data. The UI watches Drift via [watchPage]
@@ -385,6 +386,35 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       ),
     );
   }
+
+  /// Check the client's *saved* VAT number against VIES (React #3415):
+  /// `POST /clients/{id}/check_vat` queues the lookup and [runVatCheck] polls
+  /// `vat_status` for the verdict. Null when [cancelled] says the caller left.
+  ///
+  /// A direct request, not an outbox row — the user waits for the answer. On
+  /// a verdict the server's job has already written `has_valid_vat_number`
+  /// (and, for a valid number, may have filled a blank name / private notes),
+  /// so the row is re-fetched: the network writes to Drift, and every screen
+  /// reading the client sees what the server now holds.
+  Future<VatCheckResult?> checkVat({
+    required String companyId,
+    required String id,
+    bool Function()? cancelled,
+  }) async {
+    final result = await runVatCheck(
+      start: () => api.checkVat(id),
+      status: () => api.vatStatus(id),
+      cancelled: cancelled,
+    );
+    if (result == VatCheckResult.valid || result == VatCheckResult.invalid) {
+      await refreshByIds(companyId: companyId, ids: [id]);
+    }
+    return result;
+  }
+
+  /// Whether an e-invoice could reach the client over PEPPOL
+  /// (`POST /clients/{id}/peppol_discovery`). A read: nothing to store.
+  Future<bool?> peppolDiscovery(String id) => api.peppolDiscovery(id);
 
   /// After a client **merge**, the absorbed client's children were reassigned to
   /// the survivor server-side, but locally they still carry the old client_id in

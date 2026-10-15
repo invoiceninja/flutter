@@ -314,6 +314,59 @@ void main() {
     });
   });
 
+  // `Quote::hasLapsedValidUntil` — the server 422s Mark Sent and every email
+  // of a quote past its valid-until date, so offering either queues a row
+  // that can only die.
+  group('a lapsed valid-until date stops the quote going out', () {
+    testWidgets('a lapsed draft can be neither marked sent nor emailed', (
+      tester,
+    ) async {
+      final current = await resolveItems(tester, _quote(dueDate: '2999-01-01'));
+      expect(enabled(current, QuoteAction.markSent), isTrue);
+      expect(enabled(current, QuoteAction.sendEmail), isTrue);
+
+      final lapsed = await resolveItems(tester, _quote(dueDate: '2000-01-01'));
+      expect(enabled(lapsed, QuoteAction.markSent), isFalse);
+      expect(enabled(lapsed, QuoteAction.sendEmail), isFalse);
+    });
+
+    // The server checks the date alone — an approved quote past its date is
+    // refused an email too, though it never reads "Expired".
+    testWidgets('an approved quote past its date is not emailed either', (
+      tester,
+    ) async {
+      final approved = _quote(
+        status: QuoteStatus.approved,
+        dueDate: '2000-01-01',
+      );
+      expect(approved.isExpired, isFalse);
+
+      final items = await resolveItems(tester, approved);
+      expect(enabled(items, QuoteAction.sendEmail), isFalse);
+    });
+
+    testWidgets('a quote with no valid-until date is never lapsed', (
+      tester,
+    ) async {
+      final items = await resolveItems(tester, _quote());
+      expect(enabled(items, QuoteAction.markSent), isTrue);
+      expect(enabled(items, QuoteAction.sendEmail), isTrue);
+    });
+
+    testWidgets('an older self-hosted server still sends a lapsed quote', (
+      tester,
+    ) async {
+      final items = await resolveItems(
+        tester,
+        _quote(dueDate: '2000-01-01'),
+        serverVersion: '5.13.43',
+        isHosted: false,
+      );
+      expect(enabled(items, QuoteAction.markSent), isTrue);
+      expect(enabled(items, QuoteAction.sendEmail), isTrue);
+    });
+  });
+
   group('permission gating (non-admin, non-owner)', () {
     testWidgets('no permissions hides edit and the clone group', (
       tester,

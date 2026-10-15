@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/domain/bulk_update_columns.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 import 'package:admin/data/db/dao/recurring_invoice_dao.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/l10n/localization.dart';
@@ -233,6 +235,22 @@ class RecurringInvoiceListScreen extends StatelessWidget {
                   false,
             );
           },
+        ),
+        EntityListBulkAction(
+          actionId: 'bulk_update',
+          icon: Icons.edit_outlined,
+          tooltipKey: 'bulk_update',
+          singleSuccessKey: 'updated_recurring_invoice',
+          pluralSuccessKey: 'updated_recurring_invoices',
+          nothingKey: 'nothing_to_update',
+          prepare: (context) => showBulkUpdateDialog(
+            context,
+            entity: kBulkUpdateRecurringInvoice,
+          ),
+          isAvailable: (context) => bulkUpdateOffered(
+            context.read<Services>(),
+            kBulkUpdateRecurringInvoice,
+          ),
         ),
       ],
     );

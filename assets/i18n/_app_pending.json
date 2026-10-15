@@ -1457,5 +1457,21 @@
   "report_scheduled": "Scheduled",
   "report_scheduled_count": "Scheduled (:count)",
   "report_rows_truncated": "Showing the first :shown of :total rows. Download the report for all of them.",
-  "report_emailed_instead": "The server sent this report to you by email instead of returning it."
+  "report_emailed_instead": "The server sent this report to you by email instead of returning it.",
+  "quote_due_date_expired": "Quote valid until date is in the past.",
+  "updated_tasks": "Successfully updated :count tasks",
+  "updated_expenses": "Successfully updated :count expenses",
+  "updated_recurring_invoices": "Successfully updated :count recurring invoices",
+  "check_vat": "Check VAT",
+  "save_client_before_vat_check": "Save the client changes before checking the VAT number.",
+  "vat_validation_pending": "Checking VAT number…",
+  "vat_validation_valid": "VAT number is valid.",
+  "vat_validation_invalid": "VAT number is invalid.",
+  "vat_validation_unavailable": "VAT validation is unavailable. Please try again.",
+  "vat_validation_timeout": "VAT validation timed out. Please try again.",
+  "vat_validation_failed": "Unable to validate the VAT number. Please try again.",
+  "check_peppol_delivery": "Check PEPPOL delivery",
+  "save_client_before_discovery": "Save the client changes before checking PEPPOL delivery.",
+  "client_discoverable_on_peppol_network": "Client is discoverable on the PEPPOL network.",
+  "peppol_discovery_failed": "Unable to check PEPPOL delivery. Please try again."
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
 
 import 'package:admin/data/db/app_database.dart';
@@ -21,7 +22,9 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/bulk_update_columns.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
 class RecurringInvoiceRepository
@@ -356,6 +359,54 @@ class RecurringInvoiceRepository
     payload: {'id': id, 'template_id': templateId},
   );
 
+  /// Mass-update one whitelisted column on [recurringInvoice] — the
+  /// `bulk_update` bulk action, fired once per selected record by the list
+  /// view model. Writes the patched row to Drift (`is_dirty=true`) so the
+  /// change shows at once, then queues a per-id `MutationKind.bulkUpdate` row.
+  /// See `ClientRepository.bulkUpdate`, which this mirrors.
+  ///
+  /// `auto_bill` queues a second row for `auto_bill_enabled`. The edit form
+  /// sets the two together and the server derives the flag on a save
+  /// (`setAutoBillFlag`), but a bulk update writes the one column it is given
+  /// — "Enabled" would leave the flag off, and the next invoice would not
+  /// auto-bill.
+  Future<void> bulkUpdate({
+    required String companyId,
+    required RecurringInvoice recurringInvoice,
+    required String column,
+    required String newValue,
+  }) async {
+    final patched = recurringInvoiceWithBulkUpdate(
+      recurringInvoice,
+      column,
+      newValue,
+    );
+    final id = recurringInvoice.id;
+    await db.transaction(() async {
+      await db.recurringInvoiceDao.upsert(
+        _domainToCompanion(patched, companyId, isDirty: true),
+      );
+      await enqueueMutation(
+        companyId: companyId,
+        entityId: id,
+        kind: MutationKind.bulkUpdate,
+        payload: {'id': id, 'column': column, 'new_value': newValue},
+      );
+      if (column == 'auto_bill') {
+        await enqueueMutation(
+          companyId: companyId,
+          entityId: id,
+          kind: MutationKind.bulkUpdate,
+          payload: {
+            'id': id,
+            'column': 'auto_bill_enabled',
+            'new_value': patched.autoBillEnabled ? '1' : '0',
+          },
+        );
+      }
+    });
+  }
+
   Future<void> updatePrices({required String companyId, required String id}) =>
       enqueueMutation(
         companyId: companyId,
@@ -682,4 +733,59 @@ class RecurringInvoiceRepository
             (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
           ))
           .write(RecurringInvoicesCompanion(documents: Value(json)));
+}
+
+/// [r] with a `bulk_update` [column] applied the way the server applies it
+/// (`BaseRepository::bulkUpdate`): a tax is `name||rate`; `auto_bill` also
+/// sets the flag the edit form derives from it (always / opt-out → on). The
+/// status a `remaining_cycles` change can bring is left to the server's echo.
+RecurringInvoice recurringInvoiceWithBulkUpdate(
+  RecurringInvoice r,
+  String column,
+  String newValue,
+) {
+  final tax = parseBulkUpdateTaxValue(newValue);
+  final name = tax?.name ?? '';
+  final rate = tax == null ? Decimal.zero : parseMoney(tax.rate);
+  switch (column) {
+    case 'tax1':
+      return r.copyWith(taxName1: name, taxRate1: rate);
+    case 'tax2':
+      return r.copyWith(taxName2: name, taxRate2: rate);
+    case 'tax3':
+      return r.copyWith(taxName3: name, taxRate3: rate);
+    case 'custom_value1':
+      return r.copyWith(customValue1: newValue);
+    case 'custom_value2':
+      return r.copyWith(customValue2: newValue);
+    case 'custom_value3':
+      return r.copyWith(customValue3: newValue);
+    case 'custom_value4':
+      return r.copyWith(customValue4: newValue);
+    case 'uses_inclusive_taxes':
+      return r.copyWith(usesInclusiveTaxes: newValue == '1');
+    case 'private_notes':
+      return r.copyWith(privateNotes: newValue);
+    case 'public_notes':
+      return r.copyWith(publicNotes: newValue);
+    case 'terms':
+      return r.copyWith(terms: newValue);
+    case 'footer':
+      return r.copyWith(footer: newValue);
+    case 'remaining_cycles':
+      return r.copyWith(
+        remainingCycles: int.tryParse(newValue) ?? r.remainingCycles,
+      );
+    case 'auto_bill':
+      return r.copyWith(
+        autoBill: newValue,
+        autoBillEnabled: newValue == 'always' || newValue == 'optout',
+      );
+    case 'auto_bill_enabled':
+      return r.copyWith(autoBillEnabled: newValue == '1');
+    default:
+      throw ArgumentError(
+        'Unsupported recurring invoice bulk_update column: $column',
+      );
+  }
 }

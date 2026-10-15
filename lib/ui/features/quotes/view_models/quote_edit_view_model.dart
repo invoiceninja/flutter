@@ -19,13 +19,16 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
     required this.clientRequiredMessage,
     required this.crossClientLineItemsMessage,
     required this.partialInvalidMessage,
+    bool Function()? enforcesValidUntil,
+    this.validUntilPastMessage = '',
     Quote? existing,
     Quote? cloneFrom,
     super.currencyPrecision,
     super.useCommaAsDecimalPlace,
     super.sync,
     super.connectivity,
-  }) : super(
+  }) : _enforcesValidUntil = enforcesValidUntil ?? _never,
+       super(
          writer: _quoteWriter,
          initialDraft: cloneFrom ?? existing ?? emptyQuote(),
          original: existing,
@@ -43,12 +46,31 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
   final String crossClientLineItemsMessage;
   final String partialInvalidMessage;
 
+  /// Whether the server refuses a valid-until date already in the past on a
+  /// create, and on an update that changes the date (`IsExpiredRule` /
+  /// `UpdateQuoteRequest`, `ServerFeatures.quoteValidUntil`) — false on an
+  /// older server, which accepts one. Asked at save time, not when the form
+  /// opens: a self-hosted server's version is unknown until a response lands.
+  final bool Function() _enforcesValidUntil;
+  static bool _never() => false;
+  final String validUntilPastMessage;
+
   @override
   Map<String, List<String>> validate() {
     final errors = <String, List<String>>{
       if (draft.clientId.isEmpty) 'client_id': [clientRequiredMessage],
       ...validateCrossClient(crossClientLineItemsMessage),
     };
+    // Left alone, an untouched past date on an existing quote is fine — the
+    // server compares against what it has stored. A create, or a failed
+    // create being re-sent, is checked whatever the date.
+    final due = draft.dueDate;
+    if (due != null &&
+        due.compareTo(Date.today()) < 0 &&
+        (savesAsCreate || due != original?.dueDate) &&
+        _enforcesValidUntil()) {
+      errors['due_date'] = [validUntilPastMessage];
+    }
     // Deposit/partial must sit within [0, total] — mirrors the invoice rule.
     final partial = draft.partial;
     if (partial < Decimal.zero || partial > totals.total) {

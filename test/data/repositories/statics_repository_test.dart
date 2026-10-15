@@ -206,6 +206,25 @@ void main() {
       expect(repo.currency('3')?.name, 'Euro');
     });
   });
+
+  // Bulk Update offers the server's own whitelist — `statics.bulk_updates`.
+  group('bulkUpdateColumns', () {
+    test('reads one entity\'s list from the catalog', () async {
+      await statics.applyStatic(const {
+        'bulk_updates': {
+          'task': ['status_id', 'client_id'],
+          'client': ['public_notes'],
+        },
+      });
+      expect(statics.bulkUpdateColumns('task'), ['status_id', 'client_id']);
+      expect(statics.bulkUpdateColumns('expense'), isNull);
+    });
+
+    test('is null when the catalog carries none', () async {
+      await statics.applyStatic(const {'currencies': <Object>[]});
+      expect(statics.bulkUpdateColumns('client'), isNull);
+    });
+  });
 }
 
 /// Returns [blob] and counts how often it was asked.

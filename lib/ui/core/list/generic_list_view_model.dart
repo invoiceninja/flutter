@@ -2164,6 +2164,21 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     return null;
   }
 
+  /// The loaded row with [id], or null — for a bulk action whose per-id
+  /// apply needs the whole record (Bulk Update patches it locally). Indexed
+  /// once per [items] list: a bulk run asks for every selected id.
+  @protected
+  T? loadedItemById(String id) {
+    if (!identical(_byIdSource, items)) {
+      _byIdSource = items;
+      _byId = {for (final item in items) idOf(item): item};
+    }
+    return _byId[id];
+  }
+
+  List<T>? _byIdSource;
+  Map<String, T> _byId = const {};
+
   /// Tracks `dispose()` so async pagination work that returns after the
   /// VM has been torn down skips its trailing `notifyListeners()` (which
   /// would throw `was used after being disposed`). Async fetchPage calls

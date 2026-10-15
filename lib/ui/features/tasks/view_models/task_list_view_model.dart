@@ -14,6 +14,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 
 final _log = Logger('TaskListViewModel');
 
@@ -269,6 +270,30 @@ class TaskListViewModel extends GenericListViewModel<Task> {
       archive: (id) => repo.archive(companyId: companyId, id: id),
       restore: (id) => repo.restore(companyId: companyId, id: id),
       delete: (id) => repo.delete(companyId: companyId, id: id),
+    ),
+    // Mass-edit one whitelisted field across the selection; the prep dialog
+    // supplies the `BulkUpdate`. An invoiced task is not eligible: the server
+    // updates only `invoice_id IS NULL` rows (`TaskRepository::bulkUpdate`).
+    BulkAction<Task>(
+      id: 'bulk_update',
+      labelKey: 'bulk_update',
+      eligible: (t) => !t.isDeleted && !t.isInvoiced,
+      applyArg: (id, arg) async {
+        final update = arg as BulkUpdate;
+        // The row can leave the loaded window while the dialog is open (a
+        // re-sort, a sync); read it back rather than count it done unwritten.
+        final task =
+            loadedItemById(id) ??
+            await repo.watch(companyId: companyId, id: id).first;
+        if (task == null) throw StateError('No local task $id');
+        await repo.bulkUpdate(
+          companyId: companyId,
+          task: task,
+          column: update.column,
+          newValue: update.newValue,
+          projectClientId: update.projectClientId,
+        );
+      },
     ),
     // Selection-level actions: the per-id `apply` is a deliberate no-op — the
     // screen's `EntityListBulkAction.onSelection` builds one invoice from the

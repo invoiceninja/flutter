@@ -9,7 +9,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
-import 'package:admin/ui/features/clients/widgets/client_bulk_update_dialog.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('ClientListViewModel');
@@ -265,17 +265,21 @@ class ClientListViewModel extends GenericListViewModel<Client> {
       delete: (id) => repo.delete(companyId: companyId, id: id),
     ),
     // Mass-edit one whitelisted field across the selection. The prep dialog
-    // (showClientBulkUpdateDialog) supplies the `ClientBulkUpdate`; the repo
+    // (showBulkUpdateDialog) supplies the `BulkUpdate`; the repo
     // optimistically patches each client and enqueues a per-id mutation.
     BulkAction<Client>(
       id: 'bulk_update',
       labelKey: 'bulk_update',
       eligible: (c) => !isDeleted(c), // archived is editable; deleted isn't
-      applyArg: (id, arg) {
-        final update = arg as ClientBulkUpdate;
-        final client = _clientById(id);
-        if (client == null) return Future<void>.value();
-        return repo.bulkUpdate(
+      applyArg: (id, arg) async {
+        final update = arg as BulkUpdate;
+        // The row can leave the loaded window while the dialog is open (a
+        // re-sort, a sync); read it back rather than count it done unwritten.
+        final client =
+            loadedItemById(id) ??
+            await repo.watch(companyId: companyId, id: id).first;
+        if (client == null) throw StateError('No local client $id');
+        await repo.bulkUpdate(
           companyId: companyId,
           client: client,
           column: update.column,
@@ -284,13 +288,6 @@ class ClientListViewModel extends GenericListViewModel<Client> {
       },
     ),
   ];
-
-  Client? _clientById(String id) {
-    for (final c in items) {
-      if (idOf(c) == id) return c;
-    }
-    return null;
-  }
 
   /// Convenience wrappers for the multiselect AppBar — the same calls
   /// the existing UI already used, now backed by the generic engine.

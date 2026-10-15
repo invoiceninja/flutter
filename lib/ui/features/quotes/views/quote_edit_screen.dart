@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -66,6 +67,12 @@ class QuoteEditScreen extends StatelessWidget {
           clientRequiredMessage: ctx.tr('please_select_a_client'),
           crossClientLineItemsMessage: ctx.tr('cross_client_line_items'),
           partialInvalidMessage: ctx.tr('partial_value'),
+          enforcesValidUntil: () => ServerFeatures.supports(
+            services.serverVersion.value,
+            ServerFeatures.quoteValidUntil,
+            isHosted: services.auth.session.value?.isHosted ?? false,
+          ),
+          validUntilPastMessage: ctx.tr('quote_due_date_expired'),
           existing: existing,
           cloneFrom: clone,
           useCommaAsDecimalPlace:

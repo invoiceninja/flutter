@@ -652,6 +652,7 @@ class _DatesCardDesktopState<T extends BillingDocFields>
           onChanged: _onDate(vm.setDueDate),
           labelText: context.tr(type.dueDateLabelKey ?? 'due_date'),
           clearable: true,
+          errorText: vm.fieldErrorFor('due_date'),
         ),
         SizedBox(height: InSpacing.md(context)),
         if (partialVm != null) ...[
@@ -1322,6 +1323,9 @@ class _DetailsTabState<T extends BillingDocFields>
           SizedBox(height: InSpacing.md(context)),
           if (type.dateLabelKey != null) ...[
             Row(
+              // Top-aligned, so an error line under one date grows that field
+              // downward instead of shifting its neighbour.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: InDateField(
@@ -1339,6 +1343,7 @@ class _DetailsTabState<T extends BillingDocFields>
                     onChanged: _onDate(vm.setDueDate),
                     labelText: context.tr(type.dueDateLabelKey!),
                     clearable: true,
+                    errorText: vm.fieldErrorFor('due_date'),
                   ),
                 ),
               ],

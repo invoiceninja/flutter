@@ -170,6 +170,15 @@ extension QuoteCalculation on Quote {
     return due.compareTo(today) < 0;
   }
 
+  /// The valid-until date is behind us — `Quote::hasLapsedValidUntil`, which
+  /// the server checks before it marks a quote sent or emails it (5.13.44,
+  /// `ServerFeatures.quoteValidUntil`). Unlike [isExpired] it ignores the
+  /// status: an approved quote past its date is still refused an email.
+  bool get hasLapsedValidUntil {
+    final due = dueDate;
+    return due != null && due.compareTo(Date.today()) < 0;
+  }
+
   bool get hasViewedInvitation => invitations.any((i) => i.hasBeenViewed);
 
   /// Any invitation whose email bounced or errored — drives the red

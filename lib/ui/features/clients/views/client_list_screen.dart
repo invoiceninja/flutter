@@ -12,7 +12,8 @@ import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/clients/view_models/client_edit_view_model.dart';
 import 'package:admin/ui/features/clients/view_models/client_list_view_model.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
-import 'package:admin/ui/features/clients/widgets/client_bulk_update_dialog.dart';
+import 'package:admin/domain/bulk_update_columns.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 import 'package:admin/ui/features/clients/widgets/client_list_column_headers.dart';
 import 'package:admin/ui/features/clients/widgets/client_list_empty_state.dart';
 import 'package:admin/ui/features/clients/widgets/client_list_tile.dart';
@@ -159,9 +160,13 @@ class ClientListScreen extends StatelessWidget {
           singleSuccessKey: 'updated_client',
           pluralSuccessKey: 'updated_clients',
           nothingKey: 'nothing_to_update',
-          prepare: showClientBulkUpdateDialog,
+          prepare: _showClientBulkUpdate,
         ),
       ],
     );
   }
 }
+
+/// Top-level (not a closure) so it stays a const tear-off in `bulkActions`.
+Future<BulkUpdate?> _showClientBulkUpdate(BuildContext context) =>
+    showBulkUpdateDialog(context, entity: kBulkUpdateClient);

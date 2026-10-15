@@ -648,6 +648,12 @@ class _EntityWiring {
         }
         return null;
       },
+      // POST /tasks/bulk action:bulk_update — the list's Bulk Update.
+      MutationKind.bulkUpdate: bulkUpdateHandler<TaskItemApi, TaskApi>(
+        tasksApi,
+        (item) => item.data,
+        taskRepo.clearLocalDirty,
+      ),
       ...documentMutationHandlers<TaskApi>(
         documentsApi: reg.ctx.documentsApi,
         upload: tasksApi.uploadDocument,
@@ -774,6 +780,12 @@ class _EntityWiring {
         );
         return response?.data;
       },
+      // POST /expenses/bulk action:bulk_update — the list's Bulk Update.
+      MutationKind.bulkUpdate: bulkUpdateHandler<ExpenseItemApi, ExpenseApi>(
+        expensesApi,
+        (item) => item.data,
+        expenseRepo.clearLocalDirty,
+      ),
       ...documentMutationHandlers<ExpenseApi>(
         documentsApi: reg.ctx.documentsApi,
         upload: expensesApi.uploadDocument,
@@ -1842,6 +1854,13 @@ _wireRecurringInvoice(_EntityWiring reg) {
         entity: 'recurring_invoices',
       ),
       ...reactivateEmailHandlers<RecurringInvoiceApi>(reg.ctx.emailsApi),
+      // POST /recurring_invoices/bulk action:bulk_update — the list's Bulk Update.
+      MutationKind.bulkUpdate:
+          bulkUpdateHandler<RecurringInvoiceItemApi, RecurringInvoiceApi>(
+            recurringInvoicesApi,
+            (item) => item.data,
+            recurringInvoiceRepo.clearLocalDirty,
+          ),
       ...documentMutationHandlers<RecurringInvoiceApi>(
         documentsApi: reg.ctx.documentsApi,
         upload: recurringInvoicesApi.uploadDocument,
@@ -2254,23 +2273,37 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
   );
 }
 
-/// `POST /clients/bulk action:bulk_update` handler — extracted as a factory so
-/// the null-echo reconciliation below is unit-testable (the inline-closure
-/// form had no seam; precedent: [setDefaultDesignHandlers]).
-///
-/// `bulkActionOne` returns the item envelope, so unwrap `.data` for the
-/// dispatcher to upsert (clearing the optimistic `is_dirty` the repo wrote).
-/// A NULL echo means the server's re-query omitted the row (deleted /
-/// filtered server-side while the mutation was queued) — there is nothing to
-/// upsert, so mirror the archive/restore null-echo reconciliation (L8,
-/// base_entity_sync_dispatcher.dart) and clear the dirty flag directly:
-/// leaving it set would exempt the row from every future refresh, freezing
-/// the optimistic value on screen forever.
+/// `POST /clients/bulk action:bulk_update` handler — see [bulkUpdateHandler].
+/// Kept as a named factory: the null-echo test reaches it by this name.
 CustomMutationHandler<ClientApi> clientBulkUpdateHandler(
   ClientsApi clientsApi,
   ClientRepository clientRepo,
+) => bulkUpdateHandler<ClientItemApi, ClientApi>(
+  clientsApi,
+  (item) => item.data,
+  clientRepo.clearLocalDirty,
+);
+
+/// `POST /<entity>/bulk action:bulk_update` handler — one per entity with a
+/// Bulk Update (clients, tasks, expenses, recurring invoices). Extracted as a
+/// factory so the null-echo reconciliation below is unit-testable (the
+/// inline-closure form had no seam; precedent: [setDefaultDesignHandlers]).
+///
+/// `bulkActionOne` returns the item envelope, so unwrap it with [dataOf] for
+/// the dispatcher to upsert (clearing the optimistic `is_dirty` the repo
+/// wrote). A NULL echo means the server's re-query omitted the row (deleted /
+/// filtered server-side while the mutation was queued) — there is nothing to
+/// upsert, so mirror the archive/restore
+/// null-echo reconciliation (L8, base_entity_sync_dispatcher.dart) and clear
+/// the dirty flag directly: leaving it set would exempt the row from every
+/// future refresh, freezing the optimistic value on screen forever.
+CustomMutationHandler<TInner> bulkUpdateHandler<TItem, TInner>(
+  BaseEntityApi<dynamic, TItem> api,
+  TInner Function(TItem item) dataOf,
+  Future<void> Function({required String companyId, required String id})
+  clearLocalDirty,
 ) => ({required row, required payload}) async {
-  final item = await clientsApi.bulkActionOne(
+  final item = await api.bulkActionOne(
     id: payload['id'] as String,
     action: 'bulk_update',
     idempotencyKey: row.idempotencyKey,
@@ -2280,11 +2313,8 @@ CustomMutationHandler<ClientApi> clientBulkUpdateHandler(
     },
   );
   if (item == null) {
-    await clientRepo.clearLocalDirty(
-      companyId: row.companyId,
-      id: row.entityId,
-    );
+    await clearLocalDirty(companyId: row.companyId, id: row.entityId);
     return null;
   }
-  return item.data;
+  return dataOf(item);
 };

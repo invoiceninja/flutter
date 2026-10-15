@@ -77,6 +77,11 @@ class QuoteListScreen extends StatelessWidget {
         savedViews: services.savedViews,
         clientId: clientId,
         projectId: projectId,
+        blocksLapsedSends: () => ServerFeatures.supports(
+          services.serverVersion.value,
+          ServerFeatures.quoteValidUntil,
+          isHosted: services.auth.session.value?.isHosted ?? false,
+        ),
       ),
       sortOptions: (context) => [
         SortOption(id: QuoteFieldIds.number, label: context.tr('number')),
@@ -174,20 +179,20 @@ class QuoteListScreen extends StatelessWidget {
           pluralSuccessKey: 'converted_quotes',
           nothingKey: 'nothing_to_update',
         ),
-        if (ServerFeatures.supports(
-          context.read<Services>().serverVersion.value,
-          ServerFeatures.quoteCancel,
-          isHosted:
-              context.read<Services>().auth.session.value?.isHosted ?? false,
-        ))
-          const EntityListBulkAction(
-            actionId: 'cancel',
-            icon: Icons.block_outlined,
-            tooltipKey: 'cancel_quote',
-            singleSuccessKey: 'cancelled_quote',
-            pluralSuccessKey: 'cancelled_quotes',
-            nothingKey: 'nothing_to_cancel',
+        EntityListBulkAction(
+          actionId: 'cancel',
+          icon: Icons.block_outlined,
+          tooltipKey: 'cancel_quote',
+          singleSuccessKey: 'cancelled_quote',
+          pluralSuccessKey: 'cancelled_quotes',
+          nothingKey: 'nothing_to_cancel',
+          isAvailable: (context) => ServerFeatures.supports(
+            context.read<Services>().serverVersion.value,
+            ServerFeatures.quoteCancel,
+            isHosted:
+                context.read<Services>().auth.session.value?.isHosted ?? false,
           ),
+        ),
         EntityListBulkAction(
           actionId: 'email',
           icon: Icons.email_outlined,

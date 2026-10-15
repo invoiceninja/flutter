@@ -152,7 +152,19 @@ class QuoteActions {
         false;
     final canCreate = me?.can('create_quote') ?? false;
     final canDelete = canEdit;
-    final canMarkSent = canEdit && quote.isDraft;
+    // A quote past its valid-until date can't go out: the server 422s Mark
+    // Sent and every email of one (`Quote::hasLapsedValidUntil`), which would
+    // leave a dead outbox row. Clone resets the date, so that stays the way
+    // forward. Not on an older server, which still sends them.
+    final lapsedBlocked =
+        quote.hasLapsedValidUntil &&
+        ServerFeatures.supports(
+          context.read<Services>().serverVersion.value,
+          ServerFeatures.quoteValidUntil,
+          isHosted:
+              context.read<Services>().auth.session.value?.isHosted ?? false,
+        );
+    final canMarkSent = canEdit && quote.isDraft && !lapsedBlocked;
     // Approve any non-terminal quote (draft or sent) — matches React
     // (`Draft || Sent`) and admin-portal (`!isApproved`); excludes
     // approved / converted / rejected / cancelled. No explicit
@@ -229,7 +241,11 @@ class QuoteActions {
         label: context.tr('send_email'),
         // Sending a cancelled quote to the client is meaningless — mirrors
         // `InvoiceActions.canEmail`.
-        enabled: canEdit && (me?.maySendEmails ?? false) && !quote.isCancelled,
+        enabled:
+            canEdit &&
+            (me?.maySendEmails ?? false) &&
+            !quote.isCancelled &&
+            !lapsedBlocked,
         onTap: () => onTap(QuoteAction.sendEmail),
       ),
       EntityActionItem(

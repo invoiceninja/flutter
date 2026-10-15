@@ -17,7 +17,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - OIDC sign-in — the callback hardcodes the React SPA, so no Flutter client (native **or** web) can complete it (**O**, blocks self-hosted SSO; same shape as the calendar-connect fix).
 - OAuth re-authentication (`X-API-OAUTH-PASSWORD`) can never pass for a **Google** user — it wants an `id_token` the client can't produce, and its `Hash::check` arguments are swapped (**O**, § OAuth re-authentication; client offers Apple re-auth only).
 - Bulk `ids` are now existence-checked, so one stale id 422s the whole batch (**O**, shared-cache UX).
-- `POST /api/v1/tasks/bulk` with `action=bulk_update` always **500s** — `Collection::first()` returns a model, not a collection (**R**, server bug; not client-triggerable today).
+- `POST /api/v1/tasks/bulk` with `action=bulk_update` always **500s** — `Collection::first()` returns a model, not a collection (**SHIPPED** 2026-09-23, `87528bcf0c`, v5.13.44; the client now offers task Bulk Update on servers that have it).
 - Company write — partial login envelope + full-replace PUT force a client fetch-gate (**O**).
 - E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**SHIPPED** 2026-09-08; the `in:` list now carries `government`).
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
@@ -29,7 +29,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) — the target's name now lands in `notes` (`fd8cd8ad6c`), but the template still reads `":user created user :user"` (**half shipped**, § F6; the client fills the second slot from `notes`).
 - `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
-- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
+- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**merged** as #12278, v5.13.44, but not yet live on `invoicing.co`: both documents 404 on 2026-10-15; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 - `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
@@ -264,7 +264,7 @@ same `whereIn('status_id', explode(',', $v))` to Quote/Credit/Payment/
 PurchaseOrder/RecurringInvoice filters for cross-entity consistency. Low
 priority — the official clients use the computed `client_status` for these.
 
-### F1. `QuoteFilters::client_status` — missing `rejected` — **O**
+### F1. `QuoteFilters::client_status` — missing `rejected` — **SHIPPED (server-side)**
 
 `client_status` handles `sent / draft / approved / expired / upcoming /
 converted` but has **no `rejected` branch**, so `client_status=rejected`
@@ -295,6 +295,13 @@ about `rejected` alone. The v2 client ships `cancelled` as a server-backed tab
 *and* chip and `rejected` as a local-only tab, which is the asymmetry this
 section explains; see `docs/entity-lists.md` § Quote `rejected` is a tab but
 not a chip.
+
+**UPDATE 2026-10-15 — shipped.** The `rejected` branch landed a day after the
+note above (`0809d57ea1`, 2026-09-23, tagged v5.13.44), in both
+`QuoteFilters::client_status` and `BaseExport::addQuoteStatusFilter`. **Client
+follow-up, not yet done:** the Rejected tab can declare
+`client_status: {'rejected'}`, leave `list_status_tabs_test`'s `localOnly` set,
+and become a chip — behind a ≥ 5.13.44 gate for self-hosted servers.
 
 ### F2. `app/Filters/PaymentFilters.php` — `company_gateway_id` — **O**
 
@@ -2001,7 +2008,13 @@ action. No client change is planned beyond making sure the server's message
 reaches the user; a client-side existence pre-check is not possible offline and
 would race even when online.
 
-## `POST /api/v1/tasks/bulk` with `action=bulk_update` always 500s — **R (server bug)**
+## `POST /api/v1/tasks/bulk` with `action=bulk_update` always 500s — **SHIPPED (server-side)**
+
+**UPDATE 2026-10-15.** Fixed upstream as asked (`87528bcf0c`, 2026-09-23, tagged
+v5.13.44): the guard is now `->company()->get()->contains(fn => cannot edit)`.
+The client wires task Bulk Update behind `ServerFeatures.taskBulkUpdate`
+(5.13.44; hosted always). The malformed `new_value` rule noted at the end is
+still there, and still harmless.
 
 Found 2026-09-08 by source inspection; not client-triggerable today (the v2
 client only wires `bulk_update` for clients and recurring invoices), reported
@@ -2560,7 +2573,13 @@ export / email / schedule, because the CSV would otherwise carry a raw epoch and
 `BaseExport::groupRows` groups on the exact value with no date bucketing. React
 has no workaround and shows no such column at all.
 
-## Reports: `addQuoteStatusFilter` has no `cancelled` arm — **O**
+## Reports: `addQuoteStatusFilter` has no `cancelled` arm — **SHIPPED (server-side)**
+
+**UPDATE 2026-10-15.** Fixed upstream (`87528bcf0c` / `0809d57ea1`, 2026-09-23,
+tagged v5.13.44): the method now has both a `cancelled` and a `rejected` arm.
+**Client follow-up, not yet done:** the report status filter can stop leaving
+quote `cancelled` out (`lib/domain/reports/report_filter_options.dart`), behind
+a ≥ 5.13.44 gate for self-hosted servers.
 
 **Provenance** — 2026-09-22, alongside the quote-cancellation client work,
 verified against `v5-develop` HEAD.
@@ -2620,7 +2639,13 @@ control from a per-report table mirroring each export's `$date_key`, and
 deliberately renders nothing for `project` or `aged_receivable_summary_report`
 rather than naming a column the server ignores.
 
-## App Links — `.well-known` documents + an `/app/{path}` bridge page — **R (PR written, unmerged)**
+## App Links — `.well-known` documents + an `/app/{path}` bridge page — **merged, not yet live**
+
+**UPDATE 2026-10-15.** Merged upstream as #12278 (`8fd1cb0508`, tagged v5.13.44;
+routes in `routes/web.php`, config under `ninja.app_links.*`). Not deployed on
+`invoicing.co` yet: both `/.well-known/assetlinks.json` and
+`/.well-known/apple-app-site-association` returned 404 on 2026-10-15. See
+`APP_LINKS.md` for the deploy order once they serve.
 
 **Provenance** — 2026-09-14, invoiceninja/flutter#144, written against `v5-develop`
 and verified with live probes of `invoicing.co`.

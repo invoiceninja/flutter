@@ -86,6 +86,22 @@ class ServerFeatures {
   /// Absent from v5-stable 5.13.43's `BulkActionQuoteRequest`.
   static const String quoteCancel = '5.13.44';
 
+  /// The server refuses to mark sent or email a quote whose valid-until date
+  /// has passed, and to save one with a past valid-until on create or when the
+  /// date changes (`Quote::hasLapsedValidUntil`, `IsExpiredRule`). Shipped in
+  /// the same commit as [quoteCancel]; an older server sends lapsed quotes.
+  static const String quoteValidUntil = '5.13.44';
+
+  /// A client's Check VAT (`POST /clients/{id}/check_vat`, then
+  /// `GET /clients/{id}/vat_status`) and Check PEPPOL delivery
+  /// (`POST /clients/{id}/peppol_discovery`), React #3415.
+  static const String clientVerificationChecks = '5.13.45';
+
+  /// Task `bulk_update`: the column list has been in `statics.bulk_updates`
+  /// since 2025, but `TaskController::bulk` 500'd on it until 5.13.44
+  /// (`87528bcf0c`), so an older server would dead-letter every row.
+  static const String taskBulkUpdate = '5.13.44';
+
   /// `GET /tasks?activity_dates=start,end` — tasks with a time entry in the
   /// range, not just those that *start* in it (React #3378).
   static const String taskActivityDates = '5.13.43';

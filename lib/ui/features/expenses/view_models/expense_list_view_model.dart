@@ -7,6 +7,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
+import 'package:admin/ui/features/bulk_update/bulk_update_dialog.dart';
 
 /// List ViewModel for the Expenses screen. Mirrors `ProjectListViewModel` —
 /// pagination/search/sort/multiselect/columns all live on the generic base.
@@ -141,6 +142,29 @@ class ExpenseListViewModel extends GenericListViewModel<Expense> {
       archive: (id) => repo.archive(companyId: companyId, id: id),
       restore: (id) => repo.restore(companyId: companyId, id: id),
       delete: (id) => repo.delete(companyId: companyId, id: id),
+    ),
+    // Mass-edit one whitelisted field across the selection; the prep dialog
+    // supplies the `BulkUpdate`. Archived is editable; deleted isn't.
+    BulkAction<Expense>(
+      id: 'bulk_update',
+      labelKey: 'bulk_update',
+      eligible: (e) => !isDeleted(e),
+      applyArg: (id, arg) async {
+        final update = arg as BulkUpdate;
+        // The row can leave the loaded window while the dialog is open (a
+        // re-sort, a sync); read it back rather than count it done unwritten.
+        final expense =
+            loadedItemById(id) ??
+            await repo.watch(companyId: companyId, id: id).first;
+        if (expense == null) throw StateError('No local expense $id');
+        await repo.bulkUpdate(
+          companyId: companyId,
+          expense: expense,
+          column: update.column,
+          newValue: update.newValue,
+          projectClientId: update.projectClientId,
+        );
+      },
     ),
     // Selection-level (React #3382): the list screen's `onSelection` builds
     // one invoice from the whole selection; `eligible` drives the

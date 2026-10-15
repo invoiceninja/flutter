@@ -21,9 +21,18 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
     super.now,
     this.clientId,
     this.projectId,
-  });
+    bool Function()? blocksLapsedSends,
+  }) : _blocksLapsedSends = blocksLapsedSends ?? _never;
 
   final QuoteRepository repo;
+
+  /// Whether the server refuses to mark sent or email a quote past its
+  /// valid-until date (`ServerFeatures.quoteValidUntil`). Asked per bulk run,
+  /// not once, since the server's version is unknown until a response lands.
+  final bool Function() _blocksLapsedSends;
+  static bool _never() => false;
+
+  bool _sendBlocked(Quote q) => q.hasLapsedValidUntil && _blocksLapsedSends();
 
   /// When non-null, scopes the watch + fetch to one client. Used by the
   /// embedded list inside `ClientDetailScreen`'s Quotes tab.
@@ -145,7 +154,8 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
       confirm: true,
       id: 'mark_sent',
       labelKey: 'mark_sent',
-      eligible: (q) => q.isDraft && !isDeleted(q),
+      // `BulkActionQuoteRequest` 422s the whole request if any id has lapsed.
+      eligible: (q) => q.isDraft && !_sendBlocked(q) && !isDeleted(q),
       apply: (id) => repo.markSent(companyId: companyId, id: id),
     ),
     BulkAction<Quote>(
@@ -191,8 +201,9 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
     BulkAction<Quote>(
       id: 'email',
       labelKey: 'email',
-      // `!isCancelled` mirrors the single-record Send Email gate.
-      eligible: (q) => !q.isCancelled && !isDeleted(q),
+      // `!isCancelled` and the lapsed check mirror the single-record Send
+      // Email gate in `quote_actions.dart`.
+      eligible: (q) => !q.isCancelled && !_sendBlocked(q) && !isDeleted(q),
       applyArg: (id, arg) {
         final r = arg as BillingEmailResult;
         final scheduledFor = r.scheduledFor;

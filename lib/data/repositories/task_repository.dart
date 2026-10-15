@@ -369,6 +369,45 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     return SaveResult(entity: task, outboxRowId: rowId);
   }
 
+  /// Mass-update one whitelisted column on [task] — the `bulk_update` bulk
+  /// action, fired once per selected task by the list view model. Writes the
+  /// patched row to Drift (`is_dirty=true`) so the change shows at once, then
+  /// queues a per-id `MutationKind.bulkUpdate` row carrying `column` +
+  /// `new_value`. See `ClientRepository.bulkUpdate`, which this mirrors —
+  /// including not deduplicating, since two bulk updates may set different
+  /// columns.
+  ///
+  /// An invoiced task is left alone: `TaskRepository::bulkUpdate` filters to
+  /// `invoice_id IS NULL`, so a local patch would show a change the server
+  /// never makes. [projectClientId] is the picked project's client, which the
+  /// server moves the task onto with it.
+  Future<void> bulkUpdate({
+    required String companyId,
+    required Task task,
+    required String column,
+    required String newValue,
+    String? projectClientId,
+  }) async {
+    if (task.invoiceId.isNotEmpty) return;
+    final patched = taskWithBulkUpdate(
+      task,
+      column,
+      newValue,
+      projectClientId: projectClientId,
+    );
+    await db.transaction(() async {
+      await db.taskDao.upsert(
+        _domainToCompanion(patched, companyId, isDirty: true),
+      );
+      await enqueueMutation(
+        companyId: companyId,
+        entityId: task.id,
+        kind: MutationKind.bulkUpdate,
+        payload: {'id': task.id, 'column': column, 'new_value': newValue},
+      );
+    });
+  }
+
   /// Surgical "stop the running entry, save through the outbox" — used by
   /// the global running-timer pill, where building the modified `Task`
   /// inline in the widget would duplicate the read-modify-write the repo
@@ -943,4 +982,30 @@ enum TaskStartResult {
 
   /// Nothing to do — missing, invoiced, deleted, or already running.
   noop,
+}
+
+/// [t] with a `bulk_update` [column] applied the way the server applies it
+/// (`TaskRepository::bulkUpdate`): a new client drops the project, and a
+/// project brings its client ([projectClientId], when known).
+Task taskWithBulkUpdate(
+  Task t,
+  String column,
+  String newValue, {
+  String? projectClientId,
+}) {
+  switch (column) {
+    case 'status_id':
+      return t.copyWith(statusId: newValue);
+    case 'assigned_user_id':
+      return t.copyWith(assignedUserId: newValue);
+    case 'client_id':
+      return t.copyWith(clientId: newValue, projectId: '');
+    case 'project_id':
+      return t.copyWith(
+        projectId: newValue,
+        clientId: projectClientId ?? t.clientId,
+      );
+    default:
+      throw ArgumentError('Unsupported task bulk_update column: $column');
+  }
 }

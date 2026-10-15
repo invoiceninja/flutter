@@ -34,6 +34,7 @@ class InDateField extends StatefulWidget {
     this.clearable = false,
     this.dense = false,
     this.semanticLabel,
+    this.errorText,
   });
 
   /// The currently-set date (calendar date — any time-of-day is ignored
@@ -100,6 +101,10 @@ class InDateField extends StatefulWidget {
   /// [labelText] — its column header names it. An empty field still reads its
   /// example-date hint, as a hint.
   final String? semanticLabel;
+
+  /// Inline error under the field — a server 422 or a form's own validation,
+  /// keyed by the field's API name (`vm.fieldErrorFor('due_date')`).
+  final String? errorText;
 
   @override
   State<InDateField> createState() => _InDateFieldState();
@@ -287,6 +292,7 @@ class _InDateFieldState extends State<InDateField> {
         isDense: true,
         labelText: widget.labelText,
         hintText: _hint(),
+        errorText: widget.errorText,
         contentPadding: dense
             ? const EdgeInsets.all(8)
             : EdgeInsets.symmetric(

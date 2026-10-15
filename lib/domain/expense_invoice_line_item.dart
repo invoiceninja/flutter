@@ -30,6 +30,11 @@ import 'package:admin/data/models/domain/expense.dart';
 /// per-tier tax under both exclusive and (single-tier) inclusive invoices, so
 /// the invoice keeps its per-tax-name breakdown / tax reporting instead of
 /// folding the tax silently into `cost`. The line total is unchanged either way.
+///
+/// The expense's four custom values carry over slot for slot, as the server
+/// does when it invoices a project's expenses (`ProjectRepository`) and React
+/// does for "Invoice expense" — the line then shows them under the company's
+/// `product1..4` labels, an expense line being a product row.
 LineItem expenseInvoiceLineItem(
   Expense expense, {
   required bool invoiceInclusive,
@@ -44,6 +49,10 @@ LineItem expenseInvoiceLineItem(
     notes: expense.publicNotes,
     quantity: Decimal.one,
     cost: base * fx,
+    customValue1: expense.customValue1,
+    customValue2: expense.customValue2,
+    customValue3: expense.customValue3,
+    customValue4: expense.customValue4,
   );
 
   // In rate mode the stored rate is authoritative; in by-amount mode derive a

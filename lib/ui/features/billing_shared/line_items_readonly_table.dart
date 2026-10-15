@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
@@ -32,6 +33,11 @@ const double _kGap = 10;
 /// Line total renders `gross` (`cost × quantity`, pre-discount/pre-tax) to
 /// match what the edit table shows per row; document-level discount/tax land
 /// in the totals card below.
+///
+/// A line's custom values ("Color: Red") read under its description rather
+/// than as columns: product and hourly lines share this table but label their
+/// four values from different company fields (`product1..4` / `task1..4`), so
+/// no single header could name a slot.
 class LineItemsReadonlyTable extends StatelessWidget {
   const LineItemsReadonlyTable({
     super.key,
@@ -40,6 +46,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
     this.currencyId,
     this.discountIsAmount = false,
     this.labels = const CompanyLabels.empty(),
+    this.customFields,
   });
 
   final List<LineItem> items;
@@ -53,6 +60,10 @@ class LineItemsReadonlyTable extends StatelessWidget {
   /// The company's Custom Labels, applied to the header row exactly as the
   /// edit table applies them (`LineItemColumnConfig.labels`).
   final CompanyLabels labels;
+
+  /// The company's `custom_fields` definitions, naming each line's custom
+  /// values. Null (company not loaded yet) shows none.
+  final Map<String, String>? customFields;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +181,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
           // (`<div class="project-header">`, `<br/>`); strip it for display
           // so the column reads as text, not tags. See
           // `lineItemNotesPlainText`.
-          _flexCell(4, _notesText(it), tokens, color: tokens.ink2),
+          _descriptionCell(context, it, tokens),
           _numCell(_kQtyW, _qty(it.quantity), tokens),
           _numCell(_kCostW, _money(it.cost), tokens),
           if (showDiscount)
@@ -204,6 +215,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
       if (showTax && _hasTax(it)) '${context.tr('tax')}: ${_taxLabel(it)}',
     ];
     final notes = _notesText(it);
+    final custom = _customSummary(context, it);
     final title = it.productKey.isNotEmpty
         ? it.productKey
         // One line only for the title — the rest of the note follows in the
@@ -247,6 +259,10 @@ class LineItemsReadonlyTable extends StatelessWidget {
             const SizedBox(height: 2),
             Text(notes, style: TextStyle(fontSize: 12, color: tokens.ink2)),
           ],
+          if (custom.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(custom, style: _customStyle(tokens)),
+          ],
           const SizedBox(height: 4),
           Text(
             meta.join('   ·   '),
@@ -277,6 +293,52 @@ class LineItemsReadonlyTable extends StatelessWidget {
   );
 
   // ── Cell helpers ─────────────────────────────────────────────────────────
+
+  /// The wide layout's Description column: the notes, then the line's custom
+  /// values. Neither is capped to fewer lines than the notes always had —
+  /// this is the one place a value too long for the edit table can be read.
+  Widget _descriptionCell(BuildContext context, LineItem it, InTheme tokens) {
+    final custom = _customSummary(context, it);
+    if (custom.isEmpty) {
+      return _flexCell(4, _notesText(it), tokens, color: tokens.ink2);
+    }
+    final notes = _notesText(it);
+    return Expanded(
+      flex: 4,
+      child: Padding(
+        padding: const EdgeInsets.only(right: _kGap),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (notes.isNotEmpty) ...[
+              Text(
+                notes,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: tokens.ink2),
+              ),
+              const SizedBox(height: 2),
+            ],
+            Text(custom, style: _customStyle(tokens)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// `Label: value` for each custom value [it] holds, labelled from the
+  /// company's `task1..4` for an hourly line and `product1..4` otherwise.
+  String _customSummary(BuildContext context, LineItem it) =>
+      lineItemCustomValueRows(
+        it,
+        lineItemCustomFields(customFields, task: lineItemUsesTaskFields(it)),
+        yes: context.tr('yes'),
+        no: context.tr('no'),
+        formatter: formatter,
+      ).map((r) => '${r.label}: ${r.value}').join('   ·   ');
+
+  TextStyle _customStyle(InTheme tokens) =>
+      TextStyle(fontSize: 11.5, color: tokens.ink3);
 
   Widget _flexHead(int flex, String text, InTheme tokens) => Expanded(
     flex: flex,

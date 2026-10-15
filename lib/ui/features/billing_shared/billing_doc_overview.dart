@@ -139,6 +139,7 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
           currencyId: currencyId,
           discountIsAmount: totalsInput.isAmountDiscount,
           labels: CompanyLabels.fromCompany(company),
+          customFields: company?.customFields,
         ),
         SizedBox(height: gap),
         LayoutBuilder(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -86,6 +87,7 @@ class LineItemCardListMobile extends StatelessWidget {
       initial: items[index],
       config: config,
       useComma: useComma,
+      formatter: fmt,
     );
     if (result == null) return;
     // The dialog is a route, so the host can go away under it — a company
@@ -121,8 +123,10 @@ class LineItemCardListMobile extends StatelessWidget {
       initial: newItemFactory(),
       config: config,
       useComma: useComma,
+      formatter: fmt,
       titleKey: 'add_line',
       actionKey: 'add',
+      autofocusProduct: true,
     );
     if (result == null) return;
     if (!context.mounted) return;
@@ -195,6 +199,7 @@ class LineItemCardListMobile extends StatelessWidget {
           index: index,
           companyId: companyId,
           currencyId: currencyId,
+          customFields: config.customFields,
           errors: rowErrors?[index],
           onTap: () => _openEditor(context, index),
           onRemove: () => _remove(index),
@@ -300,6 +305,7 @@ class _ItemCard extends StatelessWidget {
     required this.index,
     required this.companyId,
     required this.currencyId,
+    required this.customFields,
     required this.errors,
     required this.onTap,
     required this.onRemove,
@@ -310,6 +316,11 @@ class _ItemCard extends StatelessWidget {
   final int index;
   final String companyId;
   final String? currencyId;
+
+  /// The company's custom fields for this list — see
+  /// `LineItemColumnConfig.customFields`. The ones this line holds a value in
+  /// are summarised under its name.
+  final List<LineItemCustomField> customFields;
 
   /// This row's server errors (field → message), or null.
   final Map<String, String>? errors;
@@ -338,6 +349,17 @@ class _ItemCard extends StatelessWidget {
         ? (summary.isEmpty ? context.tr('untitled') : summary)
         : item.productKey;
     final detail = '${fmt(item.cost)} × ${item.quantity}';
+    // Directly under the name: the values describe the item ("Color: Red"),
+    // where `cost × qty` describes the charge. Labels stay — a bare "Yes" means
+    // nothing — and two lines, because the identity column is ~158 px on a
+    // phone and one line cut off everything after the first field.
+    final customSummary = lineItemCustomValueRows(
+      item,
+      customFields,
+      yes: context.tr('yes'),
+      no: context.tr('no'),
+      formatter: formatter,
+    ).map((r) => '${r.label}: ${r.value}').join(' · ');
     final errorText = errors == null || errors!.isEmpty
         ? null
         : errors!.values.join(' · ');
@@ -380,6 +402,15 @@ class _ItemCard extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    if (customSummary.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        customSummary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: tokens.ink2, fontSize: 12),
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Text(
                       detail,

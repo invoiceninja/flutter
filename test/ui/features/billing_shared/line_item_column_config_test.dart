@@ -14,11 +14,13 @@ void main() {
     int taxRates = 0,
     bool discount = true,
     Map<String, dynamic>? translations,
+    Map<String, String> customFields = const {},
   }) => Company(
     id: 'co',
     enabledItemTaxRates: taxRates,
     enableProductDiscount: discount,
     settings: CompanySettings(translations: translations),
+    customFields: customFields,
   );
 
   group('tax columns', () {
@@ -99,6 +101,39 @@ void main() {
 
     test('a company with no translations narrows to no overrides', () {
       expect(host.forCompany(company()).labels['unit_cost'], isNull);
+    });
+  });
+
+  group('custom fields', () {
+    // The config had four `showCustom` flags that nothing ever set, so the
+    // product custom values a line carried were never shown or editable
+    // anywhere — the report was a customer on iOS who could not see them.
+    const defined = {
+      'product1': 'Color|Red,Blue',
+      'product3': 'Serial',
+      'task2': 'Phase|single_line_text',
+    };
+
+    test('a product table gets the company product1..4, in slot order', () {
+      final fields = host
+          .forCompany(company(customFields: defined))
+          .customFields;
+      expect(fields.map((f) => f.slot), [1, 3]);
+      expect(fields.map((f) => f.field.label), ['Color', 'Serial']);
+    });
+
+    test('a task table gets task1..4 instead', () {
+      const tasks = LineItemColumnConfig(isTaskTable: true);
+      final fields = tasks
+          .forCompany(company(customFields: defined))
+          .customFields;
+      expect(fields.map((f) => f.slot), [2]);
+      expect(fields.single.field.label, 'Phase');
+    });
+
+    test('none defined, or the company not loaded yet → no columns', () {
+      expect(host.forCompany(company()).customFields, isEmpty);
+      expect(host.forCompany(null).customFields, isEmpty);
     });
   });
 

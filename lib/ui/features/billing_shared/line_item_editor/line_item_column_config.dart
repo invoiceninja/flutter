@@ -1,20 +1,17 @@
+import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/ui/core/utils/company_labels.dart';
 
 /// Which optional columns the [LineItemEditor] shows. Driven from the
 /// active company's settings; built once per edit-screen mount.
 ///
-/// The four custom slots map to `company.customFields['product1'..]`
-/// (admin-portal calls these line-item customs, even though the keys
-/// reference product fields). The discount column hides when the company
-/// has product discounts disabled. Tax columns count is 0..3 — the
-/// company's tax-rate enablement bitmask drives this.
+/// The custom-field columns come from the company's `product1..4` — or
+/// `task1..4` on a task table — see [customFields]. The discount column hides
+/// when the company has product discounts disabled. Tax columns count is
+/// 0..3 — the company's tax-rate enablement bitmask drives this.
 class LineItemColumnConfig {
   const LineItemColumnConfig({
-    this.showCustom1 = false,
-    this.showCustom2 = false,
-    this.showCustom3 = false,
-    this.showCustom4 = false,
+    this.customFields = const [],
     this.taxColumnCount = 1,
     this.showDiscount = false,
     this.useTaxCategories = false,
@@ -22,11 +19,15 @@ class LineItemColumnConfig {
     this.isTaskTable = false,
   });
 
-  /// Show the four invoice-line custom-value columns. Each is independent.
-  final bool showCustom1;
-  final bool showCustom2;
-  final bool showCustom3;
-  final bool showCustom4;
+  /// The company's configured custom fields for this table, in slot order —
+  /// one column on the desktop table and one field in the edit dialog each.
+  /// Empty until [forCompany] resolves them, and empty for a company that
+  /// defines none.
+  ///
+  /// The line item stored `customValue1..4` all along — a product picked
+  /// from the phone picker copied its values in — but nothing ever turned a
+  /// slot on, so no surface showed or edited them.
+  final List<LineItemCustomField> customFields;
 
   /// How many of the three tax-rate slots to surface. 0 hides taxes
   /// entirely; 1..3 progressively shows tax_name1/rate1 through 3.
@@ -87,29 +88,30 @@ class LineItemColumnConfig {
   /// (`settings.translations`) reach the headers — the server, React and
   /// admin-portal all honor them and this app was storing them without ever
   /// reading them back (invoiceninja/flutter#84).
+  ///
+  /// And where the custom fields arrive: `product1..4`, or `task1..4` for a
+  /// task table, the labels React and admin-portal use for the same columns.
   LineItemColumnConfig forCompany(Company? company) => company == null
       ? this
       : copyWith(
           showDiscount: showDiscount && company.enableProductDiscount,
           taxColumnCount: company.enabledItemTaxRates.clamp(0, 3),
           labels: CompanyLabels.fromCompany(company),
+          customFields: lineItemCustomFields(
+            company.customFields,
+            task: isTaskTable,
+          ),
         );
 
   LineItemColumnConfig copyWith({
-    bool? showCustom1,
-    bool? showCustom2,
-    bool? showCustom3,
-    bool? showCustom4,
+    List<LineItemCustomField>? customFields,
     int? taxColumnCount,
     bool? showDiscount,
     bool? useTaxCategories,
     CompanyLabels? labels,
     bool? isTaskTable,
   }) => LineItemColumnConfig(
-    showCustom1: showCustom1 ?? this.showCustom1,
-    showCustom2: showCustom2 ?? this.showCustom2,
-    showCustom3: showCustom3 ?? this.showCustom3,
-    showCustom4: showCustom4 ?? this.showCustom4,
+    customFields: customFields ?? this.customFields,
     taxColumnCount: taxColumnCount ?? this.taxColumnCount,
     showDiscount: showDiscount ?? this.showDiscount,
     useTaxCategories: useTaxCategories ?? this.useTaxCategories,

@@ -7,6 +7,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/country.dart';
 import 'package:admin/data/models/value/currency.dart';
@@ -218,6 +219,64 @@ void main() {
 
       expect(find.text('No records found'), findsOneWidget);
     });
+
+    // A line's custom values were shown nowhere in the app. Product and hourly
+    // lines share this table but take their labels from different company
+    // fields, so each line names its own.
+    group('custom values', () {
+      const definitions = {
+        'product1': 'Color|Red,Blue',
+        'product2': 'Warranty|switch',
+        'task1': 'Phase|single_line_text',
+      };
+      final product = _item().copyWith(
+        customValue1: 'Red',
+        customValue2: 'yes',
+      );
+      final hourly = _item(
+        productKey: 'Design',
+      ).copyWith(typeId: LineItemType.task, customValue1: 'Discovery');
+
+      for (final width in [1200.0, 420.0]) {
+        final layout = width > 600 ? 'wide' : 'stacked';
+        testWidgets('$layout: each line labelled from its own fields', (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.reset);
+          await pump(
+            tester,
+            LineItemsReadonlyTable(
+              items: [product, hourly],
+              formatter: _usdFormatter(),
+              currencyId: '1',
+              customFields: definitions,
+            ),
+          );
+          await tester.pump();
+
+          expect(find.text('Color: Red   ·   Warranty: Yes'), findsOneWidget);
+          expect(find.text('Phase: Discovery'), findsOneWidget);
+        });
+      }
+
+      testWidgets('nothing extra before the company has loaded', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          LineItemsReadonlyTable(
+            items: [product],
+            formatter: _usdFormatter(),
+            currencyId: '1',
+          ),
+        );
+        await tester.pump();
+
+        expect(find.textContaining('Color'), findsNothing);
+      });
+    });
   });
 
   group('BillingDocOverview', () {
@@ -327,6 +386,34 @@ void main() {
 
       expect(find.text('Unit Price'), findsOneWidget);
       expect(find.text('Unit Cost'), findsNothing);
+    });
+
+    testWidgets('names line custom values from the watched company', (
+      tester,
+    ) async {
+      // Pins the overview's hand-off of `company.customFields` to the table —
+      // the table tests build it directly and can't see that wiring.
+      await pump(
+        tester,
+        SingleChildScrollView(
+          child: BillingDocOverview(
+            totalsInput: BillingTotalsInput(
+              lineItems: [_item().copyWith(customValue1: 'Red')],
+              discount: Decimal.zero,
+              isAmountDiscount: false,
+              usesInclusiveTaxes: false,
+            ),
+            precision: 2,
+            balance: Decimal.parse('100'),
+            formatter: _usdFormatter(),
+            currencyId: '1',
+          ),
+        ),
+        company: const Company(customFields: {'product1': 'Color|Red,Blue'}),
+      );
+      await tester.pump();
+
+      expect(find.text('Color: Red'), findsOneWidget);
     });
   });
 }

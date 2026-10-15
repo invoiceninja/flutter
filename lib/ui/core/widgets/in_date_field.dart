@@ -32,6 +32,8 @@ class InDateField extends StatefulWidget {
     this.firstDate,
     this.lastDate,
     this.clearable = false,
+    this.dense = false,
+    this.semanticLabel,
   });
 
   /// The currently-set date (calendar date — any time-of-day is ignored
@@ -76,6 +78,28 @@ class InDateField extends StatefulWidget {
   /// (clear + picker buttons side-by-side). Avoid in tight table cells
   /// where the suffix would crowd the value.
   final bool clearable;
+
+  /// Render as a cell of an inline-editable table rather than a form field:
+  /// borderless at rest with an accent underline on focus, 13 px text, 8 px
+  /// padding — the look of the line-item table's text cells, which this sits
+  /// between — and only the calendar glyph, kept out of the Tab order so the
+  /// cell costs one stop like its neighbours.
+  ///
+  /// A dense field never draws the `×`; with [clearable] set, emptying the
+  /// text and leaving the cell clears the date instead. The outlined field is
+  /// ~49 px tall and its two suffix buttons are 56 px wide, which is most of a
+  /// table column.
+  ///
+  /// The calendar button sits beside the text field rather than in its
+  /// decoration — outside [semanticLabel]'s merge, so a screen reader can still
+  /// reach it — and is shrink-wrapped to 28 px: on touch the padded target
+  /// would lay it out at 40 and push the row past its neighbours.
+  final bool dense;
+
+  /// With [dense], announced as the text field's name: a dense cell has no
+  /// [labelText] — its column header names it. An empty field still reads its
+  /// example-date hint, as a hint.
+  final String? semanticLabel;
 
   @override
   State<InDateField> createState() => _InDateFieldState();
@@ -216,7 +240,10 @@ class _InDateFieldState extends State<InDateField> {
   @override
   Widget build(BuildContext context) {
     final suffixChildren = <Widget>[];
-    if (widget.clearable && widget.value != null && widget.enabled) {
+    if (widget.clearable &&
+        !widget.dense &&
+        widget.value != null &&
+        widget.enabled) {
       suffixChildren.add(
         IconButton(
           iconSize: 16,
@@ -233,45 +260,71 @@ class _InDateFieldState extends State<InDateField> {
         ),
       );
     }
-    suffixChildren.add(
-      IconButton(
-        iconSize: 16,
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-        icon: const Icon(Icons.date_range),
-        tooltip: context.tr('select_date'),
-        onPressed: widget.enabled ? _openPicker : null,
-      ),
+    final dense = widget.dense;
+    final calendar = IconButton(
+      iconSize: 16,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      style: dense
+          ? IconButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            )
+          : null,
+      icon: const Icon(Icons.date_range),
+      tooltip: context.tr('select_date'),
+      onPressed: widget.enabled ? _openPicker : null,
     );
-
-    return TextField(
+    if (!dense) suffixChildren.add(calendar);
+    final field = TextField(
       controller: _controller,
       focusNode: _focusNode,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
       textAlignVertical: TextAlignVertical.center,
-      style: const TextStyle(fontSize: 14),
+      style: TextStyle(fontSize: dense ? 13 : 14),
       decoration: InputDecoration(
         isDense: true,
         labelText: widget.labelText,
         hintText: _hint(),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: InSpacing.md(context),
-          vertical: 14,
-        ),
-        border: _border(context),
-        enabledBorder: _border(context),
-        suffixIcon: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: suffixChildren,
-        ),
+        contentPadding: dense
+            ? const EdgeInsets.all(8)
+            : EdgeInsets.symmetric(
+                horizontal: InSpacing.md(context),
+                vertical: 14,
+              ),
+        border: dense ? InputBorder.none : _border(context),
+        enabledBorder: dense ? InputBorder.none : _border(context),
+        focusedBorder: dense
+            ? UnderlineInputBorder(
+                borderSide: BorderSide(color: context.inTheme.accent, width: 2),
+              )
+            : null,
+        suffixIcon: dense
+            ? null
+            : Row(mainAxisSize: MainAxisSize.min, children: suffixChildren),
         suffixIconConstraints: const BoxConstraints(
           minWidth: 28,
           minHeight: 28,
         ),
       ),
       onSubmitted: (_) => _commitTyped(),
+    );
+    if (!dense) return field;
+    final label = widget.semanticLabel;
+    return Row(
+      children: [
+        Expanded(
+          child: label == null
+              ? field
+              : MergeSemantics(
+                  child: Semantics(label: label, child: field),
+                ),
+        ),
+        // Kept out of the Tab order so the cell costs one stop like its
+        // neighbours; typing a date is the keyboard path.
+        ExcludeFocus(child: calendar),
+      ],
     );
   }
 }

@@ -9,14 +9,21 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_custom_fields.dart';
+import 'package:admin/data/models/domain/custom_field_types.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/edit/custom_field_input.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
+import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/picker_dismissal.dart';
+import 'package:admin/ui/core/widgets/scroll_edge_fades.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
@@ -36,6 +43,54 @@ const double _kDragColWidth = 24;
 // 48 px `kMinInteractiveDimension`). A `minHeight` rather than a fixed
 // height so a row can still grow to show an inline `errorText`.
 const double _kRowContentHeight = 34;
+
+/// Width of a custom-field column, by the field's type.
+///
+/// Fixed, where every built-in column but Item / Description is one flex
+/// unit: a flex-1 column is ~40 px at the 700 px gate with three taxes and
+/// two custom fields, ~4 characters of text, and a dropdown or a date cannot
+/// fit at all. A fixed width keeps the value readable and lets the table say
+/// it is wider than its pane by scrolling (see [_minTableWidth]) rather than
+/// crushing every column. Sized to the content each type holds: a checkbox
+/// (and room for a one-word header over it), a short value, an option and its
+/// ▾, a formatted date (`05/Mar/2026` at its longest) beside its 28 px
+/// calendar button, a few words.
+double _customColumnWidth(ParsedCustomField field) => switch (field.type) {
+  kFieldTypeSwitch => 80,
+  kFieldTypeDropdown => 120,
+  kFieldTypeDate => 136,
+  kFieldTypeMultiLineText => 144,
+  _ => 112,
+};
+
+/// The narrowest a flex unit may get before the table scrolls instead — about
+/// what a company on three item taxes already gets on an iPad in landscape.
+const double _kMinFlexUnitWidth = 48;
+
+/// Dropdown-typed custom fields with more options than this get a
+/// type-to-search cell instead of a menu (CLAUDE.md § Searchable pickers).
+const int _kMaxMenuOptions = 20;
+
+/// The width below which the table scrolls sideways, or 0 for "never".
+///
+/// Only a company with custom fields scrolls: their fixed-width columns are
+/// what can starve the flex columns, and a table without them keeps the
+/// layout it has always had at every width.
+double _minTableWidth(BuildContext context, LineItemColumnConfig config) {
+  if (config.customFields.isEmpty) return 0;
+  // Item 3 + Description 3 + Unit Cost + Quantity + Line Total, then the
+  // optional discount and tax columns — the flexes `_Row` lays out.
+  final flexUnits = 9 + (config.showDiscount ? 1 : 0) + config.taxColumnCount;
+  var width =
+      InSpacing.lg(context) * 2 +
+      _kDragColWidth +
+      _kTrailingColWidth +
+      flexUnits * _kMinFlexUnitWidth;
+  for (final custom in config.customFields) {
+    width += _customColumnWidth(custom.field);
+  }
+  return width;
+}
 
 /// Controller for [LineItemTableDesktop]. Hosted by the per-entity edit
 /// layout so it can register [flushPending] as a `beforeSave` hook on
@@ -498,6 +553,27 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
             const SizedBox(width: _kDragColWidth - 20),
             cell(item?.productKey ?? '', flex: 3),
             cell(item?.notes ?? '', flex: 3),
+            for (final custom in widget.config.customFields)
+              SizedBox(
+                width: _customColumnWidth(custom.field),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  child: Text(
+                    item == null
+                        ? ''
+                        : displayCustomFieldValue(
+                            type: custom.field.type,
+                            value: lineItemCustomValue(item, custom.slot),
+                            yes: context.tr('yes'),
+                            no: context.tr('no'),
+                            formatter: _formatter,
+                          ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: tokens.ink, fontSize: 13),
+                  ),
+                ),
+              ),
             cell(
               item == null ? '' : dec(item.cost),
               align: Alignment.centerRight,
@@ -562,195 +638,204 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Column(
-                children: [
-                  _ColumnHeader(config: widget.config),
-                  Divider(height: 1, color: tokens.border),
-                  ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    buildDefaultDragHandles: false,
-                    itemCount: _rows.length,
-                    onReorderItem: _onReorder,
-                    onReorderStart: (_) {
-                      // Close any open product/tax dropdown before the drag
-                      // so it doesn't float over the proxy. This is the
-                      // normal supported focus-loss path (RawAutocomplete
-                      // hides its overlay via its own lifecycle) — no
-                      // re-entrant widget swap.
-                      FocusManager.instance.primaryFocus?.unfocus();
-                    },
-                    proxyDecorator: (child, index, animation) {
-                      // Deliberately ignore `child` (the live, autocomplete-
-                      // bearing row subtree). ReorderableListView would
-                      // otherwise inflate it a second time into the drag
-                      // overlay while it still exists in the list, duplicating
-                      // RawAutocomplete's internal Overlay/GlobalKey and
-                      // tripping `_retakeInactiveElement`. A self-contained
-                      // static snapshot has no overlay/GlobalKey, so no
-                      // duplication is possible. (The original row renders as
-                      // a SizedBox while dragging — see Flutter
-                      // reorderable_list.dart _ReorderableItem.build.)
-                      return AnimatedBuilder(
-                        animation: animation,
-                        builder: (context, _) {
-                          final t = Curves.easeInOut.transform(animation.value);
-                          return Material(
-                            elevation: lerpDouble(0, 6, t)!,
-                            color: tokens.surface,
-                            shadowColor: Colors.black26,
-                            borderRadius: BorderRadius.circular(InRadii.r2),
-                            child: _dragSnapshot(context, index, tokens),
-                          );
-                        },
-                      );
-                    },
-                    itemBuilder: (context, index) {
-                      // `_items`, not the props: `_emit` reconciles `_rows`
-                      // (which drives `itemCount`) against the list it just
-                      // emitted, and the parent's rebuild lands a frame later.
-                      // Reading the props here left the two disagreeing for
-                      // that frame, so a just-promoted row rendered as the
-                      // ghost — wrong `current`, suppressed row errors and an
-                      // off-by-one `lastRealIndex`.
-                      final items = _items;
-                      final isGhost = index >= items.length;
-                      final row = _rows[index];
-                      final current = isGhost
-                          ? widget.newItemFactory()
-                          : items[index];
-                      final errors = isGhost ? null : widget.rowErrors?[index];
-                      return _Row(
-                        key: ValueKey(row.id),
-                        index: index,
-                        isLast: index == _rows.length - 1,
-                        isGhost: isGhost,
-                        lastRealIndex: items.length - 1,
-                        config: widget.config,
-                        companyId: widget.companyId,
-                        company: company,
-                        showStockQuantity: widget.showStockQuantity,
-                        useComma: _useComma,
-                        formatter: _formatter,
-                        currencyId: widget.currencyId,
-                        row: row,
-                        currentItem: current,
-                        errors: errors,
-                        services: services,
-                        onCellCommit: (next) {
-                          if (isGhost && next.isBlank) return;
-                          _applyRow(index, next);
-                        },
-                        onProductSelected: (product) {
-                          final base = isGhost
-                              ? widget.newItemFactory()
-                              : items[index];
-                          final merged = (company?.fillProducts ?? false)
-                              ? _mergeProductInto(
-                                  base,
-                                  product,
-                                  company: company,
-                                  conversionRate: widget.productConversionRate,
-                                )
-                              : base.copyWith(productKey: product.productKey);
-                          _applyRow(index, merged);
-                          // Advance focus to the description cell so the
-                          // user can immediately add notes after picking
-                          // a product (otherwise focus stays in the
-                          // autocomplete and the user has to Tab manually).
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            if (index < _rows.length) {
-                              _rows[index].notesFocus.requestFocus();
-                            }
-                          });
-                        },
-                        onCreateProduct: (query) async {
-                          try {
-                            final created = (await services.products.create(
-                              companyId: widget.companyId,
-                              draft: emptyProductWithKey(query),
-                            )).entity;
-                            if (!context.mounted) return;
+              _SidewaysScrollWhenNarrow(
+                minWidth: _minTableWidth(context, widget.config),
+                fadeColor: tokens.surface,
+                child: Column(
+                  children: [
+                    _ColumnHeader(config: widget.config),
+                    Divider(height: 1, color: tokens.border),
+                    ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      buildDefaultDragHandles: false,
+                      itemCount: _rows.length,
+                      onReorderItem: _onReorder,
+                      onReorderStart: (_) {
+                        // Close any open product/tax dropdown before the drag
+                        // so it doesn't float over the proxy. This is the
+                        // normal supported focus-loss path (RawAutocomplete
+                        // hides its overlay via its own lifecycle) — no
+                        // re-entrant widget swap.
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      },
+                      proxyDecorator: (child, index, animation) {
+                        // Deliberately ignore `child` (the live, autocomplete-
+                        // bearing row subtree). ReorderableListView would
+                        // otherwise inflate it a second time into the drag
+                        // overlay while it still exists in the list, duplicating
+                        // RawAutocomplete's internal Overlay/GlobalKey and
+                        // tripping `_retakeInactiveElement`. A self-contained
+                        // static snapshot has no overlay/GlobalKey, so no
+                        // duplication is possible. (The original row renders as
+                        // a SizedBox while dragging — see Flutter
+                        // reorderable_list.dart _ReorderableItem.build.)
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, _) {
+                            final t = Curves.easeInOut.transform(
+                              animation.value,
+                            );
+                            return Material(
+                              elevation: lerpDouble(0, 6, t)!,
+                              color: tokens.surface,
+                              shadowColor: Colors.black26,
+                              borderRadius: BorderRadius.circular(InRadii.r2),
+                              child: _dragSnapshot(context, index, tokens),
+                            );
+                          },
+                        );
+                      },
+                      itemBuilder: (context, index) {
+                        // `_items`, not the props: `_emit` reconciles `_rows`
+                        // (which drives `itemCount`) against the list it just
+                        // emitted, and the parent's rebuild lands a frame later.
+                        // Reading the props here left the two disagreeing for
+                        // that frame, so a just-promoted row rendered as the
+                        // ghost — wrong `current`, suppressed row errors and an
+                        // off-by-one `lastRealIndex`.
+                        final items = _items;
+                        final isGhost = index >= items.length;
+                        final row = _rows[index];
+                        final current = isGhost
+                            ? widget.newItemFactory()
+                            : items[index];
+                        final errors = isGhost
+                            ? null
+                            : widget.rowErrors?[index];
+                        return _Row(
+                          key: ValueKey(row.id),
+                          index: index,
+                          isLast: index == _rows.length - 1,
+                          isGhost: isGhost,
+                          lastRealIndex: items.length - 1,
+                          config: widget.config,
+                          companyId: widget.companyId,
+                          company: company,
+                          showStockQuantity: widget.showStockQuantity,
+                          useComma: _useComma,
+                          formatter: _formatter,
+                          currencyId: widget.currencyId,
+                          row: row,
+                          currentItem: current,
+                          errors: errors,
+                          services: services,
+                          onCellCommit: (next) {
+                            if (isGhost && next.isBlank) return;
+                            _applyRow(index, next);
+                          },
+                          onProductSelected: (product) {
                             final base = isGhost
                                 ? widget.newItemFactory()
                                 : items[index];
-                            _applyRow(
-                              index,
-                              (company?.fillProducts ?? false)
-                                  ? _mergeProductInto(
-                                      base,
-                                      created,
-                                      company: company,
-                                      conversionRate:
-                                          widget.productConversionRate,
-                                    )
-                                  : base.copyWith(
-                                      productKey: created.productKey,
-                                    ),
-                            );
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            Notify.error(
-                              context,
-                              context.tr('could_not_save'),
-                              error: e,
-                            );
-                          }
-                        },
-                        onMenuAction: (action) {
-                          switch (action) {
-                            case _RowAction.createTask:
-                              _createTask(index);
-                            case _RowAction.clone:
-                              _clone(index);
-                            case _RowAction.insertBelow:
-                              _insertBelow(index);
-                            case _RowAction.moveUp:
-                              _move(index, index - 1);
-                            case _RowAction.moveDown:
-                              _move(index, index + 1);
-                            case _RowAction.moveTop:
-                              _move(index, 0);
-                            case _RowAction.moveBottom:
-                              _move(index, items.length - 1);
-                            case _RowAction.remove:
-                              _remove(index);
-                          }
-                        },
-                        // A row that already IS a task can't be scheduled
-                        // again. Deliberately NOT gated on `isBlank`: that
-                        // reads the debounce-stale props and would hide the
-                        // action from the row the user just typed into.
-                        // `!isGhost` is belt-and-braces — the menu isn't
-                        // rendered for the ghost row and its right-click is
-                        // disabled — but `_createTask` would no-op on it, so
-                        // keep the intent local rather than load-bearing at a
-                        // distance.
-                        canCreateTask:
-                            !isGhost &&
-                            widget.onCreateTaskFromLineItem != null &&
-                            (current.taskId ?? '').isEmpty,
-                        onTabFromLastCell: () {
-                          if (isGhost) {
-                            _addBlankRow();
-                          } else if (index == items.length - 1 &&
-                              items.last.isBlank == false) {
-                            // Falling through into the ghost row — its
-                            // first cell receives focus naturally. No-op.
-                          }
-                        },
-                      );
-                    },
-                  ),
-                  Divider(height: 1, color: tokens.border),
-                  // The redundant "+ Add item" button was removed — the
-                  // synthetic trailing ghost row promotes itself on first
-                  // keystroke, Tab from the last cell adds another row,
-                  // and bulk adds go through the items-section FAB →
-                  // line-item picker. `_addBlankRow` survives because
-                  // it's still called by `onTabFromLastCell`.
-                ],
+                            final merged = (company?.fillProducts ?? false)
+                                ? _mergeProductInto(
+                                    base,
+                                    product,
+                                    company: company,
+                                    conversionRate:
+                                        widget.productConversionRate,
+                                  )
+                                : base.copyWith(productKey: product.productKey);
+                            _applyRow(index, merged);
+                            // Advance focus to the description cell so the
+                            // user can immediately add notes after picking
+                            // a product (otherwise focus stays in the
+                            // autocomplete and the user has to Tab manually).
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              if (index < _rows.length) {
+                                _rows[index].notesFocus.requestFocus();
+                              }
+                            });
+                          },
+                          onCreateProduct: (query) async {
+                            try {
+                              final created = (await services.products.create(
+                                companyId: widget.companyId,
+                                draft: emptyProductWithKey(query),
+                              )).entity;
+                              if (!context.mounted) return;
+                              final base = isGhost
+                                  ? widget.newItemFactory()
+                                  : items[index];
+                              _applyRow(
+                                index,
+                                (company?.fillProducts ?? false)
+                                    ? _mergeProductInto(
+                                        base,
+                                        created,
+                                        company: company,
+                                        conversionRate:
+                                            widget.productConversionRate,
+                                      )
+                                    : base.copyWith(
+                                        productKey: created.productKey,
+                                      ),
+                              );
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              Notify.error(
+                                context,
+                                context.tr('could_not_save'),
+                                error: e,
+                              );
+                            }
+                          },
+                          onMenuAction: (action) {
+                            switch (action) {
+                              case _RowAction.createTask:
+                                _createTask(index);
+                              case _RowAction.clone:
+                                _clone(index);
+                              case _RowAction.insertBelow:
+                                _insertBelow(index);
+                              case _RowAction.moveUp:
+                                _move(index, index - 1);
+                              case _RowAction.moveDown:
+                                _move(index, index + 1);
+                              case _RowAction.moveTop:
+                                _move(index, 0);
+                              case _RowAction.moveBottom:
+                                _move(index, items.length - 1);
+                              case _RowAction.remove:
+                                _remove(index);
+                            }
+                          },
+                          // A row that already IS a task can't be scheduled
+                          // again. Deliberately NOT gated on `isBlank`: that
+                          // reads the debounce-stale props and would hide the
+                          // action from the row the user just typed into.
+                          // `!isGhost` is belt-and-braces — the menu isn't
+                          // rendered for the ghost row and its right-click is
+                          // disabled — but `_createTask` would no-op on it, so
+                          // keep the intent local rather than load-bearing at a
+                          // distance.
+                          canCreateTask:
+                              !isGhost &&
+                              widget.onCreateTaskFromLineItem != null &&
+                              (current.taskId ?? '').isEmpty,
+                          onTabFromLastCell: () {
+                            if (isGhost) {
+                              _addBlankRow();
+                            } else if (index == items.length - 1 &&
+                                items.last.isBlank == false) {
+                              // Falling through into the ghost row — its
+                              // first cell receives focus naturally. No-op.
+                            }
+                          },
+                        );
+                      },
+                    ),
+                    Divider(height: 1, color: tokens.border),
+                    // The redundant "+ Add item" button was removed — the
+                    // synthetic trailing ghost row promotes itself on first
+                    // keystroke, Tab from the last cell adds another row,
+                    // and bulk adds go through the items-section FAB →
+                    // line-item picker. `_addBlankRow` survives because
+                    // it's still called by `onTabFromLastCell`.
+                  ],
+                ),
               ),
             ],
           ),
@@ -777,6 +862,74 @@ LineItem _mergeProductInto(
   defaultQuantity: company?.defaultQuantity ?? false,
   conversionRate: conversionRate,
 );
+
+/// Lays [child] out at [minWidth] and scrolls it sideways when the pane is
+/// narrower; otherwise hands it the pane's width untouched.
+///
+/// React's table does the same. The alternative — dropping to the phone card
+/// list — would mean the cards/table gate (and the Items-tab button that
+/// follows it, `lineItemEditorShowsWideTable`) learning about the company's
+/// custom fields, and an iPad in landscape losing the table the moment one
+/// custom field exists. The fades say there is more to the right, which is
+/// where Line Total starts on a narrow pane.
+class _SidewaysScrollWhenNarrow extends StatefulWidget {
+  const _SidewaysScrollWhenNarrow({
+    required this.minWidth,
+    required this.fadeColor,
+    required this.child,
+  });
+
+  final double minWidth;
+  final Color fadeColor;
+  final Widget child;
+
+  @override
+  State<_SidewaysScrollWhenNarrow> createState() =>
+      _SidewaysScrollWhenNarrowState();
+}
+
+class _SidewaysScrollWhenNarrowState extends State<_SidewaysScrollWhenNarrow> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scrolls = constraints.maxWidth < widget.minWidth;
+        // One shape whether or not it scrolls, so crossing the threshold — a
+        // window resize, a custom field arriving with the company — never
+        // re-parents [child] and tears down the rows' editors, focus and
+        // pending debounced edits. Only the scroll extent changes.
+        return Scrollbar(
+          controller: _scroll,
+          thumbVisibility: scrolls,
+          // Draggable everywhere. On Android it isn't by default, and there a
+          // swipe that starts on a text cell is claimed by the field's own
+          // drag-to-select, which leaves the thumb as the way across.
+          interactive: true,
+          child: ScrollEdgeFades(
+            color: widget.fadeColor,
+            child: SingleChildScrollView(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              physics: scrolls ? null : const NeverScrollableScrollPhysics(),
+              child: SizedBox(
+                width: scrolls ? widget.minWidth : constraints.maxWidth,
+                child: widget.child,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _ColumnHeader extends StatelessWidget {
   const _ColumnHeader({required this.config});
@@ -829,6 +982,32 @@ class _ColumnHeader extends StatelessWidget {
           // string — see `LineItemColumnConfig.labels`.
           cell(label('item'), flex: 3),
           cell(label('description'), flex: 3),
+          // The company's own words, verbatim — not a translation key and not
+          // a Custom Label. One line: a user label in a fixed column would
+          // otherwise wrap over two or three, so the full text is a tooltip.
+          for (final custom in config.customFields)
+            SizedBox(
+              key: ValueKey('custom_${custom.slot}'),
+              width: _customColumnWidth(custom.field),
+              child: Tooltip(
+                message: custom.field.label,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: _kCellPadH,
+                    end: _kCellPadH,
+                  ),
+                  child: Text(
+                    custom.field.label.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: custom.field.type == kFieldTypeSwitch
+                        ? TextAlign.center
+                        : TextAlign.start,
+                    style: style,
+                  ),
+                ),
+              ),
+            ),
           cell(label('unit_cost'), align: Alignment.centerRight),
           cell(label('quantity'), align: Alignment.centerRight),
           if (config.showDiscount)
@@ -880,6 +1059,15 @@ class _RowState {
   final TextEditingController quantity = TextEditingController();
   final TextEditingController discount = TextEditingController();
 
+  /// The text-typed custom-field cells, by slot - 1. All four exist whatever
+  /// the company defines, so a field added mid-edit has one to bind to; an
+  /// unbound one is never written back (see [buildItem]).
+  final List<TextEditingController> custom = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
+  final List<FocusNode> customFocus = List.generate(4, (_) => FocusNode());
+
   final FocusNode productFocus = FocusNode();
   final FocusNode notesFocus = FocusNode();
   final FocusNode costFocus = FocusNode();
@@ -897,6 +1085,7 @@ class _RowState {
   String _seedCost = '';
   String _seedQty = '';
   String _seedDiscount = '';
+  final List<String> _seedCustom = List.filled(4, '');
 
   /// Re-seed controllers when the parent's LineItem content changes
   /// (e.g. the user picked a product and we filled cost / notes).
@@ -926,6 +1115,21 @@ class _RowState {
       discount.text = discText;
       _seedDiscount = discText;
     }
+    for (var i = 0; i < 4; i++) {
+      final value = lineItemCustomValue(item, i + 1);
+      if (value == _seedCustom[i]) continue;
+      if (!customFocus[i].hasFocus) {
+        custom[i].text = value;
+        _seedCustom[i] = value;
+      } else if (custom[i].text == value) {
+        // The focused cell's own commit landing. Advance the seed without
+        // touching the text, or [buildItem] — which writes a custom value
+        // only when its text differs from the seed — would read the user
+        // clearing the cell back to the old seed as "no edit" and keep the
+        // value they just deleted.
+        _seedCustom[i] = value;
+      }
+    }
   }
 
   String _seedFor(Decimal d) => d == Decimal.zero ? '' : d.toString();
@@ -934,8 +1138,16 @@ class _RowState {
   /// commit the row on save / focus-out / explicit flush. The
   /// [useComma] flag honours the company's `use_comma_as_decimal_place`
   /// setting so EU users typing `1,50` produce 1.5 rather than 0.
+  ///
+  /// A custom value is written back only once its text differs from what was
+  /// last seeded into it — i.e. the user typed in it. A switch / date /
+  /// dropdown slot has no text cell, so its controller never diverges and the
+  /// value it commits on its own can't be overwritten here by stale text; and
+  /// no caller has to say which slots are text-typed. Untrimmed, unlike the
+  /// product key: a stored value with a trailing space would otherwise never
+  /// equal the item it came from, and every flush would re-dirty the document.
   LineItem buildItem(LineItem base, {bool useComma = false}) {
-    return base.copyWith(
+    var built = base.copyWith(
       productKey: product.text.trim(),
       notes: notes.text,
       cost:
@@ -952,6 +1164,13 @@ class _RowState {
           parseDecimal(discount.text, useCommaAsDecimalPlace: useComma) ??
           Decimal.zero,
     );
+    for (var i = 0; i < 4; i++) {
+      final text = custom[i].text;
+      if (text != _seedCustom[i]) {
+        built = withLineItemCustomValue(built, i + 1, text);
+      }
+    }
+    return built;
   }
 
   void scheduleCommit(VoidCallback commit) {
@@ -985,6 +1204,12 @@ class _RowState {
     cost.dispose();
     quantity.dispose();
     discount.dispose();
+    for (final c in custom) {
+      c.dispose();
+    }
+    for (final f in customFocus) {
+      f.dispose();
+    }
     productFocus.dispose();
     notesFocus.dispose();
     costFocus.dispose();
@@ -1096,6 +1321,109 @@ class _RowStateW extends State<_Row> {
       row.scheduleCommit(commitNow);
     }
 
+    // A custom value set by a switch, date or dropdown cell commits at once,
+    // on the row rebuilt from its live cells — the tax cell's pattern — so
+    // text still inside the 250 ms debounce rides along rather than reverting.
+    void commitCustom(int slot, String value) {
+      onCellCommit(
+        withLineItemCustomValue(
+          row.buildItem(currentItem, useComma: useComma),
+          slot,
+          value,
+        ),
+      );
+    }
+
+    // One fixed-width column per configured custom field, keyed by slot so a
+    // column arriving with the company row (a frame after the table) is
+    // inserted rather than re-pairing its neighbours' state by position.
+    //
+    // On the trailing ghost row only the text cells are live, like its
+    // other text cells: a tick on a switch there would promote a line holding
+    // nothing but `no`, which `isBlank` counts as content, so it would survive
+    // the save-time strip and print as an empty row.
+    Widget customCell(LineItemCustomField custom) {
+      final slot = custom.slot;
+      final field = custom.field;
+      final value = lineItemCustomValue(currentItem, slot);
+      final Widget cell;
+      switch (field.type) {
+        case kFieldTypeSwitch:
+          cell = _SwitchCell(
+            label: field.label,
+            value: isSwitchTruthy(value),
+            onChanged: isGhost
+                ? null
+                : (on) {
+                    if (on) return commitCustom(slot, kSwitchValueYes);
+                    // Off is `no`, as React and admin-portal store it — except
+                    // on a row with nothing else in it, where it clears the
+                    // slot: `isBlank` counts any custom value as content, so a
+                    // tick and untick on an inserted blank row would otherwise
+                    // keep a line the save-time strip can't drop.
+                    final rest = withLineItemCustomValue(
+                      row.buildItem(currentItem, useComma: useComma),
+                      slot,
+                      '',
+                    );
+                    commitCustom(slot, rest.isBlank ? '' : kSwitchValueNo);
+                  },
+          );
+        case kFieldTypeDate:
+          cell = InDateField(
+            dense: true,
+            clearable: true,
+            enabled: !isGhost,
+            semanticLabel: field.label,
+            formatter: formatter,
+            value: customFieldDate(value),
+            onChanged: (d) =>
+                commitCustom(slot, d == null ? '' : customFieldIsoDate(d)),
+          );
+        case kFieldTypeDropdown:
+          final options = customFieldDropdownItems(field, value);
+          final onChanged = isGhost
+              ? null
+              : (String v) => commitCustom(slot, v);
+          cell = field.options.length > _kMaxMenuOptions
+              ? _ChoiceSearchCell(
+                  label: field.label,
+                  options: options,
+                  value: value,
+                  onChanged: onChanged,
+                )
+              : _ChoiceMenuCell(
+                  label: field.label,
+                  options: options,
+                  value: value,
+                  onChanged: onChanged,
+                );
+        default:
+          // The cell's column is its header, so the hint carries the label
+          // for an empty cell and the semantics carry it for a filled one.
+          cell = MergeSemantics(
+            child: Semantics(
+              label: field.label,
+              child: _TextCell(
+                controller: row.custom[slot - 1],
+                focusNode: row.customFocus[slot - 1],
+                onChanged: scheduleCommit,
+                hintText: field.label,
+                maxLines: field.type == kFieldTypeMultiLineText ? 3 : 1,
+              ),
+            ),
+          );
+      }
+      return SizedBox(
+        key: ValueKey('custom_$slot'),
+        width: _customColumnWidth(field),
+        child: Padding(
+          padding: const EdgeInsets.only(right: _kCellPadH),
+          child: cell,
+        ),
+      );
+    }
+
     Widget endTotalCell() {
       final cost =
           parseDecimal(row.cost.text, useCommaAsDecimalPlace: useComma) ??
@@ -1204,6 +1532,7 @@ class _RowStateW extends State<_Row> {
                   ),
                 ),
               ),
+              for (final custom in config.customFields) customCell(custom),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(right: _kCellPadH),
@@ -1249,12 +1578,16 @@ class _RowStateW extends State<_Row> {
               // so a company on 2 or 3 item tax rates could not enter the
               // others at all on desktop while the mobile dialog offered them
               // — the same invoice totalling differently by viewport.
+              //
+              // Keyed on the `Expanded`, not the cell inside it: the `Row`
+              // matches its own children, so a key one level down could not
+              // keep a tax cell's state when a column is inserted before it.
               for (var slot = 1; slot <= config.taxColumnCount; slot++)
                 Expanded(
+                  key: ValueKey('tax_$slot'),
                   child: Padding(
                     padding: const EdgeInsets.only(right: _kCellPadH),
                     child: _TaxCell(
-                      key: ValueKey('tax_$slot'),
                       companyId: companyId,
                       services: services,
                       formatter: formatter,
@@ -1439,13 +1772,26 @@ class _TextCell extends StatelessWidget {
     required this.focusNode,
     required this.onChanged,
     this.hintKey,
+    this.hintText,
     this.errorText,
+    this.maxLines = 1,
   });
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onChanged;
+
+  /// A translation key for the hint.
   final String? hintKey;
+
+  /// A hint shown as given — a company's custom-field label, which is the
+  /// user's own text and must not be looked up as a translation key.
+  final String? hintText;
   final String? errorText;
+
+  /// Above 1 the cell grows with its text up to this many lines (a
+  /// multi-line custom field); the row is floored with `minHeight`, so it
+  /// grows with it.
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1454,10 +1800,12 @@ class _TextCell extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onChanged: (_) => onChanged(),
+      minLines: 1,
+      maxLines: maxLines,
       textAlignVertical: TextAlignVertical.center,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
-        hintText: hintKey == null ? null : context.tr(hintKey!),
+        hintText: hintText ?? (hintKey == null ? null : context.tr(hintKey!)),
         errorText: errorText,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
@@ -2236,9 +2584,407 @@ class _ProductCreate implements _ProductOption {
 
 /// Inline tax dropdown — small list (rarely > 30 rates), so we materialize
 /// the watch and feed an `Autocomplete<TaxRate>` for filterable picking.
+/// A switch-typed custom field: a compact checkbox centred in its column.
+///
+/// The whole cell takes the tap, so the compact box (32 px, shrink-wrapped —
+/// on touch the padded 48 px target would grow every row by 14 px) is not
+/// the only thing to hit. Null [onChanged] disables it.
+class _SwitchCell extends StatelessWidget {
+  const _SwitchCell({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final onChanged = this.onChanged;
+    return Tooltip(
+      message: label,
+      // The checkbox's `semanticLabel` already names it.
+      excludeFromSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // The checkbox carries the semantics, label and toggle action both.
+        excludeFromSemantics: true,
+        onTap: onChanged == null ? null : () => onChanged(!value),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: _kRowContentHeight),
+          child: Center(
+            child: Checkbox(
+              value: value,
+              onChanged: onChanged == null
+                  ? null
+                  : (v) => onChanged(v ?? false),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              semanticLabel: label,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A dropdown-typed custom field, as a menu of its [options].
+///
+/// Not `SearchableDropdownField`, which the edit dialog uses: its ✕ + ▾
+/// suffix alone is 72–96 px, its outlined field ~56 px tall — wider than the
+/// column and taller than the row — and `RawAutocomplete` lays its popover
+/// out at the field's width, a 120 px list. A menu sizes to its options,
+/// raises no keyboard on a tablet and is one Tab stop. Styled like the tax
+/// cell beside it: borderless, the label as the empty cell's hint, a ▾.
+///
+/// [options] leads with the blank (`customFieldDropdownItems`), which clears
+/// the value. Null [onChanged] disables the cell.
+class _ChoiceMenuCell extends StatelessWidget {
+  const _ChoiceMenuCell({
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<String> options;
+  final String value;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final onChanged = this.onChanged;
+    return BackDismissibleMenuAnchor(
+      menuChildren: [
+        for (final option in options)
+          MenuItemButton(
+            onPressed: onChanged == null ? null : () => onChanged(option),
+            leadingIcon: SizedBox(
+              width: 18,
+              child: option == value && option.isNotEmpty
+                  ? Icon(Icons.check, size: 16, color: tokens.ink)
+                  : null,
+            ),
+            child: Text(
+              option.isEmpty ? context.tr('none') : option,
+              style: TextStyle(
+                fontSize: 13,
+                color: option.isEmpty ? tokens.ink3 : tokens.ink,
+              ),
+            ),
+          ),
+      ],
+      builder: (context, controller, _) {
+        final toggle = onChanged == null
+            ? null
+            : () => controller.isOpen ? controller.close() : controller.open();
+        // One node — "Color, Blue, button" — rather than the label and value
+        // here followed by the same value again from the Text below.
+        return Semantics(
+          button: true,
+          enabled: toggle != null,
+          label: label,
+          value: value,
+          onTap: toggle,
+          excludeSemantics: true,
+          // A local Material, or the InkWell's focus / hover / press ink paints
+          // on the Scaffold's — under the table's opaque surface and the row's
+          // hover fill, a Tab stop nobody can see (the `Ink` rule,
+          // docs/sidebar-and-shell.md).
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: toggle,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: _kRowContentHeight,
+                ),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: _kCellPadH),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          value.isEmpty ? label : value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: value.isEmpty ? tokens.ink3 : tokens.ink,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.arrow_drop_down, size: 18, color: tokens.ink3),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A dropdown-typed custom field with more options than a menu should list
+/// (`_kMaxMenuOptions`): typed to filter, like the tax cell.
+///
+/// The rules `docs/pickers.md` records for `SearchableDropdownField`, applied
+/// to a cell that can't be one (its suffix and height don't fit a row):
+///  * the idle list leads with the stored value and ends with the blank, so
+///    the default highlight — row 0, which Enter picks — keeps the value
+///    rather than clearing it, and text equal to the value is not a query;
+///  * a tap re-opens the whole list, by writing the text away and back —
+///    `RawAutocomplete` recomputes options only on a text change;
+///  * re-picking the value already held closes the list — `_select` returns
+///    early on an unchanged selection, before it hides the overlay;
+///  * leaving the cell keeps a typed option's exact name and puts anything
+///    else back to the stored value.
+class _ChoiceSearchCell extends StatefulWidget {
+  const _ChoiceSearchCell({
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<String> options;
+  final String value;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<_ChoiceSearchCell> createState() => _ChoiceSearchCellState();
+}
+
+class _ChoiceSearchCellState extends State<_ChoiceSearchCell> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  /// `RawAutocomplete` clamps the old highlight onto a new list rather than
+  /// resetting it, so a list recomputed after the user arrowed down would
+  /// leave Enter on whatever row that index now holds. Held, not read once:
+  /// see `SearchableDropdownField._highlight`.
+  ValueNotifier<int>? _highlight;
+  bool _resetHighlight = false;
+
+  /// The text the options were last built for. `optionsBuilder` also runs on a
+  /// caret move, and resetting the highlight then would undo the arrow keys.
+  String? _optionsText;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(_ChoiceSearchCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && widget.value != oldWidget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  List<String> _idle() => [
+    if (widget.value.isNotEmpty) widget.value,
+    for (final o in widget.options)
+      if (o.isNotEmpty && o != widget.value) o,
+    '',
+  ];
+
+  Iterable<String> _optionsFor(TextEditingValue text) {
+    if (text.text != _optionsText) {
+      _optionsText = text.text;
+      _resetHighlight = true;
+    }
+    final q = text.text.trim().toLowerCase();
+    if (q.isEmpty || text.text == widget.value) return _idle();
+    return widget.options.where(
+      (o) => o.isNotEmpty && o.toLowerCase().contains(q),
+    );
+  }
+
+  void _commit(String option) {
+    if (option == widget.value) {
+      _controller.text = widget.value;
+      _focusNode.unfocus();
+      return;
+    }
+    widget.onChanged?.call(option);
+  }
+
+  void _reopen() {
+    // A mid-edit tap places a caret in the user's own query; leave it be.
+    if (_controller.text != widget.value) return;
+    if (_controller.value.isComposingRangeValid) return;
+    final text = _controller.text;
+    // Writing an identical value notifies nobody, so an empty field needs a
+    // non-empty sentinel or the bounce does nothing.
+    _controller.value = TextEditingValue(text: text.isEmpty ? ' ' : '');
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection(baseOffset: 0, extentOffset: text.length),
+    );
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) return;
+    final typed = _controller.text.trim().toLowerCase();
+    if (typed.isNotEmpty && typed != widget.value.toLowerCase()) {
+      for (final o in widget.options) {
+        if (o.toLowerCase() == typed) {
+          _controller.text = o;
+          widget.onChanged?.call(o);
+          return;
+        }
+      }
+    }
+    if (_controller.text != widget.value) _controller.text = widget.value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final onChanged = widget.onChanged;
+    return RawAutocomplete<String>(
+      textEditingController: _controller,
+      focusNode: _focusNode,
+      displayStringForOption: (o) => o,
+      optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
+      optionsBuilder: _optionsFor,
+      onSelected: _commit,
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          enabled: onChanged != null,
+          // On native touch nothing else can close the popover — see
+          // `picker_dismissal.dart`. On desktop this is the SDK default.
+          onTapOutside: dismissPickerOnTapOutside(focusNode),
+          onTap: _reopen,
+          onSubmitted: (_) => onFieldSubmitted(),
+          textAlignVertical: TextAlignVertical.center,
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            hintText: widget.label,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: _kCellPadH,
+              vertical: _kCellPadH,
+            ),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: tokens.accent, width: 2),
+            ),
+            suffixIcon: ExcludeSemantics(
+              child: Icon(Icons.arrow_drop_down, size: 18, color: tokens.ink3),
+            ),
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
+            ),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        final highlighted = AutocompleteHighlightedOption.of(context);
+        _highlight = context
+            .dependOnInheritedWidgetOfExactType<AutocompleteHighlightedOption>()
+            ?.notifier;
+        if (_resetHighlight) {
+          _resetHighlight = false;
+          // Post-frame: writing the notifier mid-build would rebuild its
+          // dependents mid-build.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _highlight?.value = 0;
+          });
+        }
+        return BackDismissiblePickerOverlay(
+          focusNode: _focusNode,
+          child: Material(
+            elevation: 4,
+            color: tokens.surface,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: tokens.border),
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final option = options.elementAt(i);
+                  final isHighlighted = i == highlighted;
+                  if (isHighlighted) {
+                    // Keep the row the arrow keys moved to in view.
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (context.mounted) {
+                        Scrollable.ensureVisible(context, alignment: 0.5);
+                      }
+                    });
+                  }
+                  return Material(
+                    color: isHighlighted
+                        ? tokens.surfaceAlt
+                        : Colors.transparent,
+                    child: InkWell(
+                      // Not `onSelected` for the value already held — see
+                      // the class doc.
+                      onTap: () => option == widget.value
+                          ? _commit(option)
+                          : onSelected(option),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: InSpacing.md(context),
+                          vertical: 10,
+                        ),
+                        child: Text(
+                          option.isEmpty ? context.tr('none') : option,
+                          style: TextStyle(
+                            color: option.isEmpty ? tokens.ink3 : tokens.ink,
+                            fontSize: 13,
+                            fontWeight:
+                                option.isNotEmpty && option == widget.value
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _TaxCell extends StatefulWidget {
   const _TaxCell({
-    super.key,
     required this.companyId,
     required this.services,
     required this.formatter,

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/edit/custom_field_input.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/utils/formatting.dart';
@@ -19,19 +21,33 @@ import 'package:admin/utils/formatting.dart';
 /// (3 taxes × name+rate + 4 customs + discount) appears when the company
 /// settings enable them.
 ///
+/// The custom fields sit after Cost / Quantity, not after Description where
+/// the desktop table puts its columns: a phone with the keyboard up shows
+/// roughly 250 px of this dialog, and four custom fields above Quantity — the
+/// field people come here to change — would push it out of view. Their values
+/// usually arrive from the picked product anyway. Each is rendered by type
+/// through the shared [CustomFieldInput]; [formatter] dates a date-typed one.
+///
 /// [titleKey] / [actionKey] let a caller name the verb it is serving. They
 /// default to the edit wording, and the *create* caller passes `add_line` /
 /// `add`: since invoiceninja/flutter#142 the phone opens this dialog BEFORE
 /// the row exists, so "Save" on a record the user has never seen — and a
 /// Cancel that silently adds nothing — would both be lying about what the
 /// buttons do.
+///
+/// [autofocusProduct] is for that create caller too: a new line starts at its
+/// Product, but tapping an existing card is usually about some other field,
+/// and an autofocused Product raises the keyboard over the very fields the
+/// user came to change.
 Future<LineItem?> showLineItemEditDialog(
   BuildContext context, {
   required LineItem initial,
   required LineItemColumnConfig config,
   bool useComma = false,
+  Formatter? formatter,
   String titleKey = 'line_item',
   String actionKey = 'save',
+  bool autofocusProduct = false,
 }) {
   return showDialog<LineItem>(
     context: context,
@@ -39,8 +55,10 @@ Future<LineItem?> showLineItemEditDialog(
       initial: initial,
       config: config,
       useComma: useComma,
+      formatter: formatter,
       titleKey: titleKey,
       actionKey: actionKey,
+      autofocusProduct: autofocusProduct,
     ),
   );
 }
@@ -50,15 +68,19 @@ class _LineItemEditDialog extends StatefulWidget {
     required this.initial,
     required this.config,
     required this.useComma,
+    required this.formatter,
     required this.titleKey,
     required this.actionKey,
+    required this.autofocusProduct,
   });
 
   final LineItem initial;
   final LineItemColumnConfig config;
   final bool useComma;
+  final Formatter? formatter;
   final String titleKey;
   final String actionKey;
+  final bool autofocusProduct;
 
   @override
   State<_LineItemEditDialog> createState() => _LineItemEditDialogState();
@@ -71,10 +93,6 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
   late final TextEditingController _cost;
   late final TextEditingController _quantity;
   late final TextEditingController _discount;
-  late final TextEditingController _custom1;
-  late final TextEditingController _custom2;
-  late final TextEditingController _custom3;
-  late final TextEditingController _custom4;
   late final TextEditingController _taxName1;
   late final TextEditingController _taxRate1;
   late final TextEditingController _taxName2;
@@ -91,10 +109,6 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     _cost = TextEditingController(text: _decimalText(_draft.cost));
     _quantity = TextEditingController(text: _decimalText(_draft.quantity));
     _discount = TextEditingController(text: _decimalText(_draft.discount));
-    _custom1 = TextEditingController(text: _draft.customValue1);
-    _custom2 = TextEditingController(text: _draft.customValue2);
-    _custom3 = TextEditingController(text: _draft.customValue3);
-    _custom4 = TextEditingController(text: _draft.customValue4);
     _taxName1 = TextEditingController(text: _draft.taxName1);
     _taxRate1 = TextEditingController(text: _decimalText(_draft.taxRate1));
     _taxName2 = TextEditingController(text: _draft.taxName2);
@@ -110,10 +124,6 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     _cost.dispose();
     _quantity.dispose();
     _discount.dispose();
-    _custom1.dispose();
-    _custom2.dispose();
-    _custom3.dispose();
-    _custom4.dispose();
     _taxName1.dispose();
     _taxRate1.dispose();
     _taxName2.dispose();
@@ -129,6 +139,9 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
       parseDecimal(c.text, useCommaAsDecimalPlace: widget.useComma) ??
       Decimal.zero;
 
+  /// [_draft] already carries the custom values — each field writes its slot
+  /// straight into it — so they are not rebuilt here, and a slot the company
+  /// has no field for keeps whatever value it arrived with.
   LineItem _build() => _draft.copyWith(
     productKey: _productKey.text.trim(),
     notes: _notes.text,
@@ -147,10 +160,6 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
               ) ??
               Decimal.one,
     discount: _parseOrZero(_discount),
-    customValue1: _custom1.text,
-    customValue2: _custom2.text,
-    customValue3: _custom3.text,
-    customValue4: _custom4.text,
     taxName1: _taxName1.text,
     taxRate1: _parseOrZero(_taxRate1),
     taxName2: _taxName2.text,
@@ -159,7 +168,18 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     taxRate3: _parseOrZero(_taxRate3),
   );
 
-  void _save() => Navigator.of(context).pop(_build());
+  /// Commits a typed-but-unblurred field before reading the draft, as
+  /// `EntityEditScaffold._runSave` does. A date-typed custom field commits
+  /// only on blur or Enter, and on iOS / Android a tap on Save never takes
+  /// focus from a text field (`_EditableTextTapOutsideAction` unfocuses only
+  /// for a mouse, or on the web) — so the date the user just typed was dropped.
+  /// Focus changes apply on a microtask, hence the yield.
+  Future<void> _save() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    Navigator.of(context).pop(_build());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +202,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                 controller: _productKey,
                 decoration: InputDecoration(labelText: label('product')),
                 textInputAction: TextInputAction.next,
-                autofocus: true,
+                autofocus: widget.autofocusProduct,
               ),
               SizedBox(height: InSpacing.md(context)),
               TextField(
@@ -230,6 +250,22 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                   ),
                 ),
               ],
+              for (final custom in config.customFields) ...[
+                SizedBox(height: InSpacing.md(context)),
+                CustomFieldInput(
+                  key: ValueKey('custom_${custom.slot}'),
+                  field: custom.field,
+                  value: lineItemCustomValue(_draft, custom.slot),
+                  formatter: widget.formatter,
+                  onChanged: (v) => setState(
+                    () => _draft = withLineItemCustomValue(
+                      _draft,
+                      custom.slot,
+                      v,
+                    ),
+                  ),
+                ),
+              ],
               if (config.taxColumnCount >= 1) ...[
                 SizedBox(height: InSpacing.md(context)),
                 _TaxRow(name: _taxName1, rate: _taxRate1, index: 1),
@@ -241,42 +277,6 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
               if (config.taxColumnCount >= 3) ...[
                 SizedBox(height: InSpacing.md(context)),
                 _TaxRow(name: _taxName3, rate: _taxRate3, index: 3),
-              ],
-              if (config.showCustom1) ...[
-                SizedBox(height: InSpacing.md(context)),
-                TextField(
-                  controller: _custom1,
-                  decoration: InputDecoration(
-                    labelText: context.tr('custom_value1'),
-                  ),
-                ),
-              ],
-              if (config.showCustom2) ...[
-                SizedBox(height: InSpacing.md(context)),
-                TextField(
-                  controller: _custom2,
-                  decoration: InputDecoration(
-                    labelText: context.tr('custom_value2'),
-                  ),
-                ),
-              ],
-              if (config.showCustom3) ...[
-                SizedBox(height: InSpacing.md(context)),
-                TextField(
-                  controller: _custom3,
-                  decoration: InputDecoration(
-                    labelText: context.tr('custom_value3'),
-                  ),
-                ),
-              ],
-              if (config.showCustom4) ...[
-                SizedBox(height: InSpacing.md(context)),
-                TextField(
-                  controller: _custom4,
-                  decoration: InputDecoration(
-                    labelText: context.tr('custom_value4'),
-                  ),
-                ),
               ],
             ],
           ),

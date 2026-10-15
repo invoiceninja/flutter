@@ -43,6 +43,23 @@ void main() {
       );
     });
 
+    test('custom values carry over slot for slot', () {
+      // As the server does when it invoices a project's expenses, and React
+      // does for "Invoice expense". The line shows them under the company's
+      // product1..4 labels.
+      final expense = Expense.fromApi(
+        const ExpenseApi(
+          amount: '10',
+          customValue1: 'Receipt 42',
+          customValue4: 'yes',
+        ),
+      );
+      final item = expenseInvoiceLineItem(expense, invoiceInclusive: false);
+      expect(item.customValue1, 'Receipt 42');
+      expect(item.customValue2, '');
+      expect(item.customValue4, 'yes');
+    });
+
     test('inclusive-tax expense → no over-bill (total == gross, not 110)', () {
       final expense = Expense.fromApi(
         const ExpenseApi(

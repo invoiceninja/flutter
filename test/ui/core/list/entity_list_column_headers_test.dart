@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
@@ -13,6 +15,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/entity_list_column_headers.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 
 import '../../../_localization_helper.dart';
 
@@ -91,7 +94,11 @@ void main() {
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() => db.close());
 
-  Future<_Vm> pump(WidgetTester tester, {Company? company}) async {
+  Future<_Vm> pump(
+    WidgetTester tester, {
+    Company? company,
+    ListDensityController? density,
+  }) async {
     final vm = _Vm(
       companyId: 'co',
       navStateDao: db.navStateDao,
@@ -105,10 +112,19 @@ void main() {
         theme: buildInTheme(InTheme.light),
         localizationsDelegates: kTestLocalizationsDelegates,
         supportedLocales: kTestSupportedLocales,
+        builder: (context, inner) => density == null
+            ? inner!
+            : ListDensityScope(controller: density, child: inner!),
         home: Scaffold(
-          body: ListenableBuilder(
-            listenable: vm,
-            builder: (_, _) => EntityListColumnHeaders<_Row>(vm: vm),
+          // In a Column, as the list scaffold hosts it: the strip then takes
+          // its own height rather than the body's.
+          body: Column(
+            children: [
+              ListenableBuilder(
+                listenable: vm,
+                builder: (_, _) => EntityListColumnHeaders<_Row>(vm: vm),
+              ),
+            ],
           ),
         ),
       ),
@@ -153,5 +169,31 @@ void main() {
     await tester.tap(find.text('TAGS'));
     await tester.pumpAndSettle();
     expect(vm.sortField, 'custom1');
+  });
+
+  group('at the Compact list density', () {
+    late ListDensityController compact;
+    setUp(() async {
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      compact = ListDensityController(prefs: prefs);
+      await compact.setCompact(true);
+    });
+    tearDown(() => compact.dispose());
+
+    double height(WidgetTester tester) =>
+        tester.getSize(find.byType(EntityListColumnHeaders<_Row>)).height;
+
+    testWidgets(
+      'the strip is 45 px with a pointer, against 57',
+      (tester) async {
+        // 12 + the 32 px select-all slot + 12 + the 1 px rule, then 6 + 32 + 6 + 1.
+        await pump(tester, company: const Company());
+        expect(height(tester), 57);
+        await pump(tester, company: const Company(), density: compact);
+        expect(height(tester), 45);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }

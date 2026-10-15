@@ -39,6 +39,7 @@ import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/ui/features/shell/widgets/window_frame.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/widgets/call_log_prompter.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
@@ -874,7 +875,16 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                                   widget.services.screenshotWindow,
                               railCollapsed: widget.services.sidebar,
                               shellMounted: widget.services.shellMounted,
-                              child: child ?? const SizedBox.shrink(),
+                              // List row density (Settings → Device
+                              // Settings), above the router's Navigator so
+                              // every route, dialog and sheet is under it. An
+                              // InheritedNotifier: a flip rebuilds only the
+                              // rows and list chrome that read it. See
+                              // docs/list-density.md.
+                              child: ListDensityScope(
+                                controller: widget.services.listDensity,
+                                child: child ?? const SizedBox.shrink(),
+                              ),
                             ),
                           ),
                           Positioned.fill(

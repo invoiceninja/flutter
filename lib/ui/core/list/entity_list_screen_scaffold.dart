@@ -45,6 +45,7 @@ import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -533,7 +534,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   /// third of the viewport rather than perfectly centered.
   void _ensureRowVisible(int index) {
     if (!_vScroll.hasClients) return;
-    const estimatedRowPx = kEntityListRowHeight;
+    // Not subscribing: this runs from a callback, not `build`.
+    final estimatedRowPx = entityListRowHeight(context, subscribe: false);
     final pos = _vScroll.position;
     // Count only the rows that actually occupy space — a collapsed group
     // leaves its members in `items` at zero height, so multiplying the raw
@@ -1606,6 +1608,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
             contentPadding: EdgeInsetsDirectional.only(
               start: wide ? 24 : InSpacing.sm,
             ),
+            // Only the list's strip follows the list density — the dashboard's
+            // wrapped strip shares this widget and is out of its scope.
+            dense: ListDensityScope.isCompactOf(context),
             tabs: tabs,
             selectedIndex: decision.selectedIndex,
             // The counts are active-only (`badgeBaseFilter`), so a number above
@@ -1741,11 +1746,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
             // minHeight (not a fixed height) gives every row a stable
             // taller floor so toggling the leading avatar↔checkbox never
             // reflows the list, while tall tiles (2-line identity + money
-            // column) are never clipped.
-            : ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: kEntityListRowHeight,
-                ),
+            // column) are never clipped. The floor follows the list density.
+            : EntityListRowFloor(
                 child: widget.tileBuilder(
                   context,
                   _vm,
@@ -1916,7 +1918,12 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // the toolbar supplies the gap above). Standalone: keep the 24 px
     // inset inside its bare Scaffold body.
     if (widget.embedded) return card;
-    return Padding(padding: const EdgeInsetsDirectional.all(24), child: card);
+    return Padding(
+      padding: entityListCardInset(
+        compact: ListDensityScope.isCompactOf(context),
+      ),
+      child: card,
+    );
   }
 }
 

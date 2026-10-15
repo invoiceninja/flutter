@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcuts/key_binding.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
@@ -125,6 +126,10 @@ final Map<PrefKey<Object>, _Probe> _probes = {
   DevicePrefKeys.defaultItemsTab: _Probe(
     (s) => s.defaultItemsTab.set(kItemsTabTasks),
     (s) => s.defaultItemsTab.value == kItemsTabProducts,
+  ),
+  DevicePrefKeys.listDensity: _Probe(
+    (s) => s.listDensity.set(kListDensityCompact),
+    (s) => s.listDensity.value == kListDensityNormal,
   ),
 };
 

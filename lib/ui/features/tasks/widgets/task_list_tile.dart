@@ -5,7 +5,6 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/list/cell_slot.dart';
-import 'package:admin/ui/core/list/embedded_list_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
@@ -91,9 +90,7 @@ class _TaskListTileState extends State<TaskListTile> {
       onTap: () => (w.selecting ? w.onSelectTap : w.onTap)?.call(),
       onLongPress: w.onLongPress,
       child: Padding(
-        padding: EmbeddedListScope.of(context)
-            ? const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14)
-            : const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        padding: listRowPadding(context),
         child: w.wide ? _wide(context, tokens) : _narrow(context, tokens),
       ),
     );

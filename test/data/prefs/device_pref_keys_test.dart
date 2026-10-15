@@ -29,6 +29,7 @@ void main() {
     'hide_empty_panels': PrefScope.account,
     'sidebar_collapsed': PrefScope.device,
     'default_items_tab': PrefScope.account,
+    'list_density': PrefScope.device,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

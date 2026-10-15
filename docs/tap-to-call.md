@@ -164,8 +164,9 @@ image of a header constraint that doesn't apply in a row:
 
 - **A square `actionButtonSize()` box, not the header's 20 px.** Trap 4 says reclaim the target on
   the axis that has room; in a header that axis is horizontal, in a list row it is *vertical* — the
-  row is floored at `kEntityListRowHeight` (72) and the sibling `…` is already `actionButtonSize()`
-  tall, so 44 px adds no height at all.
+  row is floored at `entityListRowHeight` (72 at the Normal list density; 52 on touch at Compact,
+  which is 44 + 8) and the sibling `…` is already `actionButtonSize()` tall, so 44 px adds no
+  height at all.
 - **A centred glyph**, because the `…` next to it is a centred `IconButton`.
 - **20/18 px icons in `ink2`.** That `…` is an M3 `IconButton`: 24 px in `onSurfaceVariant`, which
   `theme.dart` maps to `ink2`. At the inline 16 px `ink3` the call glyph read as a faint
@@ -557,7 +558,7 @@ candidates or `tapToCall: false` collapse it to nothing **before** the Drift wat
 money column and status pill and before the `…` menu, selected by
 `PhoneCallButtonVariant.listRow` — the mirror image of trap 4 above: a
 header had no vertical room so the box stayed 20 px tall and grew sideways, while a row is already
-floored at `kEntityListRowHeight` and its sibling `…` is already `actionButtonSize()` tall, so the
+floored at `entityListRowHeight` and its sibling `…` is already `actionButtonSize()` tall, so the
 box is **square** and the *width* is what must not grow (the caret is fitted inside the 44 px
 target instead of adding 12 px, which is worth 7.2 px of overflow at the 500 px sweep floor at
 1.4× text). Icons go 20/18 in **`ink2`**, not 16/14 in `ink3`, because the `…` beside it is an M3

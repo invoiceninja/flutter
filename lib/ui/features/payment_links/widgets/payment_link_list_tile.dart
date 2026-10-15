@@ -70,7 +70,7 @@ class PaymentLinkListTile extends StatelessWidget {
       onTap: () => (selecting ? onSelectTap : onTap)?.call(),
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        padding: listRowPadding(context),
         child: wide ? _wide(context, tokens) : _narrow(context, tokens),
       ),
     );

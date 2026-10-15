@@ -5,9 +5,15 @@
 /// so headers and rows stay column-aligned. Don't drift them apart.
 library;
 
+import 'dart:math' as math;
+
+import 'package:flutter/widgets.dart';
+
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/list/embedded_list_scope.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 
 /// Reserved width for the trailing pill (status badge) slot on the
 /// header. Row tiles that don't render a pill should still reserve this
@@ -54,15 +60,89 @@ double colWMoreMenu() =>
 /// Width of the avatar / select-all checkbox slot.
 const double kColLeadingWidth = 32;
 
-/// Stable minimum height for every entity-list row.
+/// Stable minimum height for every entity-list row at the **Normal** list
+/// density. Read it through [entityListRowHeight], which also answers for
+/// Compact — never as a bare `minHeight:` (`list_row_density_wiring_test`).
 ///
-/// Applied as a `minHeight` floor by the list scaffold so a row never
+/// Applied as a `minHeight` floor by [EntityListRowFloor] so a row never
 /// changes height when its leading slot swaps between avatar and selection
 /// checkbox — toggling a row's checkbox must not reflow the list. Slightly
 /// taller than the previous content-driven ~64 px so short rows breathe and
 /// tall rows (2-line identity + money column) are never clipped. Also used
 /// for the master-detail auto-scroll estimate.
 const double kEntityListRowHeight = 72;
+
+/// Vertical padding of every list row under the **Compact** list density —
+/// see [listRowPadding] / [listRowVerticalPadding].
+const double kCompactListRowVerticalPadding = 4;
+
+/// The row floor for the active list density: [kEntityListRowHeight] at
+/// Normal; at Compact, the tallest thing a row always holds — the
+/// [actionButtonSize] buttons — plus [kCompactListRowVerticalPadding] above
+/// and below: **40** with a pointer, **52** on touch, where the 44 px targets
+/// win. Same job as the Normal floor (no reflow on the avatar ↔ checkbox swap)
+/// and an honest scroll estimate on both kinds of device.
+///
+/// [subscribe] false reads the density without registering a dependency —
+/// for a callback outside `build` (the scaffold's scroll-to-row estimate).
+/// See `docs/list-density.md`.
+double entityListRowHeight(BuildContext context, {bool subscribe = true}) {
+  final compact = subscribe
+      ? ListDensityScope.isCompactOf(context)
+      : ListDensityScope.isCompactRead(context);
+  if (!compact) return kEntityListRowHeight;
+  return math.max(40, actionButtonSize() + 2 * kCompactListRowVerticalPadding);
+}
+
+/// A list row's vertical padding: [normal] at the Normal list density,
+/// [kCompactListRowVerticalPadding] at Compact. For the record rows that keep
+/// their own horizontal inset (activity, history, sends, email history);
+/// entity-list tiles use [listRowPadding].
+double listRowVerticalPadding(BuildContext context, {required double normal}) =>
+    ListDensityScope.isCompactOf(context)
+    ? kCompactListRowVerticalPadding
+    : normal;
+
+/// Padding inside every entity-list row tile: 16 px horizontally (the
+/// gutter [computeTableMinWidth] adds back), and vertically 10 standalone /
+/// 14 inside an [EmbeddedListScope] — or [normalVertical] for a tile with its
+/// own (Client and Vendor are 14 everywhere) — at the Normal density; 4 at
+/// Compact.
+EdgeInsetsDirectional listRowPadding(
+  BuildContext context, {
+  double? normalVertical,
+}) {
+  final v = listRowVerticalPadding(
+    context,
+    normal: normalVertical ?? (EmbeddedListScope.of(context) ? 14 : 10),
+  );
+  return EdgeInsetsDirectional.fromSTEB(16, v, 16, v);
+}
+
+/// Inset around a standalone list's wide table card. Compact trims only the
+/// vertical 24 → 12: the horizontal 24 is what lines the card up with the
+/// header band's row, the status-tab strip's start and the frameless desktop
+/// title bar's nav arrows (docs/list-density.md).
+EdgeInsetsDirectional entityListCardInset({required bool compact}) {
+  final vertical = compact ? 12.0 : 24.0;
+  return EdgeInsetsDirectional.fromSTEB(24, vertical, 24, vertical);
+}
+
+/// The [entityListRowHeight] floor every entity-list row sits on.
+///
+/// `minHeight`, never a fixed height: tall tiles (2-line identity + money
+/// column, a large text scale) grow past it and are never clipped.
+class EntityListRowFloor extends StatelessWidget {
+  const EntityListRowFloor({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
+    child: child,
+  );
+}
 
 /// Horizontal gap between cells in the table grid.
 const double kColCellGap = 12;

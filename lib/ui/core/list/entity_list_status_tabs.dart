@@ -103,6 +103,7 @@ class EntityListStatusTabs extends StatefulWidget {
     this.contentPadding = EdgeInsetsDirectional.zero,
     this.enabled = true,
     this.wrap = false,
+    this.dense = false,
     super.key,
   });
 
@@ -159,6 +160,13 @@ class EntityListStatusTabs extends StatefulWidget {
   /// under the wide dashboard grid's `IntrinsicHeight` — `RenderWrap` answers
   /// intrinsics via `getDryLayout`, it is not a `LayoutBuilder`.
   final bool wrap;
+
+  /// Tighter vertical padding, for an entity list at the Compact list density.
+  /// A parameter rather than a read of `ListDensityScope` so the widget stays
+  /// presentational — and so the dashboard's [wrap] strip, which shares this
+  /// widget and is out of the density's scope, never picks it up. The touch
+  /// floor still applies.
+  final bool dense;
 
   @override
   State<EntityListStatusTabs> createState() => _EntityListStatusTabsState();
@@ -274,6 +282,7 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
         active: i == widget.selectedIndex,
         tokens: tokens,
         wrapped: widget.wrap,
+        dense: widget.dense,
         countStream: widget.showCounts
             ? _streams[widget.tabs[i].countModeId]
             : null,
@@ -424,6 +433,7 @@ class _StatusTabButton extends StatelessWidget {
     required this.countStream,
     required this.onTap,
     this.wrapped = false,
+    this.dense = false,
     super.key,
   });
 
@@ -438,6 +448,9 @@ class _StatusTabButton extends StatelessWidget {
   /// vocabulary (a label plus a `SidebarBadge` count, no rule beneath), and the
   /// one `SidebarBadge.active` already exists to retune its palette against.
   final bool wrapped;
+
+  /// See [EntityListStatusTabs.dense].
+  final bool dense;
 
   /// Null hides the badge entirely (archived / deleted view).
   final Stream<int>? countStream;
@@ -486,7 +499,7 @@ class _StatusTabButton extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: InSpacing.md(context),
-            vertical: InSpacing.md(context),
+            vertical: dense ? InSpacing.sm : InSpacing.md(context),
           ),
           decoration: wrapped
               ? BoxDecoration(

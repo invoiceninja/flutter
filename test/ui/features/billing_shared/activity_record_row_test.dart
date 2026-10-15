@@ -1,3 +1,4 @@
+import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -7,14 +8,18 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/activity.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
 import 'package:admin/ui/features/billing_shared/activity/comment_row_menu.dart';
 import 'package:admin/utils/formatting.dart';
@@ -1232,6 +1237,72 @@ void main() {
       );
       expect(controller.offset, 0);
       expect(flashColour(tester), InTheme.light.accentSoft);
+    });
+  });
+
+  group('at the Compact list density', () {
+    late AppDatabase db;
+    late ListDensityController compact;
+    setUp(() async {
+      db = AppDatabase(NativeDatabase.memory());
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      compact = ListDensityController(prefs: prefs);
+      await compact.setCompact(true);
+    });
+    tearDown(() async {
+      compact.dispose();
+      await db.close();
+    });
+
+    /// In a Column, as the Activity tab lists it, so the row takes its own
+    /// height rather than the body's.
+    Future<void> pumpRow(WidgetTester tester, {bool scoped = true}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          builder: (context, inner) => scoped
+              ? ListDensityScope(controller: compact, child: inner!)
+              : inner!,
+          home: Scaffold(
+            body: Column(
+              children: [
+                SizedBox(
+                  width: 420,
+                  child: ActivityRecordRow(
+                    activity: _activity(typeId: 99999),
+                    formatter: null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    double height(WidgetTester tester) =>
+        tester.getSize(find.byType(ActivityRecordRow)).height;
+
+    testWidgets(
+      'the row drops below the Normal floor with a pointer',
+      (tester) async {
+        await pumpRow(tester, scoped: false);
+        expect(height(tester), kEntityListRowHeight);
+        await pumpRow(tester);
+        expect(height(tester), lessThan(kEntityListRowHeight));
+        expect(height(tester), greaterThanOrEqualTo(40));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('keeps a 44 px target plus padding on touch', (tester) async {
+      await pumpRow(tester);
+      expect(height(tester), lessThan(kEntityListRowHeight));
+      expect(height(tester), greaterThanOrEqualTo(InSizes.touchTarget + 8));
     });
   });
 }

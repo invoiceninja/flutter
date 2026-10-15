@@ -373,7 +373,7 @@ class _HistoryRowShellState extends State<_HistoryRowShell> {
     final content = Padding(
       padding: EdgeInsets.symmetric(
         horizontal: InSpacing.lg(context),
-        vertical: 14,
+        vertical: listRowVerticalPadding(context, normal: 14),
       ),
       child: Row(
         children: [
@@ -436,7 +436,7 @@ class _HistoryRowShellState extends State<_HistoryRowShell> {
       child: ConstrainedBox(
         // A floor, never a fixed height: a fixed one clamps the label's line
         // box and slices descenders at large text scale.
-        constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
+        constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
         child: Container(
           decoration: BoxDecoration(
             color: widget.selected

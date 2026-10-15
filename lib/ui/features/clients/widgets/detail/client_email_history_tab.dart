@@ -180,9 +180,12 @@ class _RecordBlock extends StatelessWidget {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
+      constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
       child: Container(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
+        padding: EdgeInsetsDirectional.symmetric(
+          horizontal: 16,
+          vertical: listRowVerticalPadding(context, normal: 14),
+        ),
         decoration: BoxDecoration(
           border: Border(
             bottom: isLast ? BorderSide.none : BorderSide(color: tokens.border),

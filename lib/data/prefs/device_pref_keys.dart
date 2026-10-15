@@ -181,6 +181,15 @@ abstract final class DevicePrefKeys {
     PrefScope.account,
   );
 
+  /// List row density (`normal` / `compact`) — how tightly entity lists pack
+  /// their rows. How the app looks on this screen, like [textScale], so it
+  /// stays with the device.
+  static const listDensity = PrefKey<String>(
+    'list_density',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -201,6 +210,7 @@ abstract final class DevicePrefKeys {
     hideEmptyPanels,
     sidebarCollapsed,
     defaultItemsTab,
+    listDensity,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

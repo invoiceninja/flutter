@@ -104,7 +104,7 @@ class _ProductListTileState extends State<ProductListTile> {
       onTap: () => (w.selecting ? w.onSelectTap : w.onTap)?.call(),
       onLongPress: w.onLongPress,
       child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        padding: listRowPadding(context),
         child: w.wide ? _wide(context, tokens) : _narrow(context, tokens),
       ),
     );

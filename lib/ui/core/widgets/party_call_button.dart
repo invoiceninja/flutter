@@ -70,7 +70,8 @@ enum PhoneCallButtonVariant {
   ///    pointer as wide as its glyphs need (see the `math.max` in `_build`).
   ///    Trap 4 says reclaim the target on the axis that has room; in a header
   ///    that axis is horizontal, in a list row it is *vertical* — the row is
-  ///    already floored at [kEntityListRowHeight] and the sibling `…` menu is
+  ///    already floored at `entityListRowHeight` (whose Compact floor is
+  ///    itself derived from [actionButtonSize()]) and the sibling `…` menu is
   ///    already [actionButtonSize()] tall, so 44 px adds no height at all.
   ///  * **Centred glyph**, because the `…` beside it is a centred `IconButton`
   ///    and a start-aligned one sits ~14 px off its neighbour's axis.

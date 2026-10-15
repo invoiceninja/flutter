@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 
 /// Collapsible group separator rendered inline in an entity list, directly
 /// above the first row of each group (see `EntityListScreenScaffold`'s
@@ -41,6 +42,9 @@ class EntityListSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final touch = Env.isTouchPrimary;
+    // Tighter at the Compact list density (docs/list-density.md); the touch
+    // floor below still holds.
+    final compact = ListDensityScope.isCompactOf(context);
     final labelStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
@@ -72,9 +76,9 @@ class EntityListSectionHeader extends StatelessWidget {
                 // lines up with the first cell.
                 padding: EdgeInsetsDirectional.fromSTEB(
                   16,
-                  InSpacing.lg(context),
+                  compact ? InSpacing.sm : InSpacing.lg(context),
                   16,
-                  InSpacing.sm,
+                  compact ? InSpacing.xs : InSpacing.sm,
                 ),
                 child: Row(
                   children: [

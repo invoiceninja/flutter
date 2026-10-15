@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
@@ -21,6 +22,7 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
+import 'package:admin/ui/features/settings/widgets/segmented_setting_row.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_menu_section.dart';
 import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart';
@@ -35,6 +37,7 @@ import 'package:admin/utils/formatting.dart';
 const kDeviceSettingsSearchKeys = <String>[
   'theme',
   'font_size',
+  'list_density',
   'customize_colors',
   'sync',
   // Absorbed from Account Management → Overview, which used to carry its own
@@ -101,6 +104,7 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                 children: [
                   ThemeTile(controller: services.theme),
                   _FontSizeRow(controller: services.textScale),
+                  _ListDensityRow(controller: services.listDensity),
                   const Divider(height: 1),
                   CustomizeColorsSection(controller: services.theme),
                 ],
@@ -214,6 +218,41 @@ class _FontSizeRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Device-local list density (Normal / Compact) — how tightly entity lists
+/// pack their rows. Next to Font Size, the other "how much fits on screen"
+/// control; the same preference as the toggle beside a list's Columns button.
+/// Same shape as the theme rows above so the segments line up; the subtitle
+/// says what the setting is for, since the selected segment already says which
+/// one is on. See `docs/list-density.md`.
+class _ListDensityRow extends StatelessWidget {
+  const _ListDensityRow({required this.controller});
+
+  final ListDensityController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: controller,
+      builder: (context, _, _) => SegmentedSettingRow(
+        leading: const Icon(Icons.density_medium_outlined),
+        title: context.tr('list_density'),
+        subtitle: context.tr('list_density_help'),
+        control: SegmentedButton<bool>(
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(value: false, label: segmentLabel(context, 'normal')),
+            ButtonSegment(value: true, label: segmentLabel(context, 'compact')),
+          ],
+          // Derived from `isCompact`, so a stored value this build doesn't
+          // know still selects a segment (Normal) rather than none.
+          selected: {controller.isCompact},
+          onSelectionChanged: (s) => controller.setCompact(s.first),
+        ),
+      ),
     );
   }
 }

@@ -542,7 +542,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// Whether [isRowHidden] can currently return true.
   ///
   /// Read by `EntityListScreenScaffold._ensureRowVisible`, whose scroll
-  /// estimate multiplies a row index by [kEntityListRowHeight] — a collapsed
+  /// estimate multiplies a row index by `entityListRowHeight` — a collapsed
   /// group leaves its members in [items] at zero height, so the raw index
   /// overshoots by a whole folded group. Nothing else consults it: a fully
   /// collapsed list has no scroll extent, so the scroll-edge trigger simply

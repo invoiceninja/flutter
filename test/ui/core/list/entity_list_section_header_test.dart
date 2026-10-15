@@ -1,9 +1,14 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/ui/core/list/entity_list_section_header.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 
 import '../../../_localization_helper.dart';
 
@@ -15,11 +20,15 @@ Future<void> _pump(
   int count = 12,
   bool isFirst = false,
   double textScale = 1,
+  ListDensityController? density,
 }) => tester.pumpWidget(
   MaterialApp(
     theme: buildInTheme(InTheme.light),
     localizationsDelegates: kTestLocalizationsDelegates,
     supportedLocales: kTestSupportedLocales,
+    builder: (context, inner) => density == null
+        ? inner!
+        : ListDensityScope(controller: density, child: inner!),
     home: MediaQuery(
       data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
       child: Scaffold(
@@ -88,5 +97,52 @@ void main() {
         .whereType<BoxDecoration>()
         .where((d) => d.border != null);
     expect(later, isNotEmpty);
+  });
+
+  group('at the Compact list density', () {
+    late AppDatabase db;
+    late ListDensityController compact;
+    setUp(() async {
+      db = AppDatabase(NativeDatabase.memory());
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      compact = ListDensityController(prefs: prefs);
+      await compact.setCompact(true);
+    });
+    tearDown(() async {
+      compact.dispose();
+      await db.close();
+    });
+
+    double height(WidgetTester tester) =>
+        tester.getSize(find.byType(EntityListSectionHeader)).height;
+
+    testWidgets(
+      'is shorter with a pointer',
+      (tester) async {
+        await _pump(tester, collapsed: false, onToggle: () {}, isFirst: true);
+        final normal = height(tester);
+        await _pump(
+          tester,
+          collapsed: false,
+          onToggle: () {},
+          isFirst: true,
+          density: compact,
+        );
+        expect(height(tester), lessThan(normal));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('keeps the touch floor', (tester) async {
+      await _pump(
+        tester,
+        collapsed: false,
+        onToggle: () {},
+        isFirst: true,
+        density: compact,
+      );
+      expect(height(tester), greaterThanOrEqualTo(InSizes.touchTarget));
+    });
   });
 }

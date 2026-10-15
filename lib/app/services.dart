@@ -16,6 +16,7 @@ import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/deep_link_router.dart';
 import 'package:admin/app/diagnostics_log.dart';
 import 'package:admin/app/entity_modules.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/locale_controller.dart';
 import 'package:admin/app/pending_call_controller.dart';
 import 'package:admin/app/phone_actions_controller.dart';
@@ -322,6 +323,7 @@ class Services implements SidebarBadgeContext {
     required this.accentColor,
     required this.locale,
     required this.textScale,
+    required this.listDensity,
     required this.keyboardShortcuts,
     required this.appLocale,
     required this.confirmActions,
@@ -637,6 +639,12 @@ class Services implements SidebarBadgeContext {
   /// into `MaterialApp`'s theme [Listenable] so a change rebuilds the app-wide
   /// `MediaQuery` `textScaler`.
   final TextScaleController textScale;
+
+  /// Device-local list row density, Normal / Compact (Settings → Device
+  /// Settings, and the toggle beside a list's Columns button). Published to the
+  /// tree by `ListDensityScope` in `main.dart`'s `MaterialApp.builder`, so only
+  /// the rows and list chrome rebuild when it flips — never the app.
+  final ListDensityController listDensity;
 
   /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts).
   /// Resolves user overrides over the catalog defaults and feeds all three
@@ -1782,6 +1790,7 @@ class Services implements SidebarBadgeContext {
     final accentColor = AccentColorController(auth: auth, users: userRepo);
     final locale = LocaleController(prefs: devicePrefs);
     final textScale = TextScaleController(prefs: devicePrefs);
+    final listDensity = ListDensityController(prefs: devicePrefs);
     final keyboardShortcuts = KeyboardShortcutsController(prefs: devicePrefs);
     // Resolves the UI locale: device override → active company's
     // settings.language_id → English. Listens to the override + auth.session,
@@ -2111,6 +2120,7 @@ class Services implements SidebarBadgeContext {
       accentColor: accentColor,
       locale: locale,
       textScale: textScale,
+      listDensity: listDensity,
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
       confirmActions: confirmActions,

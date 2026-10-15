@@ -333,12 +333,13 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
             namedTokens: _spans?.refTokens ?? const {},
           );
 
+    final vertical = listRowVerticalPadding(context, normal: 14);
     Widget content = Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
         widget.horizontalPadding,
-        14,
+        vertical,
         widget.horizontalPadding,
-        14,
+        vertical,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -464,7 +465,7 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
+        constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
         child: Container(
           decoration: BoxDecoration(
             // Only a row that does something highlights. Once some rows open a

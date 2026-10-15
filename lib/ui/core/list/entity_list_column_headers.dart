@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/widgets/selection_checkbox.dart';
 
 /// Uppercase eyebrow column labels above the table rows at wide widths.
@@ -32,7 +33,10 @@ class EntityListColumnHeaders<T> extends StatelessWidget {
         color: tokens.surfaceAlt,
         border: Border(bottom: BorderSide(color: tokens.border)),
       ),
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
+      // 12 at the Normal list density; 6 at Compact (docs/list-density.md).
+      padding: ListDensityScope.isCompactOf(context)
+          ? const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 6)
+          : const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
       child: Row(
         children: [
           // Leading actions slot — empty label, mirrors row's `…` menu.

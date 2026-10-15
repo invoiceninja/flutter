@@ -67,13 +67,13 @@ class PendingCommentRow extends StatelessWidget {
     final notes = _extractNotes(row.payload);
     final unconfirmed = row.state == 'unconfirmed';
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
+      constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
       child: Container(
         padding: EdgeInsetsDirectional.fromSTEB(
           horizontalPadding,
-          14,
+          listRowVerticalPadding(context, normal: 14),
           horizontalPadding,
-          14,
+          listRowVerticalPadding(context, normal: 14),
         ),
         decoration: BoxDecoration(
           border: Border(

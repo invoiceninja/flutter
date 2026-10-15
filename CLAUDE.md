@@ -100,7 +100,7 @@ Plus two non-negotiables carried from admin-portal:
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
-| Sizing a tap target, or a row that grew taller than you expected | `docs/touch-targets.md` · `lib/ui/core/adaptive.dart` |
+| Sizing a tap target, or a row that grew taller than you expected | `docs/touch-targets.md` · `lib/ui/core/adaptive.dart` · `docs/list-density.md` |
 | A keyboard covering a field, an invisible ripple, or sidebar spacing | `docs/sidebar-and-shell.md` · `test/lint/no_ink_widget_test.dart` |
 | A contact row reading `(no name)`, or an email address nobody typed | `docs/contacts-and-invitations.md` · `lib/data/models/value/parsing.dart` |
 | A markdown field: inbound HTML, the mobile caret, read-only mode | `docs/rich-text-editing.md` · `lib/ui/core/widgets/markdown_text_field.dart` |

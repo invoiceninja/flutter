@@ -26,22 +26,22 @@ void main() {
 
   group('list grouping wiring (#56)', () {
     test('a hidden row skips the row-height floor', () {
-      // `ConstrainedBox(minHeight: kEntityListRowHeight)` around a collapsed
-      // row gives every folded record 72 px of blank space — the group reads
-      // as "collapsed but still enormous".
+      // The row floor (`EntityListRowFloor`, a `minHeight` box at the list
+      // density's height) around a collapsed row gives every folded record
+      // 72 px of blank space — the group reads as "collapsed but still
+      // enormous".
       final body = methodBody(
         'final hidden = _vm.isRowHidden(index);',
         'Widget _footer()',
       );
       final shrink = body.indexOf('SizedBox.shrink()');
-      final constrained = body.indexOf('ConstrainedBox');
+      final floor = body.indexOf('EntityListRowFloor');
       expect(shrink, isNot(-1), reason: 'hidden rows must render nothing');
+      expect(floor, isNot(-1), reason: 'visible rows must keep the floor');
       expect(
-        shrink < constrained,
+        shrink < floor,
         isTrue,
-        reason:
-            'the hidden branch must come before the ConstrainedBox, not '
-            'wrap it',
+        reason: 'the hidden branch must come before the row floor, not wrap it',
       );
     });
 

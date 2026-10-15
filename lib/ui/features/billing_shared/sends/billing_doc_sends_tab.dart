@@ -320,9 +320,9 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
   }
 }
 
-/// The row chrome every entry in this card shares: a [kEntityListRowHeight]
-/// floor, the card's 16/14 inset, and a hairline under everything but the last
-/// row.
+/// The row chrome every entry in this card shares: an [entityListRowHeight]
+/// floor, the card's 16/14 inset (16/4 at the Compact list density), and a
+/// hairline under everything but the last row.
 ///
 /// Extracted so the queued row is not a fifth hand-copy of it —
 /// `ClientEmailHistoryTab._RecordBlock`, `PendingCommentRow` and
@@ -340,9 +340,12 @@ class _SendsRowShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
+      constraints: BoxConstraints(minHeight: entityListRowHeight(context)),
       child: Container(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
+        padding: EdgeInsetsDirectional.symmetric(
+          horizontal: 16,
+          vertical: listRowVerticalPadding(context, normal: 14),
+        ),
         decoration: BoxDecoration(
           border: Border(
             bottom: isLast ? BorderSide.none : BorderSide(color: tokens.border),

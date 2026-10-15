@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_column_picker_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
+import 'package:admin/ui/core/list/list_density_toggle.dart';
 import 'package:admin/ui/core/list/saved_views_button.dart';
 import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
@@ -123,9 +126,14 @@ class EntityListTopRow<T> extends StatelessWidget {
         // The token field carries every filter dimension. It fills the row
         // between the New button and the Columns button; `Expanded` still
         // keeps the Columns button glued to the row's trailing edge
-        // (24 px from the screen, flush with the table card below).
-        Expanded(child: searchField),
-        const SizedBox(width: 12),
+        // (24 px from the screen, flush with the table card below). The slot
+        // also holds the density toggle, when there is room for it.
+        Expanded(
+          child: _SearchSlot(
+            searchField: searchField,
+            density: ListDensityScope.controllerOf(context),
+          ),
+        ),
         HeaderRowSlot(
           child: OutlinedButton.icon(
             onPressed: () => _openColumnsPicker(context),
@@ -170,6 +178,55 @@ class EntityListTopRow<T> extends StatelessWidget {
         onApply: vm.setColumns,
         onReset: vm.resetColumns,
       ),
+    );
+  }
+}
+
+/// The narrowest the search field may get to make room for the density
+/// toggle. Below it the toggle stands down and Device Settings → List density
+/// is the way in; the field keeps every pixel.
+const double kDensityToggleMinSearchWidth = 200;
+
+/// The search field, then — room permitting — the density toggle beside the
+/// Columns button.
+///
+/// Gated on the width this slot is actually left, not on a pane breakpoint:
+/// the siblings vary per entity (Tasks carries a five-segment view switcher,
+/// most lists carry nothing), so one breakpoint would either hide the toggle
+/// on a laptop-width Invoices list or squeeze a Tasks search field to nothing.
+/// The field stays the first child of the same `Row` either way, so its State —
+/// typed text, focus, chips — survives the toggle appearing or going away as
+/// the window is resized. With no [density] (no `ListDensityScope` above) this
+/// is exactly the old `Expanded(searchField)` + 12 px gap.
+class _SearchSlot extends StatelessWidget {
+  const _SearchSlot({required this.searchField, required this.density});
+
+  final Widget searchField;
+  final ListDensityController? density;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final density = this.density;
+        // 12 before the toggle, 8 after it — grouped with Columns, since
+        // both change how the table looks.
+        final toggleCost = 12 + listDensityToggleSize() + InSpacing.sm;
+        final showToggle =
+            density != null &&
+            constraints.maxWidth - toggleCost >= kDensityToggleMinSearchWidth;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: searchField),
+            const SizedBox(width: 12),
+            if (showToggle) ...[
+              HeaderRowSlot(child: ListDensityToggle(controller: density)),
+              const SizedBox(width: InSpacing.sm),
+            ],
+          ],
+        );
+      },
     );
   }
 }

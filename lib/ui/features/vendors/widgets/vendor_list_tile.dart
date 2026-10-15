@@ -100,7 +100,8 @@ class _VendorListTileState extends State<VendorListTile> {
     final state = _stateFor(w.vendor);
 
     final content = Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
+      // Client / Vendor rows are 14 at Normal everywhere, not just embedded.
+      padding: listRowPadding(context, normalVertical: 14),
       child: w.wide
           ? _wide(context, tokens, displayName: displayName, state: state)
           : _narrow(

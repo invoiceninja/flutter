@@ -588,7 +588,13 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
       documents: Value(
         jsonEncode(c.documents.map((d) => d.toApi().toJson()).toList()),
       ),
-      payload: jsonEncode(c.toApiJson(preserveTempId: true)),
+      payload: jsonEncode({
+        ...c.toApiJson(preserveTempId: true),
+        // Read-only e-invoice delivery state, kept in the stored row only —
+        // the wire body is `toApiJson`, which leaves it off. Without this a
+        // delivered credit reads back as undelivered after a local edit.
+        if (c.backup != null) 'backup': c.backup,
+      }),
     );
   }
 

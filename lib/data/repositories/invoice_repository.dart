@@ -1008,6 +1008,10 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         // body is `toApiJson`, which leaves it off. Without this a locally
         // saved invoice reads back as never checked against QuickBooks.
         if (i.sync != null) 'sync': i.sync,
+        // Likewise the e-invoice delivery state (`backup.guid`), which the
+        // list's PEPPOL icon reads — a delivered invoice must not read back as
+        // undelivered after a local edit.
+        if (i.backup != null) 'backup': i.backup,
       }),
     );
   }

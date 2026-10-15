@@ -24,6 +24,8 @@ import 'package:admin/ui/features/quotes/widgets/quote_list_empty_state.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_list_tile.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_token_search_field.dart';
 import 'package:admin/utils/file_names.dart';
+import 'package:admin/domain/billing/selection_totals.dart';
+import 'package:admin/ui/features/billing_shared/selection_totals_bar.dart';
 
 class QuoteListScreen extends StatelessWidget {
   const QuoteListScreen({
@@ -98,6 +100,18 @@ class QuoteListScreen extends StatelessWidget {
       searchFieldBuilder: (context, vm, wide) =>
           QuoteTokenSearchField(vm: vm, wide: wide),
       emptyStateBuilder: (context, vm) => QuoteListEmptyState(vm: vm),
+      selectionSummaryBuilder: (context, vm, formatter) => SelectionTotalsBar(
+        companyId: vm.companyId,
+        formatter: formatter,
+        rows: [
+          for (final q in vm.selectedItems)
+            SelectionTotalsRow(
+              clientId: q.clientId,
+              amount: q.amount,
+              taxes: q.taxAmount,
+            ),
+        ],
+      ),
       tileBuilder: (context, vm, quote, index, options) {
         final isUrlSelected = options.selectedId == quote.id;
         return QuoteListTile(

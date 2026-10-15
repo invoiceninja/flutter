@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/invoice_dao.dart';
 import 'package:admin/data/models/domain/invoice.dart';
@@ -11,6 +13,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/utils/notes_html.dart';
@@ -38,9 +41,24 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     id: InvoiceFieldIds.status,
     labelKey: 'status',
     width: 110,
-    cellBuilder: (i, _) => InvoiceStatusPill(
-      statusId: i.calculatedStatusId,
-      hasBounce: i.hasBouncedInvitation,
+    cellBuilder: (i, _) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: InvoiceStatusPill(
+            statusId: i.calculatedStatusId,
+            hasBounce: i.hasBouncedInvitation,
+          ),
+        ),
+        PeppolStatusIcon(
+          clientId: i.clientId,
+          backup: i.backup,
+          isDraft: i.isDraft,
+          isDeleted: i.isDeleted,
+          isArchived: i.archivedAt != null,
+          padding: const EdgeInsetsDirectional.only(start: 6),
+        ),
+      ],
     ),
     valueBuilder: (i) => i.calculatedStatusId,
   ),

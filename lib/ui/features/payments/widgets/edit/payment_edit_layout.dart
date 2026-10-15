@@ -27,6 +27,7 @@ import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.d
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_footer.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
+import 'package:admin/ui/features/payments/widgets/edit/payment_invoice_picker.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Edit + create form body for a Payment. Two-column on wide widths
@@ -239,6 +240,12 @@ class _IdentitySection extends StatelessWidget {
       title: context.tr('details'),
       children: [
         _ClientPicker(vm: vm),
+        if (vm.isCreate &&
+            vm.draft.paymentables.where((p) => p.invoiceId.isNotEmpty).length <=
+                1) ...[
+          const _OrDivider(),
+          PaymentInvoicePicker(vm: vm, formatter: formatter),
+        ],
         const SizedBox(height: 12),
         TextFormField(
           initialValue: vm.draft.number,
@@ -441,6 +448,32 @@ class _ClientPicker extends StatelessWidget {
     if (next != null && vm.draft.currencyId.isEmpty) {
       vm.setCurrencyId(next.currencyId);
     }
+  }
+}
+
+/// "or", between the Client and Invoice pickers.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: tokens.border)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              context.tr('or'),
+              style: TextStyle(fontSize: 12, color: tokens.ink3),
+            ),
+          ),
+          Expanded(child: Divider(color: tokens.border)),
+        ],
+      ),
+    );
   }
 }
 

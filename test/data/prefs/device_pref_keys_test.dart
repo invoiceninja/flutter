@@ -30,6 +30,8 @@ void main() {
     'sidebar_collapsed': PrefScope.device,
     'default_items_tab': PrefScope.account,
     'list_density': PrefScope.device,
+    'hours_format': PrefScope.account,
+    'hide_peppol_status': PrefScope.account,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

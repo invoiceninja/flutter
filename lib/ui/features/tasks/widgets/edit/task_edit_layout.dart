@@ -6,7 +6,6 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
@@ -17,6 +16,7 @@ import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
+import 'package:admin/ui/features/tasks/widgets/detail/task_rate_context.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/task_edit_times_section.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
@@ -272,11 +272,20 @@ class _IdentitySection extends StatelessWidget {
             ),
           ),
           SizedBox(height: InSpacing.md(context)),
-          StreamBuilder<Company?>(
-            stream: context.read<Services>().company.watchCompany(vm.companyId),
-            builder: (context, snap) {
-              final defaultRate = snap.data?.settings.defaultTaskRate ?? 0.0;
-              final showHint = vm.draft.rate == Decimal.zero && defaultRate > 0;
+          // The rate a blank field bills at is the cascade's answer —
+          // client, then its group, then the company (React ui#3427) — not
+          // the company default alone, which named the wrong figure for any
+          // client or group with a rate of its own.
+          TaskRateContextBuilder(
+            companyId: vm.companyId,
+            clientId: vm.draft.clientId,
+            projectId: vm.draft.projectId,
+            builder: (context, rates) {
+              final inherited = rates.rateFor(
+                vm.draft.copyWith(rate: Decimal.zero),
+              );
+              final showHint =
+                  vm.draft.rate == Decimal.zero && inherited > Decimal.zero;
               return TextFormField(
                 initialValue: decimalInputText(vm.draft.rate),
                 enabled: !locked,
@@ -286,12 +295,12 @@ class _IdentitySection extends StatelessWidget {
                 ),
                 decoration: InputDecoration(
                   labelText: context.tr('rate'),
-                  // Surface the inherited company default so leaving rate
-                  // blank is clearly "bill at the default" — the cascade
+                  // Surface the inherited rate so leaving rate blank is
+                  // clearly "bill at the default" — the cascade
                   // (resolveTaskRate) applies it on invoice.
                   helperText: showHint
                       ? '${context.tr('default_task_rate')}: '
-                            '${formatter?.money(Decimal.parse(defaultRate.toString())) ?? defaultRate}'
+                            '${formatter?.money(inherited, clientCurrencyId: rates.client?.currencyId) ?? inherited}'
                       : null,
                 ),
                 onChanged: vm.setRate,

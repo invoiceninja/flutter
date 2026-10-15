@@ -8,8 +8,10 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart';
+import 'package:admin/ui/features/billing_shared/peppol_list_company.dart';
 
-class CreditListViewModel extends GenericListViewModel<Credit> {
+class CreditListViewModel extends GenericListViewModel<Credit>
+    with PeppolListCompany<Credit> {
   CreditListViewModel({
     required this.repo,
     required super.companyId,

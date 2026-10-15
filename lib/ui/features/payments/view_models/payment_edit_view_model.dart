@@ -254,6 +254,45 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
   void setCustomValue4(String v) =>
       updateDraft(draft.copyWith(customValue4: v));
 
+  /// Start the payment from one invoice — the form's Invoice picker, React's
+  /// "client *or* invoice". Sets the invoice's client and makes [allocation]
+  /// the payment's only invoice; the amount follows it as any allocation does
+  /// (see [replacePaymentables]).
+  ///
+  /// Credits stay while the client does. A different client starts the
+  /// allocations afresh and seeds the currency from [clientCurrencyId] when
+  /// none is set, as picking the client directly does. (The picker lists only
+  /// the chosen client's invoices, so in practice "different" means "none
+  /// yet".)
+  void startFromInvoice({
+    required String clientId,
+    required String clientCurrencyId,
+    required Paymentable allocation,
+  }) {
+    final sameClient = draft.clientId == clientId;
+    if (!sameClient) {
+      updateDraft(
+        draft.copyWith(
+          clientId: clientId,
+          currencyId: draft.currencyId.isEmpty
+              ? clientCurrencyId
+              : draft.currencyId,
+          paymentables: const <Paymentable>[],
+        ),
+      );
+    }
+    replacePaymentables([
+      allocation,
+      ...draft.paymentables.where((p) => p.creditId.isNotEmpty),
+    ]);
+  }
+
+  /// Drop every invoice allocation, keeping credits — the Invoice picker
+  /// cleared.
+  void clearInvoiceAllocations() => replacePaymentables([
+    ...draft.paymentables.where((p) => p.invoiceId.isEmpty),
+  ]);
+
   /// Replace the entire paymentables list. Auto-syncs `draft.amount` to
   /// `invoiceTotal - creditTotal` while the user hasn't touched the amount
   /// field — the visible amount stays in lockstep with the allocations

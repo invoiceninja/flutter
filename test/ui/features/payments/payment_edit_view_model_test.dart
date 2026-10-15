@@ -148,6 +148,75 @@ void main() {
     });
   });
 
+  group('PaymentEditViewModel — startFromInvoice', () {
+    test('fills the client, its currency and the amount from no client', () {
+      final vm = vmFor();
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '3',
+        allocation: inv('i1', 120),
+      );
+      expect(vm.draft.clientId, 'c_1');
+      expect(vm.draft.currencyId, '3');
+      expect(vm.draft.paymentables.single.invoiceId, 'i1');
+      expect(vm.draft.amount, Decimal.parse('120'));
+    });
+
+    test('a currency already chosen is kept', () {
+      final vm = vmFor();
+      vm.setCurrencyId('2');
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '3',
+        allocation: inv('i1', 120),
+      );
+      expect(vm.draft.currencyId, '2');
+    });
+
+    test('the same client keeps its credits and replaces the invoice', () {
+      final vm = vmFor();
+      vm.setClientId('c_1');
+      vm.replacePaymentables([inv('i1', 100), cre('cr1', 25)]);
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '',
+        allocation: inv('i2', 60),
+      );
+      expect(
+        vm.draft.paymentables
+            .map((p) => p.invoiceId)
+            .where((id) => id.isNotEmpty),
+        ['i2'],
+      );
+      expect(
+        vm.draft.paymentables.where((p) => p.creditId == 'cr1'),
+        hasLength(1),
+      );
+      expect(vm.draft.amount, Decimal.parse('35'));
+    });
+
+    test('a different client drops the last client\'s allocations', () {
+      final vm = vmFor();
+      vm.setClientId('c_1');
+      vm.replacePaymentables([inv('i1', 100), cre('cr1', 25)]);
+      vm.startFromInvoice(
+        clientId: 'c_2',
+        clientCurrencyId: '',
+        allocation: inv('i9', 40),
+      );
+      expect(vm.draft.clientId, 'c_2');
+      expect(vm.draft.paymentables.single.invoiceId, 'i9');
+      expect(vm.draft.amount, Decimal.parse('40'));
+    });
+
+    test('clearInvoiceAllocations keeps credits', () {
+      final vm = vmFor();
+      vm.replacePaymentables([inv('i1', 100), cre('cr1', 25)]);
+      vm.clearInvoiceAllocations();
+      expect(vm.draft.paymentables.single.creditId, 'cr1');
+    });
+  });
+
   group('PaymentEditViewModel — performSave validation throw', () {
     test('save() returns null and surfaces translated message on '
         'ValidationException', () async {

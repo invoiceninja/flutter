@@ -203,44 +203,65 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
           ),
           body: ChangeNotifierProvider<TaskWeeklyViewModel>.value(
             value: _vm,
-            child: Column(
-              children: [
-                TaskFilterBar(
-                  filters: _vm,
-                  companyId: _companyId,
-                  inline: inline,
-                  onEditFilters: _openFilters,
-                ),
-                _WeeklyHeader(formatter: _formatter, wide: wide),
-                // Clear the `+` above (invoiceninja/flutter#167). Around the
-                // grid, not inside its scroll view: the totals row is pinned
-                // *outside* that scroll so it stays at the bottom, and padding
-                // the scroll could never lift it off the button. The whole grid
-                // rises instead, leaving page background under the totals row —
-                // which reads like a list scrolled to its end, where the
-                // alternative leaves the grand total permanently covered.
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: fabScrollClearance(context),
-                    ),
-                    child: WeeklyGrid(formatter: _formatter),
-                  ),
-                ),
-              ],
+            child: ValueListenableBuilder<String>(
+              valueListenable: _services.hoursFormat,
+              builder: (context, _, _) => _body(inline: inline, wide: wide),
             ),
           ),
         );
       },
     );
   }
+
+  Widget _body({required bool inline, required bool wide}) {
+    final hoursMinutes = _services.hoursFormat.showsHoursMinutes;
+    return Column(
+      children: [
+        TaskFilterBar(
+          filters: _vm,
+          companyId: _companyId,
+          inline: inline,
+          onEditFilters: _openFilters,
+        ),
+        _WeeklyHeader(
+          formatter: _formatter,
+          wide: wide,
+          hoursMinutes: hoursMinutes,
+        ),
+        // Clear the `+` above (invoiceninja/flutter#167). Around the
+        // grid, not inside its scroll view: the totals row is pinned
+        // *outside* that scroll so it stays at the bottom, and padding
+        // the scroll could never lift it off the button. The whole grid
+        // rises instead, leaving page background under the totals row —
+        // which reads like a list scrolled to its end, where the
+        // alternative leaves the grand total permanently covered.
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: fabScrollClearance(context)),
+            child: WeeklyGrid(
+              formatter: _formatter,
+              hoursMinutes: hoursMinutes,
+              onHoursMinutesChanged: _services.hoursFormat.setHoursMinutes,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _WeeklyHeader extends StatelessWidget {
-  const _WeeklyHeader({required this.wide, this.formatter});
+  const _WeeklyHeader({
+    required this.wide,
+    required this.hoursMinutes,
+    this.formatter,
+  });
 
   /// See `TaskDailyHeader.wide` — the pane bool the screen already computed.
   final bool wide;
+
+  /// See `WeeklyGrid.hoursMinutes`.
+  final bool hoursMinutes;
 
   final Formatter? formatter;
 
@@ -255,7 +276,11 @@ class _WeeklyHeader extends StatelessWidget {
       0,
       (sum, t) => sum + vm.weekTotalFor(t.id),
     );
-    final hoursLabel = weeklyHoursText(grandTotal, formatter);
+    final hoursLabel = weeklyHoursText(
+      grandTotal,
+      formatter,
+      hoursMinutes: hoursMinutes,
+    );
 
     // Seed "log time" on today when it falls in the visible week, else the
     // week's first day.

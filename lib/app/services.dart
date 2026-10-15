@@ -11,6 +11,8 @@ import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
+import 'package:admin/app/hide_peppol_status_controller.dart';
+import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/deep_link_router.dart';
@@ -332,6 +334,8 @@ class Services implements SidebarBadgeContext {
     required this.tasksView,
     required this.hideEmptyPanels,
     required this.defaultItemsTab,
+    required this.hoursFormat,
+    required this.hidePeppolStatus,
     required this.phoneActions,
     required this.pendingCall,
     required this.contactsSync,
@@ -703,6 +707,14 @@ class Services implements SidebarBadgeContext {
   /// Which items tab a billing document opens on when its lines don't decide
   /// (React #3355) — Device Settings → Default tab.
   final DefaultItemsTabController defaultItemsTab;
+
+  /// How the Tasks weekly view shows hours, decimal or `H:MM` (React
+  /// ui#3422) — the switch in the weekly grid's Total row.
+  final HoursFormatController hoursFormat;
+
+  /// Hide the PEPPOL sent / failed icon on the invoice and credit lists
+  /// (React ui#3410) — Device Settings → E-Invoice, shown to PEPPOL companies.
+  final HidePeppolStatusController hidePeppolStatus;
 
   /// Related-record counts learned this session, for the tab badges on a
   /// record screen. Cleared when the session ends — see `onSessionReset`.
@@ -1818,6 +1830,8 @@ class Services implements SidebarBadgeContext {
     final tasksView = TasksViewController(prefs: devicePrefs);
     final hideEmptyPanels = HideEmptyPanelsController(prefs: devicePrefs);
     final defaultItemsTab = DefaultItemsTabController(prefs: devicePrefs);
+    final hoursFormat = HoursFormatController(prefs: devicePrefs);
+    final hidePeppolStatus = HidePeppolStatusController(prefs: devicePrefs);
     final phoneActions = PhoneActionsController(prefs: devicePrefs);
     final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
@@ -2138,6 +2152,8 @@ class Services implements SidebarBadgeContext {
       tasksView: tasksView,
       hideEmptyPanels: hideEmptyPanels,
       defaultItemsTab: defaultItemsTab,
+      hoursFormat: hoursFormat,
+      hidePeppolStatus: hidePeppolStatus,
       phoneActions: phoneActions,
       pendingCall: pendingCall,
       contactsSync: contactsSync,

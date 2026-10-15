@@ -8,12 +8,14 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart';
+import 'package:admin/ui/features/billing_shared/peppol_list_company.dart';
 
 /// List ViewModel for the Invoices screen. Mirrors `ExpenseListViewModel` —
 /// pagination / search / sort / multiselect / columns all live on the
 /// generic base. M2+ extends `bulkActions` with mark_sent, mark_paid,
 /// auto_bill, email, schedule_email, and run_template.
-class InvoiceListViewModel extends GenericListViewModel<Invoice> {
+class InvoiceListViewModel extends GenericListViewModel<Invoice>
+    with PeppolListCompany<Invoice> {
   InvoiceListViewModel({
     required this.repo,
     required super.companyId,

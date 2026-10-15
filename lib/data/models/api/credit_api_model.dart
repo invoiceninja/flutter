@@ -73,6 +73,9 @@ abstract class CreditApi with _$CreditApi {
     @Default(<TagRefApi>[])
     List<TagRefApi> tags,
     @JsonKey(name: 'e_invoice') Map<String, dynamic>? eInvoice,
+    // Read-only `App\DataMapper\InvoiceBackup` — `guid` is the e-invoice
+    // delivery reference, set once the credit reaches the network.
+    @JsonKey(name: 'backup') Map<String, dynamic>? backup,
     @JsonKey(name: 'is_deleted') @Default(false) bool isDeleted,
     @JsonKey(name: 'created_at') @Default(0) int createdAt,
     @JsonKey(name: 'updated_at') @Default(0) int updatedAt,

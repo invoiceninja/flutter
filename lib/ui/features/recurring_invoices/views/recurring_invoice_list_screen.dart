@@ -20,6 +20,8 @@ import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_a
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_list_empty_state.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_list_tile.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_token_search_field.dart';
+import 'package:admin/domain/billing/selection_totals.dart';
+import 'package:admin/ui/features/billing_shared/selection_totals_bar.dart';
 
 class RecurringInvoiceListScreen extends StatelessWidget {
   const RecurringInvoiceListScreen({
@@ -97,6 +99,18 @@ class RecurringInvoiceListScreen extends StatelessWidget {
           RecurringInvoiceTokenSearchField(vm: vm, wide: wide),
       emptyStateBuilder: (context, vm) =>
           RecurringInvoiceListEmptyState(vm: vm),
+      selectionSummaryBuilder: (context, vm, formatter) => SelectionTotalsBar(
+        companyId: vm.companyId,
+        formatter: formatter,
+        rows: [
+          for (final r in vm.selectedItems)
+            SelectionTotalsRow(
+              clientId: r.clientId,
+              amount: r.amount,
+              taxes: r.taxAmount,
+            ),
+        ],
+      ),
       tileBuilder: (context, vm, ri, index, options) {
         final isUrlSelected = options.selectedId == ri.id;
         return RecurringInvoiceListTile(

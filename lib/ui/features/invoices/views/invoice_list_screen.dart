@@ -23,6 +23,9 @@ import 'package:admin/ui/features/invoices/widgets/invoice_list_empty_state.dart
 import 'package:admin/ui/features/invoices/widgets/invoice_list_tile.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_token_search_field.dart';
 import 'package:admin/utils/file_names.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
+import 'package:admin/domain/billing/selection_totals.dart';
+import 'package:admin/ui/features/billing_shared/selection_totals_bar.dart';
 
 /// Invoices list screen — pure config + per-entity widgets. Mirrors
 /// `ExpenseListScreen`; the screen-level chrome lives in
@@ -103,36 +106,53 @@ class InvoiceListScreen extends StatelessWidget {
       searchFieldBuilder: (context, vm, wide) =>
           InvoiceTokenSearchField(vm: vm, wide: wide),
       emptyStateBuilder: (context, vm) => InvoiceListEmptyState(vm: vm),
+      selectionSummaryBuilder: (context, vm, formatter) => SelectionTotalsBar(
+        companyId: vm.companyId,
+        formatter: formatter,
+        rows: [
+          for (final i in vm.selectedItems)
+            SelectionTotalsRow(
+              clientId: i.clientId,
+              amount: i.amount,
+              taxes: i.taxAmount,
+              balance: i.balance,
+            ),
+        ],
+      ),
       tileBuilder: (context, vm, invoice, index, options) {
         final isUrlSelected = options.selectedId == invoice.id;
-        return InvoiceListTile(
-          invoice: invoice,
-          columns: options.wide ? vm.columns : const [],
-          wide: options.wide,
-          editable: options.editable,
-          hideBottomDivider: options.bottomDividerHidden,
-          selecting: options.selecting,
-          selected: vm.isSelected(invoice.id) || isUrlSelected,
-          urlSelected: isUrlSelected,
-          onTap: options.selecting
-              ? () => vm.toggleSelected(invoice.id)
-              : isUrlSelected
-              ? () => MasterDetailNavScope.requestClose(
-                  context,
-                  basePath: '/invoices',
-                )
-              : () => goEntityRecord(context, vm.entityType, invoice.id),
-          onLongPress: () => vm.toggleSelected(invoice.id),
-          onSelectTap: () => vm.toggleSelected(invoice.id),
-          onAction: options.selecting
-              ? null
-              : (action) => InvoiceActions.dispatch(
-                  context,
-                  context.read<Services>(),
-                  vm.companyId,
-                  invoice,
-                  action,
-                ),
+        // The rows' PEPPOL sent / failed mark reads the company through this.
+        return PeppolStatusScope(
+          companyUsesPeppol: vm.companyUsesPeppol,
+          child: InvoiceListTile(
+            invoice: invoice,
+            columns: options.wide ? vm.columns : const [],
+            wide: options.wide,
+            editable: options.editable,
+            hideBottomDivider: options.bottomDividerHidden,
+            selecting: options.selecting,
+            selected: vm.isSelected(invoice.id) || isUrlSelected,
+            urlSelected: isUrlSelected,
+            onTap: options.selecting
+                ? () => vm.toggleSelected(invoice.id)
+                : isUrlSelected
+                ? () => MasterDetailNavScope.requestClose(
+                    context,
+                    basePath: '/invoices',
+                  )
+                : () => goEntityRecord(context, vm.entityType, invoice.id),
+            onLongPress: () => vm.toggleSelected(invoice.id),
+            onSelectTap: () => vm.toggleSelected(invoice.id),
+            onAction: options.selecting
+                ? null
+                : (action) => InvoiceActions.dispatch(
+                    context,
+                    context.read<Services>(),
+                    vm.companyId,
+                    invoice,
+                    action,
+                  ),
+          ),
         );
       },
       bulkActions: [

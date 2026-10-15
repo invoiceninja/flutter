@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (never allocate `NumberFormat` per build).
@@ -151,9 +152,23 @@ class _CreditListTileState extends State<CreditListTile> {
               },
             ),
             const SizedBox(height: 4),
-            CreditStatusPill(
-              statusId: w.credit.calculatedStatusId,
-              hasBounce: w.credit.hasBouncedInvitation,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Ahead of the pill, so the pill keeps its right edge.
+                PeppolStatusIcon(
+                  clientId: w.credit.clientId,
+                  backup: w.credit.backup,
+                  isDraft: w.credit.isDraft,
+                  isDeleted: w.credit.isDeleted,
+                  isArchived: w.credit.archivedAt != null,
+                  padding: const EdgeInsetsDirectional.only(end: 6),
+                ),
+                CreditStatusPill(
+                  statusId: w.credit.calculatedStatusId,
+                  hasBounce: w.credit.hasBouncedInvitation,
+                ),
+              ],
             ),
           ],
         ),

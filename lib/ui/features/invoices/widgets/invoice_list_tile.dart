@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (mirrors the Phase-1.1 cached-formatter
@@ -161,9 +162,23 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
               },
             ),
             const SizedBox(height: 4),
-            InvoiceStatusPill(
-              statusId: w.invoice.calculatedStatusId,
-              hasBounce: w.invoice.hasBouncedInvitation,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Ahead of the pill, so the pill keeps its right edge.
+                PeppolStatusIcon(
+                  clientId: w.invoice.clientId,
+                  backup: w.invoice.backup,
+                  isDraft: w.invoice.isDraft,
+                  isDeleted: w.invoice.isDeleted,
+                  isArchived: w.invoice.archivedAt != null,
+                  padding: const EdgeInsetsDirectional.only(end: 6),
+                ),
+                InvoiceStatusPill(
+                  statusId: w.invoice.calculatedStatusId,
+                  hasBounce: w.invoice.hasBouncedInvitation,
+                ),
+              ],
             ),
           ],
         ),

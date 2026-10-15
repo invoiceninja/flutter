@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
+import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcuts/key_binding.dart';
@@ -130,6 +131,14 @@ final Map<PrefKey<Object>, _Probe> _probes = {
   DevicePrefKeys.listDensity: _Probe(
     (s) => s.listDensity.set(kListDensityCompact),
     (s) => s.listDensity.value == kListDensityNormal,
+  ),
+  DevicePrefKeys.hoursFormat: _Probe(
+    (s) => s.hoursFormat.set(kHoursFormatHoursMinutes),
+    (s) => s.hoursFormat.value == kHoursFormatDecimal,
+  ),
+  DevicePrefKeys.hidePeppolStatus: _Probe(
+    (s) => s.hidePeppolStatus.set(true),
+    (s) => !s.hidePeppolStatus.value,
   ),
 };
 

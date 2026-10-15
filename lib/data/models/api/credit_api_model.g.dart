@@ -69,6 +69,7 @@ _CreditApi _$CreditApiFromJson(Map<String, dynamic> json) => _CreditApi(
       ? const <TagRefApi>[]
       : const EmbeddedTagsConverter().fromJson(json['tags']),
   eInvoice: json['e_invoice'] as Map<String, dynamic>?,
+  backup: json['backup'] as Map<String, dynamic>?,
   isDeleted: json['is_deleted'] as bool? ?? false,
   createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
   updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
@@ -127,6 +128,7 @@ Map<String, dynamic> _$CreditApiToJson(_CreditApi instance) =>
       'documents': instance.documents,
       'tags': const EmbeddedTagsConverter().toJson(instance.tags),
       'e_invoice': instance.eInvoice,
+      'backup': instance.backup,
       'is_deleted': instance.isDeleted,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,

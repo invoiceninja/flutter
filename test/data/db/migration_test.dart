@@ -253,7 +253,12 @@ void main() {
       expect(prefs.read(DevicePrefKeys.sidebarCollapsed), isTrue);
       // Keys added after v12 have no `nav_state` column to carry from — they
       // start unset, which is what their defaults are for.
-      const addedAfterV12 = {'default_items_tab', 'list_density'};
+      const addedAfterV12 = {
+        'default_items_tab',
+        'list_density',
+        'hours_format',
+        'hide_peppol_status',
+      };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {
           expect(prefs.read(key), isNull, reason: key.name);

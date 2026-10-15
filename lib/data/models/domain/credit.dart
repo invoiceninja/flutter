@@ -74,6 +74,8 @@ abstract class Credit with _$Credit implements BillingDocPartialFields {
     @Default(<Document>[]) List<Document> documents,
     @Default(<String>[]) List<String> tagIds,
     Map<String, dynamic>? eInvoice,
+    // Read-only, like the invoice's — not part of `toApiJson`.
+    Map<String, dynamic>? backup,
     @Default(false) bool isDirty,
   }) = _Credit;
 
@@ -135,6 +137,7 @@ abstract class Credit with _$Credit implements BillingDocPartialFields {
         if (t.id.isNotEmpty) t.id,
     ],
     eInvoice: a.eInvoice,
+    backup: a.backup,
   );
 }
 

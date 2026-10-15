@@ -23,6 +23,7 @@ import 'package:admin/ui/features/credits/widgets/credit_list_tile.dart';
 import 'package:admin/ui/features/credits/widgets/credit_token_search_field.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/utils/file_names.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
 
 class CreditListScreen extends StatelessWidget {
   const CreditListScreen({super.key, this.clientId, this.embedded = false});
@@ -77,34 +78,38 @@ class CreditListScreen extends StatelessWidget {
       emptyStateBuilder: (context, vm) => CreditListEmptyState(vm: vm),
       tileBuilder: (context, vm, credit, index, options) {
         final isUrlSelected = options.selectedId == credit.id;
-        return CreditListTile(
-          credit: credit,
-          columns: options.wide ? vm.columns : const [],
-          wide: options.wide,
-          editable: options.editable,
-          hideBottomDivider: options.bottomDividerHidden,
-          selecting: options.selecting,
-          selected: vm.isSelected(credit.id) || isUrlSelected,
-          urlSelected: isUrlSelected,
-          onTap: options.selecting
-              ? () => vm.toggleSelected(credit.id)
-              : isUrlSelected
-              ? () => MasterDetailNavScope.requestClose(
-                  context,
-                  basePath: '/credits',
-                )
-              : () => goEntityRecord(context, vm.entityType, credit.id),
-          onLongPress: () => vm.toggleSelected(credit.id),
-          onSelectTap: () => vm.toggleSelected(credit.id),
-          onAction: options.selecting
-              ? null
-              : (action) => CreditActions.dispatch(
-                  context,
-                  context.read<Services>(),
-                  vm.companyId,
-                  credit,
-                  action,
-                ),
+        // The rows' PEPPOL sent / failed mark reads the company through this.
+        return PeppolStatusScope(
+          companyUsesPeppol: vm.companyUsesPeppol,
+          child: CreditListTile(
+            credit: credit,
+            columns: options.wide ? vm.columns : const [],
+            wide: options.wide,
+            editable: options.editable,
+            hideBottomDivider: options.bottomDividerHidden,
+            selecting: options.selecting,
+            selected: vm.isSelected(credit.id) || isUrlSelected,
+            urlSelected: isUrlSelected,
+            onTap: options.selecting
+                ? () => vm.toggleSelected(credit.id)
+                : isUrlSelected
+                ? () => MasterDetailNavScope.requestClose(
+                    context,
+                    basePath: '/credits',
+                  )
+                : () => goEntityRecord(context, vm.entityType, credit.id),
+            onLongPress: () => vm.toggleSelected(credit.id),
+            onSelectTap: () => vm.toggleSelected(credit.id),
+            onAction: options.selecting
+                ? null
+                : (action) => CreditActions.dispatch(
+                    context,
+                    context.read<Services>(),
+                    vm.companyId,
+                    credit,
+                    action,
+                  ),
+          ),
         );
       },
       bulkActions: [

@@ -190,6 +190,24 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// How the Tasks weekly view shows hours (`decimal` / `hh_mm`, React's
+  /// `preferences.duration_format`, ui#3422). The user's habit, so it follows
+  /// the account, as React's per-user setting does.
+  static const hoursFormat = PrefKey<String>(
+    'hours_format',
+    PrefCodec.string,
+    PrefScope.account,
+  );
+
+  /// Hide the PEPPOL sent / failed icon on the invoice and credit lists
+  /// (React's `preferences.hide_peppol_sent_status`, ui#3410). Per user in
+  /// React, so it follows the account here.
+  static const hidePeppolStatus = PrefKey<bool>(
+    'hide_peppol_status',
+    PrefCodec.boolean,
+    PrefScope.account,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -211,6 +229,8 @@ abstract final class DevicePrefKeys {
     sidebarCollapsed,
     defaultItemsTab,
     listDensity,
+    hoursFormat,
+    hidePeppolStatus,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

@@ -25,20 +25,42 @@ const double _kTotalCol = 84;
 const double _kRowMinHeight = 56;
 const _tabular = [FontFeature.tabularFigures()];
 
-/// Decimal-hours text for [seconds] (empty for zero), locale-aware via [f].
-String weeklyHoursText(int seconds, Formatter? f) {
+/// Hours text for [seconds] (empty for zero): decimal hours, locale-aware via
+/// [f], or `H:MM` when [hoursMinutes].
+String weeklyHoursText(int seconds, Formatter? f, {bool hoursMinutes = false}) {
   if (seconds <= 0) return '';
+  if (hoursMinutes) return hoursMinutesText(seconds);
   final hours = seconds / 3600.0;
   return f != null ? f.decimal(hours) : hours.toStringAsFixed(2);
+}
+
+/// `H:MM` for [seconds], rounded to the nearest minute — React's
+/// `formatHoursMinutes`. Hours are not wrapped at 24: a week's total reads
+/// `41:30`, never a day count.
+String hoursMinutesText(int seconds) {
+  final totalMinutes = (seconds / 60).round();
+  final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
+  return '${totalMinutes ~/ 60}:$minutes';
 }
 
 /// The weekly timesheet grid: a 9-column table (task + 7 days + total) that
 /// scrolls horizontally as a unit and vertically over task rows. Editable
 /// duration cells write back through the VM's per-task debounce.
 class WeeklyGrid extends StatelessWidget {
-  const WeeklyGrid({super.key, this.formatter});
+  const WeeklyGrid({
+    super.key,
+    this.formatter,
+    this.hoursMinutes = false,
+    this.onHoursMinutesChanged,
+  });
 
   final Formatter? formatter;
+
+  /// Show hours as `H:MM` rather than decimal hours — every cell and total.
+  final bool hoursMinutes;
+
+  /// Flips [hoursMinutes]; the switch in the Total row is drawn only when set.
+  final ValueChanged<bool>? onHoursMinutesChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -185,45 +207,60 @@ class WeeklyGrid extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: tokens.border)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(width: _kTaskCol, child: _nameCell(context, tokens, task)),
-          for (final d in days)
-            SizedBox(
-              width: _kDayCol,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: WeeklyDurationCell(
-                  key: ValueKey('${task.id}|${d.toIso()}'),
-                  displayText: weeklyHoursText(
-                    vm.secondsFor(task.id, d),
-                    formatter,
+      // `IntrinsicHeight` bounds the row before `stretch` asks for its full
+      // height: the rows sit in a vertical scroll view, so without it every
+      // cell was handed an infinite height and no row ever laid out.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: _kTaskCol, child: _nameCell(context, tokens, task)),
+            for (final d in days)
+              SizedBox(
+                width: _kDayCol,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: WeeklyDurationCell(
+                    key: ValueKey('${task.id}|${d.toIso()}'),
+                    displayText: weeklyHoursText(
+                      vm.secondsFor(task.id, d),
+                      formatter,
+                      hoursMinutes: hoursMinutes,
+                    ),
+                    hoursMinutes: hoursMinutes,
+                    readOnly: readOnly,
+                    hasNote:
+                        vm.cellDescription(task.id, d).isNotEmpty ||
+                        !vm.cellBillable(task.id, d),
+                    formatter: formatter,
+                    onDuration: (raw) => vm.editCell(task.id, d, duration: raw),
+                    onNoteTap: () =>
+                        showWeeklyCellNote(context, vm, task.id, d),
                   ),
-                  readOnly: readOnly,
-                  hasNote:
-                      vm.cellDescription(task.id, d).isNotEmpty ||
-                      !vm.cellBillable(task.id, d),
-                  formatter: formatter,
-                  onDuration: (raw) => vm.editCell(task.id, d, duration: raw),
-                  onNoteTap: () => showWeeklyCellNote(context, vm, task.id, d),
+                ),
+              ),
+            SizedBox(
+              width: _kTotalCol,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    weeklyHoursText(
+                      vm.weekTotalFor(task.id),
+                      formatter,
+                      hoursMinutes: hoursMinutes,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontFeatures: _tabular,
+                    ),
+                  ),
                 ),
               ),
             ),
-          SizedBox(
-            width: _kTotalCol,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  weeklyHoursText(vm.weekTotalFor(task.id), formatter),
-                  style: const TextStyle(fontSize: 13, fontFeatures: _tabular),
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -306,8 +343,23 @@ class WeeklyGrid extends StatelessWidget {
           SizedBox(
             width: _kTaskCol,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(context.tr('total'), style: style),
+              padding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: onHoursMinutesChanged == null ? 12 : 4,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: Text(context.tr('total'), style: style)),
+                  // Beside the totals it reformats, at the leading edge every
+                  // pane shows: the header has no width to spare on a phone.
+                  if (onHoursMinutesChanged != null)
+                    HoursFormatSwitch(
+                      hoursMinutes: hoursMinutes,
+                      formatter: formatter,
+                      onChanged: onHoursMinutesChanged!,
+                    ),
+                ],
+              ),
             ),
           ),
           for (var i = 0; i < days.length; i++)
@@ -315,7 +367,11 @@ class WeeklyGrid extends StatelessWidget {
               width: _kDayCol,
               child: Center(
                 child: Text(
-                  weeklyHoursText(dayTotals[i], formatter),
+                  weeklyHoursText(
+                    dayTotals[i],
+                    formatter,
+                    hoursMinutes: hoursMinutes,
+                  ),
                   style: style,
                 ),
               ),
@@ -327,7 +383,11 @@ class WeeklyGrid extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
-                  weeklyHoursText(grandTotal, formatter),
+                  weeklyHoursText(
+                    grandTotal,
+                    formatter,
+                    hoursMinutes: hoursMinutes,
+                  ),
                   style: style,
                 ),
               ),
@@ -339,7 +399,44 @@ class WeeklyGrid extends StatelessWidget {
   }
 }
 
-/// Editable decimal-hours cell. Mirrors `time_entry_table._DurationCell` for
+/// Decimal hours or `H:MM` — the two choices, each labelled by the same
+/// ninety minutes written its way (`1.5` / `1:30`), so the control explains
+/// itself in any language; the tooltips name them. React ui#3422.
+class HoursFormatSwitch extends StatelessWidget {
+  const HoursFormatSwitch({
+    super.key,
+    required this.hoursMinutes,
+    required this.onChanged,
+    this.formatter,
+  });
+
+  final bool hoursMinutes;
+  final ValueChanged<bool> onChanged;
+  final Formatter? formatter;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<bool>(
+      showSelectedIcon: false,
+      segments: [
+        ButtonSegment(
+          value: false,
+          label: Text(formatter?.decimal(1.5) ?? '1.5'),
+          tooltip: context.tr('decimal_hours'),
+        ),
+        ButtonSegment(
+          value: true,
+          label: Text(hoursMinutesText(90 * 60)),
+          tooltip: context.tr('hours_and_minutes'),
+        ),
+      ],
+      selected: {hoursMinutes},
+      onSelectionChanged: (s) => onChanged(s.first),
+    );
+  }
+}
+
+/// Editable hours cell. Mirrors `time_entry_table._DurationCell` for
 /// cursor stability: the controller re-seeds only when the external value
 /// changed AND the user isn't mid-keystroke. Accepts decimal hours (`1.5`) or
 /// `h:mm` (`1:30`); an empty string clears the cell (deletes the entry).
@@ -352,9 +449,13 @@ class WeeklyDurationCell extends StatefulWidget {
     required this.onDuration,
     required this.onNoteTap,
     this.formatter,
+    this.hoursMinutes = false,
   });
 
   final String displayText;
+
+  /// Whether [displayText] is `H:MM` — what a typed value is re-rendered as.
+  final bool hoursMinutes;
   final bool readOnly;
   final bool hasNote;
   final void Function(String raw) onDuration;
@@ -398,7 +499,11 @@ class _WeeklyDurationCellState extends State<WeeklyDurationCell> {
     final secs = durationStringToSeconds(raw);
     _externalText = secs == null
         ? raw
-        : weeklyHoursText(secs, widget.formatter);
+        : weeklyHoursText(
+            secs,
+            widget.formatter,
+            hoursMinutes: widget.hoursMinutes,
+          );
     widget.onDuration(raw);
   }
 

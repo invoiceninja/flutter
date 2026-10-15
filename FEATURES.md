@@ -241,8 +241,8 @@ the honest default.
 | Invoice — email history | ✅ | ✅ | ✅ | | |
 | Invoice — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
 | Invoice — list bounce status badge | 🟡 | ✅ | ✅ | | |
-| Invoice / credit — list PEPPOL sent / failed icon (`backup.guid`), hideable | ✅ | ❌ | ❌ | | React on its develop branch (ui#3410), unreleased |
-| Invoice / quote / recurring — list footer totals, incl. Net Amount | ✅ | ❌ | ❌ | | |
+| Invoice / credit — list PEPPOL sent / failed icon (`backup.guid`), hideable | ✅ | ❌ | ✅ | | React on its develop branch (ui#3410), unreleased. v2: beside the status pill in the table and the phone row; hidden from Device Settings → E-Invoice (PEPPOL companies only). Not a link — a row already has one destination |
+| Invoice / quote / recurring — list footer totals, incl. Net Amount | ✅ | ❌ | ✅ | | v2 totals the *selected* rows (Amount, Net Amount, and Balance on invoices) in a bar under the list, one line per currency — the lists load as you scroll, so there is no page to total. React totals the page and adds currencies together |
 | Invoice — guided step-by-step editor (Who → Items → Payment → Notes → Send) | ✅ | ❌ | ❌ | | React on its develop branch (ui#3288), unreleased; its default for users created since 2026-08-09 |
 | Invoice — activities | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — payment schedule view | ✅ | ✅ | ✅ | ✅ | |
@@ -368,7 +368,7 @@ the honest default.
 | Payment — edit | ✅ | ✅ | ✅ | ✅ | |
 | Payment — record manual payment | ✅ | ✅ | ✅ | ✅ | |
 | Payment — apply to specific invoice | ✅ | ✅ | ✅ | ✅ | |
-| Payment — new payment starts from an invoice (fills the client, currency and full balance) | ✅ | ❌ | ❌ | | v2 asks for the client first |
+| Payment — new payment starts from an invoice (fills the client, currency and full balance) | ✅ | ❌ | ✅ | | v2: an Invoice picker under Client ("or"), unpaid invoices newest first, narrowed to the chosen client; it gives way to the allocations section once two invoices are allocated |
 | Payment — apply unapplied funds to the oldest unpaid invoice from the record, naming the invoice and the amount before anything moves | — | — | ✅ | | It applied on one tap before; an allocation cannot be undone from the app |
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |
@@ -424,7 +424,7 @@ the honest default.
 | Task — kanban board view | ✅ | ✅ | ✅ | ✅ | |
 | Task — daily view | ✅ | ❌ | ✅ |  | |
 | Task — weekly view | ✅ | ❌ | ✅ |  | |
-| Task — weekly view shows hours as decimal or HH:MM (toggle) | ✅ | ❌ | ❌ | | React on its develop branch (ui#3422), unreleased; v2 accepts `1:30` typed but always shows decimal |
+| Task — weekly view shows hours as decimal or HH:MM (toggle) | ✅ | ❌ | ✅ | | React on its develop branch (ui#3422), unreleased. v2's switch sits in the grid's Total row and is remembered per account |
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
 | Task — calendar places a task on every day one of its time entries touches (hosted, or self-hosted ≥ 5.13.43, fetches the month by `activity_dates`) | ✅ | ❌ | ✅ |  | |
 | Task — calendar month window fetched from the server (`date_range` on `calculated_start_date`), shared by the calendar view and the dashboard panel | — | — | ✅ |  | |

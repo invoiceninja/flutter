@@ -125,6 +125,12 @@ typedef EntitySectionHeaderBuilder<VM> =
 typedef EntityGroupOptionsBuilder<VM> =
     List<GroupOption> Function(BuildContext context, VM vm);
 
+/// Builds what the selected rows come to, shown under the list while any are
+/// selected (the billing lists' totals), or null for nothing. [formatter] is
+/// the list's resolved company formatter.
+typedef EntitySelectionSummaryBuilder<VM> =
+    Widget? Function(BuildContext context, VM vm, Formatter? formatter);
+
 // ─── Config records ──────────────────────────────────────────────────────
 
 /// Per-row state supplied to the [EntityTileBuilder] every build.
@@ -305,6 +311,7 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
     this.headerBanner,
     this.sectionHeaderBuilder,
     this.groupOptions,
+    this.selectionSummaryBuilder,
     this.canCreate = true,
     this.embeddedNewOverride,
     this.selectionShortcuts,
@@ -411,6 +418,11 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
   /// leaves that sheet exactly as it was. Wide screens supply their own
   /// control through [extraAppBarActions] (the sheet is mobile-only).
   final EntityGroupOptionsBuilder<VM>? groupOptions;
+
+  /// What the selected rows come to — see [EntitySelectionSummaryBuilder].
+  /// The standalone list only: an embedded one has no screen bottom to put it
+  /// on.
+  final EntitySelectionSummaryBuilder<VM>? selectionSummaryBuilder;
 
   /// When `false`, the wide-mode "New X" inline button and the narrow-mode
   /// FAB are hidden / inert. Used by plan-gated screens so a free-plan user
@@ -1395,6 +1407,16 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
               // endFloat lifts the FAB above the bottom filter bar on mobile.
               floatingActionButtonLocation:
                   FloatingActionButtonLocation.endFloat,
+              // Where the `+` sits otherwise — it is hidden while selecting —
+              // so the totals take no row from the list, and a slot the
+              // Scaffold insets the body for. The bar owns its safe area.
+              bottomNavigationBar: selecting && _vm.countSelected > 0
+                  ? widget.selectionSummaryBuilder?.call(
+                      context,
+                      _vm,
+                      formatter,
+                    )
+                  : null,
               // One header for both modes: the selection chrome is stacked
               // over the normal chrome rather than swapped for it, so it is
               // exactly as tall — wrapped filter chips included — and the

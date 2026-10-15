@@ -9,9 +9,12 @@ import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
+import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_constants.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
 import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
 import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
@@ -52,6 +55,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kContactsSyncSearchKeys,
   ...kAssignedUsersSearchKeys,
   'default_tab',
+  'hide_peppol_sent_status',
   ...kDashboardPanelsSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarMenuSearchKeys,
@@ -132,6 +136,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Also about what a form offers — which items tab a billing
               // document opens on (React #3355).
               const _DefaultItemsTabSection(),
+              // Beside its sibling: what the invoice and credit lists show.
+              // Only for a PEPPOL company — nobody else ever sees the mark.
+              const _PeppolStatusSection(),
               // Dashboard chrome, ahead of the list / rail trio so it doesn't
               // split them — and, like the card above, well clear of Sidebar
               // counters: its default is for phones, where that is a long way
@@ -176,6 +183,46 @@ class _DefaultItemsTabSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// "Hide Peppol Sent Status": the sent / failed mark beside the status on the
+/// invoice and credit lists (React ui#3410). The card shows only while the
+/// active company sends by PEPPOL, the one case where there is a mark to hide.
+class _PeppolStatusSection extends StatelessWidget {
+  const _PeppolStatusSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId == null || companyId.isEmpty) return const SizedBox.shrink();
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
+      builder: (context, snapshot) {
+        if (snapshot.data?.settings.eInvoiceType != kEInvoiceTypePEPPOL) {
+          return const SizedBox.shrink();
+        }
+        final controller = services.hidePeppolStatus;
+        return FormSection(
+          title: context.tr('e_invoice'),
+          spacing: 0,
+          children: [
+            ValueListenableBuilder<bool>(
+              valueListenable: controller,
+              builder: (context, hidden, _) => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.send_outlined),
+                title: Text(context.tr('hide_peppol_sent_status')),
+                value: hidden,
+                onChanged: controller.set,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

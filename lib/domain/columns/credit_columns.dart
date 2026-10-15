@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/credit_dao.dart';
 import 'package:admin/data/models/domain/credit.dart';
@@ -10,6 +12,7 @@ import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 
 typedef CreditColumn = ColumnDefinition<Credit>;
@@ -29,9 +32,24 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
     id: CreditFieldIds.status,
     labelKey: 'status',
     width: 110,
-    cellBuilder: (c, _) => CreditStatusPill(
-      statusId: c.calculatedStatusId,
-      hasBounce: c.hasBouncedInvitation,
+    cellBuilder: (c, _) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: CreditStatusPill(
+            statusId: c.calculatedStatusId,
+            hasBounce: c.hasBouncedInvitation,
+          ),
+        ),
+        PeppolStatusIcon(
+          clientId: c.clientId,
+          backup: c.backup,
+          isDraft: c.isDraft,
+          isDeleted: c.isDeleted,
+          isArchived: c.archivedAt != null,
+          padding: const EdgeInsetsDirectional.only(start: 6),
+        ),
+      ],
     ),
     valueBuilder: (c) => c.calculatedStatusId,
   ),

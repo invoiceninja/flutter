@@ -117,26 +117,29 @@ class PurchaseOrdersApi
     String? designId,
     String? storedPdfKey,
   }) {
-    final stored = fetchStoredPdf(
+    Future<Uint8List> livePreview() {
+      final id = (entityJson['id'] as String?) ?? '';
+      final saved = id.isNotEmpty && !id.startsWith('tmp_');
+      final path = StringBuffer(
+        '/api/v1/live_preview/purchase_order?entity=purchase_order',
+      )..write(saved ? '&entity_id=$id' : '');
+      return client.postRaw(
+        path.toString(),
+        readOnly: true,
+        body: {
+          ...entityJson,
+          if (designId != null && designId.isNotEmpty) 'design_id': designId,
+        },
+      );
+    }
+
+    return fetchStoredPdf(
       client: client,
       entity: 'purchase_order',
       storedPdfKey: storedPdfKey,
       entityJson: entityJson,
       designId: designId,
-    );
-    if (stored != null) return stored;
-    final id = (entityJson['id'] as String?) ?? '';
-    final saved = id.isNotEmpty && !id.startsWith('tmp_');
-    final path = StringBuffer(
-      '/api/v1/live_preview/purchase_order?entity=purchase_order',
-    )..write(saved ? '&entity_id=$id' : '');
-    return client.postRaw(
-      path.toString(),
-      readOnly: true,
-      body: {
-        ...entityJson,
-        if (designId != null && designId.isNotEmpty) 'design_id': designId,
-      },
+      livePreview: livePreview,
     );
   }
 

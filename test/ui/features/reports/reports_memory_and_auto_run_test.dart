@@ -43,6 +43,9 @@ class _Repo implements ReportsRepository {
 
   final List<String> columns;
   final List<(String, ReportPayload)> runs = [];
+
+  /// The `report_keys` of each run, in step with [runs].
+  final List<List<String>> keys = [];
   final Map<String, ({ReportPreview preview, DateTime fetchedAt})> remembered =
       {};
   ReportError? error;
@@ -65,13 +68,18 @@ class _Repo implements ReportsRepository {
     ReportPollingCancellation? isCancelled,
   }) async {
     runs.add((reportIdentifier, payload));
+    keys.add(reportKeys);
     await gate?.future;
     if (isCancelled?.call() == true) {
       throw const ReportError(kind: ReportErrorKind.cancelled);
     }
     final e = error;
     if (e != null) throw e;
-    final preview = _previewOf(columns, marker: 'run${runs.length}');
+    // Like the server: the columns asked for, or its default set when none.
+    final preview = _previewOf(
+      reportKeys.isEmpty ? columns : reportKeys,
+      marker: 'run${runs.length}',
+    );
     remembered[_key(reportIdentifier, payload)] = (
       preview: preview,
       fetchedAt: clock(),
@@ -431,7 +439,10 @@ void main() {
 
     tearDown(() => online.close());
 
-    ReportsViewModel build({String report = 'invoice'}) => ReportsViewModel(
+    ReportsViewModel build({
+      String report = 'invoice',
+      Duration debounce = const Duration(milliseconds: 10),
+    }) => ReportsViewModel(
       repo: repo,
       statics: statics,
       initialReport: report,
@@ -440,7 +451,7 @@ void main() {
       canRun: () => allowed,
       online: online.stream,
       now: () => now,
-      autoRunDebounce: const Duration(milliseconds: 10),
+      autoRunDebounce: debounce,
       freshFor: const Duration(minutes: 5),
     );
 
@@ -607,6 +618,146 @@ void main() {
       expect(vm.run.error?.kind, ReportErrorKind.rateLimited);
       vm.dispose();
     });
+
+    // Picking a range while the last one polled used to wait the old run
+    // out, stamp the new range on its rows and never ask for the new one.
+    test('a change made while a run is in flight supersedes it', () async {
+      repo.gate = Completer<void>();
+      final vm = build();
+      final opening = vm.open('invoice');
+      await settle();
+      expect(vm.run.isLoading, isTrue);
+
+      vm.setPayload(vm.payload.copyWith(datePreset: ReportDatePreset.lastYear));
+      await settle();
+      // Asked for at once — not after the old run has landed.
+      expect(repo.runs, hasLength(2));
+      expect(repo.runs.last.$2.datePreset, ReportDatePreset.lastYear);
+
+      repo.gate!.complete();
+      await opening;
+      await settle();
+      expect(vm.run.status, ReportRunStatus.ready);
+      expect(_marker(vm), 'run2');
+      expect(vm.isParamDirty, isFalse);
+      vm.dispose();
+    });
+
+    test(
+      'a run landing before a change has run is not taken for its answer',
+      () async {
+        repo.gate = Completer<void>();
+        final vm = build(debounce: const Duration(milliseconds: 200));
+        final opening = vm.open('invoice');
+        await settle();
+        vm.setPayload(
+          vm.payload.copyWith(datePreset: ReportDatePreset.lastYear),
+        );
+        repo.gate!.complete();
+        await opening;
+        // This year's rows answer nothing the reader still wants: they are
+        // not put on screen, and the run the change scheduled replaces them.
+        expect(repo.runs, hasLength(1));
+        expect(vm.isParamDirty, isTrue);
+        expect(vm.run.isLoading, isTrue);
+        expect(vm.run.preview, isNull);
+
+        await settle(300);
+        expect(repo.runs, hasLength(2));
+        expect(repo.runs.last.$2.datePreset, ReportDatePreset.lastYear);
+        expect(vm.isParamDirty, isFalse);
+        vm.dispose();
+      },
+    );
+
+    test('going back to a range seen brings back its own comparison', () async {
+      final vm = build();
+      await vm.open('invoice');
+      final thisYear = vm.payload;
+      vm.setCompare(true);
+      await settle();
+      final yearBefore = vm.compareWindow!;
+
+      vm.setPayload(thisYear.copyWith(datePreset: ReportDatePreset.lastMonth));
+      await settle();
+      expect(vm.compareWindow!.previousStart, isNot(yearBefore.previousStart));
+
+      vm.setPayload(thisYear);
+      await settle();
+      // Read back from disk, not run again…
+      expect(_marker(vm), 'run1');
+      // …and set against the year before, not the month before last month.
+      expect(vm.compareWindow?.previousStart, yearBefore.previousStart);
+      expect(vm.compareWindow?.previousEnd, yearBefore.previousEnd);
+      vm.dispose();
+    });
+
+    test(
+      'the optional date column is not answered from disk without it',
+      () async {
+        final vm = build(report: 'client');
+        await vm.open('client');
+        expect(repo.runs, hasLength(1));
+
+        // The plain result for this payload is on disk; it lacks the column.
+        vm.setIncludeDateColumn(true);
+        await settle();
+        expect(repo.runs, hasLength(2));
+        expect(repo.keys.last, contains('client.created_at'));
+        vm.dispose();
+      },
+    );
+
+    // The other way round: the newest result on disk for the payload is now
+    // the one *with* the column, and switching it off was answered by it —
+    // fresh, so nothing ran, and the column stayed on screen.
+    test(
+      'switching the date column off is not answered from disk with it',
+      () async {
+        final vm = build(report: 'client');
+        await vm.open('client');
+        vm.setIncludeDateColumn(true);
+        await settle();
+        expect(repo.keys.last, contains('client.created_at'));
+        expect(vm.visibleColumnIds, contains('client.created_at'));
+
+        vm.setIncludeDateColumn(false);
+        await settle();
+        expect(repo.runs, hasLength(3));
+        expect(repo.keys.last, isEmpty);
+        expect(vm.visibleColumnIds, isNot(contains('client.created_at')));
+        vm.dispose();
+      },
+    );
+
+    // Group by → Date created opts in and leaves the fetch to the debounced
+    // run. A plain refresh landing first was reconciled against — and the
+    // grouping, on a column those rows lack, was dropped before it arrived.
+    test(
+      'a grouping picked while a refresh is in flight survives it',
+      () async {
+        final vm = build(
+          report: 'client',
+          debounce: const Duration(milliseconds: 200),
+        );
+        await vm.open('client');
+        repo.gate = Completer<void>();
+        final refreshing = vm.runReport();
+        await settle(5);
+        vm.groupBy('client.created_at');
+        expect(vm.group, 'client.created_at');
+
+        repo.gate!.complete();
+        await refreshing;
+        expect(vm.group, 'client.created_at');
+
+        await settle(300);
+        expect(repo.keys.last, contains('client.created_at'));
+        expect(vm.group, 'client.created_at');
+        expect(vm.isParamDirty, isFalse);
+        vm.dispose();
+      },
+    );
 
     test('switching report strands a run still pending', () async {
       final vm = build();

@@ -73,12 +73,7 @@ class _ReportViewsButtonState extends State<ReportViewsButton> {
             if (v.reportIdentifier == vm.reportIdentifier) v,
         ];
         final active = mine.where((v) => v.id == vm.viewId).firstOrNull;
-        final changed =
-            active != null &&
-            !const DeepCollectionEquality().equals(
-              active.state,
-              vm.reportViewState(),
-            );
+        final changed = active != null && vm.differsFromView(active.state);
         return BackDismissibleMenuAnchor(
           menuChildren: [
             for (final view in mine)

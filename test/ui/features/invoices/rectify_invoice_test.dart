@@ -196,5 +196,18 @@ void main() {
       expect(json['modified_invoice_id'], 'inv1');
       expect(json['reason'], 'duplicate billing');
     });
+
+    // `backup` is the source's e-invoice state: carried, the unsent draft
+    // listed as "sent over PEPPOL" and wore the source's F1 chip.
+    test("drops the source's e-invoice state", () {
+      final source = _invoice(
+        backup: const {
+          'document_type': 'F1',
+          'adjustable_amount': 50,
+          'guid': 'peppol-guid',
+        },
+      );
+      expect(rectifiedDraft(source, 'r').backup, isNull);
+    });
   });
 }

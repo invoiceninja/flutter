@@ -93,6 +93,15 @@ const kReportDefinitions = <ReportDefinition>[
     ],
     rowIdKey: 'client.id',
     rowRecordWire: 'client',
+    // A row per contact, each carrying its client's figures
+    // (`ContactExport` over `$client_report_keys`): a client with three
+    // contacts would count three times.
+    oncePerRecordColumnIds: {
+      'client.balance',
+      'client.paid_to_date',
+      'client.credit_balance',
+      'client.payment_balance',
+    },
     dateRangeKey: 'created_at',
     optionalDateColumnId: 'contact.created_at',
     endpoint: '/api/v1/reports/contacts',

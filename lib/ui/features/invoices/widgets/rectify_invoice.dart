@@ -71,6 +71,11 @@ Invoice rectifiedDraft(Invoice invoice, String reason) {
     projectId: '',
     vendorId: '',
     subscriptionId: '',
+    // The source's e-invoice state (`backup`: its PEPPOL delivery and its
+    // Verifactu document type) belongs to the source; the server writes the
+    // corrective invoice's own. Carried, the draft listed as "sent over
+    // PEPPOL" and wore the source's `F1` chip.
+    backup: null,
     archivedAt: null,
     isDeleted: false,
     isDirty: false,

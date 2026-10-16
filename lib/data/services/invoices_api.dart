@@ -274,26 +274,27 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
       );
     }
 
-    if (!deliveryNote) {
-      final stored = fetchStoredPdf(
-        client: client,
-        entity: 'invoice',
-        storedPdfKey: storedPdfKey,
-        entityJson: entityJson,
-        designId: designId,
+    Future<Uint8List> livePreview() {
+      final path = StringBuffer('/api/v1/live_preview?entity=invoice')
+        ..write(saved ? '&entity_id=$id' : '');
+      return client.postRaw(
+        path.toString(),
+        readOnly: true,
+        body: {
+          ...entityJson,
+          if (designId != null && designId.isNotEmpty) 'design_id': designId,
+        },
       );
-      if (stored != null) return stored;
     }
 
-    final path = StringBuffer('/api/v1/live_preview?entity=invoice')
-      ..write(saved ? '&entity_id=$id' : '');
-    return client.postRaw(
-      path.toString(),
-      readOnly: true,
-      body: {
-        ...entityJson,
-        if (designId != null && designId.isNotEmpty) 'design_id': designId,
-      },
+    if (deliveryNote) return livePreview();
+    return fetchStoredPdf(
+      client: client,
+      entity: 'invoice',
+      storedPdfKey: storedPdfKey,
+      entityJson: entityJson,
+      designId: designId,
+      livePreview: livePreview,
     );
   }
 

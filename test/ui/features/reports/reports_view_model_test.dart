@@ -98,6 +98,10 @@ class _FakeRepo implements ReportsRepository {
   Object? exportError;
   int exportCalls = 0;
 
+  /// The `group_by` each export / email was sent with.
+  final List<String?> exportGroupBys = [];
+  final List<String?> emailGroupBys = [];
+
   /// Email hook: throw [sendEmailError] if set; record call count.
   Object? sendEmailError;
   int sendEmailCalls = 0;
@@ -115,6 +119,7 @@ class _FakeRepo implements ReportsRepository {
   }) async {
     exportCalls++;
     exportReportKeys.add(reportKeys);
+    exportGroupBys.add(groupBy);
     if (isCancelled?.call() == true) {
       throw const ReportError(kind: ReportErrorKind.cancelled);
     }
@@ -144,6 +149,7 @@ class _FakeRepo implements ReportsRepository {
     String? groupBy,
   }) async {
     sendEmailCalls++;
+    emailGroupBys.add(groupBy);
     if (sendEmailError != null) throw sendEmailError!;
   }
 
@@ -253,6 +259,44 @@ void main() {
         expect(r1.value, Decimal.fromInt(20)); // 5 × 4
       },
     );
+
+    // It runs after the ids are taken onto the rows. Rebuilding each row
+    // from its cells dropped them: no product row could be opened.
+    test('keeps each row its record', () async {
+      final base = productPreview();
+      final withIds = ReportPreview(
+        columns: [
+          ...base.columns,
+          const ReportColumn(
+            identifier: 'product.hashed_id',
+            displayLabel: 'Id',
+            type: ReportColumnType.string,
+          ),
+        ],
+        rows: [
+          for (final (i, row) in base.rows.indexed)
+            ReportRow(
+              cells: [
+                ...row.cells,
+                ReportStringCell(value: 'p$i', displayValue: 'p$i'),
+              ],
+            ),
+        ],
+      );
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), withIds);
+      final vm = ReportsViewModel(
+        repo: repo,
+        statics: statics,
+        initialReport: 'product',
+      );
+      await vm.runReport();
+
+      final rows = vm.run.preview!.rows;
+      expect(vm.run.preview!.columns.last.identifier, 'stock_value');
+      expect(rows.map((r) => r.recordId), ['p0', 'p1']);
+      expect(rows.map((r) => r.recordWire), ['product', 'product']);
+    });
 
     test('does not inject for non-product reports', () async {
       final repo = _FakeRepo();
@@ -961,6 +1005,41 @@ void main() {
       expect(vm.serverGroupBy, 'client.name');
     });
 
+    // With any `group_by` the server answers with its grouped summary, and
+    // before it reads `template_id` — so the full download of a report shown
+    // by month (how the invoice report opens) was a summed row per day, and
+    // the template PDF was that CSV.
+    test(
+      'the full download is never grouped; a date grouping is never sent',
+      () async {
+        final repo = _FakeRepo();
+        repo.queue(
+          _Trigger()..release(),
+          clientPreview(['invoice.date', 'client.name', 'invoice.amount']),
+        );
+        final vm = ReportsViewModel(
+          repo: repo,
+          statics: statics,
+          initialReport: 'invoice',
+        );
+        await vm.runReport();
+        expect(vm.group, 'invoice.date', reason: 'how the report opens');
+        expect(vm.serverGroupBy, isNull);
+
+        await vm.runExport();
+        await vm.runExport(templateId: 'tpl');
+        await vm.sendEmail();
+        expect(repo.exportGroupBys, [null, null]);
+        expect(repo.emailGroupBys, [null]);
+
+        vm.setGroup('client.name');
+        await vm.runExport();
+        await vm.sendEmail();
+        expect(repo.exportGroupBys.last, isNull);
+        expect(repo.emailGroupBys.last, 'client.name');
+      },
+    );
+
     // The flag changes the fetch without touching the payload, so it has to
     // join the dirty check by hand or Run keeps reading "Run report".
     test('flipping the switch marks the params dirty', () async {
@@ -1328,6 +1407,105 @@ void main() {
       ]);
       expect(vm2.group, 'client.created_at');
     });
+
+    // The server's column set rides in a saved view, and a plain run
+    // relearns it — which lit the view's "changed" mark after every refresh.
+    test('a plain run does not make a saved view read as changed', () async {
+      var now = DateTime(2026, 10, 8, 12);
+      final repo = _FakeRepo();
+      for (var i = 0; i < 2; i++) {
+        repo.queue(
+          _Trigger()..release(),
+          clientPreview(['client.name', 'client.balance']),
+        );
+      }
+      final vm = ReportsViewModel(repo: repo, statics: statics, now: () => now);
+      await vm.runReport();
+      final saved = vm.reportViewState();
+      expect(vm.differsFromView(saved), isFalse);
+
+      now = now.add(const Duration(minutes: 1));
+      await vm.runReport();
+      expect(vm.differsFromView(saved), isFalse);
+
+      // A choice the reader made still does.
+      vm.setGroup('client.name');
+      expect(vm.differsFromView(saved), isTrue);
+    });
+
+    // …but the column set must stay *in* the view: applying one resets the
+    // report and restores it from there, and a view grouped on the date
+    // column needs it to ask for the column at all.
+    test('a view grouped on the date column still asks for it', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+      final saved = vm.reportViewState();
+
+      final repo2 = _FakeRepo();
+      repo2.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm2 = ReportsViewModel(repo: repo2, statics: statics);
+      await vm2.hydration;
+      vm2.applyReportView('v1', saved);
+      await vm2.runReport();
+      expect(repo2.previewReportKeys.single, contains('client.created_at'));
+      expect(vm2.group, 'client.created_at');
+    });
+  });
+
+  // `ContactExport` writes a row per contact, each carrying its client's
+  // figures: summed, a client with three contacts counted three times.
+  test('the contact report counts a client figure once per client', () async {
+    final repo = _FakeRepo();
+    repo.queue(
+      _Trigger()..release(),
+      ReportPreview(
+        columns: [
+          for (final id in [
+            'client.name',
+            'contact.first_name',
+            'client.balance',
+            'client.paid_to_date',
+            'client.credit_balance',
+            'client.payment_balance',
+          ])
+            ReportColumn(
+              identifier: id,
+              displayLabel: id,
+              type: inferColumnType(id),
+            ),
+        ],
+        rows: const [],
+      ),
+    );
+    final vm = ReportsViewModel(
+      repo: repo,
+      statics: statics,
+      initialReport: 'contact',
+    );
+    await vm.runReport();
+    final aggregation = {
+      for (final c in vm.run.preview!.columns) c.identifier: c.aggregation,
+    };
+    for (final id in [
+      'client.balance',
+      'client.paid_to_date',
+      'client.credit_balance',
+      'client.payment_balance',
+    ]) {
+      expect(aggregation[id], ReportAggregation.oncePerRecord, reason: id);
+    }
   });
 }
 

@@ -2,6 +2,7 @@ import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/credits_api.dart';
 import 'package:admin/data/services/invoices_api.dart';
 import 'package:admin/data/services/password_cache.dart';
@@ -158,6 +159,114 @@ void main() {
         expect(captured!.method, 'POST');
         expect(captured!.url.path, startsWith('/api/v1/live_preview'));
       });
+
+      // The key is the first invitation held locally, and deleting a contact
+      // soft-deletes its invitations without touching the document — the
+      // route then answers `400 no record found`. The re-render beats no
+      // PDF at all, which is what this release would otherwise have shipped.
+      test('$entity: a refused stored render → live_preview', () async {
+        final requests = <http.BaseRequest>[];
+        final fake = MockClient((req) async {
+          requests.add(req);
+          if (req.method == 'GET') {
+            return http.Response(
+              '{"message":"no record found"}',
+              400,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return _pdf();
+        });
+        final bytes = await download(
+          _client(fake),
+          entityJson: {'id': 'e_1', 'design_id': 'd_1'},
+          storedPdfKey: 'key_gone',
+        );
+        expect(bytes, const [0x25, 0x50, 0x44, 0x46]);
+        expect(requests.map((r) => r.method), ['GET', 'POST']);
+        expect(requests.last.url.path, startsWith('/api/v1/live_preview'));
+      });
+
+      test(
+        '$entity: a connection failure is not retried as a render',
+        () async {
+          final requests = <http.BaseRequest>[];
+          final fake = MockClient((req) async {
+            requests.add(req);
+            throw http.ClientException('connection reset', req.url);
+          });
+          await expectLater(
+            download(
+              _client(fake),
+              entityJson: {'id': 'e_1', 'design_id': 'd_1'},
+              storedPdfKey: 'key_abc',
+            ),
+            throwsA(isA<NetworkException>()),
+          );
+          expect(requests.map((r) => r.method), ['GET']);
+        },
+      );
     }
+  });
+
+  // The fallback is for a server that *refused* the stored render. A denial
+  // of this user, a redirect, or a 2xx that is not a PDF is not that, and a
+  // re-render would hide it — the last one behind an unsigned PDF.
+  group('the live_preview fallback is for a refusal only', () {
+    Future<(Object?, List<String>)> attempt(http.Response storedAnswer) async {
+      final methods = <String>[];
+      final fake = MockClient((req) async {
+        methods.add(req.method);
+        return req.method == 'GET' ? storedAnswer : _pdf();
+      });
+      try {
+        await InvoicesApi(_client(fake)).downloadPdf(
+          entityJson: {'id': 'e_1', 'design_id': 'd_1'},
+          storedPdfKey: 'key_abc',
+        );
+        return (null, methods);
+      } catch (e) {
+        return (e, methods);
+      }
+    }
+
+    http.Response json(String body, int status) => http.Response(
+      body,
+      status,
+      headers: {'content-type': 'application/json'},
+    );
+
+    test('an invitation the server cannot find → live_preview', () async {
+      final (error, methods) = await attempt(
+        json(
+          r'{"message":"No query results for model [App\\Models\\InvoiceInvitation]"}',
+          400,
+        ),
+      );
+      expect(error, isNull);
+      expect(methods, ['GET', 'POST']);
+    });
+
+    test('a server error → live_preview', () async {
+      final (error, methods) = await attempt(
+        json('{"message":"Server Error"}', 500),
+      );
+      expect(error, isNull);
+      expect(methods, ['GET', 'POST']);
+    });
+
+    test('a permission denial is not retried as a render', () async {
+      final (error, methods) = await attempt(
+        json('{"message":"This action is unauthorized."}', 401),
+      );
+      expect(error, isA<PermissionDeniedException>());
+      expect(methods, ['GET']);
+    });
+
+    test('a 2xx that is not a PDF is not hidden behind a render', () async {
+      final (error, methods) = await attempt(json('{"ok":true}', 200));
+      expect(error, isA<ServerException>());
+      expect(methods, ['GET']);
+    });
   });
 }

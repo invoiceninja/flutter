@@ -480,6 +480,10 @@ class CreditActions {
           projectId: '',
           vendorId: '',
           eInvoice: null,
+          // The source's e-invoice delivery (`backup.guid`): carried, an
+          // unsent clone lists as "sent over PEPPOL" until the server's
+          // copy replaces it — and for good if its create fails.
+          backup: null,
           // Drop the source's per-send lifecycle state — see
           // `InvitationClone.freshClone`. Without this the fresh draft shows
           // the original's sent/viewed timestamps and bounce error, and its

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:collection/collection.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -25,6 +26,18 @@ import 'package:admin/domain/reports/report_row_records.dart';
 import 'package:admin/ui/features/reports/helpers/report_range.dart';
 
 final _log = Logger('ReportsViewModel');
+
+/// What one run asked the server for: the payload, and whether it opted into
+/// the report's optional date column (which changes the fetch without
+/// touching the payload — see `ReportsViewModel.isParamDirty`).
+typedef _RunRequest = ({ReportPayload payload, bool withDateColumn});
+
+/// Whether [a] and [b] ask for the same rows. Only [ReportPayload.forPreview]
+/// counts: a template or an attachment switch is not a different result.
+bool _sameRequest(_RunRequest? a, _RunRequest b) =>
+    a != null &&
+    a.payload.forPreview == b.payload.forPreview &&
+    a.withDateColumn == b.withDateColumn;
 
 enum ReportRunStatus { idle, loading, ready, error }
 
@@ -301,6 +314,23 @@ class ReportsViewModel extends ChangeNotifier {
   Map<String, dynamic> reportViewState() =>
       _reportSnapshot()..removeWhere((key, _) => _kNotViewState.contains(key));
 
+  /// Keys a view holds that say nothing the reader chose: the server's column
+  /// set and when it was learnt, which a plain run refreshes. They stay *in*
+  /// the view — [applyReportView] resets the report and restores the column
+  /// set from it, and a view grouped on the optional date column needs that
+  /// set to ask for the column — but a difference in them is not a change.
+  static const _kNotViewChoices = {'serverColumns', 'serverColumnsAt'};
+
+  /// Whether the report as it stands differs from the saved view [state] —
+  /// the "changed" mark on the view's name and its "Update view" item.
+  bool differsFromView(Map<String, dynamic> state) {
+    bool choice(String key, dynamic _) => _kNotViewChoices.contains(key);
+    return !const DeepCollectionEquality().equals(
+      Map.of(state)..removeWhere(choice),
+      reportViewState()..removeWhere(choice),
+    );
+  }
+
   /// Put a saved view's [state] on screen and mark the report as showing
   /// [viewId]. Runs the report when the view asks for different rows.
   void applyReportView(String viewId, Map<String, dynamic> state) {
@@ -337,6 +367,11 @@ class ReportsViewModel extends ChangeNotifier {
 
   ReportPreview? _comparePreview;
   DashboardComparison? _compareWindow;
+
+  /// The result the comparison in hand — or in flight — sets the period
+  /// before against. A result for any other request makes it a comparison
+  /// with the wrong period, so [_applySuccessfulPreview] drops it.
+  _RunRequest? _compareBase;
   int _compareEpoch = 0;
   int? _compareMemoKey;
   ReportView? _compareMemoView;
@@ -424,10 +459,21 @@ class ReportsViewModel extends ChangeNotifier {
   /// Fetch the same report for the period before. A second, quieter run: it
   /// draws no spinner and reports no error — a comparison that could not be
   /// had is simply not shown, and the report itself is unaffected.
+  ///
+  /// Against the result on screen ([_lastRunPayload]), not the payload as it
+  /// now stands: the two differ while a change is waiting to run, and the
+  /// figures being compared are the ones on screen.
   Future<void> _runCompare() async {
     final epoch = ++_compareEpoch;
-    final window = _compare && canCompare ? comparisonFor(_payload) : null;
-    if (window == null || !_mayRun) {
+    final shown = _lastRunPayload;
+    final base = shown == null
+        ? null
+        : (payload: shown, withDateColumn: _lastRunIncludeDateColumn);
+    final window = _compare && canCompare && base != null
+        ? comparisonFor(base.payload)
+        : null;
+    _compareBase = base;
+    if (window == null || base == null || !_mayRun) {
       if (_comparePreview != null) {
         _comparePreview = null;
         _compareWindow = null;
@@ -442,7 +488,7 @@ class ReportsViewModel extends ChangeNotifier {
       final raw = await repo.runPreview(
         reportIdentifier: report,
         endpoint: definition.endpoint,
-        payload: _payload.copyWith(
+        payload: base.payload.copyWith(
           datePreset: ReportDatePreset.custom,
           startDate: () => window.previousStart,
           endDate: () => window.previousEnd,
@@ -451,7 +497,7 @@ class ReportsViewModel extends ChangeNotifier {
         companyId: companyId,
         // The same columns the result on screen was asked for, so the two
         // can be cut the same way.
-        reportKeys: _previewReportKeys(),
+        reportKeys: _previewReportKeys(withDateColumn: base.withDateColumn),
         isCancelled: () => _disposed || epoch != _compareEpoch,
       );
       if (_disposed || epoch != _compareEpoch || report != _reportIdentifier) {
@@ -693,6 +739,20 @@ class ReportsViewModel extends ChangeNotifier {
   // ─── Concurrency ───
   int _runEpoch = 0;
   bool _disposed = false;
+
+  /// The request as it now stands.
+  _RunRequest get _request =>
+      (payload: _payload, withDateColumn: _includeDateColumn);
+
+  /// What the run in flight asked for. Read only while `_run.isLoading`:
+  /// [_showOrRun] lets a run for the request on screen land and supersedes
+  /// one for a request the reader has since changed.
+  _RunRequest? _inFlight;
+
+  /// What the job behind [_activePollingHash] asked for, so a result picked
+  /// up by [keepWaiting] is recorded as the answer to that request rather
+  /// than to whatever the payload has become since.
+  _RunRequest? _pollingRequest;
 
   /// Used by the polling layer to bail out on cancel / dispose. Captures
   /// the epoch at the moment the run started so a fresh run (which bumps
@@ -1803,6 +1863,10 @@ class ReportsViewModel extends ChangeNotifier {
     }
     final epoch = ++_runEpoch;
     final lastGood = _run.preview;
+    // What this run asks for, fixed now: the reader can change the payload
+    // while it is in flight, and its result answers this request, not that.
+    final sent = _request;
+    _inFlight = sent;
     _run = ReportRunState.loading(previousPreview: lastGood);
     _activePollingHash = null;
     // The comparison on screen was with the result being replaced. Deltas
@@ -1821,11 +1885,13 @@ class ReportsViewModel extends ChangeNotifier {
         await _resolveCompanyCurrency();
         if (_disposed || epoch != _runEpoch) return;
       }
-      final reportKeys = _previewReportKeys();
+      final reportKeys = _previewReportKeys(
+        withDateColumn: sent.withDateColumn,
+      );
       final rawPreview = await repo.runPreview(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
-        payload: _payload,
+        payload: sent.payload,
         numberStyle: _numberStyle,
         companyId: companyId,
         // Empty = the server's full default column set, which is what the
@@ -1841,12 +1907,16 @@ class ReportsViewModel extends ChangeNotifier {
         reportKeys: reportKeys,
         isCancelled: _cancellationFor(epoch),
       );
-      if (_disposed || epoch != _runEpoch) return;
-      _applySuccessfulPreview(rawPreview, plainRun: reportKeys.isEmpty);
+      if (_disposed || epoch != _runEpoch || _supersededOnArrival(sent)) return;
+      _applySuccessfulPreview(
+        rawPreview,
+        ranFor: sent,
+        plainRun: reportKeys.isEmpty,
+      );
       _activePollingHash = null;
       notifyListeners();
       if (_wantsRowIds && !reportKeys.contains(definition.rowIdKey)) {
-        unawaited(_fetchRowIds(epoch));
+        unawaited(_fetchRowIds(epoch, sent));
       }
       if (_compare) unawaited(_runCompare());
     } on ReportError catch (e) {
@@ -1860,6 +1930,7 @@ class ReportsViewModel extends ChangeNotifier {
         return;
       }
       _activePollingHash = e.pollingHash;
+      _pollingRequest = sent;
       _run = ReportRunState.error(e, lastGood: lastGood);
       notifyListeners();
     } catch (e, st) {
@@ -1878,12 +1949,19 @@ class ReportsViewModel extends ChangeNotifier {
   /// The same request the Export menu's "full report" makes, with nothing
   /// that would change the file's shape: no template (that asks for a PDF),
   /// no column list, no grouping.
-  Future<void> _runDocument({String? resumeHash}) async {
+  ///
+  /// [resumeFor] is what the job behind [resumeHash] was asked for.
+  Future<void> _runDocument({
+    String? resumeHash,
+    _RunRequest? resumeFor,
+  }) async {
     final epoch = ++_runEpoch;
+    final sent = (resumeHash != null ? resumeFor : null) ?? _request;
+    _inFlight = sent;
     _run = ReportRunState.loading();
     _activePollingHash = null;
     notifyListeners();
-    final payload = _payload;
+    final payload = sent.payload;
     try {
       if (!_companyCurrencyResolved) {
         await _resolveCompanyCurrency();
@@ -1900,7 +1978,7 @@ class ReportsViewModel extends ChangeNotifier {
               payload: payload.copyWith(templateId: () => null),
               isCancelled: _cancellationFor(epoch),
             );
-      if (_disposed || epoch != _runEpoch) return;
+      if (_disposed || epoch != _runEpoch || _supersededOnArrival(sent)) return;
       _document = result.format == ReportExportFormat.csv
           ? parseReportDocument(
               utf8.decode(result.bytes, allowMalformed: true),
@@ -1910,7 +1988,7 @@ class ReportsViewModel extends ChangeNotifier {
           : null;
       _documentUnreadable = _document == null;
       _lastRunPayload = payload;
-      _lastRunIncludeDateColumn = _includeDateColumn;
+      _lastRunIncludeDateColumn = sent.withDateColumn;
       _resultFetchedAt = _now();
       _run = ReportRunState.idle();
       notifyListeners();
@@ -1922,6 +2000,7 @@ class ReportsViewModel extends ChangeNotifier {
         return;
       }
       _activePollingHash = e.pollingHash;
+      _pollingRequest = sent;
       // Emailed instead of returned: asking again is another email. Only
       // the reader pressing refresh, or a changed request, asks again.
       if (e.kind == ReportErrorKind.emailedInstead) _emailedFor = payload;
@@ -1968,16 +2047,35 @@ class ReportsViewModel extends ChangeNotifier {
   /// of answer that describes the server's current column set rather than
   /// echoing a list (see [_serverColumnsLearnedAt]). A continuation does not
   /// know what its original request sent, so it does not claim to be one.
+  ///
+  /// [ranFor] is the request this result answers — fixed when it was sent,
+  /// never read from the payload as it stands now. The reader can change the
+  /// range while a run is in flight; stamping the new payload onto the old
+  /// rows made them read as the answer to it, `isParamDirty` false, and the
+  /// run the change was owed was never made.
   void _applySuccessfulPreview(
     ReportPreview rawPreview, {
+    required _RunRequest ranFor,
     bool plainRun = false,
     DateTime? fetchedAt,
   }) {
     // Inject the synthetic Product-report `stock_value` column, and relabel
     // the optional date column, before either seeds the visible set below.
     final preview = _augmentPreview(rawPreview);
-    _lastRunPayload = _payload;
-    _lastRunIncludeDateColumn = _includeDateColumn;
+    _lastRunPayload = ranFor.payload;
+    _lastRunIncludeDateColumn = ranFor.withDateColumn;
+    // A comparison is with the period before *a* result. Once a result for
+    // another request is on screen — a range read back from disk, say — its
+    // deltas are against the wrong period: drop it (stranding one in flight)
+    // so the next `_runCompare` fetches the right one.
+    if (_compareBase != null && !_sameRequest(_compareBase, ranFor)) {
+      _compareEpoch++;
+      _compareBase = null;
+      _comparePreview = null;
+      _compareWindow = null;
+      _compareMemoKey = null;
+      _compareMemoView = null;
+    }
     _run = ReportRunState.ready(preview);
     _serverColumnIds = List.unmodifiable(
       preview.columns.map((c) => c.identifier),
@@ -2048,11 +2146,11 @@ class ReportsViewModel extends ChangeNotifier {
   Future<void> _showOrRun() async {
     if (_disposed || !definition.showsOnScreen) return;
     if (!_hydrated) await _hydration;
+    if (_runningThisRequest()) return;
     if (!definition.supportsPreview) {
       // A document: nothing kept on disk to show first, so it is simply
       // fetched when there is none, or the one on screen is for another
       // request or has gone stale.
-      if (_run.isLoading) return;
       if (hasResultForRequest && !_resultIsStale) {
         _autoRunOwed = false;
         return;
@@ -2067,7 +2165,7 @@ class ReportsViewModel extends ChangeNotifier {
       return;
     }
     final report = _reportIdentifier;
-    final payload = _payload;
+    final request = _request;
     final cid = companyId;
     // Nothing on screen for this request yet: look for what it returned last
     // time. (A result already on screen for it is at least as new.)
@@ -2076,19 +2174,30 @@ class ReportsViewModel extends ChangeNotifier {
       final hit = await repo.cachedPreview(
         companyId: cid,
         reportIdentifier: report,
-        payload: payload,
+        payload: request.payload,
         numberStyle: _numberStyle,
       );
-      if (_disposed || report != _reportIdentifier || payload != _payload) {
+      // Changed while the disk was read: the change scheduled its own call.
+      // (Only a change to the rows — a template or attachment switch
+      // schedules nothing, and returning on one left nothing to run.)
+      if (_disposed ||
+          report != _reportIdentifier ||
+          !_sameRequest(request, _request)) {
         return;
       }
-      // A run started while the disk was being read wins.
-      if (hit != null && !_run.isLoading) {
-        _applySuccessfulPreview(hit.preview, fetchedAt: hit.fetchedAt);
+      // A run started while the disk was being read: one for this request
+      // wins; one for another (Keep waiting on the old job) is superseded.
+      if (_runningThisRequest()) return;
+      if (hit != null && _rememberedResultServes(hit.preview, request)) {
+        _applySuccessfulPreview(
+          hit.preview,
+          ranFor: request,
+          fetchedAt: hit.fetchedAt,
+        );
         notifyListeners();
       }
     }
-    if (_run.isLoading) return;
+    if (_runningThisRequest()) return;
     if (!isParamDirty && !_resultIsStale) {
       _autoRunOwed = false;
       // Shown from disk and fresh enough to stand: the comparison is not
@@ -2105,6 +2214,57 @@ class ReportsViewModel extends ChangeNotifier {
     }
     _autoRunOwed = false;
     await runReport();
+  }
+
+  /// Whether a run for the request as it stands is in flight. One for any
+  /// other request — a range picked while the last one polled — is
+  /// superseded, as a report switch strands one, and false is returned so
+  /// the caller goes on to answer the request as it stands.
+  bool _runningThisRequest() {
+    if (!_run.isLoading) return false;
+    if (_sameRequest(_inFlight, _request)) return true;
+    cancelRun();
+    return false;
+  }
+
+  /// Whether a run that asked for [sent] arrives too late to put its answer
+  /// on screen — and if so, that the run replacing it is on its way.
+  ///
+  /// Under [autoRun], once the reader has changed the request, the answer is
+  /// not applied: the change scheduled the run that answers it
+  /// ([_scheduleAutoRun]), which supersedes this one
+  /// ([_runningThisRequest]). Applied in between, these rows were reconciled
+  /// against choices made for the next ones — a grouping on the optional
+  /// date column, which they lack, was dropped before the run that fetches
+  /// it — and started a comparison and a row-id fetch nobody wanted. The run
+  /// is left loading for its successor; if no timer is pending (the change
+  /// was owed while offline, then Keep waiting picked up the old job), one
+  /// is scheduled, so it is never left loading for nothing.
+  ///
+  /// Without [autoRun] nothing else would run: the answer stands, recorded as
+  /// [sent]'s, and reads as dirty.
+  bool _supersededOnArrival(_RunRequest sent) {
+    if (!autoRun || _sameRequest(sent, _request)) return false;
+    if (!(_autoRunTimer?.isActive ?? false)) _scheduleAutoRun();
+    return true;
+  }
+
+  /// Whether a result read back from disk answers [request]. The cache is
+  /// keyed on the payload alone — `ReportCacheStore.keyFor` leaves out
+  /// `report_keys`, so the newest answer for a payload is the one kept — so
+  /// the optional date column has to match the request both ways.
+  ///
+  /// Asked for and missing: switching the column on was answered by the
+  /// plain result stored a moment earlier — the run was marked made, the
+  /// grouping on the column dropped as one the result lacked, and it never
+  /// ran. Present and not asked for: switching it off was answered by the
+  /// result the "on" run stored, fresh, so nothing ran, and the column — still
+  /// in the result, so never reconciled away — stayed on screen.
+  bool _rememberedResultServes(ReportPreview preview, _RunRequest request) {
+    final dateColumn = definition.optionalDateColumnId;
+    if (dateColumn == null) return true;
+    final carries = preview.columns.any((c) => c.identifier == dateColumn);
+    return carries == request.withDateColumn;
   }
 
   void _onOnlineChanged(bool online) {
@@ -2128,13 +2288,17 @@ class ReportsViewModel extends ChangeNotifier {
   Future<void> keepWaiting() async {
     final hash = _activePollingHash;
     if (hash == null) return;
+    // The job's own request — the payload may have moved on since it timed
+    // out, and the result is the answer to what was asked.
+    final request = _pollingRequest ?? _request;
     if (!definition.supportsPreview) {
       // A document's job is an export: it is polled where exports are.
-      await _runDocument(resumeHash: hash);
+      await _runDocument(resumeHash: hash, resumeFor: request);
       return;
     }
     final epoch = ++_runEpoch;
     final lastGood = _run.preview;
+    _inFlight = request;
     _run = ReportRunState.loading(previousPreview: lastGood);
     notifyListeners();
     try {
@@ -2143,8 +2307,10 @@ class ReportsViewModel extends ChangeNotifier {
         numberStyle: _numberStyle,
         isCancelled: _cancellationFor(epoch),
       );
-      if (_disposed || epoch != _runEpoch) return;
-      _applySuccessfulPreview(preview);
+      if (_disposed || epoch != _runEpoch || _supersededOnArrival(request)) {
+        return;
+      }
+      _applySuccessfulPreview(preview, ranFor: request);
       _activePollingHash = null;
       notifyListeners();
       if (_compare) unawaited(_runCompare());
@@ -2194,6 +2360,12 @@ class ReportsViewModel extends ChangeNotifier {
   /// [templateId] renders the report through one of the company's template
   /// designs and comes back as a PDF. It is a choice about this one file,
   /// so it is passed here and never kept on the report.
+  ///
+  /// The full report, so never grouped: with any `group_by` the server
+  /// answers with its grouped summary instead — before it looks at
+  /// `template_id`, so the template PDF came back as that CSV too
+  /// (`PreviewReport::handle`). The group totals on screen are the
+  /// "Download group totals" item, written on the device.
   Future<ReportExportResult?> runExport({String? templateId}) async {
     if (_isExporting) return null;
     final epoch = ++_exportEpoch;
@@ -2209,7 +2381,6 @@ class ReportsViewModel extends ChangeNotifier {
             ? _payload.copyWith(templateId: () => null)
             : _payload.copyWith(templateId: () => templateId),
         reportKeys: serverReportKeys(),
-        groupBy: serverGroupBy,
         isCancelled: () => _disposed || _exportEpoch != epoch,
       );
       if (_disposed || epoch != _exportEpoch) return null;
@@ -2314,11 +2485,15 @@ class ReportsViewModel extends ChangeNotifier {
   /// as the last answer; with neither we fall back to a plain run rather
   /// than pinning the report to a single column (`prepareForValidation`
   /// would happily accept a one-element list).
-  List<String> _previewReportKeys() {
+  ///
+  /// [withDateColumn] is the request's own choice where it was fixed earlier
+  /// than now (a run's, a comparison's); it defaults to the current one.
+  List<String> _previewReportKeys({bool? withDateColumn}) {
     final dateColumn = definition.optionalDateColumnId;
     final idColumn = _wantsRowIds ? definition.rowIdKey : null;
     final extras = [
-      if (_includeDateColumn && dateColumn != null) dateColumn,
+      if ((withDateColumn ?? _includeDateColumn) && dateColumn != null)
+        dateColumn,
       ?idColumn,
     ];
     if (extras.isEmpty) return const [];
@@ -2360,21 +2535,27 @@ class ReportsViewModel extends ChangeNotifier {
   /// swallowed, because rows that are not links are exactly what the user
   /// had a moment ago. It rides the epoch of the run that started it, so a
   /// newer run or a report switch strands it like any other.
-  Future<void> _fetchRowIds(int epoch) async {
-    final reportKeys = _previewReportKeys();
+  ///
+  /// [request] is that run's: the ids are for the rows it put on screen.
+  Future<void> _fetchRowIds(int epoch, _RunRequest request) async {
+    final reportKeys = _previewReportKeys(
+      withDateColumn: request.withDateColumn,
+    );
     if (!reportKeys.contains(definition.rowIdKey)) return;
     try {
       final rawPreview = await repo.runPreview(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
-        payload: _payload,
+        payload: request.payload,
         numberStyle: _numberStyle,
         companyId: companyId,
         reportKeys: reportKeys,
         isCancelled: _cancellationFor(epoch),
       );
-      if (_disposed || epoch != _runEpoch) return;
-      _applySuccessfulPreview(rawPreview);
+      if (_disposed || epoch != _runEpoch || _supersededOnArrival(request)) {
+        return;
+      }
+      _applySuccessfulPreview(rawPreview, ranFor: request);
       notifyListeners();
     } on ReportError catch (e) {
       if (e.kind != ReportErrorKind.cancelled) {
@@ -2438,7 +2619,7 @@ class ReportsViewModel extends ChangeNotifier {
     return base.where((k) => k != _kStockValueId && k != extra).toList();
   }
 
-  /// `group_by` safe to send to the server, for the same three flows.
+  /// `group_by` safe to send to the server, for the email and the schedule.
   ///
   /// Stripping the key out of [serverReportKeys] is **not** enough on its
   /// own: `GenericReportRequest::prepareForValidation` does
@@ -2449,9 +2630,19 @@ class ReportsViewModel extends ChangeNotifier {
   /// group per row anyway.)
   ///
   /// [periodColumn] is never sent: the server groups on one column only, so
-  /// a file downloaded from a "user × month" view is grouped by user.
-  String? get serverGroupBy =>
-      _group == definition.optionalDateColumnId ? null : _group;
+  /// a file emailed from a "user × month" view is grouped by user.
+  ///
+  /// Nor is any **date** grouping. The screen buckets a date by month (or
+  /// week, quarter, year); `groupRows` buckets on the exact value, so a
+  /// report shown by month — how most of them open — would arrive as one
+  /// summed row per day. Only the email sends this: the full download never
+  /// groups (see [runExport]), and a scheduled report ignores `group_by`.
+  String? get serverGroupBy {
+    final group = _group;
+    if (group == null || group == definition.optionalDateColumnId) return null;
+    if (_isDateColumn(group)) return null;
+    return group;
+  }
 
   /// Inject the synthetic `stock_value` (on-hand stock × price) money column
   /// into the Product report so the totals card shows the total inventory value
@@ -2575,9 +2766,12 @@ class ReportsViewModel extends ChangeNotifier {
         type: ReportColumnType.money,
       ),
     ];
+    // `copyWith`, not a new row: this runs after the record ids and the
+    // row currencies are set, and a fresh `ReportRow` dropped both — no
+    // product row could be opened, though a whole request is made for ids.
     final rows = [
       for (final row in preview.rows)
-        ReportRow(
+        row.copyWith(
           cells: [...row.cells, _stockValueCell(row, priceIdx, stockIdx)],
         ),
     ];

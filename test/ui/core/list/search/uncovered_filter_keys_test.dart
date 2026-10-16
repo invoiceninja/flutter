@@ -258,6 +258,8 @@ void main() {
       company: companyWithLabels(),
     ),
     'purchase_order': buildPurchaseOrderFilterKeys(
+      clients: clients,
+      vendors: vendors,
       tags: tags,
       companyId: 'co',
       company: companyWithLabels(),

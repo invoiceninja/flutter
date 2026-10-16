@@ -289,16 +289,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('tapping a non-checkbox key keeps its key: prefix (value mode)', (
-    tester,
-  ) async {
+  testWidgets('tapping a non-checkbox key opens its value mode under a key '
+      'chip, with no `key:` in the box', (tester) async {
     // Regression: tapping a key row drops focus (TextField.onTapOutside) before
-    // selectKey writes "color:"; the reseed branch must NOT wipe that prefix.
+    // the pick lands; nothing reacting to that may undo the open.
     await openSheetWithKeys(tester, [_StubKey(id: 'color', label: 'Color')]);
     await tester.tap(find.text('Color'));
     await tester.pump();
     final field = tester.widget<EditableText>(find.byType(EditableText).first);
-    expect(field.controller.text, 'color:');
+    expect(field.controller.text, isEmpty, reason: 'it used to write `color:`');
+    expect(
+      find.descendant(
+        of: find.byType(PendingKeyChip),
+        matching: find.text('Color'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('tapping a directApplyValue key applies in one tap, no prefix', (

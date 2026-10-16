@@ -86,22 +86,21 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     final nameContains = (nameValues == null || nameValues.isEmpty)
         ? null
         : nameValues.first;
-    final balance = _parseBalanceWire(extraFilters['balance']);
-    // `DateColumnFilterKey` between windows: `updated`/`created` store a
-    // closed `[start, end]` window in `updated_at_range` / `created_at_range`.
-    final updated = parseUpdatedAtRangeFilter(extraFilters);
-    final created = parseCreatedAtRangeFilter(extraFilters);
-    // …and the SINGLE-date comparators (>, >=, <, <=, =), which live in the
-    // bare `updated_at` / `created_at` slot as an `op:value` wire. Only the
-    // range slot was read here, so a bare `updated:2026-06-01` (defaultOp
-    // `gte`) narrowed the server fetch while the local watch applied nothing.
-    // These columns are epoch seconds, so the comparator resolves to the same
-    // from/to day bounds the range path already uses.
-    final updatedCmp = _epochBoundsFor(
-      parseComparableDateFilter(extraFilters, 'updated_at'),
+    final balance = parseComparableAmountFilter(extraFilters, 'balance');
+    // `DateColumnFilterKey` `updated` / `created`: a `between` window in
+    // `<col>_range`, every other comparator in the bare `<col>` slot. Both
+    // become epoch-second bounds, as these columns are.
+    final updated = timestampBounds(
+      extraFilters,
+      singleKey: 'updated_at',
+      rangeKey: 'updated_at_range',
+      now: now(),
     );
-    final createdCmp = _epochBoundsFor(
-      parseComparableDateFilter(extraFilters, 'created_at'),
+    final created = timestampBounds(
+      extraFilters,
+      singleKey: 'created_at',
+      rangeKey: 'created_at_range',
+      now: now(),
     );
     return db.clientDao
         .watchPage(
@@ -118,8 +117,8 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
           nameContains: nameContains,
-          balanceGt: balance.gt,
-          balanceLt: balance.lt,
+          balanceOp: balance.op,
+          balanceValue: balance.value,
           countryIds: parseCsvFilter(extraFilters, 'country_id'),
           industryIds: parseCsvFilter(extraFilters, 'industry_id'),
           sizeIds: parseCsvFilter(extraFilters, 'size_id'),
@@ -129,10 +128,10 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
           idNumbers: parseCsvFilter(extraFilters, 'id_number'),
           vatNumberContains: parseSubstringFilter(extraFilters, 'vat_number'),
           numberExact: parseSubstringFilter(extraFilters, 'number'),
-          updatedFrom: _isoDayStartEpoch(updated.start) ?? updatedCmp.from,
-          updatedTo: _isoDayEndEpoch(updated.end) ?? updatedCmp.to,
-          createdFrom: _isoDayStartEpoch(created.start) ?? createdCmp.from,
-          createdTo: _isoDayEndEpoch(created.end) ?? createdCmp.to,
+          updatedFrom: updated.from,
+          updatedTo: updated.to,
+          createdFrom: created.from,
+          createdTo: created.to,
         )
         .map((rows) {
           final items = rows.map(_fromRow);
@@ -145,35 +144,6 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
               .where((c) => matchesTagIdFilter(c.tagIds, tagIds))
               .toList(growable: false);
         });
-  }
-
-  /// Extracts the numeric (gt, lt) thresholds from a `BalanceFilterKey`
-  /// wire for the **local** Drift query. The canonical wire is now the
-  /// prefix form `op:value` (`gt:1000` / `lt:1000`); the legacy suffix
-  /// form (`1000:gt`) is still decoded so persisted state from any prior
-  /// app version still narrows correctly.
-  ///
-  /// Only `gt` / `lt` have a local Drift predicate. The extended
-  /// operators `gte` / `lte` / `eq` (added with the segmented-chip work)
-  /// filter **server-side only** — they fall through to `(null, null)`
-  /// here, so the freshly-fetched server page is authoritative and the
-  /// local watch applies no extra balance predicate. Returns
-  /// `(null, null)` for missing, empty, or unparseable input too.
-  ({double? gt, double? lt}) _parseBalanceWire(Set<String>? values) {
-    final wire = (values == null || values.isEmpty) ? null : values.first;
-    if (wire == null) return (gt: null, lt: null);
-    double? parse(String s) => double.tryParse(s.trim());
-    // Canonical prefix (primary).
-    if (wire.startsWith('gt:')) return (gt: parse(wire.substring(3)), lt: null);
-    if (wire.startsWith('lt:')) return (gt: null, lt: parse(wire.substring(3)));
-    // Legacy suffix (self-heal: rewritten to canonical on next edit).
-    if (wire.endsWith(':gt')) {
-      return (gt: parse(wire.substring(0, wire.length - 3)), lt: null);
-    }
-    if (wire.endsWith(':lt')) {
-      return (gt: null, lt: parse(wire.substring(0, wire.length - 3)));
-    }
-    return (gt: null, lt: null);
   }
 
   /// Distinct non-empty values populated by clients in `companyId` for the
@@ -285,7 +255,7 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: _dateRangesForServer(extraFilters),
+    extraFilters: timestampWindowsForServer(extraFilters, now: now()),
     ignoreCursor: ignoreCursor,
     // `?include=documents` makes the list response authoritative for the
     // `documents` array. Without it the server omits documents on list
@@ -299,55 +269,6 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     upsert: (byId) =>
         db.clientDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
   );
-
-  /// Rewrite the `DateColumnFilterKey` between-window slots into the params
-  /// the server actually honors before they hit the wire. The `created`/
-  /// `updated` keys store a 3-part `<column>,<start>,<end>` window under
-  /// `created_at_range` / `updated_at_range` — but the server has **no**
-  /// handler by those names (`QueryFilters::apply()` silently skips unknown
-  /// params), so the window would narrow only the local Drift cache and the
-  /// list would return an incomplete (server-unfiltered) set. The honored
-  /// params are `created_between` / `updated_between` with a 2-part
-  /// `<start>,<end>` CSV (`QueryFilters::{created,updated}_between` →
-  /// `whereBetween`). Strip the leading column token (keep the last two
-  /// comma parts) and re-key. Single-date `created_at`/`updated_at` filters
-  /// already work (prefix `gte:`), so only the window slots are remapped.
-  ///
-  /// Returns the input untouched (same instance) when neither window slot is
-  /// present, so the common path allocates nothing. The local `watchPage`
-  /// keeps reading the original `_at_range` keys — only the server fetch is
-  /// rewritten here.
-  static const Map<String, String> _dateRangeServerParams = {
-    'created_at_range': 'created_between',
-    'updated_at_range': 'updated_between',
-  };
-
-  Map<String, Set<String>> _dateRangesForServer(
-    Map<String, Set<String>> extraFilters,
-  ) {
-    if (!extraFilters.keys.any(_dateRangeServerParams.containsKey)) {
-      return extraFilters;
-    }
-    final out = <String, Set<String>>{};
-    for (final entry in extraFilters.entries) {
-      final serverKey = _dateRangeServerParams[entry.key];
-      if (serverKey == null) {
-        out[entry.key] = entry.value;
-        continue;
-      }
-      final converted = <String>{};
-      for (final wire in entry.value) {
-        final parts = wire.split(',');
-        if (parts.length < 2) continue;
-        final start = parts[parts.length - 2].trim();
-        final end = parts[parts.length - 1].trim();
-        if (start.isEmpty || end.isEmpty) continue;
-        converted.add('$start,$end');
-      }
-      if (converted.isNotEmpty) out[serverKey] = converted;
-    }
-    return out;
-  }
 
   /// Lazily hydrate one client by id when a reference (e.g. an invoice's
   /// client) isn't in the prefetched page so a `*NameLabel` would show
@@ -1063,50 +984,6 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
             (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
           ))
           .write(ClientsCompanion(documents: Value(json)));
-}
-
-/// Inclusive day-window bounds (epoch seconds, UTC) for the `created_at` /
-/// `updated_at` between filters. Those columns are stored as epoch seconds;
-/// the filter value is an ISO `YYYY-MM-DD`, so the start is that day's
-/// 00:00:00 and the end is 23:59:59 so the whole end day is included.
-/// Translate a single-date comparator (`op:value`, ISO `YYYY-MM-DD`) into the
-/// inclusive epoch-second `from`/`to` bounds the client DAO already applies to
-/// `updated_at` / `created_at`. Reuses the day-window helpers below so the
-/// comparator and the range slot agree on boundaries.
-({int? from, int? to}) _epochBoundsFor(({String? op, String? value}) cmp) {
-  final v = cmp.value;
-  if (v == null || v.isEmpty) return (from: null, to: null);
-  final start = _isoDayStartEpoch(v);
-  final end = _isoDayEndEpoch(v);
-  return switch (cmp.op) {
-    'gt' => (from: end == null ? null : end + 1, to: null),
-    'lt' => (from: null, to: start == null ? null : start - 1),
-    'lte' => (from: null, to: end),
-    'eq' => (from: start, to: end),
-    _ => (from: start, to: null),
-  };
-}
-
-int? _isoDayStartEpoch(String? iso) {
-  if (iso == null || iso.isEmpty) return null;
-  final d = DateTime.tryParse(iso);
-  if (d == null) return null;
-  return DateTime.utc(d.year, d.month, d.day).millisecondsSinceEpoch ~/ 1000;
-}
-
-int? _isoDayEndEpoch(String? iso) {
-  if (iso == null || iso.isEmpty) return null;
-  final d = DateTime.tryParse(iso);
-  if (d == null) return null;
-  return DateTime.utc(
-        d.year,
-        d.month,
-        d.day,
-        23,
-        59,
-        59,
-      ).millisecondsSinceEpoch ~/
-      1000;
 }
 
 /// Pick the primary contact's email, falling back to the first contact, then

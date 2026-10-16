@@ -17,6 +17,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/number_filter_key.dart';
 
 // `IsFilterKey` is re-exported via `filter_keys_common.dart` (above) so
 // every entity list (clients, products, …) can register the same instance
@@ -30,6 +31,11 @@ export 'package:admin/ui/core/list/search/filter_keys_common.dart'
 // resolving the symbol unchanged.
 export 'package:admin/ui/core/list/search/custom_field_filter_key.dart'
     show CustomFieldFilterKey;
+
+// `NumberFilterKey` moved to core so vendors can register it too.
+// Re-exported for the same reason.
+export 'package:admin/ui/core/list/search/number_filter_key.dart'
+    show NumberFilterKey;
 
 // ────────────────────────────────────────────────────────────────────
 // Server-side behavior of the `/api/v1/clients` filter params, as of the
@@ -179,12 +185,14 @@ List<FilterKey> buildClientFilterKeys({
       id: 'created',
       serverKey: 'created_at',
       labelKey: 'created',
+      hasTime: true,
     ),
     const DateColumnFilterKey(
       id: 'updated',
       serverKey: 'updated_at',
       labelKey: 'updated',
       hintKey: 'updated_filter_hint',
+      hasTime: true,
     ),
     GroupFilterKey(
       groups: groups,
@@ -751,85 +759,6 @@ class EmailFilterKey extends FilterKey {
           displayKey: displayLabel(context),
           rawValue: wire,
           displayValue: '${context.tr('contains')} "$wire"',
-        ),
-    ];
-  }
-
-  @override
-  Stream<List<FilterValueSuggestion>> watchValueSuggestions(
-    GenericListViewModel<dynamic> vm,
-    BuildContext context,
-    String query,
-  ) => Stream.value(const []);
-
-  @override
-  Future<void> addValue(GenericListViewModel<dynamic> vm, String rawValue) {
-    final trimmed = rawValue.trim();
-    if (trimmed.isEmpty) return Future.value();
-    return writeSingleExtraFilter(vm, _serverKey, trimmed);
-  }
-
-  @override
-  Future<void> removeValue(GenericListViewModel<dynamic> vm, String rawValue) {
-    return writeSingleExtraFilter(vm, _serverKey, null);
-  }
-
-  @override
-  String? editableValueText(String rawValue) => rawValue;
-}
-
-/// `number:1234` → server `number=1234` (exact match — no substring,
-/// no wildcards). Chip renders as `= "1234"` to be honest about the
-/// match shape. Hidden from the dropdown because users typing partial
-/// numbers expect substring; free-text `filter=` already covers that
-/// (substring on name + number + contact email).
-class NumberFilterKey extends FilterKey {
-  const NumberFilterKey();
-
-  static const String _serverKey = 'number';
-
-  @override
-  String get id => 'number';
-
-  @override
-  String displayLabel(BuildContext context) => context.tr('number');
-
-  @override
-  IconData get icon => Icons.tag;
-
-  @override
-  FilterValueType get valueType => FilterValueType.string;
-
-  @override
-  bool get singleValue => true;
-
-  // Server `number=` is an exact match (no substring / wildcards). The
-  // chip renders `= "value"` so the match shape is honest, and the local
-  // watch mirrors it with an exact predicate — so the key stays available.
-  @override
-  bool isAvailable(GenericListViewModel<dynamic> vm) => true;
-
-  @override
-  bool isAtDefault(GenericListViewModel<dynamic> vm) =>
-      (vm.extraFilters[_serverKey] ?? const <String>{}).isEmpty;
-
-  @override
-  String? hintForValueMode(BuildContext context) =>
-      context.tr('number_filter_hint');
-
-  @override
-  Iterable<FilterToken> tokensFrom(
-    GenericListViewModel<dynamic> vm,
-    BuildContext context,
-  ) {
-    final values = vm.extraFilters[_serverKey] ?? const <String>{};
-    return [
-      for (final wire in values)
-        FilterToken(
-          keyId: id,
-          displayKey: displayLabel(context),
-          rawValue: wire,
-          displayValue: '= "$wire"',
         ),
     ];
   }

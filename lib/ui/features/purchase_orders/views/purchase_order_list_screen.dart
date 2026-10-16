@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:admin/app/version.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
@@ -62,6 +63,11 @@ class PurchaseOrderListScreen extends StatelessWidget {
         userSettings: services.userSettings,
         savedViews: services.savedViews,
         vendorId: vendorId,
+        sentStatusExact: () => ServerFeatures.supports(
+          services.serverVersion.value,
+          ServerFeatures.purchaseOrderSentStatus,
+          isHosted: services.auth.session.value?.isHosted ?? false,
+        ),
       ),
       sortOptions: (context) => [
         SortOption(

@@ -7,13 +7,12 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/detail/document_open_actions.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/utils/document_upload_validation.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/utils/url_safety.dart';
 
 /// Reusable per-entity Documents tab body. Used on the Client and Product
 /// detail screens (and any future entity that supports attachments).
@@ -137,6 +136,7 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
               formatter: widget.formatter,
               readOnly: readOnly,
               onView: _onView,
+              onDownload: _onDownload,
               onDelete: widget.onDelete,
               onToggleVisibility: widget.onToggleVisibility,
             ),
@@ -173,23 +173,12 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
     }
   }
 
-  Future<void> _onView(Document doc) async {
-    // Document URLs are server-supplied. Without this scheme check, a
-    // hostile or compromised server could push javascript:, file:, or
-    // intent:// URIs and have them dispatched to the OS handler when the
-    // user taps "View document".
-    // Both exits used to be silent: a rejected scheme returned, and the
-    // bool from `launchUrl` was discarded — so "View" simply did nothing,
-    // with no toast and no `platformDefault` retry. That is the exact
-    // failure `openExternalUrl` was introduced for (invoiceninja/flutter#80).
-    // The https-only check itself stays: these URLs come from the server,
-    // and a hostile one could otherwise push `javascript:` / `file:` /
-    // `intent:` at the OS handler.
-    final uri = isSafeHttpsUrl(doc.url) ? Uri.tryParse(doc.url) : null;
-    if (uri != null && await launchExternalUri(uri)) return;
-    if (!mounted) return;
-    Notify.error(context, context.tr('failed_to_open_url'));
-  }
+  // Never `launchUrl(doc.url)`: that url is a token-gated API route, and a
+  // browser opening it got `{"message":"Invalid token"}` for every document.
+  // Both actions fetch the bytes with the token instead (`docs/document-urls.md`).
+  Future<void> _onView(Document doc) => viewDocument(context, doc);
+
+  Future<void> _onDownload(Document doc) => downloadDocument(context, doc);
 }
 
 class _DocumentList extends StatelessWidget {
@@ -198,6 +187,7 @@ class _DocumentList extends StatelessWidget {
     required this.formatter,
     required this.readOnly,
     required this.onView,
+    required this.onDownload,
     required this.onDelete,
     required this.onToggleVisibility,
   });
@@ -206,6 +196,7 @@ class _DocumentList extends StatelessWidget {
   final Formatter? formatter;
   final bool readOnly;
   final Future<void> Function(Document doc) onView;
+  final Future<void> Function(Document doc) onDownload;
   final Future<void> Function(Document doc) onDelete;
   final Future<void> Function(Document doc) onToggleVisibility;
 
@@ -227,6 +218,7 @@ class _DocumentList extends StatelessWidget {
                 formatter: formatter,
                 readOnly: readOnly,
                 onView: onView,
+                onDownload: onDownload,
                 onDelete: onDelete,
                 onToggleVisibility: onToggleVisibility,
               ),
@@ -245,6 +237,7 @@ class _DocumentRow extends StatelessWidget {
     required this.formatter,
     required this.readOnly,
     required this.onView,
+    required this.onDownload,
     required this.onDelete,
     required this.onToggleVisibility,
   });
@@ -254,6 +247,7 @@ class _DocumentRow extends StatelessWidget {
   final Formatter? formatter;
   final bool readOnly;
   final Future<void> Function(Document doc) onView;
+  final Future<void> Function(Document doc) onDownload;
   final Future<void> Function(Document doc) onDelete;
   final Future<void> Function(Document doc) onToggleVisibility;
 
@@ -312,11 +306,13 @@ class _DocumentRow extends StatelessWidget {
               sizeLabel: sizeLabel,
               tokens: tokens,
               // Read-only withholds the two mutating actions, not the
-              // menu: a document that is there to be read must stay openable.
-              // Dropping the whole menu left the row with no way to view it.
+              // menu: a document that is there to be read must stay openable
+              // and downloadable. Dropping the whole menu left the row with no
+              // way to view it.
               trailing: _ActionsMenu(
                 doc: doc,
                 onView: onView,
+                onDownload: onDownload,
                 onDelete: readOnly ? null : onDelete,
                 onToggleVisibility: readOnly ? null : onToggleVisibility,
               ),
@@ -329,11 +325,13 @@ class _DocumentRow extends StatelessWidget {
               sizeLabel: sizeLabel,
               tokens: tokens,
               // Read-only withholds the two mutating actions, not the
-              // menu: a document that is there to be read must stay openable.
-              // Dropping the whole menu left the row with no way to view it.
+              // menu: a document that is there to be read must stay openable
+              // and downloadable. Dropping the whole menu left the row with no
+              // way to view it.
               trailing: _ActionsMenu(
                 doc: doc,
                 onView: onView,
+                onDownload: onDownload,
                 onDelete: readOnly ? null : onDelete,
                 onToggleVisibility: readOnly ? null : onToggleVisibility,
               ),
@@ -477,18 +475,20 @@ class _NarrowLayout extends StatelessWidget {
   }
 }
 
-enum _RowAction { view, toggleVisibility, delete }
+enum _RowAction { view, download, toggleVisibility, delete }
 
 class _ActionsMenu extends StatelessWidget {
   const _ActionsMenu({
     required this.doc,
     required this.onView,
+    required this.onDownload,
     required this.onDelete,
     required this.onToggleVisibility,
   });
 
   final Document doc;
   final Future<void> Function(Document doc) onView;
+  final Future<void> Function(Document doc) onDownload;
 
   /// Null on a read-only record: the item is left out, not greyed.
   final Future<void> Function(Document doc)? onDelete;
@@ -503,6 +503,8 @@ class _ActionsMenu extends StatelessWidget {
         switch (action) {
           case _RowAction.view:
             await onView(doc);
+          case _RowAction.download:
+            await onDownload(doc);
           case _RowAction.toggleVisibility:
             await onToggleVisibility?.call(doc);
           case _RowAction.delete:
@@ -521,6 +523,13 @@ class _ActionsMenu extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.open_in_new),
             title: Text(context.tr('view')),
+          ),
+        ),
+        PopupMenuItem(
+          value: _RowAction.download,
+          child: ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: Text(context.tr('download')),
           ),
         ),
         if (onToggleVisibility != null)

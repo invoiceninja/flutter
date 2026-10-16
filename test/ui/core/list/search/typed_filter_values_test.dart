@@ -13,6 +13,8 @@ import 'package:admin/ui/features/clients/client_filter_keys.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:admin/ui/core/widgets/toast_controller.dart';
 
 import '../../../../_localization_helper.dart';
 import '_token_search_harness.dart';
@@ -98,9 +100,10 @@ void main() {
       expect(parse('2026-01-01,2026-02-01'), isNull);
     });
 
-    test('a window-only key has no rolling form', () {
+    test('a window-only key keeps "today" rolling too', () {
+      // It froze to the date typed while a window's bounds could not roll.
       expect(dueWindow.parseTypedDate('today', now: now), (
-        value: '2026-05-14',
+        value: 'rel:d0',
         op: null,
       ));
     });
@@ -252,15 +255,19 @@ void main() {
     // It used to go straight to `addValue`: `balance=gt:abc`, `fruit_id=zzz`.
     expect(vm.extraFilters['balance'], isNull);
     expect(vm.extraFilters['fruit_id'], isNull);
-    // Refused tokens are not dropped — they stay in the box with the rest.
-    expect(controller.text.text, 'balance:abc fruit:zzz hello');
-    expect(vm.search, '', reason: 'a filter left in the box is not a search');
+    // The first refused token is left to be finished — its key pinned, its
+    // value in the box — and the free text is the search, beside it.
+    expect(controller.pinnedValueKey?.id, 'balance');
+    expect(controller.text.text, 'abc');
+    expect(controller.searchInChip, isTrue);
+    expect(vm.search, 'hello');
 
     // Nothing understood: the caller pastes it as plain text.
     expect(controller.applyPastedQuery('fruit:zzz', context), isFalse);
     expect(controller.applyPastedQuery('just some text', context), isFalse);
 
     // Leftover free text is shown AND searched.
+    controller.clearBox();
     expect(controller.applyPastedQuery('is:deleted acme', context), isTrue);
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
@@ -269,6 +276,163 @@ void main() {
     expect(vm.search, 'acme');
 
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  group('a paste lands where the caret is', () {
+    late BuildContext context;
+    late HarnessVm vm;
+    late TokenSearchController controller;
+    late ToastController toasts;
+
+    Future<void> setUpController(WidgetTester tester) async {
+      toasts = ToastController();
+      addTearDown(toasts.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          // `Notify` prefers a provided ToastController over `Services`.
+          home: ChangeNotifierProvider<ToastController>.value(
+            value: toasts,
+            child: Builder(
+              builder: (c) {
+                context = c;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      vm = newHarnessVm(db);
+      controller = TokenSearchController(
+        vm: vm,
+        filterKeys: [const IsFilterKey(), const BalanceFilterKey(), FruitKey()],
+        initialText: '',
+      );
+      addTearDown(controller.dispose);
+    }
+
+    void type(String text, {TextSelection? selection}) {
+      controller.text.value = TextEditingValue(
+        text: text,
+        selection: selection ?? TextSelection.collapsed(offset: text.length),
+      );
+      vm.setSearch(text, immediate: true);
+    }
+
+    testWidgets('its free text joins the search already in the box', (
+      tester,
+    ) async {
+      await setUpController(tester);
+      type('acme');
+      // It used to replace the whole box, `acme` with it.
+      expect(controller.applyPastedQuery('is:archived corp', context), isTrue);
+      await tester.pump();
+      expect(vm.states, contains(EntityState.archived));
+      expect(controller.text.text, 'acme corp');
+      expect(vm.search, 'acme corp');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('it replaces a selection, as a paste does', (tester) async {
+      await setUpController(tester);
+      type(
+        'acme corp',
+        selection: const TextSelection(baseOffset: 5, extentOffset: 9),
+      );
+      expect(controller.applyPastedQuery('is:archived inc', context), isTrue);
+      await tester.pump();
+      expect(controller.text.text, 'acme inc');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('beside a search chip its text is a candidate', (tester) async {
+      await setUpController(tester);
+      type('acme');
+      controller.pickKey(FruitKey(), context);
+      controller.clearPinnedValueKey();
+      expect(controller.searchInChip, isTrue);
+
+      expect(controller.applyPastedQuery('is:archived corp', context), isTrue);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(controller.text.text, 'corp');
+      expect(vm.search, 'acme', reason: 'the candidate is not applied');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('a refused token sets the search in the box aside', (
+      tester,
+    ) async {
+      await setUpController(tester);
+      type('acme');
+      expect(
+        controller.applyPastedQuery('is:archived balance:abc', context),
+        isTrue,
+      );
+      await tester.pump();
+      expect(controller.pinnedValueKey?.id, 'balance');
+      expect(controller.text.text, 'abc');
+      expect(controller.searchInChip, isTrue);
+      expect(vm.search, 'acme');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('a refused value is left to finish as it was, spaces and all', (
+      tester,
+    ) async {
+      await setUpController(tester);
+      expect(
+        controller.applyPastedQuery(
+          'is:archived balance:"twelve pounds"',
+          context,
+        ),
+        isTrue,
+      );
+      expect(controller.pinnedValueKey?.id, 'balance');
+      expect(controller.text.text, 'twelve pounds');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    // It used to write `balance:bogus acme` into the box, where the typed
+    // prefix became the Balance key with `bogus acme` as its value: the
+    // search vanished into a value that matched nothing.
+    testWidgets('free text beside a refused token is the search, not its '
+        'value', (tester) async {
+      await setUpController(tester);
+      type('north');
+      expect(
+        controller.applyPastedQuery('is:archived balance:bogus acme', context),
+        isTrue,
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(vm.states, contains(EntityState.archived));
+      expect(controller.text.text, 'bogus');
+      expect(controller.searchInChip, isTrue);
+      expect(vm.search, 'north acme');
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('only one refused filter can be finished; the rest are named '
+        'in a toast', (tester) async {
+      await setUpController(tester);
+      expect(
+        controller.applyPastedQuery(
+          'is:archived balance:bogus fruit:zzz',
+          context,
+        ),
+        isTrue,
+      );
+      expect(controller.pinnedValueKey?.id, 'balance');
+      expect(controller.text.text, 'bogus');
+      expect(toasts.toasts.single.message, contains('fruit:zzz'));
+      // The toast's own dismissal timer, so the test ends with none pending.
+      toasts.clearAll();
+      await tester.pump(const Duration(seconds: 1));
+    });
   });
 
   testWidgets('typed prefixes reach only keys the picker would offer', (

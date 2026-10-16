@@ -99,6 +99,7 @@ class ExpenseListViewModel extends GenericListViewModel<Expense> {
     vendorId: vendorId,
     projectId: projectId,
     extraFilters: extraFilters,
+    customFilters: customFilters,
   );
 
   @override

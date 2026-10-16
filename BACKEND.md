@@ -971,10 +971,27 @@ consistency. `custom_value1..4` ❌ → § B.
 
 | Endpoint | Notable gaps |
 |---|---|
-| purchase_orders | `status_id` ❌ (use `client_status=draft\|sent\|accepted\|cancelled`; § F optional); `start_date/end_date` 🔁 (use base `date_range`); `custom_value1..4` ❌ (§ B) |
-| vendors | `number` ⚠️ exact; `vat_number`/`id_number` substring ❌; `country_id`/`currency_id`/`assigned_user_id`/`custom_value1..4` ❌ — mirror § A |
+| purchase_orders | `status_id` ❌ (use `client_status=draft\|sent\|accepted\|cancelled` — a plain `whereIn`; `sent` exact only from 5.13.44, `8fd2c0ede3`; `received` has no branch); no `date()` / `due_date()` comparison — only the base `date_range` / `due_date_range` windows (the client converts a comparator to the window that means the same); `custom_value1..4` ✅ via base (§ B) |
+| vendors | `number` ⚠️ exact (confirmed on the demo server); `vat_number`/`id_number` substring ❌; `country_id`/`currency_id` ❌; `assigned_user_ids`, `custom_value1..4`, `created_at`/`updated_at` and `created_between`/`updated_between` ✅ via base |
 | products | `product_key` ✅ exact; `filter` ✅ LIKE on product_key/notes; no enum filters needed |
 | bank_transactions | `name` ✅; `client_status=unmatched\|matched\|converted\|deposits\|withdrawals` ✅; `bank_integration_ids` ✅; `date_range` ⚠️ Payment-style 3-part → standardize (G.3) |
+
+### Two base `QueryFilters` gaps the client works around — **O**
+
+- **`created_between` / `updated_between` drop the window's last day.** Both
+  run `whereBetween(column, [Carbon::parse($start), Carbon::parse($end)])` on a
+  TIMESTAMP column, and a bare end date parses to its 00:00 — so
+  `created_between=2026-10-16,2026-10-16` matched nothing created on the 16th
+  (measured on the demo server, 5.13.47: 0 rows, against 25 with
+  `…,2026-10-16 23:59:59`). The client appends ` 23:59:59` to a bare end date
+  (`timestampWindowsForServer`). React sends the same bare dates and has the
+  same bug. Fix: `->endOfDay()` the end bound when it has no time part.
+- **`client_id` takes one id.** It runs `decodePrimaryKey($client_id)` on the
+  whole value, so `client_id=a,b` decodes nothing and every list answered it
+  with zero rows (measured on all nine client-scoped lists). The list param is
+  `client_ids` (5.13.13+), and the client now sends several clients there
+  (`clientScopeForWire`). Not a defect as such — but `client_id` could reject
+  a comma list with a 422 instead of returning an empty page.
 
 ### GET /api/v1/activities — no filters class
 

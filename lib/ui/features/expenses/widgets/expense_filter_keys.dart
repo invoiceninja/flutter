@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
@@ -11,6 +13,8 @@ import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/client_filter_key.dart';
+import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
+import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
@@ -21,8 +25,10 @@ import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 ///
 /// Live server-side: `client_id`, `categories`, and — as of the v5 filter
 /// PR — `project_ids` / `vendor_ids` (`ExpenseFilters::project_ids` /
-/// `vendor_ids`, CSV of hashids → `whereIn`). The local `ExpenseDao`
-/// mirrors all of them.
+/// `vendor_ids`, CSV of hashids → `whereIn`); the date as the base
+/// `date_range` (the repository turns a single-date comparator into the
+/// window that means the same), and the custom fields as the base
+/// `custom_value1..4`. The local `ExpenseDao` mirrors all of them.
 List<FilterKey> buildExpenseFilterKeys({
   required ClientRepository clients,
   required ExpenseCategoryRepository categories,
@@ -30,6 +36,7 @@ List<FilterKey> buildExpenseFilterKeys({
   required VendorRepository vendors,
   required TagRepository tags,
   required String companyId,
+  Company? company,
   String? Function(String id)? nameForClientId,
 }) => <FilterKey>[
   const IsFilterKey(),
@@ -40,9 +47,21 @@ List<FilterKey> buildExpenseFilterKeys({
     nameForClientId: nameForClientId,
   ),
   const ExpenseStatusFilterKey(),
+  const DateColumnFilterKey(
+    id: 'date',
+    serverKey: 'date',
+    labelKey: 'date',
+    hintKey: 'date_filter_hint',
+    isPrimary: true,
+  ),
   ExpenseCategoryFilterKey(categories: categories, companyId: companyId),
   ExpenseProjectFilterKey(projects: projects, companyId: companyId),
   ExpenseVendorFilterKey(vendors: vendors, companyId: companyId),
+  for (var i = 1; i <= 4; i++)
+    CustomFieldFilterKey(
+      columnIndex: i,
+      configuredLabel: company?.customFieldLabel('expense$i') ?? '',
+    ),
 ];
 
 /// `status:logged|pending|invoiced|paid|unpaid` — multi-valued. Expense status

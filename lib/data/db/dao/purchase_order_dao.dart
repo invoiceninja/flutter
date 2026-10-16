@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
+
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
@@ -106,6 +108,16 @@ class PurchaseOrderDao
     String sortField = PurchaseOrderFieldIds.number,
     bool sortAscending = false,
     String? vendorId,
+    Set<String> clientIds = const {},
+    Set<String> statusIds = const {},
+    String? dateOp,
+    String? dateValue,
+    String? dateStart,
+    String? dateEnd,
+    String? dueDateOp,
+    String? dueDateValue,
+    String? dueDateStart,
+    String? dueDateEnd,
     Set<String> customValues1 = const {},
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
@@ -122,6 +134,34 @@ class PurchaseOrderDao
     if (badgeFilter != null) q.where((_) => badgeFilter);
     if (vendorId != null && vendorId.isNotEmpty) {
       q.where((e) => e.vendorId.equals(vendorId));
+    }
+    // The search field's Client / Status / Date / Due date chips, mirroring
+    // the server's `client_id(s)`, `client_status` and `date_range` /
+    // `due_date_range` (the repository turns a single-date comparator into
+    // the window that means the same before the fetch).
+    if (clientIds.isNotEmpty) {
+      q.where((e) => e.clientId.isIn(clientIds.toList()));
+    }
+    if (statusIds.isNotEmpty) {
+      q.where((e) => e.statusId.isIn(statusIds.toList()));
+    }
+    if (dateStart != null && dateEnd != null) {
+      q.where((e) => e.date.isBetweenValues(dateStart, dateEnd));
+    }
+    final datePred = comparableDatePredicate(
+      purchaseOrders.date,
+      op: dateOp,
+      value: dateValue,
+    );
+    if (datePred != null) q.where((e) => datePred);
+    final dueDatePred = comparableDatePredicate(
+      purchaseOrders.dueDate,
+      op: dueDateOp,
+      value: dueDateValue,
+    );
+    if (dueDatePred != null) q.where((e) => dueDatePred);
+    if (dueDateStart != null && dueDateEnd != null) {
+      q.where((e) => e.dueDate.isBetweenValues(dueDateStart, dueDateEnd));
     }
     // Custom-field filters mirror server `custom_value1..4` (exact-set local
     // predicate is source of truth — same idiom as ClientDao/InvoiceDao).

@@ -26,8 +26,13 @@ class FilterEntrySheet extends StatefulWidget {
     required this.hintKey,
     this.resultTile,
     this.onOpenRecord,
+    this.readClipboard,
     super.key,
   });
+
+  /// Stands in for the platform clipboard in a test — see
+  /// [TokenSearchController.readClipboard]. Null reads the platform's.
+  final Future<String?> Function()? readClipboard;
 
   final GenericListViewModel<dynamic> vm;
   final List<FilterKey> filterKeys;
@@ -48,6 +53,10 @@ class FilterEntrySheet extends StatefulWidget {
 class _FilterEntrySheetState extends State<FilterEntrySheet> {
   late final TokenSearchController _controller;
 
+  /// ⌘/Ctrl+V with a hardware keyboard — the wide field's paste. The text
+  /// menu's Paste takes the same path (see the field's `contextMenuBuilder`).
+  late final Map<Type, Action<Intent>> _pasteActions;
+
   /// Last free-text value pushed to [widget.vm] via search-as-you-type.
   /// Tracked so a VM notify during the debounce window doesn't keep
   /// re-pushing (which would reset the debounce timer and stall the search).
@@ -60,14 +69,22 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       vm: widget.vm,
       filterKeys: widget.filterKeys,
       initialText: widget.vm.search,
+      readClipboard: widget.readClipboard,
     );
+    _pasteActions = {
+      PasteTextIntent: TokenSearchPasteAction(
+        () => unawaited(_controller.paste(context)),
+      ),
+    };
     _lastSyncedSearch = widget.vm.search;
     _controller.text.addListener(_onChange);
-    _controller.text.addListener(_controller.disarmLastChip);
     widget.vm.addListener(_onChange);
     // Pin changes touch neither text nor vm — rebuild so the always-built
     // menu switches to value mode for a pinned checkbox key.
     _controller.pinRevision.addListener(_onChange);
+    // The sheet IS its menu, open from the start — on the search the list was
+    // showing, if there is one (`TokenSearchController.searchSettled`).
+    _controller.markMenuOpened();
     // Autofocus the input so the keyboard appears the moment the user
     // arrives — they tapped the summary specifically to edit.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -92,7 +109,6 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   void dispose() {
     widget.vm.removeListener(_onChange);
     _controller.text.removeListener(_onChange);
-    _controller.text.removeListener(_controller.disarmLastChip);
     _controller.pinRevision.removeListener(_onChange);
     _controller.dispose();
     super.dispose();
@@ -104,25 +120,14 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     // on wide. It used to drop the pin instead, which made a pinned list
     // un-narrowable (a tag past the first 50 could not be reached) and turned
     // a custom-field value into a free-text search. Only an explicit new
-    // `<key>:` hands the menu to another key.
-    if (_controller.pinnedValueKey != null &&
-        _controller.typedPrefixKey() != null) {
-      _controller.clearPinnedValueKey();
-    }
+    // `<key>:` hands the menu to another key — and becomes its chip. The
+    // rewrite notifies this listener again, which does the rest.
+    if (_controller.adoptTypedPrefix()) return;
     _syncLiveSearch();
-    // External clear-all reset the search to empty — reflect it in the input.
-    // Gated to FREE-TEXT only (not a `key:` prefix or pinned value picker):
-    // tapping a key row writes e.g. `client:` and momentarily drops focus (the
-    // TextField's onTapOutside), and without this guard the branch would wipe
-    // that prefix before value mode could render. Also narrowed to the empty
-    // case so it can't clobber an as-you-type query mid-debounce.
-    if (widget.vm.search.isEmpty &&
-        _controller.parseInput().matchedKey == null &&
-        _controller.pinnedValueKey == null &&
-        _controller.text.text.isNotEmpty &&
-        !_controller.focus.hasFocus) {
-      _controller.text.clear();
-    }
+    // A search changed from outside (Clear all, a restored view) lands in the
+    // box — the same rule as the wide field's, and the only thing that may
+    // write the box from the view model.
+    _controller.syncExternalSearch(focused: _controller.focus.hasFocus);
     setState(() {});
   }
 
@@ -135,19 +140,21 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   /// (no live-results section to feed).
   void _syncLiveSearch() {
     if (widget.resultTile == null) return;
+    // Beside a search chip the box holds a candidate, not the search.
+    if (_controller.searchInChip) return;
     // Building a filter is not a search — and starting one withdraws the
     // search that was live, as on wide. `parseInput` is pin-aware.
     if (_controller.parseInput().matchedKey != null) {
       if (_lastSyncedSearch.isNotEmpty) {
         _lastSyncedSearch = '';
-        widget.vm.setSearch('');
+        _controller.writeSearch('');
       }
       return;
     }
     final text = _controller.text.text.trim();
     if (text == _lastSyncedSearch) return;
     _lastSyncedSearch = text;
-    widget.vm.setSearch(text);
+    _controller.writeSearch(text);
   }
 
   Future<void> _onSelectValue(FilterKey key, FilterValueSuggestion value) {
@@ -245,11 +252,18 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
 
   /// Free-text input with live results available — the sheet shows matching
   /// records instead of the suggestion menu.
+  ///
+  /// Not for a search the sheet opened on, untouched: that one is already
+  /// showing on the list, and what the user came for is the filter list
+  /// under it — which is how a filter is added beside a search. Nor beside a
+  /// search chip, where the text is a candidate the results do not reflect.
   bool get _showingResults {
     final parse = _controller.parseInput();
     return widget.resultTile != null &&
         widget.onOpenRecord != null &&
         _controller.pinnedValueKey == null &&
+        !_controller.searchInChip &&
+        !_controller.searchSettled &&
         parse.matchedKey == null &&
         parse.query.trim().isNotEmpty;
   }
@@ -292,6 +306,17 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    // An armed chip takes the keys it answers to — the same ←/→ walk as the
+    // wide field's, for a hardware keyboard on a narrow window or a tablet.
+    final chipKeys = _controller.handleChipKeys(
+      event,
+      context: context,
+      onEdit: (chip) => switch (chip) {
+        SearchTermChip() => _controller.unfoldSearch(),
+        final ActiveFilterChip c => _controller.editChip(c, context),
+      },
+    );
+    if (chipKeys == KeyEventResult.handled) return chipKeys;
     // The suggestion list is always visible inside the sheet, so
     // arrow keys + Enter always navigate it.
     return _controller.handleArrowEnterBackspace(
@@ -315,13 +340,14 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       parse: _controller.parseInput(),
       controller: _controller.suggestions,
       stamp: _controller.inputStamp,
+      rankByQuery: !_controller.searchSettled,
       // This sheet IS a route, so back pops it and there is no overlay to
       // close first — see `FilterSuggestionMenu.onDismiss`.
       onDismiss: null,
       onBack: _onBack,
       // What a pick means is the controller's, shared with the wide field;
       // the sheet has no overlay to open or close around it.
-      onSelectKey: _controller.pickKey,
+      onSelectKey: (key) => _controller.pickKey(key, context),
       onSelectValue: _onSelectValue,
       onToggleValue: _onToggleValue,
       onPickExclusive: _onPickExclusive,
@@ -398,7 +424,8 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final active = _controller.activeChips(context);
+    final active = _controller.boxChips(context);
+    final pending = _controller.pendingKey;
 
     return Scaffold(
       appBar: AppBar(
@@ -412,8 +439,8 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
           if (widget.vm.hasActiveFilters)
             TextButton(
               onPressed: () {
+                _controller.clearBox();
                 widget.vm.clearAllFilters();
-                _controller.text.clear();
               },
               child: Text(context.tr('clear_all')),
             ),
@@ -443,67 +470,128 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final c in active)
-                    FilterTokenChip(
-                      token: c.token,
-                      armed:
-                          identical(c, active.last) &&
-                          _controller.lastChipArmed,
-                      onRemove: () => _controller.removeChip(c, context),
-                      // Narrow mode is a bottom sheet — no anchor math, so
-                      // the reported rect is unused here.
-                      onTap: (_) => _controller.editChip(c),
-                      // Comparator / value segments open the same
-                      // dedicated SegmentMenu as wide mode, hosted in a
-                      // bottom sheet (no anchor math). Commits via
-                      // changeOp / addValue — never writes search text.
-                      onComparatorTap: c.key.supportedOps.isNotEmpty
-                          ? (_) => _openSegmentSheet(c, SegmentKind.comparator)
-                          : null,
-                      onValueTap: c.key.supportedOps.isNotEmpty
-                          ? (_) => _openSegmentSheet(c, SegmentKind.value)
-                          : null,
-                    ),
+                  for (final chip in active)
+                    if (chip case final SearchTermChip c)
+                      FilterTokenChip(
+                        token: FilterToken(
+                          keyId: '',
+                          displayKey: context.tr('search_for'),
+                          rawValue: c.term,
+                          displayValue: '"${c.term}"',
+                        ),
+                        armed: _controller.isArmed(c),
+                        onRemove: _controller.removeSearchChip,
+                        onTap: (_) => _controller.unfoldSearch(),
+                      )
+                    else if (chip case final ActiveFilterChip c)
+                      FilterTokenChip(
+                        token: c.token,
+                        armed: _controller.isArmed(c),
+                        onRemove: () => _controller.removeChip(c, context),
+                        // Narrow mode is a bottom sheet — no anchor math, so
+                        // the reported rect is unused here.
+                        onTap: (_) => _controller.editChip(c, context),
+                        // Comparator / value segments open the same
+                        // dedicated SegmentMenu as wide mode, hosted in a
+                        // bottom sheet (no anchor math). Commits via
+                        // changeOp / addValue — never writes search text.
+                        onComparatorTap: c.key.supportedOps.isNotEmpty
+                            ? (_) =>
+                                  _openSegmentSheet(c, SegmentKind.comparator)
+                            : null,
+                        onValueTap: c.key.supportedOps.isNotEmpty
+                            ? (_) => _openSegmentSheet(c, SegmentKind.value)
+                            : null,
+                      ),
                   IntrinsicWidth(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 80),
-                      child: Focus(
-                        onKeyEvent: _handleKey,
-                        child: TextField(
-                          controller: _controller.text,
-                          focusNode: _controller.focus,
-                          // Soft keyboards deliver the action key as a
-                          // TextInputAction, not a hardware KeyEvent — wire
-                          // onSubmitted so "Done"/"Search" reliably commits
-                          // (the `Focus(onKeyEvent:)` path catches only the
-                          // hardware key, which IMEs emit inconsistently).
-                          // Search queries are names and numbers, not prose — iOS
-                          // autocorrecting "Acme" to "Acne" mid-search is the failure.
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) => _onSubmit(),
-                          decoration: InputDecoration(
-                            hintText: active.isEmpty
-                                ? context.tr(widget.hintKey)
-                                : null,
-                            // See `token_search_field.dart` for why every
-                            // state-specific border has to be overridden —
-                            // the global `InputDecorationTheme` paints a
-                            // rounded outline on the empty input otherwise.
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            errorBorder: InputBorder.none,
-                            focusedErrorBorder: InputBorder.none,
-                            filled: false,
-                            isCollapsed: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // The key being built leads the token — the same
+                        // chip the wide field shows in front of its text.
+                        if (pending != null) ...[
+                          PendingKeyChip(
+                            label: pending.displayLabel(context),
+                            onTap: _onBack,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 80),
+                            child: Focus(
+                              onKeyEvent: _handleKey,
+                              child: Actions(
+                                actions: _pasteActions,
+                                child: TextField(
+                                  controller: _controller.text,
+                                  focusNode: _controller.focus,
+                                  // Soft keyboards deliver the action key as a
+                                  // TextInputAction, not a hardware KeyEvent — wire
+                                  // onSubmitted so "Done"/"Search" reliably commits
+                                  // (the `Focus(onKeyEvent:)` path catches only the
+                                  // hardware key, which IMEs emit inconsistently).
+                                  // Search queries are names and numbers, not prose — iOS
+                                  // autocorrecting "Acme" to "Acne" mid-search is the failure.
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  textInputAction: TextInputAction.search,
+                                  onSubmitted: (_) => _onSubmit(),
+                                  onTap: _controller.disarmChip,
+                                  // The platform's own text menu, with only
+                                  // its Paste routed through the query-reading
+                                  // paste — on a phone, long-press Paste is THE
+                                  // paste, and it dropped `status:paid
+                                  // client:acme` in raw.
+                                  contextMenuBuilder: (_, editableState) =>
+                                      AdaptiveTextSelectionToolbar.buttonItems(
+                                        anchors:
+                                            editableState.contextMenuAnchors,
+                                        buttonItems: [
+                                          for (final item
+                                              in editableState
+                                                  .contextMenuButtonItems)
+                                            item.type ==
+                                                    ContextMenuButtonType.paste
+                                                ? item.copyWith(
+                                                    onPressed: () {
+                                                      editableState
+                                                          .hideToolbar();
+                                                      unawaited(
+                                                        _controller.paste(
+                                                          context,
+                                                        ),
+                                                      );
+                                                    },
+                                                  )
+                                                : item,
+                                        ],
+                                      ),
+                                  decoration: InputDecoration(
+                                    hintText: active.isEmpty && pending == null
+                                        ? context.tr(widget.hintKey)
+                                        : null,
+                                    // See `token_search_field.dart` for why every
+                                    // state-specific border has to be overridden —
+                                    // the global `InputDecorationTheme` paints a
+                                    // rounded outline on the empty input otherwise.
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                    filled: false,
+                                    isCollapsed: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],

@@ -531,7 +531,7 @@ void main() {
         KeyEventResult.handled,
       );
       await Future<void>.delayed(Duration.zero);
-      expect(controller.lastChipArmed, isTrue);
+      expect(controller.armedChipId, isNotNull);
       expect(vm.states, {EntityState.archived}, reason: 'armed, not removed');
 
       // A key held down repeats, and a repeat must never reach a chip: the
@@ -559,7 +559,7 @@ void main() {
         KeyEventResult.handled,
       );
       await Future<void>.delayed(Duration.zero);
-      expect(controller.lastChipArmed, isFalse);
+      expect(controller.armedChipId, isNull);
       expect(vm.states, {EntityState.active});
 
       // Back at the default there is nothing left to remove: Backspace must

@@ -83,8 +83,8 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
     String? nameContains,
-    double? balanceGt,
-    double? balanceLt,
+    String? balanceOp,
+    String? balanceValue,
     Set<String> countryIds = const {},
     Set<String> industryIds = const {},
     Set<String> sizeIds = const {},
@@ -145,18 +145,23 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
       q.where((c) => c.name.like('%$nameContains%'));
     }
 
-    // Numeric balance comparison. The balance column is stored as TEXT
-    // (Decimal.toString()), so cast to REAL before comparing — same
-    // pattern the sort ordering uses. Mirrors the server-side
-    // `balance=value:gt` / `value:lt` filter.
-    if (balanceGt != null || balanceLt != null) {
+    // Numeric balance comparison, mirroring the server's
+    // `balance=<op>:<value>` (`QueryFilters::split()`, all five operators).
+    // The column is TEXT (Decimal.toString()), so both sides are cast to
+    // REAL in SQL — same pattern the sort ordering uses. The value is bound
+    // as its Decimal string, so no money passes through a Dart double.
+    if (balanceOp != null && balanceValue != null) {
       const balanceReal = CustomExpression<double>('CAST(balance AS REAL)');
-      if (balanceGt != null) {
-        q.where((c) => balanceReal.isBiggerThanValue(balanceGt));
-      }
-      if (balanceLt != null) {
-        q.where((c) => balanceReal.isSmallerThanValue(balanceLt));
-      }
+      final threshold = Variable<String>(balanceValue).cast<double>();
+      q.where(
+        (c) => switch (balanceOp) {
+          'gte' => balanceReal.isBiggerOrEqual(threshold),
+          'lt' => balanceReal.isSmallerThan(threshold),
+          'lte' => balanceReal.isSmallerOrEqual(threshold),
+          'eq' => balanceReal.equalsExp(threshold),
+          _ => balanceReal.isBiggerThan(threshold),
+        },
+      );
     }
 
     if (customValues1.isNotEmpty) {

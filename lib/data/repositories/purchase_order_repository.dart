@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
 import 'package:logging/logging.dart';
 
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
@@ -80,10 +81,18 @@ class PurchaseOrderRepository
     bool sortAscending = false,
     String? vendorId,
     Map<int, Set<String>> customFilters = const {},
+    Map<String, Set<String>> extraFilters = const {},
     // Status-tab filter — see `list_status_tabs.dart`.
     String? badgeModeId,
   }) {
     assert(loadedPages >= 1);
+    final date = parseComparableDateFilter(extraFilters, 'date', now: now());
+    final dateRange = parseDateRangeFilter(extraFilters, now: now());
+    final due = parseComparableDateFilter(extraFilters, 'due_date', now: now());
+    final dueRange = parseDueDateRangeFilter(extraFilters, now: now());
+    // The search field's Vendor chip; an embedded vendor tab's own scope
+    // wins over it (the chip is locked there).
+    final chipVendor = extraFilters['vendor_id']?.firstOrNull;
     return db.purchaseOrderDao
         .watchPage(
           badgeModeId: badgeModeId,
@@ -94,7 +103,17 @@ class PurchaseOrderRepository
           states: states,
           sortField: sortField,
           sortAscending: sortAscending,
-          vendorId: vendorId,
+          vendorId: vendorId ?? chipVendor,
+          clientIds: parseClientIdFilter(extraFilters),
+          statusIds: parsePurchaseOrderStatusFilter(extraFilters),
+          dateOp: date.op,
+          dateValue: date.value,
+          dateStart: dateRange.start,
+          dateEnd: dateRange.end,
+          dueDateOp: due.op,
+          dueDateValue: due.value,
+          dueDateStart: dueRange.start,
+          dueDateEnd: dueRange.end,
           customValues1: customFilters[1] ?? const {},
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
@@ -152,7 +171,12 @@ class PurchaseOrderRepository
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // `PurchaseOrderFilters` has no `date()` / `due_date()` comparison, only
+    // the base windows — see `singleDatesAsServerWindows`.
+    extraFilters: singleDatesAsServerWindows(extraFilters, const {
+      'date': 'date_range',
+      'due_date': 'due_date_range',
+    }, now: now()),
     ignoreCursor: ignoreCursor,
     // `?include=documents` so a paged refresh carries each record's
     // attachments into the local `documents` column.

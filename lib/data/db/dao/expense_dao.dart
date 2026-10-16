@@ -5,6 +5,7 @@ import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/expenses_table.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -116,9 +117,37 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
     Set<String> projectIds = const {},
     Set<String> vendorIds = const {},
     Set<String> statuses = const {},
+    Set<String> customValues1 = const {},
+    Set<String> customValues2 = const {},
+    Set<String> customValues3 = const {},
+    Set<String> customValues4 = const {},
+    String? dateOp,
+    String? dateValue,
+    String? dateStart,
+    String? dateEnd,
     String? badgeModeId,
   }) {
     final q = select(expenses)..where((e) => e.companyId.equals(companyId));
+    // The search field's custom-field and Date chips, mirroring the server's
+    // `custom_value1..4` and `date_range` (the repository turns a single-date
+    // comparator into the window that means the same before the fetch).
+    for (final (column, values) in [
+      (expenses.customValue1, customValues1),
+      (expenses.customValue2, customValues2),
+      (expenses.customValue3, customValues3),
+      (expenses.customValue4, customValues4),
+    ]) {
+      if (values.isNotEmpty) q.where((_) => column.isIn(values.toList()));
+    }
+    if (dateStart != null && dateEnd != null) {
+      q.where((e) => e.date.isBetweenValues(dateStart, dateEnd));
+    }
+    final datePred = comparableDatePredicate(
+      expenses.date,
+      op: dateOp,
+      value: dateValue,
+    );
+    if (datePred != null) q.where((_) => datePred);
     // Status-tab strip (#98): the SAME predicate the tab's count uses, so
     // the number above the list and the rows in it can't disagree. Applied
     // here (pre-LIMIT) rather than post-decode, so the Drift window stays

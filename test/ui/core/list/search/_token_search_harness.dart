@@ -254,6 +254,7 @@ Future<void> pumpWideField(
   Size surface = const Size(1280, 800),
   TextDirection textDirection = TextDirection.ltr,
   double top = 24,
+  Future<String?> Function()? readClipboard,
 }) async {
   tester.view.physicalSize = surface;
   tester.view.devicePixelRatio = 1;
@@ -289,6 +290,9 @@ Future<void> pumpWideField(
                               filterKeys: keys,
                               wide: true,
                               hintKey: 'search',
+                              // Never the platform clipboard: awaiting it
+                              // hangs a widget test.
+                              readClipboard: readClipboard ?? () async => null,
                             ),
                           ),
                         ),

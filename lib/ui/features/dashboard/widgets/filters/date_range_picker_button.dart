@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/models/value/relative_date_token.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/calendar_weekday_header.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -115,35 +116,129 @@ Future<void> openDateRangePicker(
   if (result != null) onChange(result);
 }
 
+/// What [pickDateRangeWindow] picked.
+sealed class DateWindowPick {
+  const DateWindowPick();
+}
+
+/// A window to apply: the canonical 3-part wire `"<column>,<start>,<end>"`.
+final class DateWindowPicked extends DateWindowPick {
+  const DateWindowPicked(this.wire);
+
+  final String wire;
+}
+
+/// "All time" — no window at all. It used to apply a fifty-year one.
+final class DateWindowCleared extends DateWindowPick {
+  const DateWindowCleared();
+}
+
 /// Reuses the dashboard range popover as the value picker for a date
-/// list-filter's [FilterOp.between] comparator. Returns the canonical
-/// 3-part window wire `"<column>,<startIso>,<endIso>"` (the contract
-/// `DateColumnFilterKey` / `parseDateRangeFilter` consume), or `null`
-/// when the user cancels. [seed] pre-selects an existing window.
-Future<String?> pickDateRangeWindow(
+/// list-filter's [FilterOp.between] comparator, or null when the user
+/// cancels. [seed] pre-selects an existing window.
+///
+/// **A preset stays a preset.** The rail's "This month" used to come back as
+/// the dates it covered on the day it was picked, so a saved view made in
+/// October still read October in December. It is returned as a rolling
+/// window (`rel:m0s,rel:m0e` — `RelativeDateToken`), with the company's fiscal
+/// year captured in the year presets; the "Last N days" presets roll by day.
+/// A window picked on the calendar is the fixed dates picked. A rolling
+/// [seed] pre-selects its preset.
+Future<DateWindowPick?> pickDateRangeWindow(
   BuildContext context, {
   required String column,
   Formatter? formatter,
   (String start, String end)? seed,
 }) async {
-  final seedStart = seed == null ? null : Date.tryParse(seed.$1);
-  final seedEnd = seed == null ? null : Date.tryParse(seed.$2);
-  final DashboardDateRange current = (seedStart != null && seedEnd != null)
-      ? DashboardCustomRange(start: seedStart, end: seedEnd)
-      : const DashboardPresetRange(DashboardDatePreset.thisMonth);
-  String? wire;
+  final firstMonthOfYear = formatter?.settings.firstMonthOfYear ?? 1;
+  DashboardDateRange current = const DashboardPresetRange(
+    DashboardDatePreset.thisMonth,
+  );
+  if (seed != null) {
+    final preset = dashboardPresetForWindow(seed.$1, seed.$2);
+    if (preset != null) {
+      current = DashboardPresetRange(preset);
+    } else {
+      final start = Date.tryParse(
+        RelativeDateToken.tryParse(seed.$1)?.resolve() ?? seed.$1,
+      );
+      final end = Date.tryParse(
+        RelativeDateToken.tryParse(seed.$2)?.resolve() ?? seed.$2,
+      );
+      if (start != null && end != null) {
+        current = DashboardCustomRange(start: start, end: end);
+      }
+    }
+  }
+  DateWindowPick? pick;
   await openDateRangePicker(
     context,
     current: current,
     formatter: formatter,
     onChange: (r) {
-      final (start, end) = r.resolve(
-        firstMonthOfYear: formatter?.settings.firstMonthOfYear ?? 1,
-      );
-      wire = '$column,${start.toIso()},${end.toIso()}';
+      switch (r) {
+        case DashboardPresetRange(:final preset):
+          final bounds = rollingBoundsForPreset(preset, firstMonthOfYear);
+          pick = bounds == null
+              ? const DateWindowCleared()
+              : DateWindowPicked('$column,${bounds.$1},${bounds.$2}');
+        case DashboardCustomRange(:final start, :final end):
+          pick = DateWindowPicked('$column,${start.toIso()},${end.toIso()}');
+      }
     },
   );
-  return wire;
+  return pick;
+}
+
+/// The rolling bounds a rail preset stands for; null for "All time".
+@visibleForTesting
+(String, String)? rollingBoundsForPreset(
+  DashboardDatePreset p,
+  int firstMonthOfYear,
+) {
+  RollingDatePreset? rolling;
+  switch (p) {
+    case DashboardDatePreset.last7:
+      return ('rel:d6', 'rel:d0');
+    case DashboardDatePreset.last30:
+      return ('rel:d29', 'rel:d0');
+    case DashboardDatePreset.last365:
+      return ('rel:d364', 'rel:d0');
+    case DashboardDatePreset.allTime:
+      return null;
+    case DashboardDatePreset.thisMonth:
+      rolling = RollingDatePreset.thisMonth;
+    case DashboardDatePreset.lastMonth:
+      rolling = RollingDatePreset.lastMonth;
+    case DashboardDatePreset.thisQuarter:
+      rolling = RollingDatePreset.thisQuarter;
+    case DashboardDatePreset.lastQuarter:
+      rolling = RollingDatePreset.lastQuarter;
+    case DashboardDatePreset.thisYear:
+      rolling = RollingDatePreset.thisYear;
+    case DashboardDatePreset.lastYear:
+      rolling = RollingDatePreset.lastYear;
+  }
+  return rolling.bounds(firstMonthOfYear: firstMonthOfYear);
+}
+
+/// The rail preset a stored window's bounds spell, if any.
+@visibleForTesting
+DashboardDatePreset? dashboardPresetForWindow(String start, String end) {
+  for (final p in DashboardDatePreset.values) {
+    final bounds = rollingBoundsForPreset(p, 1);
+    if (bounds == null) continue;
+    if (bounds.$1.startsWith('rel:d')) {
+      if (bounds == (start, end)) return p;
+      continue;
+    }
+    final stored = RollingDatePreset.of(start, end);
+    if (stored != null &&
+        stored == RollingDatePreset.of(bounds.$1, bounds.$2)) {
+      return p;
+    }
+  }
+  return null;
 }
 
 String _presetKey(DashboardDatePreset p) => switch (p) {

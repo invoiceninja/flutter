@@ -6,7 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/detail/document_open_actions.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/company_details_view_model.dart';
@@ -15,7 +15,6 @@ import 'package:admin/ui/features/settings/widgets/overridable_switch_field.dart
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/utils/document_upload_validation.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/utils/url_safety.dart';
 
 /// Searchable label keys rendered by this tab. See
 /// `kCompanyDetailsDetailsSearchKeys` for the colocation pattern.
@@ -83,7 +82,9 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
               _DocumentList(
                 documents: documents,
                 tokens: tokens,
-                onView: (doc) => _openDocument(context, doc),
+                // Never `launchUrl(doc.url)` — see `document_open_actions.dart`.
+                onView: (doc) => viewDocument(context, doc),
+                onDownload: (doc) => downloadDocument(context, doc),
                 onDelete: (doc) => _deleteDocument(context, services, vm, doc),
               ),
           ],
@@ -124,24 +125,6 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
     }
   }
 
-  /// Open a document URL in the OS's external handler. Document URLs are
-  /// server-supplied, so the HTTPS check guards against a hostile/compromised
-  /// server pushing `javascript:` / `file:` / `intent:` URIs — mirrors
-  /// `EntityDocumentsTab._onView`. Silent no-op on an unsafe/empty URL.
-  Future<void> _openDocument(BuildContext context, Document doc) async {
-    // Both exits used to be silent: a rejected scheme returned, and the
-    // bool from `launchUrl` was discarded — so "View" simply did nothing,
-    // with no toast and no `platformDefault` retry. That is the exact
-    // failure `openExternalUrl` was introduced for (invoiceninja/flutter#80).
-    // The https-only check itself stays: these URLs come from the server,
-    // and a hostile one could otherwise push `javascript:` / `file:` /
-    // `intent:` at the OS handler.
-    final uri = isSafeHttpsUrl(doc.url) ? Uri.tryParse(doc.url) : null;
-    if (uri != null && await launchExternalUri(uri)) return;
-    if (!context.mounted) return;
-    Notify.error(context, context.tr('failed_to_open_url'));
-  }
-
   /// Enqueue a document delete + optimistic success toast. The delete is
   /// password-gated, so `ConfirmPasswordSheet` fires when the outbox row
   /// drains and the row drops from the list on confirm (remove-on-drain).
@@ -170,12 +153,14 @@ class _DocumentList extends StatelessWidget {
     required this.documents,
     required this.tokens,
     required this.onView,
+    required this.onDownload,
     required this.onDelete,
   });
 
   final List<Document> documents;
   final InTheme tokens;
   final Future<void> Function(Document doc) onView;
+  final Future<void> Function(Document doc) onDownload;
   final Future<void> Function(Document doc) onDelete;
 
   @override
@@ -188,6 +173,7 @@ class _DocumentList extends StatelessWidget {
             doc: documents[i],
             tokens: tokens,
             onView: onView,
+            onDownload: onDownload,
             onDelete: onDelete,
           ),
         ],
@@ -201,12 +187,14 @@ class _DocumentRow extends StatelessWidget {
     required this.doc,
     required this.tokens,
     required this.onView,
+    required this.onDownload,
     required this.onDelete,
   });
 
   final Document doc;
   final InTheme tokens;
   final Future<void> Function(Document doc) onView;
+  final Future<void> Function(Document doc) onDownload;
   final Future<void> Function(Document doc) onDelete;
 
   static const _imageExts = <String>{
@@ -259,6 +247,8 @@ class _DocumentRow extends StatelessWidget {
               switch (action) {
                 case _RowAction.view:
                   await onView(doc);
+                case _RowAction.download:
+                  await onDownload(doc);
                 case _RowAction.delete:
                   await onDelete(doc);
               }
@@ -269,6 +259,13 @@ class _DocumentRow extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.open_in_new),
                   title: Text(context.tr('view')),
+                ),
+              ),
+              PopupMenuItem(
+                value: _RowAction.download,
+                child: ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: Text(context.tr('download')),
                 ),
               ),
               PopupMenuItem(
@@ -286,4 +283,4 @@ class _DocumentRow extends StatelessWidget {
   }
 }
 
-enum _RowAction { view, delete }
+enum _RowAction { view, download, delete }

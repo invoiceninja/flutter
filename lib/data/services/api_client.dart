@@ -314,10 +314,16 @@ class ApiClient {
   /// [ServerException] instead of being handed to a PDF renderer as garbage.
   /// [readOnly] = true skips the demo-mode short-circuit — these endpoints are
   /// reads in effect.
+  ///
+  /// A null [expectedContentType] takes the body whatever its type. That is for
+  /// a route whose bytes are a user's own file — `/documents/{id}/download` is
+  /// a Laravel `streamDownload`, which sets no content type at all, and the
+  /// file itself can be any of the uploadable types. Its errors still arrive
+  /// as non-2xx JSON, so they still go through [_raiseFromResponse].
   Future<Uint8List> getRaw(
     String path, {
     bool readOnly = false,
-    String expectedContentType = 'application/pdf',
+    String? expectedContentType = 'application/pdf',
   }) async {
     if (!readOnly && Env.demoMode) {
       throw const DemoModeException();
@@ -332,6 +338,7 @@ class ApiClient {
     );
     await _postFlight(response, creds, method: 'GET', uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (expectedContentType == null) return response.bodyBytes;
       final ct = response.headers['content-type'] ?? '';
       final actualType = ct.split(';').first.trim().toLowerCase();
       if (actualType != expectedContentType.toLowerCase()) {

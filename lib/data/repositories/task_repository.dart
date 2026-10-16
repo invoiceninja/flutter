@@ -57,18 +57,16 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   @override
   String get entityTypeName => 'task';
 
-  /// The `due_date_range` chip as an ISO `(start, end)` window — the wire is
-  /// `due_date,<start>,<end>` (or the legacy 2-part `<start>,<end>`); the last
-  /// two parts are the bounds, as `DateColumnFilterKey.parseWindow` reads them.
-  static ({String start, String end})? _dueDateWindow(
+  /// The `due_date_range` chip as an ISO `(start, end)` window, its rolling
+  /// bounds (`date:today`, This week) resolved — the shared parser, which this
+  /// used to copy without the resolution.
+  ({String start, String end})? _dueDateWindow(
     Map<String, Set<String>> extraFilters,
   ) {
-    final wire = extraFilters['due_date_range']?.firstOrNull?.trim() ?? '';
-    final parts = wire.split(',');
-    if (parts.length < 2) return null;
-    final start = parts[parts.length - 2].trim();
-    final end = parts[parts.length - 1].trim();
-    if (start.isEmpty || end.isEmpty) return null;
+    final w = parseDueDateRangeFilter(extraFilters, now: now());
+    final start = w.start;
+    final end = w.end;
+    if (start == null || end == null) return null;
     return (start: start, end: end);
   }
 

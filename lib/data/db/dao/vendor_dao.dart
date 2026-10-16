@@ -107,9 +107,33 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
+    String? numberExact,
+    int? createdFrom,
+    int? createdTo,
+    int? updatedFrom,
+    int? updatedTo,
     String? badgeModeId,
   }) {
     final q = select(vendors)..where((v) => v.companyId.equals(companyId));
+    // The search field's Number / Created / Updated chips, mirroring
+    // `VendorFilters::number` (exact) and the base `created_at` /
+    // `updated_at` comparisons and `*_between` windows, as epoch-second
+    // bounds (`timestampBounds`).
+    if (numberExact != null && numberExact.isNotEmpty) {
+      q.where((v) => v.number.equals(numberExact));
+    }
+    if (createdFrom != null) {
+      q.where((v) => v.createdAt.isBiggerOrEqualValue(createdFrom));
+    }
+    if (createdTo != null) {
+      q.where((v) => v.createdAt.isSmallerOrEqualValue(createdTo));
+    }
+    if (updatedFrom != null) {
+      q.where((v) => v.updatedAt.isBiggerOrEqualValue(updatedFrom));
+    }
+    if (updatedTo != null) {
+      q.where((v) => v.updatedAt.isSmallerOrEqualValue(updatedTo));
+    }
     // Status-tab strip (#98): the SAME predicate the tab's count uses, so
     // the number above the list and the rows in it can't disagree. Applied
     // here (pre-LIMIT) rather than post-decode, so the Drift window stays

@@ -116,12 +116,16 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       loadedPages >= 1,
       'loadedPages is 1-based; pass 1 for the first page',
     );
-    final dateRange = parseDateRangeFilter(extraFilters);
+    final dateRange = parseDateRangeFilter(extraFilters, now: now());
     // Single-date comparators live in the `op:value` slot, not the range
     // slot — mirror them locally or the chip only narrows the server fetch.
-    final dateCmp = parseComparableDateFilter(extraFilters, 'date');
-    final dueDateCmp = parseComparableDateFilter(extraFilters, 'due_date');
-    final dueDateRange = parseDueDateRangeFilter(extraFilters);
+    final dateCmp = parseComparableDateFilter(extraFilters, 'date', now: now());
+    final dueDateCmp = parseComparableDateFilter(
+      extraFilters,
+      'due_date',
+      now: now(),
+    );
+    final dueDateRange = parseDueDateRangeFilter(extraFilters, now: now());
     return db.invoiceDao
         .watchPage(
           badgeModeId: badgeModeId,

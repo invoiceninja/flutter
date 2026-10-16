@@ -102,6 +102,10 @@ class ServerFeatures {
   /// (`87528bcf0c`), so an older server would dead-letter every row.
   static const String taskBulkUpdate = '5.13.44';
 
+  /// Purchase order `client_status=sent` matches every sent purchase order
+  /// (`8fd2c0ede3`); before, a sent one past its due date fell out.
+  static const String purchaseOrderSentStatus = '5.13.44';
+
   /// `GET /tasks?activity_dates=start,end` — tasks with a time entry in the
   /// range, not just those that *start* in it (React #3378).
   static const String taskActivityDates = '5.13.43';

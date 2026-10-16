@@ -585,14 +585,27 @@ void main() {
       expect(resolveRelativeDateToken('rel:d30', now: now), '2026-04-18');
     });
 
-    test('rel:hN → second-precision timestamp N hours before now', () {
+    // The server parses a timestamp with no offset as UTC (`Carbon::parse`
+    // under the app's UTC timezone) and binds it unconverted, so a local wall
+    // time put a UTC+10 device's "24 hours ago" ten hours off. The instant is
+    // written in UTC, with its `Z`.
+    test('rel:hN → the UTC instant N hours before now', () {
+      final utcNow = DateTime.utc(2026, 5, 18, 12, 30, 15);
       expect(
-        resolveRelativeDateToken('rel:h24', now: now),
-        '2026-05-17T09:30:15',
+        resolveRelativeDateToken('rel:h24', now: utcNow),
+        '2026-05-17T12:30:15Z',
       );
       expect(
-        resolveRelativeDateToken('rel:h1', now: now),
-        '2026-05-18T08:30:15',
+        resolveRelativeDateToken('rel:h1', now: utcNow),
+        '2026-05-18T11:30:15Z',
+      );
+    });
+
+    test('rel:hN names the same instant whatever zone `now` is in', () {
+      final utcNow = DateTime.utc(2026, 5, 18, 12, 30, 15);
+      expect(
+        resolveRelativeDateToken('rel:h1', now: utcNow.toLocal()),
+        '2026-05-18T11:30:15Z',
       );
     });
 
@@ -600,6 +613,47 @@ void main() {
       expect(resolveRelativeDateToken('2026-01-01', now: now), isNull);
       expect(resolveRelativeDateToken('rel:x9', now: now), isNull);
       expect(resolveRelativeDateToken('', now: now), isNull);
+    });
+  });
+
+  group('local windows resolve rolling bounds', () {
+    final now = DateTime(2026, 10, 16, 12);
+
+    test('This month', () {
+      expect(
+        parseDateRangeFilter(const {
+          'date_range': {'date,rel:m0s,rel:m0e'},
+        }, now: now),
+        (start: '2026-10-01', end: '2026-10-31'),
+      );
+    });
+
+    test('today, from a window-only key', () {
+      expect(
+        parseDueDateRangeFilter(const {
+          'due_date_range': {'due_date,rel:d0,rel:d0'},
+        }, now: now),
+        (start: '2026-10-16', end: '2026-10-16'),
+      );
+    });
+
+    test('a bound that cannot be read gives no window', () {
+      expect(
+        parseDateRangeFilter(const {
+          'date_range': {'date,rel:z1s,2026-10-31'},
+        }, now: now),
+        (start: null, end: null),
+      );
+      expect(
+        parseComparableDateFilter(
+          const {
+            'date': {'gte:rel:z1s'},
+          },
+          'date',
+          now: now,
+        ),
+        (op: null, value: null),
+      );
     });
   });
 
@@ -612,7 +666,9 @@ void main() {
         'updated_at': {'lt:rel:h24'},
       }, now: now);
       expect(out['created_at'], {'gte:2026-05-11'});
-      expect(out['updated_at'], {'lt:2026-05-17T09:30:15'});
+      expect(out['updated_at'], {
+        'lt:${now.toUtc().subtract(const Duration(hours: 24)).toIso8601String().substring(0, 19)}Z',
+      });
     });
 
     test('no rel: token EVER survives into the assembled API filters map', () {
@@ -633,6 +689,45 @@ void main() {
       }
       expect(joined['created_at'], 'gte:2026-04-18');
       expect(joined['balance'], 'gt:1000');
+    });
+
+    test('a rolling window resolves both bounds on the wire', () {
+      final out = resolveRelativeFilterTokens(const {
+        'date_range': {'date,rel:m0s,rel:m0e'},
+      }, now: DateTime(2026, 2, 10, 12));
+      expect(out['date_range'], {'date,2026-02-01,2026-02-28'});
+    });
+
+    test('a value that merely contains `rel:` is not a token', () {
+      // A name, number or custom value with `rel:` inside a word used to be
+      // read as a token, fail to parse, and be dropped from the fetch.
+      const extra = {
+        'name': {'Laurel:north'},
+        'custom_value1': {'Parcel:express'},
+        'number': {'Barrel:12'},
+      };
+      expect(
+        identical(resolveRelativeFilterTokens(extra, now: now), extra),
+        isTrue,
+      );
+      // …while a token in each place a token can stand still resolves.
+      final out = resolveRelativeFilterTokens(const {
+        'date': {'rel:d0'},
+        'created_at': {'gte:rel:d7'},
+        'date_range': {'date,rel:d7,rel:d0'},
+      }, now: now);
+      expect(out['date'], {'2026-05-18'});
+      expect(out['created_at'], {'gte:2026-05-11'});
+      expect(out['date_range'], {'date,2026-05-11,2026-05-18'});
+    });
+
+    test('a token this build cannot read is dropped, not sent', () {
+      final out = resolveRelativeFilterTokens(const {
+        'date_range': {'date,rel:z0s,rel:z0e'},
+        'balance': {'gt:5'},
+      }, now: now);
+      expect(out['date_range'], isEmpty);
+      expect(out['balance'], {'gt:5'});
     });
 
     test('returns the same instance when nothing is relative', () {

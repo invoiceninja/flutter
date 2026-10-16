@@ -52,6 +52,7 @@ List<FilterKey> buildTaskFilterKeys({
     serverKey: 'due_date',
     labelKey: 'due_date',
     windowOnly: true,
+    lookAhead: true,
   ),
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(

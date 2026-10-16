@@ -10,15 +10,18 @@ import 'package:flutter_test/flutter_test.dart';
 // The clients list's `created` / `updated` filters are the shared
 // `DateColumnFilterKey` (its operator menu includes `between`). These pin the
 // SegmentMenu behavior against that exact key type.
+// The clients list's two timestamps, as registered there.
 const _created = DateColumnFilterKey(
   id: 'created',
   serverKey: 'created_at',
   labelKey: 'created',
+  hasTime: true,
 );
 const _updated = DateColumnFilterKey(
   id: 'updated',
   serverKey: 'updated_at',
   labelKey: 'updated',
+  hasTime: true,
 );
 
 /// Phase 6: the dedicated per-segment dropdown. It commits straight
@@ -130,6 +133,63 @@ void main() {
 
     // Value is the rolling token; the op (lt) is preserved.
     expect(vm.extraFilters['created_at'], {'lt:rel:d7'});
+  });
+
+  testWidgets('a window chip lists the rolling windows, its own ticked, and '
+      'a pick rolls', (tester) async {
+    final vm = _FakeVm();
+    await tester.pumpWidget(
+      host(
+        SegmentMenu(
+          vm: vm,
+          filterKey: _created,
+          kind: SegmentKind.value,
+          currentWire: 'created_at,rel:m0s,rel:m0e',
+          onClose: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Ten windows (the current periods, then the last ones), then Custom
+    // range — more than the 360 px popup shows at once, so the list scrolls.
+    final rows = find.byType(InkWell);
+    // This month — the third — is the one applied.
+    expect(
+      find.descendant(of: rows.at(2), matching: find.byIcon(Icons.check)),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check), findsOneWidget);
+
+    await tester.tap(rows.at(1)); // This week
+    await tester.pump();
+    expect(vm.extraFilters['created_at_range'], {'created_at,rel:w0s,rel:w0e'});
+  });
+
+  testWidgets('a date with no time of day offers no hour presets', (
+    tester,
+  ) async {
+    final vm = _FakeVm();
+    await tester.pumpWidget(
+      host(
+        SegmentMenu(
+          vm: vm,
+          filterKey: const DateColumnFilterKey(
+            id: 'date',
+            serverKey: 'date',
+            labelKey: 'date',
+          ),
+          kind: SegmentKind.value,
+          currentWire: 'lt:2026-01-01',
+          onClose: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // "1 hour ago" on a date column matched nothing for the whole day.
+    expect(find.byType(InkWell), findsNWidgets(4)); // 3 day presets + absolute
+    expect(find.text('1 hour ago'), findsNothing);
   });
 
   testWidgets('numeric value: prefilled field, Enter commits buildWire '

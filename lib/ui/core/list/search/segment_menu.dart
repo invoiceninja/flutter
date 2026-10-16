@@ -85,13 +85,21 @@ class SegmentMenu extends StatelessWidget {
     // `token_search_field._onSelectValue` states the same rule for its own
     // await, and the value below applies fine to an already-closed menu.
     onClose();
-    final wire = await pickDateRangeWindow(
+    final pick = await pickDateRangeWindow(
       context,
       column: key.serverKey,
       formatter: formatter,
       seed: seed,
     );
-    if (wire != null) await key.addValue(vm, wire);
+    switch (pick) {
+      case null:
+        return;
+      case DateWindowCleared():
+        // "All time": no window to apply.
+        if (context.mounted) await key.clear(vm, context);
+      case DateWindowPicked(:final wire):
+        await key.addValue(vm, wire);
+    }
   }
 
   @override
@@ -237,16 +245,36 @@ class SegmentMenu extends StatelessWidget {
     );
   }
 
-  /// Value segment for a `between` chip: a single row that (re)opens the
-  /// dual-calendar window picker, seeded with the current window.
+  /// Value segment for a `between` chip: the rolling windows, the one
+  /// applied ticked, then a row that (re)opens the dual-calendar window
+  /// picker, seeded with the current window.
   Widget _betweenValueList(BuildContext context) {
+    final key = _dateKey!;
+    // Tolerant: a host with no `Services` still gets the rows, on the default
+    // calendar.
+    final formatter = filterFormatterOrNull(vm, context);
+    final current = key.presetOf(currentWire);
     return ListView(
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
+        for (final preset in key.windowPresets)
+          _MenuRow(
+            // Something has to hold focus for the Escape binding in `_shell`.
+            autofocus: current == null
+                ? preset == key.windowPresets.first
+                : preset == current,
+            selected: preset == current,
+            label: context.tr(preset.labelKey),
+            onTap: () {
+              key.addValue(vm, key.presetWindowFor(context, formatter, preset));
+              onClose();
+            },
+          ),
+        Divider(height: 9, color: context.inTheme.border),
         _MenuRow(
-          autofocus: true,
-          label: '${context.tr('date_range')}  →',
+          selected: current == null && _isWindow,
+          label: '${context.tr('custom_range')}  →',
           onTap: () => _openRangePopover(context),
         ),
       ],
@@ -254,17 +282,18 @@ class SegmentMenu extends StatelessWidget {
   }
 
   Widget _dateValueList(BuildContext context, FilterOp op) {
+    final presets = _dateKey?.singlePresets ?? kRelativeDatePresets;
     return ListView(
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        for (final (token, labelKey) in kRelativeDatePresets)
+        for (final (token, labelKey) in presets)
           _MenuRow(
             // Something in the popup has to hold focus or its Escape binding
             // (a `CallbackShortcuts` in `_shell`) never sees the key: the
             // comparator and field lists autofocus their current row, and
             // this list had no row that did.
-            autofocus: token == kRelativeDatePresets.first.$1,
+            autofocus: token == presets.first.$1,
             selected: filterKey.parseWire(currentWire).$1 == token,
             label: context.tr(labelKey),
             onTap: () {

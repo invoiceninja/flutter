@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_client.dart';
 
@@ -6,9 +8,10 @@ import 'package:admin/data/services/api_client.dart';
 /// lives on the entity api because the URL is entity-scoped — see
 /// `ClientsApi.uploadDocument` and `ProductsApi.uploadDocument`.
 ///
-/// All methods go through `ApiClient.mutate` so they share the standard
+/// The writes go through `ApiClient.mutate` so they share the standard
 /// idempotency-key header, password gating, and `x-minimum-client-version`
-/// negotiation with the rest of the app.
+/// negotiation with the rest of the app; the one read, [download], goes
+/// through `ApiClient.getRaw`.
 class DocumentsApi {
   DocumentsApi(this._client);
 
@@ -58,6 +61,25 @@ class DocumentsApi {
     }
     return null;
   }
+
+  /// `GET /api/v1/documents/{id}/download` — the file's own bytes.
+  ///
+  /// This is the route the server hands out as the document's `url`, and it
+  /// sits behind `token_auth`: it answers only a request carrying
+  /// `X-API-TOKEN`. Handing that url to a browser is what showed users
+  /// `{"message":"Invalid token"}` — so every view or download fetches here,
+  /// through the client, and never launches the url. See
+  /// `docs/document-urls.md`.
+  ///
+  /// The server gates it on viewing the parent record (`DocumentPolicy::view`)
+  /// and streams the file with no content type, hence
+  /// `expectedContentType: null`. `readOnly: true` because a read must work in
+  /// demo mode too.
+  Future<Uint8List> download(String id) => _client.getRaw(
+    '$_basePath/${Uri.encodeComponent(id)}/download',
+    readOnly: true,
+    expectedContentType: null,
+  );
 
   /// `POST /api/v1/documents/bulk {action:'download', ids}` — server-side
   /// export: the server zips the documents and emails them to the user, so

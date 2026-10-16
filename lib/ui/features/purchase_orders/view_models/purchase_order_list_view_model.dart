@@ -21,9 +21,21 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
     super.persistDebounce,
     super.now,
     this.vendorId,
-  });
+    bool Function()? sentStatusExact,
+  }) : _sentStatusExact = sentStatusExact;
 
   final PurchaseOrderRepository repo;
+
+  /// Whether the server answers `client_status=sent` exactly — 5.13.44 and
+  /// later. Before that its clause was an unnested `orWhere` that dropped a
+  /// sent purchase order past its due date: a SUBSET of the rows, which no
+  /// local predicate can recover. On such a server a Status chip that
+  /// includes Sent is applied locally only.
+  final bool Function()? _sentStatusExact;
+
+  bool get _sentStatusLocal =>
+      (extraFilters['client_status']?.contains('sent') ?? false) &&
+      !(_sentStatusExact?.call() ?? false);
 
   /// When non-null, scopes the watch + fetch to one vendor.
   final String? vendorId;
@@ -80,6 +92,7 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
         sortAscending: sortAscending,
         vendorId: vendorId,
         customFilters: customFilters,
+        extraFilters: extraFilters,
       )
       .map((items) {
         // `tag_ids` lives only in the payload — post-decode predicate.
@@ -98,7 +111,12 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    final base = extraFilters;
+    final base = _sentStatusLocal
+        ? GenericListViewModel.extraFiltersWithout(
+            extraFilters,
+            'client_status',
+          )
+        : extraFilters;
     final filters = vendorId == null
         ? base
         : {
@@ -114,6 +132,12 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
       ignoreCursor: ignoreCursor,
     );
   }
+
+  /// A Sent chip applied locally only (see `_sentStatusExact`) must chain
+  /// pages, or a list the predicate guts dead-ends on "No records found".
+  @override
+  bool get localOnlyFilterActive =>
+      super.localOnlyFilterActive || _sentStatusLocal;
 
   @override
   Future<void> refreshAll() => repo.refreshAll(companyId: companyId);

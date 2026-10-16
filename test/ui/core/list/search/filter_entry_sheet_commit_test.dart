@@ -4,6 +4,7 @@
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/entity_state.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_entry_sheet.dart';
@@ -12,6 +13,7 @@ import 'package:admin/ui/core/list/search/filter_token_chip.dart';
 import 'package:admin/ui/features/clients/client_filter_keys.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../../_localization_helper.dart';
@@ -26,14 +28,21 @@ void main() {
   Future<void> pumpSheet(
     WidgetTester tester,
     GenericListViewModel<dynamic> vm,
-    List<FilterKey> keys,
-  ) async {
+    List<FilterKey> keys, {
+    String? clipboard,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildInTheme(InTheme.light),
         localizationsDelegates: kTestLocalizationsDelegates,
         supportedLocales: kTestSupportedLocales,
-        home: FilterEntrySheet(vm: vm, filterKeys: keys, hintKey: 'search'),
+        home: FilterEntrySheet(
+          vm: vm,
+          filterKeys: keys,
+          hintKey: 'search',
+          // Never the platform clipboard: awaiting it hangs a widget test.
+          readClipboard: () async => clipboard,
+        ),
       ),
     );
     await tester.pump();
@@ -148,7 +157,7 @@ void main() {
     );
   });
 
-  sheetTest('a chip the key will not prefill opens on a clean prefix', (
+  sheetTest('a chip the key will not prefill opens on an empty box', (
     tester,
   ) async {
     final vm = newHarnessVm(db);
@@ -172,7 +181,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(boxText(tester), 'date:', reason: 'it read `date:gte:rel:d7`');
+    expect(boxText(tester), '', reason: 'it read `date:gte:rel:d7`');
+    expect(
+      find.descendant(
+        of: find.byType(PendingKeyChip),
+        matching: find.text('Date'),
+      ),
+      findsOneWidget,
+    );
   });
 
   sheetTest('tapping a chip edits it without removing it', (tester) async {
@@ -202,5 +218,101 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(vm.extraFilters['fruit_id'], {'b', 'c'});
+  });
+
+  sheetTest('a filter picked in the sheet keeps the search it opened on', (
+    tester,
+  ) async {
+    final vm = newHarnessVm(db);
+    vm.setSearch('acme', immediate: true);
+    await pumpSheet(tester, vm, [FruitKey()]);
+    expect(boxText(tester), 'acme');
+    // The list it opened on is not ranked by the search.
+    expect(find.text('Fruit'), findsOneWidget);
+
+    await tester.tap(find.text('Fruit'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Banana'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(vm.extraFilters['fruit_id'], {'b'});
+    expect(vm.search, 'acme', reason: 'starting the filter dropped it');
+    expect(find.widgetWithText(FilterTokenChip, '"acme"'), findsOneWidget);
+  });
+
+  testWidgets(
+    '← walks into the chips in the sheet too',
+    (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpSheet(tester, vm, [FruitKey()]);
+      await vm.setExtraFilter(serverKey: 'fruit_id', values: {'a', 'b'});
+      await tester.pump();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      bool armed(String label) => tester
+          .widget<FilterTokenChip>(find.widgetWithText(FilterTokenChip, label))
+          .armed;
+      expect(armed('Banana'), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+      await tester.pump();
+      expect(vm.extraFilters['fruit_id'], {'a'});
+      await tester.pump(const Duration(seconds: 1));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    '⌘V in the sheet reads a query too',
+    (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpSheet(tester, vm, const [
+        IsFilterKey(),
+      ], clipboard: 'is:archived corp');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
+      await tester.pump();
+      expect(vm.states, contains(EntityState.archived));
+      expect(boxText(tester), 'corp');
+      await tester.pump(const Duration(seconds: 1));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  // On a phone the long-press menu's Paste is the only paste there is. It
+  // used to be the platform's own, which dropped a query in as raw text.
+  sheetTest('long-press Paste reads a query', (tester) async {
+    // The platform reports text on the clipboard, so the menu offers Paste.
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async =>
+          call.method == 'Clipboard.hasStrings' ? {'value': true} : null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final vm = newHarnessVm(db);
+    await pumpSheet(tester, vm, const [
+      IsFilterKey(),
+    ], clipboard: 'is:archived corp');
+
+    await tester.longPress(find.byType(TextField));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Paste'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(vm.states, contains(EntityState.archived));
+    expect(boxText(tester), 'corp');
   });
 }

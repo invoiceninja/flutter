@@ -100,8 +100,20 @@ void main() {
       },
     );
 
+    testWidgets('the row menu offers View and Download ahead of the mutating '
+        'actions', (tester) async {
+      await _pump(tester, entityId: 'real_123', documents: const [_docA]);
+      await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton));
+      await tester.pumpAndSettle();
+      final labels = tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((t) => (t.title! as Text).data)
+          .toList();
+      expect(labels, ['View', 'Download', 'Set private', 'Delete']);
+    });
+
     testWidgets('readOnly mode hides upload and the mutating row actions, '
-        'and keeps View', (tester) async {
+        'and keeps View and Download', (tester) async {
       await _pump(
         tester,
         entityId: 'real_123',
@@ -119,6 +131,7 @@ void main() {
       await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton));
       await tester.pumpAndSettle();
       expect(find.text('View'), findsOneWidget);
+      expect(find.text('Download'), findsOneWidget);
       expect(find.text('Delete'), findsNothing);
       expect(find.text('Set Private'), findsNothing);
     });

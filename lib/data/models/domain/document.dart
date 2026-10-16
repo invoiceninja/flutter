@@ -19,6 +19,10 @@ abstract class Document with _$Document {
     @Default('') String name,
     @Default('') String hash,
     @Default('') String type,
+    // A token-gated API route (`/api/v1/documents/{id}/download`). Never
+    // open it in a browser or hand it to `Image.network` — that gets
+    // `{"message":"Invalid token"}`. Fetch the bytes with
+    // `DocumentsApi.download` (`docs/document-urls.md`).
     @Default('') String url,
     @Default(0) int size,
     @Default(true) bool isPublic,

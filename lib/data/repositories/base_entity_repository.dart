@@ -13,7 +13,7 @@ import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart'
-    show resolveRelativeFilterTokens;
+    show clientScopeForWire, resolveRelativeFilterTokens;
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/id_remap_dao.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
@@ -1330,8 +1330,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required Future<void> Function(Map<String, TCompanion> byId) upsert,
   }) async {
     // Rolling `rel:` tokens must be resolved to absolute values before
-    // they hit the wire — the server never sees a relative token.
-    final resolvedExtra = resolveRelativeFilterTokens(extraFilters);
+    // they hit the wire — the server never sees a relative token. Several
+    // clients travel as `client_ids` (see `clientScopeForWire`); the scope
+    // checks below read both names.
+    final resolvedExtra = clientScopeForWire(
+      resolveRelativeFilterTokens(extraFilters, now: now()),
+    );
     // A fetch scoped to a parent record — an embedded detail tab, or a
     // standalone list the user has filtered to one parent — is a filtered VIEW,
     // not a canonical full-entity sync. Two distinct scope checks below:

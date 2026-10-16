@@ -393,7 +393,8 @@ class _VariableChips extends StatelessWidget {
     // text.value write while the field is focused, clobbering the caret we just
     // set — which would make the next chip replace the whole field instead of
     // appending. Re-assert the caret next frame, guarded so we don't fight a
-    // user who has since typed or moved it. Mirrors TokenSearchController.selectKey.
+    // user who has since typed or moved it. Mirrors
+    // TokenSearchController.writeBoxText.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!focusNode.hasFocus) return;
       if (controller.text != newText) return;

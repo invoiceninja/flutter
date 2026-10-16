@@ -664,4 +664,41 @@ void main() {
       expect(aug, feb);
     });
   });
+
+  group('a list filter picks a rolling window', () {
+    test('each rail preset rolls; All time is no window', () {
+      expect(rollingBoundsForPreset(DashboardDatePreset.thisMonth, 1), (
+        'rel:m0s',
+        'rel:m0e',
+      ));
+      expect(rollingBoundsForPreset(DashboardDatePreset.last7, 1), (
+        'rel:d6',
+        'rel:d0',
+      ));
+      expect(rollingBoundsForPreset(DashboardDatePreset.lastYear, 4), (
+        'rel:y1s4',
+        'rel:y1e4',
+      ));
+      // It used to apply a fifty-year window.
+      expect(rollingBoundsForPreset(DashboardDatePreset.allTime, 1), isNull);
+    });
+
+    test('a stored rolling window seeds its preset back', () {
+      expect(
+        dashboardPresetForWindow('rel:q1s', 'rel:q1e'),
+        DashboardDatePreset.lastQuarter,
+      );
+      expect(
+        dashboardPresetForWindow('rel:y0s4', 'rel:y0e4'),
+        DashboardDatePreset.thisYear,
+      );
+      expect(
+        dashboardPresetForWindow('rel:d29', 'rel:d0'),
+        DashboardDatePreset.last30,
+      );
+      expect(dashboardPresetForWindow('2026-01-01', '2026-01-31'), isNull);
+      // A preset the rail does not have.
+      expect(dashboardPresetForWindow('rel:w0s', 'rel:w0e'), isNull);
+    });
+  });
 }

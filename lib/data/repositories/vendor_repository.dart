@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart'
     show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
@@ -75,6 +76,18 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
       loadedPages >= 1,
       'loadedPages is 1-based; pass 1 for the first page',
     );
+    final created = timestampBounds(
+      extraFilters,
+      singleKey: 'created_at',
+      rangeKey: 'created_at_range',
+      now: now(),
+    );
+    final updated = timestampBounds(
+      extraFilters,
+      singleKey: 'updated_at',
+      rangeKey: 'updated_at_range',
+      now: now(),
+    );
     return db.vendorDao
         .watchPage(
           badgeModeId: badgeModeId,
@@ -89,6 +102,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
+          numberExact: parseSubstringFilter(extraFilters, 'number'),
+          createdFrom: created.from,
+          createdTo: created.to,
+          updatedFrom: updated.from,
+          updatedTo: updated.to,
         )
         .map((rows) {
           final items = rows.map(_fromRow);
@@ -181,7 +199,9 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // A Created / Updated window travels as `created_between` /
+    // `updated_between`, as the clients list's does.
+    extraFilters: timestampWindowsForServer(extraFilters, now: now()),
     ignoreCursor: ignoreCursor,
     // `?include=documents` makes the list response authoritative for the
     // `documents` array — see `ClientRepository.ensurePageLoaded`.

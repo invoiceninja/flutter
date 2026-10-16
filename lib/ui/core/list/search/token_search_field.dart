@@ -43,6 +43,7 @@ class TokenSearchField extends StatefulWidget {
     required this.filterKeys,
     required this.wide,
     required this.hintKey,
+    @visibleForTesting this.readClipboard,
     super.key,
   });
 
@@ -50,6 +51,10 @@ class TokenSearchField extends StatefulWidget {
   final List<FilterKey> filterKeys;
   final bool wide;
   final String hintKey;
+
+  /// Stands in for the platform clipboard in a test — see
+  /// [TokenSearchController.readClipboard].
+  final Future<String?> Function()? readClipboard;
 
   @override
   State<TokenSearchField> createState() => _TokenSearchFieldState();
@@ -173,13 +178,19 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
 
   late final TokenSearchController _controller;
 
-  /// Last `vm.search` value the field already reflects. Used by
-  /// `_onVmChange` on the UNFOCUSED path to skip no-op re-syncs of a
-  /// value we already wrote. On the FOCUSED path the controller wins
-  /// unconditionally (see `_onVmChange` doc); this field still trails
-  /// `vm.search` there so the next focus-loss starts from the right
-  /// baseline.
-  late String _lastSyncedSearch;
+  /// The box's text as of the last notification — see [_onTextChange].
+  String _lastText = '';
+
+  /// ⌘/Ctrl+V — see [TokenSearchPasteAction]. Built once, so the `Actions`
+  /// around the input has nothing to notify about on a rebuild.
+  late final Map<Type, Action<Intent>> _pasteActions;
+
+  /// One key per chip on screen, by [BoxChip.id]: where the armed chip is, to
+  /// scroll it into view and to anchor its editor when Enter opens it.
+  final Map<String, GlobalKey> _chipKeys = {};
+
+  /// The armed chip last scrolled into view.
+  String? _shownArmed;
 
   /// Stashed in `initState` so `dispose` can release the claim without
   /// reading from a context that may already be detaching.
@@ -192,8 +203,14 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
       vm: widget.vm,
       filterKeys: widget.filterKeys,
       initialText: widget.vm.search,
+      readClipboard: widget.readClipboard,
     );
-    _lastSyncedSearch = widget.vm.search;
+    _pasteActions = {
+      PasteTextIntent: TokenSearchPasteAction(
+        () => unawaited(_controller.paste(context)),
+      ),
+    };
+    _lastText = _controller.text.text;
     _controller.text.addListener(_onTextChange);
     _controller.focus.addListener(_onFocusChange);
     widget.vm.addListener(_onVmChange);
@@ -261,7 +278,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // Nothing else here — the menu is deliberately not driven by focus (see
     // the note above [_tapGroup]). The build listens to the node so the focus
     // ring repaints; it used to wait for the next keystroke.
-    if (!_controller.focus.hasFocus) _controller.disarmLastChip();
+    if (!_controller.focus.hasFocus) _controller.disarmChip();
   }
 
   void _onTextChange() {
@@ -269,20 +286,19 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // No `setState` — the `ListenableBuilder` wrapping the build subtree
     // listens to `_controller.text` directly and rebuilds.
     _controller.invalidateParse();
-    _controller.disarmLastChip();
+    // A typed `<key>:` turns into that key's chip. The rewrite notifies this
+    // listener again, which does the rest; a picker that hung under a chip
+    // belongs to it no more.
+    if (_controller.adoptTypedPrefix()) {
+      _chipAnchor = null;
+      return;
+    }
 
     final text = _controller.text.text;
-
-    // A pinned value key (state / status / client / custom field) keeps
-    // ownership while the user types a bare value — the text becomes that
-    // key's value query. Only an explicit new `<key>:` drops the pin and
-    // reverts to typed-prefix parsing. A bare colon does not: `Net:30` is a
-    // legitimate custom-field value.
-    if (_controller.pinnedValueKey != null &&
-        _controller.typedPrefixKey() != null) {
-      _controller.clearPinnedValueKey();
-      _chipAnchor = null;
-    }
+    // This listener also hears selection-only changes — the caret placed by
+    // the tap that focuses the box among them.
+    final textChanged = text != _lastText;
+    _lastText = text;
 
     final focused = _controller.focus.hasFocus;
 
@@ -291,13 +307,17 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // on the field with the overlay hidden) traps the user typing into a
     // focused input with no dropdown.
     if (focused && text.isNotEmpty && !_overlay.isShowing) {
-      _showOverlay();
+      _showOverlay(byTyping: textChanged);
     }
 
     // Everything below writes the search, and only the user's own typing may:
     // programmatic text writes on an unfocused field (`_onVmChange` syncing a
     // restored search in) must not echo back.
     if (!focused) return;
+
+    // Beside a search chip the box holds a candidate, applied only when it
+    // is committed — see `TokenSearchController.searchInChip`.
+    if (_controller.searchInChip) return;
 
     // Building a filter — a matched `<key>:` prefix, or text typed into a
     // pinned picker — is not a search. Withdraw the search the moment that
@@ -309,7 +329,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // Keyed on the parse, not on `text.contains(':')`: `INV:001` has a colon
     // and IS a search.
     if (_controller.parseInput().matchedKey != null) {
-      widget.vm.setSearch('');
+      _controller.writeSearch('');
       return;
     }
 
@@ -317,7 +337,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // push an empty string"), so backspacing a term away left the list
     // filtered by its last letter under a box that read as empty.
     if (text.isEmpty) {
-      widget.vm.setSearch('');
+      _controller.writeSearch('');
       return;
     }
 
@@ -331,7 +351,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     // Search-as-you-type. No `vm.search != text` pre-check: `vm.search` is
     // the APPLIED term, and re-asking for it is how a newer term still inside
     // the debounce gets withdrawn (type `b` after `a`, delete it at once).
-    widget.vm.setSearch(text);
+    _controller.writeSearch(text);
   }
 
   /// True when [text] matches a typeable filter key's id or alias verbatim
@@ -355,42 +375,20 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
   /// user is mid-typing a `name:` prefix. On an explicit "done" gesture —
   /// Enter or tapping away — that suppression must resolve to a search, not a
   /// silent no-op that leaves the list unfiltered.
+  ///
+  /// Not beside a search chip: text typed there is a candidate, and a tap away
+  /// leaves it in the box unapplied — committing would replace the search the
+  /// chip shows with text the user may have abandoned.
   void _commitPendingFreeText() {
+    if (_controller.searchInChip) return;
     final input = _controller.text.text.trim();
     if (input.isEmpty) return;
     if (_controller.parseInput().matchedKey != null) return;
-    widget.vm.setSearch(input);
+    _controller.writeSearch(input);
   }
 
-  void _onVmChange() {
-    // While the field has focus, the controller is the source of truth.
-    // `vm.search` legitimately trails the controller during `setSearch`'s
-    // 250 ms debounce — if a notify lands in that window with the STALE
-    // `vm.search` value (e.g. a network reply for `john` arrives after
-    // the user has backspaced to `joh`), syncing would resurrect a
-    // character the user just deleted. External resets (Clear filters,
-    // session restore, paste, chip commit) never happen on a focused
-    // field, so it's safe to skip the sync here. Keep `_lastSyncedSearch`
-    // aligned so the next focus-loss starts from the right baseline.
-    if (_controller.focus.hasFocus) {
-      _lastSyncedSearch = widget.vm.search;
-      return;
-    }
-    // Unfocused path. Gate on `vm.search` *transitioning* — `_onVmChange`
-    // fires on every notify including page loads / item refreshes, which
-    // don't touch `vm.search`. Without this guard we'd write the same
-    // value into the controller repeatedly and possibly trash the
-    // selection.
-    final current = widget.vm.search;
-    if (current == _lastSyncedSearch) return;
-    _lastSyncedSearch = current;
-    if (_controller.text.text != current) {
-      _controller.text.value = TextEditingValue(
-        text: current,
-        selection: TextSelection.collapsed(offset: current.length),
-      );
-    }
-  }
+  void _onVmChange() =>
+      _controller.syncExternalSearch(focused: _controller.focus.hasFocus);
 
   // ── Menu actions ─────────────────────────────────────────────────────
 
@@ -464,15 +462,11 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
   /// [TokenSearchController.pickKey]'s, shared with the phone sheet; this only
   /// does the overlay's part.
   void _onSelectKey(FilterKey key) {
-    switch (_controller.pickKey(key)) {
+    switch (_controller.pickKey(key, context)) {
       case KeyPick.applied:
         _hideOverlay();
       case KeyPick.pinned:
         _showOverlay();
-      case KeyPick.prefixed:
-        // The prefix just written re-opens the menu through the text
-        // listener if it was closed.
-        break;
     }
   }
 
@@ -491,8 +485,31 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
   /// it belongs to the chip, and there is no typed text to put it under.
   void _onChipTap(ActiveFilterChip chip, Rect anchorRect) {
     final anchor = _toFieldRelative(anchorRect);
-    if (_controller.editChip(chip)) _chipAnchor = anchor;
+    if (_controller.editChip(chip, context)) _chipAnchor = anchor;
     _showOverlay();
+  }
+
+  /// Enter or Space on the armed chip: what a tap on its body does.
+  void _editBoxChip(BoxChip chip) {
+    switch (chip) {
+      case SearchTermChip():
+        _unfoldSearch();
+      case final ActiveFilterChip c:
+        final box =
+            _chipKeys[c.id]?.currentContext?.findRenderObject() as RenderBox?;
+        final rect = box != null && box.attached
+            ? box.localToGlobal(Offset.zero) & box.size
+            : Rect.zero;
+        _chipTapHandler(c)(rect);
+    }
+  }
+
+  /// A tap on the search chip: the term goes back into the box to be edited.
+  /// The menu closes — whatever it was showing belonged to the filter being
+  /// built, which this abandons.
+  void _unfoldSearch() {
+    _hideOverlay();
+    _controller.unfoldSearch();
   }
 
   // ── Anchors ──────────────────────────────────────────────────────────
@@ -536,8 +553,11 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
 
   /// Show the dropdown. A fresh open re-captures its placement (see
   /// [_heldStartDx]); calling this on an already-open menu changes nothing.
-  void _showOverlay() {
+  /// [byTyping] when a keystroke opened it — see
+  /// `TokenSearchController.searchSettled`.
+  void _showOverlay({bool byTyping = false}) {
     if (_overlay.isShowing) return;
+    _controller.markMenuOpened(byTyping: byTyping);
     _heldStartDx = null;
     _heldBottomDy = null;
     _heldChips = null;
@@ -547,32 +567,39 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
   }
 
   /// Hide the dropdown and drop everything that belonged to that open: the
-  /// chip anchor, the pin, the chip being edited, and text that was only ever
-  /// a value query.
+  /// chip anchor, the chip being edited, and text that was only ever a value
+  /// query — with the pin, unless a typed value is half-written under it.
   void _hideOverlay() {
     if (_overlay.isShowing) _overlay.hide();
     _chipAnchor = null;
     _pointerTicking = false;
-    _controller.disarmLastChip();
-    // Text in the box that was a value query, not a search. Typed into a
-    // pinned picker it never was anything else; behind a `<key>:` prefix it
-    // goes when there is nothing after the colon, or when the list was a
-    // multi-select — whose ticks are already applied, so the leftover `pa`
-    // of `status:pa` is debris. A half-typed `name:ac` stays to be finished.
+    _controller.disarmChip();
     final parse = _controller.parseInput();
     final key = parse.matchedKey;
-    final debris =
+    // A half-typed value for a key that takes one (`[Name] ac`, `[Balance]
+    // <5`) stays to be finished, its key with it — as `name:ac` always did
+    // when the prefix was text. Everything else is debris: a pick-only key's
+    // query never was anything but a way to narrow its list, and a
+    // multi-select's ticks are already applied, so the leftover `pa` is spent.
+    final keep =
         key != null &&
-        (_controller.pinnedValueKey != null ||
-            key.checkboxMultiSelect ||
-            parse.query.trim().isEmpty);
+        key.acceptsTypedValue &&
+        !key.checkboxMultiSelect &&
+        parse.query.trim().isNotEmpty;
+    if (keep) {
+      _controller.clearEditing();
+      return;
+    }
     _controller.clearPinnedValueKey();
-    if (debris && _controller.text.text.isNotEmpty) _controller.text.clear();
+    if (key != null && _controller.text.text.isNotEmpty) {
+      _controller.text.clear();
+    }
   }
 
   /// Put the caret in the box and open the menu — a click anywhere in the
   /// search box that no chip, button or the text itself claimed.
   void _focusInput() {
+    _controller.disarmChip();
     _controller.focus.requestFocus();
     final length = _controller.text.text.length;
     _controller.text.selection = TextSelection.collapsed(offset: length);
@@ -585,6 +612,15 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     if (event is KeyDownEvent) {
       // The keyboard has the menu again — see [_pointerTicking].
       _pointerTicking = false;
+    }
+    // An armed chip takes the keys it answers to, Escape included.
+    final chipKeys = _controller.handleChipKeys(
+      event,
+      context: context,
+      onEdit: _editBoxChip,
+    );
+    if (chipKeys == KeyEventResult.handled) return chipKeys;
+    if (event is KeyDownEvent) {
       final key = event.logicalKey;
       if (key == LogicalKeyboardKey.escape) {
         // Two stages, like every combobox: the first Escape closes the menu
@@ -848,12 +884,25 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
 
   Widget _buildWide(BuildContext context) {
     final tokens = context.inTheme;
-    final active = _controller.activeChips(context);
+    final active = _controller.boxChips(context);
     final focused = _controller.focus.hasFocus;
+    _chipKeys.removeWhere((id, _) => !active.any((c) => c.id == id));
+    // The box scrolls its chips once the header is at its ceiling, so the
+    // chip ← walked onto may be out of view.
+    final armedId = _controller.armedChipId;
+    if (armedId != _shownArmed) {
+      _shownArmed = armedId;
+      if (armedId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final chipContext = _chipKeys[armedId]?.currentContext;
+          if (chipContext != null && chipContext.mounted) {
+            unawaited(Scrollable.ensureVisible(chipContext));
+          }
+        });
+      }
+    }
     // What "the applied chips changed" means to the menu's placement.
-    final chips = [
-      for (final c in active) '${c.key.id}=${c.rawValues.join(',')}',
-    ].join('|');
+    final chips = [for (final c in active) c.signature].join('|');
 
     // Built once per build and handed to the layout callback, which only
     // positions it. The callback re-runs whenever the box moves (a resize, a
@@ -893,6 +942,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
           parse: _controller.parseInput(),
           controller: _controller.suggestions,
           stamp: _controller.inputStamp,
+          rankByQuery: !_controller.searchSettled,
           // A row that pushes a route (both date pickers) must close this
           // overlay first: the `BackDismissibleOverlay` above holds a
           // `ChildBackButtonDispatcher`, which the `Router` consults
@@ -918,90 +968,29 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
       ),
     );
 
+    final pending = _controller.pendingKey;
     final input = OverlayPortal.overlayChildLayoutBuilder(
       key: _inputKey,
       controller: _overlay,
       overlayChildBuilder: (overlayContext, info) =>
           _placeMenu(overlayContext, info, menu, chips),
+      // The key being built leads the token, INSIDE the portal child: the
+      // menu hangs from the start of the token, which is now the key chip.
       child: IntrinsicWidth(
-        child: ConstrainedBox(
-          // Sized so the input is visible-but-discoverable when
-          // no chips are present. `IntrinsicWidth` keeps the
-          // input from greedy-grabbing the row when chips are
-          // wide enough to fill the available width on the
-          // current run of the Wrap.
-          constraints: const BoxConstraints(minWidth: 80),
-          child: Focus(
-            onKeyEvent: _handleKey,
-            child: TextField(
-              controller: _controller.text,
-              focusNode: _controller.focus,
-              // Soft keyboards (tablet/iPad in the wide layout)
-              // send the action key as a TextInputAction, not a
-              // hardware KeyEvent — wire onSubmitted so it
-              // reliably commits, same as the `_handleKey` path.
-              // Search queries are names and numbers, not prose — iOS
-              // autocorrecting "Acme" to "Acne" mid-search is the failure.
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _commitEnter(),
-              decoration: InputDecoration(
-                hintText: active.isEmpty ? context.tr(widget.hintKey) : null,
-                // All four state-specific borders must be
-                // explicit; the global `InputDecorationTheme`
-                // sets each to `OutlineInputBorder`, and
-                // `border: InputBorder.none` alone leaves them
-                // active — the user then sees a phantom
-                // rounded box sitting where the empty input is.
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-                filled: false,
-                isCollapsed: true,
-                // 32 px on every platform. A pointer platform's compact
-                // density already takes 8 off the decorator; touch has no
-                // such adjustment, and at 8 + 8 the input alone was 40 px —
-                // taller than the header row it sits in.
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: Env.isTouchPrimary ? 4 : 8,
-                ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (pending != null) ...[
+              PendingKeyChip(
+                label: pending.displayLabel(context),
+                onTap: _onBack,
               ),
-              onTap: _showOverlay,
-              contextMenuBuilder: (context, editableState) {
-                return AdaptiveTextSelectionToolbar.editable(
-                  clipboardStatus: ClipboardStatus.pasteable,
-                  onCopy: () => editableState.copySelection(
-                    SelectionChangedCause.toolbar,
-                  ),
-                  onCut: () =>
-                      editableState.cutSelection(SelectionChangedCause.toolbar),
-                  onPaste: () async {
-                    final handled = await _controller.handlePaste(context);
-                    if (!handled && context.mounted) {
-                      // Native paste fallback when the
-                      // clipboard doesn't look like a
-                      // `key:value` query — pasteText is
-                      // fire-and-forget, the controller's
-                      // change listener will sync state.
-                      unawaited(
-                        editableState.pasteText(SelectionChangedCause.toolbar),
-                      );
-                    }
-                  },
-                  onSelectAll: () =>
-                      editableState.selectAll(SelectionChangedCause.toolbar),
-                  anchors: editableState.contextMenuAnchors,
-                  onLookUp: null,
-                  onSearchWeb: null,
-                  onShare: null,
-                  onLiveTextInput: null,
-                );
-              },
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: _textInput(context, active.isEmpty && pending == null),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -1014,6 +1003,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
         !Env.isTouchPrimary &&
             !focused &&
             active.isEmpty &&
+            pending == null &&
             _controller.text.text.isEmpty &&
             identical(_searchFocus?.current, _controller.focus)
         ? _focusSearchGlyphs(context)
@@ -1133,8 +1123,17 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                             spacing: 6,
                             runSpacing: 4,
                             children: [
-                              for (var i = 0; i < active.length; i++)
-                                _chip(active[i], armed: i == active.length - 1),
+                              for (final chip in active)
+                                KeyedSubtree(
+                                  key: _chipKeys.putIfAbsent(
+                                    chip.id,
+                                    GlobalKey.new,
+                                  ),
+                                  child: switch (chip) {
+                                    final ActiveFilterChip c => _chip(c),
+                                    final SearchTermChip c => _searchChip(c),
+                                  },
+                                ),
                               input,
                             ],
                           ),
@@ -1177,7 +1176,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                       // filters" doesn't look like "remove one chip".
                       icon: Icons.filter_alt_off_outlined,
                       onPressed: () {
-                        _controller.text.clear();
+                        _controller.clearBox();
                         widget.vm.clearAllFilters();
                         _hideOverlay();
                         _controller.focus.unfocus();
@@ -1214,6 +1213,85 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
       controller: _segmentOverlay,
       overlayChildBuilder: _buildSegmentOverlay,
       child: field,
+    );
+  }
+
+  /// The text input itself. [showHint] when the box holds nothing else.
+  Widget _textInput(BuildContext context, bool showHint) {
+    return ConstrainedBox(
+      // Sized so the input is visible-but-discoverable when no chips are
+      // present. The `IntrinsicWidth` around the token keeps the input from
+      // greedy-grabbing the row when chips are wide enough to fill the
+      // available width on the current run of the Wrap.
+      constraints: const BoxConstraints(minWidth: 80),
+      child: Focus(
+        onKeyEvent: _handleKey,
+        child: Actions(
+          actions: _pasteActions,
+          child: TextField(
+            controller: _controller.text,
+            focusNode: _controller.focus,
+            // Soft keyboards (tablet/iPad in the wide layout)
+            // send the action key as a TextInputAction, not a
+            // hardware KeyEvent — wire onSubmitted so it
+            // reliably commits, same as the `_handleKey` path.
+            // Search queries are names and numbers, not prose — iOS
+            // autocorrecting "Acme" to "Acne" mid-search is the failure.
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _commitEnter(),
+            decoration: InputDecoration(
+              hintText: showHint ? context.tr(widget.hintKey) : null,
+              // All four state-specific borders must be
+              // explicit; the global `InputDecorationTheme`
+              // sets each to `OutlineInputBorder`, and
+              // `border: InputBorder.none` alone leaves them
+              // active — the user then sees a phantom
+              // rounded box sitting where the empty input is.
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              filled: false,
+              isCollapsed: true,
+              // 32 px on every platform. A pointer platform's compact
+              // density already takes 8 off the decorator; touch has no
+              // such adjustment, and at 8 + 8 the input alone was 40 px —
+              // taller than the header row it sits in.
+              contentPadding: EdgeInsets.symmetric(
+                vertical: Env.isTouchPrimary ? 4 : 8,
+              ),
+            ),
+            onTap: () {
+              _controller.disarmChip();
+              _showOverlay();
+            },
+            contextMenuBuilder: (context, editableState) {
+              return AdaptiveTextSelectionToolbar.editable(
+                clipboardStatus: ClipboardStatus.pasteable,
+                onCopy: () =>
+                    editableState.copySelection(SelectionChangedCause.toolbar),
+                onCut: () =>
+                    editableState.cutSelection(SelectionChangedCause.toolbar),
+                // The same paste as ⌘/Ctrl+V.
+                onPaste: () {
+                  editableState.hideToolbar();
+                  unawaited(_controller.paste(context));
+                },
+                onSelectAll: () =>
+                    editableState.selectAll(SelectionChangedCause.toolbar),
+                anchors: editableState.contextMenuAnchors,
+                onLookUp: null,
+                onSearchWeb: null,
+                onShare: null,
+                onLiveTextInput: null,
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 
@@ -1261,12 +1339,12 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     );
   }
 
-  Widget _chip(ActiveFilterChip c, {required bool armed}) {
+  Widget _chip(ActiveFilterChip c) {
     return FilterTokenChip(
       token: c.token,
       // The ✕ takes its height from the line here — see `compact`.
       compact: true,
-      armed: armed && _controller.lastChipArmed,
+      armed: _controller.isArmed(c),
       onRemove: () => _controller.removeChip(c, context),
       // Field-segment tap. MUST stay non-null for a
       // comparable chip — `_segmented` collapses to a
@@ -1278,21 +1356,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
       //  • comparable, ≥2 same-type fields → field menu.
       //  • comparable, no alternative → value segment
       //    (fixes the stray-`balance:>400`-text bug).
-      onTap: () {
-        final k = c.key;
-        if (k is! ComparableFilterKey) {
-          return (Rect r) => _onChipTap(c, r);
-        }
-        final isWindow =
-            k is DateColumnFilterKey && k.isWindowWire(c.rawValues.single);
-        if (isWindow) {
-          return (Rect r) => _openSegment(c, SegmentKind.value, r);
-        }
-        if (_fieldSwitchCandidates(k).length > 1) {
-          return (Rect r) => _openSegment(c, SegmentKind.field, r);
-        }
-        return (Rect r) => _openSegment(c, SegmentKind.value, r);
-      }(),
+      onTap: _chipTapHandler(c),
       // Comparator / value segments open a dedicated
       // dropdown anchored AT the segment (commits via
       // changeOp / addValue — never writes text into
@@ -1303,6 +1367,40 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
       onValueTap: c.key.supportedOps.isNotEmpty
           ? (r) => _openSegment(c, SegmentKind.value, r)
           : null,
+    );
+  }
+
+  /// What a tap on [c]'s body (or its field segment) opens.
+  void Function(Rect anchor) _chipTapHandler(ActiveFilterChip c) {
+    final k = c.key;
+    if (k is! ComparableFilterKey) {
+      return (Rect r) => _onChipTap(c, r);
+    }
+    final isWindow =
+        k is DateColumnFilterKey && k.isWindowWire(c.rawValues.single);
+    if (isWindow) {
+      return (Rect r) => _openSegment(c, SegmentKind.value, r);
+    }
+    if (_fieldSwitchCandidates(k).length > 1) {
+      return (Rect r) => _openSegment(c, SegmentKind.field, r);
+    }
+    return (Rect r) => _openSegment(c, SegmentKind.value, r);
+  }
+
+  /// The search set aside beside a filter being built. Its body puts the
+  /// term back in the box; ✕ clears the search.
+  Widget _searchChip(SearchTermChip c) {
+    return FilterTokenChip(
+      token: FilterToken(
+        keyId: '',
+        displayKey: context.tr('search_for'),
+        rawValue: c.term,
+        displayValue: '"${c.term}"',
+      ),
+      compact: true,
+      armed: _controller.isArmed(c),
+      onRemove: _controller.removeSearchChip,
+      onTap: (_) => _unfoldSearch(),
     );
   }
 
@@ -1496,6 +1594,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
           vm: widget.vm,
           filterKeys: widget.filterKeys,
           hintKey: widget.hintKey,
+          readClipboard: widget.readClipboard,
           resultTile: scope?.resultTile,
           onOpenRecord: scope?.onOpenRecord,
         ),

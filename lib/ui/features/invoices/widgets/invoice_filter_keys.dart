@@ -50,6 +50,7 @@ List<FilterKey> buildInvoiceFilterKeys({
     id: 'due_date',
     serverKey: 'due_date',
     labelKey: 'due_date',
+    lookAhead: true,
   ),
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(

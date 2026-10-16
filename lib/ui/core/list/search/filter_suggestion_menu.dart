@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
-import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
@@ -78,29 +76,54 @@ List<FilterKey> rankFilterKeys(
   String query,
   BuildContext context,
 ) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) {
+  if (query.trim().isEmpty) {
     return [...keys]..sort((a, b) => compareFilterKeysByLabel(a, b, context));
   }
   final prefix = <FilterKey>[];
   final contains = <FilterKey>[];
   for (final k in keys) {
-    // Match by id, alias, or localized display label so a user typing "stat"
-    // finds `status` (alias of `is`).
-    final label = k.displayLabel(context).toLowerCase();
-    if (label.startsWith(q) ||
-        k.id.startsWith(q) ||
-        k.aliases.any((a) => a.startsWith(q))) {
-      prefix.add(k);
-    } else if (label.contains(q) ||
-        k.id.contains(q) ||
-        k.aliases.any((a) => a.contains(q))) {
-      contains.add(k);
+    switch (keyMatchesQuery(k, query, context)) {
+      case KeyQueryMatch.prefix:
+        prefix.add(k);
+      case KeyQueryMatch.contains:
+        contains.add(k);
+      case KeyQueryMatch.none:
+        break;
     }
   }
   prefix.sort((a, b) => compareFilterKeysByLabel(a, b, context));
   contains.sort((a, b) => compareFilterKeysByLabel(a, b, context));
   return [...prefix, ...contains];
+}
+
+/// How a typed query names a filter key.
+enum KeyQueryMatch { none, prefix, contains }
+
+/// Whether [query] names [key] — by its localized label, its id or an alias,
+/// so a user typing `stat` finds `status` (the alias of `is`). The one
+/// predicate behind both the key list's ranking ([rankFilterKeys]) and the
+/// controller's "was this text typed to FIND the key?" rule, so the two
+/// cannot drift: text the list was ranked by, and that matched the key
+/// picked, was spent finding it.
+KeyQueryMatch keyMatchesQuery(
+  FilterKey key,
+  String query,
+  BuildContext context,
+) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return KeyQueryMatch.none;
+  final label = key.displayLabel(context).toLowerCase();
+  if (label.startsWith(q) ||
+      key.id.startsWith(q) ||
+      key.aliases.any((a) => a.startsWith(q))) {
+    return KeyQueryMatch.prefix;
+  }
+  if (label.contains(q) ||
+      key.id.contains(q) ||
+      key.aliases.any((a) => a.contains(q))) {
+    return KeyQueryMatch.contains;
+  }
+  return KeyQueryMatch.none;
 }
 
 /// Parsed view of the current input text.
@@ -170,12 +193,21 @@ class FilterSuggestionMenu extends StatelessWidget {
     this.stamp,
     this.maxHeight = 320,
     this.floating = true,
+    this.rankByQuery = true,
     super.key,
   });
 
   final GenericListViewModel<dynamic> vm;
   final List<FilterKey> keys;
   final FilterInputParse parse;
+
+  /// False when the text in the box is a search the list is already showing,
+  /// and the menu opened on it untouched (`TokenSearchController
+  /// .searchSettled`). The key list then is NOT ranked by that text — it is
+  /// the first view, under its "Search for" row — because nothing was typed
+  /// to find a filter: ranked by `acme`, the list offered no filter at all,
+  /// and there was no way to add one without deleting the search.
+  final bool rankByQuery;
   final FilterSuggestionController controller;
   final ValueChanged<FilterKey> onSelectKey;
   final void Function(FilterKey key, FilterValueSuggestion value) onSelectValue;
@@ -245,6 +277,7 @@ class FilterSuggestionMenu extends StatelessWidget {
             query: parse.query.trim(),
             controller: controller,
             stamp: stamp,
+            rankByQuery: rankByQuery,
             onSelectKey: onSelectKey,
             onSelectValue: onSelectValue,
             onCommitFreeText: onCommitFreeText,
@@ -468,6 +501,7 @@ class _KeyList extends StatelessWidget {
     required this.query,
     required this.controller,
     required this.stamp,
+    required this.rankByQuery,
     required this.onSelectKey,
     required this.onSelectValue,
     required this.onCommitFreeText,
@@ -478,6 +512,7 @@ class _KeyList extends StatelessWidget {
   final String query;
   final FilterSuggestionController controller;
   final Object? stamp;
+  final bool rankByQuery;
   final ValueChanged<FilterKey> onSelectKey;
   final void Function(FilterKey key, FilterValueSuggestion value) onSelectValue;
   final ValueChanged<String> onCommitFreeText;
@@ -509,7 +544,7 @@ class _KeyList extends StatelessWidget {
     // (Status first, statics after) so the most specific dimensions
     // surface ahead of the long-tail ones.
     final valueMatches = <_KeyedValue>[];
-    if (query.trim().length >= _kValueMatchMinQueryLen) {
+    if (rankByQuery && query.trim().length >= _kValueMatchMinQueryLen) {
       for (final k in available) {
         if (valueMatches.length >= _kValueMatchTotalCap) break;
         for (final v in k.quickValueSuggestions(vm, context, query)) {
@@ -543,7 +578,23 @@ class _KeyList extends StatelessWidget {
       );
     }
 
-    if (query.isEmpty) {
+    void addSearchForRow() {
+      final idx = actions.length;
+      actions.add(() => onCommitFreeText(query));
+      rowKeys.add('search_for');
+      rows.add(
+        _Highlightable(
+          controller: controller,
+          index: idx,
+          child: _SearchForRow(query: query, onTap: actions[idx]),
+        ),
+      );
+    }
+
+    if (query.isEmpty || !rankByQuery) {
+      // A settled search keeps its own row on top — still the Enter target —
+      // above a key list that ignores it.
+      if (query.isNotEmpty) addSearchForRow();
       // First view. The few filters a list is usually narrowed by lead, in
       // the order the entity registers them; everything else follows A→Z.
       // The headers only appear when there are two groups to tell apart — a
@@ -581,16 +632,7 @@ class _KeyList extends StatelessWidget {
         );
       }
     } else {
-      final idx = actions.length;
-      actions.add(() => onCommitFreeText(query));
-      rowKeys.add('search_for');
-      rows.add(
-        _Highlightable(
-          controller: controller,
-          index: idx,
-          child: _SearchForRow(query: query, onTap: actions[idx]),
-        ),
-      );
+      addSearchForRow();
       if (valueMatches.isNotEmpty) {
         rows.add(_SectionHeader(text: context.tr('filter_values_section')));
         for (final pair in valueMatches) {
@@ -1941,14 +1983,28 @@ class _DateValueRowsState extends State<_DateValueRows> {
       muted: tokens.ink3,
     );
 
-    // `between` → dual-calendar window picker (no relative presets /
-    // single absolute date — the value is a closed [start, end] range).
+    // `between` → the rolling windows (Today, This month …), then the
+    // dual-calendar picker for a window of fixed dates.
     if (op == FilterOp.between && widget.filterKey is DateColumnFilterKey) {
       final dateKey = widget.filterKey as DateColumnFilterKey;
-      addRow('${context.tr('date_range')}  →', 'range', () async {
-        final formatter = context.read<Services>().formatterIfReady(
-          widget.vm.companyId,
-        );
+      // Tolerant: a host with no `Services` (a test, a preview) still gets
+      // the rows, on the default calendar.
+      final formatter = filterFormatterOrNull(widget.vm, context);
+      for (final preset in dateKey.windowPresets) {
+        final wire = dateKey.presetWindowFor(context, formatter, preset);
+        addRow(context.tr(preset.labelKey), 'preset:${preset.name}', () {
+          // Replace-not-toggle: re-picking the window already applied
+          // re-applies it rather than clearing it.
+          widget.onPickExclusive(
+            widget.filterKey,
+            FilterValueSuggestion(
+              rawValue: wire,
+              displayLabel: context.tr(preset.labelKey),
+            ),
+          );
+        });
+      }
+      addRow('${context.tr('custom_range')}  →', 'range', () async {
         // Seed from the applied window, so re-opening an existing range
         // starts on it rather than on today.
         final applied = [
@@ -1959,21 +2015,28 @@ class _DateValueRowsState extends State<_DateValueRows> {
             ? null
             : dateKey.parseWindow(applied.first);
         widget.onDismiss?.call(); // before the await — see [onDismiss]
-        final wire = await pickDateRangeWindow(
+        final pick = await pickDateRangeWindow(
           context,
           column: dateKey.serverKey,
           formatter: formatter,
           seed: seed,
         );
-        if (wire == null) return;
-        final (start, end) = dateKey.parseWindow(wire);
-        // Replace-not-toggle: re-picking the same window re-applies it
-        // (onSelectValue would treat an identical rawValue as "applied"
-        // and clear it).
-        widget.onPickExclusive(
-          widget.filterKey,
-          FilterValueSuggestion(rawValue: wire, displayLabel: '$start – $end'),
-        );
+        switch (pick) {
+          case null:
+            return;
+          case DateWindowCleared():
+            // "All time": no window to apply.
+            if (context.mounted) await dateKey.clear(widget.vm, context);
+          case DateWindowPicked(:final wire):
+            final (start, end) = dateKey.parseWindow(wire);
+            widget.onPickExclusive(
+              widget.filterKey,
+              FilterValueSuggestion(
+                rawValue: wire,
+                displayLabel: '$start – $end',
+              ),
+            );
+        }
       });
       _publish(actions, rowKeys, preselect: firstValueRow);
       return _MenuScroll(
@@ -1987,7 +2050,10 @@ class _DateValueRowsState extends State<_DateValueRows> {
       );
     }
 
-    for (final (token, labelKey) in kRelativeDatePresets) {
+    final presets = widget.filterKey is DateColumnFilterKey
+        ? (widget.filterKey as DateColumnFilterKey).singlePresets
+        : kRelativeDatePresets;
+    for (final (token, labelKey) in presets) {
       addRow(context.tr(labelKey), 'rel:$token', () {
         widget.onPickExclusive(
           widget.filterKey,

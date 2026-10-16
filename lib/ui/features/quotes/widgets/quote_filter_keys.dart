@@ -44,6 +44,7 @@ List<FilterKey> buildQuoteFilterKeys({
     id: 'due_date',
     serverKey: 'due_date',
     labelKey: 'valid_until',
+    lookAhead: true,
   ),
   // Quotes share Invoice Ninja's `invoice1..4` custom-field labels.
   for (var i = 1; i <= 4; i++)

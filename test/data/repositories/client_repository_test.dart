@@ -1678,12 +1678,36 @@ void main() {
 
       final filters = api.calls.single.filters;
       // Re-keyed to the honored param, leading column token stripped → 2-part.
-      expect(filters['created_between'], '2026-01-01,2026-03-31');
-      expect(filters['updated_between'], '2026-02-01,2026-02-28');
+      // The end runs to the end of its day: `whereBetween` reads a bare date
+      // as 00:00, which left the last day out on the server (measured on the
+      // demo server: `created_between=D,D` matched nothing created on D).
+      expect(filters['created_between'], '2026-01-01,2026-03-31 23:59:59');
+      expect(filters['updated_between'], '2026-02-01,2026-02-28 23:59:59');
       // The silently-ignored `*_at_range` names must NOT reach the wire.
       expect(filters.containsKey('created_at_range'), isFalse);
       expect(filters.containsKey('updated_at_range'), isFalse);
     });
+
+    test(
+      'a rolling window end resolves before it gets its end of day',
+      () async {
+        final (:repo, :api) = makeRepo(pages: {1: const <ClientApi>[]});
+
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          extraFilters: const {
+            'created_at_range': {'created_at,rel:d7,rel:d0'},
+          },
+        );
+
+        // makeRepo's clock is 2026-05-11.
+        expect(
+          api.calls.single.filters['created_between'],
+          '2026-05-04,2026-05-11 23:59:59',
+        );
+      },
+    );
 
     test('ensurePageLoaded preserves is_dirty=true rows so a paged refresh '
         "doesn't clobber the user's pending offline edit", () async {
@@ -2102,6 +2126,48 @@ void main() {
       expect(result.map((c) => c.name).toList()..sort(), ['Delta', 'Gamma']);
     });
 
+    // The chip offers five comparators. Only `gt` / `lt` used to reach the
+    // local query: `'gte:500'` does not start with `gt:`, so the server page
+    // was narrowed while the cached rows came back unfiltered.
+    for (final (wire, expected) in const [
+      ('gte:500', ['Beta', 'Delta', 'Gamma']),
+      ('lte:500', ['Alpha', 'Beta']),
+      ('eq:500', ['Beta']),
+      ('gt:999.99', ['Delta', 'Gamma']),
+      ('lt:100.5', ['Alpha']),
+      ('500', ['Delta', 'Gamma']),
+    ]) {
+      test('`$wire` narrows the local list like the server', () async {
+        final (:repo, :api) = makeRepo();
+        await seedBalances(repo);
+        final result = await repo
+            .watchPage(
+              companyId: 'co',
+              loadedPages: 1,
+              extraFilters: {
+                'balance': {wire},
+              },
+            )
+            .first;
+        expect(result.map((c) => c.name).toList()..sort(), expected);
+      });
+    }
+
+    test('a value that is not a number filters nothing', () async {
+      final (:repo, :api) = makeRepo();
+      await seedBalances(repo);
+      final result = await repo
+          .watchPage(
+            companyId: 'co',
+            loadedPages: 1,
+            extraFilters: const {
+              'balance': {'gt:abc'},
+            },
+          )
+          .first;
+      expect(result, hasLength(4));
+    });
+
     test('empty value set is treated as no filter', () async {
       final (:repo, :api) = makeRepo();
       await seedBalances(repo);
@@ -2220,6 +2286,79 @@ void main() {
           .watchPage(companyId: 'co', loadedPages: 1)
           .first;
       expect(result, hasLength(3));
+    });
+  });
+
+  group('watchPage extraFilters[created_at] — an hour-based comparator', () {
+    // makeRepo's clock is 2026-05-11 12:00 UTC.
+    Future<void> seedTimes(ClientRepository repo) async {
+      for (final (id, name, createdAt) in [
+        ('c1', 'Recent', DateTime.utc(2026, 5, 11, 11, 30)),
+        ('c2', 'Morning', DateTime.utc(2026, 5, 11, 10, 30)),
+        ('c3', 'Yesterday', DateTime.utc(2026, 5, 10, 12)),
+      ]) {
+        await repo.save(
+          companyId: 'co',
+          client: Client.fromApi(
+            ClientApi.fromJson({
+              'id': id,
+              'name': name,
+              'created_at': createdAt.millisecondsSinceEpoch ~/ 1000,
+            }),
+          ),
+        );
+      }
+    }
+
+    test('"1 hour ago" compares the instant, not the day', () async {
+      final (:repo, :api) = makeRepo();
+      await seedTimes(repo);
+      final result = await repo
+          .watchPage(
+            companyId: 'co',
+            loadedPages: 1,
+            extraFilters: const {
+              'created_at': {'gte:rel:h1'},
+            },
+          )
+          .first;
+      expect(
+        result.map((c) => c.name),
+        ['Recent'],
+        reason:
+            'the time was thrown away, so "1 hour ago" meant "since UTC '
+            'midnight" here while the server compared the exact instant',
+      );
+    });
+
+    test('a before-comparator on an instant excludes that second', () async {
+      final (:repo, :api) = makeRepo();
+      await seedTimes(repo);
+      final result = await repo
+          .watchPage(
+            companyId: 'co',
+            loadedPages: 1,
+            extraFilters: const {
+              'created_at': {'lt:rel:h24'},
+            },
+          )
+          .first;
+      expect(result, isEmpty, reason: 'Yesterday sits exactly on the bound');
+    });
+
+    test('a date with no time keeps its whole-day bounds', () async {
+      final (:repo, :api) = makeRepo();
+      await seedTimes(repo);
+      final result = await repo
+          .watchPage(
+            companyId: 'co',
+            loadedPages: 1,
+            extraFilters: const {
+              'created_at': {'eq:2026-05-11'},
+            },
+          )
+          .first;
+      expect(result.map((c) => c.name).toList()..sort(), ['Morning', 'Recent']);
     });
   });
 

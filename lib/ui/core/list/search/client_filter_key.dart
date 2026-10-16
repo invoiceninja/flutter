@@ -25,6 +25,7 @@ class ClientFilterKey extends MembershipFilterKey {
     required this.clients,
     required this.companyId,
     this.nameForClientId,
+    this.isPrimary = true,
   });
 
   final ClientRepository clients;
@@ -41,8 +42,10 @@ class ClientFilterKey extends MembershipFilterKey {
   @override
   bool get acceptsTypedValue => false;
 
+  /// Suggested on every list it is on but one: a purchase order is the
+  /// vendor's document, and its client the secondary party.
   @override
-  bool get isPrimary => true;
+  final bool isPrimary;
 
   @override
   int? get idleSuggestionCap => 50;

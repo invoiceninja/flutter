@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -418,4 +419,9 @@ class _RecordingDocumentsApi implements DocumentsApi {
   }) async {
     bulkDownloadCalls.add({'ids': ids, 'idempotencyKey': idempotencyKey});
   }
+
+  // A read, never reached by the mutation handlers under test.
+  @override
+  Future<Uint8List> download(String id) =>
+      throw UnimplementedError('download is not a mutation');
 }

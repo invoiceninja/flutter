@@ -44,6 +44,7 @@ List<FilterKey> buildCreditFilterKeys({
     id: 'due_date',
     serverKey: 'due_date',
     labelKey: 'due_date',
+    lookAhead: true,
   ),
   // Credits share Invoice Ninja's `invoice1..4` custom-field labels.
   for (var i = 1; i <= 4; i++)

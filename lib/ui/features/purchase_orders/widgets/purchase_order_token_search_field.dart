@@ -22,11 +22,33 @@ class PurchaseOrderTokenSearchField extends StatelessWidget {
     hintKey: 'search_purchase_orders_or_filter_hint',
     // Purchase orders share Invoice Ninja's `invoice1..4` slots.
     customFieldPrefix: 'invoice',
+    nameSources: [
+      (services, companyId) => services.clients
+          .watchActiveNames(companyId: companyId)
+          .map(
+            (rows) => {
+              for (final r in rows)
+                if (r.name.isNotEmpty) r.id: r.name,
+            },
+          ),
+      (services, companyId) => services.vendors
+          .watchActiveNames(companyId: companyId)
+          .map(
+            (rows) => {
+              for (final r in rows)
+                if (r.name.isNotEmpty) r.id: r.name,
+            },
+          ),
+    ],
     keysBuilder: (services, companyId, company, names) =>
         buildPurchaseOrderFilterKeys(
+          clients: services.clients,
+          vendors: services.vendors,
           tags: services.tags,
           companyId: companyId,
           company: company,
+          nameForClientId: (id) => names.lookup(0, id),
+          nameForVendorId: (id) => names.lookup(1, id),
         ),
   );
 }

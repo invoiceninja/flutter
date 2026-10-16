@@ -75,6 +75,7 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     String? vendorId,
     String? projectId,
     Map<String, Set<String>> extraFilters = const {},
+    Map<int, Set<String>> customFilters = const {},
     // Status-tab filter — see `list_status_tabs.dart`.
     String? badgeModeId,
   }) {
@@ -82,6 +83,8 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
       loadedPages >= 1,
       'loadedPages is 1-based; pass 1 for the first page',
     );
+    final date = parseComparableDateFilter(extraFilters, 'date', now: now());
+    final dateRange = parseDateRangeFilter(extraFilters, now: now());
     return db.expenseDao
         .watchPage(
           badgeModeId: badgeModeId,
@@ -100,6 +103,14 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
           projectIds: parseCsvFilter(extraFilters, 'project_ids'),
           vendorIds: parseCsvFilter(extraFilters, 'vendor_ids'),
           statuses: parseExpenseStatusFilter(extraFilters),
+          customValues1: customFilters[1] ?? const {},
+          customValues2: customFilters[2] ?? const {},
+          customValues3: customFilters[3] ?? const {},
+          customValues4: customFilters[4] ?? const {},
+          dateOp: date.op,
+          dateValue: date.value,
+          dateStart: dateRange.start,
+          dateEnd: dateRange.end,
         )
         .map((rows) {
           final items = rows.map(_fromRow);
@@ -204,7 +215,11 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // `ExpenseFilters` has no `date()` comparison, only the base window —
+    // see `singleDatesAsServerWindows`.
+    extraFilters: singleDatesAsServerWindows(extraFilters, const {
+      'date': 'date_range',
+    }, now: now()),
     ignoreCursor: ignoreCursor,
     excludeDeletedClients: true,
     // `?include=documents` — same rationale as Project/Client.

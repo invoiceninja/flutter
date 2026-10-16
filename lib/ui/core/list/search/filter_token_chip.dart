@@ -113,6 +113,7 @@ class FilterTokenChip extends StatelessWidget {
     if (_segmented) {
       return Semantics(
         container: true,
+        selected: armed,
         child: Container(
           decoration: decoration,
           padding: const EdgeInsetsDirectional.fromSTEB(10, 4, 4, 4),
@@ -240,6 +241,7 @@ class FilterTokenChip extends StatelessWidget {
 
     return Semantics(
       button: onTap != null,
+      selected: armed,
       label:
           '${context.tr('filter_label_prefix')}: '
           '${token.displayKey} '
@@ -312,6 +314,56 @@ class FilterTokenChip extends StatelessWidget {
               onPressed: onRemove,
               icon: Icon(Icons.close, color: tokens.ink3),
             ),
+    );
+  }
+}
+
+/// The key a filter is being built for, in front of the text that will be its
+/// value: `[Balance] <500`, where the box used to read `balance:<500` — the raw
+/// English id in every locale, and `custom1:` for a field the company named.
+///
+/// Not a [FilterTokenChip]: nothing is applied yet, so it has no ✕ ("remove
+/// filter" next to real chips would mislead) and is tinted rather than
+/// outlined. A tap goes back to the filter list, as the value list's "‹" and
+/// Backspace in the empty box do.
+class PendingKeyChip extends StatelessWidget {
+  const PendingKeyChip({required this.label, required this.onTap, super.key});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Semantics(
+      button: true,
+      label: '$label, ${context.tr('filter_field')}',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              color: tokens.accentSoft,
+              // Project rule: rounded rectangles, never pills.
+              borderRadius: BorderRadius.circular(InRadii.r1),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: tokens.accentInk,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

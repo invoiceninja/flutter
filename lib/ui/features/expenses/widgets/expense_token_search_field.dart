@@ -19,9 +19,9 @@ class ExpenseTokenSearchField extends StatelessWidget {
   Widget build(BuildContext context) => EntityTokenSearchField(
     vm: vm,
     wide: wide,
-    // Its keys ignore the company, so don't open a watch for it.
-    watchesCompany: false,
     hintKey: 'search_expenses_or_filter_hint',
+    // The custom-field filters read the company's `expense1..4` labels.
+    customFieldPrefix: 'expense',
     nameSources: [
       (services, companyId) => services.clients
           .watchActiveNames(companyId: companyId)
@@ -40,6 +40,7 @@ class ExpenseTokenSearchField extends StatelessWidget {
           vendors: services.vendors,
           tags: services.tags,
           companyId: companyId,
+          company: company,
           nameForClientId: (id) => names.lookup(0, id),
         ),
   );

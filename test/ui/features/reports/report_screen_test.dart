@@ -17,7 +17,7 @@ import 'package:admin/ui/features/reports/views/report_screen.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
-import 'package:admin/ui/features/reports/widgets/charts/report_bar_list.dart';
+import 'package:admin/ui/core/charts/bar_list.dart';
 import 'package:admin/ui/features/reports/widgets/report_document_view.dart';
 import 'package:admin/ui/features/reports/widgets/report_states.dart';
 import 'package:admin/ui/features/reports/widgets/report_summary_card.dart';
@@ -578,7 +578,7 @@ void main() {
         h.vm.groupBy('client.name');
         await tester.pump();
         expect(find.byType(BarChart), findsNothing);
-        expect(find.byType(ReportBarList), findsOneWidget);
+        expect(find.byType(BarList), findsOneWidget);
         expect(find.text('Amount by Client'), findsOneWidget);
 
         // The table is in the chart's order, as an ordinary sort the header
@@ -651,7 +651,7 @@ void main() {
       h.vm.groupBy('client.name');
       await tester.pump();
       expect(find.byType(BarChart), findsNothing);
-      expect(find.byType(ReportBarList), findsNothing);
+      expect(find.byType(BarList), findsNothing);
       expect(
         find.text('No numeric values to chart — pick a different column.'),
         findsOneWidget,
@@ -707,7 +707,7 @@ void main() {
       await settleReports(tester);
       expect(
         find.descendant(
-          of: find.byType(ReportBarList),
+          of: find.byType(BarList),
           matching: find.byType(DeltaChip),
         ),
         findsWidgets,

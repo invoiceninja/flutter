@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/data/models/domain/company_settings.dart';
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/views/basic/localization/custom_labels_screen.dart';
 
@@ -40,6 +43,26 @@ class _StubHost extends SettingsDraftHost {
 class _FakeServices implements Services {
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// A company-scope host holding [translations], recording what is added.
+class _LabelsHost extends _StubHost {
+  _LabelsHost(Map<String, dynamic> translations)
+    : _settings = CompanySettings(translations: translations);
+
+  CompanySettings _settings;
+
+  @override
+  CompanySettings get settings => _settings;
+
+  @override
+  bool get isCascadeScope => false;
+
+  @override
+  void updateSettings(CompanySettings Function(CompanySettings) edit) {
+    _settings = edit(_settings);
+    notifyListeners();
+  }
 }
 
 Widget _host() => MaterialApp(
@@ -90,5 +113,79 @@ void main() {
       tester.getSize(find.byType(SearchableDropdownField<String>)).width,
       greaterThan(120),
     );
+  });
+
+  group('with the company\'s labels applied app-wide', () {
+    Future<_LabelsHost> pumpLabels(
+      WidgetTester tester,
+      Map<String, dynamic> translations,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final host = _LabelsHost(translations);
+      final applied = ValueNotifier<Map<String, String>>({
+        for (final e in translations.entries)
+          if (e.value is String && (e.value as String).isNotEmpty)
+            e.key: e.value as String,
+      });
+      addTearDown(applied.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          builder: (context, child) =>
+              CompanyLabelsScope(labels: applied, child: child!),
+          home: MultiProvider(
+            providers: [
+              Provider<Services>.value(value: _FakeServices()),
+              ChangeNotifierProvider<SettingsDraftHost>.value(value: host),
+              // Company level: the rows are plain fields, not overridable.
+              ChangeNotifierProvider<SettingsLevelController>(
+                create: (_) => SettingsLevelController(),
+              ),
+            ],
+            // `SettingsFormShell` scrolls itself.
+            child: const Scaffold(body: LocalizationCustomLabelsBody()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return host;
+    }
+
+    testWidgets('a row is labelled with the word it replaces, not the '
+        'override', (tester) async {
+      await pumpLabels(tester, const {'quote': 'Estimate'});
+      // The field shows the override as its value and "Quote" as its label;
+      // read through the app-wide labels the label would say "Estimate" too.
+      expect(find.text('Quote'), findsOneWidget);
+      expect(find.text('Estimate'), findsOneWidget);
+    });
+
+    testWidgets('says a label changes one exact word, and offers the related '
+        'ones', (tester) async {
+      final host = await pumpLabels(tester, const {'invoice': 'Bill'});
+      expect(find.textContaining('exact word'), findsOneWidget);
+      expect(find.text('Invoices'), findsOneWidget);
+      expect(find.text('New Invoice'), findsOneWidget);
+
+      await tester.tap(find.text('Invoices'));
+      await tester.pumpAndSettle();
+      expect(host.settings.translations, containsPair('invoices', ''));
+      expect(
+        find.widgetWithText(TextButton, 'Invoices'),
+        findsNothing,
+        reason: 'offered only while it is not relabelled already',
+      );
+    });
+  });
+
+  testWidgets('at a client or group: the labels reach documents only', (
+    tester,
+  ) async {
+    await pumpAt(tester, 1200);
+    expect(find.textContaining('PDFs and emails'), findsOneWidget);
   });
 }

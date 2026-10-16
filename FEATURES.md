@@ -403,7 +403,7 @@ the honest default.
 | Project — time summary | ✅ | ✅ | ✅ | ✅ | |
 | Project — budget / hours-worked tracking | ✅ | ✅ | ✅ | ✅ | |
 | Project — budgeted amount (money budget) | ❌ | ❌ | ✅ | | |
-| Project — analytics tab (server burn-up + budget/invoice/profit/health) — React splits it into Time / Expenses / Profit tabs with a forecast; v2 is one tab | ✅ | ❌ | 🟡 | | |
+| Project — analytics tab: forecast (finish date, days ahead/behind, velocity), burn-up (hours or money, every line switchable, due-date marker), money (margin, budget vs actual, billing progress), time (hours, health and its inputs, team and task distribution, velocity), expenses (by category, cumulative) | ✅ | ❌ | ✅ | | One scrolling tab (React develop folds its Money / Time / Expenses tabs into one). A figure over nothing reads as a dash, not the server's 0; a user who may not see money gets the forecast and the hours burn-up, from their own time (`docs/project-analytics.md`) |
 | Project — estimated vs. logged hours card, and the estimate as a dashed burn-up line | ✅ | ❌ | ✅ | | |
 | Project — quick-add a task from the Tasks card (Enter adds, keeps focus; first status, project's client + rate) | ✅ | ❌ | ✅ | | |
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
@@ -917,7 +917,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Predefined label overrides (~40 keys: address, amount, balance, country, credit, date, description, discount, due date, email, hours, ID number, invoice, item, line total, paid to date, partial due, phone, PO number, product, quantity, quote, rate, statement, subtotal, surcharge, tax, terms, total, unit cost, valid until, VAT number, website, etc.) | ✅ | ✅ | ✅ | ✅ | |
-|  ↳ overrides applied in-app (not just stored + sent to the server) | ✅ | 🟡 | 🟡 | — | | React pushes `settings.translations` into i18next once at app start, so every string honors it; v1 applies them inline at the line-item table only; v2 applies them at the line-item headers (edit table, row dialog, detail table) — invoiceninja/flutter#84. Server-rendered output (PDF, email, portal) honors the full set on all three |
+|  ↳ overrides applied in-app (not just stored + sent to the server) | ✅ | 🟡 | ✅ | — | | invoiceninja/flutter#84. v2 applies the company's labels to every string in the app, following saves, syncs and company switches; withheld while the app shows another language than the company's (React applies them in any language). v1 applies them at the line-item table only. Server-rendered output (PDF, email, portal) honors the full set on all three |
 | Free-form custom labels | ✅ | ✅ | ✅ | ✅ | |
 | Country-specific label aliases | ✅ | ✅ | ✅ | ✅ | |
 
@@ -1710,6 +1710,11 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | List search field — a typed search survives adding a filter, as a removable `Search for "…"` chip (text that only found the filter is dropped); the filter being built shows as a chip under its own name, never `client:`; ←/→ walk the chips (Delete removes, Enter edits) | — | — | ✅ | | Focus never leaves the text field — the highlight is the controller's (`docs/list-search-field.md`) |
 | List search field — ⌘/Ctrl+V and the context menu's Paste read a query: filters become chips, the rest lands at the caret; quoted values keep their spaces | — | — | ✅ | | Desktop; on the web the browser owns the paste. Right-click Paste only, before |
 | List filter — rolling date windows (Today, This week / month / quarter / year, the last of each; This / Next week and month on due dates) that keep meaning "this month" in a saved view; the range picker's presets roll too, and All time clears | — | — | ✅ | | One token per window bound (`rel:m0s,rel:m0e`); the company's week start and fiscal year are captured when picked |
+| List filter — a period typed after a date key (`date:this month`, `date:last quarter`), matched as you type with the dates each covers | — | — | ✅ | | Active language and English; a paste needs quotes (`date:"this month"`) |
+| List search field — `acme status:` keeps `acme` as the search and opens Status | — | — | ✅ | | The longest trailing key name wins (`due date:` is Due Date) |
+| List filter — client / vendor / project values found on the server too, not only among those already loaded | — | — | ✅ | | First page of `?filter=`, so a client found by contact email shows too |
+| List empty state — a search that finds nothing offers All statuses and Show archived beside Clear filters, each widening only its own filter | — | — | ✅ | | |
+| List filter — payment and bank-transaction date sent to the server as a window | — | — | ✅ | | Neither server has a `date()` filter; it was filtered locally only, chaining pages to find older rows |
 | List filter — purchase order status / vendor / client / date / due date | 🟡 | ❌ | ✅ | | React has a status filter only. Sent is sent to the server only from 5.13.44 (exact there); a date comparator travels as the window that means the same |
 | List filter — vendor number (exact) / created / updated | — | — | ✅ | | |
 | List filter — expense date and custom fields | — | — | ✅ | | |

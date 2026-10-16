@@ -6,8 +6,9 @@
 // company that renamed "Unit Cost" saw the rename everywhere except here.
 //
 // These tests drive the real editor against a seeded company so they cover the
-// whole path: the Drift company watch → `LineItemColumnConfig.forCompany` →
-// the desktop header.
+// whole path: the Drift company row → `CompanyLabelOverrides` →
+// `CompanyLabelsScope` (installed by `wrapWithShell`, as by `main.dart`) →
+// `context.tr` in the desktop header.
 
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';

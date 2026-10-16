@@ -672,6 +672,73 @@ void main() {
       expect(find.byType(FilterTokenChip), findsNothing);
     });
 
+    fieldTest('a partly typed period lists the periods it starts, and says '
+        'nothing is wrong', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: const [_dateKey]);
+
+      await tester.enterText(inputFinder, 'date:th');
+      await settleMenu(tester);
+      expect(inMenu('This Week'), findsOneWidget);
+      expect(inMenu('This Month'), findsOneWidget);
+      expect(inMenu('This Year'), findsOneWidget);
+      expect(inMenu('Last Month'), findsNothing);
+      expect(
+        find.textContaining('Not a date yet'),
+        findsNothing,
+        reason: 'every keystroke of `this month` used to read "not a date"',
+      );
+
+      // One word matches any word of a period's name.
+      await tester.enterText(inputFinder, 'month');
+      await settleMenu(tester);
+      expect(inMenu('This Month'), findsOneWidget);
+      expect(inMenu('Last Month'), findsOneWidget);
+      expect(inMenu('This Week'), findsNothing);
+    });
+
+    fieldTest('a typed period commits its rolling window on Enter', (
+      tester,
+    ) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: const [_dateKey]);
+
+      await tester.enterText(inputFinder, 'date:this month');
+      await settleMenu(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(vm.extraFilters['date_range'], {'date,rel:m0s,rel:m0e'});
+      expect(vm.extraFilters['date'], isNull);
+      expect(boxText(tester), '');
+    });
+
+    fieldTest('under a comparator already picked, a typed period is its bound '
+        '— "is before this month" is before the 1st, not the month', (
+      tester,
+    ) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: const [_dateKey]);
+
+      await tester.tap(inputFinder);
+      await settleMenu(tester);
+      await tester.tap(inMenu('Date'));
+      await settleMenu(tester);
+      await tester.tap(inMenu('is before'));
+      await settleMenu(tester);
+      await tester.enterText(inputFinder, 'this month');
+      await settleMenu(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(
+        vm.extraFilters['date'],
+        {'lt:rel:m0s'},
+        reason: 'committing the window dropped the comparator the user chose',
+      );
+      expect(vm.extraFilters['date_range'], isNull);
+    });
+
     fieldTest('Enter does not walk a preset in under text that is not a date', (
       tester,
     ) async {
@@ -1254,6 +1321,62 @@ void main() {
       expect(searchChip('acme'), findsOneWidget);
       return vm;
     }
+
+    fieldTest('words typed before a key are the search: `acme fruit:` lifts '
+        '`acme` into a chip and opens Fruit', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: [FruitKey()]);
+
+      // Typed as a person types it: the menu opens on the first letters, and
+      // `acme fruit` is live-searched until the colon lands.
+      await tester.enterText(inputFinder, 'acme fruit');
+      await settleSearch(tester);
+      await tester.enterText(inputFinder, 'acme fruit:');
+      await settleMenu(tester);
+
+      expect(vm.search, 'acme');
+      expect(searchChip('acme'), findsOneWidget);
+      expect(find.widgetWithText(PendingKeyChip, 'Fruit'), findsOneWidget);
+      expect(boxText(tester), '');
+      expect(inMenu('Banana'), findsOneWidget);
+    });
+
+    fieldTest('the longest key wins: `acme due date:` opens Due Date, not Date '
+        'with "due" lifted', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(
+        tester,
+        vm: vm,
+        keys: const [
+          _dateKey,
+          DateColumnFilterKey(
+            id: 'due_date',
+            serverKey: 'due_date',
+            labelKey: 'due_date',
+          ),
+        ],
+      );
+
+      await tester.enterText(inputFinder, 'acme due date:');
+      await settleMenu(tester);
+
+      expect(vm.search, 'acme');
+      expect(find.widgetWithText(PendingKeyChip, 'Due Date'), findsOneWidget);
+    });
+
+    fieldTest('words before something that is not a key stay the search', (
+      tester,
+    ) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: [FruitKey()]);
+
+      await tester.enterText(inputFinder, 'acme fruitx:');
+      await settleSearch(tester);
+
+      expect(boxText(tester), 'acme fruitx:');
+      expect(find.byType(PendingKeyChip), findsNothing);
+      expect(searchChip('acme'), findsNothing);
+    });
 
     fieldTest('the menu re-opened on a committed search lists every filter, '
         'and picking one keeps the search', (tester) async {

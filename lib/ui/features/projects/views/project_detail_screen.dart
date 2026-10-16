@@ -280,7 +280,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               tasks: tasks,
               companyId: _companyId,
               formatter: formatter,
-              tabIds: related,
+              tabIds: {
+                ...related,
+                if (ProjectDetailTabs.analyticsOffered(_services, me, p.id))
+                  DetailTabIds.analytics,
+              },
               onOpenTab: _record.selectTab.selectId,
               showUninvoiced: me?.moduleEnabled(EntityType.invoice) ?? false,
               // May view them, and they are simply not all here yet.

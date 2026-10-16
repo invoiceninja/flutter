@@ -8,7 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/reports/report_document.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
-import 'package:admin/ui/features/reports/widgets/charts/report_bar_list.dart';
+import 'package:admin/ui/core/charts/bar_list.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Rows of one table drawn before the rest are left to the download. The
@@ -477,10 +477,10 @@ class _RankedCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: InSpacing.sm),
-            ReportBarList(
+            BarList(
               items: [
                 for (final line in lines)
-                  ReportBarListItem(
+                  BarListItem(
                     label: line.label.isEmpty ? '—' : line.label,
                     // The server's own string: already in its currency's
                     // notation.

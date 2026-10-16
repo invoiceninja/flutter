@@ -184,11 +184,9 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
-    // Field labels resolve the company's Custom Labels before the bundled
-    // string, matching the desktop table header — after `labelKey`, so an
-    // hourly line reads Service / Rate / Hours.
-    String label(String key) =>
-        config.labels.resolve(context, config.labelKey(key));
+    // After `labelKey`, so an hourly line reads Service / Rate / Hours — and
+    // `context.tr` puts a company's Custom Label for that word first.
+    String label(String key) => context.tr(config.labelKey(key));
     return AlertDialog(
       title: Text(context.tr(widget.titleKey)),
       content: SizedBox(

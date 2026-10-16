@@ -125,9 +125,19 @@ The same pass narrowed the stream that rebuilds every row of the menu. It watche
 
 ## A comparison the server can't make is translated, not stripped
 
-**On a list whose server filters a date only by window, a single-date comparator travels as the window that means the same** (`singleDatesAsServerWindows`): `date=gte:2026-05-14` becomes `date_range=date,2026-05-14,9999-12-31`, `lt` ends the day before, `eq` is a one-day window. Purchase orders and expenses are the two — `PurchaseOrderFilters` and `ExpenseFilters` have no `date()` / `due_date()` method, so the comparator was skipped and every page came back unfiltered. A window is exact on a DATE column, so the fetch narrows exactly what the local predicate will and needs no auto-chain. Payments and bank transactions still strip their `date` and filter locally (`localOnlyFilterActive`); moving them onto this is a cheap follow-up.
+**On a list whose server filters a date only by window, a single-date comparator travels as the window that means the same** (`singleDatesAsServerWindows`): `date=gte:2026-05-14` becomes `date_range=date,2026-05-14,9999-12-31`, `lt` ends the day before, `eq` is a one-day window. Purchase orders, expenses, payments and bank transactions are the four — `PurchaseOrderFilters`, `ExpenseFilters`, `PaymentFilters` and `BankTransactionFilters` have no `date()` / `due_date()` method, so the comparator was skipped and every page came back unfiltered. A window is exact on a DATE column, so the fetch narrows exactly what the local predicate will and needs no auto-chain. Payments and bank transactions used to strip their `date` from the fetch and lean on `localOnlyFilterActive` instead: a filter for one day in 2019 chained page after page of recent payments to find it. The translation lives in each repository's `ensurePageLoaded`, so every caller — the list, an embedded tab, a Sync pass — sends the same wire. Pinned by `test/data/repositories/filter_key_parity_test.dart` and `test/ui/features/transactions/transaction_list_filters_test.dart`.
 
 The server's timestamp windows have the opposite gap: `created_between` / `updated_between` read a bare end date as 00:00 and lost the last day, so `timestampWindowsForServer` stretches it to `23:59:59` (`BACKEND.md` § Two base `QueryFilters` gaps the client works around).
+
+## A list that finds nothing offers the narrowing it can undo
+
+**The no-match empty state offers All statuses, then Show archived, then Clear filters — each shown only when it applies** (`NoMatchActions`, `lib/ui/core/list/no_match_actions.dart`, shared by `EntityListEmptyState` and the scaffold's own fallback). Clear filters alone threw the typed search away with everything else, so someone who searched `acme` on the Overdue tab, or for a client archived last year, had to type it again on a wider list.
+
+- **All statuses** drops only the status tab (`setBadgeMode(null)`). It is hidden when the tab is the only narrowing, because Clear filters does exactly the same then.
+- **Show archived** adds archived to the State filter through `setStates`, the seam the `is:` key's picker uses. It lands as a chip that can be removed: every list on `EntityListScreenScaffold` declares that key.
+- **A `Wrap`, not a `Row`.** Three German labels do not fit at 360 px.
+
+Pinned by `test/ui/core/list/entity_list_empty_state_test.dart`.
 
 ## A purchase order's Sent status is exact only from 5.13.44
 

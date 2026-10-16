@@ -310,42 +310,36 @@ void main() {
       }
     });
 
-    test(
-      'transactions: a date filter is local-only, so it must widen',
-      () async {
-        final vm = TransactionListViewModel(
-          repo: BankTransactionRepository(
-            db: db,
-            api: _FakeBankTransactionsApi(calls),
-          ),
-          companyId: 'co',
-          navStateDao: db.navStateDao,
-          userSettings: userSettings,
-          searchDebounce: const Duration(milliseconds: 1),
-          persistDebounce: const Duration(milliseconds: 1),
-        );
-        await settle();
-        expect(vm.localOnlyFilterActive, isFalse);
+    test('transactions: a date filter reaches the server as a window, so it '
+        'needs no auto-chain', () async {
+      final vm = TransactionListViewModel(
+        repo: BankTransactionRepository(
+          db: db,
+          api: _FakeBankTransactionsApi(calls),
+        ),
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: userSettings,
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      await settle();
 
-        await vm.setExtraFilter(
-          serverKey: 'date',
-          values: {'2026-01-01,2026-01-31'},
-        );
-        await settle();
+      await vm.setExtraFilter(serverKey: 'date', values: {'gte:2026-01-01'});
+      await settle();
 
-        expect(
-          vm.localOnlyFilterActive,
-          isTrue,
-          reason:
-              'the request strips `date` (no BankTransactionFilters::date), so '
-              'the DAO predicate guts the page and the auto-chain must re-arm',
-        );
-        // The stripped key must not reach the wire either, or the window
-        // freezes after ceil(matches / pageSize) pages.
-        for (final f in calls.filters) {
-          expect(f.containsKey('date'), isFalse);
-        }
-      },
-    );
+      expect(
+        // ignore: invalid_use_of_protected_member
+        vm.localOnlyFilterActive,
+        isFalse,
+        reason:
+            'BankTransactionFilters has no date(), but the repository sends '
+            'the comparator as the base date_range window, so the server '
+            'narrows exactly what the DAO predicate will',
+      );
+      final last = calls.filters.last;
+      expect(last.containsKey('date'), isFalse);
+      expect(last['date_range'], 'date,2026-01-01,9999-12-31');
+    });
   });
 }

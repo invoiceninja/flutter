@@ -46,6 +46,7 @@ import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/list_density_scope.dart';
+import 'package:admin/ui/core/list/no_match_actions.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -1872,20 +1873,15 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // back. 13 entities supply an `emptyStateBuilder` with filter-aware copy
     // plus a Clear-filters escape; the other 14 (Products and Tasks among
     // them) fell through to the bare title below. This gives them the escape
-    // hatch generically — `hasActiveFilters` and `clearAllFilters` already
-    // live on `GenericListViewModel`, and both strings are existing Transifex
-    // keys, so it costs no new translations. An entity wanting warmer copy
-    // still overrides with `emptyStateBuilder`.
+    // hatch generically — everything `NoMatchActions` reads lives on
+    // `GenericListViewModel`, and it is the same widget the
+    // `emptyStateBuilder` entities show. An entity wanting warmer copy still
+    // overrides with `emptyStateBuilder`.
     if (_vm.hasActiveFilters) {
       return EmptyState(
         icon: Icons.filter_alt_off_outlined,
         title: context.tr('no_records_found'),
-        action: OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-          onPressed: _vm.clearAllFilters,
-          icon: const Icon(Icons.close),
-          label: Text(context.tr('clear_filters')),
-        ),
+        action: NoMatchActions(vm: _vm),
       );
     }
     return EmptyState(

@@ -13,13 +13,12 @@ void main() {
   Company company({
     int taxRates = 0,
     bool discount = true,
-    Map<String, dynamic>? translations,
     Map<String, String> customFields = const {},
   }) => Company(
     id: 'co',
     enabledItemTaxRates: taxRates,
     enableProductDiscount: discount,
-    settings: CompanySettings(translations: translations),
+    settings: const CompanySettings(),
     customFields: customFields,
   );
 
@@ -54,53 +53,6 @@ void main() {
     test('but cannot grant what the host never offered', () {
       const noDiscount = LineItemColumnConfig(showDiscount: false);
       expect(noDiscount.forCompany(company()).showDiscount, isFalse);
-    });
-  });
-
-  group('custom labels', () {
-    // The app stored `settings.translations` (Settings → Localization →
-    // Custom Labels) and never read it back, so a company that had renamed a
-    // column saw the rename on its PDFs, in React and in the v1 app but not
-    // here (invoiceninja/flutter#84). `forCompany` is where it lands.
-    test('an override reaches the config', () {
-      final config = host.forCompany(
-        company(translations: const {'unit_cost': 'Unit Price'}),
-      );
-      expect(config.labels['unit_cost'], 'Unit Price');
-    });
-
-    test('a key the company has not overridden stays null', () {
-      final config = host.forCompany(
-        company(translations: const {'unit_cost': 'Unit Price'}),
-      );
-      expect(config.labels['item'], isNull);
-    });
-
-    test('blank and whitespace-only overrides are dropped', () {
-      // The Custom Labels editor seeds a newly added row with '' and the
-      // server coerces nulls to '' — neither may blank a column header.
-      final config = host.forCompany(
-        company(translations: const {'unit_cost': '', 'item': '   '}),
-      );
-      expect(config.labels['unit_cost'], isNull);
-      expect(config.labels['item'], isNull);
-    });
-
-    test('a non-string value is dropped rather than stringified', () {
-      // The field is Map<String, dynamic>: some accounts store a nested
-      // object under a lang key, which would render as `{a: b}` on a header.
-      final config = host.forCompany(
-        company(
-          translations: const {
-            'unit_cost': {'a': 'b'},
-          },
-        ),
-      );
-      expect(config.labels['unit_cost'], isNull);
-    });
-
-    test('a company with no translations narrows to no overrides', () {
-      expect(host.forCompany(company()).labels['unit_cost'], isNull);
     });
   });
 

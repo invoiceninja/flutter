@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/domain/entity_state.dart';
-import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/no_match_actions.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 
 /// The four empty states every entity list can reach: nothing yet, nothing
@@ -101,12 +101,7 @@ class EntityListEmptyState extends StatelessWidget {
     return EmptyState(
       icon: Icons.filter_alt_off_outlined,
       title: noMatchTitle,
-      action: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-        onPressed: vm.clearAllFilters,
-        icon: const Icon(Icons.close),
-        label: Text(context.tr('clear_filters')),
-      ),
+      action: NoMatchActions(vm: vm, extraNarrowing: extraNarrowing),
     );
   }
 }

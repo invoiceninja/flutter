@@ -3,21 +3,24 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/project_charts_api.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/ui/features/projects/view_models/project_analytics_view_model.dart';
 
-/// Behavioral contracts for the project Analytics tab's ViewModel.
-///
-/// The two endpoints it drives (added server-side 2026-06-30) **404 on the
-/// demo host**, so the degradation paths below are the ones users will
-/// actually hit first — they're the point of these tests:
-///   * one endpoint failing still renders the other's cards
-///   * both failing surfaces a retryable error, not a crash
+/// Behavioral contracts for the project Analytics tab's view model:
+///   * one endpoint failing still renders the other's sections
+///   * a failed refresh keeps the figures already on screen
+///   * a failure is classified by what the user can do about it
+///   * the tab refetches when a Sync, a pushed change or the user's own
+///     change makes its figures old
+///   * the burn-up's window is the project's life unless asked otherwise,
+///     and its bucket suits the span
 ///   * a stale in-flight response never overwrites a newer one
 ///
 /// No http layer here — a fake [ProjectChartsApi] feeds canned responses.
@@ -40,24 +43,22 @@ class _FakeProjectChartsApi extends ProjectChartsApi {
   Object? analyticsError;
   Object? burnupError;
 
-  /// Completers let a test hold a response open to exercise ordering.
+  /// Lets a test hold a response open to exercise ordering.
   Completer<Object?>? analyticsGate;
 
   int analyticsCalls = 0;
   int burnupCalls = 0;
   BurnupBucket? lastBucket;
   Date? lastStart;
+  Date? lastEnd;
   bool? lastIncludeDrafts;
 
   @override
   Future<Object?> fetchAnalytics({
     required String projectId,
-    required Date startDate,
-    required Date endDate,
     bool includeDrafts = false,
   }) async {
     analyticsCalls++;
-    lastStart = startDate;
     lastIncludeDrafts = includeDrafts;
     if (analyticsGate != null) return analyticsGate!.future;
     if (analyticsError != null) throw analyticsError!;
@@ -67,13 +68,15 @@ class _FakeProjectChartsApi extends ProjectChartsApi {
   @override
   Future<Object?> fetchBurnup({
     required String projectId,
-    required Date startDate,
-    required Date endDate,
-    BurnupBucket bucket = BurnupBucket.weekly,
+    Date? startDate,
+    Date? endDate,
+    BurnupBucket bucket = BurnupBucket.daily,
     bool includeDrafts = false,
   }) async {
     burnupCalls++;
     lastBucket = bucket;
+    lastStart = startDate;
+    lastEnd = endDate;
     if (burnupError != null) throw burnupError!;
     return burnup;
   }
@@ -82,8 +85,25 @@ class _FakeProjectChartsApi extends ProjectChartsApi {
 void main() {
   const today = Date(2026, 7, 24);
 
-  ProjectAnalyticsViewModel build(_FakeProjectChartsApi api) =>
-      ProjectAnalyticsViewModel(api: api, projectId: 'proj_1', today: today);
+  ProjectAnalyticsViewModel build(
+    _FakeProjectChartsApi api, {
+    Date? projectStart,
+    Date? projectDue,
+    ValueListenable<ResyncCompletion?>? resync,
+    ValueListenable<RealtimeRefresh?>? realtime,
+    Stream<int>? outbox,
+  }) => ProjectAnalyticsViewModel(
+    api: api,
+    projectId: 'proj_1',
+    companyId: 'co',
+    projectStart: projectStart ?? const Date(2026, 6, 1),
+    projectDue: projectDue,
+    today: today,
+    resyncCompletions: resync,
+    realtimeRefreshes: realtime,
+    outboxActive: outbox,
+    refetchDelay: Duration.zero,
+  );
 
   final analyticsPayload = <String, dynamic>{
     'budget_summary': [
@@ -106,7 +126,7 @@ void main() {
 
       await vm.load();
 
-      expect(vm.errorMessage, isNull);
+      expect(vm.blockingFailure, isNull);
       expect(vm.analytics?.budgetSummary?.budgetedHours, 40.0);
       expect(vm.burnup?.series, hasLength(1));
       expect(vm.loading, isFalse);
@@ -114,142 +134,256 @@ void main() {
     });
 
     test('a failing analytics call still renders the burn-up', () async {
-      // The likeliest real-world state while servers roll out unevenly.
       final api = _FakeProjectChartsApi()
-        ..analyticsError = ServerException(404, 'not found')
+        ..analyticsError = const ServerException(500, 'boom')
         ..burnup = burnupPayload;
       final vm = build(api);
 
       await vm.load();
 
-      expect(vm.errorMessage, isNull, reason: 'partial data is still useful');
+      expect(vm.blockingFailure, isNull, reason: 'partial data is useful');
       expect(vm.analytics, isNull);
+      expect(vm.analyticsFailure, ProjectAnalyticsFailure.other);
       expect(vm.burnup, isNotNull);
     });
 
-    test('a failing burn-up call still renders the analytics cards', () async {
+    test('both failing is a blocking failure', () async {
+      final api = _FakeProjectChartsApi()
+        ..analyticsError = const ServerException(500, 'Server on fire')
+        ..burnupError = const ServerException(500, 'Server on fire');
+      final vm = build(api);
+
+      await vm.load();
+
+      expect(vm.blockingFailure, ProjectAnalyticsFailure.other);
+      expect(vm.failureMessage, 'Server on fire');
+    });
+
+    test('a failure is classified by what the user can do about it', () async {
+      Future<ProjectAnalyticsFailure?> failureFor(Object error) async {
+        final api = _FakeProjectChartsApi()
+          ..analyticsError = error
+          ..burnupError = error;
+        final vm = build(api);
+        await vm.load();
+        return vm.blockingFailure;
+      }
+
+      // Offline used to read "Analytics aren't available from this server".
+      expect(
+        await failureFor(const NetworkException('no route')),
+        ProjectAnalyticsFailure.offline,
+      );
+      expect(
+        await failureFor(const ServerException(404, 'Route does not exist')),
+        ProjectAnalyticsFailure.unavailable,
+      );
+      expect(
+        await failureFor(const ServerException(403, 'nope')),
+        ProjectAnalyticsFailure.forbidden,
+      );
+      expect(
+        await failureFor(StateError('unexpected')),
+        ProjectAnalyticsFailure.other,
+      );
+    });
+
+    test('a failed refresh keeps the figures already on screen', () async {
       final api = _FakeProjectChartsApi()
         ..analytics = analyticsPayload
-        ..burnupError = ServerException(500, 'boom');
-      final vm = build(api);
-
-      await vm.load();
-
-      expect(vm.errorMessage, isNull);
-      expect(vm.analytics, isNotNull);
-      expect(vm.burnup, isNull);
-    });
-
-    test(
-      'both failing surfaces the server message for the retry state',
-      () async {
-        final api = _FakeProjectChartsApi()
-          ..analyticsError = ServerException(404, 'Method not supported')
-          ..burnupError = ServerException(404, 'Method not supported');
-        final vm = build(api);
-
-        await vm.load();
-
-        expect(vm.errorMessage, 'Method not supported');
-        expect(vm.analytics, isNull);
-        expect(vm.burnup, isNull);
-      },
-    );
-
-    test('a non-ApiException failure is caught too', () async {
-      final api = _FakeProjectChartsApi()
-        ..analyticsError = StateError('unexpected')
-        ..burnupError = StateError('unexpected');
-      final vm = build(api);
-
-      await vm.load();
-
-      expect(vm.errorMessage, isNotNull);
-    });
-
-    test('empty payloads report isEmpty rather than an error', () async {
-      final api = _FakeProjectChartsApi()
-        ..analytics = <String, dynamic>{}
-        ..burnup = <String, dynamic>{};
-      final vm = build(api);
-
-      await vm.load();
-
-      expect(vm.errorMessage, isNull);
-      expect(vm.isEmpty, isTrue);
-    });
-
-    test('a previous error is cleared on a successful retry', () async {
-      final api = _FakeProjectChartsApi()
-        ..analyticsError = ServerException(500, 'boom')
-        ..burnupError = ServerException(500, 'boom');
+        ..burnup = burnupPayload;
       final vm = build(api);
       await vm.load();
-      expect(vm.errorMessage, isNotNull);
+
+      api
+        ..analyticsError = const NetworkException('offline')
+        ..burnupError = const NetworkException('offline');
+      await vm.load();
+
+      expect(vm.analytics?.budgetSummary?.budgetedHours, 40.0);
+      expect(vm.burnup, isNotNull);
+      expect(vm.analyticsFailure, ProjectAnalyticsFailure.offline);
+      expect(
+        vm.blockingFailure,
+        isNull,
+        reason: 'there is something to show, so the failure is a banner',
+      );
 
       api
         ..analyticsError = null
-        ..burnupError = null
-        ..analytics = analyticsPayload
-        ..burnup = burnupPayload;
+        ..burnupError = null;
       await vm.load();
-
-      expect(vm.errorMessage, isNull);
-      expect(vm.analytics, isNotNull);
+      expect(vm.analyticsFailure, isNull, reason: 'cleared on success');
     });
   });
 
-  group('controls', () {
-    test('changing the bucket refetches with the new value', () async {
+  group('the burn-up window', () {
+    test('by default no dates are sent: the server spans the project', () {
+      final api = _FakeProjectChartsApi()..burnup = burnupPayload;
+      final vm = build(api);
+      return vm.load().then((_) {
+        expect(api.lastStart, isNull);
+        expect(api.lastEnd, isNull);
+      });
+    });
+
+    test('the bucket suits the span until the user picks one', () async {
+      // Started 53 days before today: daily.
+      final young = _FakeProjectChartsApi()..burnup = burnupPayload;
+      await build(young).load();
+      expect(young.lastBucket, BurnupBucket.daily);
+
+      // Two years long: monthly.
+      final old = _FakeProjectChartsApi()..burnup = burnupPayload;
+      await build(old, projectStart: const Date(2024, 1, 1)).load();
+      expect(old.lastBucket, BurnupBucket.monthly);
+
+      // A due date far ahead lengthens the span, as the server's window does.
+      final planned = _FakeProjectChartsApi()..burnup = burnupPayload;
+      await build(planned, projectDue: const Date(2027, 6, 1)).load();
+      expect(planned.lastBucket, BurnupBucket.weekly);
+    });
+
+    test('a narrower range sends its dates and re-picks the bucket', () async {
+      final api = _FakeProjectChartsApi()..burnup = burnupPayload;
+      final vm = build(api, projectStart: const Date(2024, 1, 1));
+      await vm.load();
+
+      vm.setRange(ProjectBurnupRange.last30Days);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(api.lastStart, const Date(2026, 6, 24));
+      expect(api.lastEnd, today);
+      expect(vm.bucket, BurnupBucket.daily);
+    });
+
+    test('a bucket the user picked survives a range change', () async {
       final api = _FakeProjectChartsApi()..burnup = burnupPayload;
       final vm = build(api);
       await vm.load();
 
       vm.setBucket(BurnupBucket.monthly);
+      vm.setRange(ProjectBurnupRange.last30Days);
       await Future<void>.delayed(Duration.zero);
 
-      expect(vm.bucket, BurnupBucket.monthly);
       expect(api.lastBucket, BurnupBucket.monthly);
-      expect(api.burnupCalls, 2);
     });
 
-    test('setting the same value does not refetch', () async {
+    test('a due date moved under a mounted tab re-picks the bucket — '
+        'unless the user chose one', () async {
       final api = _FakeProjectChartsApi()..burnup = burnupPayload;
       final vm = build(api);
       await vm.load();
+      expect(vm.bucket, BurnupBucket.daily);
 
-      vm.setBucket(vm.bucket);
-      await Future<void>.delayed(Duration.zero);
+      vm.updateProject(
+        start: const Date(2026, 6, 1),
+        due: const Date(2028, 6, 1),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(vm.bucket, BurnupBucket.monthly);
+      expect(api.lastBucket, BurnupBucket.monthly, reason: 'and refetched');
 
-      expect(api.burnupCalls, 1);
+      vm.setBucket(BurnupBucket.weekly);
+      vm.updateProject(start: const Date(2026, 6, 1), due: null);
+      expect(vm.bucket, BurnupBucket.weekly);
+      vm.dispose();
     });
 
-    test('range maps to the start date sent to the server', () async {
-      final api = _FakeProjectChartsApi()..analytics = analyticsPayload;
+    test('changing the window refetches the burn-up alone', () async {
+      // The analytics endpoint reads no dates.
+      final api = _FakeProjectChartsApi()
+        ..analytics = analyticsPayload
+        ..burnup = burnupPayload;
       final vm = build(api);
+      await vm.load();
 
-      vm.setRange(ProjectAnalyticsRange.last30Days);
+      vm.setRange(ProjectBurnupRange.last365Days);
       await Future<void>.delayed(Duration.zero);
 
-      expect(api.lastStart, const Date(2026, 6, 24));
+      expect(api.analyticsCalls, 1);
+      expect(api.burnupCalls, 2);
     });
 
-    test('include_drafts is threaded through', () async {
-      final api = _FakeProjectChartsApi()..analytics = analyticsPayload;
+    test('include drafts refetches both', () async {
+      final api = _FakeProjectChartsApi()
+        ..analytics = analyticsPayload
+        ..burnup = burnupPayload;
       final vm = build(api);
+      await vm.load();
 
       vm.setIncludeDrafts(true);
       await Future<void>.delayed(Duration.zero);
 
       expect(api.lastIncludeDrafts, isTrue);
+      expect(api.analyticsCalls, 2);
+      expect(api.burnupCalls, 2);
     });
   });
 
+  group('refetches when its figures go old', () {
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 5));
+
+    test('a completed Sync pass for this company', () async {
+      final resync = ValueNotifier<ResyncCompletion?>(null);
+      final api = _FakeProjectChartsApi()..analytics = analyticsPayload;
+      final vm = build(api, resync: resync);
+      await vm.load();
+
+      resync.value = const ResyncCompletion(
+        serial: 1,
+        companyId: 'other',
+        result: ResyncResult(ResyncDisposition.completed),
+      );
+      await settle();
+      expect(api.analyticsCalls, 1, reason: 'another company');
+
+      resync.value = const ResyncCompletion(
+        serial: 2,
+        companyId: 'co',
+        result: ResyncResult(ResyncDisposition.completed),
+      );
+      await settle();
+      expect(api.analyticsCalls, 2);
+      vm.dispose();
+    });
+
+    test('a pushed server change', () async {
+      final realtime = ValueNotifier<RealtimeRefresh?>(null);
+      final api = _FakeProjectChartsApi()..analytics = analyticsPayload;
+      final vm = build(api, realtime: realtime);
+      await vm.load();
+
+      realtime.value = RealtimeRefresh(companyId: 'co', at: DateTime(2026));
+      await settle();
+      expect(api.analyticsCalls, 2);
+      vm.dispose();
+    });
+
+    test(
+      'a change of the user\'s own leaving the outbox — not entering it',
+      () async {
+        final outbox = StreamController<int>();
+        final api = _FakeProjectChartsApi()..analytics = analyticsPayload;
+        final vm = build(api, outbox: outbox.stream);
+        await vm.load();
+
+        outbox.add(0);
+        outbox.add(1); // a save queued: the server does not have it yet
+        await settle();
+        expect(api.analyticsCalls, 1);
+
+        outbox.add(0); // it went through
+        await settle();
+        expect(api.analyticsCalls, 2);
+        vm.dispose();
+        await outbox.close();
+      },
+    );
+  });
+
   test('disposing mid-flight does not notify a disposed notifier', () async {
-    // `load()` is fire-and-forget from initState and from every control
-    // setter, so navigating off the project detail screen disposes the VM
-    // while both chart calls are still in flight. Notifying past dispose
-    // throws `debugAssertNotDisposed`.
     final gate = Completer<Object?>();
     final api = _FakeProjectChartsApi()
       ..burnup = burnupPayload
@@ -272,8 +406,6 @@ void main() {
   });
 
   test('a stale in-flight response never overwrites a newer one', () async {
-    // Flipping a control faster than the network answers must not resurrect
-    // the earlier window's numbers.
     final gate = Completer<Object?>();
     final api = _FakeProjectChartsApi()
       ..burnup = burnupPayload
@@ -282,14 +414,12 @@ void main() {
 
     final stale = vm.load(); // parks on `gate`
 
-    // Second request supersedes the first; let it complete normally.
     api
       ..analyticsGate = null
       ..analytics = analyticsPayload;
     await vm.load();
     expect(vm.analytics?.budgetSummary?.budgetedHours, 40.0);
 
-    // Release the stale one carrying *different* numbers — proving the drop.
     gate.complete(<String, dynamic>{
       'budget_summary': [
         {'budgeted_hours': 999.0},
@@ -302,47 +432,5 @@ void main() {
       40.0,
       reason: 'stale response must not clobber the newer answer',
     );
-  });
-
-  test("a superseded failure's message never surfaces on a later request", () {
-    // The error stash belongs to one request. It used to survive the supersede
-    // early-return, so an abandoned "Connection closed" could be shown as the
-    // reason a *different*, later request came back unusable.
-    final gate = Completer<Object?>();
-    final api = _FakeProjectChartsApi()
-      ..analyticsGate = gate
-      ..burnupError = const NetworkException('Connection closed');
-    final vm = build(api);
-
-    final stale = vm.load(); // parks on `gate`
-
-    // A newer request that gets HTTP 200s carrying nothing decodable.
-    api
-      ..analyticsGate = null
-      ..burnupError = null
-      ..analytics =
-          <Object>[] // not a Map → no analytics
-      ..burnup = <Object>[]; // not a Map → no burnup
-
-    return vm
-        .load()
-        .then((_) {
-          // Release the stale one; it must drop silently.
-          gate.complete(<String, dynamic>{});
-          return stale;
-        })
-        .then((_) {
-          expect(vm.hasError, isTrue);
-          expect(
-            vm.errorMessage,
-            isNull,
-            reason: 'no server message belongs to the newer request',
-          );
-          expect(
-            vm.errorKey,
-            'analytics_unexpected_response',
-            reason: 'a localization key, not a raw slug rendered as-is',
-          );
-        });
   });
 }

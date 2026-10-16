@@ -56,7 +56,10 @@ String _normalize(String s) =>
 /// The built-in status [name] corresponds to (`'backlog'`, `'ready_to_do'`,
 /// `'in_progress'` or `'done'`), or null when it isn't one of them.
 ///
-/// [tr] resolves a localization key — pass `context.tr` in the app. Matching is
+/// [tr] resolves a localization key — pass `context.trBundled` in the app,
+/// never `context.tr`: a company that relabelled `done` would otherwise lose
+/// its Done status's green, since the stored name is the word the server
+/// seeded, not the company's label. Matching is
 /// case- and whitespace-insensitive against both the translated name and the
 /// English one, because the server stores whatever the *company's* locale said
 /// at creation time. A company created in a third language falls through to
@@ -86,7 +89,7 @@ String? builtInTaskStatusKey(
   final explicit = _explicitColor(color);
   if (explicit != null) return (fg: explicit, bg: null);
 
-  return switch (builtInTaskStatusKey(name, tr: context.tr)) {
+  return switch (builtInTaskStatusKey(name, tr: context.trBundled)) {
     'backlog' => (fg: tokens.draft, bg: tokens.draftSoft),
     'ready_to_do' => (fg: tokens.partial, bg: tokens.partialSoft),
     'in_progress' => (fg: tokens.sent, bg: tokens.sentSoft),

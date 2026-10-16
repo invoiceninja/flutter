@@ -152,6 +152,9 @@ class _ProjectDetailStandingState extends State<ProjectDetailStanding> {
     final p = widget.project;
     final tasks = widget.tasks;
     final tasksLinked = widget.tabIds.contains(DetailTabIds.tasks);
+    final openForecast = widget.tabIds.contains(DetailTabIds.analytics)
+        ? () => widget.onOpenTab(DetailTabIds.analytics)
+        : null;
     StandingFigure figure(
       String labelKey,
       String value, {
@@ -185,6 +188,7 @@ class _ProjectDetailStandingState extends State<ProjectDetailStanding> {
                 elapsed: _elapsedFraction(p, _now),
                 dueDate: p.dueDate,
                 status: ProgressStatus.unknown,
+                onOpenForecast: openForecast,
               )
             : null,
       );
@@ -255,6 +259,7 @@ class _ProjectDetailStandingState extends State<ProjectDetailStanding> {
                     elapsed: _elapsedFraction(p, _now),
                     dueDate: p.dueDate,
                     status: status,
+                    onOpenForecast: openForecast,
                   )
                 : null,
           );
@@ -309,6 +314,7 @@ class _BudgetLine extends StatelessWidget {
     required this.elapsed,
     required this.dueDate,
     required this.status,
+    this.onOpenForecast,
   });
 
   final double logged;
@@ -316,6 +322,12 @@ class _BudgetLine extends StatelessWidget {
   final double? elapsed;
   final Date? dueDate;
   final ProgressStatus status;
+
+  /// Opens the Analytics tab, whose Forecast says WHEN, at this pace — the
+  /// question the verdict raises. Null when that tab is not on screen. The
+  /// forecast itself stays there, not here: this card is read from the
+  /// device and works offline, and the forecast is the server's.
+  final VoidCallback? onOpenForecast;
 
   @override
   Widget build(BuildContext context) {
@@ -390,16 +402,22 @@ class _BudgetLine extends StatelessWidget {
       label: context.tr('over_budget'),
       fgColor: tokens.overdue,
       bgColor: tokens.overdueSoft,
+      onTap: onOpenForecast,
+      semanticsHint: onOpenForecast == null ? null : context.tr('forecast'),
     ),
     ProgressStatus.offPace => StatusPill(
       label: context.tr('trending_over'),
       fgColor: tokens.sent,
       bgColor: tokens.sentSoft,
+      onTap: onOpenForecast,
+      semanticsHint: onOpenForecast == null ? null : context.tr('forecast'),
     ),
     ProgressStatus.onTrack => StatusPill(
       label: context.tr('on_track'),
       fgColor: tokens.paid,
       bgColor: tokens.paidSoft,
+      onTap: onOpenForecast,
+      semanticsHint: onOpenForecast == null ? null : context.tr('forecast'),
     ),
     ProgressStatus.unknown => null,
   };

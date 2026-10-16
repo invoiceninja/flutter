@@ -4,6 +4,7 @@
 // `splitTypedOperator`, and the key-list ranking.
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/value/relative_date_token.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
@@ -167,6 +168,74 @@ void main() {
     // a rolling date has no typeable form and prefills nothing.
     expect(const VatFilterKey().editableValueText('X1'), 'X1');
     expect(date.editableValueText('gte:rel:d7'), isNull);
+
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a typed period: matched as you type, committed by name', (
+    tester,
+  ) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final vm = newHarnessVm(db);
+
+    List<RollingDatePreset> matches(DateColumnFilterKey k, String typed) =>
+        k.typedPresetMatches(context, typed);
+
+    // The name's start, in this key's menu order.
+    expect(matches(date, 'th'), const [
+      RollingDatePreset.thisWeek,
+      RollingDatePreset.thisMonth,
+      RollingDatePreset.thisQuarter,
+      RollingDatePreset.thisYear,
+    ]);
+    expect(matches(date, 'THIS  mo'), const [RollingDatePreset.thisMonth]);
+    // One word matches any word of the name.
+    expect(matches(date, 'month'), const [
+      RollingDatePreset.thisMonth,
+      RollingDatePreset.lastMonth,
+      RollingDatePreset.nextMonth,
+    ]);
+    // Every period, not only the key's own: a due date's menu offers no
+    // "Last month", but typing it means it.
+    const due = DateColumnFilterKey(
+      id: 'due_date',
+      serverKey: 'due_date',
+      labelKey: 'due_date',
+      lookAhead: true,
+    );
+    expect(matches(due, 'last mo'), const [RollingDatePreset.lastMonth]);
+    // Nothing typed, a comparator, or a word no period has.
+    expect(matches(date, ''), isEmpty);
+    expect(matches(date, '>=th'), isEmpty);
+    expect(matches(date, 'banana'), isEmpty);
+
+    // Committed by its full name — Enter in the sheet, a quoted paste.
+    expect(
+      date.normalizeTypedValue(vm, context, 'this month'),
+      'date,rel:m0s,rel:m0e',
+    );
+    expect(
+      date.normalizeTypedValue(vm, context, 'Last Quarter'),
+      'date,rel:q1s,rel:q1e',
+    );
+    // A part of a name is not a value.
+    expect(date.normalizeTypedValue(vm, context, 'this mo'), isNull);
+    // today / yesterday stay single dates.
+    expect(date.normalizeTypedValue(vm, context, 'today'), 'gte:rel:d0');
 
     await tester.pump(const Duration(seconds: 1));
   });

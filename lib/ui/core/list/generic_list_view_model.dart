@@ -318,6 +318,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   final Duration _persistDebounce;
   final DateTime Function() _now;
 
+  /// This list's clock, for a subclass that resolves rolling date filters in
+  /// its own `watchPage` — injectable through the constructor's `now`.
+  @protected
+  DateTime now() => _now();
+
   // ── State (read by the view) ────────────────────────────────────────
 
   int loadedPages = 1;

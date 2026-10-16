@@ -19,6 +19,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
 /// Build the filter keys exposed in the expenses list's search field.
@@ -245,6 +246,13 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
 
   Stream<List<({String id, String name})>> nameStream();
 
+  /// Fetch the server's first page of matches for [query] into the cache.
+  Future<void> fetchMatches(String query);
+
+  /// The cached rows the repository's local search finds for [query] — the
+  /// same field set the server's `?filter=` matches.
+  Stream<List<String>> searchedIds(String query);
+
   @override
   bool get checkboxMultiSelect => true;
 
@@ -266,19 +274,21 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
-    return nameStream().map((all) {
-      final filtered = q.isEmpty
-          ? all.take(idleSuggestionCap!)
-          : all.where((r) => r.name.toLowerCase().contains(q));
-      return [
-        for (final r in filtered)
+    final idle = query.trim().isEmpty;
+    return namesWithServerSearch(
+      names: nameStream(),
+      query: query,
+      fetch: fetchMatches,
+      searchedIds: searchedIds,
+    ).map(
+      (rows) => [
+        for (final r in idle ? rows.take(idleSuggestionCap!) : rows)
           FilterValueSuggestion(
             rawValue: r.id,
             displayLabel: r.name.isEmpty ? r.id : r.name,
           ),
-      ];
-    });
+      ],
+    );
   }
 
   @override
@@ -306,6 +316,15 @@ class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
   @override
   Stream<List<({String id, String name})>> nameStream() =>
       projects.watchActiveNames(companyId: companyId);
+
+  @override
+  Future<void> fetchMatches(String query) =>
+      projects.ensurePageLoaded(companyId: companyId, page: 1, search: query);
+
+  @override
+  Stream<List<String>> searchedIds(String query) => projects
+      .watchPage(companyId: companyId, search: query)
+      .map((rows) => [for (final p in rows) p.id]);
 }
 
 /// `vendor:foo` — multi-valued; server `vendor_ids` (CSV hashids).
@@ -326,4 +345,13 @@ class ExpenseVendorFilterKey extends _RecordMembershipFilterKey {
   @override
   Stream<List<({String id, String name})>> nameStream() =>
       vendors.watchActiveNames(companyId: companyId);
+
+  @override
+  Future<void> fetchMatches(String query) =>
+      vendors.ensurePageLoaded(companyId: companyId, page: 1, search: query);
+
+  @override
+  Stream<List<String>> searchedIds(String query) => vendors
+      .watchPage(companyId: companyId, search: query)
+      .map((rows) => [for (final v in rows) v.id]);
 }

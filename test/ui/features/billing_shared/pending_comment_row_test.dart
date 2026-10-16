@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,6 +62,10 @@ class _SwappedSync implements Services {
 
   @override
   ToastController get toasts => _inner.toasts;
+
+  @override
+  ValueListenable<Map<String, String>> get companyLabels =>
+      _inner.companyLabels;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

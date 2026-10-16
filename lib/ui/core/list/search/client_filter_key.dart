@@ -5,6 +5,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 
 /// `client:foo` — multi-valued client filter shared by every list whose
 /// API endpoint honors `client_id` (invoices, quotes, credits, recurring
@@ -72,18 +73,23 @@ class ClientFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
-    return clients.watchActiveNames(companyId: companyId).map((all) {
-      final filtered = q.isEmpty
-          ? all.take(idleSuggestionCap!)
-          : all.where((c) => c.name.toLowerCase().contains(q));
-      return [
-        for (final c in filtered)
+    final idle = query.trim().isEmpty;
+    return namesWithServerSearch(
+      names: clients.watchActiveNames(companyId: companyId),
+      query: query,
+      fetch: (q) =>
+          clients.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      searchedIds: (q) => clients
+          .watchPage(companyId: companyId, search: q)
+          .map((rows) => [for (final c in rows) c.id]),
+    ).map(
+      (rows) => [
+        for (final c in idle ? rows.take(idleSuggestionCap!) : rows)
           FilterValueSuggestion(
             rawValue: c.id,
             displayLabel: c.name.isEmpty ? c.id : c.name,
           ),
-      ];
-    });
+      ],
+    );
   }
 }

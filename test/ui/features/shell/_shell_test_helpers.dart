@@ -12,6 +12,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -260,6 +261,10 @@ Widget wrapWithShell(Services services, Widget child) {
       localizationsDelegates: [
         _SyncLocalizationDelegate(_enStrings(), _pendingStrings()),
       ],
+      // Mirror the real app: the company's Custom Labels over every string
+      // (`main.dart`'s builder), fed from the fixture's company row.
+      builder: (context, child) =>
+          CompanyLabelsScope(labels: services.companyLabels, child: child!),
       // Mirror the real app: the global toast host sits above the content as
       // a later Stack sibling, so any widget that fires a `Notify.*` renders
       // its toast here too.

@@ -300,12 +300,18 @@ void main() {
         expect(sent.containsKey('client_status'), isFalse);
       });
 
-      test('single-date `date` comparator is not sent (no server handler), '
-          'but the `date_range` window is forwarded', () async {
-        final dateOnly = await sentFor({
+      test('a single-date `date` comparator is sent as the `date_range` '
+          'window that means the same (no server `date()` handler)', () async {
+        final onOrAfter = await sentFor({
           'date': {'gte:2026-01-01'},
         });
-        expect(dateOnly.containsKey('date'), isFalse);
+        expect(onOrAfter.containsKey('date'), isFalse);
+        expect(onOrAfter['date_range'], 'date,2026-01-01,9999-12-31');
+
+        final on = await sentFor({
+          'date': {'eq:2026-02-14'},
+        });
+        expect(on['date_range'], 'date,2026-02-14,2026-02-14');
 
         final windowed = await sentFor({
           'date_range': {'date,2026-01-01,2026-03-31'},

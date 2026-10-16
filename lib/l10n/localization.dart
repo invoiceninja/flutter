@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/supported_locales.dart';
 
 final _log = Logger('Localization');
@@ -18,8 +19,10 @@ class Localization {
     this._strings, {
     Map<String, String>? fallback,
     Map<String, String>? pending,
+    Map<String, String>? overrides,
   }) : _fallback = fallback ?? const {},
-       _pending = pending ?? const {};
+       _pending = pending ?? const {},
+       _overrides = overrides ?? const {};
 
   final Map<String, String> _strings;
   final Map<String, String> _fallback;
@@ -28,6 +31,11 @@ class Localization {
   // locale nor the Transifex English fallback has the key, so Transifex wins
   // automatically once it catches up.
   final Map<String, String> _pending;
+
+  /// The active company's Custom Labels (`settings.translations`), consulted
+  /// before every bundle — see [withOverrides]. Empty on the instance the
+  /// delegate loads; [of] layers them on from `CompanyLabelsScope`.
+  final Map<String, String> _overrides;
 
   /// Lookup a key with optional `:name` placeholders.
   ///
@@ -38,18 +46,35 @@ class Localization {
   /// that empty string instead of falling through to English — rendering
   /// nothing at all, which for a toast means a blank card
   /// (invoiceninja/flutter#30).
-  String lookup(String key, [Map<String, String>? params]) {
-    // Sequential `??` rather than iterating a list of candidates: this backs
-    // every `context.tr(...)` in the app (~4.6k call sites, nearly all inside
-    // `build`), so it runs on essentially every rebuild — a per-call list
-    // allocation here is pure waste. The common path (active-locale hit)
-    // short-circuits on the first term, and `String.trim()` returns `this`
-    // when there's nothing to trim, so a normal lookup allocates nothing.
-    final raw =
-        _nonBlank(_strings[key]) ??
-        _nonBlank(_fallback[key]) ??
-        _nonBlank(_pending[key]) ??
-        key;
+  ///
+  /// The company's Custom Labels come first: a company that calls a quote an
+  /// "Estimate" sees "Estimate" wherever the app says `quote`, as React does
+  /// and as the server does on every PDF and email. [lookupBundled] skips them.
+  String lookup(String key, [Map<String, String>? params]) =>
+      _fill(_nonBlank(_overrides[key]) ?? _bundled(key), params);
+
+  /// [lookup] without the company's Custom Labels — the word this app ships.
+  ///
+  /// For the few places that must not see an override: the Custom Labels
+  /// screen, which shows each label beside the user's own wording of it, and
+  /// code that matches a stored name against the bundled word (a task
+  /// status's built-in colour).
+  String lookupBundled(String key, [Map<String, String>? params]) =>
+      _fill(_bundled(key), params);
+
+  // Sequential `??` rather than iterating a list of candidates: this backs
+  // every `context.tr(...)` in the app (~4.6k call sites, nearly all inside
+  // `build`), so it runs on essentially every rebuild — a per-call list
+  // allocation here is pure waste. The common path (active-locale hit)
+  // short-circuits on the first term, and `String.trim()` returns `this`
+  // when there's nothing to trim, so a normal lookup allocates nothing.
+  String _bundled(String key) =>
+      _nonBlank(_strings[key]) ??
+      _nonBlank(_fallback[key]) ??
+      _nonBlank(_pending[key]) ??
+      key;
+
+  static String _fill(String raw, Map<String, String>? params) {
     if (params == null || params.isEmpty) return raw;
     if (params.length == 1) {
       final only = params.entries.first;
@@ -86,8 +111,46 @@ class Localization {
   String? englishOf(String key) =>
       _nonBlank(_fallback[key]) ?? _nonBlank(_pending[key]);
 
-  static Localization? of(BuildContext context) =>
-      Localizations.of<Localization>(context, Localization);
+  /// This instance with [overrides] consulted first — shares every bundle,
+  /// so it costs one small map. Blank values never reach here
+  /// (`companyLabelOverrides` drops them).
+  Localization withOverrides(Map<String, String> overrides) {
+    if (identical(overrides, _overrides)) return this;
+    if (overrides.isEmpty && _overrides.isEmpty) return this;
+    return Localization._(
+      _strings,
+      fallback: _fallback,
+      pending: _pending,
+      overrides: overrides,
+    );
+  }
+
+  /// The last [withOverrides] result, for the map it was made with — so
+  /// every `context.tr` in a frame shares one instance. Kept on the BUNDLE
+  /// instance, so a locale switch, which loads a new one, starts afresh and
+  /// never serves the old language's strings.
+  Localization? _overlaid;
+  Map<String, String>? _overlaidFor;
+
+  Localization _overlay(Map<String, String> overrides) {
+    if (overrides.isEmpty) return this;
+    final cached = _overlaid;
+    if (cached != null && identical(_overlaidFor, overrides)) return cached;
+    _overlaidFor = overrides;
+    return _overlaid = withOverrides(overrides);
+  }
+
+  /// The localization for [context]: the locale's bundles, with the active
+  /// company's Custom Labels over them when a `CompanyLabelsScope` is above
+  /// [context] (the app installs one around everything it shows). Depends on
+  /// that scope, so a label saved, synced or switched away rebuilds every
+  /// widget that read a string.
+  static Localization? of(BuildContext context) {
+    final base = Localizations.of<Localization>(context, Localization);
+    if (base == null) return null;
+    final labels = CompanyLabelsScope.labelsOf(context);
+    return labels == null ? base : base._overlay(labels);
+  }
 
   static const LocalizationsDelegate<Localization> delegate =
       _LocalizationDelegate();
@@ -199,7 +262,13 @@ class Localization {
     required Map<String, String> strings,
     Map<String, String>? fallback,
     Map<String, String>? pending,
-  }) => Localization._(strings, fallback: fallback, pending: pending);
+    Map<String, String>? overrides,
+  }) => Localization._(
+    strings,
+    fallback: fallback,
+    pending: pending,
+    overrides: overrides,
+  );
 }
 
 /// The value itself, or null when it's absent or blank — so a blank bundled
@@ -263,6 +332,11 @@ extension LocalizationContext on BuildContext {
   /// `Localization.of(context)!.lookup('save')`.
   String tr(String key, [Map<String, String>? params]) =>
       Localization.of(this)?.lookup(key, params) ?? key;
+
+  /// [tr] without the company's Custom Labels — see
+  /// [Localization.lookupBundled].
+  String trBundled(String key, [Map<String, String>? params]) =>
+      Localization.of(this)?.lookupBundled(key, params) ?? key;
 
   /// Optional shorthand: returns the localized string when the key is
   /// defined, or `null` when the bundle has no entry for it (the `lookup`

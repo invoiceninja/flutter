@@ -18,7 +18,7 @@ import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
-import 'package:admin/ui/features/reports/widgets/charts/report_bar_list.dart';
+import 'package:admin/ui/core/charts/bar_list.dart';
 import 'package:admin/ui/features/reports/widgets/charts/report_series_plot.dart';
 import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/utils/formatting.dart';
@@ -981,10 +981,10 @@ class _ChartBody extends StatelessWidget {
         );
       case ReportRankedChart():
         final max = model.maxValue;
-        return ReportBarList(
+        return BarList(
           items: [
             for (final item in model.items)
-              ReportBarListItem(
+              BarListItem(
                 label: item.isOther
                     ? context.tr('report_other_groups', {
                         'count': '${item.count}',
@@ -1048,10 +1048,10 @@ class _ChartBody extends StatelessWidget {
           Decimal.zero,
           (best, s) => s.total.abs() > best ? s.total.abs() : best,
         );
-        final legend = ReportBarList(
+        final legend = BarList(
           items: [
             for (final s in model.series)
-              ReportBarListItem(
+              BarListItem(
                 label: s.isOther
                     ? context.tr('report_other_groups', {'count': '${s.count}'})
                     : _groupLabel(s.key),

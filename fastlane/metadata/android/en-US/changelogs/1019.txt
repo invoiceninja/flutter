@@ -1,0 +1,6 @@
+- Reports rebuilt: charts, totals per currency, saved views, PDF / CSV export
+- Project analytics: forecast, burn-up, money, time and expense breakdowns
+- Custom fields on line items; bulk update for tasks, expenses and recurring invoices
+- Custom labels apply throughout the app
+- Smarter list search: finds records not loaded yet, understands "this month"
+- Compact list density and faster invoice editing

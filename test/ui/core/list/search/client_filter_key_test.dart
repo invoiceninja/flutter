@@ -1,4 +1,5 @@
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/clients_api.dart';
@@ -8,6 +9,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Verifies the shared `ClientFilterKey` round-trips ids through
@@ -174,4 +176,104 @@ void main() {
       expect(key.displayValueFor('c1'), 'c1');
     });
   });
+
+  group('a client the cache does not hold is found on the server', () {
+    late _SearchApi api;
+    late ClientRepository searchRepo;
+
+    setUp(() {
+      api = _SearchApi();
+      searchRepo = ClientRepository(db: db, api: api);
+    });
+
+    test(
+      'client:zed → the server is asked, and its hit is suggested',
+      () async {
+        final vm = await makeVm();
+        final key = ClientFilterKey(clients: searchRepo, companyId: 'co');
+        final rows = await key
+            .watchValueSuggestions(vm, _NoContext(), 'zed')
+            .first
+            .timeout(const Duration(seconds: 5));
+        expect(api.searches, ['zed']);
+        expect([for (final r in rows) r.rawValue], ['c9']);
+        expect(rows.single.displayLabel, 'Zed Corp');
+        vm.dispose();
+      },
+    );
+
+    test('a client already cached is suggested at once, and the server is '
+        'still asked for the ones it is not', () async {
+      final vm = await makeVm();
+      await searchRepo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        search: 'zed',
+      );
+      api.searches.clear();
+      final key = ClientFilterKey(clients: searchRepo, companyId: 'co');
+      final first = await key
+          .watchValueSuggestions(vm, _NoContext(), 'Zed')
+          .first
+          .timeout(const Duration(milliseconds: 100));
+      expect(
+        [for (final r in first) r.rawValue],
+        ['c9'],
+        reason: 'before the debounce: no wait for the network',
+      );
+      // A fresh subscription that lives past the debounce asks the server.
+      final sub = key
+          .watchValueSuggestions(vm, _NoContext(), 'Zed')
+          .listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await sub.cancel();
+      expect(api.searches, ['Zed']);
+      vm.dispose();
+    });
+  });
+}
+
+/// The server knows one client the cache has never seen; it answers any
+/// `?filter=` containing "zed" with it.
+class _SearchApi implements ClientsApi {
+  final searches = <String?>[];
+
+  @override
+  Future<({ClientListApi data, int? cursorUpdatedAt, String? cursorId})> list({
+    required int page,
+    int perPage = 50,
+    String? search,
+    int? sinceUpdatedAt,
+    String? sinceId,
+    Map<String, String> filters = const {},
+  }) async {
+    searches.add(search);
+    final hit = (search ?? '').toLowerCase().contains('zed');
+    return (
+      data: ClientListApi(
+        data: [
+          if (hit)
+            const ClientApi(
+              id: 'c9',
+              name: 'Zed Corp',
+              displayName: 'Zed Corp',
+              updatedAt: 1,
+            ),
+        ],
+      ),
+      cursorUpdatedAt: null,
+      cursorId: null,
+    );
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw StateError('Unexpected API call: ${invocation.memberName}');
+}
+
+/// `ClientFilterKey` never reads its context.
+class _NoContext implements BuildContext {
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw StateError('Unexpected context call: ${invocation.memberName}');
 }

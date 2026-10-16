@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/models/value/country.dart';
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -114,6 +117,7 @@ class LocalizationCustomLabelsBody extends StatelessWidget {
             // translations-count: after the user picks a label and we mutate
             // the map, the row remounts so the dropdown clears its visible
             // selection (which is no longer in `available`).
+            _Notes(host: host),
             _AddRow(
               key: ValueKey('add_row_${existingKeys.length}'),
               host: host,
@@ -123,28 +127,39 @@ class LocalizationCustomLabelsBody extends StatelessWidget {
             if (existingKeys.isEmpty)
               _EmptyState()
             else
-              for (final key in existingKeys)
+              for (final key in existingKeys) ...[
                 _TranslationRow(
                   key: ValueKey('translation_$key'),
                   translationKey: key,
                   displayLabel: _resolveLabel(context, key),
                   onRemove: () => _removeLabel(host, key),
                 ),
+                _RelatedLabels(
+                  key: ValueKey('related_$key'),
+                  translationKey: key,
+                  existing: translations.keys.toSet(),
+                  host: host,
+                ),
+              ],
           ],
         ),
       ],
     );
   }
 
+  /// The word this app ships for [key] — never the company's override of
+  /// it, which the app now applies everywhere: the row would otherwise be
+  /// labelled with the user's own wording, and say nothing about what it
+  /// replaces.
   static String _resolveLabel(BuildContext context, String key) {
     if (key.startsWith(_countryKeyPrefix)) {
       // i18n ships localized country names keyed by `country_<name>` — the same
       // shape the server / legacy app store. Localize it; if the active locale
       // lacks the entry, fall back to the bare name (without the prefix).
-      return context.trIfDefined(key) ??
-          key.substring(_countryKeyPrefix.length);
+      final bundled = context.trBundled(key);
+      return bundled != key ? bundled : key.substring(_countryKeyPrefix.length);
     }
-    return context.tr(key);
+    return context.trBundled(key);
   }
 }
 
@@ -176,7 +191,7 @@ class _AddRow extends StatelessWidget {
                 label: context.tr('add_label'),
                 items: available,
                 initialValue: null,
-                displayString: (k) => context.tr(k),
+                displayString: (k) => context.trBundled(k),
                 idOf: (k) => k,
                 onChanged: (k) {
                   if (k == null) return;
@@ -340,6 +355,118 @@ class _AddCountryDialogState extends State<_AddCountryDialog> {
           onPressed: () => Navigator.of(context).pop(_selected),
         ),
       ],
+    );
+  }
+}
+
+/// What a label does, said once above the rows.
+///
+/// - **One exact word.** Relabelling `invoice` leaves "Invoices" and "New
+///   Invoice" as they were — those are labels of their own — and someone who
+///   renamed Invoice to Bill would otherwise read "Invoices" everywhere and
+///   think the setting broken.
+/// - **Not in another language.** The app shows a company's labels only
+///   while it shows the company's language (`CompanyLabelOverrides`); with
+///   the app set to another one they still reach PDFs and emails, and the
+///   page says so rather than look ignored.
+/// - **At a client or group, PDFs and emails only.** The app's own strings
+///   follow the company.
+class _Notes extends StatelessWidget {
+  const _Notes({required this.host});
+
+  final SettingsDraftHost host;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink3);
+    final notes = <String>[
+      context.tr('custom_labels_exact_word'),
+      if (host.isCascadeScope)
+        context.tr('custom_labels_documents_only')
+      else if (_withheldForLanguage(context))
+        context.tr('custom_labels_other_language'),
+    ];
+    return Padding(
+      padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final note in notes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(note, style: style),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Read off the notifier behind `CompanyLabelsScope`, which made the
+  /// call — not recomputed here from the company's language and the device
+  /// setting, which would be a second copy of the rule.
+  static bool _withheldForLanguage(BuildContext context) {
+    final labels = CompanyLabelsScope.notifierOf(context);
+    return labels is CompanyLabelOverrides && labels.withheldForLanguage;
+  }
+}
+
+/// The labels a relabelled word is part of — `invoice` → Invoices, New
+/// Invoice, Invoice Number — offered one tap away, where the bundle has
+/// them and they are not relabelled already.
+class _RelatedLabels extends StatelessWidget {
+  const _RelatedLabels({
+    super.key,
+    required this.translationKey,
+    required this.existing,
+    required this.host,
+  });
+
+  final String translationKey;
+  final Set<String> existing;
+  final SettingsDraftHost host;
+
+  @override
+  Widget build(BuildContext context) {
+    final k = translationKey;
+    if (k.startsWith(_countryKeyPrefix)) return const SizedBox.shrink();
+    final related = [
+      for (final candidate in ['${k}s', 'new_$k', '${k}_number'])
+        if (!existing.contains(candidate) &&
+            context.trBundled(candidate) != candidate)
+          candidate,
+    ];
+    if (related.isEmpty) return const SizedBox.shrink();
+    final tokens = context.inTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: InSpacing.sm,
+        children: [
+          Text(
+            context.tr('also_relabel'),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.ink3),
+          ),
+          for (final r in related)
+            TextButton.icon(
+              // A compact row with a pointer; the full target on touch
+              // (CLAUDE.md § Touch targets are gated on the platform).
+              style: TextButton.styleFrom(
+                minimumSize: Size(
+                  0,
+                  Env.isTouchPrimary ? InSizes.touchTarget : 32,
+                ),
+              ),
+              onPressed: () => _addLabel(host, r),
+              icon: const Icon(Icons.add, size: 16),
+              label: Text(context.trBundled(r)),
+            ),
+        ],
+      ),
     );
   }
 }

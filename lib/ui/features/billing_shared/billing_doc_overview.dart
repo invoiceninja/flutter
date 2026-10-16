@@ -9,7 +9,6 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/billing/billing_doc_totals.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/core/adaptive.dart';
-import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -71,14 +70,13 @@ class BillingDocOverview extends StatefulWidget {
 class _BillingDocOverviewState extends State<BillingDocOverview> {
   /// Hoisted (not built in `build`) so the read-only tab doesn't resubscribe
   /// on every parent rebuild — the stable-stream rule. Feeds the surcharge
-  /// labels and the line-item header's Custom Labels.
+  /// labels and the line items' custom-field names.
   ///
-  /// Watched unconditionally. It used to be lazy — created only for a doc
-  /// carrying a surcharge — but the header's Custom Labels
-  /// (`settings.translations`) need the company on every doc
-  /// (invoiceninja/flutter#84), and a single-row Drift watch is cheap enough
-  /// that gating it isn't worth the divergence. The edit screen's
-  /// `LineItemEditor` already watches the company unconditionally.
+  /// Watched unconditionally: every doc's line items name their custom
+  /// fields from it, and a single-row Drift watch is cheap enough that gating
+  /// it isn't worth the divergence. The edit screen's `LineItemEditor`
+  /// already watches the company unconditionally. (The company's Custom
+  /// Labels reach the header through `context.tr` — `CompanyLabelsScope`.)
   Stream<Company?>? _company;
   Company? _seed;
 
@@ -86,9 +84,9 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
     if (_company != null) return;
     final services = context.read<Services>();
     final companyId = services.auth.currentCompanyId ?? '';
-    // First-frame seed: without it the surcharge rows appear late and the
-    // line-item column labels change under the user on every row click, since
-    // the detail pane re-mounts this per `:id`.
+    // First-frame seed: without it the surcharge rows and the custom-field
+    // columns appear late on every row click, since the detail pane re-mounts
+    // this per `:id`.
     _seed = services.company.peek(companyId: companyId, id: companyId);
     _company = services.company.watchCompany(companyId);
   }
@@ -138,7 +136,6 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
           formatter: formatter,
           currencyId: currencyId,
           discountIsAmount: totalsInput.isAmountDiscount,
-          labels: CompanyLabels.fromCompany(company),
           customFields: company?.customFields,
         ),
         SizedBox(height: gap),

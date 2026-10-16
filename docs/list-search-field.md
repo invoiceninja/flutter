@@ -121,6 +121,8 @@ Both header modes are one widget with both halves mounted (`IndexedStack`, which
 
 A typed prefix becomes the same pin the moment its colon lands (`adoptTypedPrefix`): `balance:` turns into the Balance chip over an empty box, keeping the caret's place in the value, and `status:pa` typed under a pinned Name hands the box to Status. Never while an input method is composing — Japanese and Chinese are bundled, and rewriting text under an open composition breaks it. Only a colon after a key's id or alias counts: `Net:30` under a custom field is its value.
 
+**Words in front of the key are the search** (`_trailingKey`): `acme status:` lifts `acme` into the search chip, beside any search chip already there, and pins Status. The whole `acme status` used to be read as a key name. It matched nothing, so the box live-searched the literal `acme status:`. The longest run of trailing words is tried first, joined as an id spells it (`due_date`) and with its space. Otherwise `acme due date:` would pin Date and lift "due". Not while a key is pinned: the box then holds that key's value, and `north status` typed under a custom field is a value with a space in it.
+
 When the menu closes, a half-typed value for a key that takes one (`[Name] ac`) stays with its pin, as `name:ac` always did; a pick-only key's query and a multi-select's leftover are debris, as before.
 
 ## A chip is armed, never focused
@@ -155,3 +157,22 @@ On the web neither path runs: ⌘/Ctrl+V and the context menu are the browser's 
 - **The menu offers the current periods first** (`DateColumnFilterKey.windowPresets`), then the last ones, then "Custom range": the menu shows about four rows before it scrolls, and paired as `This week, Last week, This month …` This month was below the fold. A due date (`lookAhead`) offers the next week and month instead of the last ones; only a column with a time of day (`hasTime`) offers "1 hour ago" — on a date column that matched nothing all day.
 - **The chip reads `Date · is · This month`**, its dates one hover away. Switching its comparator to a single date seeds the *resolved* first day, or "on or after the first of this month" would move every month under a chip that names a date.
 - **The range picker's presets roll too** (`pickDateRangeWindow` → `DateWindowPick`): "This month" used to come back as the dates it covered on the day it was picked, and "All time" as a fifty-year window; it now clears the filter.
+
+## A period can be typed, and is matched as it is typed
+
+**`date:this month` is the This month window, and `date:th` lists the periods it starts** (`DateColumnFilterKey.typedPresetMatches`, the menu's `_TypedPeriodRows`). Every keystroke of `this month` used to read "Not a date yet". A typed date still comes first: `today`, `yesterday` and anything `parseTypedDate` reads keep their comparator rows.
+
+- **What matches.** A period's name starting with the text (`this mo`), or for one word any word of it (`month` → This, Last and Next month). Both the active language's name and the English one count. A typed comparator (`>=th`) matches nothing: a period has none.
+- **Under a comparator already picked, the period is its bound.** "Is before" + `this month` is `lt:rel:m0s` (before the 1st), "is after" is `gt:rel:m0e`, the inclusive pair take the same bounds inclusively, and "is on" is the window. Committing the window instead silently dropped the comparator the user had just chosen.
+- **Every period, not only the key's menu.** A due date's menu offers Next month, but someone who types "last month" there means it. The key's own presets lead, in menu order. Each row shows the dates it covers today.
+- **By full name with no menu** (`typedPreset`, from `normalizeTypedValue`): Enter in the phone sheet and a pasted `date:"last quarter"` commit the same rolling window. The lexer still splits an unquoted `date:this month` on the space, since it reads no key's grammar, so a paste needs the quotes.
+
+## A record key asks the server for every query
+
+**`client:`, `vendor:` and `project:` show the local cache's matches at once and add the rows the server finds for the same text when it answers** (`namesWithServerSearch`, `server_name_suggestions.dart`). The cache holds only the pages someone has browsed. On a large account, `client:acme` answered "No values match" for a client that exists. Asking the server *only* when the cache had nothing was the first fix, and it left one cached "Acme Ltd" hiding every uncached "Acme Corp". So every settled query is asked.
+
+- **Only an empty first answer is held back**, until the server replies. The menu shows its loading row until a stream emits for the current query, so emitting the cache's `[]` first would flash "No values match" in front of a hit. Cached matches never wait. A failed fetch (offline) ends where the cache did.
+- **The server's hits are the rows its search matched**, not the rows whose name contains the text. `?filter=` also matches a number and a contact's name, email and phone. They are re-read through the repository's local search (`watchPage(search:)`), which mirrors that field set, and shown from the key's own names stream, so they keep its fallback, order and active-only rule.
+- **Debounced 280 ms and dropped with the query.** The menu resubscribes on every keystroke; cancelling cancels the pending fetch, so a fast typist sends one request and an older reply cannot paint over a newer query.
+
+The bundled lists (tags, groups, statuses, categories, languages) are always fully cached and keep the plain local filter. Pinned by `test/ui/core/list/search/server_name_suggestions_test.dart` and `client_filter_key_test.dart`.

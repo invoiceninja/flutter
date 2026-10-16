@@ -15,6 +15,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
 /// The purchase orders list's search-field filters.
@@ -213,18 +214,23 @@ class PurchaseOrderVendorFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
-    return vendors.watchActiveNames(companyId: companyId).map((all) {
-      final filtered = q.isEmpty
-          ? all.take(idleSuggestionCap!)
-          : all.where((v) => v.name.toLowerCase().contains(q));
-      return [
-        for (final v in filtered)
+    final idle = query.trim().isEmpty;
+    return namesWithServerSearch(
+      names: vendors.watchActiveNames(companyId: companyId),
+      query: query,
+      fetch: (q) =>
+          vendors.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      searchedIds: (q) => vendors
+          .watchPage(companyId: companyId, search: q)
+          .map((rows) => [for (final v in rows) v.id]),
+    ).map(
+      (rows) => [
+        for (final v in idle ? rows.take(idleSuggestionCap!) : rows)
           FilterValueSuggestion(
             rawValue: v.id,
             displayLabel: v.name.isEmpty ? v.id : v.name,
           ),
-      ];
-    });
+      ],
+    );
   }
 }

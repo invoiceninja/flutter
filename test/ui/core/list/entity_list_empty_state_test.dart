@@ -40,6 +40,22 @@ class _FakeVm implements GenericListViewModel<dynamic> {
   final Map<String, Set<String>> extraFilters;
 
   var cleared = false;
+  Set<EntityState>? statesSet;
+  var badgeModeCleared = false;
+
+  @override
+  String? get activeBadgeModeId {
+    final values = extraFilters['badge_mode'];
+    return (values == null || values.isEmpty) ? null : values.first;
+  }
+
+  @override
+  Future<void> setBadgeMode(String? modeId) async {
+    if (modeId == null) badgeModeCleared = true;
+  }
+
+  @override
+  Future<void> setStates(Set<EntityState> next) async => statesSet = next;
 
   /// Mirrors the base implementation closely enough for this widget:
   /// `{active}` is "no state filter". (`{}` used to be folded in with it;
@@ -168,8 +184,81 @@ void main() {
     final vm = _FakeVm(search: 'acme');
     await pump(tester, vm);
     expect(find.text('NO MATCHES'), findsOneWidget);
-    await tester.tap(find.byType(OutlinedButton));
+    await tester.tap(find.text('Clear Filters'));
     expect(vm.cleared, isTrue);
+  });
+
+  group('the no-match branch offers the narrowing it can undo', () {
+    testWidgets('Show archived adds archived and keeps the search', (
+      tester,
+    ) async {
+      final vm = _FakeVm(search: 'acme');
+      await pump(tester, vm);
+      await tester.tap(find.text('Show archived'));
+      expect(vm.statesSet, {EntityState.active, EntityState.archived});
+      expect(vm.cleared, isFalse);
+    });
+
+    testWidgets('Show archived is not offered once archived is shown', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _FakeVm(
+          states: const {EntityState.active, EntityState.archived},
+          search: 'acme',
+        ),
+      );
+      expect(find.text('Show archived'), findsNothing);
+      expect(find.text('Clear Filters'), findsOneWidget);
+    });
+
+    testWidgets('All statuses drops only the status tab', (tester) async {
+      final vm = _FakeVm(
+        search: 'acme',
+        extraFilters: const {
+          'badge_mode': {'overdue'},
+        },
+      );
+      await pump(tester, vm);
+      await tester.tap(find.text('All statuses'));
+      expect(vm.badgeModeCleared, isTrue);
+      expect(vm.cleared, isFalse);
+    });
+
+    testWidgets('All statuses hides when the tab is the only narrowing — '
+        'Clear filters does the same then', (tester) async {
+      await pump(
+        tester,
+        _FakeVm(
+          extraFilters: const {
+            'badge_mode': {'overdue'},
+          },
+        ),
+      );
+      expect(find.text('All statuses'), findsNothing);
+      expect(find.text('Clear Filters'), findsOneWidget);
+    });
+
+    testWidgets('three actions wrap at phone width instead of overflowing', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(
+        tester,
+        _FakeVm(
+          search: 'acme',
+          extraFilters: const {
+            'badge_mode': {'overdue'},
+          },
+        ),
+      );
+      expect(find.text('All statuses'), findsOneWidget);
+      expect(find.text('Show archived'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('extraNarrowing — a filter the base ViewModel cannot see', () {

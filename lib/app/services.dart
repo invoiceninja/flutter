@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/app/accent_color_controller.dart';
 import 'package:admin/app/app_locale_resolver.dart';
+import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
@@ -328,6 +329,7 @@ class Services implements SidebarBadgeContext {
     required this.listDensity,
     required this.keyboardShortcuts,
     required this.appLocale,
+    required this.companyLabels,
     required this.confirmActions,
     required this.statusTabs,
     required this.hideUnverifiedUsers,
@@ -660,6 +662,12 @@ class Services implements SidebarBadgeContext {
   /// The locale `MaterialApp.locale` actually binds to — resolves the device
   /// override over the active company's `settings.language_id` (React parity).
   final AppLocaleResolver appLocale;
+
+  /// The active company's Custom Labels as the app's strings read them —
+  /// carried to `Localization.of` by the `CompanyLabelsScope` in `main.dart`.
+  /// A `CompanyLabelOverrides` in the app; typed by what its readers need, so
+  /// a test double is a plain `ValueNotifier`.
+  final ValueListenable<Map<String, String>> companyLabels;
 
   /// Device-local "Confirm actions" preference — when on, risky entity actions
   /// (Approve, Mark Sent, Cancel, Archive, Delete, …) prompt "Are you sure?"
@@ -1822,6 +1830,12 @@ class Services implements SidebarBadgeContext {
       statics: statics,
       db: db,
     );
+    final companyLabels = CompanyLabelOverrides(
+      auth: auth,
+      company: companyRepo,
+      appLocale: appLocale,
+      statics: statics,
+    );
     final confirmActions = ConfirmActionsController(prefs: devicePrefs);
     final statusTabs = StatusTabsController(prefs: devicePrefs);
     final hideUnverifiedUsers = HideUnverifiedUsersController(
@@ -2146,6 +2160,7 @@ class Services implements SidebarBadgeContext {
       listDensity: listDensity,
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
+      companyLabels: companyLabels,
       confirmActions: confirmActions,
       statusTabs: statusTabs,
       hideUnverifiedUsers: hideUnverifiedUsers,

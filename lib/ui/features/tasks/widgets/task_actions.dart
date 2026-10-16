@@ -818,7 +818,8 @@ class TaskActions {
         .watchAll(companyId: companyId)
         .first;
     if (!context.mounted) return null;
-    String? keyOf(String name) => builtInTaskStatusKey(name, tr: context.tr);
+    String? keyOf(String name) =>
+        builtInTaskStatusKey(name, tr: context.trBundled);
 
     if (task.statusId.isNotEmpty) {
       TaskStatus? current;

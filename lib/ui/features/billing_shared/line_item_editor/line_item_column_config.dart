@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/company.dart';
-import 'package:admin/ui/core/utils/company_labels.dart';
 
 /// Which optional columns the [LineItemEditor] shows. Driven from the
 /// active company's settings; built once per edit-screen mount.
@@ -17,7 +16,6 @@ class LineItemColumnConfig {
     this.taxColumnCount = 1,
     this.showDiscount = false,
     this.useTaxCategories = false,
-    this.labels = const CompanyLabels.empty(),
     this.isTaskTable = false,
   });
 
@@ -44,11 +42,6 @@ class LineItemColumnConfig {
   /// `taxColumnCount` is ignored in favor of a single category cell.
   final bool useTaxCategories;
 
-  /// The company's Custom Labels, applied to the column headers. Empty until
-  /// [forCompany] fills it in, so a header always has the bundled string to
-  /// fall back on.
-  final CompanyLabels labels;
-
   /// The table holds hourly (`type_id` 2) lines — the Tasks tab of
   /// `BillingDocItemsTabs`. Only the words change: [labelKey] renames Item /
   /// Unit Cost / Quantity to Service / Rate / Hours, the columns admin-portal
@@ -57,8 +50,9 @@ class LineItemColumnConfig {
 
   /// The label key to show for the column / field named [key]. A task table
   /// swaps the three product words for their hourly counterparts; every other
-  /// key passes through. Resolve the result through [labels], so a company's
-  /// Custom Label for `service` / `rate` / `hours` wins, as it does on the PDF.
+  /// key passes through. Resolve the result through `context.tr`, so a
+  /// company's Custom Label for `service` / `rate` / `hours` wins, as it does
+  /// on the PDF (`CompanyLabelsScope`).
   String labelKey(String key) {
     if (!isTaskTable) return key;
     return switch (key) {
@@ -86,11 +80,6 @@ class LineItemColumnConfig {
   /// still got Tax Name 1 / Tax Rate 1 on every row
   /// (invoiceninja/flutter#85). Clamped to the three slots the editor renders.
   ///
-  /// Also the point where the company's Custom Labels
-  /// (`settings.translations`) reach the headers — the server, React and
-  /// admin-portal all honor them and this app was storing them without ever
-  /// reading them back (invoiceninja/flutter#84).
-  ///
   /// And where the custom fields arrive: `product1..4`, or `task1..4` for a
   /// task table, the labels React and admin-portal use for the same columns.
   LineItemColumnConfig forCompany(Company? company) => company == null
@@ -98,7 +87,6 @@ class LineItemColumnConfig {
       : copyWith(
           showDiscount: showDiscount && company.enableProductDiscount,
           taxColumnCount: company.enabledItemTaxRates.clamp(0, 3),
-          labels: CompanyLabels.fromCompany(company),
           customFields: lineItemCustomFields(
             company.customFields,
             task: isTaskTable,
@@ -115,7 +103,6 @@ class LineItemColumnConfig {
       other.taxColumnCount == taxColumnCount &&
       other.showDiscount == showDiscount &&
       other.useTaxCategories == useTaxCategories &&
-      other.labels == labels &&
       other.isTaskTable == isTaskTable;
 
   @override
@@ -124,7 +111,6 @@ class LineItemColumnConfig {
     taxColumnCount,
     showDiscount,
     useTaxCategories,
-    labels,
     isTaskTable,
   );
 
@@ -133,14 +119,12 @@ class LineItemColumnConfig {
     int? taxColumnCount,
     bool? showDiscount,
     bool? useTaxCategories,
-    CompanyLabels? labels,
     bool? isTaskTable,
   }) => LineItemColumnConfig(
     customFields: customFields ?? this.customFields,
     taxColumnCount: taxColumnCount ?? this.taxColumnCount,
     showDiscount: showDiscount ?? this.showDiscount,
     useTaxCategories: useTaxCategories ?? this.useTaxCategories,
-    labels: labels ?? this.labels,
     isTaskTable: isTaskTable ?? this.isTaskTable,
   );
 }

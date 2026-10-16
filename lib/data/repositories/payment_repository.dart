@@ -199,7 +199,11 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // `PaymentFilters` has no `date()` comparison, only the base
+    // `date_range` — see `singleDatesAsServerWindows`.
+    extraFilters: singleDatesAsServerWindows(extraFilters, const {
+      'date': 'date_range',
+    }, now: now()),
     ignoreCursor: ignoreCursor,
     excludeDeletedClients: true,
     staticFilters: const {'include': 'client,invoices,paymentables,documents'},

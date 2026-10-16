@@ -36,6 +36,7 @@ class ProjectBurnup {
     required this.series,
     this.taskEstimatedHours = 0,
     this.unestimatedTaskCount = 0,
+    this.canViewFinancials = true,
   });
 
   final Date? startDate;
@@ -65,26 +66,44 @@ class ProjectBurnup {
 
   final List<ProjectBurnupPoint> series;
 
+  /// `metadata.can_view_financials` — false strips every money series from
+  /// the rows and the budget amount from the markers. Missing reads as true,
+  /// as for `ProjectAnalytics.canViewFinancials`.
+  final bool canViewFinancials;
+
   bool get isEmpty => series.isEmpty;
 
-  /// True when either **plotted** money series carries a non-zero value — the
-  /// signal to offer the money view at all. A time-only project would otherwise
-  /// render a flat zero line.
-  ///
-  /// Deliberately excludes `cumulativeExpenseAmount`: the chart draws invoiced
-  /// (primary) and paid (secondary), never expenses. Counting it here sent a
-  /// project with spend but nothing invoiced into the money view, where both
-  /// lines sit at zero under an "Invoiced / Paid" legend and the hours data it
-  /// does have is hidden.
-  bool get hasMoneySeries => series.any(
-    (p) =>
-        p.cumulativeInvoicedAmount != Decimal.zero ||
-        p.cumulativePaidToDate != Decimal.zero,
-  );
+  /// Whether any money line has something to draw — the signal to offer the
+  /// money view at all. A time-only project would otherwise get a switch to
+  /// a page of flat zero lines. See [hasBillingSeries] for which view the
+  /// chart opens on.
+  bool get hasMoneySeries =>
+      canViewFinancials &&
+      series.any(
+        (p) =>
+            p.cumulativeInvoicedAmount != Decimal.zero ||
+            p.cumulativePaidToDate != Decimal.zero ||
+            p.cumulativeTaskValue != Decimal.zero ||
+            p.cumulativeExpenseAmount != Decimal.zero,
+      );
+
+  /// Whether anything has been invoiced or paid — the money view's default
+  /// lines. Only then does the chart OPEN on money; a project with spend but
+  /// nothing billed opens on its hours, with money one switch away, instead
+  /// of on two flat zero lines.
+  bool get hasBillingSeries =>
+      canViewFinancials &&
+      series.any(
+        (p) =>
+            p.cumulativeInvoicedAmount != Decimal.zero ||
+            p.cumulativePaidToDate != Decimal.zero,
+      );
 
   static ProjectBurnup fromJson(Map<String, dynamic> json) {
     final project = _asMap(json['project']);
     final markers = _asMap(json['markers']);
+    final meta = _asMap(json['metadata']);
+    final canView = meta['can_view_financials'];
     final rawSeries = json['series'];
     return ProjectBurnup(
       startDate: Date.tryParse(json['start_date']?.toString() ?? ''),
@@ -108,9 +127,9 @@ class ProjectBurnup {
       taskEstimatedHours: _double(
         markers['task_estimated_hours'] ?? project['task_estimated_hours'],
       ),
-      unestimatedTaskCount: _int(
-        _asMap(json['metadata'])['unestimated_task_count'],
-      ),
+      unestimatedTaskCount: _int(meta['unestimated_task_count']),
+      canViewFinancials:
+          canView == null || const {'true', '1'}.contains('$canView'),
     );
   }
 }
@@ -130,6 +149,8 @@ class ProjectBurnupPoint {
     required this.cumulativeExpenseAmount,
     required this.idealHours,
     required this.idealAmount,
+    this.cumulativeNetInvoiced,
+    this.cumulativeNetPaid,
   });
 
   final Date? periodEnd;
@@ -146,8 +167,19 @@ class ProjectBurnupPoint {
   final double idealHours;
   final Decimal idealAmount;
 
+  /// Invoiced / paid minus expenses, running. Null on a server that does not
+  /// send them — a missing series is not a zero one.
+  final Decimal? cumulativeNetInvoiced;
+  final Decimal? cumulativeNetPaid;
+
   static ProjectBurnupPoint fromJson(Map<String, dynamic> j) =>
       ProjectBurnupPoint(
+        cumulativeNetInvoiced: j.containsKey('cumulative_net_invoiced_amount')
+            ? _money(j['cumulative_net_invoiced_amount'])
+            : null,
+        cumulativeNetPaid: j.containsKey('cumulative_net_paid_amount')
+            ? _money(j['cumulative_net_paid_amount'])
+            : null,
         periodEnd: Date.tryParse(j['period_end']?.toString() ?? ''),
         cumulativeLoggedHours: _double(j['cumulative_logged_hours']),
         cumulativeBillableHours: _double(j['cumulative_billable_hours']),

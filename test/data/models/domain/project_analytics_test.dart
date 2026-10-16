@@ -6,16 +6,13 @@ import 'package:admin/data/models/domain/project/project_burnup.dart';
 import 'package:admin/data/models/value/date.dart';
 
 /// Decoder tests for the two per-project chart payloads
-/// (`charts/project_analytics/{id}`, `charts/project_burnup/{id}`, both added
-/// server-side 2026-06-30).
+/// (`charts/project_analytics/{id}`, `charts/project_burnup/{id}`, server
+/// 5.13.27+).
 ///
-/// These matter more than usual: the endpoints **404 on `demo.invoiceninja.com`**
-/// (verified 2026-07-24 — the demo host runs an older build than
-/// `v5-develop`), so the shapes below are transcribed from the server source
-/// (`ProjectAnalyticsService::generate` / `ProjectBurnUpService::buildResponse`)
-/// rather than captured from a live response. The decoders are therefore
-/// written to be tolerant, and these tests pin that tolerance: a renamed or
-/// missing block must degrade to a hidden card, never an exception.
+/// The shapes are transcribed from the server source
+/// (`ProjectAnalyticsService::generate` / `ProjectBurnUpService::buildResponse`).
+/// The decoders are tolerant, and these tests pin that tolerance: a renamed
+/// or missing block must degrade to a hidden section, never an exception.
 void main() {
   group('ProjectAnalytics — server-shaped payload', () {
     // Transcribed from ProjectAnalyticsService: every block is a LIST of
@@ -77,19 +74,125 @@ void main() {
       ],
       'project_health': [
         {
-          'health_score': 72,
-          'health_status': 'at_risk',
-          'indicators': ['over_budget', 'past_due'],
+          'health_score': 72.5,
+          'health_status': 'amber',
+          'indicators': {
+            'budget_utilization': 0.3125,
+            'schedule_variance_days': -4,
+            'margin_ratio': 0.5833,
+            'unbilled_ratio': 0.4,
+            'outstanding_ratio': 0.3333,
+          },
         },
       ],
-      'metadata': {'project_count': 1, 'include_drafts': false},
+      'forecast_completion': [
+        {
+          'average_daily_velocity': 2.5,
+          'remaining_hours': 27.5,
+          'forecast_finish_date': '2026-10-27',
+          'due_date': '2026-09-30',
+          'schedule_variance_days': -27,
+        },
+      ],
+      'timeline_variance': [
+        {
+          'completion_percentage': 31.25,
+          'ideal_progress_percentage': 55.5,
+          'schedule_variance_days': -27,
+        },
+      ],
+      'estimated_vs_logged_hours': [
+        {
+          'estimated_hours': 40.0,
+          'logged_hours': 12.5,
+          'billable_hours': 10.0,
+          'remaining_hours': 27.5,
+        },
+      ],
+      'unbilled_hours': [
+        {
+          'unbilled_hours': 4.0,
+          'unbilled_amount': 400.0,
+          'uninvoiced_tasks': 3,
+          'currency_id': '1',
+        },
+      ],
+      'team_contribution': [
+        {
+          'project_id': 'abc',
+          'team_contribution': [
+            {
+              'user_id': 'u1',
+              'user_name': 'Ada',
+              'logged_hours': 8.0,
+              'billable_hours': 7.0,
+              'billable_value': 700.0,
+              'task_count': 2,
+            },
+          ],
+        },
+      ],
+      'time_distribution': [
+        {
+          'time_distribution': [
+            {
+              'task_id': 't1',
+              'task_number': '0007',
+              'description': 'Design',
+              'status_name': 'Done',
+              'logged_hours': 5.5,
+              'billable_hours': 5.0,
+              'billable_value': 550.0,
+              'is_completed': true,
+              'is_invoiced': false,
+            },
+          ],
+        },
+      ],
+      'velocity_trend': [
+        {
+          'velocity_trend': [
+            {'period': '2026-08-03', 'hours': 3.0, 'billable_hours': 2.0},
+            {'period': 'not a date', 'hours': 1.0},
+          ],
+        },
+      ],
+      'expense_breakdown': [
+        {
+          'expense_breakdown': [
+            {
+              'category_id': null,
+              'category_name': 'Uncategorized',
+              'expense_count': 1,
+              'expense_amount': 250.0,
+            },
+          ],
+        },
+      ],
+      'cumulative_spend': [
+        {
+          'cumulative_spend': [
+            {
+              'period': '2026-08-03',
+              'cumulative_labor_value': 300.0,
+              'cumulative_expense_amount': 250.0,
+              'cumulative_actual_amount': 550.0,
+            },
+          ],
+        },
+      ],
+      'metadata': {
+        'project_count': 1,
+        'include_drafts': true,
+        'can_view_financials': true,
+      },
     };
 
     test('flattens each single-row block', () {
       final a = ProjectAnalytics.fromJson(payload);
 
-      expect(a.isEmpty, isFalse);
       expect(a.budgetSummary!.budgetedHours, 40.0);
+      expect(a.budgetSummary!.taskRate, Decimal.parse('100'));
       expect(a.budgetSummary!.currentHours, 12.5);
       expect(a.budgetSummary!.budgetedAmount, Decimal.parse('4000'));
       expect(a.budgetSummary!.totalTasks, 6);
@@ -99,9 +202,68 @@ void main() {
       expect(a.invoiceProgress!.workValue, Decimal.parse('1000'));
       expect(a.invoiceProgress!.paidProgress, closeTo(0.6667, 1e-9));
       expect(a.profitability!.netMargin, Decimal.parse('350'));
-      expect(a.health!.score, 72);
-      expect(a.health!.status, 'at_risk');
-      expect(a.health!.indicators, ['over_budget', 'past_due']);
+      expect(a.health!.score, 72.5);
+      expect(a.health!.status, ProjectHealthStatus.fair);
+      expect(a.health!.scheduleVarianceDays, -4);
+      expect(a.health!.unbilledRatio, 0.4);
+      expect(a.forecast!.forecastFinishDate, const Date(2026, 10, 27));
+      expect(a.forecast!.scheduleVarianceDays, -27);
+      expect(a.forecast!.averageDailyVelocity, 2.5);
+      expect(a.timeline!.idealProgressPercentage, 55.5);
+      expect(
+        a.hours!.budgetedHours,
+        40.0,
+        reason:
+            'the wire calls it '
+            'estimated_hours, and it is the BUDGET',
+      );
+      expect(a.hours!.billableHours, 10.0);
+      expect(a.unbilled!.amount, Decimal.parse('400'));
+      expect(a.includeDrafts, isTrue);
+      expect(a.canViewFinancials, isTrue);
+    });
+
+    test('the series blocks nest their rows one level down', () {
+      final a = ProjectAnalytics.fromJson(payload);
+      expect(a.team.single.userName, 'Ada');
+      expect(a.team.single.billableValue, Decimal.parse('700'));
+      expect(a.tasks.single.number, '0007');
+      expect(a.tasks.single.isCompleted, isTrue);
+      expect(
+        a.velocity.map((d) => d.day),
+        [const Date(2026, 8, 3)],
+        reason: 'a row with no readable date is dropped',
+      );
+      expect(a.expenseCategories.single.categoryId, isNull);
+      expect(a.cumulativeSpend.single.total, Decimal.parse('550'));
+    });
+
+    test('health statuses are the server\'s colours', () {
+      expect(ProjectHealthStatus.parse('green'), ProjectHealthStatus.good);
+      expect(ProjectHealthStatus.parse('amber'), ProjectHealthStatus.fair);
+      expect(ProjectHealthStatus.parse('red'), ProjectHealthStatus.poor);
+      expect(ProjectHealthStatus.parse('at_risk'), ProjectHealthStatus.unknown);
+    });
+
+    test('a user who may not see the money gets the forecast alone', () {
+      final a = ProjectAnalytics.fromJson({
+        'budget_summary': <Object>[],
+        'forecast_completion': payload['forecast_completion'],
+        'project_health': <Object>[],
+        'metadata': {'can_view_financials': false},
+      });
+      expect(a.canViewFinancials, isFalse);
+      expect(a.forecast, isNotNull);
+      expect(a.budgetSummary, isNull);
+      expect(a.health, isNull);
+    });
+
+    test('no metadata (a 5.13.27 server) reads as may see the money', () {
+      expect(
+        ProjectAnalytics.fromJson(const {}).canViewFinancials,
+        isTrue,
+        reason: 'that server gates the whole endpoint on view_dashboard',
+      );
     });
 
     test('money decodes to Decimal, never double', () {
@@ -112,19 +274,22 @@ void main() {
   });
 
   group('ProjectAnalytics — degrades instead of throwing', () {
-    test('empty object yields an all-null, isEmpty result', () {
+    test('empty object yields an all-null result', () {
       final a = ProjectAnalytics.fromJson(<String, dynamic>{});
-      expect(a.isEmpty, isTrue);
       expect(a.budgetSummary, isNull);
       expect(a.health, isNull);
+      expect(a.team, isEmpty);
     });
 
     test('empty lists are treated as absent blocks', () {
       final a = ProjectAnalytics.fromJson({
         'budget_summary': <Object>[],
         'project_health': <Object>[],
+        'team_contribution': <Object>[],
       });
-      expect(a.isEmpty, isTrue);
+      expect(a.budgetSummary, isNull);
+      expect(a.health, isNull);
+      expect(a.team, isEmpty);
     });
 
     test('a block that is not a list is ignored', () {
@@ -164,31 +329,14 @@ void main() {
       expect(a.profitability!.netMargin, Decimal.zero);
     });
 
-    test('health indicators sent as a keyed map flatten to active reasons', () {
-      // The server type is loose here, so accept both shapes; a false flag is
-      // not an active reason and must not become a bullet.
+    test('a health row with no indicators reads as unknowns, not zeros', () {
       final a = ProjectAnalytics.fromJson({
         'project_health': [
-          {
-            'health_score': 40,
-            'indicators': {'over_budget': true, 'past_due': false},
-          },
+          {'health_score': 40},
         ],
       });
-      expect(a.health!.indicators, ['over_budget']);
-    });
-
-    test('health indicators of nested objects prefer a label field', () {
-      final a = ProjectAnalytics.fromJson({
-        'project_health': [
-          {
-            'indicators': [
-              {'label': 'Over budget', 'severity': 'high'},
-            ],
-          },
-        ],
-      });
-      expect(a.health!.indicators, ['Over budget']);
+      expect(a.health!.status, ProjectHealthStatus.unknown);
+      expect(a.health!.scheduleVarianceDays, isNull);
     });
   });
 
@@ -270,11 +418,11 @@ void main() {
       expect(b.series.single.cumulativeLoggedHours, 5.0);
     });
 
-    test('hasMoneySeries ignores expenses — they are not a plotted series', () {
-      // The chart plots cumulative INVOICED and PAID. Counting expenses here
-      // flips a project with spend but nothing invoiced into the money view,
-      // where both series are flat zero and the hours data it does have is
-      // hidden — exactly the case this flag exists to avoid.
+    test('spend with nothing billed offers money but does not open on it', () {
+      // The money view's default lines are invoiced and paid. Opening a
+      // project with spend but nothing invoiced on them showed two flat zero
+      // lines and hid the hours it does have; its expense line is one switch
+      // away instead.
       final b = ProjectBurnup.fromJson({
         'series': [
           {
@@ -285,7 +433,28 @@ void main() {
         ],
       });
       expect(b.series.single.cumulativeExpenseAmount, Decimal.parse('2400'));
+      expect(b.hasMoneySeries, isTrue);
+      expect(b.hasBillingSeries, isFalse);
+    });
+
+    test('a user who may not see the money has no money view', () {
+      final b = ProjectBurnup.fromJson({
+        ...payload,
+        'metadata': {'can_view_financials': false},
+      });
       expect(b.hasMoneySeries, isFalse);
+      expect(b.hasBillingSeries, isFalse);
+    });
+
+    test('net series are null on a server that does not send them', () {
+      final b = ProjectBurnup.fromJson(payload);
+      expect(b.series.first.cumulativeNetInvoiced, isNull);
+      final withNet = ProjectBurnup.fromJson({
+        'series': [
+          {'period_end': '2026-01-31', 'cumulative_net_invoiced_amount': 250.0},
+        ],
+      });
+      expect(withNet.series.single.cumulativeNetInvoiced, Decimal.parse('250'));
     });
 
     test('falls back to project.* when markers is absent', () {
@@ -338,7 +507,6 @@ void main() {
       expect(e.remainingEstimatedHours, 30.0);
       expect(e.unestimatedTasks, 3);
       expect(e.tasksOverEstimate, 1);
-      expect(a.isEmpty, isFalse);
     });
 
     test('nothing estimated, or an older server, is no card at all', () {

@@ -993,8 +993,7 @@ class _ColumnHeader extends StatelessWidget {
     );
     // `labelKey` first: a task table reads Service / Rate / Hours, and a
     // company's Custom Label for THAT word is the one that applies.
-    String label(String key) =>
-        config.labels.resolve(context, config.labelKey(key));
+    String label(String key) => context.tr(config.labelKey(key));
     Widget cell(
       String label, {
       int flex = 1,
@@ -1025,8 +1024,7 @@ class _ColumnHeader extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: _kDragColWidth),
-          // Headers resolve the company's Custom Labels before the bundled
-          // string — see `LineItemColumnConfig.labels`.
+          // `context.tr` puts the company's Custom Labels first.
           cell(label('item'), flex: 3),
           cell(label('description'), flex: 3),
           // The company's own words, verbatim — not a translation key and not

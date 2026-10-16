@@ -1,11 +1,14 @@
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
+import 'package:admin/data/models/api/payment_api_model.dart';
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/models/api/vendor_api_model.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
+import 'package:admin/data/repositories/payment_repository.dart';
 import 'package:admin/data/repositories/purchase_order_repository.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/data/services/expenses_api.dart';
+import 'package:admin/data/services/payments_api.dart';
 import 'package:admin/data/services/purchase_orders_api.dart';
 import 'package:admin/data/services/vendors_api.dart';
 import 'package:drift/native.dart';
@@ -297,6 +300,86 @@ void main() {
       expect(api.calls.single['date_range'], 'date,2026-10-05,2026-10-05');
     });
   });
+
+  group('payments', () {
+    late _Payments api;
+    late PaymentRepository repo;
+
+    setUp(() async {
+      api = _Payments([
+        const PaymentApi(id: 'm1', date: '2026-10-05', updatedAt: 1),
+        const PaymentApi(id: 'm2', date: '2026-07-05', updatedAt: 2),
+      ]);
+      repo = PaymentRepository(db: db, api: api, now: () => _now);
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+      api.calls.clear();
+    });
+
+    Future<List<String>> local(Map<String, Set<String>> extra) async {
+      final rows = await repo
+          .watchPage(companyId: 'co', extraFilters: extra)
+          .first;
+      return [for (final r in rows) r.id]..sort();
+    }
+
+    test('a single-date comparator goes to the server as a window', () async {
+      // `PaymentFilters` has no `date()` comparison: sent as is it was
+      // skipped, so the list stripped it and filtered locally only.
+      expect(
+        await local(const {
+          'date': {'gte:2026-09-01'},
+        }),
+        ['m1'],
+      );
+      await repo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        extraFilters: const {
+          'date': {'gte:2026-09-01'},
+        },
+      );
+      final filters = api.calls.single;
+      expect(filters.containsKey('date'), isFalse);
+      expect(filters['date_range'], 'date,2026-09-01,9999-12-31');
+    });
+
+    test('a rolling window resolves on the wire', () async {
+      await repo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        extraFilters: const {
+          'date_range': {'date,rel:m0s,rel:m0e'},
+        },
+      );
+      expect(api.calls.single['date_range'], 'date,2026-10-01,2026-10-31');
+    });
+  });
+}
+
+class _Payments implements PaymentsApi {
+  _Payments(this.rows);
+  final List<PaymentApi> rows;
+  final List<Map<String, String>> calls = [];
+
+  @override
+  Future<({PaymentListApi data, int? cursorUpdatedAt, String? cursorId})> list({
+    required int page,
+    int perPage = 50,
+    String? search,
+    int? sinceUpdatedAt,
+    String? sinceId,
+    Map<String, String> filters = const {},
+  }) async {
+    calls.add(filters);
+    return (
+      data: PaymentListApi(data: page == 1 ? rows : const []),
+      cursorUpdatedAt: null,
+      cursorId: null,
+    );
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
 class _Pos implements PurchaseOrdersApi {

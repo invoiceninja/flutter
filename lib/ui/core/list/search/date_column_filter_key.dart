@@ -225,6 +225,64 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     );
   }
 
+  static String _normalLabel(String s) =>
+      s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  /// The rolling periods [typed] names — `date:this month` — matched as the
+  /// user types: the name starts with it (`this mo`), or, for one word, one
+  /// of the name's words does (`month` → This month, Last month, Next month).
+  /// Both the active language's name and the English one count, so `last`
+  /// works in any locale.
+  ///
+  /// Every period, not only this key's [windowPresets]: a due date offers
+  /// "Next month" in its menu, but someone who types "last month" there
+  /// means it. This key's own presets lead, in menu order.
+  ///
+  /// Empty for nothing typed and for a typed comparator (`>=th…` is a single
+  /// date being written, and a period has no comparator).
+  List<RollingDatePreset> typedPresetMatches(
+    BuildContext context,
+    String typed,
+  ) {
+    if (splitTypedOperator(typed).op != null) return const [];
+    final t = _normalLabel(typed);
+    if (t.isEmpty) return const [];
+    final english = Localization.of(context);
+    bool matches(String label) {
+      final l = _normalLabel(label);
+      if (l.isEmpty) return false;
+      if (l.startsWith(t)) return true;
+      return !t.contains(' ') && l.split(' ').any((w) => w.startsWith(t));
+    }
+
+    return [
+      for (final p in [
+        ...windowPresets,
+        for (final p in RollingDatePreset.values)
+          if (!windowPresets.contains(p)) p,
+      ])
+        if (matches(context.tr(p.labelKey)) ||
+            matches(english?.englishOf(p.labelKey) ?? ''))
+          p,
+    ];
+  }
+
+  /// The period [typed] names in full (`this month`, `Diesen Monat`), for a
+  /// commit that has no menu to pick from — Enter in the entry sheet, a
+  /// pasted `date:"last quarter"`.
+  RollingDatePreset? typedPreset(BuildContext context, String typed) {
+    final t = _normalLabel(typed);
+    if (t.isEmpty) return null;
+    final english = Localization.of(context);
+    for (final p in RollingDatePreset.values) {
+      if (_normalLabel(context.tr(p.labelKey)) == t ||
+          _normalLabel(english?.englishOf(p.labelKey) ?? '') == t) {
+        return p;
+      }
+    }
+    return null;
+  }
+
   /// The company's date pattern, for [parseTypedDate] — so `14/5/2026` reads
   /// the way the rest of the app shows dates to this user.
   String? activeDatePattern(
@@ -250,6 +308,10 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     if (parsed != null) {
       if (windowOnly) return canonicalWindow(parsed.value, parsed.value);
       return buildWire(parsed.value, parsed.op ?? defaultOp);
+    }
+    final preset = typedPreset(context, typed);
+    if (preset != null) {
+      return presetWindowFor(context, _formatterOrNull(vm, context), preset);
     }
     if (isWindowWire(typed)) {
       final (start, end) = parseWindow(typed);

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -26,6 +27,7 @@ import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/tax_rate_repository.dart';
 import 'package:admin/data/services/invoices_api.dart';
 import 'package:admin/domain/entity_state.dart';
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_editor.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
@@ -225,6 +227,12 @@ void main() {
           theme: buildInTheme(InTheme.light),
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
+          // As `main.dart` does: the company's Custom Labels over every
+          // string, here straight from the fake repo's company.
+          builder: (context, child) => CompanyLabelsScope(
+            labels: ValueNotifier(companyLabelOverrides(repo.current)),
+            child: child!,
+          ),
           home: Scaffold(
             body: SizedBox(
               width: width,

@@ -744,18 +744,40 @@ class TokenSearchController {
   /// rewrite happens once it is committed. The caret keeps its place in the
   /// value. Returns true when it rewrote the box — the host's text listener
   /// then returns at once, as the write notifies it again.
+  ///
+  /// **Words in front of the key are the search** (`acme status:`): they are
+  /// lifted into the search chip, beside any search chip already there, and
+  /// the key is pinned as if `status:` had been typed alone. The whole
+  /// `acme status` used to be read as the key's name, match nothing, and stay
+  /// a search for the literal `acme status:`. See [_trailingKey].
   bool adoptTypedPrefix() {
     final value = text.value;
     if (value.composing.isValid && !value.composing.isCollapsed) return false;
     final input = value.text;
     final colon = input.indexOf(':');
     if (colon < 0) return false;
-    final key = typedPrefixKey();
-    if (key == null) return false;
+    var key = typedPrefixKey();
+    var lifted = '';
+    if (key == null) {
+      final trailing = _trailingKey(input.substring(0, colon));
+      if (trailing == null) return false;
+      key = trailing.key;
+      lifted = trailing.free;
+    }
     final rest = input.substring(colon + 1);
     final caret = value.selection.isValid
         ? value.selection.extentOffset
         : input.length;
+    if (lifted.isNotEmpty) {
+      // Before the box is written, so the host's text listener sees the chip
+      // and the pin and leaves the search alone.
+      final term = [
+        if (_searchInChip) searchChipTerm ?? '',
+        lifted,
+      ].where((t) => t.isNotEmpty).join(' ');
+      _searchInChip = true;
+      writeSearch(term, immediate: true);
+    }
     _pinnedValueKey = key;
     _pinnedFromChip = false;
     _editing = null;
@@ -768,6 +790,33 @@ class TokenSearchController {
     );
     pinRevision.value++;
     return true;
+  }
+
+  /// The key named by the LAST words before a colon, and the words in front
+  /// of it — `acme due date` → Due Date and `acme`. The longest run of
+  /// trailing words is tried first, joined as a key id spells it (`due_date`)
+  /// and with its space, so `due date:` reaches Due Date and never Date with
+  /// "due" lifted into the search.
+  ///
+  /// Not while a key is pinned: the box then holds that key's value, and
+  /// `north status` typed under a custom field is a value with a space in it.
+  ({FilterKey key, String free})? _trailingKey(String prefix) {
+    if (_pinnedValueKey != null) return null;
+    final words = prefix.trim().split(RegExp(r'\s+'));
+    if (words.length < 2) return null;
+    for (var n = words.length - 1; n >= 1; n--) {
+      final tail = words.sublist(words.length - n);
+      final spellings = {
+        tail.join('_').toLowerCase(),
+        tail.join(' ').toLowerCase(),
+      };
+      for (final k in typeableKeys) {
+        if (spellings.contains(k.id) || k.aliases.any(spellings.contains)) {
+          return (key: k, free: words.sublist(0, words.length - n).join(' '));
+        }
+      }
+    }
+    return null;
   }
 
   /// Invalidate the cached parse. Call from text listeners when the input

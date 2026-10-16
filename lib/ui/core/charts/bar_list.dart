@@ -4,9 +4,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
 
-/// One line of a [ReportBarList], ready to draw.
-class ReportBarListItem {
-  const ReportBarListItem({
+/// One line of a [BarList], ready to draw.
+class BarListItem {
+  const BarListItem({
     required this.label,
     required this.valueText,
     required this.fraction,
@@ -57,11 +57,11 @@ class ReportBarListItem {
 /// **One colour for every bar.** The groups have no order of their own, so
 /// shading them by size would spend the only free channel re-saying what the
 /// bar's length already says. Colour appears only when the lines are the
-/// series of a chart next to the list ([ReportBarListItem.color]).
-class ReportBarList extends StatelessWidget {
-  const ReportBarList({super.key, required this.items, this.barColor});
+/// series of a chart next to the list ([BarListItem.color]).
+class BarList extends StatelessWidget {
+  const BarList({super.key, required this.items, this.barColor});
 
-  final List<ReportBarListItem> items;
+  final List<BarListItem> items;
 
   /// The bars' colour when an item names none.
   final Color? barColor;
@@ -101,7 +101,7 @@ class _Line extends StatelessWidget {
     required this.barColor,
   });
 
-  final ReportBarListItem item;
+  final BarListItem item;
   final double labelWidth;
   final Color barColor;
 

@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/models/api/bank_transaction_api_model.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -126,7 +127,11 @@ class BankTransactionRepository
     pageSize: pageSize,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // `BankTransactionFilters` has no `date()` comparison, only the base
+    // `date_range` — see `singleDatesAsServerWindows`.
+    extraFilters: singleDatesAsServerWindows(extraFilters, const {
+      'date': 'date_range',
+    }, now: now()),
     // Default to active-banks filter so transactions tied to archived
     // bank integrations don't pollute the list. Clear by passing
     // `extraFilters: {'active_banks': {}}` if you ever need them.

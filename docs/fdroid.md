@@ -479,8 +479,10 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
       report gallery (dark). Each screen appears once, and two are dark to show the theme.
     - The demo account's products and task titles are lorem ipsum, so the product and task lists
       are left out. The task board keeps its lorem titles, because the board is the point.
-  - **Not yet written:** changelogs (`changelogs/<versionCode>.txt`, three per release with
-    split APKs).
+  - **Changelogs:** `changelogs/<versionCode>.txt`, three identical files per release, one per
+    split APK's code (`1xxx`, `2xxx`, `4xxx`). Plain text, under F-Droid's 500-byte cap: a
+    digest of that release's notes. They must be in the tagged commit, since F-Droid reads them
+    from the tag. First written for 5.1.16 (`1019` / `2019` / `4019`).
 
 Decisions (2026-10):
 

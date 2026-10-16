@@ -18,6 +18,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
 /// Tasks expose state (active/archived/deleted) as their built-in
@@ -216,19 +217,24 @@ class ProjectFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
-    return projects.watchActiveNames(companyId: companyId).map((all) {
-      final filtered = q.isEmpty
-          ? all.take(idleSuggestionCap!)
-          : all.where((p) => p.name.toLowerCase().contains(q));
-      return [
-        for (final p in filtered)
+    final idle = query.trim().isEmpty;
+    return namesWithServerSearch(
+      names: projects.watchActiveNames(companyId: companyId),
+      query: query,
+      fetch: (q) =>
+          projects.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      searchedIds: (q) => projects
+          .watchPage(companyId: companyId, search: q)
+          .map((rows) => [for (final p in rows) p.id]),
+    ).map(
+      (rows) => [
+        for (final p in idle ? rows.take(idleSuggestionCap!) : rows)
           FilterValueSuggestion(
             rawValue: p.id,
             displayLabel: p.name.isEmpty ? p.id : p.name,
           ),
-      ];
-    });
+      ],
+    );
   }
 
   /// Release the names-cache subscription when the filter key is replaced

@@ -95,11 +95,12 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     // Slot names match the FilterKey serverKeys in transaction_filter_keys.dart.
     final baseTypes = extraFilters['base_type'];
     // Date filter mirror: the `between` window (`date_range` slot) and the
-    // single-date comparator (`date` slot). The transactions `date` filter is
-    // not backed server-side (no `date()` handler), so the local mirror is what
-    // makes it work; the range also narrows the server fetch via `date_range`.
-    final dateRange = parseDateRangeFilter(extraFilters);
-    final dateCmp = parseComparableDateFilter(extraFilters, 'date');
+    // single-date comparator (`date` slot), each also sent to the server as a
+    // `date_range` window (the repository's `singleDatesAsServerWindows`).
+    // Rolling bounds resolve against this list's clock.
+    final today = now();
+    final dateRange = parseDateRangeFilter(extraFilters, now: today);
+    final dateCmp = parseComparableDateFilter(extraFilters, 'date', now: today);
     return repo
         .watchPage(
           badgeModeId: activeBadgeModeId,
@@ -190,27 +191,10 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
       if (keyword != null) clientStatus.add(keyword);
     }
     if (clientStatus.isNotEmpty) out['client_status'] = clientStatus;
-    // The single-date `date` comparator has no server handler (only `date_range`
-    // is honored); it's applied locally via the watchPage mirror. Drop it so we
-    // don't send a param the server silently ignores. `date_range` stays.
-    out.remove('date');
+    // The single-date `date` comparator stays: the repository turns it into
+    // the `date_range` window the server does honor.
     return out;
   }
-
-  /// `date` is filtered locally (see above), so a page the DAO predicate guts
-  /// down must auto-chain the next one — otherwise the list dead-ends on a
-  /// false "No records found". Verbatim the override
-  /// `PaymentListViewModel` carries for the identical situation with the
-  /// identical param.
-  ///
-  /// Worse here without it: with `date` stripped there is often no other
-  /// filter left, so `isNarrowedFetch` is false and page 1 applies the delta
-  /// cursor — on a warm session that returns almost nothing, and there is no
-  /// scroll extent for the load-more trigger to fire from.
-  @override
-  bool get localOnlyFilterActive =>
-      super.localOnlyFilterActive ||
-      (extraFilters['date']?.isNotEmpty ?? false);
 
   static String? _statusKeyword(String statusId) {
     if (statusId == kTransactionStatusUnmatched) return 'unmatched';

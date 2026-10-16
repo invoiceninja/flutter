@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
@@ -113,6 +115,43 @@ class ProjectDetailTabs extends StatelessWidget {
   /// keep asking about, and watching for, an id that no longer exists.
   static Widget _scoped(String projectId, Widget list) =>
       KeyedSubtree(key: ValueKey<String>(projectId), child: list);
+
+  /// Whether this server answers the Analytics tab for this user, on this
+  /// project. The record's standing card asks too: its budget verdict links
+  /// to the tab only when the tab is there.
+  ///
+  /// Never for an unsynced project: the endpoints are keyed by the server
+  /// id, and a `tmp_` id can only 404.
+  ///
+  /// The endpoints arrived in 5.13.27, both gated on `view_dashboard`; from
+  /// 5.13.28 they answer anyone who can view the project, and say through
+  /// `metadata.can_view_financials` how much of it they may see. So: no tab
+  /// before 5.13.27, the old gate on it, and everyone after. Hosted runs
+  /// current code (`ServerFeatures.supports`).
+  static bool analyticsOffered(
+    Services services,
+    AuthCompany? me,
+    String projectId,
+  ) {
+    if (projectId.startsWith('tmp_')) return false;
+    final version = services.serverVersion.value;
+    final hosted = services.auth.session.value?.isHosted ?? false;
+    if (!ServerFeatures.supports(
+      version,
+      ServerFeatures.projectAnalytics,
+      isHosted: hosted,
+    )) {
+      return false;
+    }
+    if (ServerFeatures.supports(
+      version,
+      ServerFeatures.projectAnalyticsForEveryone,
+      isHosted: hosted,
+    )) {
+      return true;
+    }
+    return me?.can('view_dashboard') ?? false;
+  }
 
   Widget _tabs(BuildContext context) {
     final services = context.read<Services>();
@@ -225,21 +264,15 @@ class ProjectDetailTabs extends StatelessWidget {
           formatter: formatter,
           readOnly: readOnly,
         ),
-        // Server-computed analytics + burn-up. Gated on `view_dashboard`
-        // because that's what both chart endpoints authorize against
-        // (`ShowProjectAnalyticsRequest::authorize`) — without the gate a
-        // restricted user would get a tab that can only 403. Also hidden for
-        // an unsynced project: the endpoints are keyed by the server id, and
-        // a `tmp_` id can only 404.
-        if ((me?.can('view_dashboard') ?? false) &&
-            !projectId.startsWith('tmp_'))
+        // Server-computed analytics + burn-up — see [analyticsOffered].
+        if (analyticsOffered(services, me, projectId))
           EntityDetailTab(
             id: DetailTabIds.analytics,
             label: context.tr('analytics'),
             icon: Icons.insights_outlined,
             bodyBuilder: (_) => _scoped(
               projectId,
-              ProjectAnalyticsTab(projectId: projectId, formatter: formatter),
+              ProjectAnalyticsTab(project: project, formatter: formatter),
             ),
           ),
       ],

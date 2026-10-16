@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
@@ -17,10 +18,10 @@ import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
-import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
@@ -165,12 +166,18 @@ void main() {
     ) async {
       await pump(
         tester,
-        LineItemsReadonlyTable(
-          items: [_item()],
-          formatter: _usdFormatter(),
-          currencyId: '1',
-          labels: CompanyLabels.fromCompany(
-            _companyWithLabels(const {'unit_cost': 'Unit Price'}),
+        // The app's own route: `main.dart` installs the scope over every
+        // screen, fed by `CompanyLabelOverrides`.
+        CompanyLabelsScope(
+          labels: ValueNotifier(
+            companyLabelOverrides(
+              _companyWithLabels(const {'unit_cost': 'Unit Price'}),
+            ),
+          ),
+          child: LineItemsReadonlyTable(
+            items: [_item()],
+            formatter: _usdFormatter(),
+            currencyId: '1',
           ),
         ),
       );
@@ -189,12 +196,18 @@ void main() {
       // server coerces nulls to ''. Neither may blank the column header.
       await pump(
         tester,
-        LineItemsReadonlyTable(
-          items: [_item()],
-          formatter: _usdFormatter(),
-          currencyId: '1',
-          labels: CompanyLabels.fromCompany(
-            _companyWithLabels(const {'unit_cost': '', 'item': '   '}),
+        // The app's own route: `main.dart` installs the scope over every
+        // screen, fed by `CompanyLabelOverrides`.
+        CompanyLabelsScope(
+          labels: ValueNotifier(
+            companyLabelOverrides(
+              _companyWithLabels(const {'unit_cost': '', 'item': '   '}),
+            ),
+          ),
+          child: LineItemsReadonlyTable(
+            items: [_item()],
+            formatter: _usdFormatter(),
+            currencyId: '1',
           ),
         ),
       );
@@ -356,36 +369,6 @@ void main() {
       final pane = await totalsAt(448);
       expect(pane.width, 360);
       expect(pane.left, 88);
-    });
-
-    testWidgets('resolves the header Custom Labels off the watched company', (
-      tester,
-    ) async {
-      // The screen-level proof for invoiceninja/flutter#84: the app stored
-      // `settings.translations` and never read it back, so a company that had
-      // renamed the column still saw "Unit Cost" everywhere but the PDF.
-      await pump(
-        tester,
-        SingleChildScrollView(
-          child: BillingDocOverview(
-            totalsInput: BillingTotalsInput(
-              lineItems: [_item()],
-              discount: Decimal.zero,
-              isAmountDiscount: false,
-              usesInclusiveTaxes: false,
-            ),
-            precision: 2,
-            balance: Decimal.parse('100'),
-            formatter: _usdFormatter(),
-            currencyId: '1',
-          ),
-        ),
-        company: _companyWithLabels(const {'unit_cost': 'Unit Price'}),
-      );
-      await tester.pump();
-
-      expect(find.text('Unit Price'), findsOneWidget);
-      expect(find.text('Unit Cost'), findsNothing);
     });
 
     testWidgets('names line custom values from the watched company', (

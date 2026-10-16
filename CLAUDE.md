@@ -647,7 +647,7 @@ The block designer (`invoice_design/wysiwyg/`) is a picture of what the server p
 - Files in the zip are PHP arrays (`textsphp-<locale>.php`).
 - `tools/import_transifex_zip.dart <zip>` parses those PHP files for locales in `kSupportedLocales` and writes `assets/i18n/<locale>.json`.
 - Workflow per release: download zip → run the importer → commit the changed JSONs.
-- Runtime: `Localization` loads the active locale's JSON from `rootBundle`. English is always loaded as a fallback. There is **no** server fetch and **no** override table — the bundle is the only source.
+- Runtime: `Localization` loads the active locale's JSON from `rootBundle`. English is always loaded as a fallback. There is **no** server fetch; the one override is the company's Custom Labels (`CompanyLabelsScope`) → `docs/translated-string-rendering.md`.
 - Adding a locale = (a) add it to `kSupportedLocales`, (b) re-run the importer.
 - **The upstream PHP is HTML-escaped — the importer decodes entities (`decodeHtmlEntities`: a single pass, and the app's one entity decoder), don't bypass it.** → `docs/translated-string-rendering.md` § The upstream PHP is HTML-escaped — the importer decodes entities
 - **`_app_pending.json` can only *add* a key, never override one — an entry whose key has a non-blank `en.json` value is dead, so a deliberate rewording takes a distinct name (`*_label` / `*_short` / `*_detailed`).** → `docs/translated-string-rendering.md` § `_app_pending.json` can only add a key, never override one

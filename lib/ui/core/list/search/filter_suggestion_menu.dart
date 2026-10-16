@@ -5,6 +5,10 @@ import 'package:flutter/scheduler.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart'
+    show resolveRelativeDateToken;
+import 'package:admin/data/models/value/relative_date_token.dart'
+    show RollingDatePreset;
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
@@ -1186,6 +1190,24 @@ class _ValueListState extends State<_ValueList> {
                         onPickExclusive: widget.onPickExclusive,
                       );
                     }
+                    // Not a date, but the start of a period's name (`th`,
+                    // `last mo`): those periods, as the user types. Without
+                    // this every keystroke of `this month` read "not a date".
+                    final periods = filterKey.typedPresetMatches(
+                      context,
+                      query,
+                    );
+                    if (periods.isNotEmpty) {
+                      return _TypedPeriodRows(
+                        vm: vm,
+                        filterKey: filterKey,
+                        periods: periods,
+                        chosenOp: _chosen,
+                        controller: controller,
+                        stamp: widget.stamp,
+                        onPickExclusive: widget.onPickExclusive,
+                      );
+                    }
                   }
                   // Comparable DATE keys get the relative-preset +
                   // absolute-date value picker (with comparator rows
@@ -1762,6 +1784,122 @@ class _TypedDateRows extends StatelessWidget {
               child: _OperatorRow(
                 label: filterOpPhrase(context, ops[i], FilterValueType.date),
                 value: display,
+                onTap: actions[i],
+                theme: theme,
+                ink: tokens.ink,
+                muted: tokens.ink3,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The rolling periods whose name the user is typing after `<date key>:` —
+/// `th` lists This week, This month … — each with the dates it covers today.
+/// The first is pre-selected, so `date:this month` + Enter applies the
+/// window, rolling, exactly as picking This month from the list does.
+///
+/// **Under a comparator already picked, the period is its bound.** "Is
+/// before" + `this month` is before the 1st (`lt:rel:m0s`), "is after" is
+/// after the last day (`gt:rel:m0e`), and the inclusive pair take the same
+/// bound inclusively. Committing the window instead dropped the comparator
+/// the user chose. "Is on" a period is the period itself.
+class _TypedPeriodRows extends StatelessWidget {
+  const _TypedPeriodRows({
+    required this.vm,
+    required this.filterKey,
+    required this.periods,
+    required this.chosenOp,
+    required this.controller,
+    required this.stamp,
+    required this.onPickExclusive,
+  });
+
+  final GenericListViewModel<dynamic> vm;
+  final DateColumnFilterKey filterKey;
+  final List<RollingDatePreset> periods;
+
+  /// The comparator picked in the preset list's first step, if any.
+  final FilterOp? chosenOp;
+  final FilterSuggestionController controller;
+  final Object? stamp;
+  final void Function(FilterKey key, FilterValueSuggestion value)
+  onPickExclusive;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final theme = Theme.of(context);
+    final formatter = filterFormatterOrNull(vm, context);
+    String dateText(String bound) {
+      final iso = resolveRelativeDateToken(bound) ?? bound;
+      final formatted = formatter?.date(iso) ?? '';
+      return formatted.isEmpty ? iso : formatted;
+    }
+
+    final op = filterKey.windowOnly ? null : chosenOp;
+    final rows = [
+      for (final preset in periods)
+        () {
+          final window = filterKey.presetWindowFor(context, formatter, preset);
+          final (start, end) = filterKey.parseWindow(window);
+          final bound = switch (op) {
+            FilterOp.lt || FilterOp.gte => start,
+            FilterOp.gt || FilterOp.lte => end,
+            _ => null,
+          };
+          final label = context.tr(preset.labelKey);
+          if (bound != null) {
+            return (
+              label: label,
+              value:
+                  '${filterOpPhrase(context, op!, FilterValueType.date)} '
+                  '${dateText(bound)}',
+              wire: filterKey.buildWire(bound, op),
+              name: preset.name,
+            );
+          }
+          final from = resolveRelativeDateToken(start) ?? start;
+          final to = resolveRelativeDateToken(end) ?? end;
+          final formatted = formatter?.dateRange(from, to) ?? '';
+          return (
+            label: label,
+            value: formatted.isEmpty ? '$from – $to' : formatted,
+            wire: window,
+            name: preset.name,
+          );
+        }(),
+    ];
+    final actions = <VoidCallback>[
+      for (final r in rows)
+        () => onPickExclusive(
+          filterKey,
+          FilterValueSuggestion(rawValue: r.wire, displayLabel: r.label),
+        ),
+    ];
+    _scheduleRowPublish(
+      controller,
+      actions,
+      [for (final r in rows) 'period:${r.name}|${op?.name ?? ''}'],
+      stamp: stamp,
+      preselect: 0,
+    );
+    return _MenuScroll(
+      controller: controller,
+      builder: (scroll) => ListView(
+        controller: scroll,
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [
+          for (var i = 0; i < rows.length; i++)
+            _Highlightable(
+              controller: controller,
+              index: i,
+              child: _OperatorRow(
+                label: rows[i].label,
+                value: rows[i].value,
                 onTap: actions[i],
                 theme: theme,
                 ink: tokens.ink,

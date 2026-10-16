@@ -131,6 +131,13 @@ class _FakeServices implements Services {
   final HideUnverifiedUsersController hideUnverifiedUsers =
       HideUnverifiedUsersController(prefs: DevicePrefsStore(null));
 
+  // Read by `wrapWithShell`, which installs the company's Custom Labels as
+  // `main.dart` does. This company has none.
+  @override
+  final ValueNotifier<Map<String, String>> companyLabels = ValueNotifier(
+    const {},
+  );
+
   @override
   dynamic noSuchMethod(Invocation i) =>
       throw UnimplementedError(i.memberName.toString());

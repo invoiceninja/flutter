@@ -13,7 +13,7 @@ class AppVersion {
   AppVersion._();
 
   /// Sent as `X-CLIENT-VERSION` on every request.
-  static const String kClientVersion = '5.1.15';
+  static const String kClientVersion = '5.1.16';
 
   /// The minimum Invoice Ninja server version this client can talk to.
   ///
@@ -109,6 +109,16 @@ class ServerFeatures {
   /// `GET /tasks?activity_dates=start,end` — tasks with a time entry in the
   /// range, not just those that *start* in it (React #3378).
   static const String taskActivityDates = '5.13.43';
+
+  /// `POST /charts/project_analytics/{id}` and `/charts/project_burnup/{id}`
+  /// (`0f649ea6dc`). Before it, the project's Analytics tab has nothing to ask.
+  static const String projectAnalytics = '5.13.27';
+
+  /// The two chart endpoints open to anyone who can view the project, with
+  /// `metadata.can_view_financials` saying how much they may see
+  /// (`401fc79bb6`). On 5.13.27 both still demanded `view_dashboard`, so the
+  /// tab keeps that gate there.
+  static const String projectAnalyticsForEveryone = '5.13.28';
 
   /// Whether the server has the feature that shipped in [since]: always on
   /// hosted ([isHosted] — see the class doc), else whether [serverVersion]

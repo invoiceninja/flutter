@@ -68,10 +68,10 @@ const kCustomLabelKeys = <String>[
 ];
 
 /// Localization "Custom Labels" tab — field labels surfaced by the in-app
-/// search. Just the section heading: the search-hit handler routes by section
-/// and doesn't carry a tab slug, so per-key matches would land on the wrong
-/// tab (Settings) instead of Custom Labels. If we later thread a `tabSlug`
-/// through `SettingsSearchHit`, spread `kCustomLabelKeys` here too.
+/// search. Just the heading. [kCustomLabelKeys] stays out on purpose: those
+/// are words the user *may* relabel (Amount, Address 1, …), not fields on this
+/// page, and listing them would put a Custom Labels row under every search
+/// for an ordinary word.
 const kLocalizationCustomLabelsSearchKeys = <String>['custom_labels'];
 
 const String _countryKeyPrefix = 'country_';

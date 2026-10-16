@@ -1664,6 +1664,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 |---|---|---|---|---|---|
 | Global search / command palette | ✅ | ✅ | ✅ | ✅ | |
 | Settings search | ✅ | ✅ | ✅ | ✅ | |
+| Settings search opens the tab holding the field, then scrolls to it and flashes it | 🟡 | 🟡 | ✅ | | |
+| Settings search finds sections by name and by keyword ("smtp", "2fa"), ranks prefix matches first, matches English labels in any locale | 🟡 | — | ✅ | | |
+| Settings search from the keyboard — `/` opens it, ↑/↓ select, Enter opens, Esc closes | — | — | ✅ | | |
 | Settings — Learn more link to each section's user-guide page | ✅ | — | ✅ | | |
 | Dark mode / light mode toggle | ✅ | ✅ | ✅ | ✅ | |
 | Sidebar footer theme quick-switch (light/dark/system + settings shortcut) | — | — | ✅ | | |

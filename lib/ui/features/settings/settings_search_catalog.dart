@@ -7,9 +7,18 @@ export 'package:admin/domain/plan_gate.dart'
     show kProGatedSettings, kEnterpriseGatedSettings;
 
 import 'package:admin/data/models/domain/enabled_modules.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart';
+import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
+import 'package:admin/ui/features/settings/views/advanced/generated_numbers/bodies/settings_body.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/bodies/general_settings_body.dart';
+import 'package:admin/ui/features/settings/views/advanced/tags_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/danger_zone_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/quickbooks_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/backup_restore/widgets/backup_tab.dart';
+import 'package:admin/ui/features/settings/views/basic/backup_restore/widgets/restore_tab.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/address_screen.dart';
 import 'package:admin/ui/features/transaction_rules/views/transaction_rule_list_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_screen.dart';
@@ -60,17 +69,17 @@ import 'package:admin/ui/features/payment_links/views/payment_link_edit_screen.d
 import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
 
-/// Single source of truth for the settings sidebar layout and the in-app
-/// settings search. `SettingsListSidebar` reads `kSettingsSections` to render
-/// its tiles; `searchSettings` walks `kSettingsSearchCatalog` to surface
-/// individual fields.
-///
-/// **Colocation pattern (preferred):** the per-screen search key lists live
-/// next to the screens themselves (e.g. `kCompanyDetailsAddressSearchKeys` in
-/// `address_screen.dart`). The catalog entry is then a spread of those
-/// constants. Editing a field and forgetting to update keys now requires
-/// editing the same file. Sections backed by placeholder screens keep their
-/// keys inline below until the real screens land.
+// Single source of truth for the settings sidebar layout and the in-app
+// settings search. `SettingsListSidebar` reads `kSettingsSections` to render
+// its tiles; `searchSettings` walks `kSettingsSearchCatalog` to surface
+// sections, tabs and individual fields.
+//
+// **Colocation pattern (preferred):** the per-screen search key lists live
+// next to the screens themselves (e.g. `kCompanyDetailsAddressSearchKeys` in
+// `address_screen.dart`), and each catalog tab is that constant. Editing a
+// field and forgetting to update keys now requires editing the same file. A
+// few tabs whose screens never grew a list keep their keys inline below.
+
 /// The public user guide.
 const String kDocsBaseUrl = 'https://invoiceninja.github.io/docs';
 
@@ -423,279 +432,990 @@ final Map<String, SettingsSectionDef> kSettingsSectionsBySlug = {
 // `package:admin/domain/plan_gate.dart` (single source of truth) and are
 // re-exported from this library (see the `export` directive above).
 
-/// Searchable fields per section. Keys are section slugs from
-/// `kSettingsSections`. Values are localization keys (the same keys you pass
-/// to `context.tr(...)` when rendering the field's label).
+/// One tab of a settings section — or the whole page, for a section with no
+/// tabs — and the field labels search can find on it.
+///
+/// [path] is the route below the section (`'address'` →
+/// `/settings/company_details/address`; `''` is the section's own page, which
+/// every tabbed shell treats as its first tab). The shells already select a tab
+/// from that URL (`tabbedSettingsRoutePair`), so a hit lands on the tab that
+/// holds the field instead of the section's first page. `settings_search_route_test`
+/// resolves every one of these through the real router.
+///
+/// The gates mirror what the shell itself hides. A shell falls back to its
+/// first tab for a hidden slug, so an ungated hit for a hidden tab would open
+/// the wrong page — not crash, but a lie the user has to notice.
+class SettingsSearchTab {
+  const SettingsSearchTab(
+    this.path,
+    this.keys, {
+    this.titleKey,
+    this.enabledBy,
+    this.clientEditable = true,
+    this.hostedOnly = false,
+  });
+
+  /// Route below the section; `''` for the section's own page.
+  final String path;
+
+  /// Localization keys of the labels rendered on this tab. Spread the screen's
+  /// colocated `kFooSearchKeys` constant rather than retyping keys here —
+  /// `search_catalog_consistency_test` scans the screen's source for each one.
+  final List<String> keys;
+
+  /// The tab's own label, shown as "Section › Tab" under a hit and searchable
+  /// in its own right. Null for a section with a single page.
+  final String? titleKey;
+
+  /// Modules that keep the tab visible; `null` ⇒ always. Same `any` rule as
+  /// [SettingsSectionDef.enabledBy].
+  final List<EnabledModule>? enabledBy;
+
+  /// False for a tab the shell renders only at company scope.
+  final bool clientEditable;
+
+  /// True for a tab the shell renders only on the hosted platform.
+  final bool hostedOnly;
+
+  bool isVisibleFor(int enabledModules) {
+    final gates = enabledBy;
+    if (gates == null || gates.isEmpty) return true;
+    return gates.any((m) => isModuleEnabled(enabledModules, m));
+  }
+}
+
+/// Labels shared by every per-entity Generated Numbers tab. Listed on each tab
+/// so a hit never names a tab the company has switched off; search collapses
+/// the repeats into one row that opens the first visible tab.
+const _kGeneratedNumbersEntityKeys = <String>[
+  'number_pattern',
+  'number_counter',
+];
+
+/// Searchable fields per section, tab by tab. Keys are section slugs from
+/// `kSettingsSections`; values are localization keys (the same keys you pass to
+/// `context.tr(...)` when rendering the field's label).
 ///
 /// **Keep this in sync** when you add or rename fields on a settings screen —
-/// it's the only way search will surface them.
-const kSettingsSearchCatalog = <String, List<String>>{
+/// it's the only way search will surface them. A key listed on more than one
+/// tab of a section is shown once and opens the first visible tab.
+const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
   'company_details': [
-    ...kCompanyDetailsDetailsSearchKeys,
-    ...kCompanyDetailsAddressSearchKeys,
-    ...kCompanyDetailsLogoSearchKeys,
-    ...kCompanyDetailsDefaultsSearchKeys,
-    ...kCompanyDetailsDocumentsSearchKeys,
+    SettingsSearchTab(
+      '',
+      kCompanyDetailsDetailsSearchKeys,
+      titleKey: 'details',
+    ),
+    SettingsSearchTab(
+      'address',
+      kCompanyDetailsAddressSearchKeys,
+      titleKey: 'address',
+    ),
+    SettingsSearchTab('logo', kCompanyDetailsLogoSearchKeys, titleKey: 'logo'),
+    SettingsSearchTab(
+      'defaults',
+      kCompanyDetailsDefaultsSearchKeys,
+      titleKey: 'defaults',
+    ),
+    SettingsSearchTab(
+      'documents',
+      kCompanyDetailsDocumentsSearchKeys,
+      titleKey: 'documents',
+    ),
   ],
   'user_details': [
-    ...kUserDetailsDetailsSearchKeys,
-    ...kUserDetailsPasswordSearchKeys,
-    ...kUserDetailsConnectSearchKeys,
-    ...kUserDetailsTwoFactorSearchKeys,
-    ...kUserDetailsNotificationsSearchKeys,
-    ...kUserDetailsPreferencesSearchKeys,
+    SettingsSearchTab('', kUserDetailsDetailsSearchKeys, titleKey: 'details'),
+    SettingsSearchTab(
+      'password',
+      kUserDetailsPasswordSearchKeys,
+      titleKey: 'password',
+    ),
+    SettingsSearchTab(
+      'connect',
+      kUserDetailsConnectSearchKeys,
+      titleKey: 'oauth_mail',
+    ),
+    SettingsSearchTab(
+      'enable_two_factor',
+      kUserDetailsTwoFactorSearchKeys,
+      titleKey: 'enable_two_factor',
+    ),
+    SettingsSearchTab(
+      'notifications',
+      kUserDetailsNotificationsSearchKeys,
+      titleKey: 'notifications',
+    ),
+    SettingsSearchTab(
+      'preferences',
+      kUserDetailsPreferencesSearchKeys,
+      titleKey: 'preferences',
+    ),
   ],
   'localization': [
-    ...kLocalizationSettingsSearchKeys,
-    ...kLocalizationCustomLabelsSearchKeys,
+    SettingsSearchTab(
+      '',
+      kLocalizationSettingsSearchKeys,
+      titleKey: 'settings',
+    ),
+    // At group / client scope the shell drops its tabs and renders only the
+    // Settings body (`localization_shell.dart`).
+    SettingsSearchTab(
+      'custom_labels',
+      kLocalizationCustomLabelsSearchKeys,
+      titleKey: 'custom_labels',
+      clientEditable: false,
+    ),
   ],
+  // On a wide window the three tabs stack on one page and `:tab` is ignored,
+  // which the field reveal handles: it finds the label wherever it renders.
   'online_payments': [
-    ...kOnlinePaymentsGeneralSearchKeys,
-    ...kOnlinePaymentsDefaultsSearchKeys,
-    ...kOnlinePaymentsEmailsSearchKeys,
+    SettingsSearchTab(
+      '',
+      kOnlinePaymentsGeneralSearchKeys,
+      titleKey: 'settings',
+    ),
+    SettingsSearchTab(
+      'defaults',
+      kOnlinePaymentsDefaultsSearchKeys,
+      titleKey: 'defaults',
+    ),
+    SettingsSearchTab(
+      'emails',
+      kOnlinePaymentsEmailsSearchKeys,
+      titleKey: 'emails',
+    ),
   ],
-  'tax_settings': [...kTaxSettingsSearchKeys],
-  'product_settings': [...kProductSettingsSearchKeys],
-  'task_settings': [...kTaskSettingsSearchKeys],
-  'expense_settings': [...kExpenseSettingsSearchKeys],
+  'tax_settings': [SettingsSearchTab('', kTaxSettingsSearchKeys)],
+  'product_settings': [SettingsSearchTab('', kProductSettingsSearchKeys)],
+  'task_settings': [SettingsSearchTab('', kTaskSettingsSearchKeys)],
+  'tags': [SettingsSearchTab('', kTagsSearchKeys)],
+  'expense_settings': [SettingsSearchTab('', kExpenseSettingsSearchKeys)],
+  // With only Quotes on, the shell renders the Quotes body at the bare path
+  // and `/quotes` resolves to that same single page.
   'workflow_settings': [
-    ...kWorkflowSettingsInvoicesSearchKeys,
-    ...kWorkflowSettingsQuotesSearchKeys,
+    SettingsSearchTab(
+      '',
+      kWorkflowSettingsInvoicesSearchKeys,
+      titleKey: 'invoices',
+      enabledBy: [EnabledModule.invoices],
+    ),
+    SettingsSearchTab(
+      'quotes',
+      kWorkflowSettingsQuotesSearchKeys,
+      titleKey: 'quotes',
+      enabledBy: [EnabledModule.quotes],
+    ),
   ],
   'account_management': [
-    // Plan — spread from the screen's own constant rather than duplicated by
-    // hand, so `search_catalog_consistency_test` can hold the two ends
-    // together. (The remaining tabs below have no co-located list yet.)
-    ...kAccountManagementPlanSearchKeys,
-    // Overview
-    'account_id',
-    'email',
-    'set_default_company',
-    // Issue #104: the only searchable route to `auth.addCompany()`. The
-    // `CompanyPicker` sheet's row can never be one, and that sheet's entry
-    // point on a single-company mobile drawer is an unlabelled footer icon.
-    'new_company',
-    'activate_company',
-    'enable_pdf_markdown',
-    'enable_email_markdown',
-    'include_drafts',
-    'include_deleted',
-    // Modules tab (slug is still `enabled_modules`)
-    'modules',
-    // Integrations hub tiles + the Analytics screen's GA / Matomo fields, now
-    // reached via Account Management → Integrations → Analytics (the top-level
-    // Integrations section was removed to match React).
-    'api_tokens',
-    'api_webhooks',
-    'api_docs',
-    'analytics',
-    'google_analytics_tracking_id',
-    'matomo_id',
-    'matomo_url',
-    'quickbooks',
-    // Security
-    'password_timeout',
-    'web_session_timeout',
-    'require_password_with_social_login',
-    'end_all_sessions',
-    // Referral
-    'referral_program',
-    'referral_code',
-    // Danger zone
-    'purge_data',
-    'delete_company',
-    'cancel_account',
+    SettingsSearchTab('', kAccountManagementPlanSearchKeys, titleKey: 'plan'),
+    SettingsSearchTab('overview', [
+      'account_id',
+      'email',
+      'set_default_company',
+      // Issue #104: the only searchable route to `auth.addCompany()`. The
+      // `CompanyPicker` sheet's row can never be one, and that sheet's entry
+      // point on a single-company mobile drawer is an unlabelled footer icon.
+      'new_company',
+      'activate_company',
+      'enable_pdf_markdown',
+      'enable_email_markdown',
+      'include_drafts',
+      'include_deleted',
+    ], titleKey: 'overview'),
+    // Slug is still `enabled_modules`; the tab is labelled Modules.
+    SettingsSearchTab('enabled_modules', ['modules'], titleKey: 'modules'),
+    // The Integrations hub and the screens it opens — reached via Account
+    // Management → Integrations (the top-level Integrations section was
+    // removed to match React).
+    SettingsSearchTab('integrations', ['api_docs'], titleKey: 'integrations'),
+    SettingsSearchTab('integrations/api_tokens', [
+      'api_tokens',
+    ], titleKey: 'api_tokens'),
+    SettingsSearchTab('integrations/api_webhooks', [
+      'api_webhooks',
+    ], titleKey: 'api_webhooks'),
+    SettingsSearchTab('integrations/analytics', [
+      'analytics',
+      'google_analytics_tracking_id',
+      'matomo_id',
+      'matomo_url',
+    ], titleKey: 'analytics'),
+    SettingsSearchTab(
+      'integrations/quickbooks',
+      kAccountManagementQuickbooksSearchKeys,
+      titleKey: 'quickbooks',
+    ),
+    SettingsSearchTab('security_settings', [
+      'password_timeout',
+      'web_session_timeout',
+      'require_password_with_social_login',
+      'end_all_sessions',
+    ], titleKey: 'security_settings'),
+    // `AccountManagementShell` hides this tab on self-hosted (issue #27), so a
+    // search for "referral" must not lead there.
+    SettingsSearchTab(
+      'referral_program',
+      ['referral_program', 'referral_code'],
+      titleKey: 'referral_program',
+      hostedOnly: true,
+    ),
+    SettingsSearchTab(
+      'danger_zone',
+      kAccountManagementDangerZoneSearchKeys,
+      titleKey: 'danger_zone',
+    ),
   ],
   'backup_restore': [
-    'backup',
-    'restore',
-    'export',
-    'import_settings',
-    'import_data',
-    'company_backup_file',
+    SettingsSearchTab('', kBackupTabSearchKeys, titleKey: 'backup'),
+    SettingsSearchTab('restore', kRestoreTabSearchKeys, titleKey: 'restore'),
   ],
-  'import_export': [...kImportExportSearchKeys],
-  'device_settings': [...kDeviceSettingsSearchKeys],
-  'keyboard_shortcuts': [...kKeyboardShortcutsSearchKeys],
+  'import_export': [SettingsSearchTab('', kImportExportSearchKeys)],
+  'device_settings': [SettingsSearchTab('', kDeviceSettingsSearchKeys)],
+  'keyboard_shortcuts': [SettingsSearchTab('', kKeyboardShortcutsSearchKeys)],
+  // Every tab but General is company-scope only (`invoice_design_shell.dart`).
   'invoice_design': [
-    // General Settings tab — design pickers
-    'invoice_design',
-    'quote_design',
-    'credit_design',
-    'purchase_order_design',
-    'delivery_note_design',
-    'statement_design',
-    'payment_receipt_design',
-    'payment_refund_design',
-    // General Settings tab — layout / typography
-    'page_layout',
-    'page_size',
-    'font_size',
-    'logo_size',
-    'primary_font',
-    'secondary_font',
-    'primary_color',
-    'secondary_color',
-    // General Settings tab — document options
-    'show_paid_stamp',
-    'show_shipping_address',
-    'share_invoice_quote_columns',
-    'empty_columns',
-    'page_numbering',
-    'page_numbering_alignment',
-    'invoice_embed_documents',
-    // PDF-variable tabs
-    'client_details',
-    'company_details',
-    'company_address',
-    'invoice_details',
-    'quote_details',
-    'credit_details',
-    'vendor_details',
-    'purchase_order_details',
-    'product_columns',
-    'quote_product_columns',
-    'task_columns',
-    'total_fields',
-    'custom_designs',
-    'template',
-    // Phase 3d: WYSIWYG visual designer — discoverable from settings
-    // search; routed via Custom Designs → + New → "Visual designer."
-    'visual_designer',
-    'document_settings',
-    'page_margin',
-    'hide_empty_columns',
+    SettingsSearchTab(
+      '',
+      kInvoiceDesignGeneralSearchKeys,
+      titleKey: 'general_settings',
+    ),
+    SettingsSearchTab(
+      'custom_designs',
+      [
+        'custom_designs',
+        'template',
+        // The WYSIWYG visual designer and its panels — routed via Custom
+        // Designs → + New → "Visual designer".
+        'visual_designer',
+        'document_settings',
+        'hide_empty_columns',
+      ],
+      titleKey: 'custom_designs',
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'client_details',
+      ['client_details'],
+      titleKey: 'client_details',
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'company_details',
+      ['company_details'],
+      titleKey: 'company_details',
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'company_address',
+      ['company_address'],
+      titleKey: 'company_address',
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'invoice_details',
+      ['invoice_details'],
+      titleKey: 'invoice_details',
+      enabledBy: [EnabledModule.invoices],
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'quote_details',
+      ['quote_details'],
+      titleKey: 'quote_details',
+      enabledBy: [EnabledModule.quotes],
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'credit_details',
+      ['credit_details'],
+      titleKey: 'credit_details',
+      enabledBy: [EnabledModule.credits],
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'vendor_details',
+      ['vendor_details'],
+      titleKey: 'vendor_details',
+      enabledBy: [EnabledModule.vendors],
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'purchase_order_details',
+      ['purchase_order_details'],
+      titleKey: 'purchase_order_details',
+      enabledBy: [EnabledModule.purchaseOrders],
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'product_columns',
+      ['product_columns'],
+      titleKey: 'product_columns',
+      clientEditable: false,
+    ),
+    // Shown only while `share_invoice_quote_columns` is off — a setting search
+    // can't see, so with it on this hit lands on General, as before.
+    SettingsSearchTab(
+      'product_quote_columns',
+      ['quote_product_columns'],
+      titleKey: 'quote_product_columns',
+      clientEditable: false,
+    ),
+    SettingsSearchTab(
+      'task_columns',
+      ['task_columns'],
+      titleKey: 'task_columns',
+      enabledBy: [EnabledModule.tasks],
+      clientEditable: false,
+    ),
+    // Wire key and slug are `total_columns`; the label reads "Total Fields".
+    SettingsSearchTab(
+      'total_columns',
+      ['total_fields'],
+      titleKey: 'total_fields',
+      clientEditable: false,
+    ),
   ],
+  // Module gates match `custom_fields_shell.dart`; payments ride the Invoices
+  // bit. The generic row labels (Label, Field Type, Date, …) repeat on every
+  // tab and collapse to one hit on the Company tab.
   'custom_fields': [
-    'custom_fields',
-    ...kCustomFieldsCompanySearchKeys,
-    ...kCustomFieldsClientsSearchKeys,
-    ...kCustomFieldsProductsSearchKeys,
-    ...kCustomFieldsInvoicesSearchKeys,
-    ...kCustomFieldsPaymentsSearchKeys,
-    ...kCustomFieldsProjectsSearchKeys,
-    ...kCustomFieldsTasksSearchKeys,
-    ...kCustomFieldsVendorsSearchKeys,
-    ...kCustomFieldsExpensesSearchKeys,
-    ...kCustomFieldsUsersSearchKeys,
+    SettingsSearchTab('', kCustomFieldsCompanySearchKeys, titleKey: 'company'),
+    SettingsSearchTab(
+      'clients',
+      kCustomFieldsClientsSearchKeys,
+      titleKey: 'clients',
+    ),
+    SettingsSearchTab(
+      'products',
+      kCustomFieldsProductsSearchKeys,
+      titleKey: 'products',
+    ),
+    SettingsSearchTab(
+      'invoices',
+      kCustomFieldsInvoicesSearchKeys,
+      titleKey: 'invoices',
+      enabledBy: [EnabledModule.invoices],
+    ),
+    SettingsSearchTab(
+      'payments',
+      kCustomFieldsPaymentsSearchKeys,
+      titleKey: 'payments',
+      enabledBy: [EnabledModule.invoices],
+    ),
+    SettingsSearchTab(
+      'projects',
+      kCustomFieldsProjectsSearchKeys,
+      titleKey: 'projects',
+      enabledBy: [EnabledModule.projects],
+    ),
+    SettingsSearchTab(
+      'tasks',
+      kCustomFieldsTasksSearchKeys,
+      titleKey: 'tasks',
+      enabledBy: [EnabledModule.tasks],
+    ),
+    SettingsSearchTab(
+      'vendors',
+      kCustomFieldsVendorsSearchKeys,
+      titleKey: 'vendors',
+      enabledBy: [EnabledModule.vendors],
+    ),
+    SettingsSearchTab(
+      'expenses',
+      kCustomFieldsExpensesSearchKeys,
+      titleKey: 'expenses',
+      enabledBy: [EnabledModule.expenses],
+    ),
+    SettingsSearchTab('users', kCustomFieldsUsersSearchKeys, titleKey: 'users'),
   ],
+  // Module gates match `generated_numbers_shell.dart`. The `<entity>_number`
+  // keys aren't rendered labels — the tab is titled by its entity — but they
+  // are what someone looking for "invoice number" types.
   'generated_numbers': [
-    'number_padding',
-    'number_pattern',
-    'number_counter',
-    'generate_number',
-    'recurring_prefix',
-    'reset_counter',
-    'next_reset',
-    'shared_invoice_quote_counter',
-    'shared_invoice_credit_counter',
-    'client_number',
-    'invoice_number',
-    'quote_number',
-    'credit_number',
-    'payment_number',
-    'project_number',
-    'task_number',
-    'vendor_number',
-    'purchase_order_number',
-    'expense_number',
+    SettingsSearchTab(
+      '',
+      kGeneratedNumbersSettingsSearchKeys,
+      titleKey: 'settings',
+    ),
+    SettingsSearchTab('clients', [
+      'client_number',
+      ..._kGeneratedNumbersEntityKeys,
+    ], titleKey: 'clients'),
+    SettingsSearchTab(
+      'invoices',
+      ['invoice_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'invoices',
+      enabledBy: [EnabledModule.invoices],
+    ),
+    SettingsSearchTab(
+      'recurring_invoices',
+      _kGeneratedNumbersEntityKeys,
+      titleKey: 'recurring_invoices',
+      enabledBy: [EnabledModule.recurringInvoices],
+    ),
+    SettingsSearchTab(
+      'payments',
+      ['payment_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'payments',
+      enabledBy: [EnabledModule.invoices],
+    ),
+    SettingsSearchTab(
+      'quotes',
+      ['quote_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'quotes',
+      enabledBy: [EnabledModule.quotes],
+    ),
+    SettingsSearchTab(
+      'credits',
+      ['credit_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'credits',
+      enabledBy: [EnabledModule.credits],
+    ),
+    SettingsSearchTab(
+      'projects',
+      ['project_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'projects',
+      enabledBy: [EnabledModule.projects],
+    ),
+    SettingsSearchTab(
+      'tasks',
+      ['task_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'tasks',
+      enabledBy: [EnabledModule.tasks],
+    ),
+    SettingsSearchTab(
+      'vendors',
+      ['vendor_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'vendors',
+      enabledBy: [EnabledModule.vendors],
+    ),
+    SettingsSearchTab(
+      'purchase_orders',
+      ['purchase_order_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'purchase_orders',
+      enabledBy: [EnabledModule.purchaseOrders],
+    ),
+    SettingsSearchTab(
+      'expenses',
+      ['expense_number', ..._kGeneratedNumbersEntityKeys],
+      titleKey: 'expenses',
+      enabledBy: [EnabledModule.expenses],
+    ),
+    SettingsSearchTab(
+      'recurring_expenses',
+      _kGeneratedNumbersEntityKeys,
+      titleKey: 'recurring_expenses',
+      enabledBy: [EnabledModule.recurringExpenses],
+    ),
   ],
   'client_portal': [
-    ...kClientPortalSettingsSearchKeys,
-    ...kClientPortalAuthorizationSearchKeys,
-    ...kClientPortalRegistrationSearchKeys,
-    ...kClientPortalMessagesSearchKeys,
-    ...kClientPortalCustomizeSearchKeys,
+    SettingsSearchTab(
+      '',
+      kClientPortalSettingsSearchKeys,
+      titleKey: 'settings',
+    ),
+    SettingsSearchTab(
+      'authorization',
+      kClientPortalAuthorizationSearchKeys,
+      titleKey: 'authorization',
+    ),
+    SettingsSearchTab(
+      'registration',
+      kClientPortalRegistrationSearchKeys,
+      titleKey: 'registration',
+    ),
+    SettingsSearchTab(
+      'messages',
+      kClientPortalMessagesSearchKeys,
+      titleKey: 'messages',
+    ),
+    SettingsSearchTab(
+      'customize',
+      kClientPortalCustomizeSearchKeys,
+      titleKey: 'customize',
+    ),
   ],
-  'e_invoice': kEInvoiceSearchKeys,
-  'email_settings': [...kEmailSettingsSearchKeys],
-  'templates_and_reminders': kTemplatesRemindersSearchKeys,
+  'e_invoice': [SettingsSearchTab('', kEInvoiceSearchKeys)],
+  'email_settings': [SettingsSearchTab('', kEmailSettingsSearchKeys)],
+  'templates_and_reminders': [
+    SettingsSearchTab('', kTemplatesRemindersSearchKeys),
+  ],
   'bank_accounts': [
-    ...kBankAccountsListSearchKeys,
-    ...kTransactionRulesListSearchKeys,
+    SettingsSearchTab(
+      '',
+      kBankAccountsListSearchKeys,
+      titleKey: 'bank_accounts',
+    ),
+    SettingsSearchTab(
+      'transaction_rules',
+      kTransactionRulesListSearchKeys,
+      titleKey: 'transaction_rules',
+    ),
   ],
-  'group_settings': [...kGroupSettingsSearchKeys],
+  'group_settings': [SettingsSearchTab('', kGroupSettingsSearchKeys)],
+  // The edit form's keys stay on the list page: the form needs `/new` or a
+  // record id, and its four tabs aren't in the URL.
   'payment_links': [
-    ...kPaymentLinksListSearchKeys,
-    ...kPaymentLinkEditSearchKeys,
+    SettingsSearchTab('', [
+      ...kPaymentLinksListSearchKeys,
+      ...kPaymentLinkEditSearchKeys,
+    ]),
   ],
-  'schedules': [...kSchedulesSearchKeys],
+  'schedules': [SettingsSearchTab('', kSchedulesSearchKeys)],
+  // Everything past the roster is on a user's detail / edit screen, which
+  // needs an id — so it all opens User Management itself.
   'users': [
-    'user_management',
-    // Not rendered as a field on that screen — it is the roster badge
-    // (`user_management_screen.dart`). Catalogued so that someone who saw
-    // "Verification Pending" and went looking lands on User Management, where
-    // Resend Email is, rather than on the Device Settings toggle that merely
-    // hides such users from Assigned User fields (invoiceninja/flutter#150).
-    'verification_pending',
-    'new_user',
-    'edit_user',
-    'first_name',
-    'last_name',
-    'email',
-    'phone',
-    'permissions',
-    'administrator',
-    'notifications',
-    'view_dashboard',
-    // `view_reports` has no string in any locale bundle — `permissions.dart`
-    // maps it to `reports` for the real toggle, so the catalog must too or the
-    // search list renders the raw slug.
-    'reports',
-    'disable_emails',
-    'resend_email',
-    'remove_user',
+    SettingsSearchTab('', [
+      // Not rendered as a field on that screen — it is the roster badge
+      // (`user_management_screen.dart`). Catalogued so that someone who saw
+      // "Verification Pending" and went looking lands on User Management,
+      // where Resend Email is, rather than on the Device Settings toggle that
+      // merely hides such users from Assigned User fields
+      // (invoiceninja/flutter#150).
+      'verification_pending',
+      'new_user',
+      'edit_user',
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'permissions',
+      'administrator',
+      'notifications',
+      'view_dashboard',
+      // `view_reports` has no string in any locale bundle — `permissions.dart`
+      // maps it to `reports` for the real toggle, so the catalog must too or
+      // the search list renders the raw slug.
+      'reports',
+      'disable_emails',
+      'resend_email',
+      'remove_user',
+    ]),
   ],
   'system_logs': [
-    'system_logs',
-    // Feed filters (invoiceninja/flutter#60).
-    'category',
-    'status',
-    ...kDebugPanelSearchKeys,
+    SettingsSearchTab('', [
+      // Feed filters (invoiceninja/flutter#60).
+      'category',
+      'status',
+      ...kDebugPanelSearchKeys,
+    ]),
   ],
 };
 
-/// Settings *fields* that only exist on the hosted platform. Filtered out of
-/// search results for self-hosted sessions (issue #27) so a search for
-/// "referral" can't lead to a tab that isn't there — `AccountManagementShell`
-/// hides the Referral Program tab entirely on self-hosted.
+/// Words someone types that no label on the page contains — "smtp" for Email
+/// Settings, "2fa" for Two-Factor. Keyed by section slug, or by
+/// `<section>/<tab path>` for one tab. They make the section (or tab) itself a
+/// hit and are never displayed.
 ///
-/// The section-level gates (`enabledBy` / `adminOnly` / `clientEditable`)
-/// can't express this: the owning section, Account Management, is always
-/// visible. Filtering happens at query time — the static catalog stays
-/// complete, same as for `adminOnly`.
-const Set<String> kHostedOnlySettingsFields = {
-  'referral_program',
-  'referral_code',
+/// English only, like the server's own list these were seeded from
+/// (`app/DataProviders/SettingsSearchMap.php`): product names and acronyms
+/// don't translate, and every other word still matches through the localized
+/// label. `settings_search_catalog_test` checks every key names a real section
+/// or tab.
+const kSettingsSearchKeywords = <String, String>{
+  'company_details': 'business organisation organization website',
+  'company_details/address': 'street city postcode zip state country location',
+  'company_details/logo': 'branding image picture',
+  'company_details/defaults': 'default terms footer notes',
+  'company_details/documents': 'files attachments uploads',
+  'user_details': 'profile account me',
+  'user_details/password': 'security login credentials change password',
+  'user_details/connect': 'oauth google microsoft gmail outlook social login',
+  'user_details/enable_two_factor': '2fa mfa totp authenticator otp security',
+  'user_details/notifications': 'alerts emails notify',
+  'user_details/preferences': 'options accent colour color',
+  'localization':
+      'language currency timezone date format region locale first day of week',
+  'localization/custom_labels': 'translations rename labels wording',
+  'online_payments':
+      'gateway stripe paypal gocardless mollie checkout braintree authorize '
+      'razorpay payment methods',
+  'tax_settings': 'vat gst sales tax rates inclusive percentage',
+  'product_settings': 'items inventory stock',
+  'task_settings': 'time tracking timer kanban statuses',
+  'tags': 'labels keywords categorise categorize',
+  'expense_settings': 'vendor bills costs categories',
+  'workflow_settings': 'automation auto bill email send archive lock',
+  'account_management': 'subscription plan billing upgrade',
+  'account_management/overview': 'usage summary',
+  'account_management/enabled_modules': 'features toggle',
+  'account_management/integrations': 'zapier api third party accounting',
+  'account_management/integrations/api_tokens': 'api keys secret token',
+  'account_management/integrations/api_webhooks':
+      'webhooks zapier callbacks events',
+  'account_management/integrations/analytics':
+      'google analytics matomo tracking measurement',
+  'account_management/integrations/quickbooks': 'qbo accounting sync',
+  'account_management/security_settings': 'password 2fa sessions timeout',
+  'account_management/referral_program': 'affiliate rewards referrals invite',
+  'account_management/danger_zone': 'delete purge cancel account close',
+  'backup_restore': 'export import json archive download',
+  'backup_restore/restore': 'import recover upload',
+  'import_export': 'csv migration upload download quickbooks',
+  'device_settings':
+      'theme dark mode appearance colours colors density sidebar biometric',
+  'keyboard_shortcuts': 'hotkeys keybindings keys',
+  'invoice_design': 'pdf template layout theme fonts',
+  'invoice_design/custom_designs': 'template html pdf custom layout',
+  'custom_fields': 'extra fields metadata',
+  'generated_numbers': 'invoice number counter pattern prefix sequence',
+  'client_portal': 'customer portal self service domain',
+  'client_portal/authorization': 'login password protect access',
+  'client_portal/registration': 'signup self register',
+  'client_portal/messages': 'text terms policy footer',
+  'client_portal/customize': 'css branding styling header',
+  'e_invoice': 'peppol einvoice e-invoice xml ubl storecove electronic',
+  'email_settings': 'smtp mailgun postmark sending from name reply to bcc',
+  'templates_and_reminders': 'reminders email templates dunning late fees',
+  'bank_accounts':
+      'banking transactions feeds yodlee nordigen plaid gocardless',
+  'bank_accounts/transaction_rules': 'matching rules categorise transactions',
+  'group_settings': 'groups client groups',
+  'payment_links': 'subscriptions recurring plans checkout',
+  'schedules': 'scheduled reports automation cron jobs',
+  'users': 'team members staff permissions invite',
+  'system_logs': 'audit logs activity history events',
 };
 
-/// A single field match returned by [searchSettings].
-class SettingsSearchHit {
-  const SettingsSearchHit({required this.fieldKey, required this.section});
+/// Who is searching, as far as settings visibility goes: the same four facts
+/// the sidebar's `inScope` reads. Built once per query by the settings screen
+/// and the command palette, so the two can't disagree about what a user may
+/// open — they used to carry copies of this filter.
+class SettingsSearchScope {
+  const SettingsSearchScope({
+    required this.enabledModules,
+    required this.isAdminOrOwner,
+    required this.isCascade,
+    required this.isHosted,
+  });
 
-  /// Localization key of the matching field (e.g. `'vat_number'`).
+  /// [session] null (not loaded yet) fails open on hosted, matching
+  /// `AccountManagementShell`.
+  factory SettingsSearchScope.from(
+    AuthSession? session,
+    SettingsLevelController level,
+  ) {
+    final company = session?.currentCompany;
+    return SettingsSearchScope(
+      enabledModules: company?.enabledModules ?? 0,
+      isAdminOrOwner: company?.isAdmin == true || company?.isOwner == true,
+      // Group and client are both non-company cascade levels.
+      isCascade: level.isClient || level.isGroup,
+      isHosted: session?.isHosted ?? true,
+    );
+  }
+
+  final int enabledModules;
+  final bool isAdminOrOwner;
+
+  /// Editing a client's or a group's settings. A company-only page opened
+  /// from there renders under the "editing client X" banner with override
+  /// boxes wired to the COMPANY draft, so the user's "per-client" edit would
+  /// silently change the company-wide default.
+  final bool isCascade;
+  final bool isHosted;
+
+  bool allowsSection(SettingsSectionDef section) =>
+      (!isCascade || section.clientEditable) &&
+      section.isVisibleFor(enabledModules) &&
+      (!section.adminOnly || isAdminOrOwner);
+
+  bool allowsTab(SettingsSearchTab tab) =>
+      (!isCascade || tab.clientEditable) &&
+      tab.isVisibleFor(enabledModules) &&
+      (isHosted || !tab.hostedOnly);
+}
+
+/// What a [SettingsSearchHit] names.
+enum SettingsSearchHitKind {
+  /// A whole section, matched on its title or keywords.
+  section,
+
+  /// A tab, matched on its title or keywords.
+  tab,
+
+  /// A field label on a tab.
+  field,
+}
+
+/// One row of settings search results.
+class SettingsSearchHit {
+  const SettingsSearchHit({
+    required this.fieldKey,
+    required this.section,
+    this.tab,
+    this.kind = SettingsSearchHitKind.field,
+    this.tabIsDistinct = true,
+  });
+
+  /// Localization key of the row's label — the field, the tab title, or the
+  /// section title.
   final String fieldKey;
 
-  /// Section that owns the field — used to render the subtitle/icon and to
-  /// navigate when the result is tapped.
+  /// Section that owns the row — its icon, its title, its plan gate.
   final SettingsSectionDef section;
+
+  /// Tab the row opens; null for a section hit.
+  final SettingsSearchTab? tab;
+
+  final SettingsSearchHitKind kind;
+
+  /// False when the same label is on several tabs of the section. The hit
+  /// still opens the first of them, but naming that tab under it would be a
+  /// guess — "Dropdown · Custom Fields › Company" for a choice every tab has.
+  final bool tabIsDistinct;
+
+  bool get isSection => kind == SettingsSearchHitKind.section;
+
+  /// Where tapping the row goes.
+  String get route {
+    final path = tab?.path ?? '';
+    return path.isEmpty ? section.route : '${section.route}/$path';
+  }
+
+  /// The tab to name under the row ("Section › Tab"), or null to name only
+  /// the section.
+  String? get tabTitleKey =>
+      kind == SettingsSearchHitKind.field && tabIsDistinct
+      ? tab?.titleKey
+      : null;
+
+  /// Whether arriving should scroll to and flash the label. A section or tab
+  /// hit has no field to find — its title is in the chrome.
+  bool get revealsField => kind == SettingsSearchHitKind.field;
 }
 
-/// Returns every catalog entry whose *localized* label contains [query]
-/// (case-insensitive). An empty / whitespace-only query returns the full
-/// flattened catalog so the search list is discoverable when the user first
-/// opens it.
-List<SettingsSearchHit> searchSettings(String query, Localization l10n) {
-  final q = query.trim().toLowerCase();
-  final hits = <SettingsSearchHit>[];
-  for (final entry in kSettingsSearchCatalog.entries) {
-    final section = kSettingsSectionsBySlug[entry.key];
-    if (section == null) continue;
-    for (final fieldKey in entry.value) {
-      if (q.isEmpty || l10n.lookup(fieldKey).toLowerCase().contains(q)) {
-        hits.add(SettingsSearchHit(fieldKey: fieldKey, section: section));
-      }
+// Ranking tiers, best first. A section whose name starts with the query
+// outranks everything: someone typing "tax" most likely wants Tax Settings.
+const _tierSectionPrefix = 0;
+const _tierPrefix = 1;
+const _tierWordStart = 2;
+const _tierSubstring = 3;
+
+/// Every query word is found, but spread across the label and its context
+/// (tab title, section title, keywords), or only in the English label.
+const _tierLoose = 4;
+
+/// Returns the settings rows matching [query], best first.
+///
+/// Matching is case-insensitive on the *localized* label, and also on the
+/// English one, so a non-English UI still answers to the English words the
+/// docs and the support threads use. A multi-word query matches when every
+/// word is found — in the label, or (with at least one word in the label) in
+/// the tab and section titles, so "invoice number" and "number invoices" both
+/// find Generated Numbers › Invoices. Section and tab rows also match their
+/// [kSettingsSearchKeywords].
+///
+/// A label is listed once per section: a key on several tabs opens the first
+/// one [scope] allows, and a field whose label is the section's own title
+/// gives way to the section row. Pass [scope] to drop what the user cannot
+/// open; without it every row is considered (tests, the consistency checks).
+///
+/// An empty or whitespace-only query returns nothing — the search UI shows
+/// the section list until something is typed.
+List<SettingsSearchHit> searchSettings(
+  String query,
+  Localization l10n, {
+  SettingsSearchScope? scope,
+}) {
+  final q = _normalize(query);
+  if (q.isEmpty) return const [];
+  final words = q.split(' ');
+
+  final ranked = <String, _Ranked>{};
+  var order = 0;
+  void offer(String label, SettingsSearchHit hit, int tier) {
+    final id = '${hit.section.slug}\u0000${label.toLowerCase()}';
+    final seen = ranked[id];
+    if (seen == null) {
+      ranked[id] = _Ranked(hit, tier, order++);
+      return;
+    }
+    final sameRoute = seen.hit.route == hit.route;
+    if (tier < seen.tier) {
+      ranked[id] = _Ranked(
+        sameRoute ? hit : _withTabNotDistinct(hit),
+        tier,
+        seen.order,
+      );
+    } else if (!sameRoute) {
+      ranked[id] = _Ranked(
+        _withTabNotDistinct(seen.hit),
+        seen.tier,
+        seen.order,
+      );
     }
   }
-  return hits;
+
+  for (final section in kSettingsSections) {
+    if (scope != null && !scope.allowsSection(section)) continue;
+    final tabs = kSettingsSearchCatalog[section.slug] ?? const [];
+    final sectionLabel = l10n.lookup(section.titleKey);
+    final sectionEnglish = l10n.englishOf(section.titleKey);
+
+    final sectionTier = _rank(
+      [sectionLabel, ?sectionEnglish],
+      q,
+      words,
+      context: kSettingsSearchKeywords[section.slug] ?? '',
+      contextAlone: true,
+    );
+    if (sectionTier != null) {
+      offer(
+        sectionLabel,
+        SettingsSearchHit(
+          fieldKey: section.titleKey,
+          section: section,
+          kind: SettingsSearchHitKind.section,
+        ),
+        sectionTier == _tierPrefix ? _tierSectionPrefix : sectionTier,
+      );
+    }
+
+    for (final tab in tabs) {
+      if (scope != null && !scope.allowsTab(tab)) continue;
+      final tabTitleKey = tab.titleKey;
+      final tabLabel = tabTitleKey == null ? '' : l10n.lookup(tabTitleKey);
+      final fieldContext = '$tabLabel $sectionLabel';
+
+      // Fields before the tab row: when a field carries the tab's own title
+      // (Password on the Password tab) the field wins the tie and the user
+      // gets the scroll-and-flash.
+      for (final key in tab.keys) {
+        final label = l10n.lookup(key);
+        final tier = _rank(
+          [label, ?l10n.englishOf(key)],
+          q,
+          words,
+          context: fieldContext,
+        );
+        if (tier == null) continue;
+        offer(
+          label,
+          SettingsSearchHit(fieldKey: key, section: section, tab: tab),
+          tier,
+        );
+      }
+
+      // A tab is a row of its own only below the section's first page —
+      // that page is what the section row already opens.
+      if (tabTitleKey == null || tab.path.isEmpty) continue;
+      final tabKeywords =
+          kSettingsSearchKeywords['${section.slug}/${tab.path}'] ?? '';
+      final tier = _rank(
+        [tabLabel, ?l10n.englishOf(tabTitleKey)],
+        q,
+        words,
+        context: '$sectionLabel $tabKeywords',
+        keywords: tabKeywords,
+      );
+      if (tier == null) continue;
+      offer(
+        tabLabel,
+        SettingsSearchHit(
+          fieldKey: tabTitleKey,
+          section: section,
+          tab: tab,
+          kind: SettingsSearchHitKind.tab,
+        ),
+        tier,
+      );
+    }
+  }
+
+  final rows = ranked.values.toList()
+    ..sort((a, b) {
+      final byTier = a.tier.compareTo(b.tier);
+      return byTier != 0 ? byTier : a.order.compareTo(b.order);
+    });
+  return [for (final r in rows) r.hit];
 }
+
+class _Ranked {
+  const _Ranked(this.hit, this.tier, this.order);
+  final SettingsSearchHit hit;
+  final int tier;
+  final int order;
+}
+
+SettingsSearchHit _withTabNotDistinct(SettingsSearchHit hit) =>
+    SettingsSearchHit(
+      fieldKey: hit.fieldKey,
+      section: hit.section,
+      tab: hit.tab,
+      kind: hit.kind,
+      tabIsDistinct: false,
+    );
+
+/// Lower-cased, trimmed, with runs of whitespace collapsed to one space.
+String _normalize(String s) =>
+    s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+/// The best tier at which [labels] (localized first, then English) match the
+/// query, or null for no match.
+///
+/// [context] is the text a multi-word query may spill into once one word has
+/// landed in the label (tab and section titles). With [contextAlone] — a
+/// section row — the context may carry the whole match, which is how a
+/// keyword like "smtp" finds Email Settings. [keywords] does the same for a
+/// tab row without letting its section title alone match it: a tab must not
+/// surface just because the user typed its section's name.
+int? _rank(
+  List<String> labels,
+  String q,
+  List<String> words, {
+  String context = '',
+  bool contextAlone = false,
+  String keywords = '',
+}) {
+  int? best;
+  for (final (i, raw) in labels.indexed) {
+    final label = raw.toLowerCase();
+    int? tier;
+    if (label.startsWith(q)) {
+      tier = _tierPrefix;
+    } else if (_hasWordStartingWith(label, q)) {
+      tier = _tierWordStart;
+    } else if (label.contains(q) ||
+        (words.length > 1 && words.every(label.contains))) {
+      tier = _tierSubstring;
+    }
+    // A match only in the English label sits below every localized one.
+    if (tier != null && i > 0) tier = _tierLoose;
+    if (tier != null && (best == null || tier < best)) best = tier;
+  }
+  if (best != null) return best;
+
+  final lowerLabels = [for (final l in labels) l.toLowerCase()];
+  final ctx = context.toLowerCase();
+  bool inLabel(String w) => lowerLabels.any((l) => l.contains(w));
+  if (words.any(inLabel) && words.every((w) => inLabel(w) || ctx.contains(w))) {
+    return _tierLoose;
+  }
+  if (contextAlone && words.every((w) => inLabel(w) || ctx.contains(w))) {
+    return _tierLoose;
+  }
+  final kw = keywords.toLowerCase();
+  if (kw.isNotEmpty && words.every((w) => inLabel(w) || kw.contains(w))) {
+    return _tierLoose;
+  }
+  return null;
+}
+
+/// Whether some word of [label] (after a non-alphanumeric boundary) starts
+/// with [q].
+bool _hasWordStartingWith(String label, String q) {
+  var from = 0;
+  while (true) {
+    final at = label.indexOf(q, from);
+    if (at < 0) return false;
+    if (at == 0 || !_isWordChar(label.codeUnitAt(at - 1))) return true;
+    from = at + 1;
+  }
+}
+
+bool _isWordChar(int c) =>
+    (c >= 0x30 && c <= 0x39) || // 0-9
+    (c >= 0x41 && c <= 0x5A) || // A-Z
+    (c >= 0x61 && c <= 0x7A) || // a-z
+    c >= 0xC0; // letters outside ASCII

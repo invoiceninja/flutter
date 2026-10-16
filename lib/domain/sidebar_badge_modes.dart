@@ -360,9 +360,8 @@ final Set<String> kSidebarBadgeModeIds = {
 /// **A curated subset, deliberately.** The generic status words every billing
 /// doc shares — `total`, `none`, `active`, `sent`, `draft`, `paused`,
 /// `pending`, `failed`, `approved`, `expired`, `accepted`, `logged`,
-/// `running`, `matched` — are left out. `settings_screen.dart` renders the
-/// whole catalog as its resting state when the query is empty, so including
-/// them would pad that list with a dozen-plus one-word rows all pointing at the
+/// `running`, `matched` — are left out. Including them would pad every
+/// search for those words with a dozen-plus one-word rows all pointing at the
 /// same page, and nobody searches settings for "Sent" hoping to find a sidebar
 /// counter. What's here is the vocabulary someone would actually type when
 /// looking for *this* feature.

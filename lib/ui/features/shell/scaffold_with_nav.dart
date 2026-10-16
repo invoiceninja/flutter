@@ -552,7 +552,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               ),
           _FocusSearchIntent: GuardedShortcutAction<_FocusSearchIntent>(
             onInvoke: (_) {
-              context.read<Services>().searchFocus.current?.requestFocus();
+              context.read<Services>().searchFocus.activate();
               return null;
             },
           ),

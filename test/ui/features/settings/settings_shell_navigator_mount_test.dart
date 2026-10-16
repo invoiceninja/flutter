@@ -9,6 +9,7 @@
 // resizing narrow → wide while sitting on `/settings` lands here.
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -37,6 +38,9 @@ class _FakeServices implements Services {
   _FakeServices(this.auth);
   @override
   final AuthRepository auth;
+  // The wide pane's own search claims `/`.
+  @override
+  final SearchFocusRegistry searchFocus = SearchFocusRegistry();
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());

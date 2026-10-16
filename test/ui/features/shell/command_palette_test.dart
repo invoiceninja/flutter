@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/key_cap.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 
+import '../../../_localization_helper.dart';
 import '_shell_test_helpers.dart';
 
 void main() {
@@ -744,6 +745,69 @@ void main() {
           );
         },
       );
+    });
+  });
+
+  group('settings rows', () {
+    late ShellFixture fixture;
+
+    setUp(() async {
+      fixture = await buildFixture(
+        companies: const [FakeCompany(id: 'c1', name: 'Acme')],
+      );
+    });
+
+    tearDown(() async => fixture.dispose());
+
+    /// Opens the desktop palette and types [query]. The fixture is offline, so
+    /// the server search fails and the palette answers from its own report
+    /// and settings catalogs — which is what this group is about.
+    Future<void> search(WidgetTester tester, String query) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCommandPalette(context),
+              child: const Text('trigger'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('trigger'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), query);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a settings row names the page and tab it opens', (
+      tester,
+    ) async {
+      // Six "Email" rows from six pages were indistinguishable.
+      await search(tester, 'postal');
+      expect(find.text('Postal Code'), findsOneWidget);
+      expect(find.text('Company Details › Address'), findsOneWidget);
+    });
+
+    testWidgets('settings rows stop at eight', (tester) async {
+      // "mail" matches well over eight settings labels and no report.
+      expect(
+        searchSettings('mail', bundledLocalization()).length,
+        greaterThan(8),
+      );
+      await search(tester, 'mail');
+      // The list is built lazily inside the card, so count its items, not
+      // the rows on screen: one Settings header plus the eight rows. No
+      // report name contains "mail", so nothing else shares the list.
+      final list = tester.widget<ListView>(find.byType(ListView));
+      final delegate = list.childrenDelegate as SliverChildBuilderDelegate;
+      expect(delegate.childCount, 1 + 8);
+      expect(find.text('Settings'), findsOneWidget);
     });
   });
 }

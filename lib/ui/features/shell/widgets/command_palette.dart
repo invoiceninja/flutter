@@ -22,6 +22,7 @@ import 'package:admin/ui/core/widgets/key_cap.dart';
 import 'package:admin/ui/features/reports/helpers/report_access.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
+import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
 /// header via `context.tr` — `link` is an existing translated key.
@@ -105,6 +106,10 @@ const String kReportsSearchGroup = 'reports';
 /// non-ES `clientMap` fallback happens to put the parent id in BOTH fields, so
 /// reading the parent out of `path` is correct on either backend.
 const _contactGroups = {'client_contacts', 'vendor_contacts'};
+
+/// Most settings rows the palette lists for one query — see
+/// `_CommandPaletteState._localSettingsHits`.
+const _kMaxSettingsHits = 8;
 
 /// The id to route a hit by: the parent's id for a contact row (parsed out of
 /// the server `path`), otherwise the hit's own `id`.
@@ -225,6 +230,14 @@ class _CommandPaletteState extends State<_CommandPalette> {
   final _selRowKey = GlobalKey();
   Timer? _debounce;
   List<SearchResult> _results = const [];
+
+  /// The settings hit behind each settings row in [_results], for its icon,
+  /// its "Section › Tab" line and its field reveal. Kept beside the row
+  /// rather than on [SearchResult], which is a data-layer model and must not
+  /// import the settings UI.
+  final Expando<SettingsSearchHit> _settingsHitOf = Expando<SettingsSearchHit>(
+    'settings hit',
+  );
   bool _loading = false;
   int _selected = 0;
   int _reqSeq = 0;
@@ -368,42 +381,40 @@ class _CommandPaletteState extends State<_CommandPalette> {
   /// here, and `errorBuilder` is registered at the ROOT, so selecting one
   /// replaced the entire app — sidebar included — with the route-error screen.
   ///
-  /// `kSettingsSearchCatalog` is route-correct by construction (a consistency
-  /// test binds it to the real screens), so this filters properly, never
-  /// dead-ends, and works offline. Gating mirrors the settings screen's own
-  /// search (`settings_screen.dart`) so a module-disabled or admin-only page
-  /// can't surface as a dead link.
+  /// `kSettingsSearchCatalog` is route-correct by construction (a test resolves
+  /// every hit through the router), so this filters properly, never
+  /// dead-ends, and works offline. Gating and ranking are the settings
+  /// screen's own (`SettingsSearchScope`, `searchSettings`), so a
+  /// module-disabled or admin-only page can't surface as a dead link here
+  /// either.
   ///
-  /// Navigates to the section root rather than the exact tab: catalog entries
-  /// carry no per-field route, and this matches in-app settings search.
+  /// Capped at [_kMaxSettingsHits]: a one-letter query matches a few hundred
+  /// labels, and this group sits below the records the user more likely came
+  /// for. The settings screen's own search lists them all.
   List<SearchResult> _localSettingsHits(String query) {
-    // An empty query must stay empty — `searchSettings('')` returns the full
-    // catalogue by design, which would bury the Recents resting state.
-    if (query.trim().isEmpty) return const [];
     final l10n = Localization.of(context);
     if (l10n == null) return const [];
     final services = context.read<Services>();
-    final session = services.auth.session.value;
-    final me = session?.currentCompany;
-    final modules = me?.enabledModules ?? 0;
-    final isAdminOrOwner = me?.isAdmin == true || me?.isOwner == true;
-    // Fail open on a not-yet-loaded session, matching the settings screen.
-    final isHosted = session?.isHosted ?? true;
-    final level = services.settingsLevel;
-    final isCascade = level.isClient || level.isGroup;
-    return [
-      for (final hit in searchSettings(query, l10n))
-        if ((!isCascade || hit.section.clientEditable) &&
-            hit.section.isVisibleFor(modules) &&
-            (!hit.section.adminOnly || isAdminOrOwner) &&
-            (isHosted || !kHostedOnlySettingsFields.contains(hit.fieldKey)))
-          SearchResult(
-            group: 'settings',
-            name: l10n.lookup(hit.fieldKey),
-            id: '',
-            path: hit.section.route,
-          ),
-    ];
+    final hits = searchSettings(
+      query,
+      l10n,
+      scope: SettingsSearchScope.from(
+        services.auth.session.value,
+        services.settingsLevel,
+      ),
+    ).take(_kMaxSettingsHits);
+    return [for (final hit in hits) _settingsRowFor(hit, l10n)];
+  }
+
+  SearchResult _settingsRowFor(SettingsSearchHit hit, Localization l10n) {
+    final row = SearchResult(
+      group: 'settings',
+      name: l10n.lookup(hit.fieldKey),
+      id: '',
+      path: hit.route,
+    );
+    _settingsHitOf[row] = hit;
+    return row;
   }
 
   void _move(int delta) {
@@ -471,6 +482,12 @@ class _CommandPaletteState extends State<_CommandPalette> {
       // Back through the same choreography an OS-delivered link gets, so a
       // pasted cross-company link switches company before it navigates.
       unawaited(services.deepLinks.open(Uri.parse(r.path)));
+      return;
+    }
+    final settingsHit = _settingsHitOf[r];
+    if (settingsHit != null) {
+      // Opens the hit's tab and asks the page to flash the field.
+      openSettingsSearchHit(context, settingsHit);
       return;
     }
     final type = entityTypeForSearchGroup(r.group);
@@ -751,11 +768,19 @@ class _CommandPaletteState extends State<_CommandPalette> {
                     final r = _results[i];
                     final sel = i == _selected;
                     final type = entityTypeForSearchGroup(r.group);
+                    final settingsHit = _settingsHitOf[r];
+                    final l10n = Localization.of(context);
+                    // A settings row names its section, or six "Email" rows
+                    // from six pages would be indistinguishable.
+                    final detail = settingsHit == null || l10n == null
+                        ? null
+                        : settingsHitSubtitle(settingsHit, l10n);
                     final icon = r.group == kDeepLinkSearchGroup
                         ? Icons.link
                         : r.group == kReportsSearchGroup
                         ? Icons.bar_chart_outlined
-                        : (type != null
+                        : settingsHit?.section.icon ??
+                              (type != null
                                   ? registry[type]?.effectiveOutlinedIcon
                                   : null) ??
                               Icons.settings_outlined;
@@ -804,15 +829,31 @@ class _CommandPaletteState extends State<_CommandPalette> {
                                     ),
                                     SizedBox(width: InSpacing.md(context)),
                                     Expanded(
-                                      child: Text(
-                                        r.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                          color: tokens.ink,
-                                        ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            r.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: tokens.ink,
+                                            ),
+                                          ),
+                                          if (detail != null)
+                                            Text(
+                                              detail,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: tokens.ink3,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ],

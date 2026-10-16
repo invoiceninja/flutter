@@ -11,11 +11,13 @@
 // no AppBar, it's a group header lifted out of the scroll area.
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
+import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/views/settings_screen.dart';
 import 'package:admin/ui/features/settings/widgets/settings_two_pane_scope.dart';
@@ -48,6 +50,10 @@ class _FakeServices implements Services {
   @override
   final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
 
+  // The index claims `/` for its search.
+  @override
+  final SearchFocusRegistry searchFocus = SearchFocusRegistry();
+
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
@@ -65,14 +71,17 @@ Future<void> simulateSystemBack(WidgetTester tester) {
 }
 
 void main() {
+  late _FakeServices services;
+
   Widget wrap(WidgetTester tester, Widget child) {
     final auth = _FakeAuth();
     addTearDown(auth.session.dispose);
     final level = SettingsLevelController();
     addTearDown(level.dispose);
+    services = _FakeServices(auth);
     return MultiProvider(
       providers: [
-        Provider<Services>.value(value: _FakeServices(auth)),
+        Provider<Services>.value(value: services),
         ChangeNotifierProvider<SettingsLevelController>.value(value: level),
       ],
       child: child,
@@ -111,6 +120,19 @@ void main() {
                 GoRoute(
                   path: 'company_details',
                   builder: (_, _) => const Scaffold(body: Text('COMPANY')),
+                ),
+                // Any other section or tab a hit can open.
+                GoRoute(
+                  path: ':section',
+                  builder: (_, state) =>
+                      Scaffold(body: Text('PAGE ${state.uri.path}')),
+                  routes: [
+                    GoRoute(
+                      path: ':tab',
+                      builder: (_, state) =>
+                          Scaffold(body: Text('PAGE ${state.uri.path}')),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -232,9 +254,11 @@ void main() {
     await tester.enterText(find.byType(TextField), 'postal');
     await tester.pumpAndSettle();
 
-    // 'postal' matches exactly one field label in the whole catalog.
-    expect(find.text('Postal Code'), findsOneWidget);
-    expect(find.text('Company Details'), findsOneWidget); // the hit's subtitle
+    // 'postal' matches exactly one field label in the whole catalog. The
+    // title is a rich text now (the match is bold), so find it by its text.
+    expect(find.text('Postal Code', findRichText: true), findsOneWidget);
+    // The subtitle names the tab the hit opens.
+    expect(find.text('Company Details › Address'), findsOneWidget);
     expect(
       find.text('Advanced Settings'),
       findsNothing,
@@ -336,4 +360,140 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(find.widgetWithIcon(IconButton, Icons.close), findsOneWidget);
   });
+
+  group('keyboard and empty query', () {
+    /// What the list shows for [query] with this test's signed-out session:
+    /// every module off, not an admin, hosted (the not-loaded fail-open).
+    List<SettingsSearchHit> expectedHits(String query) => searchSettings(
+      query,
+      bundledLocalization(),
+      scope: const SettingsSearchScope(
+        enabledModules: 0,
+        isAdminOrOwner: false,
+        isCascade: false,
+        isHosted: true,
+      ),
+    );
+
+    testWidgets('an open search with nothing typed still lists the sections', (
+      tester,
+    ) async {
+      // It used to list every field in the catalog — hundreds of rows.
+      await pumpIndex(tester);
+      await tester.tap(searchButton());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Basic Settings'), findsOneWidget);
+      expect(find.text('Company Details'), findsOneWidget);
+    });
+
+    testWidgets('a section name leads with the section itself', (tester) async {
+      await pumpIndex(tester);
+      await tester.tap(searchButton());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'tax settings');
+      await tester.pumpAndSettle();
+
+      final first = tester.widget<ListTile>(find.byType(ListTile).first);
+      expect(((first.title! as Text).textSpan!).toPlainText(), 'Tax Settings');
+    });
+
+    testWidgets('Enter opens the field\'s tab', (tester) async {
+      final router = await pumpIndex(tester);
+      await tester.tap(searchButton());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'postal');
+      await tester.pumpAndSettle();
+
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(currentUri(router), '/settings/company_details/address');
+    });
+
+    testWidgets('↓ then Enter opens the second row, and Esc closes', (
+      tester,
+    ) async {
+      final router = await pumpIndex(tester);
+      await tester.tap(searchButton());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'number');
+      await tester.pumpAndSettle();
+
+      final hits = expectedHits('number');
+      expect(hits.length, greaterThan(2));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<ListTile>(find.byType(ListTile))
+            .elementAt(1)
+            .selected,
+        isTrue,
+      );
+      // The selected row's title takes the tile's selected colour — a styled
+      // span with its own colour used to keep it in body ink.
+      final hit1 = hits[1];
+      final title = tester.widget<RichText>(
+        find.descendant(
+          of: find.byType(ListTile).at(1),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is RichText &&
+                w.text.toPlainText() ==
+                    bundledLocalization().lookup(hit1.fieldKey),
+          ),
+        ),
+      );
+      expect(_leafColor(title.text), InTheme.light.accentInk);
+
+      // Up wraps from the top to the last row and back down again.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(currentUri(router), hits[1].route);
+
+      // Back on the index, reopen and close with Esc.
+      router.go('/settings');
+      await tester.pumpAndSettle();
+      await tester.tap(searchButton());
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(searchButton(), findsOneWidget);
+    });
+
+    testWidgets('`/` opens the search on the settings index', (tester) async {
+      await pumpIndex(tester);
+      expect(find.byType(TextField), findsNothing);
+
+      services.searchFocus.activate();
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.focusNode?.hasFocus, isTrue);
+    });
+  });
+}
+
+/// The colour the first non-empty run of [span] is painted in, with every
+/// ancestor span's style merged in — what the user sees, not just the root.
+Color? _leafColor(InlineSpan span, [TextStyle? inherited]) {
+  final style = inherited == null
+      ? span.style
+      : (span.style == null ? inherited : inherited.merge(span.style));
+  if (span is TextSpan) {
+    if (span.text?.isNotEmpty ?? false) return style?.color;
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      final c = _leafColor(child, style);
+      if (c != null) return c;
+    }
+  }
+  return null;
 }

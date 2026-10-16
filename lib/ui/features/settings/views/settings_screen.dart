@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/plan_gate.dart';
@@ -11,6 +15,9 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/state/settings_search_controller.dart';
+import 'package:admin/ui/features/settings/views/settings_shell.dart'
+    show hideSettingsListSidebar;
+import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
 import 'package:admin/ui/features/settings/widgets/settings_two_pane_scope.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 
@@ -52,17 +59,54 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
   SettingsSearchController get _search => widget.searchController ?? _own!;
   bool get _hostOwned => widget.searchController != null;
 
+  /// Held only while this pane owns its search — see [didChangeDependencies].
+  SearchFocusRegistry? _searchFocus;
+
   @override
   void initState() {
     super.initState();
     if (widget.searchController == null) _own = SettingsSearchController();
+    _search.onSubmit = _openSelected;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The wide pane owns its search, so it answers `/` too. Claimed only while
+    // on stage — go_router keeps the settings branch mounted behind every
+    // other one — exactly as `TokenSearchField` claims (see
+    // `SearchFocusRegistry`). A host-owned controller is claimed by its host.
+    final own = _own;
+    if (own == null) return;
+    _searchFocus ??= context.read<Services>().searchFocus;
+    // A fallback: a list's own search field in the pane beside this one
+    // (Payment Links) is what `/` should reach while it is on screen.
+    if (TickerMode.valuesOf(context).enabled) {
+      _searchFocus!.claim(
+        own.focus,
+        onActivate: _activateOwnSearch,
+        fallback: true,
+      );
+    } else {
+      _searchFocus!.release(own.focus);
+    }
+  }
+
+  void _activateOwnSearch() {
+    // The custom-design editor slides this pane off to zero width; opening a
+    // search nobody can see would only steal the keyboard.
+    if (hideSettingsListSidebar.value) return;
+    _search.activate();
   }
 
   @override
   void dispose() {
+    final own = _own;
+    if (own != null) _searchFocus?.release(own.focus);
+    if (_search.onSubmit == _openSelected) _search.onSubmit = null;
     // Only what we created — the host disposes what it created, matching how
     // `TextField` treats a passed-in controller.
-    _own?.dispose();
+    own?.dispose();
     super.dispose();
   }
 
@@ -200,34 +244,32 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
     );
   }
 
+  /// The rows for the current query, filtered to what this user can open.
+  List<SettingsSearchHit> _hitsFor(Localization l10n) => searchSettings(
+    _search.query.text,
+    l10n,
+    scope: SettingsSearchScope.from(
+      context.read<Services>().auth.session.value,
+      context.read<SettingsLevelController>(),
+    ),
+  );
+
   Widget _buildResults(BuildContext context, Localization? l10n) {
     if (l10n == null) return const SizedBox.shrink();
+    // Nothing typed yet: the sections themselves are the most useful list —
+    // the old resting state was every field in the catalog, hundreds of rows.
+    if (_search.query.text.trim().isEmpty) {
+      _search.resultCount = 0;
+      return _buildSectionList(context);
+    }
     final session = context.read<Services>().auth.session.value;
-    final modules = session?.currentCompany?.enabledModules ?? 0;
-    final me = session?.currentCompany;
-    final isAdminOrOwner = me?.isAdmin == true || me?.isOwner == true;
-    final settingsLevel = context.read<SettingsLevelController>();
-    final isCascade = settingsLevel.isClient || settingsLevel.isGroup;
-    // Fail open on a not-yet-loaded session, matching AccountManagementShell.
-    final isHosted = session?.isHosted ?? true;
-    // Filter at query time — not by trimming the catalog — so a module-gated
-    // (or admin-only) section never surfaces as a dead link, while
-    // `kSettingsSearchCatalog` stays complete (search_catalog_consistency_test
-    // enforces parity). The cascade gate mirrors `_buildSectionList`'s
-    // `inScope`: at client/group scope, a company-only page reached through
-    // search renders under the "editing client X" banner with checked override
-    // boxes wired to the COMPANY draft — the user's "per-client override"
-    // edit would silently change the company-wide default. The hosted gate is
-    // per-FIELD, not per-section: Account Management is always visible, but
-    // its Referral Program tab isn't (issue #27).
-    final hits = searchSettings(_search.query.text, l10n)
-        .where((h) => !isCascade || h.section.clientEditable)
-        .where((h) => h.section.isVisibleFor(modules))
-        .where((h) => !h.section.adminOnly || isAdminOrOwner)
-        .where(
-          (h) => isHosted || !kHostedOnlySettingsFields.contains(h.fieldKey),
-        )
-        .toList();
+    // Filtered at query time — not by trimming the catalog — so a gated
+    // section or tab never surfaces as a dead link, while
+    // `kSettingsSearchCatalog` stays complete for the consistency tests.
+    // `SettingsSearchScope` is the one copy of that rule; the command palette
+    // reads the same one.
+    final hits = _hitsFor(l10n);
+    _search.resultCount = hits.length;
     if (hits.isEmpty) {
       return Center(
         child: Padding(
@@ -239,49 +281,102 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
         ),
       );
     }
-    return ListView.builder(
-      itemCount: hits.length,
-      itemBuilder: (context, i) {
-        final hit = hits[i];
-        final gate = _gateLevelFor(hit.section.slug, session);
-        return ListTile(
-          leading: Icon(hit.section.icon),
-          title: Text(
-            l10n.lookup(hit.fieldKey),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            l10n.lookup(hit.section.titleKey),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          // Same compact gate affordance the sidebar `_tile` uses — a wide
-          // "Pro"/"Enterprise" text chip here overflows the ~232 px settings
-          // sidebar (RenderFlex overflowed on the right).
-          trailing: gate == null
-              ? null
-              : Tooltip(
-                  message: context.tr(
-                    gate == PlanTier.enterprise
-                        ? 'enterprise_plan'
-                        : 'pro_plan',
-                  ),
-                  child: Icon(
-                    Icons.lock_outline,
-                    size: 16,
-                    color: context.inTheme.ink3,
-                  ),
-                ),
-          onTap: () async {
-            if (!await _confirmIfDirty(context)) return;
-            if (!context.mounted) return;
-            context.go(hit.section.route);
-            _search.close();
+    final tokens = context.inTheme;
+    final query = _search.query.text;
+    return ValueListenableBuilder<int>(
+      valueListenable: _search.selected,
+      builder: (context, selected, _) {
+        final sel = selected.clamp(0, hits.length - 1);
+        _revealSelectedRow();
+        return ListView.builder(
+          itemCount: hits.length,
+          itemBuilder: (context, i) {
+            final hit = hits[i];
+            final gate = _gateLevelFor(hit.section.slug, session);
+            return ListTile(
+              key: i == sel ? _selectedRowKey : null,
+              leading: Icon(hit.section.icon),
+              title: Text.rich(
+                // No base style: the span inherits the tile's own text style
+                // and colour, so the selected row's title turns `accentInk`
+                // with its icon.
+                highlightedMatch(l10n.lookup(hit.fieldKey), query),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                settingsHitSubtitle(hit, l10n),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              // Same compact gate affordance the sidebar `_tile` uses — a wide
+              // "Pro"/"Enterprise" text chip here overflows the ~232 px
+              // settings sidebar (RenderFlex overflowed on the right).
+              trailing: gate == null
+                  ? null
+                  : Tooltip(
+                      message: context.tr(
+                        gate == PlanTier.enterprise
+                            ? 'enterprise_plan'
+                            : 'pro_plan',
+                      ),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 16,
+                        color: tokens.ink3,
+                      ),
+                    ),
+              // The keyboard selection. Enter opens this row; on touch it is
+              // only ever the first row, which Enter on the soft keyboard
+              // opens too.
+              selected: i == sel,
+              selectedTileColor: tokens.accentSoft,
+              selectedColor: tokens.accentInk,
+              iconColor: tokens.ink3,
+              textColor: tokens.ink2,
+              onTap: () => _openHit(hit),
+            );
           },
         );
       },
     );
+  }
+
+  /// On the selected row only, so ↑ / ↓ can follow it off-screen.
+  final GlobalKey _selectedRowKey = GlobalKey();
+
+  void _revealSelectedRow() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final row = _selectedRowKey.currentContext;
+      if (row == null) return;
+      Scrollable.ensureVisible(
+        row,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        duration: const Duration(milliseconds: 120),
+      );
+      Scrollable.ensureVisible(
+        row,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        duration: const Duration(milliseconds: 120),
+      );
+    });
+  }
+
+  /// Enter in the field: the keyboard-selected row, which is the first one
+  /// until ↑ / ↓ moves it.
+  void _openSelected() {
+    final l10n = Localization.of(context);
+    if (l10n == null || _search.query.text.trim().isEmpty) return;
+    final hits = _hitsFor(l10n);
+    if (hits.isEmpty) return;
+    unawaited(_openHit(hits[_search.selected.value.clamp(0, hits.length - 1)]));
+  }
+
+  Future<void> _openHit(SettingsSearchHit hit) async {
+    if (!await _confirmIfDirty(context)) return;
+    if (!mounted) return;
+    openSettingsSearchHit(context, hit);
+    _search.close();
   }
 
   Future<bool> _confirmIfDirty(BuildContext context) {
@@ -319,6 +414,9 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
         if (!await _confirmIfDirty(context)) return;
         if (!context.mounted) return;
         context.go(section.route);
+        // An open search with nothing typed lists the sections too; picking
+        // one is the end of that search.
+        _search.close();
       },
     );
   }
@@ -356,27 +454,44 @@ class SettingsSearchField extends StatelessWidget {
     // silently at every text scale. Same reason the narrow copy hangs in the
     // AppBar's 56 px `bottom:` rather than its `title:` slot, which clamps to
     // `kToolbarHeight` and would re-create exactly that clipping.
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 40),
-      child: TextField(
-        controller: controller.query,
-        focusNode: controller.focus,
-        // Search queries are names and numbers, not prose — iOS
-        // autocorrecting "Acme" to "Acne" mid-search is the failure.
-        autocorrect: false,
-        enableSuggestions: false,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: context.tr('search_settings'),
-          prefixIcon: const Icon(Icons.search, size: 20),
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 0,
-            horizontal: 12,
+    // ↑ / ↓ walk the results and Esc closes, as in the command palette.
+    // Bound on the field itself, so they only act while it has focus — a bare
+    // arrow anywhere else on the page stays the page's.
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+            controller.moveSelection(1),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+            controller.moveSelection(-1),
+        const SingleActivator(LogicalKeyboardKey.escape): controller.close,
+      },
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
+        child: TextField(
+          controller: controller.query,
+          focusNode: controller.focus,
+          // Search queries are names and numbers, not prose — iOS
+          // autocorrecting "Acme" to "Acne" mid-search is the failure.
+          autocorrect: false,
+          enableSuggestions: false,
+          textInputAction: TextInputAction.search,
+          // Enter opens the selected row. Keep focus here rather than take the
+          // default blur: the hit navigates and closes the search, and a blur
+          // first would park focus on the scope (docs/keyboard.md).
+          onSubmitted: (_) => controller.submit(),
+          onEditingComplete: () {},
+          decoration: InputDecoration(
+            hintText: context.tr('search_settings'),
+            prefixIcon: const Icon(Icons.search, size: 20),
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 0,
+              horizontal: 12,
+            ),
           ),
         ),
       ),
@@ -402,9 +517,31 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SettingsSearchController _search = SettingsSearchController();
+  SearchFocusRegistry? _searchFocus;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // This screen owns the search chrome, so it answers `/`. On stage only:
+    // a covered route (a section pushed over the index) and an inactive
+    // branch both mute `TickerMode`, and a resize to two panes leaves this
+    // screen mounted behind the wide pane, which then answers `/` itself.
+    _searchFocus ??= context.read<Services>().searchFocus;
+    if (TickerMode.valuesOf(context).enabled &&
+        !SettingsTwoPaneScope.of(context)) {
+      _searchFocus!.claim(
+        _search.focus,
+        onActivate: _search.activate,
+        fallback: true,
+      );
+    } else {
+      _searchFocus!.release(_search.focus);
+    }
+  }
 
   @override
   void dispose() {
+    _searchFocus?.release(_search.focus);
     _search.dispose();
     super.dispose();
   }

@@ -13,8 +13,9 @@ import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
 /// Search keys for the settings sidebar search. Colocated with the screen so
-/// adding / renaming a field updates both ends in one place.
-const kTagsSearchKeys = <String>['tags', 'name', 'color'];
+/// adding / renaming a field updates both ends in one place. The page's own
+/// name isn't listed: search matches every section by its title.
+const kTagsSearchKeys = <String>['name', 'color'];
 
 /// `/settings/tags` — manage tags, scoped to one tag-bearing entity type via
 /// the picker in the banner. Tags are polymorphic (each tag belongs to exactly

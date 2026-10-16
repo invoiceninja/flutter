@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
+import 'package:admin/ui/features/settings/views/advanced/generated_numbers/bodies/settings_body.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/bodies/general_settings_body.dart';
+import 'package:admin/ui/features/settings/views/advanced/tags_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/quickbooks_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/authorization_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/client_portal_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/customize_screen.dart';
@@ -58,83 +62,64 @@ import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.d
 /// subregion dialog each render distinct labels).
 void main() {
   group('search catalog consistency', () {
-    test('kSettingsSearchCatalog[company_details] equals the union of '
-        'per-tab kSearchKeys constants', () {
-      final union = <String>[
-        ...kCompanyDetailsDetailsSearchKeys,
-        ...kCompanyDetailsAddressSearchKeys,
-        ...kCompanyDetailsLogoSearchKeys,
-        ...kCompanyDetailsDefaultsSearchKeys,
-        ...kCompanyDetailsDocumentsSearchKeys,
-      ];
-      expect(
-        kSettingsSearchCatalog['company_details'],
-        union,
-        reason:
-            'kSettingsSearchCatalog["company_details"] must aggregate the '
-            'per-tab constants via spread. Edit settings_search_catalog.dart '
-            'to keep them in sync.',
-      );
-    });
-
-    test('kSettingsSearchCatalog[custom_fields] equals the union of '
-        'per-tab kSearchKeys constants', () {
-      final union = <String>[
-        'custom_fields',
-        ...kCustomFieldsCompanySearchKeys,
-        ...kCustomFieldsClientsSearchKeys,
-        ...kCustomFieldsProductsSearchKeys,
-        ...kCustomFieldsInvoicesSearchKeys,
-        ...kCustomFieldsPaymentsSearchKeys,
-        ...kCustomFieldsProjectsSearchKeys,
-        ...kCustomFieldsTasksSearchKeys,
-        ...kCustomFieldsVendorsSearchKeys,
-        ...kCustomFieldsExpensesSearchKeys,
-        ...kCustomFieldsUsersSearchKeys,
-      ];
-      expect(
-        kSettingsSearchCatalog['custom_fields'],
-        union,
-        reason:
-            'kSettingsSearchCatalog["custom_fields"] must aggregate the '
-            'per-tab constants via spread. Edit settings_search_catalog.dart '
-            'to keep them in sync.',
-      );
-    });
-
-    test('kSettingsSearchCatalog[client_portal] equals the union of '
-        'per-tab kSearchKeys constants', () {
-      final union = <String>[
-        ...kClientPortalSettingsSearchKeys,
-        ...kClientPortalAuthorizationSearchKeys,
-        ...kClientPortalRegistrationSearchKeys,
-        ...kClientPortalMessagesSearchKeys,
-        ...kClientPortalCustomizeSearchKeys,
-      ];
-      expect(
-        kSettingsSearchCatalog['client_portal'],
-        union,
-        reason:
-            'kSettingsSearchCatalog["client_portal"] must aggregate the '
-            'per-tab constants via spread. Edit settings_search_catalog.dart '
-            'to keep them in sync.',
-      );
-    });
-
-    test('kSettingsSearchCatalog[workflow_settings] equals the union of '
-        'per-tab kSearchKeys constants', () {
-      final union = <String>[
-        ...kWorkflowSettingsInvoicesSearchKeys,
-        ...kWorkflowSettingsQuotesSearchKeys,
-      ];
-      expect(
-        kSettingsSearchCatalog['workflow_settings'],
-        union,
-        reason:
-            'kSettingsSearchCatalog["workflow_settings"] must aggregate the '
-            'per-tab constants via spread. Edit settings_search_catalog.dart '
-            'to keep them in sync.',
-      );
+    test('each catalog tab is its screen\'s colocated constant', () {
+      // A tab that retypes its keys inline drifts from the screen: the scan
+      // below reads the constant, and nothing reads an inline copy. Six lists
+      // (Danger Zone, Backup, Restore, Invoice Design → General, Generated
+      // Numbers → Settings, QuickBooks) existed and were never spread.
+      final colocated = <String, List<String>>{
+        'company_details/': kCompanyDetailsDetailsSearchKeys,
+        'company_details/address': kCompanyDetailsAddressSearchKeys,
+        'company_details/logo': kCompanyDetailsLogoSearchKeys,
+        'company_details/defaults': kCompanyDetailsDefaultsSearchKeys,
+        'company_details/documents': kCompanyDetailsDocumentsSearchKeys,
+        'custom_fields/': kCustomFieldsCompanySearchKeys,
+        'custom_fields/clients': kCustomFieldsClientsSearchKeys,
+        'custom_fields/products': kCustomFieldsProductsSearchKeys,
+        'custom_fields/invoices': kCustomFieldsInvoicesSearchKeys,
+        'custom_fields/payments': kCustomFieldsPaymentsSearchKeys,
+        'custom_fields/projects': kCustomFieldsProjectsSearchKeys,
+        'custom_fields/tasks': kCustomFieldsTasksSearchKeys,
+        'custom_fields/vendors': kCustomFieldsVendorsSearchKeys,
+        'custom_fields/expenses': kCustomFieldsExpensesSearchKeys,
+        'custom_fields/users': kCustomFieldsUsersSearchKeys,
+        'client_portal/': kClientPortalSettingsSearchKeys,
+        'client_portal/authorization': kClientPortalAuthorizationSearchKeys,
+        'client_portal/registration': kClientPortalRegistrationSearchKeys,
+        'client_portal/messages': kClientPortalMessagesSearchKeys,
+        'client_portal/customize': kClientPortalCustomizeSearchKeys,
+        'workflow_settings/': kWorkflowSettingsInvoicesSearchKeys,
+        'workflow_settings/quotes': kWorkflowSettingsQuotesSearchKeys,
+        'account_management/danger_zone':
+            kAccountManagementDangerZoneSearchKeys,
+        'account_management/integrations/quickbooks':
+            kAccountManagementQuickbooksSearchKeys,
+        'backup_restore/': kBackupTabSearchKeys,
+        'backup_restore/restore': kRestoreTabSearchKeys,
+        'invoice_design/': kInvoiceDesignGeneralSearchKeys,
+        'generated_numbers/': kGeneratedNumbersSettingsSearchKeys,
+        'tags/': kTagsSearchKeys,
+        'device_settings/': kDeviceSettingsSearchKeys,
+        'keyboard_shortcuts/': kKeyboardShortcutsSearchKeys,
+        'tax_settings/': kTaxSettingsSearchKeys,
+        'email_settings/': kEmailSettingsSearchKeys,
+        'templates_and_reminders/': kTemplatesRemindersSearchKeys,
+      };
+      for (final entry in colocated.entries) {
+        final slash = entry.key.indexOf('/');
+        final slug = entry.key.substring(0, slash);
+        final path = entry.key.substring(slash + 1);
+        final tab = kSettingsSearchCatalog[slug]!.firstWhere(
+          (t) => t.path == path,
+        );
+        expect(
+          tab.keys,
+          entry.value,
+          reason:
+              '${entry.key} must be its colocated constant. Edit '
+              'settings_search_catalog.dart to spread it.',
+        );
+      }
     });
 
     for (final tab in _tabsUnderTest) {
@@ -458,6 +443,38 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/views/advanced/templates_reminders/widgets/template_preview_panel.dart',
     ],
     keys: kTemplatesRemindersSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'tags',
+    // Name and Color are the edit form's; the hit opens the list it's on.
+    sourcePaths: [
+      'lib/ui/features/settings/views/advanced/tags_screen.dart',
+      'lib/ui/features/settings/views/advanced/tags_edit_screen.dart',
+    ],
+    keys: kTagsSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'account_management/integrations/quickbooks',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/account_management/quickbooks_screen.dart',
+    ],
+    keys: kAccountManagementQuickbooksSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'invoice_design/general',
+    // Logo Size is its own composite field widget.
+    sourcePaths: [
+      'lib/ui/features/settings/views/advanced/invoice_design/bodies/general_settings_body.dart',
+      'lib/ui/features/settings/widgets/overridable_logo_size_field.dart',
+    ],
+    keys: kInvoiceDesignGeneralSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'generated_numbers/settings',
+    sourcePaths: [
+      'lib/ui/features/settings/views/advanced/generated_numbers/bodies/settings_body.dart',
+    ],
+    keys: kGeneratedNumbersSettingsSearchKeys,
   ),
   // Payment Links — list + 4-tab edit. Wire shape stays `subscription`
   // but the section is `payment_links` everywhere internal.

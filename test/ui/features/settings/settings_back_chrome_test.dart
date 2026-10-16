@@ -11,6 +11,7 @@
 // Nothing here pumps wide-only — that blind spot is why this shipped.
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -97,6 +98,10 @@ class _FakeServices implements Services {
   // registers with the app-wide guard.
   @override
   final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
+
+  // The settings index claims `/` for its search.
+  @override
+  final SearchFocusRegistry searchFocus = SearchFocusRegistry();
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

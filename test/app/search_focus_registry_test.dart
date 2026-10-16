@@ -61,6 +61,70 @@ void main() {
       expect(registry.current, isNull);
     });
 
+    test('activate runs the claimant\'s onActivate in place of focusing', () {
+      // The settings search field isn't mounted until the search opens, and
+      // focusing a detached node does nothing — so its claim opens it.
+      final registry = SearchFocusRegistry();
+      final list = FocusNode();
+      final settings = FocusNode();
+      addTearDown(list.dispose);
+      addTearDown(settings.dispose);
+      var opened = 0;
+
+      registry.current = list;
+      registry.claim(settings, onActivate: () => opened++);
+      registry.activate();
+      expect(opened, 1);
+
+      // Released, the slot is the list's again — and a plain claim focuses.
+      registry.release(settings);
+      expect(registry.current, same(list));
+      registry.activate();
+      expect(opened, 1);
+
+      // A plain re-claim drops a stale onActivate.
+      registry.claim(settings, onActivate: () => opened++);
+      registry.claim(settings);
+      registry.activate();
+      expect(opened, 1);
+    });
+
+    test('a fallback claim never outranks a regular one', () {
+      // The wide settings pane and a list beside it (Payment Links) both
+      // re-claim when the branch returns, in no fixed order; `/` must still
+      // reach the list.
+      final registry = SearchFocusRegistry();
+      final settings = FocusNode();
+      final list = FocusNode();
+      addTearDown(settings.dispose);
+      addTearDown(list.dispose);
+
+      registry.current = list;
+      registry.claim(settings, fallback: true);
+      expect(
+        registry.current,
+        same(list),
+        reason: 'claimed later, still below',
+      );
+
+      registry.release(list);
+      expect(registry.current, same(settings));
+
+      registry.current = list;
+      expect(registry.current, same(list));
+
+      // Moving between tiers leaves no stale copy behind.
+      registry.claim(list, fallback: true);
+      registry.release(list);
+      expect(registry.current, same(settings));
+      registry.release(settings);
+      expect(registry.current, isNull);
+    });
+
+    test('activate with nothing claimed is a no-op', () {
+      SearchFocusRegistry().activate();
+    });
+
     test('releasing a node that holds no claim is a no-op', () {
       final registry = SearchFocusRegistry();
       final a = FocusNode();

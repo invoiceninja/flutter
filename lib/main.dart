@@ -45,6 +45,7 @@ import 'package:admin/ui/core/widgets/call_log_prompter.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
+import 'package:admin/ui/features/settings/state/settings_reveal_controller.dart';
 import 'package:admin/ui/features/boot/local_data_unavailable_app.dart';
 import 'package:admin/ui/features/boot/local_data_recovery_notice.dart';
 import 'package:admin/data/db/salvage.dart';
@@ -604,6 +605,10 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     session: widget.services.auth.session,
   );
 
+  /// Carries a settings search hit's field to the page that renders it — see
+  /// [SettingsRevealController], provided at the root below.
+  final SettingsRevealController _settingsReveal = SettingsRevealController();
+
   // Bridges deep links (shared record links + the calendar-OAuth return) into
   // `services.deepLinks`: from the OS natively, and on web from the URL the
   // page was loaded with — there nothing delivers a link, it *is* the address.
@@ -722,6 +727,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     widget.services.realtime.dispose();
     _navPersister.dispose();
     _navHistory.dispose();
+    _settingsReveal.dispose();
     _appDeepLinks.dispose();
     widget.services.deepLinks.dispose();
     _appShareIntake.dispose();
@@ -753,6 +759,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // the client detail screen's action handler).
         ChangeNotifierProvider<SettingsLevelController>.value(
           value: widget.services.settingsLevel,
+        ),
+        // Above the router, so the settings search (in the shell and in the
+        // root-navigator command palette) and every settings page reach it.
+        ChangeNotifierProvider<SettingsRevealController>.value(
+          value: _settingsReveal,
         ),
       ],
       child: ListenableBuilder(

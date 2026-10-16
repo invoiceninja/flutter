@@ -797,4 +797,6 @@ Live-server probes go through `demo.invoiceninja.com`'s canned read credentials 
 
 ## Settings search catalog
 
-`lib/ui/features/settings/settings_search_catalog.dart` is the single source of truth for the settings sidebar (`kSettingsSections`) AND the in-app search (`kSettingsSearchCatalog`). Whenever you add / rename / remove a user-facing field under `lib/ui/features/settings/views/**`, update its `kSettingsSearchCatalog` entry — `search_catalog_consistency_test` enforces both ends match. Full conventions (section keys = route slugs, field entries = localization keys, the `kFooSearchKeys` co-location pattern) and the related "custom fields live in one home only" rule are in `docs/settings-screens.md`.
+`lib/ui/features/settings/settings_search_catalog.dart` holds the sidebar (`kSettingsSections`) and the search (`kSettingsSearchCatalog`: a `SettingsSearchTab` per tab, spreading that screen's `kFooSearchKeys`). Change a field under `views/**` → change its constant; `search_catalog_consistency_test` + `settings_search_route_test` hold both ends. Conventions: `docs/settings-screens.md`.
+
+- **A search hit reveals its field by label, not by anchor, so a catalog key must be the label the page renders.** → `docs/settings-screens.md` § A search hit reveals its field by label, not by anchor

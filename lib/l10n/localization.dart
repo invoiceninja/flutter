@@ -76,6 +76,16 @@ class Localization {
     return out;
   }
 
+  /// The English string for [key] — the Transifex English bundle, then the
+  /// app-pending one — or null when neither has it. Never the raw key, so a
+  /// caller matching text against it can't match on a key name.
+  ///
+  /// For matching, not rendering: settings search accepts the English label
+  /// too, so a German UI still finds "Postal Code" when someone types the
+  /// word the docs use.
+  String? englishOf(String key) =>
+      _nonBlank(_fallback[key]) ?? _nonBlank(_pending[key]);
+
   static Localization? of(BuildContext context) =>
       Localizations.of<Localization>(context, Localization);
 

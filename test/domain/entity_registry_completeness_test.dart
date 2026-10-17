@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/entity_modules.dart';
+import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/quick_create.dart';
 
 /// Catches "added an entity to `kBranchOrder` but forgot to enable its
 /// screen builders" or "added a sidebar entry but forgot `disabled: true`".
@@ -10,8 +12,8 @@ import 'package:admin/domain/entity_registry.dart';
 /// those only fire in debug builds and only when the router actually gets
 /// constructed. This test runs always.
 void main() {
-  test('every entity in kBranchOrder has all four screen builders + matching '
-      'wired module', () {
+  test('every entity in kBranchOrder has its list / detail / edit builders + '
+      'matching wired module', () {
     final wiredByType = {for (final m in kWiredEntityModules) m.type: m};
     final problems = <String>[];
     for (final spec in kBranchOrder) {
@@ -33,14 +35,35 @@ void main() {
       if (module.listBuilder == null) {
         problems.add('${spec.type}: missing listBuilder');
       }
-      if (module.createBuilder == null) {
-        problems.add('${spec.type}: missing createBuilder');
-      }
+      // A create screen is optional: Documents has none (a file is uploaded
+      // on its record) — see the next test for what that commits it to.
       if (module.detailBuilder == null) {
         problems.add('${spec.type}: missing detailBuilder');
       }
       if (module.editBuilder == null) {
         problems.add('${spec.type}: missing editBuilder');
+      }
+    }
+    expect(problems, isEmpty, reason: problems.join('\n'));
+  });
+
+  test('a routed entity with no create screen offers creating one nowhere', () {
+    final problems = <String>[];
+    for (final spec in kBranchOrder) {
+      if (spec is! EntityBranch) continue;
+      final module = kWiredEntityModules.firstWhere((m) => m.type == spec.type);
+      if (module.createBuilder != null) continue;
+      // `newRoute` drives the sidebar's hover "+", the shortcut catalog's
+      // create targets and the dashboard's create sheet.
+      final handlers = module.toHandlers(DisabledEntityDispatcher(spec.type));
+      if (handlers.newRoute != null) {
+        problems.add('${spec.type}: newRoute is ${handlers.newRoute}');
+      }
+      if (kQuickCreateEntities.contains(spec.type)) {
+        problems.add('${spec.type}: listed in kQuickCreateEntities');
+      }
+      if (kCreateShortcutEntities.contains(spec.type)) {
+        problems.add('${spec.type}: listed in kCreateShortcutEntities');
       }
     }
     expect(problems, isEmpty, reason: problems.join('\n'));

@@ -634,6 +634,38 @@ void main() {
       );
     });
 
+    test('an entity with no create screen routes <root>/new to a redirect, '
+        'never to :id', () {
+      // Without its own route `/documents/new` would match `/documents/:id`,
+      // hydrate a record whose id is "new", and show "not found".
+      final registry = realRegistry();
+      final router = buildRouter(
+        isAuthenticated: () => true,
+        postLoginRoute: () => '/clients',
+        refreshListenable: ValueNotifier<int>(0),
+        registry: registry,
+      );
+      addTearDown(router.dispose);
+      final createless = [
+        for (final h in registry.all)
+          if (!h.disabled && h.listBuilder != null && h.createBuilder == null)
+            h,
+      ];
+      expect(
+        createless.map((h) => h.type),
+        contains(EntityType.document),
+        reason: 'fixture regression: Documents is the entity this guards',
+      );
+      for (final h in createless) {
+        final path = '${h.routePath}/new';
+        final match = router.configuration.findMatch(Uri.parse(path));
+        expect(match.isError, isFalse, reason: path);
+        final route = match.last.route;
+        expect(route.path, path, reason: '$path fell through to another route');
+        expect(route.redirect, isNotNull, reason: '$path must redirect');
+      }
+    });
+
     test('the fixture still mirrors the real non-spec registrations', () {
       // `nonSpecHandlers` hand-copies two `routePath`s out of `Services.build`,
       // and nothing makes that copy follow the original. If one is repointed

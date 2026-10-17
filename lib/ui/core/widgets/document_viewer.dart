@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import 'package:admin/data/models/domain/document.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
@@ -50,44 +51,13 @@ class _EmptyFile implements Exception {
 }
 
 class _DocumentViewerState extends State<DocumentViewer> {
+  /// Set by the body once the file has arrived — what the Download button in
+  /// the bar saves.
   Uint8List? _bytes;
-  Object? _error;
-  bool _loading = true;
-  int _generation = 0;
 
   Document get _doc => widget.doc;
 
   String get _title => _doc.name.isNotEmpty ? _doc.name : _doc.hash;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final myGen = ++_generation;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final bytes = await widget.fetch();
-      if (!mounted || myGen != _generation) return;
-      setState(() {
-        _bytes = bytes.isEmpty ? null : bytes;
-        _error = bytes.isEmpty ? const _EmptyFile() : null;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted || myGen != _generation) return;
-      setState(() {
-        _bytes = null;
-        _error = e;
-        _loading = false;
-      });
-    }
-  }
 
   Future<void> _download() async {
     final bytes = _bytes;
@@ -118,7 +88,13 @@ class _DocumentViewerState extends State<DocumentViewer> {
             ),
         ],
       ),
-      body: SafeArea(child: _body(context)),
+      body: SafeArea(
+        child: DocumentPreviewBody(
+          doc: _doc,
+          fetch: widget.fetch,
+          onLoaded: (bytes) => setState(() => _bytes = bytes),
+        ),
+      ),
     );
     final size = MediaQuery.sizeOf(context);
     if (size.width < Breakpoints.wide) {
@@ -133,8 +109,84 @@ class _DocumentViewerState extends State<DocumentViewer> {
       ),
     );
   }
+}
 
-  Widget _body(BuildContext context) {
+/// The viewer's content without its dialog chrome: fetches the file, then
+/// draws it — a PDF in [PdfPreview], an image in an [InteractiveViewer],
+/// anything else as "no preview" with a Download button — or an error with
+/// Retry. [DocumentViewer] puts it in a dialog; the Documents record screen
+/// puts it in a card. Needs a bounded height.
+class DocumentPreviewBody extends StatefulWidget {
+  const DocumentPreviewBody({
+    super.key,
+    required this.doc,
+    required this.fetch,
+    this.onLoaded,
+  });
+
+  final Document doc;
+  final Future<Uint8List> Function() fetch;
+
+  /// The file's bytes once they arrive, or null when a fetch failed or came
+  /// back empty — for a host that offers its own Download.
+  final ValueChanged<Uint8List?>? onLoaded;
+
+  @override
+  State<DocumentPreviewBody> createState() => _DocumentPreviewBodyState();
+}
+
+class _DocumentPreviewBodyState extends State<DocumentPreviewBody> {
+  Uint8List? _bytes;
+  Object? _error;
+  bool _loading = true;
+  int _generation = 0;
+
+  Document get _doc => widget.doc;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final myGen = ++_generation;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final bytes = await widget.fetch();
+      if (!mounted || myGen != _generation) return;
+      setState(() {
+        _bytes = bytes.isEmpty ? null : bytes;
+        _error = bytes.isEmpty ? const _EmptyFile() : null;
+        _loading = false;
+      });
+      widget.onLoaded?.call(_bytes);
+    } catch (e) {
+      if (!mounted || myGen != _generation) return;
+      setState(() {
+        _bytes = null;
+        _error = e;
+        _loading = false;
+      });
+      widget.onLoaded?.call(null);
+    }
+  }
+
+  Future<void> _download() async {
+    final bytes = _bytes;
+    if (bytes == null) return;
+    await saveBytesAs(
+      context,
+      fileName: documentFileName(_doc.name, _doc.type),
+      bytes: bytes,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     final bytes = _bytes;
     if (bytes == null) {
@@ -142,10 +194,13 @@ class _DocumentViewerState extends State<DocumentViewer> {
       return ErrorView(
         message: err is _EmptyFile
             ? context.tr('document_file_empty')
+            : err is NotFoundException
+            ? context.tr('document_not_found')
             : context.tr('failed_to_load_with_error', {
                 'error': formatNotifyError(err),
               }),
-        onRetry: _load,
+        // Retrying a file the server has deleted can only fail again.
+        onRetry: err is NotFoundException ? null : _load,
       );
     }
     final noPreview = _NoPreview(onDownload: _download);

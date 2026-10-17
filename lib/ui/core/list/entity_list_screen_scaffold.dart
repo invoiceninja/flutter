@@ -322,12 +322,15 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
   final String titleKey;
 
   /// Route the wide-mode "New X" button + narrow-mode FAB navigate to
-  /// (e.g. `/clients/new`).
-  final String newRoute;
+  /// (e.g. `/clients/new`). `null` for an entity that has no create screen at
+  /// all (Documents — a file is uploaded on its record): no New button, no
+  /// FAB, no FAB clearance and `N` does nothing. Different from
+  /// [canCreate] `false`, which keeps a greyed button to explain a plan gate.
+  final String? newRoute;
 
   /// Localization key for the "New X" button + FAB tooltip
-  /// (e.g. `new_client`).
-  final String newLabelKey;
+  /// (e.g. `new_client`). `null` exactly when [newRoute] is.
+  final String? newLabelKey;
 
   /// Embedded-only: overrides what the slim toolbar's "New X" button does.
   /// Set by a parent-scoped list screen (e.g. a client's Invoices tab) to
@@ -440,6 +443,10 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     with FormatterHostMixin {
   late VM _vm;
   late final Services _services;
+
+  /// Whether this entity is created from its list at all — see
+  /// [EntityListScreenScaffold.newRoute].
+  bool get _offersCreate => widget.newRoute != null;
   late String _companyId;
 
   /// Company row watch behind the status strip's inventory gate, cached
@@ -994,6 +1001,10 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
           _NewRecordIntent: GuardedShortcutAction<_NewRecordIntent>(
             onInvoke: (_) {
               if (!widget.canCreate) return null;
+              final newRoute = widget.newRoute;
+              if (newRoute == null && widget.embeddedNewOverride == null) {
+                return null;
+              }
               // Embedded in a record: `N` has to do what the New button
               // beside it does. It used to go to the bare create route, so
               // pressing it on a client's Invoices tab started an invoice
@@ -1004,7 +1015,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                 onNew(context);
                 return null;
               }
-              goToCreateRoute(context, widget.newRoute);
+              if (newRoute != null) goToCreateRoute(context, newRoute);
               return null;
             },
           ),
@@ -1093,9 +1104,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   ) {
     final parent = EmbeddedListParentScope.maybeOf(context);
     if (parent?.readOnly ?? false) return null;
-    final create =
+    final newRoute = widget.newRoute;
+    final void Function(BuildContext)? create =
         widget.embeddedNewOverride ??
-        (BuildContext ctx) => goToCreateRoute(ctx, widget.newRoute);
+        (newRoute == null
+            ? null
+            : (BuildContext ctx) => goToCreateRoute(ctx, newRoute));
+    if (create == null) return null;
     if (parent == null) return create;
     return (ctx) {
       if (!requireSynced(ctx, parent.parentId)) return;
@@ -1397,12 +1412,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
               // the FAB is mobile-only. Selection mode hides it either way.
               // When `canCreate` is false (plan-gated), the FAB is also
               // hidden so a free-plan user can't start a new entity.
-              floatingActionButton: (selecting || wide || !widget.canCreate)
+              floatingActionButton:
+                  (selecting || wide || !widget.canCreate || !_offersCreate)
                   ? null
                   : FloatingActionButton(
-                      tooltip: context.tr(widget.newLabelKey),
+                      tooltip: context.tr(widget.newLabelKey!),
                       onPressed: () =>
-                          goToCreateRoute(context, widget.newRoute),
+                          goToCreateRoute(context, widget.newRoute!),
                       child: const Icon(Icons.add),
                     ),
               // endFloat lifts the FAB above the bottom filter bar on mobile.
@@ -1720,7 +1736,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // `selecting`, but the padding deliberately is not: the status strip above
     // stays laid out through multi-select for the same reason, and changing the
     // scroll extent on every enter/exit would jump the rows under the thumb.
-    final showsFab = !wide && !widget.embedded && widget.canCreate;
+    final showsFab =
+        !wide && !widget.embedded && widget.canCreate && _offersCreate;
     final listView = ListView.builder(
       // `null`, never `EdgeInsets.zero`, on the other branch: a null padding is
       // what lets `BoxScrollView` apply the bottom safe inset itself. Once we

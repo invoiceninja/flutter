@@ -88,6 +88,8 @@ const Set<String> _kEditDefaultsToSlide = <String>{
   '/products',
   '/transactions',
   '/payments',
+  // A name and a switch — a full-width editor would be mostly empty.
+  '/documents',
 };
 
 /// Whether navigating to [basePath]'s Edit / Create route opens a

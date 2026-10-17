@@ -178,7 +178,7 @@ What the bounded walk can't tell reads as landing, the answer from before it loo
 
 ## A Sync pass re-downloads the entity tables and nothing else
 
-`Services.syncNow` pushes the outbox, then `resyncAllEntities` walks the fourteen types in
+`Services.syncNow` pushes the outbox, then `resyncAllEntities` walks the fifteen types in
 `_resyncSteps` — and for a long time that was the whole pass. Three caches hang off exactly the
 rows it rewrites, and none of them were re-seeded, which shipped as
 [invoiceninja/flutter#160](https://github.com/invoiceninja/flutter/issues/160): tapping **Sync

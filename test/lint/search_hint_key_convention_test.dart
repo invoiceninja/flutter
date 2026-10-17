@@ -39,6 +39,12 @@ void main() {
 
   final hintKey = RegExp(r"hintKey:\s*'([a-z0-9_]+)'");
 
+  /// Fields with no `is:` key to advertise, so the shared "Search or try
+  /// is:archived" would be a lie. Documents: the server never archives or
+  /// soft-deletes a file, so the list has no state filter at all
+  /// (`buildDocumentFilterKeys`). Still checked for resolving to a string.
+  const noFilterHint = {'document_token_search_field.dart'};
+
   /// `<file basename>` → the key it passes.
   Map<String, String> declaredHintKeys() => {
     for (final f in fields)
@@ -66,7 +72,7 @@ void main() {
   test('every entity search field uses the *_or_filter_hint convention', () {
     final offenders = [
       for (final e in declaredHintKeys().entries)
-        if (!e.key.endsWith('_or_filter_hint'))
+        if (!noFilterHint.contains(e.key))
           if (!e.value.endsWith('_or_filter_hint')) '${e.key}: ${e.value}',
     ];
     expect(
@@ -109,7 +115,10 @@ void main() {
     // "Search Payments" and Bank Transactions "Search transactions or type
     // is:archived" while the other fifteen read "Search or try is:archived".
     expect(
-      rendered.values.toSet(),
+      {
+        for (final e in rendered.entries)
+          if (!noFilterHint.contains(e.key)) e.value,
+      },
       hasLength(1),
       reason:
           'entity search fields render more than one placeholder:\n  '

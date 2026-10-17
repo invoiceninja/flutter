@@ -13,6 +13,7 @@ import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
@@ -30,7 +31,8 @@ class PurchaseOrderRepository
     extends BaseEntityRepository<PurchaseOrder, PurchaseOrderApi>
     with
         EntityCommentMutations<PurchaseOrder, PurchaseOrderApi>,
-        BillingDocEmailMutations<PurchaseOrder, PurchaseOrderApi> {
+        BillingDocEmailMutations<PurchaseOrder, PurchaseOrderApi>
+    implements EmbeddedDocumentsOwner {
   PurchaseOrderRepository({
     required super.db,
     required this.api,
@@ -487,6 +489,7 @@ class PurchaseOrderRepository
     );
   }
 
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -497,6 +500,7 @@ class PurchaseOrderRepository
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

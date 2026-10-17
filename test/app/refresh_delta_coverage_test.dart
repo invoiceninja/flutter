@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 
 import '../ui/features/shell/_shell_test_helpers.dart';
@@ -54,9 +55,16 @@ void main() {
     // arrays these appliers read (`LoginResponseApi.fromFullSnapshot`), and an
     // entity missing from that list is typed in full on every cold start, for
     // rows the applier then skips.
+    //
+    // Minus the derived appliers, which own no array: the Documents harvester
+    // reads the records' own `documents` from arrays the others already drop.
     expect(
       kBrowsableDeltaJsonKeys,
-      hasLength(fixture.services.refreshDeltaEntityTypes.length),
+      hasLength(
+        fixture.services.refreshDeltaEntityTypes
+            .difference(kDerivedDeltaApplierTypes)
+            .length,
+      ),
       reason:
           'refreshDeltaAppliers and kBrowsableDeltaJsonKeys must name the same '
           'entities',
@@ -133,6 +141,7 @@ Map<String, BaseEntityDao<dynamic, dynamic>> _deltaBackedBaseDaos(
 ) {
   return {
     'clientDao': db.clientDao,
+    'documentDao': db.documentDao,
     'productDao': db.productDao,
     'invoiceDao': db.invoiceDao,
     'recurringInvoiceDao': db.recurringInvoiceDao,

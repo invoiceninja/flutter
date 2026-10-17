@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/credit_dao.dart';
+import 'package:admin/data/db/dao/document_dao.dart';
 import 'package:admin/data/db/dao/expense_dao.dart';
 import 'package:admin/data/db/dao/invoice_dao.dart';
 import 'package:admin/data/db/dao/payment_dao.dart';
@@ -21,6 +22,7 @@ import 'package:admin/domain/columns/expense_columns.dart';
 import 'package:admin/domain/columns/invoice_columns.dart';
 import 'package:admin/domain/columns/payment_columns.dart';
 import 'package:admin/domain/columns/product_columns.dart';
+import 'package:admin/domain/columns/document_columns.dart';
 import 'package:admin/domain/columns/project_columns.dart';
 import 'package:admin/domain/columns/purchase_order_columns.dart';
 import 'package:admin/domain/columns/quote_columns.dart';
@@ -231,6 +233,16 @@ void main() {
         sortField: f,
       ),
     );
+    register<dynamic>(
+      'document',
+      kAllDocumentColumns,
+      (f) => db.documentDao.watchPage(
+        companyId: 'co',
+        offset: 0,
+        limit: 10,
+        sortField: f,
+      ),
+    );
 
     final unmapped = <String>[];
     cases.forEach((entity, c) {
@@ -352,6 +364,13 @@ void main() {
         ...sharedMetadata,
         ...payloadAssignee,
       ],
+      // The parent's name lives in the parent's own table; the hash is
+      // payload-only, and so is the uploader.
+      'document': [
+        DocumentFieldIds.linkedTo,
+        DocumentFieldIds.hash,
+        DocumentFieldIds.userId,
+      ],
     };
 
     final byEntity = <String, Map<String, ColumnDefinition<Object?>>>{
@@ -369,6 +388,7 @@ void main() {
       'recurring_expense': recurringExpenseColumnsById.cast(),
       'project': projectColumnsById.cast(),
       'task': taskColumnsById.cast(),
+      'document': documentColumnsById.cast(),
     };
 
     displayOnly.forEach((entity, ids) {

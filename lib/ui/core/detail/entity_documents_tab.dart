@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/document_open_actions.dart';
+import 'package:admin/ui/core/widgets/document_type_icon.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
@@ -251,17 +252,6 @@ class _DocumentRow extends StatelessWidget {
   final Future<void> Function(Document doc) onDelete;
   final Future<void> Function(Document doc) onToggleVisibility;
 
-  static const _imageExts = <String>{
-    'png',
-    'jpg',
-    'jpeg',
-    'gif',
-    'webp',
-    'heic',
-    'svg',
-    'bmp',
-  };
-
   String _formatDate(BuildContext context) {
     if (doc.updatedAt <= 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(
@@ -275,12 +265,7 @@ class _DocumentRow extends StatelessWidget {
     return formatter?.date(iso) ?? iso;
   }
 
-  IconData _typeIcon() {
-    final ext = doc.type.toLowerCase();
-    return _imageExts.contains(ext)
-        ? Icons.image_outlined
-        : Icons.description_outlined;
-  }
+  IconData _typeIcon() => documentTypeIcon(doc.type);
 
   @override
   Widget build(BuildContext context) {

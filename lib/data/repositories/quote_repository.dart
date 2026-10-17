@@ -16,6 +16,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/quotes_api.dart';
@@ -35,7 +36,8 @@ final _log = Logger('QuoteRepository');
 class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     with
         EntityCommentMutations<Quote, QuoteApi>,
-        BillingDocEmailMutations<Quote, QuoteApi> {
+        BillingDocEmailMutations<Quote, QuoteApi>
+    implements EmbeddedDocumentsOwner {
   QuoteRepository({
     required super.db,
     required this.api,
@@ -561,6 +563,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     );
   }
 
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -571,6 +574,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

@@ -53,14 +53,15 @@ the honest default.
 14. [Recurring expenses](#recurring-expenses)
 15. [Bank transactions](#bank-transactions)
 16. [Products](#products)
-17. [Documents (DocuNinja)](#documents-docuninja)
-18. [Reports](#reports)
-19. [Settings — Basic](#settings--basic)
-20. [Settings — Advanced](#settings--advanced)
-21. [Payment gateways](#payment-gateways)
-22. [Sync & offline](#sync--offline)
-23. [Cross-cutting](#cross-cutting)
-24. [Platform / mobile specific](#platform--mobile-specific)
+17. [Documents (uploaded files)](#documents-uploaded-files)
+18. [Documents (DocuNinja)](#documents-docuninja)
+19. [Reports](#reports)
+20. [Settings — Basic](#settings--basic)
+21. [Settings — Advanced](#settings--advanced)
+22. [Payment gateways](#payment-gateways)
+23. [Sync & offline](#sync--offline)
+24. [Cross-cutting](#cross-cutting)
+25. [Platform / mobile specific](#platform--mobile-specific)
 
 ---
 
@@ -651,6 +652,25 @@ the honest default.
 | Product — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 | Product — group list by custom field / tags (collapsible sections + counts) | — | — | ✅ | | |
 | Product — filter by custom field value (pick from list) | ❌ | ✅ | ✅ | | |
+
+---
+
+## Documents (uploaded files)
+
+The company-wide list of every uploaded file, whatever record it is attached to — admin-portal's **Documents** menu entry. (React's **Documents** is DocuNinja, the e-signature product below; it has no list of uploaded files.) Uploading happens on each record's own Documents tab — see each entity's "documents / attachments" row. `docs/documents-list.md`.
+
+| Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
+|---|---|---|---|---|---|
+| Documents — main-menu entry, after Transactions; hidden with the Documents module (bit 128), no create "+" | ❌ | ✅ | ✅ | | |
+| Documents — list: paged, name search, sort, columns (name, linked to, size, width, height, private, created; type, hash, id, uploader, updated) | ❌ | ✅ | ✅ | | |
+| Documents — record screen: details, linked-to record, inline PDF / image preview | ❌ | ✅ | ✅ | | |
+| Documents — view (in-app viewer) and download | ❌ | ✅ | ✅ | | |
+| Documents — rename | ❌ | ✅ | ✅ | | |
+| Documents — make public / private | ❌ | ❌ | ✅ | | |
+| Documents — delete (single and bulk, password-gated) | ❌ | ✅ | ✅ | | |
+| Documents — bulk download (server zips and emails a link) | ❌ | ✅ | ✅ | | |
+| Documents — "Linked to" for every file (server sends no parent; v2 fills it from cached records — BACKEND.md § Documents list) | — | 🟡 | 🟡 | | |
+| Documents — a file deleted elsewhere drops out (on Sync, its record's refresh, or a failed download) | — | — | ✅ | | |
 
 ---
 

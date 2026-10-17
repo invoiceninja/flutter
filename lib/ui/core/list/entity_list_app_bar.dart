@@ -125,10 +125,11 @@ class EntityListAppBar<T> extends StatelessWidget
   final String titleKey;
 
   /// Route the wide-mode "New X" button navigates to (e.g. `/clients/new`).
-  final String newRoute;
+  /// `null` for an entity with no create screen — the button is left out.
+  final String? newRoute;
 
   /// Localization key for the wide-mode primary button label.
-  final String newLabelKey;
+  final String? newLabelKey;
 
   /// When false, the wide-mode "New X" button renders disabled. Used by
   /// plan-gated screens so a free-plan user cannot tap into the new-entity

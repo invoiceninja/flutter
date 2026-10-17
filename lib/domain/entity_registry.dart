@@ -109,7 +109,10 @@ class EntityHandlers {
   /// [sidebarSection] != none.
   final GoRouterWidgetBuilder? listBuilder;
 
-  /// `/<routePath>/new` — create screen.
+  /// `/<routePath>/new` — create screen. `null` on a routed entity that is
+  /// never created on its own screen (Documents: a file is uploaded on its
+  /// record) — the router then redirects `/new` to the list and [newRoute]
+  /// is null, so no "+" / New / FAB offers it.
   final GoRouterWidgetBuilder? createBuilder;
 
   /// `/<routePath>/:id` — detail screen.
@@ -140,9 +143,13 @@ class EntityHandlers {
   IconData get effectiveOutlinedIcon => outlinedIcon ?? icon;
 
   /// `/<routePath>/new` for the hover-reveal "+" affordance in the sidebar.
-  /// Returns null when there's no create route (disabled / sync-only).
+  /// Returns null when there's no create route (disabled / sync-only), or
+  /// when a routed entity has no create screen ([createBuilder] null beside a
+  /// [listBuilder]). Settings-hosted entities declare no builders at all and
+  /// keep `<root>/new` — the settings router owns that route.
   String? get newRoute {
     if (disabled || routePath.isEmpty) return null;
+    if (listBuilder != null && createBuilder == null) return null;
     return '$routePath/new';
   }
 }

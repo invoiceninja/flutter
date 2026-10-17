@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/auth/auth_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -35,7 +36,8 @@ final _log = Logger('CompanyRepository');
 /// `/refresh` overwrite the locally-edited row. Mirrors [kUserSettingsWireName].
 const String kCompanyWireName = 'company';
 
-class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
+class CompanyRepository extends BaseEntityRepository<Company, CompanyApi>
+    implements EmbeddedDocumentsOwner {
   CompanyRepository({
     required super.db,
     required this.api,
@@ -383,6 +385,59 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
     if (filtered.length == decoded.length) return; // id not present
     await (db.update(db.companies)..where((c) => c.id.equals(companyId))).write(
       CompaniesCompanion(documents: Value(jsonEncode(filtered))),
+    );
+  }
+
+  /// [EmbeddedDocumentsOwner] for the company's own files. The company IS the
+  /// parent record, so [entityId] is the company id and is not read.
+  @override
+  Future<void> applyDocumentChanged({
+    required String companyId,
+    required String entityId,
+    required DocumentApi document,
+  }) => mergeDocumentLocally(companyId: companyId, document: document);
+
+  @override
+  Future<void> applyDocumentDeleted({
+    required String companyId,
+    required String entityId,
+    required String documentId,
+  }) => removeDocumentLocally(companyId: companyId, documentId: documentId);
+
+  /// Merge the server's copy of one company document into the local
+  /// `documents` column — a rename or visibility change made from the
+  /// Documents list. Raw-JSON like [removeDocumentLocally], so fields the
+  /// typed model doesn't carry survive; only the keys [document] sets are
+  /// overwritten. No-op when the row or the id is absent.
+  Future<void> mergeDocumentLocally({
+    required String companyId,
+    required DocumentApi document,
+  }) async {
+    final row = await db.companiesDao.byId(companyId);
+    final raw = row?.documents;
+    if (raw == null || raw.isEmpty) return;
+    final List<dynamic> decoded;
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! List) return;
+      decoded = parsed;
+    } catch (_) {
+      return;
+    }
+    var found = false;
+    final merged = [
+      for (final e in decoded)
+        if (e is Map && e['id']?.toString() == document.id)
+          () {
+            found = true;
+            return {...e, ...document.toJson()};
+          }()
+        else
+          e,
+    ];
+    if (!found) return;
+    await (db.update(db.companies)..where((c) => c.id.equals(companyId))).write(
+      CompaniesCompanion(documents: Value(jsonEncode(merged))),
     );
   }
 

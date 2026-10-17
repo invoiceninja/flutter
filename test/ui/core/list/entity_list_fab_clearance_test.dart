@@ -90,11 +90,13 @@ void main() {
     required int rowCount,
     bool embedded = false,
     double bottomInset = 0,
+    bool creatable = true,
+    Size window = const Size(400, 800),
   }) async {
     // `tester.view`, not `setSurfaceSize`: the latter leaves `MediaQuery` at
     // 800x600, which would put the scaffold on its wide branch — where there
     // is no FAB and so nothing to clear.
-    tester.view.physicalSize = const Size(400, 800);
+    tester.view.physicalSize = window;
     tester.view.devicePixelRatio = 1.0;
     tester.view.padding = FakeViewPadding(bottom: bottomInset);
     addTearDown(tester.view.resetPhysicalSize);
@@ -111,8 +113,8 @@ void main() {
         fixture.services,
         EntityListScreenScaffold<_Row, _Vm>(
           titleKey: 'quotes',
-          newRoute: '/quotes/new',
-          newLabelKey: 'new_quote',
+          newRoute: creatable ? '/quotes/new' : null,
+          newLabelKey: creatable ? 'new_quote' : null,
           emptyIcon: Icons.request_quote_outlined,
           emptyTitleKey: 'no_quotes_yet',
           wantsFormatter: false,
@@ -192,6 +194,37 @@ void main() {
           'an explicit padding switches off BoxScrollView own MediaQuery '
           'consumption, so the safe inset has to be carried here',
     );
+    await _disposeTree(tester);
+  });
+
+  // Documents: a file is uploaded on its record, so its list has no create
+  // route at all — not the greyed plan-gate button `canCreate: false` keeps.
+  testWidgets('a list with no create route has no FAB and pays no '
+      'clearance for one', (tester) async {
+    await pumpList(tester, rowCount: 30, creatable: false);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(listOf(tester).padding, isNull);
+    await _disposeTree(tester);
+  });
+
+  testWidgets('a wide list with no create route has no New button', (
+    tester,
+  ) async {
+    await pumpList(
+      tester,
+      rowCount: 5,
+      creatable: false,
+      window: const Size(1400, 900),
+    );
+    expect(find.byIcon(Icons.add), findsNothing);
+    await _disposeTree(tester);
+  });
+
+  testWidgets('(control) a wide list with a create route has one', (
+    tester,
+  ) async {
+    await pumpList(tester, rowCount: 5, window: const Size(1400, 900));
+    expect(find.byIcon(Icons.add), findsOneWidget);
     await _disposeTree(tester);
   });
 

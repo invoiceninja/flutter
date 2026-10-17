@@ -14,6 +14,7 @@ import 'package:admin/data/db/dao/bank_account_dao.dart';
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
 import 'package:admin/data/db/dao/client_dao.dart';
 import 'package:admin/data/db/dao/companies_dao.dart';
+import 'package:admin/data/db/dao/document_dao.dart';
 import 'package:admin/data/db/dao/company_gateway_dao.dart';
 import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
@@ -61,6 +62,7 @@ import 'package:admin/data/db/tables/dashboard_cache_table.dart';
 import 'package:admin/data/db/tables/designs_table.dart';
 import 'package:admin/data/db/tables/device_contact_links_table.dart';
 import 'package:admin/data/db/tables/device_prefs_table.dart';
+import 'package:admin/data/db/tables/document_records_table.dart';
 import 'package:admin/data/db/tables/documents_table.dart';
 import 'package:admin/data/db/tables/drafts_table.dart';
 import 'package:admin/data/db/tables/expense_categories_table.dart';
@@ -146,6 +148,7 @@ final _log = Logger('AppDatabase');
     Tokens,
     DeviceContactLinks,
     DevicePrefs,
+    DocumentRecords,
   ],
   daos: [
     ClientDao,
@@ -190,13 +193,14 @@ final _log = Logger('AppDatabase');
     TokenDao,
     DeviceContactLinkDao,
     DevicePrefsDao,
+    DocumentDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -296,6 +300,11 @@ class AppDatabase extends _$AppDatabase {
     // `createListSortIndexes` (the five billing documents' default list order,
     // `LOWER(number)`, which no index served: page 1 of an invoice list sorted
     // every row in the table to return fifty — docs/performance-tracking.md).
+    //
+    // v13 → v14: the `document_records` table — the company-wide Documents
+    // list (`GET /api/v1/documents`). Brand new and a cache, so there is
+    // nothing to backfill: the list's first page fills it. Not the old
+    // `documents` scaffold table, which stays untouched (see the table doc).
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -358,6 +367,15 @@ class AppDatabase extends _$AppDatabase {
           if (from < 12) {
             await m.createTable(devicePrefs);
             await carryNavStatePrefs(this);
+          }
+          if (from < 14) {
+            // Guarded like the missing-table backstop below: a re-run after
+            // commit-then-kill must be a no-op, not "table already exists".
+            final exists = await customSelect(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+              "AND name = 'document_records'",
+            ).get();
+            if (exists.isEmpty) await m.createTable(documentRecords);
           }
           // Create any declared table this database is missing, before the
           // index pass below touches it.

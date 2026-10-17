@@ -27,7 +27,7 @@ Plus two non-negotiables carried from admin-portal:
 
 | When you're doing… | Look at |
 |---|---|
-| Adding a new entity | § Adding a new entity + `docs/adding-an-entity.md` |
+| Adding a new entity, or one with no create screen (the Documents list) | § Adding a new entity + `docs/adding-an-entity.md` · `docs/documents-list.md` |
 | Adding / editing a settings screen, or anything in the visual invoice designer | § Settings screens + `docs/settings-screens.md` · § Visual invoice designer + `docs/invoice-designer.md` |
 | Wiring a form field, picker, or Enter-to-save | § Forms · `docs/pickers.md` · `docs/form-fields.md` |
 | Keyboard type, autofill, capitalization, or a negative amount on touch | § Forms — Input types · `docs/form-fields.md` · `test/lint/field_input_types_test.dart` |
@@ -455,8 +455,9 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **A different identity on the same device wipes the local database, and only the login entry points check.** → `docs/sync.md` § A different identity on the same device wipes the local database
 - **The server's rounding scale is a two-level map, not one precision.** → `docs/sync.md` § The server's rounding scale is a two-level map, not one precision
 - **`markPaid`'s confirmation is a hook, deliberately NOT `confirm: true`.** It opens its own dialog, and § Action confirmations is explicit that a second prompt in front of one is worse than none.
-- **A Sync pass re-downloads the fourteen entity tables and nothing else — every cache that hangs off them is re-seeded by hand.** → `docs/sync.md` § A Sync pass re-downloads the entity tables and nothing else
-- **A `/refresh` delta carries the fourteen browsable entity tables too, and they are applied as an upsert-only top-up — never on a full sync, and never over a newer local row.** → `docs/sync.md` § The refresh delta tops up the browsable tables
+- **A Sync pass re-downloads the fifteen entity tables and nothing else — every cache that hangs off them is re-seeded by hand.** → `docs/sync.md` § A Sync pass re-downloads the entity tables and nothing else
+- **A Documents-list row leaves only by a confirmed delete, a record whose complete `documents` no longer lists it, or a full Sync sweep that reached the end — never while dirty or named by an outbox row.** → `docs/documents-list.md` § A document row is removed only three ways
+- **A `/refresh` delta carries the fourteen browsable entity tables too, and they are applied as an upsert-only top-up (the Documents harvest also prunes, above) — never on a full sync, and never over a newer local row.** → `docs/sync.md` § The refresh delta tops up the browsable tables
 - **Anything that must fetch once a Sync pass is over listens to `ResyncController.lastCompletion` — the idle falling edge also fires for a cancelled pass.** → `docs/sync.md` § A screen that refetches after a Sync pass listens to `lastCompletion`
 - **A pushed server event never writes an entity — it only schedules the `/refresh` delta (`RefreshScheduler.requestSoon`), except a download-ready notice, which is shown, not refreshed — and only `main.dart` opens the socket (`Services.build(realtimeUpdates:)` defaults off).** → `docs/realtime-updates.md` § A pushed server event never writes an entity
 - **An edit of a record whose create failed saves as a create — `performSave` branches on `savesAsCreate`, never `isCreate`.** → `docs/sync.md` § An edit of a record whose create failed saves as a create
@@ -557,7 +558,7 @@ The lifecycle dimension (`is:` / `state:` — active / archived / deleted) is a 
 
 ## Tasks layout view
 
-The Tasks screen has five layouts (list / daily / weekly / calendar / kanban). The layout is **`?view=` on the URL as the override, `DevicePrefKeys.tasksView` as the fallback** — `tasksViewModeFromQuery` + `resolveTasksViewMode` (`lib/domain/tasks/tasks_view_mode.dart`, a leaf that imports nothing so `lib/app/tasks_view_controller.dart` need not import a UI screen; `task_list_screen.dart` re-exports the enum). Before invoiceninja/flutter#133 the URL was the only carrier, and since every structural "up" navigation drops the query string by construction, the mode was lost the moment the user tapped the FAB: `goToCreateRoute` `go`s a bare `/tasks/new`, `MasterDetailLayout` auto-promotes that to `?view=full`, and `entityCloseTargetPath` returns the bare `basePath` — so cancelling a new task landed on the plain list. Three sibling paths lost it too (closing a card's detail pane, re-tapping the already-active Tasks sidebar row, a company switch made from `/tasks/<id>`); Android back and the sidebar `←` never did, because `NavHistoryController` records the full URL. Five things are load-bearing.
+The Tasks screen has five layouts (list / daily / weekly / calendar / kanban). The layout is **`?view=` on the URL as the override, `DevicePrefKeys.tasksView` as the fallback** — `tasksViewModeFromQuery` + `resolveTasksViewMode` (`lib/domain/tasks/tasks_view_mode.dart`, a leaf that imports nothing so `lib/app/tasks_view_controller.dart` need not import a UI screen; `task_list_screen.dart` re-exports the enum). Why there is a fallback at all: `docs/tasks-views.md` § Why the URL alone could not carry the layout. Five things are load-bearing.
 
 - **The `view` key is overloaded, so `'full'` must parse to null.** → `docs/tasks-views.md` § The `view` key is overloaded, so `full` must parse to null
 - **The fallback is suppressed whenever the screen can only be the plain list** → `docs/tasks-views.md` § The fallback is suppressed when the screen can only be the list

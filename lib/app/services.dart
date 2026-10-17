@@ -59,6 +59,8 @@ import 'package:admin/data/repositories/company_sync_dispatcher.dart';
 import 'package:admin/data/repositories/credit_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/design_repository.dart';
+import 'package:admin/data/repositories/document_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/repositories/group_setting_repository.dart';
@@ -311,6 +313,7 @@ class Services implements SidebarBadgeContext {
     required this.documentVersions,
     required this.emails,
     required this.search,
+    required this.documentsApi,
     required this.documents,
     required this.sync,
     required this.refreshScheduler,
@@ -570,10 +573,14 @@ class Services implements SidebarBadgeContext {
   final EmailsApi emails;
   final SearchApi search;
 
-  /// Shared `/api/v1/documents` surface addressed by document id — bulk
-  /// download (server-side zip+email export). Per-entity uploads live on
-  /// each entity's own api (the URL is entity-scoped).
-  final DocumentsApi documents;
+  /// Shared `/api/v1/documents` surface addressed by document id — the
+  /// file bytes, bulk download (server-side zip+email export). Per-entity
+  /// uploads live on each entity's own api (the URL is entity-scoped).
+  final DocumentsApi documentsApi;
+
+  /// The company-wide Documents list — every uploaded file, whatever record
+  /// it hangs off (`docs/documents-list.md`).
+  final DocumentRepository documents;
 
   /// Reads/writes the authenticated user's profile (the row behind
   /// Settings > User Details). Distinct from [userSettings], which only
@@ -1151,7 +1158,7 @@ class Services implements SidebarBadgeContext {
   /// drain surface through `SyncEventListener` as usual).
   ///
   /// The tail is the **cache** half, and its absence was invoiceninja/flutter
-  /// #160: [resyncAllEntities] walks the fourteen browsable entity tables and
+  /// #160: [resyncAllEntities] walks the fifteen browsable entity tables and
   /// nothing else, while three caches hang off exactly the rows it rewrites.
   /// The `/activity` screen and the dashboard's Activity card share one
   /// `dashboard_cache` row; the per-record Activity / Comments tabs seed from
@@ -1291,6 +1298,12 @@ class Services implements SidebarBadgeContext {
     (
       EntityType.transaction,
       () => bankTransactions.refreshAll(companyId: companyId, full: true),
+    ),
+    // Last: its full sweep ends by linking files to their records from the
+    // `documents` arrays the steps above just re-downloaded.
+    (
+      EntityType.document,
+      () => documents.refreshAll(companyId: companyId, full: true),
     ),
   ];
 
@@ -1636,6 +1649,17 @@ class Services implements SidebarBadgeContext {
     // Built standalone, so they miss the `entities.repos` loop above.
     userRepo.activeCompanyId = liveCompanyId;
     companyRepo.activeCompanyId = liveCompanyId;
+    // Which repository holds a parent's embedded `documents` column, so a
+    // change made from the Documents list reaches the record's own tab. Bound
+    // here because the company — the one parent built outside
+    // `wireEntities` — only exists from this point.
+    entities.documents.ownerFor = (type) {
+      if (type == EntityType.company) return companyRepo;
+      return switch (entities.repos[type]) {
+        final EmbeddedDocumentsOwner owner => owner,
+        _ => null,
+      };
+    };
     // Stricter there: a null answer (signed out) blocks the write too — see
     // `DashboardRepository._ensureStillActive`.
     dashboardRepo.activeCompanyId = liveCompanyId;
@@ -1680,6 +1704,7 @@ class Services implements SidebarBadgeContext {
         api: companiesApi,
         repo: companyRepo,
         documentsApi: documentsApi,
+        documentMirror: entities.documents,
       ),
     );
     handlers[EntityType.user] = EntityHandlers(
@@ -2140,7 +2165,8 @@ class Services implements SidebarBadgeContext {
       documentVersions: documentVersionsApi,
       emails: emailsApi,
       search: searchApi,
-      documents: documentsApi,
+      documentsApi: documentsApi,
+      documents: entities.documents,
       sync: sync,
       refreshScheduler: refreshScheduler,
       realtime: realtime,

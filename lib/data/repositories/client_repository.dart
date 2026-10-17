@@ -22,6 +22,7 @@ import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
@@ -36,7 +37,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     with EntityCommentMutations<Client, ClientApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   ClientRepository({
     required super.db,
     required this.api,
@@ -909,6 +910,7 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// Called by the sync dispatcher after a successful `DELETE
   /// /api/v1/documents/{id}` round-trip — the server's response is empty,
   /// so we patch locally rather than refetching the whole client.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -922,6 +924,7 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// Replace (or insert) one document in the client's local `documents`
   /// JSON column. Called after `PUT /api/v1/documents/{id}` returns the
   /// updated document.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

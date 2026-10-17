@@ -347,6 +347,54 @@ void main() {
       expect(fakeDocsApi.setVisibilityCalls, hasLength(1));
       expect(changedCalls, isEmpty);
     });
+
+    test('documentVisibility on a document deleted elsewhere prunes it and '
+        'drains as success — a NotFoundException must not escape, or the row '
+        'parks as a "deleted on the server" conflict against the PARENT and '
+        'Discard hard-deletes the parent record', () async {
+      final fakeDocsApi = _RecordingDocumentsApi(
+        throwNotFoundOnSetVisibility: true,
+      );
+      final changedCalls = <DocumentApi>[];
+      final deletedCalls = <Map<String, String>>[];
+
+      final handlers = documentMutationHandlers<String>(
+        documentsApi: fakeDocsApi,
+        upload:
+            ({
+              required entityId,
+              required source,
+              required idempotencyKey,
+            }) async => '',
+        applyChanged:
+            ({required companyId, required entityId, required document}) async {
+              changedCalls.add(document);
+            },
+        applyDeleted:
+            ({
+              required companyId,
+              required entityId,
+              required documentId,
+            }) async {
+              deletedCalls.add({
+                'companyId': companyId,
+                'entityId': entityId,
+                'documentId': documentId,
+              });
+            },
+      );
+
+      final result = await handlers[MutationKind.documentVisibility]!(
+        row: _row(companyId: 'co1', mutationKind: 'document_visibility'),
+        payload: {'entity_id': 'e3', 'document_id': 'gone', 'is_public': true},
+      );
+
+      expect(result, isNull);
+      expect(changedCalls, isEmpty);
+      expect(deletedCalls, [
+        {'companyId': 'co1', 'entityId': 'e3', 'documentId': 'gone'},
+      ]);
+    });
   });
 }
 
@@ -375,18 +423,20 @@ class _RecordingDocumentsApi implements DocumentsApi {
   _RecordingDocumentsApi({
     this.setVisibilityReturn,
     this.throwNotFoundOnDelete = false,
+    this.throwNotFoundOnSetVisibility = false,
   });
 
   final deleteCalls = <Map<String, dynamic>>[];
   final setVisibilityCalls = <Map<String, dynamic>>[];
   DocumentApi? setVisibilityReturn;
   final bool throwNotFoundOnDelete;
+  final bool throwNotFoundOnSetVisibility;
 
   @override
   Future<void> delete({
     required String id,
     required String idempotencyKey,
-    required bool requiresPassword,
+    bool requiresPassword = true,
   }) async {
     deleteCalls.add({
       'id': id,
@@ -407,6 +457,7 @@ class _RecordingDocumentsApi implements DocumentsApi {
       'isPublic': isPublic,
       'idempotencyKey': idempotencyKey,
     });
+    if (throwNotFoundOnSetVisibility) throw const NotFoundException();
     return setVisibilityReturn;
   }
 
@@ -424,4 +475,8 @@ class _RecordingDocumentsApi implements DocumentsApi {
   @override
   Future<Uint8List> download(String id) =>
       throw UnimplementedError('download is not a mutation');
+
+  // The inherited list / get / update calls — never reached by these handlers.
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

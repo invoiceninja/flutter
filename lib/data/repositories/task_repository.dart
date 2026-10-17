@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
 import 'package:admin/data/services/upload_source.dart';
@@ -34,7 +35,7 @@ import 'package:admin/domain/tasks/task_schedule.dart';
 ///     bulk kanban-sort payload.
 class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     with TagNameResolver
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   TaskRepository({
     required super.db,
     required this.api,
@@ -764,6 +765,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
 
   /// Drop a document from the task's local `documents` JSON column. Mirror
   /// of `ExpenseRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -776,6 +778,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
 
   /// Replace (or insert) one document in the task's local `documents` JSON
   /// column. Mirror of `ExpenseRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

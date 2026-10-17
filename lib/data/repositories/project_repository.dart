@@ -14,6 +14,7 @@ import 'package:admin/data/models/api/project_api_model.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/projects_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -36,7 +37,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// Task detail still renders (with the archived/deleted state indicator).
 class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     with TagNameResolver
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   ProjectRepository({
     required super.db,
     required this.api,
@@ -470,6 +471,7 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
 
   /// Drop a document from the project's local `documents` JSON column.
   /// Mirror of `ProductRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -482,6 +484,7 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
 
   /// Replace (or insert) one document in the project's local `documents`
   /// JSON column. Mirror of `ProductRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

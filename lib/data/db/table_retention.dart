@@ -46,6 +46,7 @@ const Map<String, TableRetention> kTableRetention = {
   // Rebuildable only because the address-book group ids it hangs off live in
   // the `contacts_sync_json` device preference, which is durable.
   'device_contact_links': TableRetention.cache,
+  'document_records': TableRetention.cache,
   'documents': TableRetention.cache,
   'expense_categories': TableRetention.cache,
   'expenses': TableRetention.cache,

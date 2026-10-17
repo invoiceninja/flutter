@@ -120,7 +120,7 @@ class _RecordingDocumentsApi implements DocumentsApi {
   Future<void> delete({
     required String id,
     required String idempotencyKey,
-    required bool requiresPassword,
+    bool requiresPassword = true,
   }) async {
     deletes.add((id: id, requiresPassword: requiresPassword));
     await onDelete?.call();
@@ -370,6 +370,25 @@ void main() {
       );
 
       expect(documentsApi.deletes, [(id: 'd1', requiresPassword: true)]);
+      final row = await db.companiesDao.byId('co');
+      expect(jsonDecode(row!.documents!), [
+        {'id': 'd2'},
+      ]);
+    });
+
+    test('documentDelete of a document already gone server-side prunes it '
+        'and drains — a NotFoundException must not escape as a conflict that '
+        'says the company was deleted', () async {
+      await (db.update(db.companies)..where((c) => c.id.equals('co'))).write(
+        const CompaniesCompanion(documents: Value('[{"id":"d1"},{"id":"d2"}]')),
+      );
+      documentsApi.onDelete = () async => throw const NotFoundException();
+
+      await dispatch(
+        MutationKind.documentDelete,
+        payload: {'document_id': 'd1'},
+      );
+
       final row = await db.companiesDao.byId('co');
       expect(jsonDecode(row!.documents!), [
         {'id': 'd2'},

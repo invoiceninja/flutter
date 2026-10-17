@@ -70,11 +70,13 @@ class EntityListTopRow<T> extends StatelessWidget {
 
   final GenericListViewModel<T> vm;
 
-  /// Route the "New X" button navigates to (e.g. `/clients/new`).
-  final String newRoute;
+  /// Route the "New X" button navigates to (e.g. `/clients/new`). `null`
+  /// leaves the button out — the entity has no create screen.
+  final String? newRoute;
 
   /// Localization key for the primary button label (e.g. `new_client`).
-  final String newLabelKey;
+  /// `null` exactly when [newRoute] is.
+  final String? newLabelKey;
 
   /// When false, the "New X" button is rendered but disabled. Used by
   /// plan-gated screens so a free-plan user can't start a new entity.
@@ -95,34 +97,15 @@ class EntityListTopRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    // Primary action leads the row. The `minimumSize` override fixes a
-    // Flutter flex-first-pass sizing bug — without a finite minimum,
-    // `_RenderInputPadding` collapses to invalid constraints when an
-    // `Expanded` sibling sits next to it.
-    final newButton = FilledButton.icon(
-      onPressed: canCreate ? () => context.go(newRoute) : null,
-      icon: const Icon(Icons.add, size: 18),
-      label: Text(context.tr(newLabelKey)),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-      ),
-    );
+    final newRoute = this.newRoute;
+    final newLabelKey = this.newLabelKey;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Only advertise the `N` shortcut when creating is enabled (the
-        // shortcut itself is canCreate-gated).
-        HeaderRowSlot(
-          child: canCreate
-              ? ShortcutTooltip(
-                  label: context.tr(newLabelKey),
-                  keys: const ['N'],
-                  child: newButton,
-                )
-              : newButton,
-        ),
-        const SizedBox(width: 16),
+        if (newRoute != null && newLabelKey != null) ...[
+          HeaderRowSlot(child: _newButton(context, newRoute, newLabelKey)),
+          const SizedBox(width: 16),
+        ],
         // The token field carries every filter dimension. It fills the row
         // between the New button and the Columns button; `Expanded` still
         // keeps the Columns button glued to the row's trailing edge
@@ -163,6 +146,30 @@ class EntityListTopRow<T> extends StatelessWidget {
           HeaderRowSlot(child: w),
         ],
       ],
+    );
+  }
+
+  Widget _newButton(BuildContext context, String newRoute, String labelKey) {
+    // Primary action leads the row. The `minimumSize` override fixes a
+    // Flutter flex-first-pass sizing bug — without a finite minimum,
+    // `_RenderInputPadding` collapses to invalid constraints when an
+    // `Expanded` sibling sits next to it.
+    final button = FilledButton.icon(
+      onPressed: canCreate ? () => context.go(newRoute) : null,
+      icon: const Icon(Icons.add, size: 18),
+      label: Text(context.tr(labelKey)),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+    );
+    // Only advertise the `N` shortcut when creating is enabled (the shortcut
+    // itself is canCreate-gated).
+    if (!canCreate) return button;
+    return ShortcutTooltip(
+      label: context.tr(labelKey),
+      keys: const ['N'],
+      child: button,
     );
   }
 
@@ -253,8 +260,11 @@ class EmbeddedListTopRow extends StatelessWidget {
   final bool showNew;
 
   final Widget searchField;
-  final String newRoute;
-  final String newLabelKey;
+
+  /// `null` (with [newLabelKey]) for an entity that has no create screen —
+  /// the button is then left out unless [onNewPressed] supplies one.
+  final String? newRoute;
+  final String? newLabelKey;
   final bool wide;
   final bool canCreate;
 
@@ -263,11 +273,13 @@ class EmbeddedListTopRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onNew = !canCreate
-        ? null
-        : () => (onNewPressed ?? (ctx) => ctx.go(newRoute))(context);
+    final newRoute = this.newRoute;
+    final create =
+        onNewPressed ??
+        (newRoute == null ? null : (BuildContext ctx) => ctx.go(newRoute));
+    final onNew = (!canCreate || create == null) ? null : () => create(context);
     final newButton = Tooltip(
-      message: context.tr(newLabelKey),
+      message: context.tr(newLabelKey ?? 'new'),
       child: FilledButton.icon(
         onPressed: onNew,
         icon: const Icon(Icons.add, size: 18),
@@ -284,7 +296,7 @@ class EmbeddedListTopRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: searchField),
-        if (showNew) ...[
+        if (showNew && create != null) ...[
           const SizedBox(width: 12),
           HeaderRowSlot(child: newButton),
         ],

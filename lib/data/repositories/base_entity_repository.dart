@@ -979,7 +979,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// returns the builder untouched. That is what makes `refreshAll`'s
   /// all-states sweep pull the archived/deleted tail into the local cache.
   /// (`status=active,archived,deleted` would be an equivalent no-op.)
-  /// Concrete repos should not override this.
+  /// Concrete repos should not override this — with one exception:
+  /// `DocumentRepository`, whose table has no `is_deleted` column for
+  /// `archived` / `deleted` to read, always sends nothing.
   @protected
   Map<String, String> stateQueryParams(Set<EntityState> states) {
     if (states.isEmpty || states.containsAll(EntityState.values)) {
@@ -1524,8 +1526,14 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// [fetchPage] is the repo's own `ensurePageLoaded`, passed as a tear-off.
   /// The base can't call it directly — each repo declares its own signature,
   /// and `group_setting`'s takes no `extraFilters`.
+  ///
+  /// Returns whether the sweep walked to the end of the server's list rather
+  /// than stopping at the [maxPages] cap. A repo that prunes local rows the
+  /// server no longer has (Documents — a hard delete leaves no tombstone) may
+  /// do so only after a `full` sweep that returned `true`; every other caller
+  /// ignores it.
   @protected
-  Future<void> refreshAllTemplate({
+  Future<bool> refreshAllTemplate({
     required String companyId,
     required bool full,
     required Future<bool> Function({
@@ -1583,6 +1591,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         now: DateTime.now().millisecondsSinceEpoch,
       );
     }
+    return walkedToTheEnd;
   }
 
   /// Merge a server-confirmed document into the entity's `documents` column.

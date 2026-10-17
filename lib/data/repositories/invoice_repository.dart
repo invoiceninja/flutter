@@ -19,6 +19,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
@@ -60,7 +61,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     with
         EntityCommentMutations<Invoice, InvoiceApi>,
         BillingDocEmailMutations<Invoice, InvoiceApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   InvoiceRepository({
     required super.db,
     required this.api,
@@ -872,6 +873,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
 
   /// Drop a document from the invoice's local `documents` JSON column.
   /// Mirror of `ExpenseRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -884,6 +886,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
 
   /// Replace (or insert) one document in the invoice's local `documents`
   /// JSON column. Mirror of `ExpenseRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

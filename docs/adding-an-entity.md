@@ -78,6 +78,16 @@ Anything beyond archive/restore/delete/purge flows through the dispatcher's `cus
 
 Canonical reference: `EntityCommentMutations.addComment` (`lib/data/repositories/entity_comment_mutations.dart`, mixed into the ten commentable repositories) + the `addCommentHandlers` spread in the `reg.wire<ClientItemApi, ClientApi>(...)` call inside `_wireClient()`. The endpoint isn't under `/clients/`, so it routes through `ActivitiesApi` (carried via `EntityWiringContext.activitiesApi`) — proof that custom actions can hit any URL the entity API doesn't already expose.
 
+## An entity with no create screen
+
+Documents is the reference: a file is uploaded on its record, so the Documents list creates nothing. Declare the module **without a `createBuilder`** and pass `newRoute: null, newLabelKey: null` to `EntityListScreenScaffold`. That is all — three framework seams do the rest:
+
+- `EntityHandlers.newRoute` is null for a routed entity (it has a `listBuilder`) with no `createBuilder`, so the sidebar row draws no hover "+". Keep the type out of `kQuickCreateEntities` / `kCreateShortcutEntities`.
+- `buildEntityRouteBlock` routes `<root>/new` to a redirect to the list. Without it `/new` would match `:id` and hydrate a record whose id is `"new"`.
+- The scaffold draws no New button and no FAB, pays no FAB clearance, and `N` does nothing. This is different from `canCreate: false`, which keeps a greyed button to explain a plan gate.
+
+`entity_registry_completeness_test` (a missing create screen is allowed, but then nothing may offer one), `entity_links_test` (`<root>/new` hits the redirect, never `:id`) and `entity_list_fab_clearance_test` (no New button, no FAB) pin the three. The contract fixture in `_base_entity_repository_contract.dart` requires a `create`; such an entity gets a bespoke repository test instead (`document_repository_test.dart`).
+
 ## Bundled entities (alternative to the 13-step recipe)
 
 For small, mostly-read, company-scoped entities (≲ a few hundred rows total) that the server already includes in the `/refresh?first_load=true` envelope, skip the API + paginated fetch and instead consume the bundled array. This is documented under CLAUDE.md § Data loading — bundled vs per-entity.

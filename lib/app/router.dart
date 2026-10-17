@@ -242,10 +242,16 @@ Future<bool> _confirmExitIfDirty(BuildContext context, GoRouterState state) {
 /// .dart`, which nests and therefore pops natively). System back is handled for
 /// them by `SystemBackGate`, which walks `NavHistoryController` instead; see
 /// CLAUDE.md § Strict rules for the invariants that keeps alive.
+///
+/// [create] is null for an entity with no create screen (Documents). `/new`
+/// still gets a route — a redirect to the list — because without one it would
+/// match `:id` and hydrate a record whose id is `"new"`: a typed URL, an old
+/// history entry or a shared `/app/<root>/new` link would then show a
+/// not-found record instead of the list.
 ShellRoute buildEntityRouteBlock({
   required String basePath,
   required GoRouterWidgetBuilder list,
-  required GoRouterWidgetBuilder create,
+  required GoRouterWidgetBuilder? create,
   required GoRouterWidgetBuilder detail,
   required GoRouterWidgetBuilder edit,
   List<RouteBase> extraChildRoutes = const [],
@@ -303,25 +309,28 @@ ShellRoute buildEntityRouteBlock({
     routes: [
       // Bare list URL — the shell renders only the list, no right pane.
       GoRoute(path: basePath, builder: (_, _) => const _NoPaneSentinel()),
-      GoRoute(
-        path: '$basePath/new',
-        // Re-key the create screen on the seed generation so a "New X" that
-        // targets an already-mounted create route recreates its State —
-        // go_router reuses the mounted screen otherwise, skipping `buildVm`
-        // (and the staged client seed). Mirrors the `:id` KeyedSubtree on the
-        // detail/edit routes below.
-        builder: (context, state) {
-          final services = context.read<Services>();
-          return ValueListenableBuilder<int>(
-            valueListenable: services.seedGenTick,
-            builder: (context, _, _) => KeyedSubtree(
-              key: ValueKey('new:$basePath:${services.seedGenFor(basePath)}'),
-              child: create(context, state),
-            ),
-          );
-        },
-        onExit: _confirmExitIfDirty,
-      ),
+      if (create == null)
+        GoRoute(path: '$basePath/new', redirect: (_, _) => basePath)
+      else
+        GoRoute(
+          path: '$basePath/new',
+          // Re-key the create screen on the seed generation so a "New X" that
+          // targets an already-mounted create route recreates its State —
+          // go_router reuses the mounted screen otherwise, skipping `buildVm`
+          // (and the staged client seed). Mirrors the `:id` KeyedSubtree on the
+          // detail/edit routes below.
+          builder: (context, state) {
+            final services = context.read<Services>();
+            return ValueListenableBuilder<int>(
+              valueListenable: services.seedGenTick,
+              builder: (context, _, _) => KeyedSubtree(
+                key: ValueKey('new:$basePath:${services.seedGenFor(basePath)}'),
+                child: create(context, state),
+              ),
+            );
+          },
+          onExit: _confirmExitIfDirty,
+        ),
       GoRoute(
         path: '$basePath/:id',
         // Wrap in a KeyedSubtree whose key includes the URL's `:id` so
@@ -715,9 +724,10 @@ StatefulShellBranch _buildBranch(BranchSpec spec, EntityRegistry registry) {
     case EntityBranch():
       final h = registry[spec.type];
       assert(h != null, 'EntityBranch references unregistered ${spec.type}');
+      // A create screen is optional (Documents has none — `/new` redirects);
+      // list, detail and edit are not.
       assert(
         h!.listBuilder != null &&
-            h.createBuilder != null &&
             h.detailBuilder != null &&
             h.editBuilder != null,
         'Entity ${spec.type} is in branchOrder but missing screen builders',
@@ -727,7 +737,7 @@ StatefulShellBranch _buildBranch(BranchSpec spec, EntityRegistry registry) {
           buildEntityRouteBlock(
             basePath: h!.routePath,
             list: h.listBuilder!,
-            create: h.createBuilder!,
+            create: h.createBuilder,
             detail: h.detailBuilder!,
             edit: h.editBuilder!,
             extraChildRoutes: h.extraChildRoutes,

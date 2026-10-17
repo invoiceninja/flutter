@@ -12,6 +12,7 @@ import 'package:admin/data/models/api/product_api_model.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/services/products_api.dart';
@@ -65,7 +66,7 @@ bool stockFilterMatches(
 /// Consistent with the Drift-first architecture; revisit only if the lag is
 /// reported (the fix would be a products refresh keyed off affected drains).
 class ProductRepository extends BaseEntityRepository<Product, ProductApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   ProductRepository({
     required super.db,
     required this.api,
@@ -522,6 +523,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
 
   /// Drop a document from the product's local `documents` JSON column.
   /// Mirror of `ClientRepository.applyDocumentDeleted` — see notes there.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -534,6 +536,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
 
   /// Replace (or insert) one document in the product's local `documents`
   /// JSON column. Mirror of `ClientRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

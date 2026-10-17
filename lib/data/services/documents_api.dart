@@ -1,63 +1,57 @@
 import 'dart:typed_data';
 
 import 'package:admin/data/models/api/document_api_model.dart';
-import 'package:admin/data/services/api_client.dart';
+import 'package:admin/data/services/base_entity_api.dart';
 
-/// Server-side document operations that are addressed by document id, not
-/// by parent entity. The per-entity upload (`POST /<entity>/{id}/upload`)
-/// lives on the entity api because the URL is entity-scoped — see
-/// `ClientsApi.uploadDocument` and `ProductsApi.uploadDocument`.
+/// `/api/v1/documents` — the company-wide Documents list, plus the operations
+/// addressed by document id rather than by parent record. The per-entity
+/// upload (`POST /<entity>/{id}/upload`) lives on each entity's api because
+/// its URL is entity-scoped — see `ClientsApi.uploadDocument`.
 ///
-/// The writes go through `ApiClient.mutate` so they share the standard
-/// idempotency-key header, password gating, and `x-minimum-client-version`
-/// negotiation with the rest of the app; the one read, [download], goes
-/// through `ApiClient.getRaw`.
-class DocumentsApi {
-  DocumentsApi(this._client);
+/// `list` / `get` / `update` / `delete` are the inherited [BaseEntityApi]
+/// calls. Two server facts shape how they may be used (`docs/documents-list.md`):
+/// the documents table has no `is_deleted` column, so a list request must
+/// never carry `status=archived|deleted`, `is_deleted` or
+/// `without_deleted_clients` (`DocumentRepository.stateQueryParams` sends
+/// none); and `PUT` accepts only `name` / `is_public`.
+///
+/// Delete is the inherited `DELETE /documents/{id}`, password-gated by
+/// default. Never `/bulk`: its echo is the deleted rows — none — and its
+/// `ids` existence check rejects a batch with one already-gone id.
+class DocumentsApi extends BaseEntityApi<DocumentListApi, DocumentItemApi> {
+  DocumentsApi(super.client);
 
-  final ApiClient _client;
+  @override
+  String get basePath => '/api/v1/documents';
 
-  String get _basePath => '/api/v1/documents';
+  @override
+  DocumentListApi parseList(Object json) =>
+      DocumentListApi.fromJson(json as Map<String, dynamic>);
 
-  /// `DELETE /api/v1/documents/{id}`. Server gates on
-  /// `X-API-PASSWORD-BASE64` — caller passes `requiresPassword: true`,
-  /// which is also wired through `requiresPasswordFor` on the parent
-  /// entity's repo so the sync engine fires `ConfirmPasswordSheet`.
-  Future<void> delete({
-    required String id,
-    required String idempotencyKey,
-    required bool requiresPassword,
-  }) async {
-    await _client.mutate(
-      method: 'DELETE',
-      path: '$_basePath/$id',
-      idempotencyKey: idempotencyKey,
-      requiresPassword: requiresPassword,
-    );
-  }
+  @override
+  DocumentItemApi parseItem(Object json) =>
+      DocumentItemApi.fromJson(json as Map<String, dynamic>);
 
-  /// `PUT /api/v1/documents/{id}` with `{is_public: bool}`. Server returns
-  /// the updated document; callers patch the parent entity's `documents`
-  /// array locally instead of refetching the whole entity.
+  /// `PUT /api/v1/documents/{id}` with `{is_public: bool}` — the visibility
+  /// toggle on a record's Documents tab. Returns the updated document;
+  /// callers patch the parent entity's `documents` array locally instead of
+  /// refetching the whole entity.
   Future<DocumentApi?> setVisibility({
     required String id,
     required bool isPublic,
     required String idempotencyKey,
   }) async {
-    final raw = await _client.mutate(
+    final raw = await client.mutate(
       method: 'PUT',
-      path: '$_basePath/$id',
+      path: '$basePath/$id',
       idempotencyKey: idempotencyKey,
       body: {'is_public': isPublic},
     );
-    if (raw == null) return null;
-    // The server wraps the response in a `{data: {...}}` envelope — same
-    // shape every other PUT uses.
+    // `{data: {...}}`, like every other PUT — but tolerate a body without it
+    // (demo mode answers a mutation with nothing) rather than throw.
     if (raw is Map<String, dynamic>) {
       final data = raw['data'];
-      if (data is Map<String, dynamic>) {
-        return DocumentApi.fromJson(data);
-      }
+      if (data is Map<String, dynamic>) return DocumentApi.fromJson(data);
     }
     return null;
   }
@@ -75,8 +69,8 @@ class DocumentsApi {
   /// and streams the file with no content type, hence
   /// `expectedContentType: null`. `readOnly: true` because a read must work in
   /// demo mode too.
-  Future<Uint8List> download(String id) => _client.getRaw(
-    '$_basePath/${Uri.encodeComponent(id)}/download',
+  Future<Uint8List> download(String id) => client.getRaw(
+    '$basePath/${Uri.encodeComponent(id)}/download',
     readOnly: true,
     expectedContentType: null,
   );
@@ -90,9 +84,9 @@ class DocumentsApi {
     required List<String> ids,
     required String idempotencyKey,
   }) async {
-    await _client.mutate(
+    await client.mutate(
       method: 'POST',
-      path: '$_basePath/bulk',
+      path: '$basePath/bulk',
       idempotencyKey: idempotencyKey,
       body: {'action': 'download', 'ids': ids},
     );

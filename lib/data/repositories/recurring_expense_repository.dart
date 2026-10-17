@@ -11,6 +11,7 @@ import 'package:admin/data/models/api/recurring_expense_api_model.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
@@ -34,7 +35,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 class RecurringExpenseRepository
     extends BaseEntityRepository<RecurringExpense, RecurringExpenseApi>
     with EntityCommentMutations<RecurringExpense, RecurringExpenseApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   RecurringExpenseRepository({
     required super.db,
     required this.api,
@@ -448,6 +449,7 @@ class RecurringExpenseRepository
 
   /// Drop a document from the local `documents` JSON column. Mirror of
   /// `ExpenseRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -459,6 +461,7 @@ class RecurringExpenseRepository
   );
 
   /// Replace (or insert) one document in the local `documents` JSON column.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

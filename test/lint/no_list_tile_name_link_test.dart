@@ -55,6 +55,9 @@ void main() {
     'lib/ui/features/recurring_invoices/views/recurring_invoice_detail_screen.dart',
     'lib/ui/features/payments/widgets/detail/payment_detail_header.dart',
     'lib/ui/features/transactions/views/transaction_detail_screen.dart',
+    // The "Linked to" row of a document's Details card — a record screen,
+    // where the card has no tap of its own.
+    'lib/ui/features/documents/widgets/detail/document_detail_profile.dart',
   };
 
   test('no narrow row or card renders a party name as a link', () {

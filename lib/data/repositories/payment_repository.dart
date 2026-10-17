@@ -15,6 +15,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/payments_api.dart';
@@ -37,7 +38,7 @@ final _log = Logger('PaymentRepository');
 /// variants and dispatched via `customActions`.
 class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     with EntityCommentMutations<Payment, PaymentApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   PaymentRepository({
     required super.db,
     required this.api,
@@ -567,6 +568,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     }
   }
 
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -577,6 +579,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
   );
 
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

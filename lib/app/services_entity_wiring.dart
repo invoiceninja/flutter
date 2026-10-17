@@ -8,6 +8,7 @@ import 'package:admin/data/models/api/bank_transaction_api_model.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
 import 'package:admin/data/models/api/credit_api_model.dart';
+import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/models/api/recurring_invoice_api_model.dart';
 import 'package:admin/data/models/api/expense_category_api_model.dart';
@@ -38,6 +39,7 @@ import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/company_gateway_repository.dart';
 import 'package:admin/data/repositories/design_repository.dart';
+import 'package:admin/data/repositories/document_repository.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/repositories/group_setting_repository.dart';
@@ -163,6 +165,14 @@ BundleApplier _deltaOnly(
   await apply(companyId, company);
 };
 
+/// Delta appliers that read no array of their own in the `/refresh` envelope,
+/// so they don't join `kBrowsableDeltaJsonKeys`. The Documents list is the
+/// one: the server sends no company-wide document array, and its rows are
+/// harvested from the records the delta already carries.
+/// `refresh_delta_coverage_test` subtracts these before matching appliers to
+/// dropped arrays one for one.
+const Set<EntityType> kDerivedDeltaApplierTypes = {EntityType.document};
+
 /// The full set of per-entity APIs + repositories built by [wireEntities],
 /// returned typed so [Services.build] can unpack them into its named
 /// constructor params without going through a runtime cast bag.
@@ -230,6 +240,7 @@ class WiredEntities {
     required this.webhooks,
     required this.tokensApi,
     required this.tokens,
+    required this.documents,
     required this.bundleAppliers,
     required this.refreshDeltaAppliers,
     required this.countWatchers,
@@ -293,6 +304,10 @@ class WiredEntities {
   final WebhookRepository webhooks;
   final TokensApi tokensApi;
   final TokenRepository tokens;
+
+  /// The company-wide Documents list. Its api is the shared
+  /// [EntityWiringContext.documentsApi].
+  final DocumentRepository documents;
 
   /// Bundled-entity upsert callbacks. Iterate in `auth.onPersistBundles` —
   /// the order matches the order of construction here so a single `for` loop
@@ -379,6 +394,11 @@ class _EntityWiring {
   /// lives on CompaniesApi but is scope-parameterised, so one stateless
   /// instance serves both dispatchers.
   late final CompaniesApi companiesApi = CompaniesApi(ctx.apiClient);
+
+  /// The Documents list's repository — every document-bearing entity's
+  /// `documentMutationHandlers` take it as their `mirror`, so
+  /// [_wireDocument] runs first in [wireEntities].
+  late final DocumentRepository documents;
 
   // Local closure that mirrors the original `wireEntity<TItem, TInner>(...)`
   // in services.dart — generic functions can't be passed as values, so we
@@ -478,6 +498,89 @@ class _EntityWiring {
   }
 }
 
+/// Documents wiring — the company-wide list of uploaded files. Called FIRST
+/// in [wireEntities]: the record tabs' document handlers below take this repo
+/// as their [DocumentMirror] (`reg.documents`). The parent-owner lookup
+/// (`DocumentRepository.ownerFor`) is bound in `Services.build`, once the
+/// company repository — the one parent built outside this file — exists.
+(DocumentsApi api, DocumentRepository repo) _wireDocument(_EntityWiring reg) {
+  final documentsApi = reg.ctx.documentsApi;
+  final documentRepo = DocumentRepository(
+    db: reg.ctx.db,
+    api: documentsApi,
+    onEnqueued: reg.ctx.kickDrain,
+  );
+  reg.documents = documentRepo;
+  reg.wire<DocumentItemApi, DocumentApi>(
+    type: EntityType.document,
+    api: documentsApi,
+    repo: documentRepo,
+  );
+  return (documentsApi, documentRepo);
+}
+
+/// Every record a `/refresh` delta carries with its attachments, for the
+/// Documents harvester ([DocumentRepository.applyRefreshDelta]).
+///
+/// Bank transactions are absent: they carry no documents. The groups arrive
+/// whole on every tick and each record's `documents` is its complete set, so
+/// all of these are prunable — except the company's own files, whose array is
+/// itself filtered to `updated_at >= <watermark>`.
+List<DocumentParentSlice> _documentParentSlices(
+  String companyId,
+  CompanyEnvelopeApi co,
+) {
+  DocumentParentSlice slice(
+    EntityType type,
+    String id,
+    int updatedAt,
+    List<DocumentApi>? documents,
+  ) => (
+    type: type,
+    id: id,
+    updatedAt: updatedAt,
+    documents: documents,
+    prunable: true,
+  );
+  return [
+    for (final a in co.clients)
+      slice(EntityType.client, a.id, a.updatedAt, a.documents),
+    for (final a in co.products)
+      slice(EntityType.product, a.id, a.updatedAt, a.documents),
+    for (final a in co.invoices)
+      slice(EntityType.invoice, a.id, a.updatedAt, a.documents),
+    for (final a in co.recurringInvoices)
+      slice(EntityType.recurringInvoice, a.id, a.updatedAt, a.documents),
+    for (final a in co.quotes)
+      slice(EntityType.quote, a.id, a.updatedAt, a.documents),
+    for (final a in co.credits)
+      slice(EntityType.credit, a.id, a.updatedAt, a.documents),
+    for (final a in co.payments)
+      slice(EntityType.payment, a.id, a.updatedAt, a.documents),
+    for (final a in co.tasks)
+      slice(EntityType.task, a.id, a.updatedAt, a.documents),
+    for (final a in co.projects)
+      slice(EntityType.project, a.id, a.updatedAt, a.documents),
+    for (final a in co.expenses)
+      slice(EntityType.expense, a.id, a.updatedAt, a.documents),
+    for (final a in co.recurringExpenses)
+      slice(EntityType.recurringExpense, a.id, a.updatedAt, a.documents),
+    for (final a in co.vendors)
+      slice(EntityType.vendor, a.id, a.updatedAt, a.documents),
+    for (final a in co.purchaseOrders)
+      slice(EntityType.purchaseOrder, a.id, a.updatedAt, a.documents),
+    for (final a in co.groups)
+      slice(EntityType.group, a.id, a.updatedAt, a.documents),
+    (
+      type: EntityType.company,
+      id: companyId,
+      updatedAt: co.updatedAt,
+      documents: co.documents,
+      prunable: false,
+    ),
+  ];
+}
+
 /// Client wiring.
 (ClientsApi api, ClientRepository repo) _wireClient(_EntityWiring reg) {
   final clientsApi = ClientsApi(reg.ctx.apiClient);
@@ -575,6 +678,8 @@ class _EntityWiring {
       ...reactivateEmailHandlers<ClientApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<ClientApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.client,
         upload: clientsApi.uploadDocument,
         applyChanged: clientRepo.applyDocumentChanged,
         applyDeleted: clientRepo.applyDocumentDeleted,
@@ -599,6 +704,8 @@ class _EntityWiring {
     repo: productRepo,
     customActions: documentMutationHandlers<ProductApi>(
       documentsApi: reg.ctx.documentsApi,
+      mirror: reg.documents,
+      parentType: EntityType.product,
       upload: productsApi.uploadDocument,
       applyChanged: productRepo.applyDocumentChanged,
       applyDeleted: productRepo.applyDocumentDeleted,
@@ -656,6 +763,8 @@ class _EntityWiring {
       ),
       ...documentMutationHandlers<TaskApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.task,
         upload: tasksApi.uploadDocument,
         applyChanged: taskRepo.applyDocumentChanged,
         applyDeleted: taskRepo.applyDocumentDeleted,
@@ -689,6 +798,8 @@ class _EntityWiring {
       },
       ...documentMutationHandlers<ProjectApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.project,
         upload: projectsApi.uploadDocument,
         applyChanged: projectRepo.applyDocumentChanged,
         applyDeleted: projectRepo.applyDocumentDeleted,
@@ -745,6 +856,8 @@ class _EntityWiring {
       },
       ...documentMutationHandlers<VendorApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.vendor,
         upload: vendorsApi.uploadDocument,
         applyChanged: vendorRepo.applyDocumentChanged,
         applyDeleted: vendorRepo.applyDocumentDeleted,
@@ -788,6 +901,8 @@ class _EntityWiring {
       ),
       ...documentMutationHandlers<ExpenseApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.expense,
         upload: expensesApi.uploadDocument,
         applyChanged: expenseRepo.applyDocumentChanged,
         applyDeleted: expenseRepo.applyDocumentDeleted,
@@ -842,6 +957,8 @@ _wireRecurringExpense(_EntityWiring reg) {
       ),
       ...documentMutationHandlers<RecurringExpenseApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.recurringExpense,
         upload: recurringExpensesApi.uploadDocument,
         applyChanged: recurringExpenseRepo.applyDocumentChanged,
         applyDeleted: recurringExpenseRepo.applyDocumentDeleted,
@@ -1062,6 +1179,8 @@ _wireRecurringExpense(_EntityWiring reg) {
     customActions: {
       ...documentMutationHandlers<GroupSettingApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.group,
         upload: groupSettingsApi.uploadDocument,
         applyChanged: groupSettingRepo.applyDocumentChanged,
         applyDeleted: groupSettingRepo.applyDocumentDeleted,
@@ -1255,6 +1374,8 @@ _wireRecurringExpense(_EntityWiring reg) {
       ...reactivateEmailHandlers<InvoiceApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<InvoiceApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.invoice,
         upload: invoicesApi.uploadDocument,
         applyChanged: invoiceRepo.applyDocumentChanged,
         applyDeleted: invoiceRepo.applyDocumentDeleted,
@@ -1374,6 +1495,8 @@ _wireRecurringExpense(_EntityWiring reg) {
       ...reactivateEmailHandlers<QuoteApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<QuoteApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.quote,
         upload: quotesApi.uploadDocument,
         applyChanged: quoteRepo.applyDocumentChanged,
         applyDeleted: quoteRepo.applyDocumentDeleted,
@@ -1646,6 +1769,8 @@ _wireRecurringExpense(_EntityWiring reg) {
       ...reactivateEmailHandlers<CreditApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<CreditApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.credit,
         upload: creditsApi.uploadDocument,
         applyChanged: creditRepo.applyDocumentChanged,
         applyDeleted: creditRepo.applyDocumentDeleted,
@@ -1748,6 +1873,8 @@ _wireRecurringExpense(_EntityWiring reg) {
       ...reactivateEmailHandlers<PurchaseOrderApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<PurchaseOrderApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.purchaseOrder,
         upload: purchaseOrdersApi.uploadDocument,
         applyChanged: purchaseOrderRepo.applyDocumentChanged,
         applyDeleted: purchaseOrderRepo.applyDocumentDeleted,
@@ -1863,6 +1990,8 @@ _wireRecurringInvoice(_EntityWiring reg) {
           ),
       ...documentMutationHandlers<RecurringInvoiceApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.recurringInvoice,
         upload: recurringInvoicesApi.uploadDocument,
         applyChanged: recurringInvoiceRepo.applyDocumentChanged,
         applyDeleted: recurringInvoiceRepo.applyDocumentDeleted,
@@ -1921,6 +2050,8 @@ _wireRecurringInvoice(_EntityWiring reg) {
       ),
       ...documentMutationHandlers<PaymentApi>(
         documentsApi: reg.ctx.documentsApi,
+        mirror: reg.documents,
+        parentType: EntityType.payment,
         upload: paymentsApi.uploadDocument,
         applyChanged: paymentRepo.applyDocumentChanged,
         applyDeleted: paymentRepo.applyDocumentDeleted,
@@ -1939,6 +2070,8 @@ _wireRecurringInvoice(_EntityWiring reg) {
 
 WiredEntities wireEntities(EntityWiringContext ctx) {
   final reg = _EntityWiring(ctx);
+  // First: the record tabs' document handlers take its repo as their mirror.
+  final (_, documentRepo) = _wireDocument(reg);
   final (clientsApi, clientRepo) = _wireClient(reg);
   final (productsApi, productRepo) = _wireProduct(reg);
   final (tasksApi, taskRepo) = _wireTask(reg);
@@ -2094,6 +2227,15 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         bundle: co.bankTransactions,
       ),
     ),
+    // Derived: the documents own no array in the envelope. They are harvested
+    // from the records above, each of which carries its complete `documents`
+    // — see [kDerivedDeltaApplierTypes].
+    EntityType.document: _deltaOnly(
+      (c, co) => documentRepo.applyRefreshDelta(
+        companyId: c,
+        parents: _documentParentSlices(c, co),
+      ),
+    ),
   };
 
   final firstPagePrefetchers = <EntityType, Future<bool> Function(String)>{
@@ -2123,6 +2265,8 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         paymentRepo.ensurePageLoaded(companyId: c, page: 1),
     EntityType.transaction: (c) =>
         bankTransactionRepo.ensurePageLoaded(companyId: c, page: 1),
+    EntityType.document: (c) =>
+        documentRepo.ensurePageLoaded(companyId: c, page: 1),
   };
 
   return WiredEntities(
@@ -2183,6 +2327,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     webhooks: webhookRepo,
     tokensApi: tokensApi,
     tokens: tokenRepo,
+    documents: documentRepo,
     // Fan-out the bundled per-entity arrays the `/refresh` envelope carries
     // alongside the company. Order doesn't matter for correctness (each repo
     // upserts its own slice) but kept stable for log determinism. Add a new

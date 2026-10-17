@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/document_open_actions.dart';
+import 'package:admin/ui/core/widgets/document_type_icon.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/company_details_view_model.dart';
@@ -197,23 +198,9 @@ class _DocumentRow extends StatelessWidget {
   final Future<void> Function(Document doc) onDownload;
   final Future<void> Function(Document doc) onDelete;
 
-  static const _imageExts = <String>{
-    'png',
-    'jpg',
-    'jpeg',
-    'gif',
-    'webp',
-    'heic',
-    'svg',
-    'bmp',
-  };
-
   @override
   Widget build(BuildContext context) {
-    final ext = doc.type.toLowerCase();
-    final icon = _imageExts.contains(ext)
-        ? Icons.image_outlined
-        : Icons.description_outlined;
+    final icon = documentTypeIcon(doc.type);
     final displayName = doc.name.isNotEmpty ? doc.name : doc.hash;
     return Container(
       padding: EdgeInsets.symmetric(

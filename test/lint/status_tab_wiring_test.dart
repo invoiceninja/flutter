@@ -23,11 +23,14 @@ String _fileStem(EntityType type) => type.name.replaceAllMapped(
 void main() {
   /// Every list ViewModel that renders a strip. The three settings-hosted lists
   /// (expense categories, gateways, payment links) declare no status counters,
-  /// so `kListStatusTabs` has no entry for them and they get no strip.
+  /// so `kListStatusTabs` has no entry for them and they get no strip — and
+  /// nor does Documents, whose files have no status at all (the server never
+  /// archives or soft-deletes one; `docs/documents-list.md`).
   const settingsHosted = {
     'expense_category',
     'company_gateway',
     'payment_link',
+    'document',
   };
 
   final vmFiles = Directory('lib/ui/features')

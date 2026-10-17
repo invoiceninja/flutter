@@ -15,6 +15,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/expenses_api.dart';
@@ -39,7 +40,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// overlay.
 class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     with EntityCommentMutations<Expense, ExpenseApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   ExpenseRepository({
     required super.db,
     required this.api,
@@ -491,6 +492,7 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
 
   /// Drop a document from the expense's local `documents` JSON column.
   /// Mirror of `ProjectRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -503,6 +505,7 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
 
   /// Replace (or insert) one document in the expense's local `documents`
   /// JSON column. Mirror of `ProjectRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

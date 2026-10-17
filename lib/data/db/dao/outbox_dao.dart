@@ -725,6 +725,33 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return (await q.getSingleOrNull()) != null;
   }
 
+  /// Ids of the documents some outbox row still speaks for, in any state: a
+  /// Documents-list row (`entity_type = 'document'`), or a record tab's
+  /// delete / visibility change, which is queued against the PARENT and
+  /// names the document only in its payload.
+  ///
+  /// What `DocumentRepository` checks before it removes a cached document row
+  /// the server no longer reported — a row with unsynced work behind it is
+  /// never one to drop. Every state counts, `dead` included: a failed change
+  /// is still unsynced work (`docs/sync.md` § A failed change is still
+  /// unsynced work).
+  Future<Set<String>> documentIdsInOutbox({required String companyId}) async {
+    final rows = await customSelect(
+      'SELECT entity_id AS id FROM outbox WHERE company_id = ?1 '
+      "AND entity_type = 'document' "
+      "UNION SELECT json_extract(payload, '\$.document_id') AS id FROM outbox "
+      'WHERE company_id = ?1 '
+      "AND mutation_kind IN ('document_delete', 'document_visibility') "
+      'AND json_valid(payload)',
+      variables: [Variable.withString(companyId)],
+      readsFrom: {outbox},
+    ).get();
+    return {
+      for (final r in rows)
+        if (r.data['id'] case final String id when id.isNotEmpty) id,
+    };
+  }
+
   /// Pending rows whose payload embeds [needle] — the ghost-discard path
   /// uses this to find dependents that reference a discarded tmp_ entity.
   Future<List<OutboxRow>> pendingRowsReferencing({

@@ -20,6 +20,7 @@ import 'package:admin/data/services/vendors_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
@@ -33,7 +34,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     with EntityCommentMutations<Vendor, VendorApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   VendorRepository({
     required super.db,
     required this.api,
@@ -579,6 +580,7 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
 
   /// Drop a document from the vendor's local `documents` JSON column.
   /// Mirror of `ClientRepository.applyDocumentDeleted` — see notes there.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -591,6 +593,7 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
 
   /// Replace (or insert) one document in the vendor's local `documents`
   /// JSON column. Mirror of `ClientRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

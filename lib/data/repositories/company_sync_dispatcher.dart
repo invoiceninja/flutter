@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/company_api_model.dart';
 import 'package:admin/data/repositories/company_repository.dart';
+import 'package:admin/data/repositories/document_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/data/services/documents_api.dart';
@@ -28,6 +29,7 @@ class CompanySyncDispatcher implements SyncDispatcher {
     required this.api,
     required this.repo,
     required this.documentsApi,
+    this.documentMirror,
   });
 
   final CompaniesApi api;
@@ -37,6 +39,10 @@ class CompanySyncDispatcher implements SyncDispatcher {
   /// entity-scoped upload on [CompaniesApi]. Mirrors `documentMutationHandlers`,
   /// where the delete also lives on [DocumentsApi].
   final DocumentsApi documentsApi;
+
+  /// The company-wide Documents list, told about a company file deleted from
+  /// Company Details once the server confirms it. Null in tests.
+  final DocumentMirror? documentMirror;
 
   /// Decode the JSON payload defensively. A corrupt row would otherwise
   /// throw to the catch-all in `SyncRepository._attempt` and burn 5 retries
@@ -88,12 +94,22 @@ class CompanySyncDispatcher implements SyncDispatcher {
     if (kind == MutationKind.documentDelete) {
       final payload = _decodePayload(row);
       final documentId = payload['document_id'] as String;
-      await documentsApi.delete(
-        id: documentId,
-        idempotencyKey: row.idempotencyKey,
-        requiresPassword: true,
-      );
+      try {
+        await documentsApi.delete(
+          id: documentId,
+          idempotencyKey: row.idempotencyKey,
+          requiresPassword: true,
+        );
+      } on NotFoundException {
+        // Already gone (deleted elsewhere, or a retry after a lost success) —
+        // the goal is met. Escaping would park a conflict telling the user the
+        // COMPANY was deleted on the server.
+      }
       await repo.removeDocumentLocally(
+        companyId: row.companyId,
+        documentId: documentId,
+      );
+      await documentMirror?.removeConfirmed(
         companyId: row.companyId,
         documentId: documentId,
       );

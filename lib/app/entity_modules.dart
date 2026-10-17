@@ -60,6 +60,9 @@ import 'package:admin/ui/features/projects/views/project_list_screen.dart';
 import 'package:admin/ui/features/recurring_expenses/views/recurring_expense_detail_screen.dart';
 import 'package:admin/ui/features/recurring_expenses/views/recurring_expense_edit_screen.dart';
 import 'package:admin/ui/features/recurring_expenses/views/recurring_expense_list_screen.dart';
+import 'package:admin/ui/features/documents/views/document_detail_screen.dart';
+import 'package:admin/ui/features/documents/views/document_edit_screen.dart';
+import 'package:admin/ui/features/documents/views/document_list_screen.dart';
 import 'package:admin/ui/features/payments/views/payment_detail_screen.dart';
 import 'package:admin/ui/features/payments/views/payment_edit_screen.dart';
 import 'package:admin/ui/features/payments/views/payment_list_screen.dart';
@@ -929,6 +932,29 @@ final kWiredEntityModules = <EntityModuleSpec>[
         ctx.watchEntityCount(EntityType.transaction, companyId, modeId: modeId),
     badgeModes: kTransactionBadgeModes,
   ),
+  // DI: `_wireDocument` in lib/app/services_entity_wiring.dart. The
+  // company-wide list of every uploaded file, at `/documents` right after
+  // Transactions — where admin-portal's menu had it. NO create screen: a file
+  // is uploaded on its record, so `createBuilder` is null, `/documents/new`
+  // redirects to the list and the row offers no "+". No badge. Gated by the
+  // Documents module (bit 128). See docs/documents-list.md.
+  EntityModuleSpec(
+    type: EntityType.document,
+    wireName: 'document',
+    apiPath: '/api/v1/documents',
+    routePath: '/documents',
+    icon: Icons.description,
+    outlinedIcon: Icons.description_outlined,
+    labelKey: 'documents',
+    sidebarOrder: 150,
+    // Delete only: archive / restore are no-ops server-side for a document.
+    requiresPasswordFor: const {MutationKind.delete},
+    listBuilder: (context, state) => const DocumentListScreen(),
+    detailBuilder: (context, state) =>
+        DocumentDetailScreen(id: state.pathParameters['id']!),
+    editBuilder: (context, state) =>
+        DocumentEditScreen(existingId: state.pathParameters['id']!),
+  ),
   // DI: wire<TransactionRuleItemApi, TransactionRuleApi>(...) in
   // lib/app/services_entity_wiring.dart. Settings-only entity reached
   // via Settings → Bank Accounts → Rules. Settings router owns the
@@ -1066,7 +1092,9 @@ const kBranchOrder = <BranchSpec>[
   EntityBranch(EntityType.payment), // 20
   FixedBranch(FixedBranchKind.activity), // 21 — company activity feed at
   //     `/activity`; the dashboard card's "View All" target.
-  // Future enabled entities append here (22, 23, …) so existing branch
+  EntityBranch(EntityType.document), // 22 — the Documents list at
+  //     `/documents`; no create screen (`/new` redirects to the list).
+  // Future enabled entities append here (23, 24, …) so existing branch
   // indices keep their meaning.
 ];
 

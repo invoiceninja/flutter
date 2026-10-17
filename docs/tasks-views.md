@@ -2,6 +2,10 @@
 
 Companion to CLAUDE.md § Tasks layout view. The main file carries the `?view=` / device-preference precedence rule and the rule for each behaviour; this doc carries the evidence — why the URL is an override rather than the carrier, what the lock exists for, and why the kanban board has no create FAB.
 
+## Why the URL alone could not carry the layout
+
+Before invoiceninja/flutter#133 the URL was the only carrier, and since every structural "up" navigation drops the query string by construction, the mode was lost the moment the user tapped the FAB: `goToCreateRoute` `go`s a bare `/tasks/new`, `MasterDetailLayout` auto-promotes that to `?view=full`, and `entityCloseTargetPath` returns the bare `basePath` — so cancelling a new task landed on the plain list. Three sibling paths lost it too (closing a card's detail pane, re-tapping the already-active Tasks sidebar row, a company switch made from `/tasks/<id>`); Android back and the sidebar `←` never did, because `NavHistoryController` records the full URL. Hence `DevicePrefKeys.tasksView` as the fallback, with `?view=` kept as the override.
+
 ## The `view` key is overloaded, so `full` must parse to null
 
 **The `view` key is overloaded, so `'full'` must parse to null.** `MasterDetailLayout` writes `?view=full` for its full-width pane flag (`_toggleFullScreenInUrl`, plus the auto-promote redirect a frame after an editor opens) and the tasks list is rebuilt from that same `GoRouterState` — so every open editor hands the parser `'full'`. Null means "the URL expressed no opinion"; mapping it to `list` would claim the URL had chosen the list. Every *other* reader of `queryParameters['view']` in `lib/` compares against `'full'`, so the overload stays contained to one line. This is also why the mode is **not** carried on the pane URL instead: `_toggleFullScreenInUrl` would clobber it going in and strip it coming out.

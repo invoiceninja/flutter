@@ -14,7 +14,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Document {
 
- String get id; String get name; String get hash; String get type; String get url; int get size; bool get isPublic; int get createdAt; int get updatedAt;
+ String get id; String get name; String get hash; String get type;// A token-gated API route (`/api/v1/documents/{id}/download`). Never
+// open it in a browser or hand it to `Image.network` — that gets
+// `{"message":"Invalid token"}`. Fetch the bytes with
+// `DocumentsApi.download` (`docs/document-urls.md`).
+ String get url; int get size; bool get isPublic; int get createdAt; int get updatedAt;
 /// Create a copy of Document
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -221,6 +225,10 @@ class _Document extends Document {
 @override@JsonKey() final  String name;
 @override@JsonKey() final  String hash;
 @override@JsonKey() final  String type;
+// A token-gated API route (`/api/v1/documents/{id}/download`). Never
+// open it in a browser or hand it to `Image.network` — that gets
+// `{"message":"Invalid token"}`. Fetch the bytes with
+// `DocumentsApi.download` (`docs/document-urls.md`).
 @override@JsonKey() final  String url;
 @override@JsonKey() final  int size;
 @override@JsonKey() final  bool isPublic;

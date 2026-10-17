@@ -11,6 +11,7 @@ import 'package:admin/data/models/api/group_setting_api_model.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/group_settings_api.dart';
 import 'package:admin/data/services/upload_source.dart';
@@ -24,7 +25,7 @@ import 'package:admin/data/models/value/parsing.dart';
 /// the outbox.
 class GroupSettingRepository
     extends BaseEntityRepository<GroupSetting, GroupSettingApi>
-    implements DocumentBearingRepository {
+    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   GroupSettingRepository({
     required super.db,
     required this.api,
@@ -427,6 +428,7 @@ class GroupSettingRepository
 
   /// Drop a document from the group's local `documents` JSON column.
   /// Mirror of `ProductRepository.applyDocumentDeleted`.
+  @override
   Future<void> applyDocumentDeleted({
     required String companyId,
     required String entityId,
@@ -439,6 +441,7 @@ class GroupSettingRepository
 
   /// Replace (or insert) one document in the group's local `documents` JSON
   /// column. Mirror of `ProductRepository.applyDocumentChanged`.
+  @override
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,

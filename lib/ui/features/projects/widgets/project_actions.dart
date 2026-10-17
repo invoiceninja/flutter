@@ -707,7 +707,7 @@ class ProjectActions {
       return;
     }
     try {
-      await services.documents.bulkDownload(
+      await services.documentsApi.bulkDownload(
         ids: ids,
         idempotencyKey: const Uuid().v4(),
       );

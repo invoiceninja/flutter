@@ -15,6 +15,7 @@ import '../../generated/schema.dart';
 import '../../generated/schema_v1.dart' as v1;
 import '../../generated/schema_v8.dart' as v8;
 import '../../generated/schema_v11.dart' as v11;
+import '../../generated/schema_v13.dart' as v13;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -57,6 +58,7 @@ void main() {
     // drift does not model, so the dump cannot see it — the index tests
     // below are what pin it.
     13: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
+    14: 'a97b89f9b596bee6c58211ad778d68913e8fb933579484795fd61c653242821d',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -364,6 +366,40 @@ void main() {
               'fresh ones',
         );
       }
+      await db.close();
+    });
+
+    test('v13 → v14 adds document_records beside the untouched documents '
+        'scaffold, keeping the outbox', () async {
+      final schema = await verifier.schemaAt(13);
+      final old = v13.DatabaseAtV13(schema.newConnection());
+      await old.customStatement(
+        'INSERT INTO outbox (company_id, entity_type, entity_id, '
+        'mutation_kind, payload, idempotency_key, next_attempt_at, '
+        "created_at) VALUES ('co', 'invoice', 'i1', 'update', '{}', "
+        "'k13', 0, 0)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final tables =
+          (await db
+                  .customSelect(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'",
+                  )
+                  .get())
+              .map((r) => r.data['name'] as String)
+              .toSet();
+      expect(tables, containsAll(['document_records', 'documents']));
+      final queued = await db.outboxDao.nextReady(companyId: 'co', now: 1);
+      expect(queued.single.idempotencyKey, 'k13');
+      // The list's own indexes come from the generic pass, which only an
+      // upgrade re-runs on an installed database.
+      final indexes =
+          (await db.customSelect('PRAGMA index_list(document_records)').get())
+              .map((r) => r.data['name']);
+      expect(indexes, contains('idx_document_records_company_updated'));
       await db.close();
     });
 

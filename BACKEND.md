@@ -34,6 +34,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
 - Visual (block) designs — five renderer gaps the client now works around: no `tasks-table` renderer, an empty `blocks` list read as a block design, unguarded `properties`, a lone block's width ignored, unknown page sizes dropping the orientation; plus an archived design never reaching the refresh bundle (**O**, § Visual designer).
+- Documents list — `GET /api/v1/documents` names no parent record, a deleted document leaves no trace a delta can see, `status=archived|deleted` reads a column the table doesn't have, and `type=` ANDs its values (**O**, § Documents list; the client fills "Linked to" from the records it has cached).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -3045,3 +3046,53 @@ there. The client's Custom Designs → Show archived runs a full
 `->withTrashed()` on the `company.designs` closures, so an archive travels
 with the delta like any other change.
 
+## Documents list — `GET /api/v1/documents` names no parent record, and a deleted document leaves no trace — **O (client fills "Linked to" locally)**
+
+**Provenance** — 2026-10-17, the Flutter v2 Documents list (beta feedback: admin-portal had it on
+the menu and v2 did not; `docs/documents-list.md`), read against `v5-develop`. The demo returned
+200 for every probe below, but holds zero documents, so nothing here is confirmed against data.
+
+The list shows every uploaded file in the company. Four things make the client work around the
+endpoint rather than use it:
+
+1. **No parent link.** `DocumentTransformer::transform` (`app/Transformers/DocumentTransformer.php:33`)
+   emits `id`, `user_id`, `project_id`, `vendor_id`, `name`, `type`, `size`, … but not
+   `documentable_type` / `documentable_id`, though both are columns on `documents`. So a list of
+   files cannot say what each is attached to — admin-portal's "Linked to" column only ever filled
+   in for files it had also loaded through their record. The documents report doesn't help:
+   `DocumentExport` gives `record_type` as a class basename and has `record_name` commented out
+   (`app/Export/CSV/DocumentExport.php:135-144`), so no record id either.
+2. **A delete leaves no tombstone.** `DocumentRepository::delete`
+   (`app/Repositories/DocumentRepository.php:22-26`) calls `forceDelete()`, so an
+   `updated_at >= <watermark>` delta can never report it. Every client caching the list keeps a
+   deleted file until it re-downloads the whole list, and the first sign is a 400 on download.
+3. **`status` / `is_deleted` / `without_deleted_clients` read what a Document doesn't have.**
+   `QueryFilters::status` (`app/Filters/QueryFilters.php:237-262`) uses `is_deleted` for
+   `archived` and `deleted`, `is_deleted()` (`:437`) filters on it directly, and
+   `without_deleted_clients()` (`:491`) goes through a `client` relation — but the `documents`
+   table has no `is_deleted` column and a Document no `client`. Each should fail the query on
+   MySQL. (Archive and restore are already no-ops for a document — `DocumentRepository::archive` /
+   `restore` are empty — so a document is only ever active.)
+4. **`type=` ANDs its values.** `DocumentFilters::type` (`app/Filters/DocumentFilters.php:74`) adds
+   one `where` per comma-separated value, so `type=pdf,image` matches nothing; every other list
+   filter that takes a list ORs it.
+
+### Requested change
+
+- **Parent:** emit `documentable_type` as the snake-case entity name (`invoice`,
+  `recurring_invoice`, `purchase_order`, `group`, `company`, …) and `documentable_id` as the hashed
+  id. Additive; the Flutter client already reads both when present (`DocumentApi`).
+- **Deletes:** either soft-delete documents (`is_deleted` + `deleted_at`, as every other entity),
+  or expose the ids deleted since a timestamp so a delta can carry them.
+- **Filters:** override `status`, `is_deleted` and `without_deleted_clients` in `DocumentFilters`
+  (no-ops, or `status=active` only), so a generic client request cannot 500.
+- **`type`:** OR the values (`whereIn` / a grouped `orWhere`), matching the other list filters.
+
+### Client status
+
+Working without all four (`docs/documents-list.md`): "Linked to" is filled from the records the app
+has cached (the `/refresh` delta's records each carry their whole `documents` array, a record tab's
+own changes, and a pass over the cached `documents` columns), and shows a dash otherwise; deleted
+files are removed by a parent whose array no longer lists them, by a full Sync that walked the whole
+list, or when a download 400s; the list never sends a lifecycle status or `excludeDeletedClients`;
+and it offers no `type:` filter.

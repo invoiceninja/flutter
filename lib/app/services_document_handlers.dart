@@ -1,7 +1,9 @@
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/repositories/document_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/base_entity_sync_dispatcher.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
@@ -20,6 +22,13 @@ import 'package:admin/domain/sync/mutation.dart';
 /// (`POST /<entity>/{id}/upload`) and the doc-scoped delete + visibility
 /// (`DocumentsApi`). The dispatcher layer is where multi-service HTTP shape
 /// belongs; repositories stay focused on Drift + outbox.
+///
+/// [mirror] / [parentType] keep the company-wide Documents list in step with
+/// a change confirmed here: a delete removes the file's row, a visibility
+/// change updates it and links it to this record. Best-effort — the server
+/// write has already committed, so the mirror never throws into the drain.
+/// An upload needs neither: the record's reply carries the new file, and the
+/// next `/refresh` delta files it under this record (`docs/documents-list.md`).
 Map<MutationKind, CustomMutationHandler<TInner>>
 documentMutationHandlers<TInner>({
   required DocumentsApi documentsApi,
@@ -43,6 +52,8 @@ documentMutationHandlers<TInner>({
   applyDeleted,
   Future<void> Function(UploadSource source)? onUploaded,
   Future<UploadSource> Function(UploadSource source)? resolveSource,
+  DocumentMirror? mirror,
+  EntityType? parentType,
 }) {
   return {
     MutationKind.documentUpload: ({required row, required payload}) async {
@@ -103,22 +114,52 @@ documentMutationHandlers<TInner>({
         entityId: entityId,
         documentId: documentId,
       );
+      await mirror?.removeConfirmed(
+        companyId: row.companyId,
+        documentId: documentId,
+      );
       return null;
     },
     MutationKind.documentVisibility: ({required row, required payload}) async {
       final documentId = payload['document_id'] as String;
       final entityId = payload['entity_id'] as String;
       final isPublic = payload['is_public'] as bool;
-      final updated = await documentsApi.setVisibility(
-        id: documentId,
-        isPublic: isPublic,
-        idempotencyKey: row.idempotencyKey,
-      );
+      final DocumentApi? updated;
+      try {
+        updated = await documentsApi.setVisibility(
+          id: documentId,
+          isPublic: isPublic,
+          idempotencyKey: row.idempotencyKey,
+        );
+      } on NotFoundException {
+        // The DOCUMENT is gone (deleted from another device or the Documents
+        // list) — not the record it hangs off. Letting this escape parks the
+        // row as a "deleted on the server" conflict against the PARENT's type
+        // and id, and that sheet's Discard hard-deletes the parent's local row.
+        // There is nothing left to make public or private: prune the stale
+        // entry and drain as success, exactly like the delete above.
+        await applyDeleted(
+          companyId: row.companyId,
+          entityId: entityId,
+          documentId: documentId,
+        );
+        await mirror?.removeConfirmed(
+          companyId: row.companyId,
+          documentId: documentId,
+        );
+        return null;
+      }
       if (updated != null) {
         await applyChanged(
           companyId: row.companyId,
           entityId: entityId,
           document: updated,
+        );
+        await mirror?.applyServerCopy(
+          companyId: row.companyId,
+          document: updated,
+          parentType: parentType,
+          parentId: entityId,
         );
       }
       return null;

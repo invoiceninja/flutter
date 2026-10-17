@@ -86,7 +86,14 @@ class _SignupBody extends StatelessWidget {
     }
     // A social sheet dismissed returns false with no error — say nothing.
     final msg = _resolveError(context);
-    if (msg != null) Notify.error(context, msg);
+    final detailKey = vm.errorDetailKey;
+    if (msg != null) {
+      Notify.error(
+        context,
+        msg,
+        detail: detailKey == null ? null : context.tr(detailKey),
+      );
+    }
   }
 
   @override

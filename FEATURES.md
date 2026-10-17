@@ -77,6 +77,7 @@ the honest default.
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
 | Two-step login (email → Continue → only the credentials the account needs, via `/login/precheck`) | ✅ | ❌ | ✅ | | |
+| Self-hosted server with an untrusted TLS certificate (plain-language reason and fix; trust that exact certificate; revoke in Device Settings) | — | 🟡 | ✅ | | |
 | Passkey login | ✅ | ❌ | ❌ | | |
 | Generic OIDC sign-in (self-hosted identity provider) | ✅ | ❌ | ❌ | | Blocked: the server returns the code to React's own `/oauth-callback` only (BACKEND.md § OIDC) |
 | Disable 2FA from login (SMS reset for a lost authenticator) | ✅ | ✅ | ✅ | | |

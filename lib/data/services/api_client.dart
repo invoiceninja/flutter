@@ -16,6 +16,8 @@ import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/http_client_factory.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/services/password_cache.dart';
+import 'package:admin/data/services/tls/certificate_trust_seam.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/utils/perf_trace.dart';
 
@@ -78,6 +80,10 @@ class ApiClient {
     // `connectivity_plus` misreports "none" on some setups, so the probe
     // decides there. Injectable so both can be tested off the web.
     bool? offlineMeansUnsent,
+    // Names a refused server certificate when a handshake fails, and hears
+    // that a server answered again (`noteReached`), which retires the shell's
+    // certificate banner. Optional: null leaves both off.
+    CertificateTrustStore? certificateTrust,
   }) : _credentialsListenable = credentials,
        _passwordCache = passwordCache,
        _onUnauthorized = onUnauthorized,
@@ -91,7 +97,8 @@ class ApiClient {
        _requestTimeout = requestTimeout,
        _debugCaptureStore = debugCaptureStore,
        _sendIdempotencyKey = sendIdempotencyKey ?? !kIsWeb,
-       _offlineMeansUnsent = offlineMeansUnsent ?? kIsWeb;
+       _offlineMeansUnsent = offlineMeansUnsent ?? kIsWeb,
+       _trust = certificateTrust;
 
   final ValueListenable<ApiCredentials?> _credentialsListenable;
   final PasswordCache _passwordCache;
@@ -107,6 +114,7 @@ class ApiClient {
   final DebugCaptureStore? _debugCaptureStore;
   final bool _sendIdempotencyKey;
   final bool _offlineMeansUnsent;
+  final CertificateTrustStore? _trust;
 
   /// Coalesces concurrent 401s — every parallel caller that 401s while a
   /// logout is in flight `await`s the same future.
@@ -464,6 +472,7 @@ class ApiClient {
         _buildHeaders(creds: creds, idempotencyKey: idempotencyKey),
       );
     final http.Response response;
+    final ticket = _trust?.rejectionSerial ?? 0;
     try {
       final streamed = await _http.send(req).timeout(timeout);
       response = await http.Response.fromStream(streamed).timeout(timeout);
@@ -479,6 +488,17 @@ class ApiClient {
       );
     } on http.ClientException catch (e) {
       throw _transportFailure(req, e.message);
+    } catch (e) {
+      // A refused certificate escapes `IOClient` raw — name it, as
+      // `_sendNoRedirect` does; anything else is rethrown untouched.
+      final certificate = untrustedCertificateFrom(
+        e,
+        uri: uri,
+        trust: _trust,
+        ticket: ticket,
+      );
+      if (certificate != null) throw certificate;
+      rethrow;
     }
     if (response.statusCode >= 300 && response.statusCode < 400) {
       // Same defense as `_sendNoRedirect`: refuse redirects so the
@@ -587,6 +607,7 @@ class ApiClient {
           _buildHeaders(creds: creds, idempotencyKey: idempotencyKey),
         );
       final http.Response response;
+      final ticket = _trust?.rejectionSerial ?? 0;
       try {
         final streamed = await _http.send(req).timeout(timeoutPerChunk);
         response = await http.Response.fromStream(
@@ -601,6 +622,15 @@ class ApiClient {
         );
       } on http.ClientException catch (e) {
         throw NetworkException(e.message);
+      } catch (e) {
+        final certificate = untrustedCertificateFrom(
+          e,
+          uri: uri,
+          trust: _trust,
+          ticket: ticket,
+        );
+        if (certificate != null) throw certificate;
+        rethrow;
       }
       if (response.statusCode >= 300 && response.statusCode < 400) {
         throw ServerException(
@@ -727,6 +757,7 @@ class ApiClient {
           )
           ..followRedirects = false
           ..headers.addAll(headers);
+    final ticket = _trust?.rejectionSerial ?? 0;
     try {
       final streamed = await _http.send(request).timeout(_requestTimeout);
       final response = await http.Response.fromStream(
@@ -756,6 +787,18 @@ class ApiClient {
     } on ServerException {
       rethrow;
     } catch (e) {
+      // A refused certificate is a handshake failure, so the request was
+      // provably not sent; `untrustedCertificateFrom` names the certificate
+      // (or at least drops the raw `HandshakeException` text).
+      if (!request.bodyRead) {
+        final certificate = untrustedCertificateFrom(
+          e,
+          uri: uri,
+          trust: _trust,
+          ticket: ticket,
+        );
+        if (certificate != null) throw certificate;
+      }
       throw _transportFailure(request, e.toString());
     }
   }
@@ -785,6 +828,8 @@ class ApiClient {
     required String method,
     required Uri uri,
   }) async {
+    // Any response at all means the TLS handshake with this server passed.
+    _trust?.noteReached(uri.host, uri.port);
     // First, before anything below can throw: from here on the server has
     // applied this write, so a failure later in the attempt — an undecodable
     // body, the client-too-old header, a follow-up request — must not be

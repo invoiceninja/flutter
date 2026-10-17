@@ -32,6 +32,7 @@ void main() {
     'list_density': PrefScope.device,
     'hours_format': PrefScope.account,
     'hide_peppol_status': PrefScope.account,
+    'trusted_certificates_json': PrefScope.device,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

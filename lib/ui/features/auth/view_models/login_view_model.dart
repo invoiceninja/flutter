@@ -6,6 +6,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 import 'package:admin/utils/local_network_host.dart';
@@ -49,7 +50,8 @@ typedef TwoFactorResetResult = ({
 /// [urlErrorKey], [otpErrorKey], [fieldErrors]) render under their field and
 /// are never also toasted.
 class LoginViewModel extends ChangeNotifier {
-  LoginViewModel({required this.auth}) {
+  LoginViewModel({required this.auth, this.certificateTrust, bool? isWeb})
+    : _isWeb = isWeb ?? kIsWeb {
     // Dev-machine credential pre-fill. Allowed in debug + profile builds so
     // perf testing with `flutter run --profile` keeps working, but blocked in
     // release so a stray `--dart-define-from-file=dev.json` at release build
@@ -61,6 +63,14 @@ class LoginViewModel extends ChangeNotifier {
   }
 
   final AuthRepository auth;
+
+  /// Where a self-hosted server's refused certificate can be trusted, and
+  /// what is trusted already. Null leaves the explanation without the offer.
+  final CertificateTrustStore? certificateTrust;
+
+  /// The browser hides why a connection failed, so on web a self-hosted
+  /// network error also suggests the certificate. Injectable for tests.
+  final bool _isWeb;
 
   /// True = use `Env.hostedApiUrl`; false = use [urlOverride].
   bool isHosted = true;
@@ -157,6 +167,34 @@ class LoginViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasRequestError => _errorKey != null || _errorMessage != null;
 
+  /// A second line for the request-level toast, as a localization key.
+  String? _errorDetailKey;
+  String? get errorDetailKey => _errorDetailKey;
+
+  /// The server to offer opening in the browser beside a web network error
+  /// — accepting a self-signed certificate there is the only fix a web page
+  /// can't make for the user.
+  String? _openServerUrl;
+  String? get openServerUrl => _openServerUrl;
+
+  /// A self-hosted server's certificate this device refused on the last
+  /// request. The view explains it in a dialog instead of a toast, and offers
+  /// to trust it when [canTrustCertificate].
+  UntrustedCertificateException? _untrustedCertificate;
+  UntrustedCertificateException? get untrustedCertificate =>
+      _untrustedCertificate;
+
+  /// Whether [untrustedCertificate] may be trusted: only ever for a
+  /// self-hosted server, never the hosted service's certificate.
+  bool get canTrustCertificate {
+    final refused = _untrustedCertificate;
+    final store = certificateTrust;
+    return refused != null &&
+        store != null &&
+        !isHosted &&
+        !store.isHosted(refused.host);
+  }
+
   // Client-side validation, rendered inline — localization keys.
   String? _emailErrorKey;
   String? get emailErrorKey => _emailErrorKey;
@@ -187,6 +225,9 @@ class LoginViewModel extends ChangeNotifier {
     _errorKey = null;
     _errorParams = const {};
     _errorMessage = null;
+    _errorDetailKey = null;
+    _openServerUrl = null;
+    _untrustedCertificate = null;
     _emailErrorKey = null;
     _urlErrorKey = null;
     _otpErrorKey = null;
@@ -217,12 +258,99 @@ class LoginViewModel extends ChangeNotifier {
   void setUrlOverride(String value) {
     final next = value.trim();
     if (next == urlOverride) return;
+    final trustedBefore = trustedCertificateForUrl?.key;
     urlOverride = next;
     // The answer belongs to the previous server.
     _invalidatePrecheck();
-    if (_urlErrorKey != null) {
+    if (_urlErrorKey != null ||
+        trustedCertificateForUrl?.key != trustedBefore) {
       _urlErrorKey = null;
       _notify();
+    }
+  }
+
+  /// What this device already trusts for the server in the URL field — the
+  /// line under it, and the only way to forget a trust before signing in
+  /// (Device Settings isn't reachable from here).
+  TrustedCertificate? get trustedCertificateForUrl {
+    final store = certificateTrust;
+    if (store == null || isHosted || store.pins.isEmpty) return null;
+    final url = resolveSelfHostedBaseUrl(
+      urlOverride,
+      allowInsecureHttpAnywhere: true,
+    ).url;
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || uri.scheme.toLowerCase() != 'https') return null;
+    return store.pinFor(uri.host, uri.port);
+  }
+
+  Future<void> forgetTrustedCertificate() async {
+    final pin = trustedCertificateForUrl;
+    if (pin == null) return;
+    await certificateTrust?.revoke(pin.host, pin.port);
+    _notify();
+  }
+
+  /// Trust [untrustedCertificate] for its server. The view then repeats the
+  /// step that hit it. False — and nothing trusted — when it can't be.
+  Future<bool> trustCertificate() async {
+    final refused = _untrustedCertificate;
+    final allowed = canTrustCertificate;
+    _untrustedCertificate = null;
+    if (refused == null || !allowed) {
+      _notify();
+      return false;
+    }
+    final ok = await certificateTrust!.trust(
+      refused.host,
+      refused.port,
+      refused.certificate,
+    );
+    _notify();
+    return ok;
+  }
+
+  /// The user closed the certificate dialog without trusting it.
+  void dismissUntrustedCertificate() {
+    if (_untrustedCertificate == null) return;
+    _untrustedCertificate = null;
+    _notify();
+  }
+
+  /// Route a request's transport failure. A refused certificate on a
+  /// self-hosted server is held for the dialog; the hosted service's gets an
+  /// explanation of its own (an intercepting network, a wrong clock) and is
+  /// never offered for trust. Anything else is the network toast — plus, on
+  /// web, where the browser reports a refused certificate as just another
+  /// network error, a hint and a way to open the server.
+  void _onNetworkError(NetworkException e, {String? baseUrl}) {
+    if (e is UntrustedCertificateException) {
+      final hosted =
+          isHosted ||
+          (certificateTrust?.isHosted(e.host) ??
+              isHostedCertificateHost(e.host));
+      if (hosted) {
+        _setError(
+          key: 'untrusted_certificate_hosted',
+          params: {'host': e.host},
+        );
+        _errorDetailKey = 'untrusted_certificate_hosted_detail';
+        return;
+      }
+      // Already trusted and still refused can only mean the store itself
+      // failed; asking again would loop, so it falls through to the toast.
+      if (certificateTrust?.pinFor(e.host, e.port)?.facts != e.certificate) {
+        _untrustedCertificate = e;
+        return;
+      }
+    }
+    _setError(
+      key: 'network_error_with_message',
+      params: {'message': e.message},
+    );
+    if (_isWeb && !isHosted && baseUrl != null) {
+      _errorDetailKey = 'web_certificate_hint';
+      _openServerUrl = baseUrl;
     }
   }
 
@@ -321,10 +449,7 @@ class LoginViewModel extends ChangeNotifier {
       return true;
     } on NetworkException catch (e) {
       // Before `ApiException`, which it extends.
-      _setError(
-        key: 'network_error_with_message',
-        params: {'message': e.message},
-      );
+      _onNetworkError(e, baseUrl: baseUrl);
       return false;
     } on ValidationException catch (e) {
       _fieldErrors = e.fieldErrors.containsKey('email')
@@ -445,10 +570,7 @@ class LoginViewModel extends ChangeNotifier {
       _setError(message: e.message);
       return false;
     } on NetworkException catch (e) {
-      _setError(
-        key: 'network_error_with_message',
-        params: {'message': e.message},
-      );
+      _onNetworkError(e, baseUrl: baseUrl);
       return false;
     } on ApiException catch (e) {
       _setError(message: e.message);
@@ -511,6 +633,7 @@ class LoginViewModel extends ChangeNotifier {
       return await signIn(baseUrl);
     } on SocialSignInFailure catch (f) {
       _setError(key: f.key, params: f.params, message: f.message);
+      _errorDetailKey = f.detailKey;
       return false;
     } finally {
       _busyAction = null;
@@ -543,10 +666,7 @@ class LoginViewModel extends ChangeNotifier {
       );
       return true;
     } on NetworkException catch (e) {
-      _setError(
-        key: 'network_error_with_message',
-        params: {'message': e.message},
-      );
+      _onNetworkError(e, baseUrl: baseUrl);
       return false;
     } on ApiException catch (e) {
       _setError(message: e.message);
@@ -648,6 +768,13 @@ class LoginViewModel extends ChangeNotifier {
         errorMessage: null,
         fieldErrors: const <String, List<String>>{},
         unreachable: false,
+      );
+    } on UntrustedCertificateException catch (e) {
+      // Hosted-only flow, and a refused handshake provably sent nothing — so
+      // the cached TOTP answer still stands (not `unreachable`).
+      return failure(
+        key: 'untrusted_certificate_hosted',
+        params: {'host': e.host},
       );
     } on NetworkException catch (e) {
       return failure(

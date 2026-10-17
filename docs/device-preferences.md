@@ -61,8 +61,10 @@ device.
 
 - **`device`** is kept: how the app looks and responds on this device. That
   covers theme mode, both palette variants and the custom colours, language,
-  text size, keyboard shortcuts, sidebar collapsed, status tabs and phone
-  actions.
+  text size, keyboard shortcuts, sidebar collapsed, status tabs, phone
+  actions and trusted server certificates (made at the login screen, before
+  any account exists — `docs/trusting-a-self-hosted-certificate.md` § Why
+  device scope).
 - **`account`** is forgotten, because it describes the signed-in account and
   the next person to sign in must not inherit it. That covers sidebar counters
   (the account's modules), the main menu, the Tasks layout, "Hide unverified

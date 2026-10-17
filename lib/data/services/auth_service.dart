@@ -7,6 +7,8 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/tls/certificate_trust_seam.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 
 /// Auth endpoints don't fit through [ApiClient] because they're called before
 /// we have a token. This service speaks to `/api/v1/login` and
@@ -15,9 +17,17 @@ import 'package:admin/data/services/api_exception.dart';
 /// Mirrors `admin-portal/lib/redux/auth/auth_middleware.dart:102-120` for the
 /// login response envelope and the headers we send.
 class AuthService {
-  AuthService({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  AuthService({
+    http.Client? httpClient,
+    CertificateTrustStore? certificateTrust,
+  }) : _http = httpClient ?? http.Client(),
+       _trust = certificateTrust;
 
   final http.Client _http;
+
+  /// Names a refused server certificate when a handshake fails — see
+  /// `untrustedCertificateFrom`. Null in tests that don't need it.
+  final CertificateTrustStore? _trust;
 
   /// One transport seam for every auth POST. A connection failure (no
   /// network, DNS lookup on a typo'd self-hosted URL, refused socket) throws
@@ -39,9 +49,14 @@ class AuthService {
     Object? body,
     Duration? timeout,
   }) async {
+    final ticket = _trust?.rejectionSerial ?? 0;
     try {
       final request = _http.post(url, headers: headers, body: body);
-      return await (timeout == null ? request : request.timeout(timeout));
+      final response = await (timeout == null
+          ? request
+          : request.timeout(timeout));
+      _trust?.noteReached(url.host, url.port);
+      return response;
     } on TimeoutException {
       // Not `e.message`: `Future.timeout` always sets it to "Future not
       // completed", which would reach the user verbatim.
@@ -57,8 +72,16 @@ class AuthService {
       // only `SocketException` / `HttpException`, so a TLS
       // `HandshakeException` (a self-hosted certificate the device doesn't
       // trust) would otherwise escape every `on ApiException` catch. Mirrors
-      // `ApiClient`'s catch-all.
-      throw NetworkException(e.toString());
+      // `ApiClient`'s catch-all — including naming a refused certificate, so
+      // the login screen can explain it instead of toasting the raw
+      // `HandshakeException`.
+      throw untrustedCertificateFrom(
+            e,
+            uri: url,
+            trust: _trust,
+            ticket: ticket,
+          ) ??
+          NetworkException(e.toString());
     }
   }
 

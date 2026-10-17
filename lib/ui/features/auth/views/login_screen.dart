@@ -8,8 +8,10 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/dialogs/untrusted_certificate_dialog.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
@@ -58,7 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _vm = LoginViewModel(auth: context.read<Services>().auth);
+    _vm = LoginViewModel(
+      auth: context.read<Services>().auth,
+      certificateTrust: context.read<CertificateTrustStore?>(),
+    );
   }
 
   @override
@@ -80,7 +85,48 @@ class _LoginScreenState extends State<LoginScreen> {
     final msg = key != null
         ? context.tr(key, _vm.errorParams)
         : _vm.errorMessage;
-    if (msg != null) Notify.error(context, msg);
+    if (msg == null) return;
+    final detailKey = _vm.errorDetailKey;
+    final openUrl = _vm.openServerUrl;
+    Notify.error(
+      context,
+      msg,
+      detail: detailKey == null ? null : context.tr(detailKey),
+      action: openUrl == null
+          ? null
+          : NotifyAction(
+              context.tr('open_server'),
+              () => launchExternalUri(Uri.parse(openUrl)),
+            ),
+    );
+  }
+
+  /// A failed step's error: the certificate dialog when the server's
+  /// certificate was refused, otherwise the toast. Trusting the certificate
+  /// runs [retry] — the same step — again, so the user carries on from where
+  /// they were; a password is never sent before this decision, because the
+  /// email step's precheck is the first request to the server.
+  Future<void> _reportFailure(Future<void> Function() retry) async {
+    final refused = _vm.untrustedCertificate;
+    if (refused == null) {
+      _toastRequestError();
+      return;
+    }
+    final trusted = await showUntrustedCertificateDialog(
+      context,
+      host: refused.host,
+      port: refused.port,
+      certificate: refused.certificate,
+      problems: refused.problems,
+      canTrust: _vm.canTrustCertificate,
+      replacing: _vm.certificateTrust?.pinFor(refused.host, refused.port),
+    );
+    if (!mounted) return;
+    if (!trusted) {
+      _vm.dismissUntrustedCertificate();
+      return;
+    }
+    if (await _vm.trustCertificate() && mounted) await retry();
   }
 
   void _announce(String message) {
@@ -97,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (ok) {
       _announce('${context.tr('password')} · ${_vm.email}');
     } else {
-      _toastRequestError();
+      await _reportFailure(_onContinue);
     }
   }
 
@@ -111,6 +157,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onLogin() async {
     final ok = await _vm.submit();
     if (!mounted || ok) return;
+    if (_vm.untrustedCertificate != null) {
+      await _reportFailure(_onLogin);
+      return;
+    }
     _toastRequestError();
     if (_vm.otpErrorKey != null ||
         _vm.fieldErrors.containsKey('one_time_password')) {
@@ -149,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Notify.success(context, context.tr('password_reset_link_sent'));
       return;
     }
-    _toastRequestError();
+    await _reportFailure(_onRecover);
   }
 
   Future<void> _onGoogle() async {
@@ -327,6 +377,10 @@ class _LoginScreenState extends State<LoginScreen> {
           onEditingComplete: () {},
           onSubmitted: (_) => _emailFocus.requestFocus(),
         ),
+        if (vm.trustedCertificateForUrl != null)
+          _TrustedCertificateLine(
+            onForget: busy ? null : vm.forgetTrustedCertificate,
+          ),
         SizedBox(height: InSpacing.md(context)),
       ],
       AuthField(
@@ -774,6 +828,43 @@ class _SegmentButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Under the Server URL field when this device already trusts a certificate
+/// for that server: says so, and is the one place to take it back before
+/// signing in — Device Settings isn't reachable from the login screen.
+class _TrustedCertificateLine extends StatelessWidget {
+  const _TrustedCertificateLine({required this.onForget});
+
+  final VoidCallback? onForget;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Padding(
+      key: const ValueKey('login_trusted_certificate'),
+      padding: const EdgeInsets.only(top: InSpacing.xs),
+      child: Row(
+        children: [
+          Icon(Icons.verified_user_outlined, size: 16, color: tokens.ink3),
+          const SizedBox(width: InSpacing.sm),
+          Expanded(
+            child: Text(
+              context.tr('certificate_trusted_for_server'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.ink2),
+            ),
+          ),
+          TextButton(
+            key: const ValueKey('login_forget_certificate'),
+            onPressed: onForget,
+            child: Text(context.tr('forget')),
+          ),
+        ],
       ),
     );
   }

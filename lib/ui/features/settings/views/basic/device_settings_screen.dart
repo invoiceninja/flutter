@@ -32,6 +32,7 @@ import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart
 import 'package:admin/ui/features/settings/widgets/sidebar_counters_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/theme_tile.dart';
+import 'package:admin/ui/features/settings/widgets/trusted_certificates_section.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Search keys for the settings sidebar search. Colocated with the screen so
@@ -62,6 +63,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
   ...kLocalDataCopiesSearchKeys,
+  ...kTrustedCertificatesSearchKeys,
 ];
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
@@ -149,6 +151,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // other is what their numbers count — see ListStatusTabsSection.
               const SidebarMenuSection(),
               const SidebarCountersSection(),
+              // Hides itself unless a server certificate has been trusted —
+              // and always on web, where the browser owns certificates.
+              const TrustedCertificatesSection(),
               const _DataSection(),
             ],
           );

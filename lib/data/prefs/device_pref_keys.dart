@@ -208,6 +208,18 @@ abstract final class DevicePrefKeys {
     PrefScope.account,
   );
 
+  /// Server certificates the user chose to trust although this device
+  /// refused them — each pinned by its SHA-256 to one self-hosted host:port
+  /// (`CertificateTrustStore`). It describes the servers this device talks
+  /// to, not an account, and it is made at the login screen before any
+  /// account exists: an identity-change wipe runs inside that same sign-in,
+  /// so an account scope would forget the pin halfway through it.
+  static const trustedCertificates = PrefKey<String>(
+    'trusted_certificates_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -231,6 +243,7 @@ abstract final class DevicePrefKeys {
     listDensity,
     hoursFormat,
     hidePeppolStatus,
+    trustedCertificates,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

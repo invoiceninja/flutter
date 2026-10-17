@@ -39,6 +39,10 @@ class SignupViewModel extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  /// A second line for the toast, as a localization key.
+  String? _errorDetailKey;
+  String? get errorDetailKey => _errorDetailKey;
+
   void _setError({String? key, Map<String, String>? params, String? message}) {
     _errorKey = key;
     _errorParams = params ?? const {};
@@ -49,6 +53,7 @@ class SignupViewModel extends ChangeNotifier {
     _errorKey = null;
     _errorParams = const {};
     _errorMessage = null;
+    _errorDetailKey = null;
   }
 
   Map<String, List<String>> _fieldErrors = const {};
@@ -112,6 +117,12 @@ class SignupViewModel extends ChangeNotifier {
     } on UnauthorizedException catch (e) {
       _setError(message: e.message);
       return false;
+    } on UntrustedCertificateException catch (e) {
+      // Signup is hosted-only: an intercepting network or a wrong clock,
+      // never a certificate to trust.
+      _setError(key: 'untrusted_certificate_hosted', params: {'host': e.host});
+      _errorDetailKey = 'untrusted_certificate_hosted_detail';
+      return false;
     } on NetworkException catch (e) {
       _setError(
         key: 'network_error_with_message',
@@ -171,6 +182,7 @@ class SignupViewModel extends ChangeNotifier {
       return await signUp();
     } on SocialSignInFailure catch (f) {
       _setError(key: f.key, params: f.params, message: f.message);
+      _errorDetailKey = f.detailKey;
       return false;
     } finally {
       _busy = false;

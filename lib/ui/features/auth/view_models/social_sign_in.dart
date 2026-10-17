@@ -9,11 +9,19 @@ import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 /// Why a social sign-in failed, in the busy / error shape both auth view
 /// models surface: a translation [key] + [params], or a server [message].
 class SocialSignInFailure implements Exception {
-  const SocialSignInFailure({this.key, this.params = const {}, this.message});
+  const SocialSignInFailure({
+    this.key,
+    this.params = const {},
+    this.message,
+    this.detailKey,
+  });
 
   final String? key;
   final Map<String, String> params;
   final String? message;
+
+  /// A second line for the toast, as a localization key.
+  final String? detailKey;
 }
 
 /// Sign in with Apple against `/api/v1/oauth_login`, shared by the login and
@@ -109,6 +117,15 @@ Future<bool> signInWithGoogle({
 
 SocialSignInFailure _failureFrom(Object e) {
   if (e is SocialSignInFailure) return e;
+  // Social sign-in is hosted-only, and the hosted service's certificate is
+  // never ours to overrule — explain it rather than toast the handshake.
+  if (e is UntrustedCertificateException) {
+    return SocialSignInFailure(
+      key: 'untrusted_certificate_hosted',
+      params: {'host': e.host},
+      detailKey: 'untrusted_certificate_hosted_detail',
+    );
+  }
   if (e is NetworkException) {
     return SocialSignInFailure(
       key: 'network_error_with_message',

@@ -22,6 +22,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/ui/core/widgets/certificate_banner.dart';
 import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/offline_banner.dart';
@@ -633,6 +634,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                         child: Column(
                           children: [
                             const OfflineBanner(),
+                            const CertificateBanner(),
                             Expanded(
                               child: Stack(
                                 children: [
@@ -764,6 +766,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                           controller: services.screenshotWindow,
                         ),
                         const OfflineBanner(),
+                        const CertificateBanner(),
                         Expanded(
                           child: Stack(
                             children: [

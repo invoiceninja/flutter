@@ -12,6 +12,7 @@ import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/services/tls/certificate_facts.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_types.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
@@ -140,7 +141,19 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.hidePeppolStatus.set(true),
     (s) => !s.hidePeppolStatus.value,
   ),
+  DevicePrefKeys.trustedCertificates: _Probe(
+    (s) => s.certificateTrust.trust('pay.example.com', 443, _certificate),
+    (s) => s.certificateTrust.pins.isEmpty,
+  ),
 };
+
+final _certificate = CertificateFacts(
+  sha256: 'ab' * 32,
+  subject: '/CN=pay.example.com',
+  issuer: '/CN=pay.example.com',
+  notBefore: DateTime.utc(2026, 1, 1, 12),
+  notAfter: DateTime.utc(2027, 1, 1, 12),
+);
 
 void main() {
   test('every device preference has a probe', () {

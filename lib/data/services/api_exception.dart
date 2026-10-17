@@ -1,3 +1,6 @@
+import 'package:admin/data/services/tls/certificate_facts.dart';
+import 'package:admin/data/services/tls/certificate_problems.dart';
+
 /// Typed errors thrown by [ApiClient].
 ///
 /// The sync engine pattern-matches on these to decide whether to retry, mark
@@ -191,6 +194,34 @@ class NetworkException extends ApiException {
 /// `on NetworkException` "you're offline" path keeps working unchanged.
 class RequestNotSentException extends NetworkException {
   const RequestNotSentException(super.message);
+}
+
+/// The device refused the server's TLS certificate, so the handshake failed
+/// and nothing was sent. Carries what the certificate said about itself, so
+/// the login screen and the shell banner can explain it — and, for a
+/// self-hosted server, offer to trust that exact certificate
+/// (`CertificateTrustStore`, docs/trusting-a-self-hosted-certificate.md).
+///
+/// [host] / [port] are where the certificate was presented, which after a
+/// redirect is not necessarily where the request was sent.
+class UntrustedCertificateException extends RequestNotSentException {
+  UntrustedCertificateException({
+    required this.host,
+    required this.port,
+    required this.certificate,
+    required this.problems,
+    this.osReason,
+  }) : super("Couldn't verify the security certificate of $host");
+
+  final String host;
+  final int port;
+  final CertificateFacts certificate;
+
+  /// Most telling first; never empty.
+  final List<CertificateProblem> problems;
+
+  /// The verifier's own words, when the platform gives any.
+  final String? osReason;
 }
 
 /// Demo builds short-circuit non-GET requests; this is the error the UI

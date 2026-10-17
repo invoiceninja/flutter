@@ -122,6 +122,7 @@ import 'package:admin/data/services/support_api.dart';
 import 'package:admin/data/services/system_api.dart';
 import 'package:admin/data/services/system_logs_api.dart';
 import 'package:admin/data/services/templates_api.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/token_storage_factory.dart';
 import 'package:admin/data/services/two_factor_api.dart';
@@ -342,6 +343,7 @@ class Services implements SidebarBadgeContext {
     required this.hoursFormat,
     required this.hidePeppolStatus,
     required this.phoneActions,
+    required this.certificateTrust,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -746,6 +748,13 @@ class Services implements SidebarBadgeContext {
   /// restyle its numbers when the switch flips, not on the next unrelated
   /// rebuild.
   final PhoneActionsController phoneActions;
+
+  /// Server certificates trusted beyond what the OS does — each one pinned
+  /// to a self-hosted host:port — and the ones just refused
+  /// (docs/trusting-a-self-hosted-certificate.md). Read by the connection hook
+  /// `main.dart` installs, the login screen, the shell's certificate banner
+  /// and Device Settings → Trusted certificates.
+  final CertificateTrustStore certificateTrust;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1434,7 +1443,6 @@ class Services implements SidebarBadgeContext {
     DebugCaptureStore? debugCaptureStore,
   }) {
     final passwordCache = PasswordCache();
-    final authService = AuthService(httpClient: httpClient);
     final tokenStore = tokenStorage ?? defaultTokenStorage();
     // Built at the end of this factory and returned directly, so the closures
     // below capture it via `late final` — they only run at runtime, long after
@@ -1444,6 +1452,13 @@ class Services implements SidebarBadgeContext {
     // Built before everything that reads a preference, and handed to the
     // disposer so a data wipe forgets the account preferences in memory too.
     final devicePrefs = DevicePrefsStore(db);
+    // Before the first HTTP client: both of the app's own clients consult it
+    // when a handshake fails.
+    final certificateTrust = CertificateTrustStore(prefs: devicePrefs);
+    final authService = AuthService(
+      httpClient: httpClient,
+      certificateTrust: certificateTrust,
+    );
     // Never deletes a copy an outbox upload still names.
     final sharedIntakeFiles = SharedIntakeFiles(
       referencedPaths: db.outboxDao.referencedLocalPaths,
@@ -1508,6 +1523,7 @@ class Services implements SidebarBadgeContext {
       onClientTooOld: (info) => clientTooOld.value = info,
       httpClient: httpClient,
       debugCaptureStore: debugStore,
+      certificateTrust: certificateTrust,
     );
     // Close the construction cycle: auth.addCompany uses apiClient to POST
     // /companies + GET /refresh; apiClient already reads auth.credentials.
@@ -2197,6 +2213,7 @@ class Services implements SidebarBadgeContext {
       hoursFormat: hoursFormat,
       hidePeppolStatus: hidePeppolStatus,
       phoneActions: phoneActions,
+      certificateTrust: certificateTrust,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

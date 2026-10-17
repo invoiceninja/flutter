@@ -25,11 +25,19 @@ class DevicePrefsStore extends ChangeNotifier {
   /// needs a store but not its persistence.
   DevicePrefsStore(AppDatabase? db, {DateTime Function()? now})
     : _db = db,
-      _now = now ?? DateTime.now;
+      _now = now ?? DateTime.now,
+      _loaded = db == null;
 
   final AppDatabase? _db;
   final DateTime Function() _now;
   final Map<String, String> _values = {};
+
+  /// Whether [load] has settled — succeeded or failed — so the mirror is as
+  /// complete as it will be this launch. Until then an empty read may only
+  /// mean "not read yet": the trusted-certificate store refuses to report a
+  /// rejection that a pin it hasn't loaded would have prevented.
+  bool get isLoaded => _loaded;
+  bool _loaded;
 
   /// Replace the mirror with the table. Once at boot, bounded there: a
   /// failure leaves every preference on its default for this launch, and the
@@ -37,10 +45,14 @@ class DevicePrefsStore extends ChangeNotifier {
   Future<void> load() async {
     final db = _db;
     if (db == null) return;
-    final rows = await db.devicePrefsDao.readAll();
-    _values
-      ..clear()
-      ..addAll(rows);
+    try {
+      final rows = await db.devicePrefsDao.readAll();
+      _values
+        ..clear()
+        ..addAll(rows);
+    } finally {
+      _loaded = true;
+    }
     notifyListeners();
   }
 

@@ -37,6 +37,8 @@ import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
+import 'package:admin/data/services/tls/certificate_trust_seam.dart';
+import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
@@ -117,6 +119,12 @@ void _zoneOnError(Object error, StackTrace stack) {
 /// [_bootstrap] once `Services` is built.
 AuthRepository? _authForSentry;
 
+/// Late-bound for the connection hook [installCertificateTrust] installs
+/// before the DI graph exists; set in [_bootstrap] once `Services` is built.
+/// Until then — and on any isolate that never builds one — a refused
+/// certificate stays refused.
+CertificateTrustStore? _certificateTrustRef;
+
 /// Module-private reference so the `runZonedGuarded` error handler can reach
 /// the [DiagnosticsLog] without smuggling it through a closure. Set during
 /// [_bootstrap] before `runApp`; remains `null` in release builds.
@@ -136,6 +144,10 @@ const _kNavStateBudget = Duration(seconds: 10);
 
 Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Before `Services.build` constructs the first `HttpClient`: the overrides
+  // apply only to clients created after they are installed. A no-op on web,
+  // where the browser owns TLS (docs/trusting-a-self-hosted-certificate.md).
+  installCertificateTrust(() => _certificateTrustRef);
   initLogging();
   // Start the two localization bundles loading now, beside the database open
   // and the session restore: the first frame waits on them, and otherwise
@@ -237,6 +249,7 @@ Future<void> _bootstrap() async {
   unawaited(NativeWindow.instance.listenForNativeEvents());
   _debugCaptureStoreRef = services.debugCaptureStore;
   _authForSentry = services.auth;
+  _certificateTrustRef = services.certificateTrust;
   _installCaptureHandlers(services.debugCaptureStore);
   // Bounded and guarded: these reads share one database connection, so a
   // wedged store stalls the lot — and an unbounded, uncaught `Future.wait`
@@ -765,6 +778,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // root-navigator command palette) and every settings page reach it.
         ChangeNotifierProvider<SettingsRevealController>.value(
           value: _settingsReveal,
+        ),
+        // Its own provider, read as `context.read<CertificateTrustStore?>()`,
+        // so the login screen, the shell banner and Device Settings need no
+        // new `Services` member — the test fakes of `Services` throw on one.
+        ChangeNotifierProvider<CertificateTrustStore>.value(
+          value: widget.services.certificateTrust,
         ),
       ],
       child: ListenableBuilder(

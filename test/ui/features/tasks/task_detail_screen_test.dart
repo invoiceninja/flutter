@@ -264,8 +264,26 @@ void main() {
       // What it holds stays readable.
       expect(find.text('3:30:00'), findsOneWidget);
       expect(find.text('Wireframes'), findsOneWidget);
+
+      // Its comments stay readable; adding one does not.
+      await tester.tap(find.text('Comments'));
+      await screen.untilFound(find.text('No comments yet'), 'the comments tab');
+      expect(find.text('Add Comment'), findsNothing);
     },
   );
+
+  _screenTest('the Comments tab takes a comment and a logged call', _task(), (
+    tester,
+    screen,
+  ) async {
+    // A Comments tab with nothing to press was the report: the empty state
+    // said "No comments yet" and offered no way to change that.
+    await tester.tap(find.text('Comments'));
+    await screen.untilFound(find.text('No comments yet'), 'the comments tab');
+    // Once in the tab head, once as the empty state's call to action.
+    expect(find.text('Add Comment'), findsNWidgets(2));
+    expect(find.text('Log Call'), findsOneWidget);
+  });
 
   _screenTest(
     'an archived task says so and keeps its actions',

@@ -1671,6 +1671,36 @@ void main() {
       expect(await db.outboxDao.byId(save), isNull, reason: 'sent');
     });
 
+    test('a comment that fails holds back no later save of its record in the '
+        'same pass', () async {
+      // The upload's case: a note changes no field of the record it is filed
+      // against, so a save queued after it cannot be applied out of order. On
+      // a task the save behind it is the timer's Start or Stop.
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const ServerException(503, 'Maintenance'))
+        ..queueSuccess();
+      final engine = makeEngine(disp);
+      final comment = await enqueueClient(
+        entityId: 'c1',
+        kind: MutationKind.addComment,
+        idempotencyKey: 'k-comment',
+      );
+      final save = await enqueueClient(
+        entityId: 'c1',
+        idempotencyKey: 'k-save',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 2);
+      expect(await db.outboxDao.byId(save), isNull, reason: 'sent');
+      expect(
+        await db.outboxDao.byId(comment),
+        isNotNull,
+        reason: 'the comment itself is still to be sent',
+      );
+    });
+
     test(
       'unknown mutation_kind is marked dead, not silently retried forever',
       () async {

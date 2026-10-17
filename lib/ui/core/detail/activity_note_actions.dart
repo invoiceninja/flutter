@@ -1,6 +1,6 @@
 /// The two "write a note onto this record's activity feed" flows — the single
 /// implementation behind every Activity-tab button, every comments-only empty
-/// state, every Comments card footer **and** every `⋯` menu arm, on all ten
+/// state, every Comments card footer **and** every `⋯` menu arm, on all twelve
 /// entities that support notes.
 ///
 /// Callers reach these through `EntityNoteActions`

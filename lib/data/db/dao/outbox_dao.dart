@@ -320,6 +320,12 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       (o.mutationKind.equals(MutationKind.update.wireName) &
           o.payload.contains(kUploadDocumentActionJson));
 
+  /// [writesNoRecordField], in SQL — keep the two in step. A document upload
+  /// or an activity note: neither changes a field of its record.
+  Expression<bool> _writesNoRecordField($OutboxTable o) =>
+      o.mutationKind.equals(MutationKind.addComment.wireName) |
+      _isDocumentUpload(o);
+
   /// Whether an EARLIER row for the same record is still going to be sent.
   ///
   /// The outbox has no per-entity ordering guarantee: `nextReady` is id-ordered
@@ -345,8 +351,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// then be overwritten by the older one — the same lost update. The save
   /// held behind it says why ([unconfirmedRowAhead]).
   ///
-  /// A document upload never blocks ([isDocumentUploadRow]): it writes no
-  /// field of the record, so it can cause no lost update.
+  /// A document upload or a comment never blocks ([writesNoRecordField]): it
+  /// writes no field of the record, so it can cause no lost update. It still
+  /// waits *behind* an earlier save — the exemption is for what it holds, not
+  /// for what holds it.
   ///
   /// [onlyCreates] counts earlier creates alone — for the create of a record
   /// that has never reached the server, whose every other earlier change
@@ -368,7 +376,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
-            _isDocumentUpload(o).not() &
+            _writesNoRecordField(o).not() &
             (onlyCreates
                 ? o.mutationKind.equals(MutationKind.create.wireName)
                 : const Constant(true)) &
@@ -425,7 +433,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
             o.state.equals('unconfirmed') &
-            _isDocumentUpload(o).not(),
+            _writesNoRecordField(o).not(),
       )
       ..orderBy([
         (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
@@ -680,8 +688,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// treat the local edit as in charge — the attempt may fail and re-park as
   /// pending. `unconfirmed` for the same reason: the user may send it again.
   /// A document upload is no local edit of the table's columns
-  /// ([isDocumentUploadRow]) — counting one withheld the company's columns
-  /// from `/refresh` for as long as an upload waited.
+  /// ([writesNoRecordField]) — counting one withheld the company's columns
+  /// from `/refresh` for as long as an upload waited. Nor is a comment.
   Future<bool> hasActiveRowsFor({
     required String companyId,
     required String entityType,
@@ -692,7 +700,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']) &
-            _isDocumentUpload(o).not(),
+            _writesNoRecordField(o).not(),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
@@ -703,9 +711,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// `is_dirty` is safe — only when NO other pending/in_flight outbox row
   /// for that exact record remains (else clearing would un-protect a still-
   /// queued edit from the next server refresh). An `unconfirmed` row counts:
-  /// the user may still send it again. A document upload does not
-  /// ([isDocumentUploadRow]): it writes nothing locally and sets no flag, so it
-  /// has none to protect — and an unconfirmed one waits on the user, which
+  /// the user may still send it again. A document upload or a comment does not
+  /// ([writesNoRecordField]): it writes nothing locally and sets no flag, so
+  /// it has none to protect — and an unconfirmed one waits on the user, which
   /// kept a discarded edit's flag, and its stale value, indefinitely.
   Future<bool> hasActiveRowsForEntity({
     required String companyId,
@@ -719,7 +727,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
             o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']) &
-            _isDocumentUpload(o).not(),
+            _writesNoRecordField(o).not(),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
@@ -951,7 +959,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityId.equals(entityId) &
             o.state.equals('unconfirmed') &
             // Holds nothing back, so the form has nothing to wait on.
-            _isDocumentUpload(o).not(),
+            _writesNoRecordField(o).not(),
       )
       ..orderBy([
         (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),

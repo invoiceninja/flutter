@@ -581,15 +581,14 @@ const String kUploadDocumentActionJson = '"_action":"upload_document"';
 
 /// Whether an outbox row only attaches a document to its record: a
 /// `document_upload`, or the company's `update` carrying
-/// [kUploadDocumentActionJson]. It writes no field of the record, so it can't
-/// overwrite a later save — it holds none back
-/// (`OutboxDao.hasEarlierActiveRowForEntity`, and the drain's in-pass latch),
-/// is no pending edit a refresh must defer to (`OutboxDao.hasActiveRowsFor`,
-/// `hasEditRowForEntity`), and owns no dirty flag
-/// (`OutboxDao.hasActiveRowsForEntity`). Uploads are the likeliest rows to go
+/// [kUploadDocumentActionJson]. Uploads are the likeliest rows to go
 /// `unconfirmed`, and one used to hold every later save of its record until
-/// the user dealt with it. The DAO's SQL twin is `OutboxDao._isDocumentUpload`
-/// — keep the two in step.
+/// the user dealt with it — see [writesNoRecordField], which is what the
+/// ordering and dirty-flag gates ask. This narrower question is for the
+/// upload-only paths (Check's routing, re-queuing a create's attachments) and
+/// for the queries already narrowed to `create` / `update` kinds
+/// (`OutboxDao.hasEditRowForEntity`), where no comment can match anyway. The
+/// DAO's SQL twin is `OutboxDao._isDocumentUpload` — keep the two in step.
 bool isDocumentUploadRow({
   required String mutationKind,
   required String payload,
@@ -597,6 +596,26 @@ bool isDocumentUploadRow({
     mutationKind == MutationKind.documentUpload.wireName ||
     (mutationKind == MutationKind.update.wireName &&
         payload.contains(kUploadDocumentActionJson));
+
+/// Whether an outbox row writes no field of its record: a document upload
+/// ([isDocumentUploadRow]) or an activity note (`add_comment`, which posts to
+/// `/activities/notes` and changes nothing on the record it is filed against).
+///
+/// Such a row can't overwrite a later save, so it holds none back
+/// (`OutboxDao.hasEarlierActiveRowForEntity`, `unconfirmedRowAhead`,
+/// `findUnconfirmedForEntity`, and the drain's in-pass latch), is no pending
+/// edit a refresh must defer to (`OutboxDao.hasActiveRowsFor`), and owns no
+/// dirty flag (`OutboxDao.hasActiveRowsForEntity`). A comment is
+/// non-idempotent, so a timed-out one goes `unconfirmed` and waits for the
+/// user — and before it was exempt, it parked every later write to its record
+/// behind it: on a task, the timer's Start and Stop. The DAO's SQL twin is
+/// `OutboxDao._writesNoRecordField` — keep the two in step.
+bool writesNoRecordField({
+  required String mutationKind,
+  required String payload,
+}) =>
+    mutationKind == MutationKind.addComment.wireName ||
+    isDocumentUploadRow(mutationKind: mutationKind, payload: payload);
 
 /// [MutationKind.deliverySafety], made stricter by what this row's decoded
 /// [payload] actually asks for. Only ever escalates: a payload can turn a

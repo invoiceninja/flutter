@@ -8,14 +8,15 @@ import 'package:admin/domain/sync/mutation.dart';
 /// `ActivitiesApi`. The pending outbox row is what drives the optimistic
 /// "syncing…" entry in the Comments card and Activity tab.
 ///
-/// Mixed into the ten repositories whose entity can carry a comment. Each
-/// carried a byte-identical copy of this method, differing only in the name of
-/// the id parameter (`clientId`, `quoteId`, `recurringExpenseId`, …), which is
-/// now uniformly `entityId` — so `call_note_sink.dart`'s ten-arm switch differs
-/// only in the repository it dispatches to.
+/// Mixed into the twelve repositories whose entity can carry a comment — every
+/// entity `StoreNoteRequest` accepts except bank transactions. The first ten
+/// each carried a byte-identical copy of this method, differing only in the
+/// name of the id parameter (`clientId`, `quoteId`, `recurringExpenseId`, …),
+/// which is now uniformly `entityId` — so `call_note_sink.dart`'s switch differs
+/// only in the repository it dispatches to. Task and Project joined later.
 ///
 /// Deliberately a mixin rather than a method on [BaseEntityRepository]: only
-/// these ten wire the `addComment` dispatch handler, so the base would offer
+/// these twelve wire the `addComment` dispatch handler, so the base would offer
 /// every repository a mutation whose drain has no handler.
 mixin EntityCommentMutations<TDomain, TApi>
     on BaseEntityRepository<TDomain, TApi> {

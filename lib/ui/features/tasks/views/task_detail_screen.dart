@@ -7,6 +7,8 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -144,6 +146,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Widget _body(BuildContext context, Task t) {
     _activityVm.kick();
+    Future<void> submit(String text) => _services.tasks.addComment(
+      companyId: _companyId,
+      entityId: t.id,
+      text: text,
+    );
+    // Built once here, not in `initState` (`promptLogCallFor` needs a subject
+    // and the party id off the resolved record) and not twice (the card and
+    // the tabs must not each hold their own copy — see `EntityNoteActions`).
+    //
+    // A deleted task takes no new notes: the feed stays readable, its buttons
+    // go.
+    final notes = t.isDeleted
+        ? EntityNoteActions.none
+        : EntityNoteActions(
+            onAddComment: () =>
+                promptAddCommentFor(context, entityId: t.id, submit: submit),
+            onLogCall: () => promptLogCallFor(
+              context,
+              companyId: _companyId,
+              entityId: t.id,
+              subject: t.number.isEmpty ? '' : '#${t.number}',
+              // A task has no vendor; a call about it is a call to its client.
+              clientId: t.clientId,
+              submit: submit,
+            ),
+          );
     _record.attach(recordId: t.id, revision: t.updatedAt);
     // The tabs own the `TabController`, so they wrap the page and hand back
     // the strip and the body for it to place — which is what lets the strip
@@ -154,14 +182,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       initialIndex: 2,
       selectTab: _record.selectTab,
       onReveal: _record.page.revealTabs,
-      layoutBuilder: (context, strip, body) =>
-          _record.buildPage(strip: strip, body: body, top: _top(context, t)),
+      layoutBuilder: (context, strip, body) => _record.buildPage(
+        strip: strip,
+        body: body,
+        top: _top(context, t, notes),
+      ),
       tabs: [
         // The record's own history leads the strip on every entity that has
         // one: Comments is a filtered view of Activity, and burying either
         // behind a horizontal scroll is what invoiceninja/flutter#122 was
-        // about. Read-only here — `TaskRepository` has no `addComment` — but
-        // Activity is read-only everywhere, so that is no reason to bury it.
+        // about.
         EntityDetailTab(
           id: DetailTabIds.comments,
           label: context.tr('comments'),
@@ -169,6 +199,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           bodyBuilder: (_) => EntityActivityTab(
             vm: _activityVm,
             formatter: formatter,
+            actions: notes,
             commentsOnly: true,
             hostWireName: 'task',
           ),
@@ -180,6 +211,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           bodyBuilder: (_) => EntityActivityTab(
             vm: _activityVm,
             formatter: formatter,
+            actions: notes,
             hostWireName: 'task',
           ),
         ),
@@ -211,7 +243,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   ///
   /// One company watch, hoisted here, feeds the profile: which Details rows
   /// exist depends on the labels the company has given its custom fields.
-  Widget _top(BuildContext context, Task t) {
+  Widget _top(BuildContext context, Task t, EntityNoteActions notes) {
     return WatchBuilder<Company?>(
       cacheKey: _companyId,
       // Seeded from what is already in memory, so the rows that depend on the
@@ -243,11 +275,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           formatter: formatter,
           onOpenTab: _record.selectTab.selectId,
         ),
-        // Read-only: a task takes no comments of its own, so the card shows
-        // what there is and hides itself when there is nothing.
         comments: EntityCommentsCard(
           vm: _activityVm,
           formatter: formatter,
+          actions: notes,
           hostWireName: 'task',
           onViewAll: () => _record.selectTab.select(kCommentsTabIndex),
           matchFormColumn: true,

@@ -259,6 +259,16 @@ void main() {
         ]),
       );
     });
+
+    testWidgets('a viewer can still comment and log a call', (tester) async {
+      // `StoreNoteRequest` authorizes a note with `can('view')` alone, and a
+      // note writes nothing on the project itself.
+      final viewer = await kinds(tester, _project(), 'view_project');
+      expect(
+        viewer,
+        containsAll([ProjectAction.addComment, ProjectAction.logCall]),
+      );
+    });
   });
 
   testWidgets('a deleted project offers only what does not change it', (

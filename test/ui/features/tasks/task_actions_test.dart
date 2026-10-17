@@ -89,6 +89,15 @@ void main() {
     expect(enabledOf(items, TaskAction.addToInvoice), isTrue);
   });
 
+  testWidgets('a live task takes a comment and a logged call', (tester) async {
+    // The Comments tab on a task had nothing to press until these existed;
+    // the deleted case is pinned by "a deleted task offers only what does not
+    // change it" below.
+    final items = await resolveItems(tester, task: _task());
+    expect(enabledOf(items, TaskAction.addComment), isTrue);
+    expect(enabledOf(items, TaskAction.logCall), isTrue);
+  });
+
   testWidgets('billing actions disabled for a RUNNING task', (tester) async {
     final items = await resolveItems(
       tester,

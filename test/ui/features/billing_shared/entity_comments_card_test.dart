@@ -463,8 +463,8 @@ void main() {
   testWidgets('the last row keeps its border under the footer, and loses it '
       'when there is none', (tester) async {
     // The footer is what keeps a hovered last row off the shell's rounded
-    // bottom corners — so with one, the row keeps its rule. Project and Task
-    // pass `EntityNoteActions.none` and get no footer, and there the rule
+    // bottom corners — so with one, the row keeps its rule. A deleted record
+    // passes `EntityNoteActions.none` and gets no footer, and there the rule
     // would otherwise float above empty card.
     BorderSide bottomOf(WidgetTester t) {
       // The row nests two Containers — the outer bordered one and the 28 px

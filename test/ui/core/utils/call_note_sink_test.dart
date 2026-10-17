@@ -20,11 +20,11 @@ class _ThrowingServices implements Services {
 }
 
 void main() {
-  test('the predicate names exactly the ten comment-capable entities', () {
+  test('the predicate names exactly the twelve comment-capable entities', () {
     // The same set `services_entity_wiring.dart` registers a
-    // `MutationKind.addComment` handler for. Task and Project are accepted by
-    // the server's `StoreNoteRequest` but have no `addComment` on their
-    // repositories — adding one is a deliberate, separate change.
+    // `MutationKind.addComment` handler for. Bank transactions are accepted by
+    // the server's `StoreNoteRequest` too but have no `addComment` on their
+    // repository — adding one is a deliberate, separate change.
     const expected = {
       EntityType.client,
       EntityType.vendor,
@@ -36,6 +36,8 @@ void main() {
       EntityType.payment,
       EntityType.expense,
       EntityType.recurringExpense,
+      EntityType.task,
+      EntityType.project,
     };
     final actual = EntityType.values.where(canLogCallAgainst).toSet();
     expect(actual, expected);
@@ -67,11 +69,7 @@ void main() {
 
   test('an unoffered type returns null instead of half-writing', () {
     final services = _ThrowingServices();
-    for (final type in [
-      EntityType.task,
-      EntityType.project,
-      EntityType.product,
-    ]) {
+    for (final type in [EntityType.product, EntityType.transaction]) {
       expect(canLogCallAgainst(type), isFalse);
       expect(
         enqueueCallNote(

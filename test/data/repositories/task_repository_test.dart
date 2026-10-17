@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -10,6 +12,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
+import 'package:admin/domain/sync/mutation.dart';
 
 /// Task-specific repository behavior the base contract doesn't probe:
 /// the kanban invoiced-exclusion (B6) and the bulk `startTimer` op (B7).
@@ -52,6 +55,29 @@ void main() {
   tearDown(() async => db.close());
 
   TaskRepository makeRepo() => TaskRepository(db: db, api: _FakeTasksApi());
+
+  test('addComment enqueues one add_comment row against the task, with '
+      'trimmed notes', () async {
+    final repo = makeRepo();
+    await repo.addComment(
+      companyId: 'co',
+      entityId: 'task_7',
+      text: '  waiting on the client  ',
+    );
+    final rows = await db.outboxDao.nextReady(
+      companyId: 'co',
+      now: 9999999999999,
+    );
+    expect(rows, hasLength(1));
+    final row = rows.single;
+    // The entity type is what `EntityActivityViewModel` filters its
+    // optimistic "Syncing…" rows on, so a wrong one hides the pending note.
+    expect(row.entityType, 'task');
+    expect(row.entityId, 'task_7');
+    expect(row.mutationKind, MutationKind.addComment.wireName);
+    final payload = jsonDecode(row.payload) as Map<String, dynamic>;
+    expect(payload, {'entity_id': 'task_7', 'notes': 'waiting on the client'});
+  });
 
   test(
     'watchAllByStatus excludes invoiced tasks from the kanban (B6)',

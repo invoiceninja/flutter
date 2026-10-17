@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:decimal/decimal.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -138,6 +140,29 @@ void main() {
       );
       expect(row.entityId, 'proj_99');
       expect(row.payload, contains('tmpl_3'));
+    });
+
+    test('addComment enqueues one add_comment row against the project, with '
+        'trimmed notes', () async {
+      final repo = makeRepo();
+      await repo.addComment(
+        companyId: 'co',
+        entityId: 'proj_7',
+        text: '  scope agreed  ',
+      );
+      final rows = await db.outboxDao.nextReady(
+        companyId: 'co',
+        now: 9999999999999,
+      );
+      expect(rows, hasLength(1));
+      final row = rows.single;
+      // The entity type is what `EntityActivityViewModel` filters its
+      // optimistic "Syncing…" rows on, so a wrong one hides the pending note.
+      expect(row.entityType, 'project');
+      expect(row.entityId, 'proj_7');
+      expect(row.mutationKind, MutationKind.addComment.wireName);
+      final payload = jsonDecode(row.payload) as Map<String, dynamic>;
+      expect(payload, {'entity_id': 'proj_7', 'notes': 'scope agreed'});
     });
 
     test('dueDate Date round-trips through fromApi/toApiJson', () {

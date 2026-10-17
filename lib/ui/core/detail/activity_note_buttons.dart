@@ -25,11 +25,14 @@ class EntityNoteActions {
 
   bool get hasAny => onAddComment != null || onLogCall != null;
 
-  /// For an entity whose repository has no `addComment` — Task and Project.
+  /// For a record that takes no new notes — a deleted one, on every entity —
+  /// or an entity whose repository has no `addComment` (none mounts the tab
+  /// today; Task and Project did until theirs gained one).
   ///
   /// Use this constant rather than `EntityNoteActions(onAddComment: null, …)`:
-  /// `test/lint/call_note_wiring_test.dart` asserts those two screens contain
-  /// no `onAddComment:` at all, so spelling the null out reds the build.
+  /// `test/lint/call_note_wiring_test.dart` asserts an `ineligible` screen
+  /// contains no `onAddComment:` at all, so spelling the null out reds the
+  /// build.
   static const EntityNoteActions none = EntityNoteActions();
 }
 
@@ -44,8 +47,8 @@ class EntityNoteActions {
 /// they share a line — the button theme defaults to `Size.fromHeight(44)`,
 /// i.e. infinite width, which in a horizontal context collapses the layout.
 ///
-/// Either callback may be null (Task and Project mount an Activity tab but
-/// have no `addComment` on their repositories); both null renders nothing.
+/// Either callback may be null; both null — a deleted record — renders
+/// nothing.
 ///
 /// The **Comments card** deliberately does not use this — it shows a single
 /// `Add comment` instead. Three homes for `Log call` within two screens is one

@@ -785,6 +785,79 @@ void main() {
       },
     );
 
+    test('a comment holds nothing back and keeps no flag alive', () async {
+      // A note posts to `/activities/notes` and changes no field of the record
+      // it is filed against — the upload's case exactly. It is non-idempotent,
+      // so one whose request timed out waits for the user; held behind it, a
+      // task's timer Start or Stop waited too.
+      final comment = await unconfirmed(kind: 'add_comment');
+      final save = await enqueue(idempotencyKey: 'k-save');
+      expect(
+        await db.outboxDao.hasEarlierActiveRowForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+          beforeId: save,
+          now: 1 << 40,
+        ),
+        isFalse,
+      );
+      expect(
+        await db.outboxDao.unconfirmedRowAhead(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+          beforeId: save,
+        ),
+        isNull,
+      );
+      expect(
+        await db.outboxDao.findUnconfirmedForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isNull,
+        reason: 'the edit form has nothing to wait on',
+      );
+
+      // With the save gone (discarded, say), nothing left protects a dirty
+      // flag: the comment sets none, so it must not keep a stale one alive.
+      await db.outboxDao.deleteRow(save);
+      expect(
+        await db.outboxDao.hasActiveRowsForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isFalse,
+      );
+      // It still waits for the user's decision itself.
+      expect((await db.outboxDao.byId(comment))!.state, 'unconfirmed');
+    });
+
+    test(
+      'a comment still waits behind an earlier save of its record',
+      () async {
+        // The exemption is for what a comment holds, never for what holds it.
+        await unconfirmed();
+        final comment = await enqueue(
+          kind: 'add_comment',
+          idempotencyKey: 'k-comment',
+        );
+        expect(
+          await db.outboxDao.hasEarlierActiveRowForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+            beforeId: comment,
+            now: 1 << 40,
+          ),
+          isTrue,
+        );
+      },
+    );
+
     test('a document upload is no edit of its record', () async {
       // An upload writes no field of its record and sets no dirty flag, so it
       // is neither a newer edit a server copy must yield to nor a reason to

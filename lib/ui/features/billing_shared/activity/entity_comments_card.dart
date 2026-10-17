@@ -226,8 +226,8 @@ class EntityCommentsCard extends StatelessWidget {
     // A row is last only when nothing follows it *inside the card*. The footer
     // usually does — which is what keeps a hovered last row off the shell's
     // rounded bottom corners without a `ClipRRect` — but a read-only host
-    // (Project, Task: `EntityNoteActions.none`) has no footer, and there the
-    // final row's border would otherwise float above empty card.
+    // (a deleted record: `EntityNoteActions.none`) has no footer, and there
+    // the final row's border would otherwise float above empty card.
     bool isLast(int i) => onAddComment == null && i == total - 1;
 
     final children = <Widget>[];

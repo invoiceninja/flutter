@@ -728,6 +728,7 @@ List<DocumentParentSlice> _documentParentSlices(
     api: tasksApi,
     repo: taskRepo,
     customActions: {
+      ...addCommentHandlers<TaskApi>(reg.ctx.activitiesApi, entity: 'tasks'),
       // Kanban drag-drop + task-statuses reorder both ride this handler.
       // Payload carries `{status_ids, task_ids}` (tasks) or just
       // `{status_ids}` (statuses, routed via the task_statuses block below).
@@ -788,6 +789,10 @@ List<DocumentParentSlice> _documentParentSlices(
     api: projectsApi,
     repo: projectRepo,
     customActions: {
+      ...addCommentHandlers<ProjectApi>(
+        reg.ctx.activitiesApi,
+        entity: 'projects',
+      ),
       MutationKind.runTemplate: ({required row, required payload}) async {
         final response = await projectsApi.runTemplate(
           id: payload['id'] as String,

@@ -21,6 +21,7 @@ import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_start_scheduled_dialog.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
@@ -49,6 +50,8 @@ enum TaskAction {
   resume,
   newInvoice,
   addToInvoice,
+  addComment,
+  logCall,
   viewClient,
   clone,
   copyLink,
@@ -276,6 +279,24 @@ class TaskActions {
               !task.isRunning,
           onTap: () => onTap(TaskAction.addToInvoice),
         ),
+      // A note writes nothing on the task itself, so it is offered to anyone
+      // who can see the record — the server asks only `can('view')`.
+      if (live) ...[
+        EntityActionItem(
+          kind: TaskAction.addComment,
+          icon: Icons.chat_bubble_outline,
+          label: context.tr('add_comment'),
+          enabled: true,
+          onTap: () => onTap(TaskAction.addComment),
+        ),
+        EntityActionItem(
+          kind: TaskAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(TaskAction.logCall),
+        ),
+      ],
       if (task.clientId.isNotEmpty && canViewClient)
         EntityActionItem(
           kind: TaskAction.viewClient,
@@ -418,6 +439,29 @@ class TaskActions {
       case TaskAction.resume:
         if (!requireSynced(context, task.id)) return;
         await _beginTimer(context, services, companyId, task);
+      case TaskAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: task.id,
+          submit: (text) => services.tasks.addComment(
+            companyId: companyId,
+            entityId: task.id,
+            text: text,
+          ),
+        );
+      case TaskAction.logCall:
+        await promptLogCallFor(
+          context,
+          companyId: companyId,
+          entityId: task.id,
+          subject: task.number.isEmpty ? '' : '#${task.number}',
+          clientId: task.clientId,
+          submit: (text) => services.tasks.addComment(
+            companyId: companyId,
+            entityId: task.id,
+            text: text,
+          ),
+        );
       case TaskAction.viewClient:
         if (task.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', task.clientId);

@@ -45,17 +45,17 @@ void main() {
     // widget. The callbacks now travel as one `EntityNoteActions`, but the two
     // named arguments are still what a screen writes.
     //
-    // Task and Project mount the same tab and must NOT be listed — neither
-    // repository has an `addComment` for the callbacks to call, which is why
-    // they pass `EntityNoteActions.none` rather than spelling the nulls out.
+    // `ineligible` is for a screen that mounts the tab over a repository with
+    // no `addComment` — it must pass `EntityNoteActions.none` rather than
+    // spelling the nulls out. Task and Project lived there until their
+    // repositories gained one; nothing does now, but a future entity may.
     //
     // An entry is a LIST of files, because the screen that builds the
     // callbacks and the widget that mounts the tab are the same file
     // everywhere except Client and Project, which extract a
-    // `<Entity>DetailTabs`. The client's `EntityNoteActions` is built in the
-    // screen and handed down, so checking the tabs file alone would demand a
-    // second, duplicate construction — the very thing that type exists to
-    // prevent.
+    // `<Entity>DetailTabs`. Their `EntityNoteActions` is built in the screen
+    // and handed down, so checking the tabs file alone would demand a second,
+    // duplicate construction — the very thing that type exists to prevent.
     const eligible = <List<String>>[
       [
         'lib/ui/features/clients/views/client_detail_screen.dart',
@@ -73,11 +73,13 @@ void main() {
       ['lib/ui/features/payments/views/payment_detail_screen.dart'],
       ['lib/ui/features/expenses/views/expense_detail_screen.dart'],
       ['lib/ui/features/vendors/views/vendor_detail_screen.dart'],
+      ['lib/ui/features/tasks/views/task_detail_screen.dart'],
+      [
+        'lib/ui/features/projects/views/project_detail_screen.dart',
+        'lib/ui/features/projects/widgets/detail/project_detail_tabs.dart',
+      ],
     ];
-    const ineligible = <String>[
-      'lib/ui/features/tasks/views/task_detail_screen.dart',
-      'lib/ui/features/projects/widgets/detail/project_detail_tabs.dart',
-    ];
+    const ineligible = <String>[];
 
     for (final paths in eligible) {
       final src = paths
@@ -204,6 +206,10 @@ void main() {
       '/credits/',
       '/recurring_invoices/',
       '/payments/',
+      // Neither declares a vendor at all; listed so one added later can't
+      // quietly become the party.
+      '/tasks/',
+      '/projects/',
     ];
     const bothVendorFirst = <String>[
       '/expenses/',
@@ -286,9 +292,9 @@ void main() {
     );
     expect(
       found,
-      greaterThanOrEqualTo(19),
+      greaterThanOrEqualTo(23),
       reason:
-          'found only $found promptLogCallFor call sites, expected at least 19 '
+          'found only $found promptLogCallFor call sites, expected at least 23 '
           '— either the function was renamed or the per-entity arms were '
           'consolidated. Either way this guard has gone vacuous; re-point it '
           'rather than lowering the floor.',

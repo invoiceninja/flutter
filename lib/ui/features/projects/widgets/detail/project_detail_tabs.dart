@@ -9,6 +9,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
@@ -38,6 +39,7 @@ class ProjectDetailTabs extends StatelessWidget {
     required this.formatter,
     required this.activityVm,
     required this.selectTab,
+    required this.notes,
     this.layoutBuilder,
     this.onReveal,
     this.readOnly = false,
@@ -52,6 +54,11 @@ class ProjectDetailTabs extends StatelessWidget {
   /// the two feed tabs below it share one fetch.
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
+
+  /// Built once by the screen and shared with the Comments card above this
+  /// strip — see `EntityNoteActions`. Building a second one here is what let
+  /// the two surfaces drift the last time.
+  final EntityNoteActions notes;
 
   /// Passed straight to [EntityDetailTabs] — the record page uses these to pin
   /// the strip and to bring it into view. See there.
@@ -174,9 +181,7 @@ class ProjectDetailTabs extends StatelessWidget {
         // The record's own history leads the strip on every entity that has
         // one: Comments is a filtered view of Activity, and on a project the
         // pair used to sit 7th and 8th of 8, i.e. behind a horizontal scroll
-        // (invoiceninja/flutter#122). Read-only here — `ProjectRepository` has
-        // no `addComment` — but Activity is read-only everywhere, so that is
-        // no reason to bury it.
+        // (invoiceninja/flutter#122).
         EntityDetailTab(
           id: DetailTabIds.comments,
           label: context.tr('comments'),
@@ -184,6 +189,7 @@ class ProjectDetailTabs extends StatelessWidget {
           bodyBuilder: (_) => EntityActivityTab(
             vm: activityVm,
             formatter: formatter,
+            actions: notes,
             commentsOnly: true,
             hostWireName: 'project',
           ),
@@ -195,6 +201,7 @@ class ProjectDetailTabs extends StatelessWidget {
           bodyBuilder: (_) => EntityActivityTab(
             vm: activityVm,
             formatter: formatter,
+            actions: notes,
             hostWireName: 'project',
           ),
         ),

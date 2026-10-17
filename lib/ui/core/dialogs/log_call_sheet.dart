@@ -20,7 +20,7 @@ import 'package:admin/utils/formatting.dart';
 /// `repo.addComment(text: …)` — or null if the user cancelled.
 ///
 /// Returning a `String` rather than a value object is deliberate: it makes each
-/// of the ten `logCall` action arms byte-identical in shape to the `addComment`
+/// of the `logCall` action arms byte-identical in shape to the `addComment`
 /// arm beside it (`showAddCommentDialog` also returns `String?`), and it keeps
 /// the composition — locale, company date format, military-time — in the one
 /// place that has a `BuildContext` and a `Formatter`. See `call_note.dart` for

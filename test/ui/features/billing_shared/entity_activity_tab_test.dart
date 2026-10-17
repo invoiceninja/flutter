@@ -24,8 +24,7 @@ import '../../../_responsive_helper.dart';
 ///
 /// `onAddComment` shipped as a declared-but-never-passed parameter, so the
 /// Add-comment button was dead on all eight billing-doc screens; `onLogCall`
-/// joins it. Task and Project mount this same tab and must keep passing
-/// `EntityNoteActions.none` — neither repository has an `addComment` to call.
+/// joins it. A deleted record passes `EntityNoteActions.none` and gets neither.
 ///
 /// `call_note_wiring_test.dart` pins the call sites that pass the callbacks;
 /// `comments_surface_wiring_test.dart` pins the comments-only mounts.
@@ -198,7 +197,7 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Add Comment'), findsOneWidget);
   });
 
-  testWidgets('renders neither for EntityNoteActions.none (Task / Project)', (
+  testWidgets('renders neither for EntityNoteActions.none (a deleted record)', (
     tester,
   ) async {
     await pump(

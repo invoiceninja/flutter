@@ -21,12 +21,10 @@ import 'package:admin/domain/entity_type.dart';
 /// held across an app-lifecycle round trip, and a closure there would pin the
 /// widget tree that created it. See [PendingCallLog].
 ///
-/// Ten entities, matching the ten that ship an "Add comment" action — the same
-/// set `services_entity_wiring.dart` registers a `MutationKind.addComment`
-/// handler for. Task and Project are accepted by the server's
-/// `StoreNoteRequest` but have no `addComment` on their repositories, so they
-/// return null here rather than pretending; a null means the caller must not
-/// offer to log at all.
+/// Twelve entities, matching the twelve that ship an "Add comment" action — the
+/// same set `services_entity_wiring.dart` registers a `MutationKind.addComment`
+/// handler for. Anything else returns null here rather than pretending; a null
+/// means the caller must not offer to log at all.
 Future<void> Function()? enqueueCallNote(
   Services services, {
   required EntityType type,
@@ -53,7 +51,7 @@ Future<void> Function()? enqueueCallNote(
 /// identical now that `addComment` comes from the shared
 /// `EntityCommentMutations` mixin with a uniform `entityId` parameter — before
 /// that each arm spelled the id differently (`clientId`, `quoteId`, …) and the
-/// whole call had to be repeated ten times.
+/// whole call had to be repeated for each one.
 EntityCommentMutations<dynamic, dynamic> Function(Services)? _noteRepoSelector(
   EntityType type,
 ) => switch (type) {
@@ -67,6 +65,8 @@ EntityCommentMutations<dynamic, dynamic> Function(Services)? _noteRepoSelector(
   EntityType.payment => (s) => s.payments,
   EntityType.expense => (s) => s.expenses,
   EntityType.recurringExpense => (s) => s.recurringExpenses,
+  EntityType.task => (s) => s.tasks,
+  EntityType.project => (s) => s.projects,
   _ => null,
 };
 
@@ -83,4 +83,6 @@ bool canLogCallAgainst(EntityType type) => const {
   EntityType.payment,
   EntityType.expense,
   EntityType.recurringExpense,
+  EntityType.task,
+  EntityType.project,
 }.contains(type);

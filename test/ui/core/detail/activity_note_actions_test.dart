@@ -17,10 +17,10 @@ import 'package:provider/provider.dart';
 import '../../../_localization_helper.dart';
 import '../../../_support/phone_actions_test_services.dart';
 
-/// The single implementation behind every note-writing entry point — all ten
-/// `⋯` menu arms and all nine Activity-tab buttons now route through here, so
-/// this is the one place the whole path can be exercised without building ten
-/// repositories.
+/// The single implementation behind every note-writing entry point — all
+/// twelve `⋯` menu arms and all eleven Activity-tab buttons now route through
+/// here, so this is the one place the whole path can be exercised without
+/// building twelve repositories.
 ///
 /// Before this existed, the ten arms hand-rolled the sequence and disagreed:
 /// five skipped the success toast, three skipped `requireSynced`.

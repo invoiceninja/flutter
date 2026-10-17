@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/embedded_documents_owner.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
 import 'package:admin/data/services/upload_source.dart';
@@ -34,7 +35,7 @@ import 'package:admin/domain/tasks/task_schedule.dart';
 ///   * `reorder` — enqueues a `MutationKind.reorder` row carrying the
 ///     bulk kanban-sort payload.
 class TaskRepository extends BaseEntityRepository<Task, TaskApi>
-    with TagNameResolver
+    with EntityCommentMutations<Task, TaskApi>, TagNameResolver
     implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   TaskRepository({
     required super.db,

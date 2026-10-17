@@ -279,13 +279,13 @@ time, contact, duration, summary — resolves with the **composed note string**.
 goes through `promptLogCallFor` / `promptAddCommentFor`
 (`lib/ui/core/detail/activity_note_actions.dart`), which own the `requireSynced` gate, the prompt
 and the success/error toast; a caller supplies only its own `repo.addComment`. That is reachable
-from the record's `⋯` menu on all ten comment-capable entities and from the
+from the record's `⋯` menu on all twelve comment-capable entities and from the
 `Log call` / `Add comment` pair (`ActivityNoteButtons`) on the shared Activity tab
-(`EntityActivityTab`, mounted by eleven detail screens, nine of them writable) — the same edit that
+(`EntityActivityTab`, mounted by eleven detail screens, all of them writable) — the same edit that
 finally switched on `onAddComment`, which had shipped as a declared-but-never-passed parameter.
-Task and Project mount the same tab and pass `EntityNoteActions.none`: neither repository has an
-`addComment`. `test/lint/call_note_wiring_test.dart` pins those call sites, because a dark button
-is silent.
+Task and Project mounted the same tab read-only, with `EntityNoteActions.none`, until their
+repositories gained `addComment`; a task or project note's party is its client.
+`test/lint/call_note_wiring_test.dart` pins those call sites, because a dark button is silent.
 
 **Whose contacts the form offers (invoiceninja/flutter#129).** `promptLogCallFor` takes the
 record's party — `clientId` / `vendorId` — and resolves it from Drift itself, so wherever the party

@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
@@ -39,6 +40,8 @@ enum ProjectAction {
   invoiceProject,
   addToInvoice,
   runTemplate,
+  addComment,
+  logCall,
   clone,
   copyLink,
   archive,
@@ -221,6 +224,22 @@ class ProjectActions {
           enabled: !project.id.startsWith('tmp_'),
           onTap: () => onTap(ProjectAction.runTemplate),
         ),
+        // A note writes nothing on the project itself, so it is offered to
+        // anyone who can see the record — the server asks only `can('view')`.
+        EntityActionItem(
+          kind: ProjectAction.addComment,
+          icon: Icons.chat_bubble_outline,
+          label: context.tr('add_comment'),
+          enabled: true,
+          onTap: () => onTap(ProjectAction.addComment),
+        ),
+        EntityActionItem(
+          kind: ProjectAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(ProjectAction.logCall),
+        ),
         // Cloning opens a new project: a create.
         if (me?.can(createPermissionFor(EntityType.project)) ?? false)
           EntityActionItem(
@@ -354,6 +373,29 @@ class ProjectActions {
           context,
           '/tasks',
           extra: emptyTask().copyWith(projectId: project.id),
+        );
+      case ProjectAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: project.id,
+          submit: (text) => services.projects.addComment(
+            companyId: companyId,
+            entityId: project.id,
+            text: text,
+          ),
+        );
+      case ProjectAction.logCall:
+        await promptLogCallFor(
+          context,
+          companyId: companyId,
+          entityId: project.id,
+          subject: _confirmSubject(project),
+          clientId: project.clientId,
+          submit: (text) => services.projects.addComment(
+            companyId: companyId,
+            entityId: project.id,
+            text: text,
+          ),
         );
       case ProjectAction.copyLink:
         await copyEntityLink(context, EntityType.project, project.id);

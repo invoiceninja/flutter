@@ -8,6 +8,8 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
@@ -179,6 +181,33 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
 
   Widget _body(BuildContext context, Project p) {
     _activityVm.kick();
+    Future<void> submit(String text) => _services.projects.addComment(
+      companyId: _companyId,
+      entityId: p.id,
+      text: text,
+    );
+    // Built once here, not in `initState` (`promptLogCallFor` needs a subject
+    // and the party id off the resolved record) and not twice (the card and
+    // the tabs must not each hold their own copy — see `EntityNoteActions`).
+    //
+    // A deleted project takes no new notes: the feed stays readable, its
+    // buttons go.
+    final notes = p.isDeleted
+        ? EntityNoteActions.none
+        : EntityNoteActions(
+            onAddComment: () =>
+                promptAddCommentFor(context, entityId: p.id, submit: submit),
+            onLogCall: () => promptLogCallFor(
+              context,
+              companyId: _companyId,
+              entityId: p.id,
+              subject: p.name,
+              // A project has no vendor; a call about it is a call to its
+              // client.
+              clientId: p.clientId,
+              submit: submit,
+            ),
+          );
     final me = _services.auth.session.value?.currentCompany;
     final related = ProjectDetailTabs.relatedTabIds(
       (t) => me?.moduleEnabled(t) ?? false,
@@ -207,13 +236,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         formatter: formatter,
         activityVm: _activityVm,
         selectTab: _record.selectTab,
+        notes: notes,
         readOnly: p.isDeleted,
         counts: _record,
         onReveal: _record.page.revealTabs,
         layoutBuilder: (context, strip, body) => _record.buildPage(
           strip: strip,
           body: body,
-          top: _top(context, p, related),
+          top: _top(context, p, related, notes),
         ),
       ),
     );
@@ -226,7 +256,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   /// project's tasks ([_tasks]) are what the standing card adds up, what the
   /// chart plots, and what decides whether the Invoice tile is worth its slot
   /// — three widgets each watching them could disagree for a frame.
-  Widget _top(BuildContext context, Project p, Set<String> related) {
+  Widget _top(
+    BuildContext context,
+    Project p,
+    Set<String> related,
+    EntityNoteActions notes,
+  ) {
     final me = _services.auth.session.value?.currentCompany;
     // Nothing here is derived from tasks for a user who may not view them:
     // the local table would hold none (or only their own), and a total added
@@ -290,12 +325,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               // May view them, and they are simply not all here yet.
               tasksPending: mayViewTasks && tasks == null,
             ),
-            // Read-only: a project takes no comments of its own, so the card
-            // shows the ones its tasks and invoices carry and hides itself
-            // when there are none.
+            // Carries the project's own comments and the ones its tasks and
+            // invoices pick up (`note()` stamps their `project_id`), and hides
+            // itself when there are none.
             comments: EntityCommentsCard(
               vm: _activityVm,
               formatter: formatter,
+              actions: notes,
               hostWireName: 'project',
               onViewAll: () => _record.selectTab.select(kCommentsTabIndex),
               matchFormColumn: true,

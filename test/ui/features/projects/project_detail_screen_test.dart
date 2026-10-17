@@ -276,6 +276,23 @@ void main() {
       expect(find.text('+ Task'), findsNothing);
       expect(find.byKey(const Key('project_quick_add_task')), findsNothing);
       expect(find.widgetWithText(FilledButton, 'New'), findsNothing);
+
+      // Its comments stay readable; adding one does not.
+      await tester.tap(find.text('Comments'));
+      await screen.untilFound(find.text('No comments yet'), 'the comments tab');
+      expect(find.text('Add Comment'), findsNothing);
+    },
+  );
+
+  _screenTest(
+    'the Comments tab takes a comment and a logged call',
+    _project(),
+    (tester, screen) async {
+      await tester.tap(find.text('Comments'));
+      await screen.untilFound(find.text('No comments yet'), 'the comments tab');
+      // Once in the tab head, once as the empty state's call to action.
+      expect(find.text('Add Comment'), findsNWidgets(2));
+      expect(find.text('Log Call'), findsOneWidget);
     },
   );
 

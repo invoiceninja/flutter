@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/embedded_documents_owner.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/projects_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -36,7 +37,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// referencing the now-archived/deleted project and the Project card on
 /// Task detail still renders (with the archived/deleted state indicator).
 class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
-    with TagNameResolver
+    with EntityCommentMutations<Project, ProjectApi>, TagNameResolver
     implements DocumentBearingRepository, EmbeddedDocumentsOwner {
   ProjectRepository({
     required super.db,

@@ -409,6 +409,7 @@ the honest default.
 | Project — quick-add a task from the Tasks card (Enter adds, keeps focus; first status, project's client + rate) | ✅ | ❌ | ✅ | | |
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Project — activities | ✅ | ✅ | ✅ | ✅ | |
+| Project — comments (add a comment, log a call) | ❌ | ❌ | ✅ | | The server accepts `projects` in `StoreNoteRequest`; React has no note action on a project, and v1's is commented out of `project_model.dart` |
 | Project — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Project — list columns for every editable field (public / private notes, custom fields, colour, budgeted amount) | 🟡 | 🟡 | ✅ | | |
 | Project — tags (attach via picker, list `tag_ids` filter + column, local sort) | ✅ | — | ✅ | | |
@@ -467,6 +468,7 @@ the honest default.
 | Task — link to client | ✅ | ✅ | ✅ | ✅ | |
 | Task — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Task — activities | ✅ | ✅ | ✅ | ✅ | |
+| Task — comments (add a comment, log a call) | ❌ | ❌ | ✅ | | The server accepts `tasks` in `StoreNoteRequest`; React has no note action on a task, and v1's is commented out of `task_model.dart`. The note is also stamped with the task's client and project, so it shows in their feeds |
 | Task — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Task — list columns for custom fields, invoice, is-invoiced, is-running, date | ✅ | ✅ | ✅ | | |
 | Task — tags (attach via picker, list `tag_ids` filter + column, local sort) | ✅ | — | ✅ | | |

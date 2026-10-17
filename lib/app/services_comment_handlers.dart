@@ -2,11 +2,12 @@ import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/domain/sync/base_entity_sync_dispatcher.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
-/// The [MutationKind.addComment] dispatcher, identical across the ten entities
-/// that can carry an activity note. Spread into `wireEntity`'s `customActions`.
+/// The [MutationKind.addComment] dispatcher, identical across the twelve
+/// entities that can carry an activity note. Spread into `wireEntity`'s
+/// `customActions`.
 ///
 /// [entity] is the plural wire name the endpoint expects (`'clients'`,
-/// `'invoices'`, …) — the only thing that varied between the ten hand-copied
+/// `'invoices'`, …) — the only thing that varied between the hand-copied
 /// copies of this closure.
 ///
 /// `POST /api/v1/activities/notes` returns no entity payload to apply locally:

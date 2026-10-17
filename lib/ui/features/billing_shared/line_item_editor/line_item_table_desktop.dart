@@ -45,6 +45,15 @@ const double _kDragColWidth = 24;
 // height so a row can still grow to show an inline `errorText`.
 const double _kRowContentHeight = 34;
 
+// The Description cell grows with its text up to this many lines, then
+// scrolls inside the cell. It must be multi-line for two reasons: a
+// `maxLines: 1` field turns Return into "done", so there is no way to type a
+// break; and Flutter gives every such field `singleLineFormatter`, which
+// filters the WHOLE value on each edit — a multi-line product description
+// lost every break at the first keystroke. It grows rather than collapsing
+// on blur so row heights stay put while tabbing.
+const int _kDescriptionMaxLines = 6;
+
 /// Width of a custom-field column, by the field's type.
 ///
 /// Fixed, where every built-in column but Item / Description is one flex
@@ -538,6 +547,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       String text, {
       int flex = 1,
       Alignment align = Alignment.centerLeft,
+      int maxLines = 1,
     }) {
       return Expanded(
         flex: flex,
@@ -547,7 +557,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
             alignment: align,
             child: Text(
               text,
-              maxLines: 1,
+              maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: tokens.ink, fontSize: 13),
             ),
@@ -570,7 +580,9 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
             Icon(Icons.drag_indicator, color: tokens.ink3, size: 20),
             const SizedBox(width: _kDragColWidth - 20),
             cell(item?.productKey ?? '', flex: 3),
-            cell(item?.notes ?? '', flex: 3),
+            // The proxy is forced to the dragged row's size, so a tall
+            // description shows its lines rather than one centred line.
+            cell(item?.notes ?? '', flex: 3, maxLines: _kDescriptionMaxLines),
             for (final custom in widget.config.customFields)
               SizedBox(
                 width: _customColumnWidth(custom.field),
@@ -1668,6 +1680,7 @@ class _RowStateW extends State<_Row> {
                     onChanged: scheduleCommit,
                     hintKey: 'description',
                     errorText: errors?['notes'],
+                    maxLines: _kDescriptionMaxLines,
                   ),
                 ),
               ),
@@ -1927,9 +1940,9 @@ class _TextCell extends StatelessWidget {
   final String? hintText;
   final String? errorText;
 
-  /// Above 1 the cell grows with its text up to this many lines (a
-  /// multi-line custom field); the row is floored with `minHeight`, so it
-  /// grows with it.
+  /// Above 1 the cell grows with its text up to this many lines (the
+  /// description, or a multi-line custom field); the row is floored with
+  /// `minHeight`, so it grows with it.
   final int maxLines;
 
   @override

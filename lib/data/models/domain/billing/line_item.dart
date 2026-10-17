@@ -92,9 +92,13 @@ extension LineItemAccessors on LineItem {
   /// only considered "user-meaningful" via the productKey/notes signal
   /// — a blank row that happens to carry a default tax rate from a
   /// previous edit is still blank.
+  ///
+  /// `notes` is trimmed: the wide table's Description cell is multi-line, so
+  /// a stray Return types `\n`, which prints nothing but would otherwise
+  /// promote the empty row into a saved, blank line.
   bool get isBlank =>
       productKey.isEmpty &&
-      notes.isEmpty &&
+      notes.trim().isEmpty &&
       cost == Decimal.zero &&
       discount == Decimal.zero &&
       taxName1.isEmpty &&

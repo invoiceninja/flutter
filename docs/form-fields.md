@@ -56,6 +56,19 @@ touch. Writing `newline` out explicitly is fine and four sites do
 (`log_call_sheet.dart`, `add_comment_dialog.dart`, `task_edit_layout.dart`,
 `contact_us_dialog.dart`); the lint allows exactly that one value.
 
+The other direction is worse, because it destroys data rather than merely
+blocking input: **a field that can be *seeded* with multi-line text must
+itself be multi-line.** `EditableText` prepends
+`FilteringTextInputFormatter.singleLineFormatter` to every `maxLines: 1`
+field, and a `FilteringTextInputFormatter` filters the *whole* new value, not
+just the inserted characters — so the first keystroke strips every newline the
+value already held. The wide line-item table's Description cell shipped like
+that: there was no way to type a break, and a multi-line product description
+picked onto the line, or a line written on the phone, in admin-portal or in
+React, lost all its breaks the moment the user touched the cell. It is now
+`maxLines: 6` (`_kDescriptionMaxLines` in `line_item_table_desktop.dart`),
+pinned by `test/ui/features/billing_shared/line_item_table_description_test.dart`.
+
 ## A credential is obscured; whether it gets autofill depends on whose it is
 
 **A credential is obscured and keyboard-hardened; whether it also gets

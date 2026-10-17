@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
-/// One-time display of a freshly-minted API token's raw bearer secret.
-/// The server only returns this value once (on the create response). After
-/// dismissal the local row carries the masked form and the secret is gone.
+/// Display of a freshly-minted API token's raw bearer secret, shown when the
+/// create syncs. The local row only ever carries the masked form; after
+/// dismissal the secret can be shown again from the token's edit screen
+/// (`TokenSecretField`, which fetches it from `GET /tokens/{id}`).
 class TokenCreatedDialog extends StatelessWidget {
   const TokenCreatedDialog({required this.secret, super.key});
   final String secret;
@@ -45,16 +47,16 @@ class TokenCreatedDialog extends StatelessWidget {
       ),
       actions: [
         OutlinedButton(
-          onPressed: () => copyToClipboard(context, secret),
+          // `label:` keeps the secret itself out of the "Copied … " toast.
+          onPressed: () =>
+              copyToClipboard(context, secret, label: context.tr('token')),
           style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
           child: Text(context.tr('copy_token')),
         ),
-        const SizedBox(width: 8),
-        FilledButton(
-          autofocus: true,
+        SizedBox(width: InSpacing.md(context)),
+        PrimaryDialogAction(
+          label: context.tr('done'),
           onPressed: () => Navigator.of(context).pop(),
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          child: Text(context.tr('done')),
         ),
       ],
     );

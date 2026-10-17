@@ -7,12 +7,14 @@ part 'token_api_model.g.dart';
 
 /// Wire shape of `/api/v1/tokens/{id}`.
 ///
-/// The server returns the **raw bearer secret** in the `token` field only on
-/// the create response (`POST /tokens`). Every subsequent payload — list,
-/// get, refresh-envelope `tokens_hashed` — returns the value masked as the
-/// first 10 chars of the secret followed by the literal string
-/// `xxxxxxxxxxx`. The domain model surfaces an `isMasked` helper to detect
-/// this and a `tokenHint` getter for the list display.
+/// The server returns the **raw bearer secret** in the `token` field on the
+/// create response (`POST /tokens`) and on `GET /tokens/{id}` — the two
+/// routes that keep `CompanyTokenTransformer`. Every other payload — list,
+/// update, bulk, refresh-envelope `tokens_hashed` — goes through
+/// `CompanyTokenHashedTransformer`, which masks it as the first 10 chars of
+/// the secret followed by the literal string `xxxxxxxxxxx`. The domain model
+/// surfaces an `isMasked` helper to detect this and a `tokenHint` getter for
+/// the list display.
 @freezed
 abstract class TokenApi with _$TokenApi {
   @JsonSerializable(includeIfNull: false)

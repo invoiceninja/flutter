@@ -1149,6 +1149,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Matomo Site ID | ✅ | ✅ | ✅ | ✅ | |
 | Matomo URL | ✅ | ✅ | ✅ | ✅ | |
 | API Tokens (CRUD) | ✅ | ✅ | ✅ | ✅ | |
+| API Tokens — show / copy a saved token's full value on Edit (fetched from `GET /tokens/{id}`, never stored), plus a copyable Endpoint row | ✅ | 🟡 | ✅ | | |
 | API Webhooks (CRUD) | ✅ | ✅ | ✅ | ✅ | |
 | API Docs (link) | ✅ | ✅ | ✅ | ✅ | |
 | Zapier integration | ✅ | ✅ | ✅ | ✅ | |

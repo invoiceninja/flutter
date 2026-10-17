@@ -1672,8 +1672,10 @@ _wireRecurringExpense(_EntityWiring reg) {
 /// Settings-only entity reached via Settings → Integrations → API Tokens.
 /// Bundled on `/refresh?first_load=true` via `tokens_hashed`. The server
 /// returns masked `token` values on the bundle / list; the raw bearer
-/// secret only appears on the create response and is broadcast via
-/// `TokenRepository.newSecrets` for the one-time "copy now" dialog.
+/// secret appears on the create response, broadcast via
+/// `TokenRepository.newSecrets` for the "copy now" dialog, and on
+/// `GET /tokens/{id}`, which the edit screen reads through
+/// `TokenRepository.fetchSecret`.
 (TokensApi api, TokenRepository repo) _wireToken(_EntityWiring reg) {
   final tokensApi = TokensApi(reg.ctx.apiClient);
   final tokenRepo = TokenRepository(

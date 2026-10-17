@@ -189,15 +189,22 @@ void main() {
       expect(secret.tempId, tempId);
       expect(secret.secret, 'this-is-the-raw-bearer-secret');
 
-      // After applyCreateResponse, the dedicated `token` column holds the
-      // raw secret (temporarily, until the next `/refresh` overwrites it
-      // with the masked form). The crucial invariant is what we *send*:
-      // `Token.toApiJson` strips `token`, so the outbox never echoes the
-      // secret back. Verify the sent shape explicitly.
+      // The raw secret went out on the broadcast only: the `token` column
+      // and the payload both hold the server's masked form, so nothing at
+      // rest (unencrypted, on web) carries the credential.
       final row = await db.tokenDao
           .watchById(companyId: 'co', id: 't_real')
           .first;
       expect(row, isNotNull);
+      expect(row!.token, 'this-is-thxxxxxxxxxxx');
+      expect(row.payload, isNot(contains('this-is-the-raw-bearer-secret')));
+      final read = await repo
+          .watch(companyId: 'co', id: 't_real')
+          .firstWhere((t) => t != null);
+      expect(read!.isMasked, isTrue);
+
+      // And what we *send*: `Token.toApiJson` strips `token`, so the outbox
+      // never echoes the secret back.
       final domain = Token.fromApi(
         const TokenApi(
           id: 't_real',
@@ -282,6 +289,135 @@ void main() {
       },
     );
 
+    test('maskTokenSecret matches the server hashed transformer', () {
+      const raw =
+          'Abc123defGhij456klmNop789qrsTuv012wxyZab345cdeFgh678ijkLmn901opq';
+      final masked = maskTokenSecret(raw);
+      expect(masked, 'Abc123defGxxxxxxxxxxx');
+      expect(Token.fromApi(TokenApi(id: 't', token: masked)).isMasked, isTrue);
+      // Too short to have a prefix: nothing of it survives.
+      expect(maskTokenSecret('short'), 'xxxxxxxxxxx');
+    });
+
+    test('obscuredHint is the prefix plus dots, never the secret', () {
+      final t = Token.fromApi(
+        const TokenApi(id: 't', token: 'abc1234567xxxxxxxxxxx'),
+      );
+      expect(t.obscuredHint, 'abc1234567••••••••••••');
+    });
+
+    group('fetchSecret', () {
+      test('returns the raw token from GET /tokens/{id} and writes nothing '
+          'to Drift', () async {
+        final requested = <String>[];
+        final repo = TokenRepository(
+          db: db,
+          api: _FakeTokensApi(
+            onGet: (id) {
+              requested.add(id);
+              return TokenApi(
+                id: id,
+                name: 'N',
+                token: 'the-full-secret-value',
+              );
+            },
+          ),
+        );
+        await repo.applyBundle(
+          companyId: 'co',
+          bundle: const [
+            TokenApi(
+              id: 't_1',
+              name: 'N',
+              token: 'the-full-sxxxxxxxxxxx',
+              updatedAt: 1700000100,
+            ),
+          ],
+        );
+        final before = await db.tokenDao
+            .watchById(companyId: 'co', id: 't_1')
+            .first;
+
+        final secret = await repo.fetchSecret(companyId: 'co', id: 't_1');
+
+        expect(secret, 'the-full-secret-value');
+        expect(requested, ['t_1']);
+        final after = await db.tokenDao
+            .watchById(companyId: 'co', id: 't_1')
+            .first;
+        expect(after!.token, before!.token);
+        expect(after.payload, before.payload);
+      });
+
+      test('returns null when the server answers masked', () async {
+        final repo = TokenRepository(
+          db: db,
+          api: _FakeTokensApi(
+            onGet: (id) => TokenApi(id: id, token: 'abc1234567xxxxxxxxxxx'),
+          ),
+        );
+        expect(await repo.fetchSecret(companyId: 'co', id: 't_1'), isNull);
+      });
+
+      test('throws TokenNotSyncedException for a create still in the outbox, '
+          'without a request', () async {
+        var calls = 0;
+        final repo = TokenRepository(
+          db: db,
+          api: _FakeTokensApi(
+            onGet: (id) {
+              calls++;
+              return TokenApi(id: id, token: 'never');
+            },
+          ),
+        );
+        final created = await repo.create(
+          companyId: 'co',
+          draft: Token.fromApi(const TokenApi(name: 'Offline')),
+        );
+
+        await expectLater(
+          repo.fetchSecret(companyId: 'co', id: created.entity.id),
+          throwsA(isA<TokenNotSyncedException>()),
+        );
+        expect(calls, 0);
+      });
+
+      test('resolves a tmp_ id whose create has landed to the real id — the '
+          'edit screen keeps the id it opened with', () async {
+        final requested = <String>[];
+        final repo = TokenRepository(
+          db: db,
+          api: _FakeTokensApi(
+            onGet: (id) {
+              requested.add(id);
+              return TokenApi(id: id, token: 'the-full-secret-value');
+            },
+          ),
+        );
+        final created = await repo.create(
+          companyId: 'co',
+          draft: Token.fromApi(const TokenApi(name: 'New')),
+        );
+        final tempId = created.entity.id;
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: tempId,
+          serverResponse: const TokenApi(
+            id: 't_real',
+            name: 'New',
+            token: 'the-full-secret-value',
+            updatedAt: 1700000500,
+          ),
+        );
+
+        final secret = await repo.fetchSecret(companyId: 'co', id: tempId);
+
+        expect(secret, 'the-full-secret-value');
+        expect(requested, ['t_real']);
+      });
+    });
+
     test(
       '_fromRow overlays is_dirty so an offline create reads as dirty',
       () async {
@@ -297,6 +433,18 @@ void main() {
 }
 
 class _FakeTokensApi implements TokensApi {
+  _FakeTokensApi({this.onGet});
+
+  /// Answers `GET /tokens/{id}`; every other call stays unimplemented.
+  final TokenApi Function(String id)? onGet;
+
+  @override
+  Future<TokenItemApi> get(String id) async {
+    final handler = onGet;
+    if (handler == null) throw UnimplementedError();
+    return TokenItemApi(data: handler(id));
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

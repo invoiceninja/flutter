@@ -512,8 +512,9 @@ class Services implements SidebarBadgeContext {
 
   /// API tokens — settings-only entity. Edited under Settings →
   /// Integrations → API Tokens. Bundled on `/refresh?first_load=true` via
-  /// `tokens_hashed` (server returns masked token strings; raw bearer
-  /// secret only on create response, see [TokenRepository.newSecrets]).
+  /// `tokens_hashed` (server returns masked token strings; the raw bearer
+  /// secret only on the create response — [TokenRepository.newSecrets] — and
+  /// on demand through [TokenRepository.fetchSecret]).
   final TokenRepository tokens;
 
   final CompanyRepository company;

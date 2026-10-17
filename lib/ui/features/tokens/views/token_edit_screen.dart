@@ -8,14 +8,16 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_edit_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/settings_text_field.dart';
 import 'package:admin/ui/features/tokens/view_models/token_edit_view_model.dart';
+import 'package:admin/ui/features/tokens/widgets/token_secret_field.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// `/settings/account_management/integrations/api_tokens/new` and `/.../:id`. Edit is
 /// name-only — `token`, `is_system`, and `user_id` are server-owned.
 ///
-/// On create, the server mints the raw bearer secret once and we surface
-/// it via [TokenCreatedDialog] from the LIST screen (`TokenListScreen`
-/// subscribes to `TokenRepository.newSecrets`). After Save this screen
-/// just pops back to the list, where the dialog is waiting.
+/// On create, the server mints the raw bearer secret and the shell's
+/// `SyncEventListener` surfaces it via `TokenCreatedDialog` when the create
+/// syncs; after Save this screen just pops back to the list. A saved token's
+/// secret can be shown or copied again here, through [TokenSecretField].
 class TokenEditScreen extends StatelessWidget {
   const TokenEditScreen({this.existingId, super.key});
 
@@ -24,7 +26,9 @@ class TokenEditScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    final session = services.auth.session.value;
+    final companyId = session?.currentCompanyId ?? '';
+    final endpoint = cleanApiUrl(session?.baseUrl);
     final repo = services.tokens;
 
     return SettingsEntityEditScaffold<Token, TokenEditViewModel>(
@@ -49,21 +53,36 @@ class TokenEditScreen extends StatelessWidget {
       isDeletedOf: (t) => t.isDeleted,
       canSave: (vm) =>
           !vm.isSaving && vm.isDirty && vm.draft.name.trim().isNotEmpty,
-      bodyBuilder: (context, vm) => [
-        FormSection(
-          title: context.tr('token'),
-          children: [
-            SettingsTextField(
-              initialValue: vm.draft.name,
-              labelKey: 'name',
-              onChanged: vm.setName,
-              errorText: vm.fieldErrorFor('name'),
-              textInputAction: TextInputAction.done,
-              externalSyncKey: vm.original?.id,
-            ),
-          ],
-        ),
-      ],
+      bodyBuilder: (context, vm) {
+        final saved = vm.original;
+        return [
+          FormSection(
+            title: context.tr('token'),
+            children: [
+              SettingsTextField(
+                initialValue: vm.draft.name,
+                labelKey: 'name',
+                onChanged: vm.setName,
+                errorText: vm.fieldErrorFor('name'),
+                textInputAction: TextInputAction.done,
+                externalSyncKey: saved?.id,
+              ),
+              // Shown for an unsynced token too: the view model keeps the
+              // `tmp_` id it opened with even after the create lands, and
+              // `fetchSecret` resolves it at tap time.
+              if (saved != null && !saved.isDeleted) ...[
+                TokenSecretField(
+                  key: ValueKey(saved.id),
+                  hint: saved.obscuredHint,
+                  fetchSecret: () =>
+                      repo.fetchSecret(companyId: companyId, id: saved.id),
+                ),
+                if (endpoint.isNotEmpty) TokenEndpointField(url: endpoint),
+              ],
+            ],
+          ),
+        ];
+      },
     );
   }
 }

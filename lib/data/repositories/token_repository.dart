@@ -9,11 +9,21 @@ import 'package:admin/data/models/api/token_api_model.dart';
 import 'package:admin/data/models/domain/token.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/services/tokens_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
+
+/// Thrown by [TokenRepository.fetchSecret] for a token whose create is still
+/// in the outbox: the server has no record to read the secret from yet.
+class TokenNotSyncedException implements Exception {
+  const TokenNotSyncedException();
+
+  @override
+  String toString() => 'TokenNotSyncedException';
+}
 
 /// One-shot delivery of a freshly-minted token secret. The repository emits
 /// this on [TokenRepository.newSecrets] as soon as [applyCreateResponse]
@@ -29,11 +39,12 @@ class FreshTokenSecret {
 /// via `tokens_hashed` (server returns masked values there), and also
 /// fetched page-by-page via `/api/v1/tokens` when needed.
 ///
-/// On create, the server returns the **raw bearer secret** exactly once;
-/// `applyCreateResponse` broadcasts it through [newSecrets] so the
-/// create screen can surface a one-time copy dialog. Drift persists only
-/// the masked form (see `Token.toApiJson` — `token` is stripped from
-/// every outgoing payload).
+/// On create, the server returns the **raw bearer secret**;
+/// `applyCreateResponse` broadcasts it through [newSecrets] so the shell can
+/// surface a copy dialog, then stores it masked. After that the secret is
+/// read only on demand, through [fetchSecret]. Drift persists only the
+/// masked form, and `Token.toApiJson` strips `token` from every outgoing
+/// payload.
 class TokenRepository extends BaseEntityRepository<Token, TokenApi> {
   TokenRepository({
     required super.db,
@@ -169,6 +180,27 @@ class TokenRepository extends BaseEntityRepository<Token, TokenApi> {
         maxPages: 100,
       );
 
+  /// The full secret of a saved token, read live from `GET /tokens/{id}` —
+  /// the one read route whose transformer isn't the hashed one
+  /// (`TokenController::show`). Deliberately never written to Drift: a
+  /// credential lives only as long as the widget that asked for it.
+  ///
+  /// [id] may still be the `tmp_` id the edit screen opened with; it is
+  /// resolved first, and throws [TokenNotSyncedException] while the create
+  /// is still queued. Returns null if the server answered masked anyway.
+  Future<String?> fetchSecret({
+    required String companyId,
+    required String id,
+  }) async {
+    final realId = await resolveId(id);
+    if (realId.startsWith('tmp_')) throw const TokenNotSyncedException();
+    final item = await RequestScope(
+      companyId,
+    ).run(() async => (await api.get(realId)).data);
+    final token = Token.fromApi(item);
+    return token.isMasked || token.token.isEmpty ? null : token.token;
+  }
+
   Future<SaveResult<Token>> create({
     required String companyId,
     required Token draft,
@@ -251,11 +283,12 @@ class TokenRepository extends BaseEntityRepository<Token, TokenApi> {
     required String tempId,
     required TokenApi serverResponse,
   }) async {
-    // Capture the raw secret BEFORE upserting (the companion stores the
-    // masked value the server gave us). On a real create response the
-    // server returns the unmasked token exactly once — broadcast it so
-    // the create screen can dismiss its "waiting for secret…" state.
+    // Capture the raw secret BEFORE upserting. On a real create response the
+    // server returns the unmasked token — broadcast it so the shell can show
+    // the copy dialog, then store only the masked form: the token column and
+    // the payload both hold it, and on web the database is unencrypted.
     final domain = Token.fromApi(serverResponse);
+    var stored = serverResponse;
     if (!domain.isMasked && domain.token.isNotEmpty) {
       final secret = FreshTokenSecret(tempId: tempId, secret: domain.token);
       // Buffer first so a listener that isn't subscribed yet (cold start, or
@@ -263,12 +296,13 @@ class TokenRepository extends BaseEntityRepository<Token, TokenApi> {
       // surfaces it via takePendingSecrets(); the broadcast wakes a live one.
       _pendingSecrets.add(secret);
       _secretsController.add(secret);
+      stored = serverResponse.copyWith(token: maskTokenSecret(domain.token));
     }
     await applyCreateResponseTemplate(
       companyId: companyId,
       tempId: tempId,
       realId: serverResponse.id,
-      companion: _apiToCompanion(serverResponse, companyId),
+      companion: _apiToCompanion(stored, companyId),
       upsert: db.tokenDao.upsert,
       deleteById: (id) => db.tokenDao.deleteById(companyId: companyId, id: id),
     );

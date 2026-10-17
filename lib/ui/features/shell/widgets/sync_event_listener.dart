@@ -24,8 +24,8 @@ final _log = Logger('SyncEventListener');
 /// Wraps the shell's subtree and listens to `services.sync.events`. When a
 /// [PasswordRequiredEvent] arrives, opens [ConfirmPasswordSheet]; when a
 /// [ConflictEvent] arrives, opens [ConflictResolutionSheet] and routes the
-/// user's choice to the appropriate repo action. Also surfaces one-time API
-/// token secrets ([TokenCreatedDialog]) app-wide, so a create that drains
+/// user's choice to the appropriate repo action. Also surfaces newly-minted
+/// API token secrets ([TokenCreatedDialog]) app-wide, so a create that drains
 /// while the user is off the Tokens screen still shows its raw secret.
 ///
 /// One listener per app — install once at the top of the authenticated

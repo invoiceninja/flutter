@@ -18,10 +18,11 @@ const kTokensListSearchKeys = <String>['api_tokens', 'token', 'new_token'];
 /// to rename; tap "+ New Token" to create. System tokens (`is_system`)
 /// render as locked rows that can't be edited or deleted.
 ///
-/// The one-time raw bearer secret minted on create is surfaced app-wide by
-/// the shell `SyncEventListener` (which drains `services.tokens.newSecrets`),
-/// so it shows even if the create finishes while the user is on another
-/// screen — there is no per-screen subscription here.
+/// The raw bearer secret minted on create is surfaced app-wide by the shell
+/// `SyncEventListener` (which drains `services.tokens.newSecrets`), so it
+/// shows even if the create finishes while the user is on another screen —
+/// there is no per-screen subscription here. Afterwards it can be shown again
+/// from the token's edit screen.
 class TokenListScreen extends StatelessWidget {
   const TokenListScreen({super.key});
 

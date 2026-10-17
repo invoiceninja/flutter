@@ -10,13 +10,23 @@ part 'token.freezed.dart';
 const String _kMaskSuffix = 'xxxxxxxxxxx';
 const int _kRawSecretPrefixLength = 10;
 
+/// The server's masked form of [raw] — the first 10 chars plus
+/// [_kMaskSuffix], exactly what `CompanyTokenHashedTransformer` returns — so
+/// a secret that arrived raw can be stored the way every later payload
+/// stores it. A value too short to have a prefix keeps none of it (the
+/// server mints 64-char secrets, so that is only ever synthetic data).
+String maskTokenSecret(String raw) => raw.length >= _kRawSecretPrefixLength
+    ? '${raw.substring(0, _kRawSecretPrefixLength)}$_kMaskSuffix'
+    : _kMaskSuffix;
+
 /// Domain `Token` (wire entity: `token` / `company_token`). Settings-area
 /// entity reached via Settings → Integrations → API Tokens. Bundled on
 /// `/refresh?first_load=true` via `tokens_hashed`.
 ///
 /// The server returns the **raw bearer secret** in [token] only on the
-/// create response; every subsequent payload returns a masked form. We
-/// never round-trip the masked value back to the server (see [toApiJson]).
+/// create response and `GET /tokens/{id}`; every other payload returns a
+/// masked form, and that masked form is all Drift ever holds. We never
+/// round-trip the masked value back to the server (see [toApiJson]).
 @freezed
 abstract class Token with _$Token {
   const Token._();
@@ -58,6 +68,16 @@ abstract class Token with _$Token {
   String get tokenHint => token.length >= _kRawSecretPrefixLength
       ? '${token.substring(0, _kRawSecretPrefixLength)}…'
       : token;
+
+  /// The edit screen's stand-in for the hidden secret: the prefix, then a
+  /// run of dots. Not [tokenHint] — a trailing `…` reads as text cut off for
+  /// width, where this has to read as "hidden, ask to show it".
+  String get obscuredHint {
+    final prefix = token.length >= _kRawSecretPrefixLength
+        ? token.substring(0, _kRawSecretPrefixLength)
+        : '';
+    return '$prefix${'•' * 12}';
+  }
 
   /// Send-shape used by the outbox.
   ///

@@ -9,8 +9,8 @@
 ///    (`money`, `percent`, `integer`, `decimal`, `inputMoney`, `inputAmount`).
 ///    The `FormatNumberType` enum is gone.
 /// 3. `Decimal` is the input type for money methods (per the project rule
-///    "Money is `Decimal`, never `double`"). Conversion to `double` happens
-///    only at the final string-formatting step.
+///    "Money is `Decimal`, never `double`"), formatted directly without
+///    converting to `double`.
 /// 4. Number grouping is hand-rolled (`_formatGrouped`) so it can take
 ///    separators directly — no `intl`'s `numberFormatSymbols` hijack.
 library;
@@ -971,23 +971,19 @@ class Formatter {
       body = compactBody;
       prefixSign = compactSign;
     } else {
-      final rounded = roundToPrecision
-          ? Decimal.parse(amount.toStringAsFixed(currency.precision))
-          : amount;
       // Trail up to 3 decimals beyond `precision` when we aren't rounding, to
       // preserve any extra precision in the input. Matches the old patterns
       // `#,##0.00###` etc.
       final maxDecimals = roundToPrecision
           ? currency.precision
           : currency.precision + 3;
-      body = _formatGrouped(
-        rounded.abs().toDouble(),
+      body = _formatGroupedFixed(
+        amount.abs().toStringAsFixed(maxDecimals),
         minDecimals: currency.precision,
-        maxDecimals: maxDecimals,
         thousand: thousandSep,
         decimal: decimalSep,
       );
-      prefixSign = _signPrefix(rounded, body);
+      prefixSign = _signPrefix(amount, body);
     }
 
     final showCode = showCurrencyCode ?? settings.showCurrencyCode;
@@ -1111,10 +1107,9 @@ class Formatter {
     final currency = currencies[resolved] ?? currencies[settings.currencyId];
     final precision = currency?.precision ?? 2;
     final decimalSep = settings.useCommaAsDecimalPlace ? ',' : '.';
-    final body = _formatGrouped(
-      value.abs().toDouble(),
+    final body = _formatGroupedFixed(
+      value.abs().toStringAsFixed(precision),
       minDecimals: precision,
-      maxDecimals: precision,
       thousand: '',
       decimal: decimalSep,
     );
@@ -1342,9 +1337,22 @@ String _formatGrouped(
   required int maxDecimals,
   required String thousand,
   required String decimal,
+}) => _formatGroupedFixed(
+  value.toStringAsFixed(max(minDecimals, maxDecimals)),
+  minDecimals: minDecimals,
+  thousand: thousand,
+  decimal: decimal,
+);
+
+/// Group an already-fixed non-negative decimal string [fixed] (e.g.
+/// `'1234.5600'`) with [thousand] every three digits and [decimal] before the
+/// fractional part, trimming trailing zeros down to [minDecimals].
+String _formatGroupedFixed(
+  String fixed, {
+  required int minDecimals,
+  required String thousand,
+  required String decimal,
 }) {
-  final decimals = max(minDecimals, maxDecimals);
-  final fixed = value.toStringAsFixed(decimals);
   final dot = fixed.indexOf('.');
   final intPart = dot < 0 ? fixed : fixed.substring(0, dot);
   var fracPart = dot < 0 ? '' : fixed.substring(dot + 1);

@@ -244,6 +244,23 @@ void main() {
         '10.00 USD',
       );
     });
+
+    test('preserves cents on 15+ digit amounts', () {
+      // `toDouble()` loses IEEE-754 precision above 15 digits, turning
+      // 100000000000000.25 into .23 and rounding 99999999999999.99 up.
+      expect(
+        f.money(Decimal.parse('100000000000000.25'), clientCurrencyId: '1'),
+        r'$100,000,000,000,000.25',
+      );
+      expect(
+        f.money(Decimal.parse('-100000000000000.25'), clientCurrencyId: '1'),
+        r'-$100,000,000,000,000.25',
+      );
+      expect(
+        f.money(Decimal.parse('99999999999999.99'), clientCurrencyId: '1'),
+        r'$99,999,999,999,999.99',
+      );
+    });
   });
 
   group(
@@ -315,6 +332,14 @@ void main() {
         ),
       );
       expect(f.inputMoney(Decimal.parse('1234.5'), currencyId: '1'), '1234,50');
+    });
+
+    test('inputMoney preserves cents on 15+ digit amounts', () {
+      final f = _make();
+      expect(
+        f.inputMoney(Decimal.parse('100000000000000.25'), currencyId: '1'),
+        '100000000000000.25',
+      );
     });
 
     test('inputAmount has no fixed precision', () {

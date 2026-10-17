@@ -36,6 +36,7 @@ import 'package:admin/ui/core/list/entity_list_app_bar.dart';
 import 'package:admin/ui/core/list/entity_list_top_row.dart';
 import 'package:admin/ui/core/list/entity_list_column_headers.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/list/archived_hidden_footer.dart';
 import 'package:admin/ui/core/list/entity_list_footer.dart';
 import 'package:admin/ui/core/list/entity_list_status_tabs.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
@@ -1909,6 +1910,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
 
   Widget _footer() {
     if (_vm.isLoadingPage) return const EntityListLoadingFooter();
+    // A search that matches some active rows never reaches the no-match empty
+    // state, so this is the only place it learns archived ones were left out.
+    if (ArchivedHiddenFooter.shows(_vm)) return ArchivedHiddenFooter(vm: _vm);
     return const SizedBox.shrink();
   }
 

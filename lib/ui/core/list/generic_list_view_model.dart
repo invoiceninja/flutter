@@ -536,6 +536,13 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// keep filter state purely in memory, starting from their locked scope.
   bool get isEmbedded => lockedFilterKeyIds.isNotEmpty;
 
+  /// Whether this entity has a lifecycle the State filter can narrow — i.e.
+  /// whether [states] reaches the fetch and the watch at all. False only for a
+  /// list whose records are never archived (Documents), so the "Show
+  /// archived" offers (`NoMatchActions`, `ArchivedHiddenFooter`) don't hand it
+  /// a button that changes nothing.
+  bool get hasEntityStates => true;
+
   List<T> _items = const [];
   List<T> get items => _items;
 

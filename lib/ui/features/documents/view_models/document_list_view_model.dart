@@ -51,6 +51,11 @@ class DocumentListViewModel extends GenericListViewModel<DocumentRecord> {
   @override
   List<String> get defaultColumnIds => kDefaultDocumentColumns;
 
+  /// [watchPage] ignores [states] and the repo sends none, so a "Show
+  /// archived" here would be a button that does nothing.
+  @override
+  bool get hasEntityStates => false;
+
   /// Newest upload first — `created_at` only grows, so a file added on the
   /// web lands on page 1 (`docs/sync.md` § Lists sort newest-first).
   @override

@@ -28,8 +28,11 @@ class _FakeVm implements GenericListViewModel<dynamic> {
     this.search = '',
     this.customFilters = const {},
     this.extraFilters = const {},
+    this.hasEntityStates = true,
   });
 
+  @override
+  final bool hasEntityStates;
   @override
   final Set<EntityState> states;
   @override
@@ -209,6 +212,16 @@ void main() {
           search: 'acme',
         ),
       );
+      expect(find.text('Show archived'), findsNothing);
+      expect(find.text('Clear Filters'), findsOneWidget);
+    });
+
+    testWidgets('Show archived is not offered on a list with no lifecycle', (
+      tester,
+    ) async {
+      // Documents: the server never archives a file and the list never reads
+      // the State filter, so the button would change nothing.
+      await pump(tester, _FakeVm(search: 'acme', hasEntityStates: false));
       expect(find.text('Show archived'), findsNothing);
       expect(find.text('Clear Filters'), findsOneWidget);
     });

@@ -134,10 +134,24 @@ The server's timestamp windows have the opposite gap: `created_between` / `updat
 **The no-match empty state offers All statuses, then Show archived, then Clear filters — each shown only when it applies** (`NoMatchActions`, `lib/ui/core/list/no_match_actions.dart`, shared by `EntityListEmptyState` and the scaffold's own fallback). Clear filters alone threw the typed search away with everything else, so someone who searched `acme` on the Overdue tab, or for a client archived last year, had to type it again on a wider list.
 
 - **All statuses** drops only the status tab (`setBadgeMode(null)`). It is hidden when the tab is the only narrowing, because Clear filters does exactly the same then.
-- **Show archived** adds archived to the State filter through `setStates`, the seam the `is:` key's picker uses. It lands as a chip that can be removed: every list on `EntityListScreenScaffold` declares that key.
+- **Show archived** adds archived to the State filter through `setStates`, the seam the `is:` key's picker uses. It lands as a chip that can be removed: every list on `EntityListScreenScaffold` declares that key — except Documents, which has no lifecycle, so `GenericListViewModel.hasEntityStates` is false there and the button is not offered. It was, until the footer below was built: the Documents watch ignores `states` and its repo sends none, so the click did nothing.
 - **A `Wrap`, not a `Row`.** Three German labels do not fit at 360 px.
 
 Pinned by `test/ui/core/list/entity_list_empty_state_test.dart`.
+
+## The end of a narrowed list says what the State filter hid
+
+**A searched or filtered list that reaches its last row with archived records excluded ends with "Archived records are hidden · Show archived"** (`ArchivedHiddenFooter`, `lib/ui/core/list/archived_hidden_footer.dart`, returned by the scaffold's `_footer()`). The beta report was "There is no Active / Archived / Deleted choices in the new version! I use this to see if certain invoices were archived." v1 had that dropdown beside the search box. In v2 it is the State key inside the search box, and its default renders no chip (§ A key at its default renders no chip), so nothing on screen said anything was hidden. The no-match empty state above already offered Show archived, but it needs zero rows: the reporter's client search matched four drafts, so the archived invoices it was looking for went unmentioned.
+
+- **The gate is `ArchivedHiddenFooter.shows`**, kept pure so a test can pin each term. The list has a lifecycle (`hasEntityStates`) and rows. No page is loading and `canLoadMore` is false, so this is the true end; while more can load, the archived rows' absence says nothing yet. Archived is not already in `states`. And the user narrowed the list: `search` or `hasActiveFilters`, which counts a status tab, since Paid is where archived invoices go.
+- **Only on a narrowed list.** An un-narrowed list that fits the screen would carry the line forever.
+- **No embedded carve-out.** A detail tab's parent scope is applied inside its VM's `fetchPage` (`invoice_list_view_model.dart`'s `client_id`), not through the filter maps, so `hasActiveFilters` does not read true on every embedded list.
+- **The wording is true with `{active, deleted}` too**, and the click keeps `deleted`: it is `setStates({...states, archived})`, the seam `NoMatchActions` uses, so it also lands as the State chip. That chip is how the user learns where the control lives now.
+- **Start-aligned, never centred.** In the wide layout the `ListView` sits inside `_wideTable`'s horizontal scroller at the table's full width, so a centred line drifts off-screen once the columns outgrow the pane. The 16 px gutter is the rows'. It is a `Wrap`, because the sentence and the button do not fit one line at 320 px.
+- **It needs the server to have answered.** Offline, a failed page fetch leaves `hasMore` true, so the line does not show — Show archived could only reach cached rows then anyway.
+- **Rows still do not say they are archived** on most lists. Clients and Vendors carry an Archived / Deleted pill; every other list shows its own status (an archived invoice reads Paid), and the State column is opt-in through Columns. v1 and React replace the status with Archived / Deleted. That was left out of this change on purpose and is the obvious follow-up.
+
+Pinned by `test/ui/core/list/archived_hidden_footer_test.dart`, which also mounts the real scaffold so dropping the `_footer()` branch fails.
 
 ## A purchase order's Sent status is exact only from 5.13.44
 

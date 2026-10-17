@@ -1737,6 +1737,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | List search field — `acme status:` keeps `acme` as the search and opens Status | — | — | ✅ | | The longest trailing key name wins (`due date:` is Due Date) |
 | List filter — client / vendor / project values found on the server too, not only among those already loaded | — | — | ✅ | | First page of `?filter=`, so a client found by contact email shows too |
 | List empty state — a search that finds nothing offers All statuses and Show archived beside Clear filters, each widening only its own filter | — | — | ✅ | | |
+| List end — a searched or filtered list that hides archived records says so under its last row, with Show archived | — | — | ✅ | | Closes the gap when a search matches some active rows; not on Documents (no lifecycle) |
 | List filter — payment and bank-transaction date sent to the server as a window | — | — | ✅ | | Neither server has a `date()` filter; it was filtered locally only, chaining pages to find older rows |
 | List filter — purchase order status / vendor / client / date / due date | 🟡 | ❌ | ✅ | | React has a status filter only. Sent is sent to the server only from 5.13.44 (exact there); a date comparator travels as the window that means the same |
 | List filter — vendor number (exact) / created / updated | — | — | ✅ | | |

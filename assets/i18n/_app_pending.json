@@ -78,6 +78,7 @@
   "archived_bank_transaction": "Successfully archived bank transaction",
   "archived_payment_links": "Successfully archived :count payment links",
   "archived_purchase_orders": "Successfully archived :count purchase orders",
+  "archived_records_hidden": "Archived records are hidden",
   "archived_recurring_expenses": "Successfully archived :count recurring expenses",
   "archived_tag": "Archived Tag",
   "archived_transactions": "Successfully archived :count transactions",

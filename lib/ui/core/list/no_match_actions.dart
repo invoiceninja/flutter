@@ -21,7 +21,9 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 ///   exactly the same then.
 /// * **Show archived** adds archived to the State filter, through the same
 ///   `setStates` the `is:` key's picker uses, so it lands as a chip that can
-///   be removed. Every list on `EntityListScreenScaffold` declares that key.
+///   be removed. Every list on `EntityListScreenScaffold` declares that key
+///   except Documents, which has no lifecycle (`hasEntityStates` is false)
+///   and so is never offered it.
 ///
 /// A `Wrap`, not a `Row`: three German labels do not fit at 360 px.
 class NoMatchActions extends StatelessWidget {
@@ -62,7 +64,7 @@ class NoMatchActions extends StatelessWidget {
             icon: const Icon(Icons.filter_list_off),
             label: Text(context.tr('all_statuses')),
           ),
-        if (!vm.states.contains(EntityState.archived))
+        if (vm.hasEntityStates && !vm.states.contains(EntityState.archived))
           OutlinedButton.icon(
             style: style,
             onPressed: () => vm.setStates({...vm.states, EntityState.archived}),

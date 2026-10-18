@@ -226,14 +226,14 @@ const List<ReleaseNotes> kReleaseNotes = [
     ],
     items: [
       ReleaseNoteItem(
-        'Added: Reports rebuilt — open a report to run it, with charts, totals '
-        'per currency, saved views and PDF / CSV export. A new Task Items '
+        'Added: Reports are rebuilt. Open a report to run it, with charts, '
+        'totals per currency, saved views and PDF / CSV export. A new Task Items '
         'report lists every time entry in a date range, and the Tasks report '
         'shows one row per task instead of one per time entry.',
       ),
       ReleaseNoteItem(
-        'Added: Project analytics — a forecast finish date, the burn-up chart, '
-        'money, time and expense breakdowns, and a health score.',
+        'Added: Project analytics, with a forecast finish date, the burn-up '
+        'chart, money, time and expense breakdowns, and a health score.',
       ),
       ReleaseNoteItem(
         'Added: A Documents list on the main menu with every file uploaded to '
@@ -264,7 +264,7 @@ const List<ReleaseNotes> kReleaseNotes = [
         'explains why and lets you trust that exact certificate.',
       ),
       ReleaseNoteItem(
-        'Updated: Smarter list search — it finds clients, vendors and projects '
+        'Updated: Smarter list search. It finds clients, vendors and projects '
         'not loaded yet, understands periods like "this month", keeps your '
         'search when you add a filter, reads pasted queries, and says when '
         'archived records are hidden, with Show archived under the last row.',

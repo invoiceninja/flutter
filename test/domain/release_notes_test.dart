@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,6 +32,32 @@ void main() {
             reason: '${release.version}: "${item.text}"',
           );
         }
+      }
+    });
+
+    // House style: docs/release-notes.md § Release notes never use an em
+    // dash. A hyphen is fine.
+    test('no bullet, highlight or F-Droid changelog uses an em dash', () {
+      for (final release in kReleaseNotes) {
+        for (final item in release.items) {
+          expect(item.text, isNot(contains('—')), reason: release.version);
+        }
+        for (final h in release.highlights) {
+          expect(
+            '${h.title} ${h.body}',
+            isNot(contains('—')),
+            reason: release.version,
+          );
+        }
+      }
+      final changelogs = Directory('fastlane/metadata/android/en-US/changelogs')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.txt'))
+          .toList();
+      expect(changelogs, isNotEmpty);
+      for (final f in changelogs) {
+        expect(f.readAsStringSync(), isNot(contains('—')), reason: f.path);
       }
     });
 

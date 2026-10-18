@@ -662,6 +662,7 @@ When the user asks for "release notes" (or "releasenotes"), follow `docs/release
 
 - **The release notes the app shows are bundled in `kReleaseNotes`, a bullet naming another platform or store is hidden on the App Store builds, and the dialog never links out.** → `docs/whats-new-dialog.md`
 - **The bump script refuses a version with no kReleaseNotes entry, so the notes are written before the bump.** → `docs/whats-new-dialog.md`
+- **Release notes never use an em dash (—) in any copy: GitHub, the root file, `kReleaseNotes`, the F-Droid changelog. A hyphen is fine.** → `docs/release-notes.md`
 
 ## Reference points
 

@@ -1727,7 +1727,16 @@ the Flutter change clones the `includeDrafts` plumbing: a `showNet` bool on
 dashboard settings popover. No Drift schema/migration (the cache is keyed by
 `filterHash`; `nav_state` is schemaless JSON).
 
-## Recurring-invoice `amount` stored as `Σ(cost×quantity)` — drops discounts + all taxes — **R (billing correctness)**
+## Recurring-invoice `amount` stored as `Σ(cost×quantity)` — drops discounts + all taxes — **WITHDRAWN (not a bug)**
+
+> **STATUS 2026-10-18 — nothing to fix; the stored `amount` is the real total.** The
+> request still computes `Σ(cost×quantity)` in `prepareForValidation()`, but only the
+> `amount` validation rule ever sees it: `RecurringInvoiceRepository::save` →
+> `BaseRepository::alternativeSave` runs `$model->calc()->getRecurringInvoice()`
+> (`BaseRepository.php:454`, at `8d25716ef4`), and `InvoiceSum::setCalculatedAttributes`
+> overwrites `amount` with `getTotal()` before the final save. The audit below read the
+> request and stopped there. Kept as the record, and as a caution: trace the save path to
+> the last write before filing a "stored value is wrong" gap.
 
 **Provenance** — 2026-07-07, financial-calculation audit (follow-up to
 [#12072](https://github.com/invoiceninja/invoiceninja/issues/12072)). Source-read of
@@ -3084,8 +3093,9 @@ endpoint rather than use it:
 ### Requested change
 
 - **Parent:** emit `documentable_type` as the snake-case entity name (`invoice`,
-  `recurring_invoice`, `purchase_order`, `group`, `company`, …) and `documentable_id` as the hashed
-  id. Additive; the Flutter client already reads both when present (`DocumentApi`).
+  `recurring_invoice`, `purchase_order`, `group_setting`, `company`, …) and `documentable_id` as the
+  hashed id. Additive; the Flutter client already reads both when present (`DocumentApi`, which maps
+  `group_setting` to a group). **In PR** `fix/api-gaps-from-v2-apps` (2026-10-18).
 - **Deletes:** either soft-delete documents (`is_deleted` + `deleted_at`, as every other entity),
   or expose the ids deleted since a timestamp so a delta can carry them.
 - **Filters:** override `status`, `is_deleted` and `without_deleted_clients` in `DocumentFilters`

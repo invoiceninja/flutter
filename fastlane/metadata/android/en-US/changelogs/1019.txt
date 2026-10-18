@@ -1,6 +1,8 @@
-- Reports rebuilt: charts, totals per currency, saved views, PDF / CSV export
-- Project analytics: forecast, burn-up, money, time and expense breakdowns
-- Custom fields on line items; bulk update for tasks, expenses and recurring invoices
+- Reports rebuilt: charts, saved views, PDF / CSV export, a time-entry report
+- Project analytics: forecast, burn-up, money, time and expenses
+- Documents list on the main menu
+- Custom fields on line items; bulk update; comments on tasks and projects
 - Custom labels apply throughout the app
 - Smarter list search: finds records not loaded yet, understands "this month"
 - Compact list density and faster invoice editing
+- A self-hosted server's certificate can be trusted

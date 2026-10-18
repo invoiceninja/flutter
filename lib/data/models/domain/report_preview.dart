@@ -13,6 +13,7 @@ class ReportColumn {
     required this.displayLabel,
     required this.type,
     this.aggregation,
+    this.timeOnly = false,
   });
 
   /// Stable id, e.g. `client.name` or `invoice.amount`. Used as the dictionary
@@ -29,6 +30,12 @@ class ReportColumn {
   /// than the name can — see [ReportAggregation.oncePerRecord].
   final ReportAggregation? aggregation;
 
+  /// Whether a [ReportColumnType.dateTime] column shows only the time of day
+  /// — a time entry's start and end, beside a column that already says the
+  /// date. Rendering only: sorting, filtering and a file written on the
+  /// device still use the whole timestamp.
+  final bool timeOnly;
+
   /// How this column is totalled: [aggregation] when set, otherwise
   /// [defaultReportAggregation].
   ReportAggregation get effectiveAggregation =>
@@ -43,6 +50,7 @@ class ReportColumn {
     displayLabel: displayLabel ?? this.displayLabel,
     type: type ?? this.type,
     aggregation: aggregation ?? this.aggregation,
+    timeOnly: timeOnly,
   );
 
   @override
@@ -51,10 +59,12 @@ class ReportColumn {
       other.identifier == identifier &&
       other.displayLabel == displayLabel &&
       other.type == type &&
-      other.aggregation == aggregation;
+      other.aggregation == aggregation &&
+      other.timeOnly == timeOnly;
 
   @override
-  int get hashCode => Object.hash(identifier, displayLabel, type, aggregation);
+  int get hashCode =>
+      Object.hash(identifier, displayLabel, type, aggregation, timeOnly);
 }
 
 /// Sealed value carried by a single cell of a [ReportRow]. Carries:

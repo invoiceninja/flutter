@@ -55,6 +55,9 @@
     "reports.group_and_sort": {
       "budgetMs": 17
     },
+    "reports.task_items_build": {
+      "budgetMs": 4.6
+    },
     "rich_text.legacy_html_to_markdown": {
       "budgetMs": 7.3
     },

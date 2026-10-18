@@ -714,7 +714,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | Report — product | ✅ | ✅ | ✅ | ✅ | |
 | Report — product sales | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — product inventory valuation total (stock value) | — | — | ✅ | | |
-| Report — task | ✅ | ✅ | ✅ | ✅ | |
+| Report — task | ✅ | ✅ | ✅ | ✅ | One row per task — the server's default answer is a row per time entry, each with the task's whole duration, which v2 merges (and from 5.13.44 the server collapses itself once `task.time_log` is not asked for). Time per entry is Task Items. |
 | Report — tag filter (every tag-bearing report, and scheduled reports → `tag_ids`) | ✅ | — | ✅ | | |
 | Report — vendor | ✅ | ✅ | ✅ | ✅ | |
 | Report — purchase order | ✅ | ✅ | ✅ | ✅ | |
@@ -753,13 +753,14 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | Report — file-only reports read back on screen (P&L, aged receivables, client balance / sales, tax summary, user sales, product sales) | ❌ | — | ✅ | — | React downloads them; v1 has none of them. Projects (PDF) and tax period (XLSX) remain downloads in v2 |
 | Report — compare to the previous period (like-with-like for a period in progress) | ❌ | ❌ | ✅ | — | |
 | Report — saved report views | ❌ | ❌ | ✅ | — | |
+| Report — durations in hours (decimal or H:MM, per the weekly timesheet's hours-format switch) | ❌ | ❌ | ✅ | — | cells, totals, headlines and the files written on the device; was `1d 13h 30m` / h:mm:ss |
 | Report — open a report by name from the command palette | ❌ | ❌ | ✅ | — | |
 | Report — shows an existing email schedule of the report | ❌ | ❌ | ✅ | — | |
 | Report — credit item | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
-| Report — task item | ❌ | ✅ | ❌ | — | as above |
-| Report — invoice tax / payment tax / expense tax | ❌ | ✅ | ❌ | — | as above; the server's tax summary and tax period reports cover the ground |
-| Report — recurring expense | ❌ | ✅ | ❌ | — | as above |
-| Report — transaction | ❌ | ✅ | ❌ | — | as above |
+| Report — task item | ❌ | ✅ | ✅ | — | The server has no endpoint either: v2 builds it on the device from `/tasks?activity_dates`, a row per time entry kept or dropped by its own day ("Task Items"). Download this view / group totals only — no server file, email or schedule. |
+| Report — invoice tax / payment tax / expense tax | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server's tax summary and tax period reports cover the ground |
+| Report — recurring expense | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
+| Report — transaction | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
 
 ---
 

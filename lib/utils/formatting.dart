@@ -413,6 +413,29 @@ String formatDuration(
   return '${parts[0]}:${parts[1]}';
 }
 
+/// Hours text for [seconds] (empty for zero): decimal hours, locale-aware
+/// via [f], or `H:MM` when [hoursMinutes] — the device's hours-format
+/// preference (`HoursFormatController`). The weekly timesheet's cells are
+/// seeded with it and edited in place, so it keeps every decimal the
+/// formatter gives: rounded, a cell retyped as it reads would save a
+/// different time. The reports, which only read, round
+/// (`reportDurationText`).
+String weeklyHoursText(int seconds, Formatter? f, {bool hoursMinutes = false}) {
+  if (seconds <= 0) return '';
+  if (hoursMinutes) return hoursMinutesText(seconds);
+  final hours = seconds / 3600.0;
+  return f != null ? f.decimal(hours) : hours.toStringAsFixed(2);
+}
+
+/// `H:MM` for [seconds], rounded to the nearest minute — React's
+/// `formatHoursMinutes`. Hours are not wrapped at 24: a week's total reads
+/// `41:30`, never a day count.
+String hoursMinutesText(int seconds) {
+  final totalMinutes = (seconds / 60).round();
+  final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
+  return '${totalMinutes ~/ 60}:$minutes';
+}
+
 /// Parse a free-form user-typed duration string. Accepted forms:
 ///   * `1:30:00` / `1:30` — colon-separated `[H:]M[:S]` (`H:M`, `H:M:S`,
 ///     or `M:S`; ambiguity below).

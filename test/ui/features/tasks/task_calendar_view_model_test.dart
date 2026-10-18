@@ -55,6 +55,7 @@ class _FakeRepo implements TaskRepository {
     states = const {},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    bool excludeDeletedClients = true,
   }) async => false;
 
   @override

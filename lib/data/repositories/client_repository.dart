@@ -222,6 +222,17 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     return rows.map(_fromRow).toList();
   }
 
+  /// One-shot batch read by id — one query instead of N `watchByRealId`
+  /// subscriptions. Backs the names on a report built on the device. Ids the
+  /// cache doesn't hold are simply absent from the result.
+  Future<List<Client>> getByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final rows = await db.clientDao.getByIds(companyId: companyId, ids: ids);
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
   @override
   Stream<Client?> watchByRealId({
     required String companyId,

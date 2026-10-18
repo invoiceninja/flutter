@@ -17,9 +17,12 @@ import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
+import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/domain/reports/report_document.dart';
 import 'package:admin/domain/reports/report_engine.dart';
+import 'package:admin/domain/reports/report_group_label.dart';
+import 'package:admin/domain/reports/report_measures.dart';
 import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/domain/reports/report_row_currency.dart';
 import 'package:admin/domain/reports/report_row_records.dart';
@@ -38,6 +41,12 @@ bool _sameRequest(_RunRequest? a, _RunRequest b) =>
     a != null &&
     a.payload.forPreview == b.payload.forPreview &&
     a.withDateColumn == b.withDateColumn;
+
+/// What the view model needs to know about the company besides its currency:
+/// the Dart pattern of its date format (the task report writes dates in it),
+/// and the month its financial year starts in (what "this year" means to a
+/// report built on the device).
+typedef ReportCompanyFormat = ({String? datePattern, int firstMonthOfYear});
 
 enum ReportRunStatus { idle, loading, ready, error }
 
@@ -92,6 +101,9 @@ class ReportsViewModel extends ChangeNotifier {
     this.navStateDao,
     this.companyId,
     this.companyCurrencyId,
+    this.companyFormat,
+    this.localSourceFor,
+    this.tasksCrossRange,
     this.fetchRowIds = false,
     this.autoRun = false,
     this.canRun,
@@ -164,6 +176,12 @@ class ReportsViewModel extends ChangeNotifier {
   DateTime? _resultFetchedAt;
   DateTime? get resultFetchedAt => _resultFetchedAt;
 
+  /// Whether the result on screen was built on the device and has not yet
+  /// been refreshed from the server — what the device held, which may be
+  /// missing changes made elsewhere. Only a local report's result can be.
+  bool _resultFromDevice = false;
+  bool get resultFromDevice => _resultFromDevice;
+
   /// The range a report opens on the first time.
   static ReportPayload _openingPayload(String reportIdentifier) =>
       ReportPayload(
@@ -204,6 +222,32 @@ class ReportsViewModel extends ChangeNotifier {
   final Future<String?> Function()? companyCurrencyId;
   String? _companyCurrencyId;
   bool _companyCurrencyResolved;
+
+  /// Resolves [ReportCompanyFormat], awaited with [companyCurrencyId] before
+  /// the first run. Null (tests) leaves server dates in the company's format
+  /// unread and the financial year starting in January until the host says
+  /// otherwise.
+  final Future<ReportCompanyFormat> Function()? companyFormat;
+  String? _datePattern;
+
+  /// The source of a report built on the device
+  /// ([ReportDefinition.isLocal]), by identifier — asked for when such a
+  /// report runs, not before, so a host builds nothing for reports never
+  /// opened. Null, or a null answer, fails the run.
+  final LocalReportSource? Function(String identifier)? localSourceFor;
+
+  /// Whether, in the range [query] names, the device holds a task with time
+  /// both inside it and outside it — what the Tasks report gets wrong for the
+  /// reader who asked about time: it lists a task by its *first* entry, with
+  /// *all* of its time. Drives the hint that offers Task Items instead. Null
+  /// offers no hint.
+  final Future<bool> Function(ReportQuery query)? tasksCrossRange;
+
+  /// A column header for a report built on the device, from its
+  /// localization key. Set by the host (the view model has no
+  /// `BuildContext`); the key itself until then.
+  String Function(String key) localLabel = _key;
+  static String _key(String key) => key;
 
   /// Whether a run also asks the server for each row's own record id
   /// ([ReportDefinition.rowIdKey]) — what makes a row a link to its record
@@ -385,7 +429,19 @@ class ReportsViewModel extends ChangeNotifier {
     if (value == _firstMonthOfYear) return;
     _firstMonthOfYear = value;
     // The host sets this from `build`; a run notifies, so it waits.
-    if (_compare && _run.preview != null) {
+    if (definition.isLocal && hasResult && autoRun) {
+      // A report built on the device resolves "this year" itself, so the
+      // rows on screen are for the wrong year: build them again — when a run
+      // may be made, or as soon as it can be (offline, behind the gate).
+      scheduleMicrotask(() {
+        if (_disposed) return;
+        if (_mayRun) {
+          unawaited(runReport());
+        } else {
+          _autoRunOwed = true;
+        }
+      });
+    } else if (_compare && _run.preview != null) {
       scheduleMicrotask(() {
         if (!_disposed) unawaited(_runCompare());
       });
@@ -484,22 +540,31 @@ class ReportsViewModel extends ChangeNotifier {
       return;
     }
     final report = _reportIdentifier;
+    final earlier = base.payload.copyWith(
+      datePreset: ReportDatePreset.custom,
+      startDate: () => window.previousStart,
+      endDate: () => window.previousEnd,
+    );
+    bool cancelled() => _disposed || epoch != _compareEpoch;
     try {
-      final raw = await repo.runPreview(
-        reportIdentifier: report,
-        endpoint: definition.endpoint,
-        payload: base.payload.copyWith(
-          datePreset: ReportDatePreset.custom,
-          startDate: () => window.previousStart,
-          endDate: () => window.previousEnd,
-        ),
-        numberStyle: _numberStyle,
-        companyId: companyId,
-        // The same columns the result on screen was asked for, so the two
-        // can be cut the same way.
-        reportKeys: _previewReportKeys(withDateColumn: base.withDateColumn),
-        isCancelled: () => _disposed || epoch != _compareEpoch,
-      );
+      final raw = definition.isLocal
+          ? await _localSource().refresh(
+              _localQuery(earlier),
+              isCancelled: cancelled,
+            )
+          : await repo.runPreview(
+              reportIdentifier: report,
+              endpoint: definition.endpoint,
+              payload: earlier,
+              numberStyle: _numberStyle,
+              companyId: companyId,
+              // The same columns the result on screen was asked for, so the
+              // two can be cut the same way.
+              reportKeys: _previewReportKeys(
+                withDateColumn: base.withDateColumn,
+              ),
+              isCancelled: cancelled,
+            );
       if (_disposed || epoch != _compareEpoch || report != _reportIdentifier) {
         return;
       }
@@ -1186,6 +1251,10 @@ class ReportsViewModel extends ChangeNotifier {
     _hiddenSeries = const {};
     _run = ReportRunState.idle();
     _activePollingHash = null;
+    _resultFromDevice = false;
+    _taskItemsHint = false;
+    _hintEpoch++;
+    _hintCheckedFor = null;
     _invalidateMemo();
   }
 
@@ -1326,6 +1395,27 @@ class ReportsViewModel extends ChangeNotifier {
       _sortField = null;
       _sortIsRanking = false;
     }
+    // A filter, a further sort or a chart on a column the result no longer
+    // has does nothing — silently: the engine skips a column it cannot
+    // find, and a saved view of the Tasks report filtering on a column it
+    // now hides would go on reading as filtered.
+    if (_columnFilters.keys.any((id) => !ids.contains(id))) {
+      _columnFilters = Map.unmodifiable({
+        for (final e in _columnFilters.entries)
+          if (ids.contains(e.key)) e.key: e.value,
+      });
+    }
+    if (_thenBy.any((sort) => !ids.contains(sort.columnId))) {
+      _thenBy = List.unmodifiable(
+        _thenBy.where((sort) => ids.contains(sort.columnId)),
+      );
+    }
+    final chart = _chartColumn;
+    if (chart != null &&
+        chart != kReportCountSeriesId &&
+        !ids.contains(chart)) {
+      _chartColumn = null;
+    }
   }
 
   // ─── Mutations ───
@@ -1393,7 +1483,38 @@ class ReportsViewModel extends ChangeNotifier {
       _noteOpened(identifier);
       notifyListeners();
     }
+    // After the switch, which restores the report's own remembered range —
+    // applied before it, the restore would undo the carry-over.
+    final seed = _seed;
+    _seed = null;
+    if (seed != null && seed.report == identifier) {
+      _userTouched = true;
+      final from = seed.payload;
+      _payload = _payload.copyWith(
+        datePreset: from.datePreset,
+        startDate: () => from.startDate,
+        endDate: () => from.endDate,
+        status: () => from.status,
+        clientId: () => from.clientId,
+        tags: () => from.tags,
+        // The Tasks report has no project filter, so one Task Items
+        // remembered would narrow what "the same range" promised.
+        projects: () => null,
+        includeDeleted: from.includeDeleted,
+      );
+      notifyListeners();
+    }
     if (autoRun) await _showOrRun();
+  }
+
+  /// The range and filters the next [open] of [identifier] takes from
+  /// [from] — the Tasks report's "Show task items", which must land on the
+  /// same week the reader was looking at, not on Task Items' own last one.
+  /// The Tasks report's filters carry over whole; Task Items' one more, the
+  /// project, is cleared.
+  ({String report, ReportPayload payload})? _seed;
+  void seedNextOpen(String identifier, ReportPayload from) {
+    _seed = (report: identifier, payload: from);
   }
 
   void setPayload(ReportPayload payload) {
@@ -1710,7 +1831,7 @@ class ReportsViewModel extends ChangeNotifier {
     final columns = _run.preview?.columns ?? const <ReportColumn>[];
     final dates = columns.where((c) => isReportDateType(c.type)).toList();
     final key = switch (definition.dateRangeKey) {
-      'calculated_start_date' => 'start_date',
+      'calculated_start_date' || kTimeEntryDateKey => 'start_date',
       final k => k,
     };
     if (key == null) return dates;
@@ -1819,7 +1940,9 @@ class ReportsViewModel extends ChangeNotifier {
   /// by re-Running.
   void resetEverything() {
     _userTouched = true;
-    _payload = const ReportPayload();
+    // The range the report opens on, not "All time": on a report built on
+    // the device that is every task the company has, fetched page by page.
+    _payload = _openingPayload(_reportIdentifier);
     _visibleColumnIds = const {};
     _columnOrder = const [];
     _columnFilters = const {};
@@ -1884,6 +2007,19 @@ class ReportsViewModel extends ChangeNotifier {
       if (!_companyCurrencyResolved) {
         await _resolveCompanyCurrency();
         if (_disposed || epoch != _runEpoch) return;
+      }
+      if (definition.isLocal) {
+        final rows = await _localSource().refresh(
+          _localQuery(sent.payload),
+          isCancelled: _cancellationFor(epoch),
+        );
+        if (_disposed || epoch != _runEpoch || _supersededOnArrival(sent)) {
+          return;
+        }
+        _applySuccessfulPreview(rows, ranFor: sent);
+        notifyListeners();
+        if (_compare) unawaited(_runCompare());
+        return;
       }
       final reportKeys = _previewReportKeys(
         withDateColumn: sent.withDateColumn,
@@ -2058,6 +2194,7 @@ class ReportsViewModel extends ChangeNotifier {
     required _RunRequest ranFor,
     bool plainRun = false,
     DateTime? fetchedAt,
+    bool fromDevice = false,
   }) {
     // Inject the synthetic Product-report `stock_value` column, and relabel
     // the optional date column, before either seeds the visible set below.
@@ -2081,7 +2218,10 @@ class ReportsViewModel extends ChangeNotifier {
       preview.columns.map((c) => c.identifier),
     );
     if (plainRun) _serverColumnsLearnedAt = _now().millisecondsSinceEpoch;
-    _resultFetchedAt = fetchedAt ?? _now();
+    // Rows the device built are not "fetched" at all: stamped now, they read
+    // as fresh, and the refresh that should follow them was never made.
+    _resultFetchedAt = fromDevice ? null : (fetchedAt ?? _now());
+    _resultFromDevice = fromDevice;
     if (_visibleColumnIds.isEmpty) {
       // First run of this report: show its curated columns, in their
       // curated order (see `ReportDefinition.defaultColumnIds`) — or, where
@@ -2111,6 +2251,157 @@ class ReportsViewModel extends ChangeNotifier {
     // now that there is a figure to rank by.
     _syncRanking();
     _invalidateMemo();
+    _checkTaskItemsHint(ranFor.payload);
+  }
+
+  // ─── Built on the device ───
+
+  /// The source of the current report, which must be a local one; a run
+  /// with none wired fails rather than asking the server for an endpoint
+  /// the report does not have.
+  LocalReportSource _localSource() {
+    final source = localSourceFor?.call(_reportIdentifier);
+    if (source == null) {
+      throw const ReportError(kind: ReportErrorKind.unknown);
+    }
+    return source;
+  }
+
+  /// What a report built on the device is asked for by [payload] — the
+  /// request's own payload, never the one on screen: a comparison asks for
+  /// the period before, and a run superseded on its way answers the range
+  /// it was sent with.
+  ReportQuery _localQuery(ReportPayload payload) {
+    final now = _now();
+    final open =
+        payload.datePreset == ReportDatePreset.allTime ||
+        (payload.datePreset == ReportDatePreset.custom &&
+            (payload.startDate == null || payload.endDate == null));
+    final window = open
+        ? null
+        : DashboardFilter(
+            range: reportRangeAsPickerValue(payload),
+            firstMonthOfYear: _firstMonthOfYear,
+          ).resolveDates(today: Date(now.year, now.month, now.day));
+    Set<String> ids(String? raw) => {
+      for (final id in (raw ?? '').split(','))
+        if (id.trim().isNotEmpty) id.trim(),
+    };
+    return ReportQuery(
+      companyId: companyId ?? '',
+      now: now,
+      label: localLabel,
+      start: window?.$1,
+      end: window?.$2,
+      status: payload.status ?? '',
+      clientIds: ids(payload.clientId),
+      projectIds: ids(payload.projects),
+      tagIds: ids(payload.tags),
+      includeDeleted: payload.includeDeleted,
+    );
+  }
+
+  /// The current local report's rows from what the device holds, or null
+  /// when there is no source, the plan does not allow the report, or the
+  /// read failed — any of which leaves the run to answer.
+  Future<ReportPreview?> _fromDevice(ReportPayload payload) async {
+    if (!(canRun?.call() ?? true)) return null;
+    final source = localSourceFor?.call(_reportIdentifier);
+    if (source == null) return null;
+    try {
+      return await source.fromDevice(_localQuery(payload));
+    } catch (e, st) {
+      _log.warning('Could not build the report from the device', e, st);
+      return null;
+    }
+  }
+
+  /// Build a local report's rows again from what the device holds — no
+  /// server call. The screen asks when it comes back into view: a row opens
+  /// its task, and an entry edited there must not come back as it was.
+  Future<void> rereadFromDevice() async {
+    if (_disposed || !definition.isLocal || _run.isLoading) return;
+    final shown = _lastRunPayload;
+    if (shown == null || _run.preview == null) return;
+    final report = _reportIdentifier;
+    final epoch = _runEpoch;
+    final local = await _fromDevice(shown);
+    // Another result landed while the device was read — a range changed
+    // offline is applied from the device without a run, so the epoch alone
+    // does not say so.
+    if (local == null ||
+        _disposed ||
+        report != _reportIdentifier ||
+        epoch != _runEpoch ||
+        _run.isLoading ||
+        !identical(_lastRunPayload, shown)) {
+      return;
+    }
+    // The rows are read again; what the last refresh said about them is
+    // still true, so a failed one keeps its notice.
+    final error = _run.error;
+    _applySuccessfulPreview(
+      local,
+      ranFor: (payload: shown, withDateColumn: _lastRunIncludeDateColumn),
+      fetchedAt: _resultFetchedAt,
+      fromDevice: _resultFromDevice,
+    );
+    if (error != null) {
+      _run = ReportRunState.error(error, lastGood: _run.preview);
+    }
+    notifyListeners();
+  }
+
+  // ─── Offering Task Items above the Tasks report ───
+
+  bool _taskItemsHint = false;
+  int _hintEpoch = 0;
+
+  /// The request the hint was last worked out for. Every result for it —
+  /// the plain run, the row ids that follow, one read from disk — gives the
+  /// same answer, and each answer reads every task the device holds.
+  ReportPayload? _hintCheckedFor;
+
+  /// Whether to offer Task Items above the Tasks report: the range is not
+  /// "All time" and the device holds a task with time both in it and out of
+  /// it — the one case where the two reports disagree, and the one the
+  /// reader who asked "what did I work last week" falls into.
+  bool get showsTaskItemsHint =>
+      _taskItemsHint && _reportIdentifier == 'task' && !isParamDirty;
+
+  void _checkTaskItemsHint(ReportPayload payload) {
+    final check = tasksCrossRange;
+    if (check == null || _reportIdentifier != 'task') {
+      _hintEpoch++;
+      _hintCheckedFor = null;
+      _taskItemsHint = false;
+      return;
+    }
+    if (payload.forPreview == _hintCheckedFor?.forPreview) return;
+    final epoch = ++_hintEpoch;
+    _hintCheckedFor = payload;
+    // Off until this range's answer is in: the last range's would show the
+    // line for a moment over rows it says nothing about.
+    _taskItemsHint = false;
+    final query = _localQuery(payload);
+    if (query.isAllTime) {
+      _taskItemsHint = false;
+      return;
+    }
+    unawaited(() async {
+      bool crosses;
+      try {
+        crosses = await check(query);
+      } catch (e, st) {
+        _log.fine('Could not check the Tasks hint', e, st);
+        crosses = false;
+      }
+      if (_disposed || epoch != _hintEpoch || crosses == _taskItemsHint) {
+        return;
+      }
+      _taskItemsHint = crosses;
+      notifyListeners();
+    }());
   }
 
   // ─── Running itself ───
@@ -2169,7 +2460,26 @@ class ReportsViewModel extends ChangeNotifier {
     final cid = companyId;
     // Nothing on screen for this request yet: look for what it returned last
     // time. (A result already on screen for it is at least as new.)
-    if (cid != null && (isParamDirty || _run.preview == null)) {
+    if (cid != null &&
+        definition.isLocal &&
+        (isParamDirty || _run.preview == null)) {
+      // Built on the device: what the device holds is shown at once — offline
+      // too — and the refresh below asks the server for anything missing.
+      if (!_companyCurrencyResolved) await _resolveCompanyCurrency();
+      final local = await _fromDevice(request.payload);
+      if (_disposed ||
+          report != _reportIdentifier ||
+          !_sameRequest(request, _request)) {
+        return;
+      }
+      if (_runningThisRequest()) return;
+      // Nothing held is no answer while the server can still be asked: shown,
+      // it flashes "No time was logged" until the fetch lands.
+      if (local != null && (local.rows.isNotEmpty || !_mayRun)) {
+        _applySuccessfulPreview(local, ranFor: request, fromDevice: true);
+        notifyListeners();
+      }
+    } else if (cid != null && (isParamDirty || _run.preview == null)) {
       if (!_companyCurrencyResolved) await _resolveCompanyCurrency();
       final hit = await repo.cachedPreview(
         companyId: cid,
@@ -2512,9 +2822,19 @@ class ReportsViewModel extends ChangeNotifier {
     // would vanish again — a bug invisible until the second Run. Stripping
     // also drops the date column once the user has switched it back off.
     final drop = {_kStockValueId, ?dateColumn, ?idColumn};
+    // A report of one row per record still asks for the columns it hides —
+    // they are what makes the server write a row per entry (`task.time_log`,
+    // since 5.13.44), and a task row the server merged itself comes back
+    // with its start and end times blank (`TaskDecorator` has neither). So
+    // the device always merges, on every server version.
+    final hidden = definition.collapsesToRecord
+        ? definition.hiddenColumnIds
+        : const <String>{};
     return [
       for (final id in known)
         if (!drop.contains(id)) id,
+      for (final id in hidden)
+        if (!known.contains(id)) id,
       ...extras,
     ];
   }
@@ -2650,22 +2970,23 @@ class ReportsViewModel extends ChangeNotifier {
   /// preview-only — [_serverReportKeys] strips it from export/email, so it never
   /// reaches the server (and so isn't in CSV/PDF output).
   ReportPreview _augmentPreview(ReportPreview preview) {
-    // The id comes out first — it is a column the user never sees, and
-    // everything after it works on the columns that are left. Then currency:
-    // the synthetic stock value below is an amount of the row, and is
-    // totalled under the row's currency like every other.
+    // Dates in the company's own format are read first, while every cell is
+    // still the server's. Then the id comes out — it is a column the user
+    // never sees, and everything after it works on the columns that are
+    // left — and with ids on the rows, a report of one row per record merges
+    // the server's rows into them, then drops the columns that belonged to
+    // the rows it merged. Then currency: the synthetic stock value below is
+    // an amount of the row, and is totalled under the row's currency like
+    // every other.
+    var out = withCompanyDates(
+      withTextColumns(preview, definition.textColumnIds),
+      _datePattern,
+    );
+    out = withRowRecords(out, definition);
+    if (definition.collapsesToRecord) out = collapsedToRecords(out);
+    out = withoutColumns(out, definition.hiddenColumnIds);
     return _relabelOptionalDateColumn(
-      _augmentStockValue(
-        _assignRowCurrencies(
-          withRowGrain(
-            withRowRecords(
-              withTextColumns(preview, definition.textColumnIds),
-              definition,
-            ),
-            definition,
-          ),
-        ),
-      ),
+      _augmentStockValue(_assignRowCurrencies(withRowGrain(out, definition))),
     );
   }
 
@@ -2676,6 +2997,12 @@ class ReportsViewModel extends ChangeNotifier {
     if (_companyCurrencyResolved || load == null) return;
     try {
       _companyCurrencyId = await load();
+      final format = await companyFormat?.call();
+      if (format != null) {
+        _datePattern = format.datePattern;
+        // Not through the setter: nothing is on screen yet to re-read.
+        _firstMonthOfYear = format.firstMonthOfYear;
+      }
       _companyCurrencyResolved = true;
     } catch (e, st) {
       // Not fatal, and not remembered: the run goes ahead on the

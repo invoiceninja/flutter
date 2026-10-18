@@ -190,9 +190,9 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
-  /// How the Tasks weekly view shows hours (`decimal` / `hh_mm`, React's
-  /// `preferences.duration_format`, ui#3422). The user's habit, so it follows
-  /// the account, as React's per-user setting does.
+  /// How the Tasks weekly view and the reports show hours (`decimal` /
+  /// `hh_mm`, React's `preferences.duration_format`, ui#3422). The user's
+  /// habit, so it follows the account, as React's per-user setting does.
   static const hoursFormat = PrefKey<String>(
     'hours_format',
     PrefCodec.string,

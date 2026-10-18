@@ -1563,5 +1563,12 @@
   "untrusted_certificate_hosted": "Couldn't make a secure connection to :host",
   "untrusted_certificate_hosted_detail": "The network you're on may be intercepting secure connections (common on hotel, office or school Wi-Fi), or this device's date and time may be wrong.",
   "web_certificate_hint": "If this server uses a self-signed certificate, open it in a new browser tab, accept the certificate, then try again.",
-  "open_server": "Open server"
+  "open_server": "Open server",
+  "task_items": "Task Items",
+  "report_built_on_device": "This report is built on your device, so it can't be emailed or scheduled.",
+  "report_device_rows": "Showing time entries saved on this device. Changes made elsewhere may be missing.",
+  "report_from_device": "From this device",
+  "report_no_time_entries": "No time was logged in this range.",
+  "report_tasks_first_entry_hint": "Tasks are listed by their first time entry, with all of their time — so the hours here can differ from the time logged in this range.",
+  "report_show_task_items": "Show task items in this range"
 }

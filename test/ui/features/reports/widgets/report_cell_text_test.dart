@@ -52,23 +52,28 @@ Future<String> _text(
   String columnId, {
   Formatter? formatter,
   String? rowCurrencyId,
+  ReportColumn? column,
+  bool hoursMinutes = false,
 }) async {
   late String out;
   await tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: kTestLocalizationsDelegates,
       supportedLocales: kTestSupportedLocales,
-      home: Builder(
-        builder: (context) {
-          out = reportCellText(
-            context,
-            cell,
-            _col(columnId),
-            formatter,
-            rowCurrencyId: rowCurrencyId,
-          );
-          return const SizedBox.shrink();
-        },
+      home: ReportHoursFormat(
+        hoursMinutes: hoursMinutes,
+        child: Builder(
+          builder: (context) {
+            out = reportCellText(
+              context,
+              cell,
+              column ?? _col(columnId),
+              formatter,
+              rowCurrencyId: rowCurrencyId,
+            );
+            return const SizedBox.shrink();
+          },
+        ),
       ),
     ),
   );
@@ -175,9 +180,44 @@ void main() {
     expect(await _text(tester, no, 'invoice.is_amount_discount'), 'No');
   });
 
-  testWidgets('a duration reads as time, not seconds', (tester) async {
-    const cell = ReportDurationCell(seconds: 822, displayValue: '822');
-    expect(await _text(tester, cell, 'task.duration'), '0:13:42');
+  testWidgets('a duration reads in hours, as the hours format says', (
+    tester,
+  ) async {
+    // The weekly timesheet's rule: decimal hours by default, `H:MM` when the
+    // device says so — never seconds, never a day count.
+    const cell = ReportDurationCell(seconds: 5400, displayValue: '5400');
+    expect(await _text(tester, cell, 'task.duration', formatter: f), '1.5');
+    expect(
+      await _text(tester, cell, 'task.duration', hoursMinutes: true),
+      '1:30',
+    );
+    const zero = ReportDurationCell(seconds: 0, displayValue: '0');
+    expect(await _text(tester, zero, 'task.duration', formatter: f), '0');
+  });
+
+  testWidgets('a time-only column shows the time of day alone', (tester) async {
+    final cell = ReportDateTimeCell(
+      value: DateTime.utc(2026, 10, 8, 9, 30),
+      displayValue: '09:30',
+    );
+    const column = ReportColumn(
+      identifier: 'task.start_time',
+      displayLabel: 'Start Time',
+      type: ReportColumnType.dateTime,
+      timeOnly: true,
+    );
+    final text = await _text(
+      tester,
+      cell,
+      'task.start_time',
+      formatter: f,
+      column: column,
+    );
+    final local = DateTime.utc(2026, 10, 8, 9, 30).toLocal();
+    expect(text, contains('${local.minute}'.padLeft(2, '0')));
+    // No date, and no seconds.
+    expect(text, isNot(contains('2026')));
+    expect(RegExp(r'\d+:\d+:\d+').hasMatch(text), isFalse);
   });
 
   testWidgets('text is the server string', (tester) async {
@@ -185,14 +225,31 @@ void main() {
     expect(await _text(tester, cell, 'invoice.status'), 'Paid');
   });
 
-  test('a total of durations is time; a total of quantities is a number', () {
+  test('a report rounds hours to two places; the timesheet does not', () {
+    // The timesheet's cells are seeded with this text and edited in place:
+    // rounded, "0.33" retyped as it reads would save 1188 s, not 1200.
+    expect(reportDurationText(1200, f), '0.33');
+    expect(weeklyHoursText(1200, f), '0.33333');
+  });
+
+  test('a total of durations is hours; a total of quantities a number', () {
+    // A week's 37.5 hours used to read "1d 13h 30m".
     expect(
       reportValueText(
-        Decimal.fromInt(3723),
+        Decimal.fromInt(135000),
         column: _col('task.duration'),
         formatter: f,
       ),
-      '1:02:03',
+      '37.5',
+    );
+    expect(
+      reportValueText(
+        Decimal.fromInt(135000),
+        column: _col('task.duration'),
+        formatter: f,
+        hoursMinutes: true,
+      ),
+      '37:30',
     );
     expect(
       reportValueText(

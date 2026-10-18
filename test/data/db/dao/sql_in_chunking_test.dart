@@ -67,5 +67,17 @@ void main() {
     );
     final row = await repo.watch(companyId: 'co', id: 'p_0').first;
     expect(row!.productKey, 'SKU2-0');
+
+    // The batch read by id, which a report built on the device resolves its
+    // names through, over the same 40 000 — scoped to its company.
+    final all = await db.productDao.getByIds(
+      companyId: 'co',
+      ids: [for (var i = 0; i < 40000; i++) 'p_$i', 'missing'],
+    );
+    expect(all, hasLength(40000));
+    expect(
+      await db.productDao.getByIds(companyId: 'other', ids: const ['p_1']),
+      isEmpty,
+    );
   });
 }

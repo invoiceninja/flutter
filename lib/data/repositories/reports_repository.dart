@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/repositories/report_cache_store.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/reports_api.dart';
 
 final _log = Logger('ReportsRepository');
@@ -281,51 +282,68 @@ class ReportsRepository {
     }
   }
 
-  /// Translate ApiException / polling errors to the [ReportError] taxonomy.
-  ///
-  /// Plan-gated endpoint detection:
-  /// 1. **Primary** — `PlanRequiredException` from the API client. Raised
-  ///    when the server emits HTTP 402 or a 401/403 with
-  ///    `error_type: "plan_required"`. Authoritative; locale-independent.
-  /// 2. **Fallback** — legacy English message sniff on 401/403 responses
-  ///    that don't carry the structured signal. Kept until every
-  ///    reachable Invoice Ninja server build emits the typed signal;
-  ///    drop the sniff arms in a follow-up once that's verified.
-  ///
-  /// Real unauthorized landing here would be a stale permission cache —
-  /// the sidebar is already gated on `can('view_reports')`.
-  ReportError _mapError(Object e, StackTrace st) {
-    if (e is ReportPollingCancelled) {
-      return const ReportError(kind: ReportErrorKind.cancelled);
-    }
-    if (e is ReportPollingTimeout) {
-      return ReportError(kind: ReportErrorKind.timeout, pollingHash: e.hash);
-    }
-    if (e is ReportEmailedInstead) {
-      return const ReportError(kind: ReportErrorKind.emailedInstead);
-    }
-    if (e is ValidationException) {
-      return ReportError(
-        kind: ReportErrorKind.validation,
-        fieldErrors: e.fieldErrors,
-        message: e.message,
-      );
-    }
-    if (e is PasswordRequiredException) {
-      return ReportError(
-        kind: ReportErrorKind.passwordRequired,
-        message: e.message,
-      );
-    }
-    if (e is PlanRequiredException) {
+  ReportError _mapError(Object e, StackTrace st) => reportErrorFrom(e, st);
+}
+
+/// Translate ApiException / polling errors to the [ReportError] taxonomy —
+/// for the server's report routes, and for a report built on the device
+/// (`LocalReportSource`), whose refresh pages entity routes.
+///
+/// Plan-gated endpoint detection:
+/// 1. **Primary** — `PlanRequiredException` from the API client. Raised
+///    when the server emits HTTP 402 or a 401/403 with
+///    `error_type: "plan_required"`. Authoritative; locale-independent.
+/// 2. **Fallback** — legacy English message sniff on 401/403 responses
+///    that don't carry the structured signal. Kept until every
+///    reachable Invoice Ninja server build emits the typed signal;
+///    drop the sniff arms in a follow-up once that's verified.
+///
+/// Real unauthorized landing here would be a stale permission cache —
+/// the sidebar is already gated on `can('view_reports')`.
+ReportError reportErrorFrom(Object e, StackTrace st) {
+  // A company switched mid-run is the run being abandoned, not a failure.
+  if (e is ReportPollingCancelled || e is CompanySwitchedException) {
+    return const ReportError(kind: ReportErrorKind.cancelled);
+  }
+  if (e is ReportPollingTimeout) {
+    return ReportError(kind: ReportErrorKind.timeout, pollingHash: e.hash);
+  }
+  if (e is ReportEmailedInstead) {
+    return const ReportError(kind: ReportErrorKind.emailedInstead);
+  }
+  if (e is ValidationException) {
+    return ReportError(
+      kind: ReportErrorKind.validation,
+      fieldErrors: e.fieldErrors,
+      message: e.message,
+    );
+  }
+  if (e is PasswordRequiredException) {
+    return ReportError(
+      kind: ReportErrorKind.passwordRequired,
+      message: e.message,
+    );
+  }
+  if (e is PlanRequiredException) {
+    return ReportError(kind: ReportErrorKind.planRequired, message: e.message);
+  }
+  if (e is UnauthorizedException) {
+    // Fallback path — see the doc comment above. Drop this arm once
+    // the server emits `PlanRequiredException` on every build.
+    if (_messageSuggestsPlanUpgrade(e.message)) {
       return ReportError(
         kind: ReportErrorKind.planRequired,
         message: e.message,
       );
     }
-    if (e is UnauthorizedException) {
-      // Fallback path — see the doc comment above. Drop this arm once
-      // the server emits `PlanRequiredException` on every build.
+    return ReportError(kind: ReportErrorKind.unauthorized, message: e.message);
+  }
+  if (e is ServerException) {
+    // Fallback path — see the doc comment above. 403 with an upgrade
+    // message lands here when the server hasn't been updated to emit
+    // the typed `PlanRequiredException`. Only true 401s are typed as
+    // `UnauthorizedException` by the client.
+    if (e.statusCode == 403) {
       if (_messageSuggestsPlanUpgrade(e.message)) {
         return ReportError(
           kind: ReportErrorKind.planRequired,
@@ -337,46 +355,28 @@ class ReportsRepository {
         message: e.message,
       );
     }
-    if (e is ServerException) {
-      // Fallback path — see the doc comment above. 403 with an upgrade
-      // message lands here when the server hasn't been updated to emit
-      // the typed `PlanRequiredException`. Only true 401s are typed as
-      // `UnauthorizedException` by the client.
-      if (e.statusCode == 403) {
-        if (_messageSuggestsPlanUpgrade(e.message)) {
-          return ReportError(
-            kind: ReportErrorKind.planRequired,
-            message: e.message,
-          );
-        }
-        return ReportError(
-          kind: ReportErrorKind.unauthorized,
-          message: e.message,
-        );
-      }
-      return ReportError(kind: ReportErrorKind.serverError, message: e.message);
-    }
-    if (e is NetworkException) {
-      return ReportError(kind: ReportErrorKind.network, message: e.message);
-    }
-    if (e is RateLimitedException) {
-      return ReportError(
-        kind: ReportErrorKind.rateLimited,
-        message: e.message,
-        retryAfter: e.retryAfter,
-      );
-    }
-    _log.warning('Unmapped report error', e, st);
-    return ReportError(kind: ReportErrorKind.unknown, message: '$e');
+    return ReportError(kind: ReportErrorKind.serverError, message: e.message);
   }
+  if (e is NetworkException) {
+    return ReportError(kind: ReportErrorKind.network, message: e.message);
+  }
+  if (e is RateLimitedException) {
+    return ReportError(
+      kind: ReportErrorKind.rateLimited,
+      message: e.message,
+      retryAfter: e.retryAfter,
+    );
+  }
+  _log.warning('Unmapped report error', e, st);
+  return ReportError(kind: ReportErrorKind.unknown, message: '$e');
+}
 
-  /// Legacy heuristic for plan-gating: look for "plan" or "upgrade" in the
-  /// server's English message. Used only when the authoritative typed
-  /// signal ([PlanRequiredException]) wasn't raised — i.e. when talking
-  /// to an older server build. Locale-fragile by definition; the primary
-  /// path is the typed exception.
-  bool _messageSuggestsPlanUpgrade(String message) {
-    final msg = message.toLowerCase();
-    return msg.contains('plan') || msg.contains('upgrade');
-  }
+/// Legacy heuristic for plan-gating: look for "plan" or "upgrade" in the
+/// server's English message. Used only when the authoritative typed
+/// signal ([PlanRequiredException]) wasn't raised — i.e. when talking
+/// to an older server build. Locale-fragile by definition; the primary
+/// path is the typed exception.
+bool _messageSuggestsPlanUpgrade(String message) {
+  final msg = message.toLowerCase();
+  return msg.contains('plan') || msg.contains('upgrade');
 }

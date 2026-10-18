@@ -51,6 +51,7 @@ Four files, by layer. Every id is `<area>.<what>`; the title is what a person re
 | | `sync.outbox_drain` | Back online with 25 offline edits: the real sync engine sends them to a server that answers each, and applies the replies. Each batch is checked landed — no edit dead, no invoice left dirty — before the next |
 | Compute | `billing.invoice_totals` | `computeTotals` for one 50-line invoice |
 | | `reports.group_and_sort` | `ReportEngine.compute` over 5,000 rows |
+| | `reports.task_items_build` | Task Items built on the device: "this month" from 600 tasks of 15 time entries (`buildTaskItemsPreview`) |
 | | `rich_text.legacy_html_to_markdown`, `rich_text.notes_plain_text` | 40 KB of legacy notes HTML, both directions |
 | | `startup.snapshot_load` | `jsonDecode` + `fromFullSnapshot` of a 3.4 MB cold-start `/refresh`. Nearly all SDK `jsonDecode`, which the calibration scales away — what it guards is that the full snapshot keeps dropping its 4,200 browsable rows before typing |
 | | `sync.refresh_delta_parse`, `sync.invoice_page_parse` | Typing a delta `/refresh` (50 rows × 14 entities), and one list page |

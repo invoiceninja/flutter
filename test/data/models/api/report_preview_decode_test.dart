@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/api/report_preview_api_model.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/money.dart';
 
 Decimal d(String v) => Decimal.parse(v);
@@ -190,6 +191,30 @@ void main() {
         ],
       });
       expect(p.rows.single.cells.single.entityId, isNull);
+    });
+  });
+
+  group('dates', () {
+    Date? date(String raw) =>
+        (_decode({'task.start_date': raw}).rows.single.cells.single
+                as ReportDateCell)
+            .value;
+
+    test('an ISO date is read', () {
+      expect(date('2026-10-18'), Date(2026, 10, 18));
+      expect(date('2026-10-18 09:30:00'), Date(2026, 10, 18));
+    });
+
+    test('a date in a company format is left for the view model', () {
+      // `d-m-Y`: `Date.tryParse` splits on `-` and read it as the 2026th of
+      // October in the year 18.
+      expect(date('18-10-2026'), isNull);
+      expect(date('18/Oct/2026'), isNull);
+      // ...with its text kept, which the view model re-reads.
+      final cell = _decode({
+        'task.start_date': '18-10-2026',
+      }).rows.single.cells.single;
+      expect(cell.displayValue, '18-10-2026');
     });
   });
 }

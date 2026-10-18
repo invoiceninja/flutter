@@ -183,6 +183,17 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
+  /// One-shot batch read by id — one query instead of N `watchByRealId`
+  /// subscriptions. Backs the names on a report built on the device. Ids the
+  /// cache doesn't hold are simply absent from the result.
+  Future<List<Project>> getByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final rows = await db.projectDao.getByIds(companyId: companyId, ids: ids);
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
   @override
   Stream<Project?> watchByRealId({
     required String companyId,

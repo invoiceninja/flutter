@@ -110,6 +110,16 @@ void main() {
         'tagsMulti',
         'includeDeleted',
       ],
+      // Built on the device: the task report's filters, applied there — and
+      // the project filter TaskExport lacks, which the device can apply.
+      'task_item': [
+        'dateRange',
+        'status',
+        'clientIdsMulti',
+        'projectsMulti',
+        'tagsMulti',
+        'includeDeleted',
+      ],
       'vendor': ['dateRange', 'tagsMulti', 'includeDeleted'],
       // ProjectReport never calls addDateRange.
       'project': ['clientsMulti', 'projectsMulti', 'tagsMulti'],
@@ -186,5 +196,17 @@ void main() {
       'overdue',
       'cancelled',
     ]);
+  });
+
+  test('every report with a Tags filter knows whose tags its rows carry', () {
+    // Without an entry the picker falls back to invoice tags.
+    for (final d in kReportDefinitions) {
+      if (!d.filterFields.contains(ReportFilterField.tagsMulti)) continue;
+      expect(
+        kReportTagEntityTypes.containsKey(d.identifier),
+        isTrue,
+        reason: d.identifier,
+      );
+    }
   });
 }

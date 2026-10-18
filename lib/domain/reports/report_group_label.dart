@@ -168,6 +168,11 @@ String _skeleton(
   }
 }
 
+/// The [ReportDefinition.dateRangeKey] of a report whose range is applied on
+/// the device to each time entry's own day (Task Items). Not a server column:
+/// a local report sends nothing to the server's date filter.
+const String kTimeEntryDateKey = 'time_entry_date';
+
 /// Localization key naming a report's [ReportDefinition.dateRangeKey] — the
 /// column its date range actually filters on.
 ///
@@ -183,6 +188,8 @@ String? reportDateKeyLabelKey(String? dateRangeKey) {
       return 'date';
     case 'calculated_start_date':
       return 'start_date'; // tasks: `calculated_start_date`
+    case kTimeEntryDateKey:
+      return 'date'; // task items: each entry's own day
     default:
       return null;
   }

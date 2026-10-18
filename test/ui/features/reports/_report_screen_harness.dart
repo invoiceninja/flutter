@@ -36,6 +36,7 @@ import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
@@ -469,6 +470,8 @@ Future<ReportScreenHarness> pumpReports(
   DateTime Function()? now,
   void Function(FixtureReportsRepo repo)? configure,
   void Function(FakeReportServices services)? services,
+  LocalReportSource? Function(String identifier)? localSourceFor,
+  Future<bool> Function(ReportQuery query)? tasksCrossRange,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -494,6 +497,8 @@ Future<ReportScreenHarness> pumpReports(
     companyCurrencyId: () async => '1',
     now: now,
     autoRunDebounce: Duration.zero,
+    localSourceFor: localSourceFor,
+    tasksCrossRange: tasksCrossRange,
   );
   addTearDown(vm.dispose);
   final formatter = reportTestFormatter();

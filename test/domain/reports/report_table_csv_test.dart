@@ -234,9 +234,67 @@ void main() {
         exchangeRates: const {},
         companyCurrencyId: '1',
       );
+      // Hours, as the device's hours-format preference reads them: decimal
+      // (to four places — two would lose the minutes) or h:mm:ss.
       expect(
         buildReportCsv(view: view, groupLabel: label),
+        'Duration,Flag\r\n26.0511,TRUE\r\n',
+      );
+      expect(
+        buildReportCsv(view: view, groupLabel: label, hoursMinutes: true),
         'Duration,Flag\r\n26:03:04,TRUE\r\n',
+      );
+    });
+
+    test('summary: a duration total is hours, never raw seconds', () {
+      const cols = [
+        ReportColumn(
+          identifier: 'task.assigned_user_id',
+          displayLabel: 'User',
+          type: ReportColumnType.string,
+        ),
+        ReportColumn(
+          identifier: 'task.duration',
+          displayLabel: 'Duration',
+          type: ReportColumnType.duration,
+        ),
+      ];
+      final view = const ReportEngine().compute(
+        preview: const ReportPreview(
+          columns: cols,
+          rows: [
+            ReportRow(
+              cells: [
+                ReportStringCell(value: 'Ann', displayValue: 'Ann'),
+                ReportDurationCell(seconds: 5400),
+              ],
+            ),
+            ReportRow(
+              cells: [
+                ReportStringCell(value: 'Ann', displayValue: 'Ann'),
+                ReportDurationCell(seconds: 3600),
+              ],
+            ),
+          ],
+        ),
+        ui: const ReportUiState(group: 'task.assigned_user_id'),
+        exchangeRates: const {},
+        companyCurrencyId: '1',
+      );
+      // 135000 under "Duration" was the bug: the group total was written as
+      // the seconds the engine sums.
+      expect(
+        buildReportCsv(view: view, groupLabel: label, summary: true),
+        contains('Ann,2,2.5\r\n'),
+      );
+      expect(
+        buildReportCsv(
+          view: view,
+          groupLabel: label,
+          summary: true,
+          hoursMinutes: true,
+        ),
+        contains('Ann,2,2:30:00\r\n'),
       );
     });
 

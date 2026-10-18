@@ -529,18 +529,4 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
       ]);
     return q.watch().distinctRows();
   }
-
-  /// One-shot batch read by id. Used by the reorder path so a single
-  /// query replaces N `watchById(...).first` subscriptions inside a
-  /// transaction. Empty input returns an empty list.
-  Future<List<TaskRow>> getByIds({
-    required String companyId,
-    required Iterable<String> ids,
-  }) {
-    final list = ids.toList(growable: false);
-    if (list.isEmpty) return Future.value(const <TaskRow>[]);
-    final q = select(tasks)
-      ..where((t) => t.companyId.equals(companyId) & t.id.isIn(list));
-    return q.get();
-  }
 }

@@ -370,6 +370,7 @@ class _SummaryLine extends StatelessWidget {
         column: column,
         formatter: formatter,
         currencyId: figure.currencyId,
+        hoursMinutes: ReportHoursFormat.of(context),
       );
     }
     final weight = strong ? FontWeight.w600 : FontWeight.w500;
@@ -462,6 +463,7 @@ class _TotalCell extends StatelessWidget {
       column: column,
       formatter: formatter,
       currencyId: figure.currencyId,
+      hoursMinutes: ReportHoursFormat.of(context),
     );
     final weight = strong ? FontWeight.w600 : FontWeight.w500;
     final color = figure.foreign ? tokens.ink2 : tokens.ink;

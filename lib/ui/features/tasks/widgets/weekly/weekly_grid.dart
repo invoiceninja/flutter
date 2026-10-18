@@ -25,24 +25,6 @@ const double _kTotalCol = 84;
 const double _kRowMinHeight = 56;
 const _tabular = [FontFeature.tabularFigures()];
 
-/// Hours text for [seconds] (empty for zero): decimal hours, locale-aware via
-/// [f], or `H:MM` when [hoursMinutes].
-String weeklyHoursText(int seconds, Formatter? f, {bool hoursMinutes = false}) {
-  if (seconds <= 0) return '';
-  if (hoursMinutes) return hoursMinutesText(seconds);
-  final hours = seconds / 3600.0;
-  return f != null ? f.decimal(hours) : hours.toStringAsFixed(2);
-}
-
-/// `H:MM` for [seconds], rounded to the nearest minute — React's
-/// `formatHoursMinutes`. Hours are not wrapped at 24: a week's total reads
-/// `41:30`, never a day count.
-String hoursMinutesText(int seconds) {
-  final totalMinutes = (seconds / 60).round();
-  final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
-  return '${totalMinutes ~/ 60}:$minutes';
-}
-
 /// The weekly timesheet grid: a 9-column table (task + 7 days + total) that
 /// scrolls horizontally as a unit and vertically over task rows. Editable
 /// duration cells write back through the VM's per-task debounce.

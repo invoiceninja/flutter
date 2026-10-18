@@ -12,6 +12,8 @@ import 'package:decimal/decimal.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
+import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
@@ -139,6 +141,59 @@ ReportPreview reportPreview() {
         ),
     ],
   );
+}
+
+/// The moment [taskItemsTasks] is read at: mid-October 2026, midday.
+final DateTime taskItemsNow = DateTime(2026, 10, 15, 12);
+
+/// A busy company's time log for the Task Items report: 600 tasks over the
+/// four months before [taskItemsNow], each with 15 entries of up to three
+/// hours across 40 clients — 9,000 entries, of which a month's worth falls in
+/// "this month".
+List<Task> taskItemsTasks() {
+  final r = Lcg(31);
+  final epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  final first = taskItemsNow.subtract(const Duration(days: 120));
+  return [
+    for (var i = 0; i < 600; i++)
+      () {
+        final startDay = r.next(110);
+        return Task(
+          id: 't$i',
+          number: '${1000 + i}',
+          description: 'Task $i',
+          rate: Decimal.zero,
+          invoiceId: r.next(4) == 0 ? 'inv$i' : '',
+          clientId: 'c${r.next(40)}',
+          projectId: 'p${r.next(25)}',
+          statusId: 's${r.next(4)}',
+          statusOrder: 0,
+          assignedUserId: 'u${r.next(6)}',
+          timeLog: [
+            for (var e = 0; e < 15; e++)
+              () {
+                final start = first.add(
+                  Duration(days: startDay + e, hours: 8 + r.next(9)),
+                );
+                return TimeEntry(
+                  start: start,
+                  stop: start.add(Duration(minutes: 15 + r.next(165))),
+                  description: 'Entry $e',
+                  billable: r.next(5) != 0,
+                );
+              }(),
+          ],
+          customValue1: '',
+          customValue2: '',
+          customValue3: '',
+          customValue4: '',
+          updatedAt: epoch,
+          createdAt: epoch,
+          archivedAt: null,
+          isDeleted: false,
+        );
+      }(),
+  ];
 }
 
 /// About 40 KB of the tag soup a legacy notes field carries.

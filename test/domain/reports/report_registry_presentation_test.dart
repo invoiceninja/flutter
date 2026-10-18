@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
+import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_registry.dart';
+import 'package:admin/domain/reports/task_items_source.dart';
 
 /// The server's default column set for each report, as it answered a plain
 /// run on the demo server (2026-10-08). The registry names columns by id in
@@ -509,6 +511,12 @@ const Map<String, Set<String>> _kLocalColumns = {
   'product': {'stock_value'},
 };
 
+/// The whole column set of a report built on the device — its source's,
+/// not anything the server answers.
+final Map<String, Set<String>> _kDeviceColumns = {
+  'task_item': kTaskItemsColumnIds.toSet(),
+};
+
 Map<String, dynamic> _bundle(String name) =>
     jsonDecode(File('assets/i18n/$name.json').readAsStringSync())
         as Map<String, dynamic>;
@@ -523,7 +531,8 @@ void main() {
 
   test('every id the registry names is one the server returns', () {
     for (final d in kReportDefinitions) {
-      final server = _kServerColumns[d.identifier];
+      final server =
+          _kDeviceColumns[d.identifier] ?? _kServerColumns[d.identifier];
       if (server == null) continue;
       final known = {...server, ...?_kLocalColumns[d.identifier]};
       final named = {
@@ -545,11 +554,54 @@ void main() {
     for (final d in kReportDefinitions) {
       if (d.defaultColumnIds.isEmpty) continue;
       if (_kUnprobed.contains(d.identifier)) continue;
+      if (d.isLocal) {
+        expect(
+          _kDeviceColumns.containsKey(d.identifier),
+          isTrue,
+          reason: '${d.identifier} is built on the device: list its columns',
+        );
+        continue;
+      }
       expect(
         _kServerColumns.containsKey(d.identifier),
         isTrue,
         reason: '${d.identifier} has default columns but no probed set',
       );
+    }
+  });
+
+  test('nothing the registry names is a column it hides', () {
+    for (final d in kReportDefinitions) {
+      final named = {
+        ...d.defaultColumnIds,
+        ...d.headlineMeasureIds,
+        for (final v in d.starterViews) v.group,
+        for (final v in d.starterViews) ?v.measure,
+      };
+      expect(
+        named.intersection(d.hiddenColumnIds),
+        isEmpty,
+        reason: d.identifier,
+      );
+    }
+  });
+
+  test('every header of a report built on the device resolves', () {
+    // A server report's headers come from the server; these are the app's.
+    final p = buildTaskItemsPreview(
+      tasks: const [],
+      query: ReportQuery(companyId: '', now: DateTime(2026), label: (k) => k),
+    );
+    for (final c in p.columns) {
+      expect(resolves(c.displayLabel), isTrue, reason: c.identifier);
+    }
+    // And what a running timer's end reads.
+    expect(resolves('running'), isTrue);
+  });
+
+  test("every report's name resolves", () {
+    for (final d in kReportDefinitions) {
+      expect(resolves(d.labelKey), isTrue, reason: d.identifier);
     }
   });
 
@@ -610,10 +662,25 @@ void main() {
     }
   });
 
+  test('the Tasks report has no month view — Task Items does that', () {
+    // A task is one row, so "by month" put the whole of it in the month it
+    // started.
+    final tasks = reportDefinitionFor('task').starterViews;
+    expect(tasks.map((v) => v.labelKey), isNot(contains('month')));
+    expect(
+      reportDefinitionFor(
+        'task_item',
+      ).starterViews.where((v) => v.group == 'task.start_date'),
+      isNotEmpty,
+    );
+  });
+
   test('a list-first report does not open grouped', () {
     expect(reportDefinitionFor('client').openingView, isNull);
     expect(reportDefinitionFor('invoice').openingView?.group, 'invoice.date');
     expect(reportDefinitionFor('document').openingView, isNull);
+    // The entries are what was asked for.
+    expect(reportDefinitionFor('task_item').openingView, isNull);
   });
 
   test('every report has a category', () {

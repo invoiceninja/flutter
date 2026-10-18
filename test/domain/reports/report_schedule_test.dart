@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/data/models/domain/report_schedule_seed.dart';
 import 'package:admin/data/models/domain/schedule_constants.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/domain/reports/report_schedule.dart';
 
 ReportScheduleSeed _seed({
@@ -228,6 +229,18 @@ void main() {
       ]) {
         expect(isReportSchedulable(id), isFalse, reason: '$id not schedulable');
       }
+    });
+
+    test('false for a report built on the device', () {
+      // The server's scheduled-report runner has nothing to run for it.
+      for (final d in kReportDefinitions.where((d) => d.isLocal)) {
+        expect(
+          isReportSchedulable(d.identifier),
+          isFalse,
+          reason: d.identifier,
+        );
+      }
+      expect(isReportSchedulable('task_item'), isFalse);
     });
   });
 }

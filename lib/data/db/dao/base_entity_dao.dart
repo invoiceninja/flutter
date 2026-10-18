@@ -214,6 +214,24 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     ).equals(userId);
   }
 
+  /// One-shot batch read by id — one query (per [chunkIdsForSqlIn] slice)
+  /// instead of N `watchById(...).first` subscriptions. Ids the cache does
+  /// not hold are simply absent from the result.
+  Future<List<RowT>> getByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final list = ids.toSet().toList(growable: false);
+    if (list.isEmpty) return const [];
+    return [
+      for (final chunk in chunkIdsForSqlIn(list))
+        ...await (select(table)..where(
+              (_) => companyIdColumn.equals(companyId) & idColumn.isIn(chunk),
+            ))
+            .get(),
+    ];
+  }
+
   /// Single-row watch. Used by detail screens and edit screens that survive
   /// the tmp→real id swap (`id_remap` resolves the watched id under the
   /// hood, so callers don't have to track the swap themselves).

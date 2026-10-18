@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
+import 'package:admin/domain/reports/local_report_source.dart';
+import 'package:admin/domain/reports/task_items_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
+import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Owns what every Reports route shares: the [ReportsViewModel] and the
@@ -36,6 +41,11 @@ class _ReportsHostState extends State<ReportsHost> {
   late bool _hadAccess;
   Formatter? _formatter;
 
+  /// The Task Items report's source, made the first time it is asked for —
+  /// a host that never shows the report reads none of the repositories it
+  /// needs. One per view model: a company switch builds both again.
+  TaskItemsReportSource? _taskItems;
+
   @override
   void initState() {
     super.initState();
@@ -51,8 +61,27 @@ class _ReportsHostState extends State<ReportsHost> {
   /// nothing to gate.
   bool get _hasAccess => _services.auth.session.value?.hasProAccess ?? true;
 
+  TaskItemsReportSource _taskItemsSource() =>
+      _taskItems ??= TaskItemsReportSource.from(
+        tasks: _services.tasks,
+        clients: _services.clients,
+        projects: _services.projects,
+        users: _services.user,
+        taskStatuses: _services.taskStatuses,
+        idRemap: _services.db.idRemapDao,
+        supportsActivityDates: () => ServerFeatures.supports(
+          _services.serverVersion.value,
+          ServerFeatures.taskActivityDates,
+          isHosted: _services.auth.session.value?.isHosted ?? false,
+        ),
+      );
+
+  LocalReportSource? _localSourceFor(String identifier) =>
+      identifier == 'task_item' ? _taskItemsSource() : null;
+
   ReportsViewModel _buildVm() {
     final companyId = _companyId;
+    _taskItems = null;
     return ReportsViewModel(
       repo: _services.reports,
       statics: _services.statics,
@@ -68,6 +97,17 @@ class _ReportsHostState extends State<ReportsHost> {
           ? null
           : () async =>
                 (await _services.formatterFor(companyId)).settings.currencyId,
+      companyFormat: companyId.isEmpty
+          ? null
+          : () async {
+              final f = await _services.formatterFor(companyId);
+              return (
+                datePattern: f.dateFormats[f.settings.dateFormatId]?.format,
+                firstMonthOfYear: f.settings.firstMonthOfYear,
+              );
+            },
+      localSourceFor: _localSourceFor,
+      tasksCrossRange: (query) => _taskItemsSource().crossesRange(query),
     );
   }
 
@@ -117,15 +157,32 @@ class _ReportsHostState extends State<ReportsHost> {
     // re-runs). Used only on the next run: the synthetic Product-report
     // `stock_value` column, and the optional date column, whose header the
     // server answers with an unresolved `"texts."`.
-    _vm.firstMonthOfYear = _formatter?.settings.firstMonthOfYear ?? 1;
+    // Not while the formatter loads: the view model resolved the year's
+    // first month itself before its first run, and a placeholder January
+    // here would move a report built on the device to the calendar year.
+    final formatter = _formatter;
+    if (formatter != null) {
+      _vm.firstMonthOfYear = formatter.settings.firstMonthOfYear;
+    }
     _vm.stockValueLabel = context.tr('stock_value');
     _vm.optionalDateColumnLabel = context.tr('created_at');
+    final l10n = Localization.of(context);
+    _vm.localLabel = l10n == null ? _identity : l10n.lookup;
     return ChangeNotifierProvider<ReportsViewModel>.value(
       value: _vm,
       // Always mounted, formatter or not: switching the scope in when the
       // formatter lands would change the tree's shape and remount everything
       // under it.
-      child: FormatterScope(formatter: _formatter, child: widget.child),
+      child: ValueListenableBuilder<String>(
+        valueListenable: _services.hoursFormat,
+        builder: (context, format, child) => ReportHoursFormat(
+          hoursMinutes: format == kHoursFormatHoursMinutes,
+          child: child!,
+        ),
+        child: FormatterScope(formatter: _formatter, child: widget.child),
+      ),
     );
   }
 }
+
+String _identity(String key) => key;

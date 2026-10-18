@@ -9,8 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_engine.dart';
+import 'package:admin/domain/reports/task_items_source.dart';
 import 'package:admin/utils/legacy_html_markdown.dart';
 import 'package:admin/utils/notes_html.dart';
 
@@ -48,6 +51,27 @@ void main() {
           companyCurrencyId: '1',
         )
         .totalRowCount,
+  );
+
+  // Task Items is built on the device from every task the company holds:
+  // each entry of each task tested against the range, the survivors sorted.
+  final tasks = taskItemsTasks();
+  final thisMonth = ReportQuery(
+    companyId: 'co',
+    now: taskItemsNow,
+    label: (key) => key,
+    start: Date(2026, 10, 1),
+    end: Date(2026, 10, 31),
+  );
+  benchmark(
+    'reports.task_items_build',
+    title: 'Task Items — "this month" from 600 tasks of 15 time entries',
+    setUp: () => expect(
+      buildTaskItemsPreview(tasks: tasks, query: thisMonth).rows,
+      isNotEmpty,
+    ),
+    run: () =>
+        buildTaskItemsPreview(tasks: tasks, query: thisMonth).rows.length,
   );
 
   final html = legacyHtml();

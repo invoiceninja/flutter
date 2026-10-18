@@ -80,6 +80,9 @@ ReportPreview decodeReportPreview(
   return ReportPreview(columns: columns, rows: rows);
 }
 
+/// `2026-10-18`, optionally followed by a time.
+final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}(?:$|[ T])');
+
 ReportCell _parseCell(
   Object? cellRaw,
   ReportColumnType type,
@@ -148,7 +151,14 @@ ReportCell _parseTyped({
       );
     case ReportColumnType.date:
       return ReportDateCell(
-        value: value is String ? Date.tryParse(value) : null,
+        // ISO only when it *looks* ISO: `Date.tryParse` splits on `-` and
+        // checks nothing, so the task report's `18-10-2026` (a company on
+        // `d-m-Y`) read as the 2026th of October in the year 18. A date in
+        // the company's own format is left for the view model, which knows
+        // the format (`withCompanyDates`).
+        value: value is String && _isoDate.hasMatch(value)
+            ? Date.tryParse(value)
+            : null,
         entityWire: entityWire,
         entityId: entityId,
         displayValue: displayValue,

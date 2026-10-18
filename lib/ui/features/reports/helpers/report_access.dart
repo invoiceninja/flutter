@@ -76,6 +76,7 @@ const List<String> _kGalleryOrder = [
   'tax_summary_report',
   'tax_period_report',
   'task',
+  'task_item',
   'project',
   'client',
   'contact',

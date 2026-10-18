@@ -29,6 +29,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
+import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/ui/features/reports/widgets/report_column_tools.dart';
 import 'package:admin/ui/features/reports/widgets/report_control_bar.dart';
 import 'package:admin/ui/features/reports/widgets/report_document_view.dart';
@@ -99,12 +100,24 @@ class _ReportScreenState extends State<ReportScreen> {
     // other branch stay mounted, and the last to *mount* is not the one the
     // reader is looking at (the `TokenSearchField` gate, for its reason).
     _searchRegistry ??= context.read<Services>().searchFocus;
-    if (TickerMode.valuesOf(context).enabled) {
+    final onStage = TickerMode.valuesOf(context).enabled;
+    if (onStage) {
       _searchRegistry?.current = _searchFocus;
     } else {
       _searchRegistry?.release(_searchFocus);
     }
+    // Back on stage — a row opens its task, and the reader comes back from
+    // it. A report built on the device reads the device again, with no
+    // request: an entry edited there must not come back as it was.
+    if (onStage && _wasOffStage) {
+      scheduleMicrotask(() {
+        if (mounted) unawaited(_vm?.rereadFromDevice());
+      });
+    }
+    _wasOffStage = !onStage;
   }
+
+  bool _wasOffStage = false;
 
   @override
   void didUpdateWidget(ReportScreen oldWidget) {
@@ -424,14 +437,18 @@ class _HeaderBand extends StatelessWidget {
                 if (vm.definition.showsOnScreen)
                   FreshnessTicker(
                     builder: (context) => Text(
-                      freshnessText(
-                        context,
-                        lastRefreshed: vm.run.isLoading
-                            ? null
-                            : vm.resultFetchedAt,
-                        isRefreshing: vm.run.isLoading,
-                        cachedAt: vm.resultFetchedAt,
-                      ),
+                      // Rows the device built have no fetch time to state —
+                      // "Not yet loaded" would say there were no rows at all.
+                      vm.resultFromDevice && !vm.run.isLoading
+                          ? tr('report_from_device')
+                          : freshnessText(
+                              context,
+                              lastRefreshed: vm.run.isLoading
+                                  ? null
+                                  : vm.resultFetchedAt,
+                              isRefreshing: vm.run.isLoading,
+                              cachedAt: vm.resultFetchedAt,
+                            ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -778,9 +795,11 @@ class _Results extends StatelessWidget {
             hasScrollBody: false,
             child: ReportMessage(
               icon: Icons.inbox_outlined,
-              message: totalRows == 0
-                  ? tr('report_no_rows')
-                  : tr('report_no_matching_rows'),
+              message: totalRows > 0
+                  ? tr('report_no_matching_rows')
+                  : vm.definition.isLocal
+                  ? tr('report_no_time_entries')
+                  : tr('report_no_rows'),
               actions: [
                 if (totalRows > 0)
                   OutlinedButton(
@@ -793,7 +812,10 @@ class _Results extends StatelessWidget {
                     },
                     child: Text(tr('clear_filters')),
                   )
+                // Not on a report built on the device: there "All time" is
+                // every task the company has, fetched page by page.
                 else if (vm.definition.honoursDateRange &&
+                    !vm.definition.isLocal &&
                     vm.payload.datePreset != ReportDatePreset.allTime)
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
@@ -993,6 +1015,7 @@ class _TableToolbar extends StatelessWidget {
       separator: '\t',
       currencyId: currencyId,
       countLabel: context.tr('count'),
+      hoursMinutes: ReportHoursFormat.of(context),
       groupLabel: (key) => reportGroupDisplayLabel(
         key: key,
         columnType: groupType,

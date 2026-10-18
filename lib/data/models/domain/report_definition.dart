@@ -100,8 +100,10 @@ enum ReportFilterField {
 }
 
 /// One row in the report registry. Declared as a `const` literal for each
-/// of the 28 reports — no per-report Dart code (the data table is generic
-/// over [ReportPreview]; per-report behavior is fully described here).
+/// of the 29 reports — no per-report Dart code (the data table is generic
+/// over [ReportPreview]; per-report behavior is fully described here). The
+/// one exception is a report built on the device ([isLocal]), whose rows come
+/// from a `LocalReportSource` rather than the server.
 class ReportDefinition {
   const ReportDefinition({
     required this.identifier,
@@ -122,6 +124,9 @@ class ReportDefinition {
     this.rowRecordWire,
     this.lineItemPrefix,
     this.oncePerRecordColumnIds = const {},
+    this.hiddenColumnIds = const {},
+    this.collapsesToRecord = false,
+    this.isLocal = false,
     this.defaultFilterValues = const {},
     this.defaultColumnIds = const [],
     this.category = ReportCategory.records,
@@ -257,9 +262,39 @@ class ReportDefinition {
   final String? lineItemPrefix;
 
   /// Further columns that repeat per record though the report has no line
-  /// prefix — the task report emits a row per time-log entry, each carrying
-  /// the task's own `estimated_duration`.
+  /// prefix.
   final Set<String> oncePerRecordColumnIds;
+
+  /// Server columns taken out of the result before anything sees it — the
+  /// column picker, the table, a grouping, a file written on the device.
+  ///
+  /// For a column that does not belong to the report's row grain: the task
+  /// report is one row per task ([collapsesToRecord]), so the server's
+  /// per-time-entry columns (`task.time_log`, `task.item_notes`, …) would
+  /// read as one arbitrary entry's. Once the result has lost them, the next
+  /// run asks for the known set without them (`_previewReportKeys` sends the
+  /// columns on screen), so a column hidden here is not fetched either.
+  final Set<String> hiddenColumnIds;
+
+  /// Whether the server's rows are merged into one per record — see
+  /// `collapsedToRecords`.
+  ///
+  /// `TaskExport` writes a row per **time entry** whatever is asked of it,
+  /// and every one of those rows carries the task's whole duration, so the
+  /// task report summed a ten-entry task ten times over. Off everywhere
+  /// else: a line-item report is a row per line on purpose.
+  final bool collapsesToRecord;
+
+  /// Whether the report is built on the device, from records the app holds,
+  /// rather than asked of the server — Task Items, whose rows are time
+  /// entries, each filtered by its own date (the server's task report can
+  /// only filter whole tasks, by their first entry).
+  ///
+  /// A local report has no server file, email or schedule, and its
+  /// [endpoint] is never called. It needs a `LocalReportSource` wired for
+  /// its [identifier]; without one the run fails rather than asking the
+  /// server for an endpoint that does not exist.
+  final bool isLocal;
 
   /// Canonical default values. Used by the "Filters (N)" badge counter
   /// (non-default = bumped) and by "Reset filters". Excludes `dateRange`

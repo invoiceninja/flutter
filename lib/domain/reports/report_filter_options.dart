@@ -92,8 +92,11 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
       ];
     // `task` is the reports-screen identifier; `tasks` is the scheduler's
     // email_report name for the same report (server `EmailReport` exporter).
+    // `task_item` is built on the device and reads the same two, per task —
+    // "uninvoiced" is the time not yet billed.
     case 'task':
     case 'tasks':
+    case 'task_item':
       return const [
         (id: 'invoiced', labelKey: 'invoiced'),
         (id: 'uninvoiced', labelKey: 'uninvoiced'),

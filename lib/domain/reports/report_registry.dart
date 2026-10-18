@@ -2,6 +2,7 @@ import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/reports/report_engine.dart';
+import 'package:admin/domain/reports/report_group_label.dart';
 
 /// Report → the tag type its rows carry (React #3251). Every report listed
 /// here offers the Tags filter (`tag_ids`, which the server applies to every
@@ -16,6 +17,7 @@ const Map<String, String> kReportTagEntityTypes = {
   'payment': 'payment',
   'expense': 'expense',
   'task': 'task',
+  'task_item': 'task',
   'product': 'product',
   'vendor': 'vendor',
   'purchase_order': 'purchase_order',
@@ -25,7 +27,9 @@ const Map<String, String> kReportTagEntityTypes = {
   'project': 'project',
 };
 
-/// The 28 reports we mirror from React (`useReports.ts`). Each entry carries
+/// The 28 reports we mirror from React (`useReports.ts`), and Task Items,
+/// which v1 had and the server cannot produce (it is built on the device —
+/// [ReportDefinition.isLocal]). Each entry carries
 /// its endpoint, `supportsPreview`, the server-side `filterFields` the settings
 /// panel renders, and `defaultFilterValues`. Field visibility mirrors
 /// `react/src/pages/reports/common/hooks/useShowReportField.ts`.
@@ -635,19 +639,24 @@ const kReportDefinitions = <ReportDefinition>[
       'task.status_id',
     ],
     headlineMeasureIds: ['task.duration'],
+    // No "by month": a task is one row, so it would put the whole of a task
+    // in the month it started. Time per month is Task Items' question.
     starterViews: [
       ReportStarterView(labelKey: 'project', group: 'task.project_id'),
       ReportStarterView(labelKey: 'user', group: 'task.user_id'),
-      ReportStarterView(
-        labelKey: 'month',
-        group: 'task.start_date',
-        subgroup: ReportSubgroup.month,
-      ),
       ReportStarterView(labelKey: 'client', group: 'client.name'),
     ],
     rowIdKey: 'task.id',
     rowRecordWire: 'task',
-    oncePerRecordColumnIds: {'task.estimated_duration'},
+    // `TaskExport` writes a row per time entry, each carrying the task's
+    // whole duration; merged, a task is one row and is counted once.
+    collapsesToRecord: true,
+    hiddenColumnIds: {
+      'task.time_log',
+      'task.time_log_duration_words',
+      'task.item_notes',
+      'task.billable',
+    },
     dateRangeKey: 'calculated_start_date',
     endpoint: '/api/v1/reports/tasks',
     labelKey: 'tasks',
@@ -657,6 +666,60 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.dateRange,
       ReportFilterField.status,
       ReportFilterField.clientIdsMulti,
+      ReportFilterField.tagsMulti,
+      ReportFilterField.includeDeleted,
+    ],
+    defaultFilterValues: {'date_range': 'all'},
+  ),
+  // Built on the device (`TaskItemsReportSource`): a row per time entry,
+  // each kept or dropped by its own day. The server's task report can only
+  // filter whole tasks, by their first entry.
+  ReportDefinition(
+    identifier: 'task_item',
+    isLocal: true,
+    category: ReportCategory.time,
+    defaultRange: ReportDatePreset.thisMonth,
+    // A list first: the entries are what was asked for.
+    opensGrouped: false,
+    defaultColumnIds: [
+      'task.start_date',
+      'task.duration',
+      'task.description',
+      'client.name',
+      'task.project_id',
+      'task.item_notes',
+      'task.assigned_user_id',
+      'task.start_time',
+      'task.end_time',
+      'task.billable',
+    ],
+    headlineMeasureIds: ['task.duration'],
+    starterViews: [
+      ReportStarterView(
+        labelKey: 'day',
+        group: 'task.start_date',
+        subgroup: ReportSubgroup.day,
+      ),
+      ReportStarterView(labelKey: 'client', group: 'client.name'),
+      ReportStarterView(labelKey: 'project', group: 'task.project_id'),
+      ReportStarterView(
+        labelKey: 'assigned_user',
+        group: 'task.assigned_user_id',
+      ),
+    ],
+    dateRangeKey: kTimeEntryDateKey,
+    // Never called — see `isLocal`.
+    endpoint: '',
+    labelKey: 'task_items',
+    icon: EntityType.task,
+    requiredPermission: 'view_task',
+    // The task report's filters, applied on the device — and a project
+    // filter, which the server's export does not read but the device can.
+    filterFields: [
+      ReportFilterField.dateRange,
+      ReportFilterField.status,
+      ReportFilterField.clientIdsMulti,
+      ReportFilterField.projectsMulti,
       ReportFilterField.tagsMulti,
       ReportFilterField.includeDeleted,
     ],

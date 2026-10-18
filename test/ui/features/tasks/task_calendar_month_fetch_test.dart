@@ -66,6 +66,7 @@ class _RecordingRepo implements TaskRepository {
     states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    bool excludeDeletedClients = true,
   }) async {
     calls.add(_Call(page, states, extraFilters, ignoreCursor));
     if (gate != null) await gate;

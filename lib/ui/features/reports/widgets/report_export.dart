@@ -25,6 +25,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/reports/helpers/report_range.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
+import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/ui/features/reports/widgets/report_states.dart';
 import 'package:admin/utils/file_names.dart';
 import 'package:admin/utils/formatting.dart';
@@ -80,6 +81,10 @@ class ReportExportActions {
     final v = view;
     VoidCallback? when(bool condition, VoidCallback action) =>
         enabled && condition ? action : null;
+    // A report built on the device has no server file, email or schedule:
+    // the server cannot produce it. What it can be is the two files written
+    // here — and, grouped by day or by person, the second is the timesheet.
+    final local = _definition.isLocal;
     return [
       if (_definition.supportsPreview) ...[
         MenuItemButton(
@@ -93,8 +98,18 @@ class ReportExportActions {
             onPressed: when(true, () => _downloadView(context, summary: true)),
             child: Text(tr('report_download_groups')),
           ),
-        const Divider(height: 1),
+        if (local) const _BuiltOnDeviceNote() else const Divider(height: 1),
       ],
+      if (!local) ..._serverItems(context, when),
+    ];
+  }
+
+  List<Widget> _serverItems(
+    BuildContext context,
+    VoidCallback? Function(bool condition, VoidCallback action) when,
+  ) {
+    final tr = context.tr;
+    return [
       MenuItemButton(
         leadingIcon: const Icon(Icons.download_outlined, size: 16),
         onPressed: when(!vm.isExporting, () => _downloadFromServer(context)),
@@ -151,6 +166,7 @@ class ReportExportActions {
       summary: summary,
       currencyId: currencyId,
       countLabel: tr('count'),
+      hoursMinutes: ReportHoursFormat.of(context),
       groupLabel: (key) => reportGroupDisplayLabel(
         key: key,
         columnType: groupType,
@@ -277,6 +293,35 @@ class ReportExportActions {
     } catch (_) {
       toasts?.error(tr('an_error_occurred'));
     }
+  }
+}
+
+/// Why a report built on the device offers only the files written here.
+///
+/// Text, not a disabled menu item: a screen reader reads one of those as a
+/// dimmed button, and at disabled opacity the sentence fails contrast.
+class _BuiltOnDeviceNote extends StatelessWidget {
+  const _BuiltOnDeviceNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Semantics(
+      container: true,
+      child: ConstrainedBox(
+        // One long line would widen the whole menu to fit it.
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          child: Text(
+            context.tr('report_built_on_device'),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.ink2),
+          ),
+        ),
+      ),
+    );
   }
 }
 

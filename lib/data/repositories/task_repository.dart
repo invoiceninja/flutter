@@ -243,6 +243,10 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    // Off only for the Task Items report: the server's task report keeps the
+    // tasks of a deleted client, and a report built on the device must not
+    // lose that time.
+    bool excludeDeletedClients = true,
   }) => ensurePageLoadedTemplate(
     companyId: companyId,
     page: page,
@@ -251,7 +255,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     states: states,
     extraFilters: extraFilters,
     ignoreCursor: ignoreCursor,
-    excludeDeletedClients: true,
+    excludeDeletedClients: excludeDeletedClients,
     // `?include=documents` — same rationale as Project/Client/Expense.
     staticFilters: const {'include': 'documents'},
     listCall: api.list,

@@ -16,8 +16,10 @@ import 'package:admin/domain/reports/report_engine.dart';
 ///
 /// **Values are written for a spreadsheet, not for the eye.** A number is a
 /// bare machine number (`1234.5`, never `$1,234.50` or `1.234,50`), a date is
-/// ISO, a duration is `h:mm:ss` and a boolean `TRUE` / `FALSE`, so the file
-/// sorts and sums when it is opened. Text is the cell's own.
+/// ISO, a duration is hours — decimal (`1.5`), so it sums and multiplies by a
+/// rate, or `h:mm:ss` with [hoursMinutes], the device's hours-format
+/// preference — and a boolean `TRUE` / `FALSE`, so the file sorts and sums
+/// when it is opened. Text is the cell's own.
 ///
 /// With [summary], a grouped view is written as its groups instead — a line
 /// per group with its row count and the total of every totalled column, in
@@ -34,6 +36,7 @@ String buildReportCsv({
   bool summary = false,
   String countLabel = 'Count',
   String separator = ',',
+  bool hoursMinutes = false,
 }) {
   final columns = view.visibleColumns;
   final out = StringBuffer();
@@ -62,7 +65,14 @@ String buildReportCsv({
         _text(groupLabel(group.key)),
         '${group.count}',
         for (final c in measures)
-          _number(group.numericTotals[c.identifier]?[currencyId]),
+          c.type == ReportColumnType.duration
+              ? _duration(
+                  group.numericTotals[c.identifier]?[currencyId]
+                      ?.toBigInt()
+                      .toInt(),
+                  hoursMinutes: hoursMinutes,
+                )
+              : _number(group.numericTotals[c.identifier]?[currencyId]),
       ]);
     }
     return out.toString();
@@ -85,7 +95,9 @@ String buildReportCsv({
   for (final row in rows()) {
     line([
       for (final i in indexes)
-        i < 0 || i >= row.cells.length ? '' : _cell(row.cells[i]),
+        i < 0 || i >= row.cells.length
+            ? ''
+            : _cell(row.cells[i], hoursMinutes: hoursMinutes),
     ]);
   }
   return out.toString();
@@ -97,7 +109,7 @@ String buildReportCsv({
 Uint8List reportCsvBytes(String csv) =>
     Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csv)]);
 
-String _cell(ReportCell cell) {
+String _cell(ReportCell cell, {required bool hoursMinutes}) {
   switch (cell) {
     case ReportStringCell():
       return _text(cell.displayValue ?? cell.value ?? '');
@@ -122,10 +134,23 @@ String _cell(ReportCell cell) {
     case ReportDurationCell():
       final seconds = cell.seconds;
       if (seconds == null) return _text(cell.displayValue ?? '');
-      String two(int n) => n.toString().padLeft(2, '0');
-      return '${seconds ~/ 3600}:${two(seconds % 3600 ~/ 60)}:'
-          '${two(seconds % 60)}';
+      return _duration(seconds, hoursMinutes: hoursMinutes);
   }
+}
+
+/// [seconds] as hours for a spreadsheet: `1.5`, to four places (a minute is
+/// 0.0167 of an hour, so two would lose it), or `1:30:00`.
+String _duration(int? seconds, {required bool hoursMinutes}) {
+  if (seconds == null) return '';
+  if (hoursMinutes) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${seconds ~/ 3600}:${two(seconds % 3600 ~/ 60)}:'
+        '${two(seconds % 60)}';
+  }
+  final hours = (seconds / 3600).toStringAsFixed(4);
+  return hours.contains('.')
+      ? hours.replaceFirst(RegExp(r'\.?0+$'), '')
+      : hours;
 }
 
 String _number(Decimal? value) => value == null ? '' : value.toString();

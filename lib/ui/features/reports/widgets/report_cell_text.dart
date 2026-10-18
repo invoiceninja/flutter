@@ -53,6 +53,15 @@ String reportCellText(
     case ReportDateTimeCell():
       final iso = cell.value?.toIso8601String();
       if (iso == null) return fallback;
+      if (column.timeOnly) {
+        return formatter?.date(
+              iso,
+              showDate: false,
+              showTime: true,
+              showSeconds: false,
+            ) ??
+            iso;
+      }
       return formatter?.date(iso, showTime: true) ?? iso;
     case ReportAgeCell():
       if (cell.isPaid) return context.tr('paid');
@@ -65,7 +74,11 @@ String reportCellText(
     case ReportDurationCell():
       final seconds = cell.seconds;
       if (seconds == null) return fallback;
-      return _durationText(seconds);
+      return reportDurationText(
+        seconds,
+        formatter,
+        hoursMinutes: ReportHoursFormat.of(context),
+      );
   }
 }
 
@@ -73,12 +86,14 @@ String reportCellText(
 ///
 /// Money is formatted in [currencyId] (the company's currency when null or
 /// empty), and reads `—` while the [formatter] is still loading rather than
-/// flashing a bare `Decimal`. A duration column's quantity is seconds.
+/// flashing a bare `Decimal`. A duration column's quantity is seconds, read
+/// in hours as [hoursMinutes] says — see [ReportHoursFormat].
 String reportValueText(
   Decimal value, {
   required ReportColumn column,
   required Formatter? formatter,
   String? currencyId,
+  bool hoursMinutes = false,
 }) {
   switch (column.type) {
     case ReportColumnType.money:
@@ -90,7 +105,11 @@ String reportValueText(
             : currencyId,
       );
     case ReportColumnType.duration:
-      return _durationText(value.toBigInt().toInt());
+      return reportDurationText(
+        value.toBigInt().toInt(),
+        formatter,
+        hoursMinutes: hoursMinutes,
+      );
     case ReportColumnType.number:
     case ReportColumnType.string:
     case ReportColumnType.date:
@@ -102,10 +121,51 @@ String reportValueText(
   }
 }
 
-/// `0:13:42`, as the tasks time log writes it; a span of a day or more
-/// compacts to `Xd HHh MMm`.
-String _durationText(int seconds) =>
-    formatDuration(Duration(seconds: seconds), compactDays: true);
+/// [seconds] of worked time as the weekly timesheet prints it — decimal hours
+/// to two places (`37.5`) or `H:MM` (`37:30`), as the device's hours-format
+/// preference says
+/// — never a day count, which read a week's 37.5 hours as "1d 13h 30m". Zero
+/// is a zero, where the timesheet leaves a cell blank: a report's total of
+/// nothing is still a figure.
+String reportDurationText(
+  int seconds,
+  Formatter? formatter, {
+  bool hoursMinutes = false,
+}) {
+  if (seconds <= 0) {
+    return hoursMinutes ? '0:00' : (formatter?.decimal(0) ?? '0');
+  }
+  if (hoursMinutes) return hoursMinutesText(seconds);
+  // Two places, where the timesheet keeps five: a report is read, not
+  // edited, and a 13:42 entry is "0.23", not "0.22833".
+  final hours = seconds / 3600.0;
+  return formatter?.decimal(hours, maxDecimals: 2) ?? hours.toStringAsFixed(2);
+}
+
+/// Whether the reports read durations as `H:MM` rather than decimal hours —
+/// the device's hours-format preference (`HoursFormatController`), the one
+/// the weekly timesheet's Total row switches. Put above the reports by
+/// `ReportsHost`; absent, durations read as decimal hours, the preference's
+/// default.
+class ReportHoursFormat extends InheritedWidget {
+  const ReportHoursFormat({
+    super.key,
+    required this.hoursMinutes,
+    required super.child,
+  });
+
+  final bool hoursMinutes;
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<ReportHoursFormat>()
+          ?.hoursMinutes ??
+      false;
+
+  @override
+  bool updateShouldNotify(ReportHoursFormat oldWidget) =>
+      oldWidget.hoursMinutes != hoursMinutes;
+}
 
 /// Where a row's own record lives, or null when the row is not a link.
 ///

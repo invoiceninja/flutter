@@ -237,9 +237,10 @@ class ReportSummaryCard extends StatelessWidget {
     ];
   }
 
-  /// What the rows are a count *of*: the report's own name ("Invoices")
-  /// where a row is one of them. A report whose rows repeat a record — a
-  /// task has a row per time entry — counts rows, and says so.
+  /// What the rows are a count *of*: the report's own name ("Invoices",
+  /// "Task Items"). A report whose rows repeated a record — the task report
+  /// before it was merged to a row per task — counted rows and said so;
+  /// none does now.
   String _countLabel(BuildContext context) =>
       vm.definition.oncePerRecordColumnIds.isEmpty
       ? context.tr(vm.definition.labelKey)
@@ -263,6 +264,7 @@ String _valueText(
     column: column,
     formatter: formatter,
     currencyId: currencyId,
+    hoursMinutes: ReportHoursFormat.of(context),
   );
 }
 

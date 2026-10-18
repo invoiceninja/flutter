@@ -618,7 +618,7 @@ here are not obvious:
 
 ## Reports
 
-`/reports` is a gallery; `/reports/:report` runs itself on opening. A report is one `const ReportDefinition` (`report_registry.dart`); rows come from `<endpoint>?output=json` and the rest — filter, sort, group, total, chart — is local `ReportEngine` work.
+`/reports` is a gallery; `/reports/:report` runs itself on opening. A report is one `const ReportDefinition` (`report_registry.dart`); rows come from `<endpoint>?output=json` — or, for Task Items, from the device — and the rest — filter, sort, group, total, chart — is local `ReportEngine` work.
 
 - **The date range filters a column the report never names, not always one you can group by.** → `docs/reports.md` § The date range filters a column the report never names
 - **A column the server omits can still be asked for ("new clients per month").** → `docs/reports.md` § Asking for a column the server omits
@@ -629,6 +629,9 @@ here are not obvious:
 - **A cell's `id` is its field name, so a row links only through `rowIdKey`; totals never cross currencies or a parent's repeated lines.** → `docs/reports.md` § What a figure may add up
 - **A file-only report is read back as a `ReportDocument`: nothing matches a header's text, and an unreadable file is a download.** → `docs/reports.md` § File-only reports on screen
 - **A comparison pairs periods by position, never by index; a saved view is a `saved_views` row of type `report`, not an `EntityType`.** → `docs/reports.md` § Compared with the period before
+- **Task Items is the one report built on the device — `/tasks?activity_dates` into Drift, a row per time entry on the day it started, and no server file, email or schedule.** → `docs/reports.md` § Task Items is built on the device
+- **The Tasks report merges the server's per-entry rows into one per task (`collapsesToRecord`) — each of them carries the task's whole duration.** → `docs/reports.md` § The Tasks report is one row per task
+- **A duration is hours — decimal or `H:MM` as the device's hours-format preference says — never a day count.** → `docs/reports.md` § A duration is hours, never a day count
 
 ## Visual invoice designer
 

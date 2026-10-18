@@ -1770,6 +1770,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | New-company setup wizard (name / currency / language) | ✅ | ✅ | ✅ | ✅ | |
 | Contact-us dialog | ✅ | ✅ | ✅ | ✅ | |
 | About dialog | ✅ | ✅ | ✅ | ✅ | |
+| What's new dialog after an update (bundled release notes, highlights that open the feature; About and the command palette reopen it) | — | — | ✅ | | |
 | Health check dialog (self-hosted diagnostics) | ✅ | ✅ | ✅ | ✅ | |
 | Trial-footer indicator | ✅ | ✅ | ✅ | ✅ | |
 | Cookie / privacy banner | ✅ | — | — |  | |

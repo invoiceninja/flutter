@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
@@ -24,12 +25,19 @@ class MobileAppPromoController extends ChangeNotifier {
   MobileAppPromoController({
     required DevicePrefsStore prefs,
     this.promote = false,
-  }) : _prefs = prefs {
+    WhatsNewController? whatsNew,
+  }) : _prefs = prefs,
+       _whatsNew = whatsNew {
     _sync();
     _prefs.addListener(_sync);
   }
 
   final DevicePrefsStore _prefs;
+
+  /// The What's New dialog, which goes first: while it may still open on its
+  /// own, and for a day after it opens, the promo is not due
+  /// (docs/whats-new-dialog.md).
+  final WhatsNewController? _whatsNew;
 
   /// Whether this build pitches the phone app unasked — the automatic open
   /// and the sidebar card. Off unless `main()` asks: a test or harness that
@@ -73,6 +81,7 @@ class MobileAppPromoController extends ChangeNotifier {
     if (!_prefs.isLoaded || s.done || s.engaged) return false;
     if (s.closes >= maxAutoOpens) return false;
     if (s.daysSeen < daysBeforeFirstOpen) return false;
+    if (_whatsNew?.holdsBackPromptsAt(now) ?? false) return false;
     final next = s.nextAt;
     return next == null || !now.isBefore(next);
   }

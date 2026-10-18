@@ -11,6 +11,7 @@ import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/feature_row.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/qr_code_image.dart';
 
@@ -397,7 +398,7 @@ class _MobileAppPromoDialogState extends State<MobileAppPromoDialog> {
         ),
         const SizedBox(height: InSpacing.xl),
         for (final (icon, title, body) in features)
-          _FeatureRow(
+          FeatureRow(
             icon: icon,
             title: context.tr(title),
             body: context.tr(body),
@@ -623,65 +624,6 @@ class _MobileAppPromoDialogState extends State<MobileAppPromoDialog> {
         ],
         Flexible(child: dismiss),
       ],
-    );
-  }
-}
-
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Padding(
-      padding: EdgeInsets.only(bottom: InSpacing.lg(context)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: tokens.accentSoft,
-              borderRadius: BorderRadius.circular(InRadii.r2),
-            ),
-            child: Icon(icon, size: 18, color: tokens.accentInk),
-          ),
-          SizedBox(width: InSpacing.md(context)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  body,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: tokens.ink3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

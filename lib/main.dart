@@ -21,6 +21,7 @@ import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
 import 'package:admin/app/memory_pressure_observer.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
+import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/native_splash.dart';
 import 'package:admin/app/native_window.dart';
 import 'package:admin/app/native_window_theme.dart';
@@ -272,6 +273,20 @@ Future<void> _bootstrap() async {
     Logger('main').warning('Session/preference restore failed at boot', e, st);
   }
   mark('restore (auth/theme/locale/sidebar)');
+
+  // Before the demo bootstrap, whose session says nothing about this device:
+  // a store this open didn't create, or a session it restored, is a device
+  // that ran an earlier build — an update, not an install. Unawaited — the
+  // dialog's releases are decided before its first await, and a write that
+  // fails is logged by the store, never thrown here (docs/whats-new-dialog.md).
+  unawaited(
+    services.whatsNew.noteLaunch(
+      existingInstall:
+          !opened.db.createdThisOpen ||
+          opened.wasReset ||
+          services.auth.isAuthenticated,
+    ),
+  );
 
   // Demo build: if no session was restored, bootstrap one from a baked-in API
   // token so the app lands on the dashboard instead of /login. Inert in normal
@@ -801,6 +816,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // `context.read<MobileAppPromoController?>()` for the same reason.
         ChangeNotifierProvider<MobileAppPromoController>.value(
           value: widget.services.mobileAppPromo,
+        ),
+        // For the shell's What's New host, About and the command palette,
+        // read as `context.read<WhatsNewController?>()` for the same reason.
+        ChangeNotifierProvider<WhatsNewController>.value(
+          value: widget.services.whatsNew,
         ),
       ],
       child: ListenableBuilder(

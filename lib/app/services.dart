@@ -12,6 +12,7 @@ import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
+import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/hide_peppol_status_controller.dart';
@@ -348,6 +349,7 @@ class Services implements SidebarBadgeContext {
     required this.certificateTrust,
     required this.signOutNotice,
     required this.mobileAppPromo,
+    required this.whatsNew,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -767,6 +769,10 @@ class Services implements SidebarBadgeContext {
   /// The "get the mobile app" promo's schedule (docs/mobile-app-promo.md).
   /// Read through its root provider, like [signOutNotice].
   final MobileAppPromoController mobileAppPromo;
+
+  /// The "What's new" dialog's schedule (docs/whats-new-dialog.md), armed
+  /// only by `main()`. Read through its root provider, like [signOutNotice].
+  final WhatsNewController whatsNew;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1507,9 +1513,11 @@ class Services implements SidebarBadgeContext {
       prefs: devicePrefs,
       credentials: auth.credentials,
     );
+    final whatsNew = WhatsNewController(prefs: devicePrefs);
     final mobileAppPromo = MobileAppPromoController(
       prefs: devicePrefs,
       promote: mobileAppPromote,
+      whatsNew: whatsNew,
     );
     // Assigned a few lines below; the `onUnauthorized` closure captures the
     // variable (not its value) and only ever runs once a request has come
@@ -2252,6 +2260,7 @@ class Services implements SidebarBadgeContext {
       certificateTrust: certificateTrust,
       signOutNotice: signOutNotice,
       mobileAppPromo: mobileAppPromo,
+      whatsNew: whatsNew,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

@@ -25,6 +25,11 @@ set -euo pipefail
 #
 # Does NOT touch kMinServerVersion (bumped only when depending on a server change).
 #
+# Refuses a version that has no entry in kReleaseNotes
+# (lib/domain/release_notes.dart): the What's New dialog shows it after the
+# update, so the notes are written first and the bump follows
+# (docs/release-notes.md step 5). Nothing is changed when it refuses.
+#
 # Usage:
 #   tools/bump_client_version.sh             # auto-bump: patch +1 and build +1 (5.1.2+5 -> 5.1.3+6)
 #   tools/bump_client_version.sh <version>   # set an explicit version, e.g. 5.2.0 (build still +1)
@@ -69,6 +74,19 @@ fi
 if [[ "$new_version" == "$current" ]]; then
   echo "==> kClientVersion already $current — nothing to do"
   exit 0
+fi
+
+# --- Release notes first, before any file changes ---
+# After an update the What's New dialog shows that version's entry in
+# kReleaseNotes (docs/whats-new-dialog.md); a version bumped without one ships
+# with nothing to tell its users. Matches an uncommented `version: 'X.Y.Z'`
+# line — the ReleaseNotes entry's own, as dart format lays it out.
+notes="lib/domain/release_notes.dart"
+if ! grep -qE "^[[:space:]]*(ReleaseNotes\()?version: '${new_version//./\\.}'" "$notes"; then
+  echo "!! no release notes for $new_version — add its ReleaseNotes entry to the top" >&2
+  echo "   of kReleaseNotes in $notes first (docs/release-notes.md step 5)," >&2
+  echo "   run flutter test test/domain/release_notes_test.dart, then bump again" >&2
+  exit 1
 fi
 
 perl -i -pe "s/(kClientVersion = ')[^']*(')/\${1}${new_version}\${2}/" "$file"

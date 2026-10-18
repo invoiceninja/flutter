@@ -1598,5 +1598,14 @@
   "report_from_device": "From this device",
   "report_no_time_entries": "No time was logged in this range.",
   "report_tasks_first_entry_hint": "Tasks are listed by their first time entry, with all of their time — so the hours here can differ from the time logged in this range.",
-  "report_show_task_items": "Show task items in this range"
+  "report_show_task_items": "Show task items in this range",
+  "whats_new_in_version": "What's new in v:version",
+  "whats_new_since_version": "Including the changes since v:version",
+  "see_all_changes": "See all :count changes",
+  "show_fewer_changes": "Show fewer",
+  "release_notes_added": "New",
+  "release_notes_updated": "Improved",
+  "release_notes_fixed": "Fixed",
+  "release_changes_count": ":count changes",
+  "release_change_count_one": "1 change"
 }

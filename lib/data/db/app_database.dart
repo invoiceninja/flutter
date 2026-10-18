@@ -199,6 +199,14 @@ final _log = Logger('AppDatabase');
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
+  /// Whether this open created the store — a fresh install, a cleared
+  /// browser, or a reset (`OpenedDatabase.wasReset` tells that one apart).
+  /// Set by [MigrationStrategy.onCreate], so it is meaningful only once the
+  /// store has opened. The What's New dialog reads it to tell an update from
+  /// an install (docs/whats-new-dialog.md).
+  bool get createdThisOpen => _createdThisOpen;
+  bool _createdThisOpen = false;
+
   @override
   int get schemaVersion => 14;
 
@@ -218,6 +226,7 @@ class AppDatabase extends _$AppDatabase {
     // only — `onUpgrade` re-runs both helpers so new indexes reach
     // already-installed databases.
     onCreate: (m) async {
+      _createdThisOpen = true;
       await m.createAll();
       await createPerformanceIndexes(this);
       await createClientFilterIndexes(this);

@@ -2,10 +2,12 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/mobile_app_promo_controller.dart';
+import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
+import 'package:admin/domain/release_notes.dart';
 
 /// The promo's schedule (docs/mobile-app-promo.md): never before the third
 /// day of use, at most three automatic opens, +7 then +30 days apart, and
@@ -140,5 +142,36 @@ void main() {
     await cold.load();
     expect(c.state.done, isTrue);
     expect(c.state.daysSeen, 5);
+  });
+
+  test('a day behind the What\'s New dialog: never while it may still open '
+      'on its own, nor within a day of it opening', () async {
+    final whatsNew = WhatsNewController(
+      prefs: prefs,
+      currentVersion: '2.0.1',
+      catalog: const [
+        ReleaseNotes(version: '2.0.1', items: [ReleaseNoteItem('Added: x')]),
+      ],
+      surfaces: const {},
+      isDemoBuild: false,
+      demoMode: false,
+    );
+    addTearDown(whatsNew.dispose);
+    final c = MobileAppPromoController(
+      prefs: prefs,
+      promote: true,
+      whatsNew: whatsNew,
+    );
+    addTearDown(c.dispose);
+    await useOn(c, 3);
+    expect(c.isDue(noon), isTrue, reason: 'nothing pending yet');
+
+    await whatsNew.noteLaunch(existingInstall: true);
+    expect(c.isDue(noon), isFalse, reason: 'the update goes first');
+
+    await whatsNew.noteOpened(noon);
+    await whatsNew.markSeen();
+    expect(c.isDue(noon.add(const Duration(hours: 23))), isFalse);
+    expect(c.isDue(noon.add(const Duration(days: 1))), isTrue);
   });
 }

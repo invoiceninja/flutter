@@ -26,7 +26,8 @@ class DevicePrefsStore extends ChangeNotifier {
   DevicePrefsStore(AppDatabase? db, {DateTime Function()? now})
     : _db = db,
       _now = now ?? DateTime.now,
-      _loaded = db == null;
+      _loaded = db == null,
+      _loadSucceeded = db == null;
 
   final AppDatabase? _db;
   final DateTime Function() _now;
@@ -39,6 +40,13 @@ class DevicePrefsStore extends ChangeNotifier {
   bool get isLoaded => _loaded;
   bool _loaded;
 
+  /// Whether the mirror holds the table — false after a [load] that failed,
+  /// where [isLoaded] is true but every read is a default. An owner that
+  /// would write a value *derived from* "no row" (the What's New baseline)
+  /// checks this, or it would overwrite the row the failed read never saw.
+  bool get loadSucceeded => _loadSucceeded;
+  bool _loadSucceeded;
+
   /// Replace the mirror with the table. Once at boot, bounded there: a
   /// failure leaves every preference on its default for this launch, and the
   /// rows untouched for the next.
@@ -50,6 +58,7 @@ class DevicePrefsStore extends ChangeNotifier {
       _values
         ..clear()
         ..addAll(rows);
+      _loadSucceeded = true;
     } finally {
       _loaded = true;
     }

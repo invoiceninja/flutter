@@ -23,6 +23,7 @@ import 'package:admin/ui/features/reports/helpers/report_access.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
+import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
 /// header via `context.tr` — `link` is an existing translated key.
@@ -96,6 +97,22 @@ EntityType? entityTypeForSearchGroup(String group) {
 /// The group of the palette's own report hits. Also the localization key of
 /// its heading ("Reports").
 const String kReportsSearchGroup = 'reports';
+
+/// The group of the palette's What's New hit — also its heading's key
+/// ("Release Notes").
+const String kWhatsNewSearchGroup = 'release_notes';
+
+/// What someone looking for the release notes types. English, beside the
+/// translated label and heading: "changelog" has no key of its own.
+const _kWhatsNewTerms = [
+  "what's new",
+  'whats new',
+  'release notes',
+  'changelog',
+  'change log',
+  'version',
+  'update',
+];
 
 /// Groups whose row describes a **contact**, not the record it routes to.
 ///
@@ -328,6 +345,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       final merged = [
         ...r.where((hit) => !hit.isSettings),
         ..._localReportHits(q),
+        ..._localWhatsNewHits(q),
         ..._localSettingsHits(q),
       ];
       setState(() {
@@ -342,7 +360,11 @@ class _CommandPaletteState extends State<_CommandPalette> {
       // can answer by itself it still does — a report or a settings page is
       // found in its own catalog, not on the server.
       setState(() {
-        _results = [..._localReportHits(q), ..._localSettingsHits(q)];
+        _results = [
+          ..._localReportHits(q),
+          ..._localWhatsNewHits(q),
+          ..._localSettingsHits(q),
+        ];
         _selected = 0;
         _loading = false;
       });
@@ -368,6 +390,32 @@ class _CommandPaletteState extends State<_CommandPalette> {
             id: '',
             path: reportRoutePath(definition.identifier),
           ),
+    ];
+  }
+
+  /// The release notes (docs/whats-new-dialog.md), for "what's new",
+  /// "changelog", "version" and the like. Selecting it opens the dialog over
+  /// the current screen.
+  List<SearchResult> _localWhatsNewHits(String query) {
+    final needle = query.trim().toLowerCase();
+    if (needle.length < 3) return const [];
+    final releases = whatsNewOnRequest(context);
+    if (releases == null) return const [];
+    final label = context.tr('see_whats_new', {
+      'version': releases.first.version,
+    });
+    final terms = [
+      ..._kWhatsNewTerms,
+      label.toLowerCase(),
+      context.tr('release_notes').toLowerCase(),
+    ];
+    // From the start of a word: "date" is someone after a date format, not
+    // "update".
+    if (!terms.any((t) => t.startsWith(needle) || t.contains(' $needle'))) {
+      return const [];
+    }
+    return [
+      SearchResult(group: kWhatsNewSearchGroup, name: label, id: '', path: ''),
     ];
   }
 
@@ -475,6 +523,15 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
     if (_selected < 0 || _selected >= _results.length) return;
     final r = _results[_selected];
+    if (r.group == kWhatsNewSearchGroup) {
+      // A dialog over the current screen, which nothing navigates away from
+      // — so no unsaved-changes prompt. Opened from the root navigator's
+      // context, which outlives this palette.
+      final host = Navigator.of(context, rootNavigator: true).context;
+      Navigator.of(context).pop();
+      unawaited(openWhatsNewOnRequest(host));
+      return;
+    }
     if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -779,6 +836,8 @@ class _CommandPaletteState extends State<_CommandPalette> {
                         ? Icons.link
                         : r.group == kReportsSearchGroup
                         ? Icons.bar_chart_outlined
+                        : r.group == kWhatsNewSearchGroup
+                        ? Icons.new_releases_outlined
                         : settingsHit?.section.icon ??
                               (type != null
                                   ? registry[type]?.effectiveOutlinedIcon

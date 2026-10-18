@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/shell/widgets/health_check_dialog.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
+import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 
 /// Pushes Flutter's bundled `LicensePage`. Modal sub-flow (not page
 /// navigation) — see the routing rule in `docs/architecture.md` § Navigation.
@@ -40,6 +41,7 @@ Future<void> showAppAboutDialog(BuildContext context) async {
   // re-open survives popping the About dialog (the builder's `ctx`
   // unmounts on pop).
   final outerContext = context;
+  final whatsNew = whatsNewOnRequest(context);
   await showDialog<void>(
     context: context,
     builder: (ctx) => _AboutDialog(
@@ -83,6 +85,15 @@ Future<void> showAppAboutDialog(BuildContext context) async {
               }
             }
           : null,
+      // The notes' permanent way back (docs/whats-new-dialog.md): the
+      // update's when one is waiting, else this build's release.
+      whatsNewVersion: whatsNew?.first.version,
+      onShowWhatsNew: whatsNew == null
+          ? null
+          : () {
+              Navigator.of(ctx).pop();
+              if (outerContext.mounted) openWhatsNewOnRequest(outerContext);
+            },
     ),
   );
 }
@@ -108,6 +119,8 @@ class _AboutDialog extends StatelessWidget {
     required this.onShowKeyboardShortcuts,
     required this.onShowDebugPanel,
     this.onShowMobileApp,
+    this.whatsNewVersion,
+    this.onShowWhatsNew,
   });
 
   final ValueListenable<String?> serverVersion;
@@ -119,6 +132,8 @@ class _AboutDialog extends StatelessWidget {
   final VoidCallback? onShowKeyboardShortcuts;
   final VoidCallback onShowDebugPanel;
   final VoidCallback? onShowMobileApp;
+  final String? whatsNewVersion;
+  final VoidCallback? onShowWhatsNew;
 
   /// Combined `v<server>-<platformLetter><clientBuild>` label (see
   /// [AppVersion.versionLabel]). [server] is the live `x-app-version` value.
@@ -209,15 +224,36 @@ class _AboutDialog extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: tokens.ink3),
                 ),
               ],
-              if (onShowMobileApp != null) ...[
+              if (onShowWhatsNew != null || onShowMobileApp != null) ...[
                 SizedBox(height: InSpacing.md(context)),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                  ),
-                  onPressed: onShowMobileApp,
-                  icon: const Icon(Icons.smartphone_outlined, size: 18),
-                  label: Text(context.tr('mobile_app_promo_entry')),
+                // Wraps: the two side by side outgrow a phone's About.
+                Wrap(
+                  spacing: InSpacing.sm,
+                  runSpacing: InSpacing.sm,
+                  children: [
+                    if (onShowWhatsNew != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        onPressed: onShowWhatsNew,
+                        icon: const Icon(Icons.new_releases_outlined, size: 18),
+                        label: Text(
+                          context.tr('see_whats_new', {
+                            'version': whatsNewVersion ?? '',
+                          }),
+                        ),
+                      ),
+                    if (onShowMobileApp != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        onPressed: onShowMobileApp,
+                        icon: const Icon(Icons.smartphone_outlined, size: 18),
+                        label: Text(context.tr('mobile_app_promo_entry')),
+                      ),
+                  ],
                 ),
               ],
               SizedBox(height: InSpacing.md(context)),

@@ -240,6 +240,16 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// The "What's new" dialog's record — `{seenVersion, shownAt, attempts,
+  /// attemptedVersion}` JSON (`WhatsNewController`). It is "this install has
+  /// shown these notes", so a sign-out keeps it: the next person signing in
+  /// here is not told about the same update again (docs/whats-new-dialog.md).
+  static const whatsNew = PrefKey<String>(
+    'whats_new_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -266,6 +276,7 @@ abstract final class DevicePrefKeys {
     trustedCertificates,
     signOutNotice,
     mobileAppPromo,
+    whatsNew,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

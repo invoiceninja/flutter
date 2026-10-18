@@ -158,6 +158,13 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.mobileAppPromo.finish(),
     (s) => !s.mobileAppPromo.state.done,
   ),
+  // "This install has shown these notes" — the next person to sign in isn't
+  // told about the same update again, and the promo's day-long hold after the
+  // dialog survives the sign-out too.
+  DevicePrefKeys.whatsNew: _Probe(
+    (s) => s.whatsNew.noteOpened(DateTime.utc(2026, 10, 14, 12)),
+    (s) => s.whatsNew.state.shownAt == null,
+  ),
 };
 
 final _certificate = CertificateFacts(

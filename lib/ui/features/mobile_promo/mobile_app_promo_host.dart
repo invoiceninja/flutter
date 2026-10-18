@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/mobile_app_promo_controller.dart';
@@ -11,7 +10,6 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
-import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 
 /// Opens the mobile-app promo on its own when it is due, and counts the days
@@ -19,11 +17,11 @@ import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 ///
 /// Mounted inside the authenticated shell (`ScaffoldWithNav`), so it can
 /// never land over `/login`, `/lock` or `/setup`. It waits for the landing
-/// screen to settle, then for a quiet moment — no dialog or sheet up, nothing
-/// being typed, no unsaved form, not on a form or settings screen, the
-/// window in front — and gives up for the launch if none comes within
-/// [_giveUpAfter]. A launch that already showed another automatic dialog
-/// ([AutomaticDialogs]) is left alone.
+/// screen to settle, then for a quiet moment ([QuietMomentCheck]) — and gives
+/// up for the launch if none comes within [_giveUpAfter]. A launch that
+/// already showed another automatic dialog ([AutomaticDialogs]) is left
+/// alone, and so is any while the What's New dialog holds it back
+/// ([MobileAppPromoController.isDue]).
 ///
 /// Inert without a [MobileAppPromoController] provider or with its
 /// `promote` off — every harness that pumps the shell.
@@ -48,6 +46,9 @@ class _MobileAppPromoHostState extends State<MobileAppPromoHost> {
   /// Quiet-moment checks left this launch; null until armed. Counted rather
   /// than timed against the wall clock, which a test's fake time can't move.
   int? _checksLeft;
+
+  /// Made when the open is armed, so input during the settle counts.
+  QuietMomentCheck? _quiet;
 
   @override
   void didChangeDependencies() {
@@ -84,6 +85,7 @@ class _MobileAppPromoHostState extends State<MobileAppPromoHost> {
     if (!controller.isDue(DateTime.now())) return;
     _checksLeft =
         1 + (_giveUpAfter - _settle).inMilliseconds ~/ _retry.inMilliseconds;
+    _quiet = QuietMomentCheck();
     _timer = Timer(_settle, _tryShow);
   }
 
@@ -96,43 +98,11 @@ class _MobileAppPromoHostState extends State<MobileAppPromoHost> {
     final left = _checksLeft! - 1;
     _checksLeft = left;
     if (left < 0) return;
-    if (!_isQuiet()) {
+    if (!_quiet!.isQuiet(context)) {
       _timer = Timer(_retry, _tryShow);
       return;
     }
     unawaited(_show(controller));
-  }
-
-  /// The last path segments of the screens that are forms: a record's editor,
-  /// a create screen, and the email / refund / statement screens a record's
-  /// actions open.
-  static const _formLeaves = {'edit', 'new', 'email', 'refund', 'statement'};
-
-  /// Nothing the user is in the middle of. `isCurrent` sees only the root
-  /// navigator, so a sheet pushed onto a branch navigator is caught through
-  /// the route that holds focus instead; a `MenuAnchor` menu is not a route
-  /// at all and stays an accepted gap — the promo opens over it and closes
-  /// back to it.
-  bool _isQuiet() {
-    final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return false;
-    final focused = FocusManager.instance.primaryFocus?.context;
-    if (focused != null && ModalRoute.of(focused) is PopupRoute) return false;
-    if (isTextInputFocused()) return false;
-    if (context.read<Services>().unsavedChangesGuard.hasUnsaved) return false;
-    final lifecycle = WidgetsBinding.instance.lifecycleState;
-    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) {
-      return false;
-    }
-    final path = GoRouter.maybeOf(
-      context,
-    )?.routerDelegate.currentConfiguration.uri.path;
-    if (path != null &&
-        (path.startsWith('/settings') ||
-            _formLeaves.contains(path.split('/').last))) {
-      return false;
-    }
-    return true;
   }
 
   Future<void> _show(MobileAppPromoController controller) async {

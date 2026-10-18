@@ -57,7 +57,7 @@ Plus two non-negotiables carried from admin-portal:
 | A self-hosted server's TLS certificate the device refuses | `docs/trusting-a-self-hosted-certificate.md` |
 | Setup: entitlements, dev login, Google Sign-In IDs, app icons | `docs/setup.md` |
 | Release builds, Sentry DSN, iOS archive, F-Droid, store deploys | `docs/setup.md` § Release builds with Sentry · `docs/fdroid.md` · `docs/store-deployment-setup.md` |
-| Writing release notes | § Release Notes · `docs/release-notes.md` |
+| Writing release notes, or the What's New dialog after an update | § Release Notes · `docs/release-notes.md` · `docs/whats-new-dialog.md` |
 | CI workflows, perf benchmarks, integration tests | `.github/workflows/_test.yaml` · `docs/performance-tracking.md` · `docs/integration-tests.md` |
 | Server-side filter gaps / required API changes | `BACKEND.md` |
 | A runtime error or a stale outbox row | § Diagnostics log · `docs/diagnostics.md` |
@@ -659,6 +659,9 @@ Web is a supported target; native behavior stays **byte-identical** — every di
 ## Release Notes
 
 When the user asks for "release notes" (or "releasenotes"), follow `docs/release-notes.md`: notes for the **next** (patch-bumped) version, printed in chat **and** written to `release-notes-vX.Y.Z.md` in the repo root. Never tag, release or bump version files unless asked separately.
+
+- **The release notes the app shows are bundled in `kReleaseNotes`, a bullet naming another platform or store is hidden on the App Store builds, and the dialog never links out.** → `docs/whats-new-dialog.md`
+- **The bump script refuses a version with no kReleaseNotes entry, so the notes are written before the bump.** → `docs/whats-new-dialog.md`
 
 ## Reference points
 

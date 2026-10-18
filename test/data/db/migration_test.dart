@@ -262,6 +262,8 @@ void main() {
         'hide_peppol_status',
         'trusted_certificates_json',
         'sign_out_notice_json',
+        'mobile_app_promo_json',
+        'whats_new_json',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

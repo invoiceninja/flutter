@@ -29,6 +29,23 @@ void main() {
   });
 
   group('AppDatabase', () {
+    test('createdThisOpen tells a new store from one an earlier build left '
+        "— What's New tells an update from an install by it", () async {
+      final dir = Directory.systemTemp.createTempSync('admin_created_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File(p.join(dir.path, 'store.sqlite'));
+
+      final first = AppDatabase(NativeDatabase(file));
+      await first.devicePrefsDao.readAll();
+      expect(first.createdThisOpen, isTrue);
+      await first.close();
+
+      final reopened = AppDatabase(NativeDatabase(file));
+      await reopened.devicePrefsDao.readAll();
+      expect(reopened.createdThisOpen, isFalse);
+      await reopened.close();
+    });
+
     test('CompanyScopedDao isolates rows across companies', () async {
       await db.clientDao.upsert(
         ClientsCompanion.insert(

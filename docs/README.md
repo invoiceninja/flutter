@@ -63,6 +63,7 @@ read-it-first orientation for a new developer.
 - [`upstream-workarounds.md`](upstream-workarounds.md) — **Upstream-bug workarounds.** The single registry of workarounds this app carries for **open upstream bugs/limitations** — in Flutter, Dart, third-party pub packages, or platform SDKs — that we expect to **remove once the upstream ships a fix**.
 - [`web-platform-differences.md`](web-platform-differences.md) — **Web platform differences.** Unencrypted IndexedDB persistence, the conditional-import seams, the vendored WASM assets, the hash URL strategy, what is disabled, the missing `Idempotency-Key`, and the demo build.
 - [`web-benchmarks.md`](web-benchmarks.md) — **Web benchmarks — WASM against JS.** The harness in `tools/web_bench/` that builds the app with dart2js and with dart2wasm and measures startup, frame times, compute and size in Chrome; the rules that keep a sample honest; the last recorded results.
+- [`whats-new-dialog.md`](whats-new-dialog.md) — **What's New.** The dialog that shows an update's release notes: the bundled `kReleaseNotes` and the App Store filter, how an update is told apart from an install, when it opens on its own, and the day the mobile-app promo waits behind it.
 
 ## Symptom index
 
@@ -122,7 +123,7 @@ The full routing table, moved here from CLAUDE.md's Quick Index (which keeps a s
 | macOS entitlement, dev login pre-fill, platform targets, "Sign in with Google" missing on iOS / Android | `docs/setup.md` (§ Google Sign-In client IDs) |
 | Building a release app / injecting the Sentry DSN, an Xcode archive carrying an old version number, the F-Droid (FOSS) build, or a store-only SDK | `docs/fdroid.md` · `tools/prepare_foss.sh` · `tools/foss/com.invoiceninja.admin.yml` + `tools/fdroid_build.sh` (the F-Droid APK) · `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
 | iOS Product → Archive failing on a plugin's minimum platform version | `tools/prepare_ios_archive.sh` (run it first) · `docs/setup.md` § Release builds with Sentry · `docs/upstream-workarounds.md` § 8 |
-| Writing release notes for a new version | § Release Notes |
+| Writing release notes for a new version, or the What's New dialog after an update | § Release Notes · `docs/whats-new-dialog.md` · `lib/domain/release_notes.dart` |
 | Setting up store deploys / CI signing secrets | `docs/store-deployment-setup.md` (runbook) · `docs/setup.md` § Shipping to the stores (reference) |
 | Regenerating app icons (Windows / web / Snap) | `dart run tools/gen_app_icons.dart` · `docs/setup.md` § App icons |
 | Probing the demo API for live response shapes | `docs/probing-the-demo-api.md` |

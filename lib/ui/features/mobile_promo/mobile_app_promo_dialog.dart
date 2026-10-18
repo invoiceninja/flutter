@@ -380,6 +380,7 @@ class _MobileAppPromoDialogState extends State<MobileAppPromoDialog> {
         ],
         Semantics(
           header: true,
+          headingLevel: 1,
           namesRoute: true,
           child: Text(
             context.tr('mobile_app_promo_title'),

@@ -127,19 +127,17 @@ void main() {
     expect(find.byType(Divider).evaluate().length, rulesBefore);
   }, variant: kDesktop);
 
-  testWidgets(
-    "a server report's menu still divides its two kinds of file",
-    (tester) async {
-      // The count above is not vacuous: here the menu brings its rule.
-      await pumpReports(tester, preview: _tasks(), location: '/reports/task');
-      final rulesBefore = find.byType(Divider).evaluate().length;
-      await tester.tap(find.text('Export'));
-      await tester.pumpAndSettle();
-      expect(find.text('Download full report'), findsOneWidget);
-      expect(find.byType(Divider).evaluate().length, greaterThan(rulesBefore));
-    },
-    variant: kDesktop,
-  );
+  testWidgets("a server report's menu still divides its two kinds of file", (
+    tester,
+  ) async {
+    // The count above is not vacuous: here the menu brings its rule.
+    await pumpReports(tester, preview: _tasks(), location: '/reports/task');
+    final rulesBefore = find.byType(Divider).evaluate().length;
+    await tester.tap(find.text('Export'));
+    await tester.pumpAndSettle();
+    expect(find.text('Download full report'), findsOneWidget);
+    expect(find.byType(Divider).evaluate().length, greaterThan(rulesBefore));
+  }, variant: kDesktop);
 
   testWidgets('an empty range says no time was logged, and offers no "All '
       'time"', (tester) async {

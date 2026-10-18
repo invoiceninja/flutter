@@ -2037,11 +2037,9 @@ void main() {
             },
           )
           .first;
-      expect(
-        filtered.map((c) => c.name),
-        ['Gamma'],
-        reason: 'SQL LIKE %ma% on the `name` column matches only Gamma',
-      );
+      expect(filtered.map((c) => c.name), [
+        'Gamma',
+      ], reason: 'SQL LIKE %ma% on the `name` column matches only Gamma');
 
       // Sanity: with no filter, all three are visible.
       final unfiltered = await repo

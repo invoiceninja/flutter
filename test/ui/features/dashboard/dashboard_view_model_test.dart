@@ -193,11 +193,9 @@ void main() {
 
       final reader = newVm();
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(
-        reader.visibleChartSeries,
-        {ChartSeriesId.invoices},
-        reason: 'a deliberate invoices-only choice must not be re-upgraded',
-      );
+      expect(reader.visibleChartSeries, {
+        ChartSeriesId.invoices,
+      }, reason: 'a deliberate invoices-only choice must not be re-upgraded');
       reader.dispose();
     });
 

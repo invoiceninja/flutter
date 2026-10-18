@@ -1375,9 +1375,16 @@ class Services implements SidebarBadgeContext {
     // Mirror the resolved [Formatter] into a sync map so callers in
     // initState / cell-commit paths can read it without awaiting.
     // Cleared alongside the Future cache by [invalidateFormatter].
-    future.then(
-      (f) => _formatterReady[companyId] = f,
-      onError: (_) => _formatterCache.remove(companyId),
+    // `then<void>` with block bodies: the old `onError: (_) =>
+    // _formatterCache.remove(companyId)` returned the failed future itself,
+    // which re-raised the error on a future nobody listens to.
+    future.then<void>(
+      (f) {
+        _formatterReady[companyId] = f;
+      },
+      onError: (Object _) {
+        _formatterCache.remove(companyId);
+      },
     );
     return future;
   }

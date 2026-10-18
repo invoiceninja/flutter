@@ -539,11 +539,9 @@ void main() {
         final written = jsonDecode(
           (await db.navStateDao.current())!.filtersJson!,
         );
-        expect(
-          (written as Map)['co']['client']['states'],
-          ['active'],
-          reason: 'apply must not re-persist the pre-#126 empty shape',
-        );
+        expect((written as Map)['co']['client']['states'], [
+          'active',
+        ], reason: 'apply must not re-persist the pre-#126 empty shape');
 
         // Neither matcher may mutate the stored snapshot — `_matchSlot` strips
         // `columnIds` and the display-only keys, and `normalizeSnapshotStates`

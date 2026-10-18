@@ -159,27 +159,25 @@ void main() {
       expect(h.repo.requests.length, greaterThan(before));
     }, variant: kDesktop);
 
-    testWidgets(
-      'a failed refresh keeps the result and says what happened',
-      (tester) async {
-        final h = await pumpReports(tester, preview: invoiceReportFixture());
-        h.repo.error = const ReportError(
-          kind: ReportErrorKind.serverError,
-          message: '',
-        );
-        await tester.tap(find.byKey(const Key('report-refresh')));
-        await settleReports(tester);
+    testWidgets('a failed refresh keeps the result and says what happened', (
+      tester,
+    ) async {
+      final h = await pumpReports(tester, preview: invoiceReportFixture());
+      h.repo.error = const ReportError(
+        kind: ReportErrorKind.serverError,
+        message: '',
+      );
+      await tester.tap(find.byKey(const Key('report-refresh')));
+      await settleReports(tester);
 
-        // The figures are still there…
-        expect(find.byType(ReportSummaryCard), findsOneWidget);
-        // …under a notice that offers the way forward, and never a blank
-        // message: the server's was `""`.
-        expect(find.byType(ReportNotice), findsOneWidget);
-        expect(find.text('Retry'), findsOneWidget);
-        expect(find.textContaining('An error occurred'), findsOneWidget);
-      },
-      variant: kDesktop,
-    );
+      // The figures are still there…
+      expect(find.byType(ReportSummaryCard), findsOneWidget);
+      // …under a notice that offers the way forward, and never a blank
+      // message: the server's was `""`.
+      expect(find.byType(ReportNotice), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.textContaining('An error occurred'), findsOneWidget);
+    }, variant: kDesktop);
 
     testWidgets('a report the server only makes as a file says so', (
       tester,
@@ -459,35 +457,31 @@ void main() {
       expect(find.byKey(const Key('report-split')), findsNothing);
     }, variant: kDesktop);
 
-    testWidgets(
-      'the currency control appears only when there is a choice',
-      (tester) async {
-        await pumpReports(tester, preview: invoiceReportFixture());
-        expect(find.byKey(const Key('report-currency')), findsNothing);
-      },
-      variant: kDesktop,
-    );
+    testWidgets('the currency control appears only when there is a choice', (
+      tester,
+    ) async {
+      await pumpReports(tester, preview: invoiceReportFixture());
+      expect(find.byKey(const Key('report-currency')), findsNothing);
+    }, variant: kDesktop);
 
-    testWidgets(
-      'with two currencies, figures are read in one and say which',
-      (tester) async {
-        final h = await pumpReports(
-          tester,
-          preview: invoiceReportFixture(twoCurrencies: true),
-        );
-        expect(find.byKey(const Key('report-currency')), findsOneWidget);
-        // The company's own currency, not the first one met.
-        final view = h.vm.buildView(companyCurrencyId: '1');
-        expect(view.currencyId, '1');
-        expect(reportCurrencies(view), ['1', '3']);
-        expect(find.text('Total · USD'), findsOneWidget);
-        // The count is of every row, whatever it is in — the same number the
-        // table states.
-        expect(find.text('214'), findsOneWidget);
-        expect(find.text('214 rows'), findsOneWidget);
-      },
-      variant: kDesktop,
-    );
+    testWidgets('with two currencies, figures are read in one and say which', (
+      tester,
+    ) async {
+      final h = await pumpReports(
+        tester,
+        preview: invoiceReportFixture(twoCurrencies: true),
+      );
+      expect(find.byKey(const Key('report-currency')), findsOneWidget);
+      // The company's own currency, not the first one met.
+      final view = h.vm.buildView(companyCurrencyId: '1');
+      expect(view.currencyId, '1');
+      expect(reportCurrencies(view), ['1', '3']);
+      expect(find.text('Total · USD'), findsOneWidget);
+      // The count is of every row, whatever it is in — the same number the
+      // table states.
+      expect(find.text('214'), findsOneWidget);
+      expect(find.text('214 rows'), findsOneWidget);
+    }, variant: kDesktop);
 
     testWidgets('the date-created column is offered, and asking for it asks '
         'the server', (tester) async {
@@ -571,33 +565,31 @@ void main() {
       expect(jan, lessThan(feb));
     }, variant: kDesktop);
 
-    testWidgets(
-      'by a category it is a ranking, and the table agrees with it',
-      (tester) async {
-        final h = await pumpReports(tester, preview: invoiceReportFixture());
-        h.vm.groupBy('client.name');
-        await tester.pump();
-        expect(find.byType(BarChart), findsNothing);
-        expect(find.byType(BarList), findsOneWidget);
-        expect(find.text('Amount by Client'), findsOneWidget);
+    testWidgets('by a category it is a ranking, and the table agrees with it', (
+      tester,
+    ) async {
+      final h = await pumpReports(tester, preview: invoiceReportFixture());
+      h.vm.groupBy('client.name');
+      await tester.pump();
+      expect(find.byType(BarChart), findsNothing);
+      expect(find.byType(BarList), findsOneWidget);
+      expect(find.text('Amount by Client'), findsOneWidget);
 
-        // The table is in the chart's order, as an ordinary sort the header
-        // shows — not a second, alphabetical list of the same clients.
-        expect(h.vm.sortField, 'invoice.amount');
-        expect(h.vm.sortAscending, isFalse);
-        final view = h.vm.buildView(companyCurrencyId: '1');
-        final totals = [
-          for (final g in view.groups) g.numericTotals['invoice.amount']!['1']!,
-        ];
-        expect(totals, [...totals]..sort((a, b) => b.compareTo(a)));
+      // The table is in the chart's order, as an ordinary sort the header
+      // shows — not a second, alphabetical list of the same clients.
+      expect(h.vm.sortField, 'invoice.amount');
+      expect(h.vm.sortAscending, isFalse);
+      final view = h.vm.buildView(companyCurrencyId: '1');
+      final totals = [
+        for (final g in view.groups) g.numericTotals['invoice.amount']!['1']!,
+      ];
+      expect(totals, [...totals]..sort((a, b) => b.compareTo(a)));
 
-        // Back to months: the ranking goes, because months belong in order.
-        h.vm.groupBy('invoice.date');
-        await tester.pump();
-        expect(h.vm.sortField, isNull);
-      },
-      variant: kDesktop,
-    );
+      // Back to months: the ranking goes, because months belong in order.
+      h.vm.groupBy('invoice.date');
+      await tester.pump();
+      expect(h.vm.sortField, isNull);
+    }, variant: kDesktop);
 
     testWidgets('a ranking the reader re-sorted is theirs to keep', (
       tester,
@@ -610,25 +602,23 @@ void main() {
       expect(h.vm.sortField, 'client.name');
     }, variant: kDesktop);
 
-    testWidgets(
-      'ungrouped it still shows its largest rows, each told apart',
-      (tester) async {
-        final h = await pumpReports(tester, preview: invoiceReportFixture());
-        h.vm.groupBy('');
-        await tester.pump();
-        expect(find.text('Top 10 by Amount'), findsOneWidget);
-        // Client and number: ten invoices of one client are not ten identical
-        // lines.
-        expect(find.textContaining('Acme Industrial · INV-'), findsWidgets);
-        // And the ways to cut it are one tap away.
-        final card = find.byType(ReportSummaryCard);
-        expect(
-          find.descendant(of: card, matching: find.text('Client')),
-          findsOneWidget,
-        );
-      },
-      variant: kDesktop,
-    );
+    testWidgets('ungrouped it still shows its largest rows, each told apart', (
+      tester,
+    ) async {
+      final h = await pumpReports(tester, preview: invoiceReportFixture());
+      h.vm.groupBy('');
+      await tester.pump();
+      expect(find.text('Top 10 by Amount'), findsOneWidget);
+      // Client and number: ten invoices of one client are not ten identical
+      // lines.
+      expect(find.textContaining('Acme Industrial · INV-'), findsWidgets);
+      // And the ways to cut it are one tap away.
+      final card = find.byType(ReportSummaryCard);
+      expect(
+        find.descendant(of: card, matching: find.text('Client')),
+        findsOneWidget,
+      );
+    }, variant: kDesktop);
 
     testWidgets('a figure that is zero throughout says so in the chart\'s '
         'place', (tester) async {

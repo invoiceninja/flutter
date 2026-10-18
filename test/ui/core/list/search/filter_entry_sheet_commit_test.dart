@@ -74,11 +74,9 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(
-      vm.extraFilters['name'],
-      {'acme'},
-      reason: 'the sheet used to SEARCH for the literal text `name:acme`',
-    );
+    expect(vm.extraFilters['name'], {
+      'acme',
+    }, reason: 'the sheet used to SEARCH for the literal text `name:acme`');
     expect(vm.search, '');
     expect(boxText(tester), '');
     // A filter is a batch-edit step: the sheet stays open for the next one.
@@ -207,11 +205,10 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(
-      vm.extraFilters['fruit_id'],
-      {'a', 'b'},
-      reason: 'the chip used to be removed before its picker opened',
-    );
+    expect(vm.extraFilters['fruit_id'], {
+      'a',
+      'b',
+    }, reason: 'the chip used to be removed before its picker opened');
 
     // Picking another value replaces the one on the chip.
     await tester.tap(find.text('Cherry'));
@@ -242,48 +239,40 @@ void main() {
     expect(find.widgetWithText(FilterTokenChip, '"acme"'), findsOneWidget);
   });
 
-  testWidgets(
-    '← walks into the chips in the sheet too',
-    (tester) async {
-      final vm = newHarnessVm(db);
-      await pumpSheet(tester, vm, [FruitKey()]);
-      await vm.setExtraFilter(serverKey: 'fruit_id', values: {'a', 'b'});
-      await tester.pump();
-      await tester.pump();
+  testWidgets('← walks into the chips in the sheet too', (tester) async {
+    final vm = newHarnessVm(db);
+    await pumpSheet(tester, vm, [FruitKey()]);
+    await vm.setExtraFilter(serverKey: 'fruit_id', values: {'a', 'b'});
+    await tester.pump();
+    await tester.pump();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-      await tester.pump();
-      bool armed(String label) => tester
-          .widget<FilterTokenChip>(find.widgetWithText(FilterTokenChip, label))
-          .armed;
-      expect(armed('Banana'), isTrue);
-      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-      await tester.pump();
-      await tester.pump();
-      expect(vm.extraFilters['fruit_id'], {'a'});
-      await tester.pump(const Duration(seconds: 1));
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-  );
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    bool armed(String label) => tester
+        .widget<FilterTokenChip>(find.widgetWithText(FilterTokenChip, label))
+        .armed;
+    expect(armed('Banana'), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pump();
+    await tester.pump();
+    expect(vm.extraFilters['fruit_id'], {'a'});
+    await tester.pump(const Duration(seconds: 1));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets(
-    '⌘V in the sheet reads a query too',
-    (tester) async {
-      final vm = newHarnessVm(db);
-      await pumpSheet(tester, vm, const [
-        IsFilterKey(),
-      ], clipboard: 'is:archived corp');
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-      await tester.pump();
-      await tester.pump();
-      expect(vm.states, contains(EntityState.archived));
-      expect(boxText(tester), 'corp');
-      await tester.pump(const Duration(seconds: 1));
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-  );
+  testWidgets('⌘V in the sheet reads a query too', (tester) async {
+    final vm = newHarnessVm(db);
+    await pumpSheet(tester, vm, const [
+      IsFilterKey(),
+    ], clipboard: 'is:archived corp');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pump();
+    await tester.pump();
+    expect(vm.states, contains(EntityState.archived));
+    expect(boxText(tester), 'corp');
+    await tester.pump(const Duration(seconds: 1));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   // On a phone the long-press menu's Paste is the only paste there is. It
   // used to be the platform's own, which dropped a query in as raw text.

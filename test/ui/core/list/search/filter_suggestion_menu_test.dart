@@ -138,11 +138,11 @@ void main() {
 
       keys.sort((a, b) => compareFilterKeysByLabel(a, b, capturedContext));
 
-      expect(
-        keys.map((k) => k.displayLabel(capturedContext)).toList(),
-        ['apple', 'Banana', 'Cherry'],
-        reason: 'Case-insensitive A→Z order regardless of registry order',
-      );
+      expect(keys.map((k) => k.displayLabel(capturedContext)).toList(), [
+        'apple',
+        'Banana',
+        'Cherry',
+      ], reason: 'Case-insensitive A→Z order regardless of registry order');
     },
   );
 

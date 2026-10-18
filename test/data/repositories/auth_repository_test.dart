@@ -4223,11 +4223,9 @@ void main() {
       final tokens =
           jsonDecode(await storage.read(kAuthTokensKey) ?? '{}')
               as Map<String, dynamic>;
-      expect(
-        tokens.keys,
-        ['co_b'],
-        reason: "user A's token must not survive into user B's session",
-      );
+      expect(tokens.keys, [
+        'co_b',
+      ], reason: "user A's token must not survive into user B's session");
     });
 
     test('a destructive logout clears the stored identity', () async {

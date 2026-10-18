@@ -35,7 +35,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 1. Flutter 3.44: dev-dependency plugin still emitted into GeneratedPluginRegistrant
 
-- Issue / waiting on: [flutter/flutter#186800](https://github.com/flutter/flutter/issues/186800) (open, P1), [#169336](https://github.com/flutter/flutter/issues/169336), [#175621](https://github.com/flutter/flutter/issues/175621). • Found: 2026-06-11 • Flutter: 3.44.1
+- Issue / waiting on: [flutter/flutter#186800](https://github.com/flutter/flutter/issues/186800) (open, P1), [#169336](https://github.com/flutter/flutter/issues/169336), [#175621](https://github.com/flutter/flutter/issues/175621) (closed as a duplicate). Fix PR [#194204](https://github.com/flutter/flutter/pull/194204) still open. • Found: 2026-06-11 • Flutter: 3.44.1, still present in 3.47.7
 - Symptom: release build fails at `:app:compileReleaseJavaWithJavac` — `package dev.flutter.plugins.integration_test does not exist`. `flutter clean` does **not** help. Affects Android **and** iOS/macOS release builds.
 - Root cause: dev-dependency plugins are dropped from the release native classpath but still emitted into `GeneratedPluginRegistrant.java`.
 - Commit ref: _not yet committed — fill in the SHA(s) when committed._
@@ -70,7 +70,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 4. Flutter desktop integration tests: one file per `flutter test` invocation
 
-- Issue / waiting on: [flutter/flutter#135673](https://github.com/flutter/flutter/issues/135673). • Found: pre-existing
+- Issue / waiting on: [flutter/flutter#135673](https://github.com/flutter/flutter/issues/135673), closed 2026-08-27 by [#189192](https://github.com/flutter/flutter/pull/189192). That fix is on master but not in 3.47.7 (its `desktop_device.dart` has no `SingleLaunchLogReader`), so it waits for the next stable. • Found: pre-existing • Flutter: 3.47.7
 - Symptom: `flutter test integration_test/ -d macos` (bare glob) runs only the FIRST file; later files die with "Error waiting for a debug connection" — the tool reuses a debug-connection stream that breaks on the second app launch.
 - Root cause: the desktop integration runner can't relaunch the app across multiple files in one invocation.
 - Change:
@@ -80,7 +80,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 5. Dart analyzer lags the 3.11 parser on null-aware elements
 
-- Issue / waiting on: analyzer/SDK version lag (no issue number cited in-tree). • Found: pre-existing
+- Issue / waiting on: analyzer/SDK version lag (no issue number cited in-tree). • Found: pre-existing • **Ready to revert (rechecked on Flutter 3.47.7):** the syntax is accepted. `lib/` already uses one (`?sum` in `needs_attention_band.dart`), and both `flutter analyze` and `build_runner` (analyzer 10.2.0) pass over it. Dropping the ignore leaves 58 info-level `use_null_aware_elements` hits, a mechanical `dart fix --apply --code=use_null_aware_elements`. It's left for its own change.
 - Symptom: `?'key': value` (null-aware map/collection elements) is parser-supported in Dart 3.11 but the bundled analyzer rejects it, so the `use_null_aware_elements` lint can't be satisfied.
 - Root cause: the bundled analyzer trails the language parser for this syntax.
 - Change:
@@ -90,7 +90,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 6. local_auth_windows / cppwinrt plugins: `<experimental/coroutine>` hard-errors on MSVC 14.51
 
-- Issue / waiting on: [flutter/flutter#186452](https://github.com/flutter/flutter/issues/186452) (VS 18.6 / MSVC 14.51 breakage), [microsoft/cppwinrt#1520](https://github.com/microsoft/cppwinrt/issues/1520) (root cause), and a `local_auth_windows` release that migrates off the deprecated experimental coroutine header — all open. • Found: 2026-07-09 • Flutter: 3.44.1
+- Issue / waiting on: [flutter/flutter#186452](https://github.com/flutter/flutter/issues/186452) (VS 18.6 / MSVC 14.51 breakage), [microsoft/cppwinrt#1520](https://github.com/microsoft/cppwinrt/issues/1520) (root cause), and a `local_auth_windows` release that migrates off the deprecated experimental coroutine header. #186452 was closed as not planned and cppwinrt#1520 is closed, but `local_auth_windows` 2.0.2 still builds with `/await`. • Found: 2026-07-09 • Flutter: 3.44.1, still needed on 3.47.7
 - Symptom: `flutter build windows` (the CI `build-windows` gate + the `deploy-msstore` job) fails compiling `local_auth_windows_plugin.vcxproj` with `error C2338: static assertion failed: 'error STL1011: The /await compiler option, <experimental/coroutine>, ... are deprecated ...'`. Surfaces on CI (`windows-latest` now ships Visual Studio 18 / MSVC 14.51) and on any dev machine with VS ≥ 18.6.
 - Root cause: `local_auth_windows` 2.0.1 compiles WinRT coroutines (`/await` + `cxx_std_20`, `#include <pplawait.h>` / `<ppltasks.h>`, `co_await` / `winrt::fire_and_forget`, bundled cppwinrt 2.0.220418.1) through the deprecated `<experimental/coroutine>` header; MSVC 14.51 turned that deprecation into a hard `static_assert` unless `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` is defined.
 - Commit ref: _not yet committed — fill in the SHA when committed._
@@ -101,7 +101,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 7. RawAutocomplete: no way to reopen the options view without changing the text
 
-- Issue / waiting on: no dedicated tracker for "show/reopen the options view on demand". Closest open issues: [flutter/flutter#140662](https://github.com/flutter/flutter/issues/140662) (let `Autocomplete`/`RawAutocomplete` distinguish focus from tap), [#99164](https://github.com/flutter/flutter/issues/99164) (missing features desktop/web users expect). What we actually need is a public `showOptions()` / controller on `RawAutocompleteState`. • Found: 2026-08-15 (invoiceninja/flutter#34) • Flutter: 3.44.1
+- Issue / waiting on: no dedicated tracker for "show/reopen the options view on demand". Closest open issues: [flutter/flutter#140662](https://github.com/flutter/flutter/issues/140662) (let `Autocomplete`/`RawAutocomplete` distinguish focus from tap), [#99164](https://github.com/flutter/flutter/issues/99164) (missing features desktop/web users expect). What we actually need is a public `showOptions()` / controller on `RawAutocompleteState`. 3.47 added no such API; its only `autocomplete.dart` change wraps the options overlay in `ExcludeFocus`. • Found: 2026-08-15 (invoiceninja/flutter#34) • Flutter: 3.44.1, still needed on 3.47.7
 - Symptom: after the user picks an option, tapping the same field again reopens nothing at all — neither the text nor the focus changed, so no code path recomputes the options.
 - Root cause: `RawAutocomplete` recomputes `_options` **only** from its `TextEditingController` listener, and `_onChangedField` early-returns unless `value.text != _lastFieldText` (`packages/flutter/lib/src/widgets/autocomplete.dart`). `_canShowOptionsView` additionally requires `_options` to be non-empty, and nothing else can populate it.
 - Commit ref: _not yet committed — fill in the SHA when committed._
@@ -114,14 +114,14 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 8. Flutter SwiftPM: generated package manifest ignores the project's iOS deployment target
 
-- Issue / waiting on: [flutter/flutter#162196](https://github.com/flutter/flutter/issues/162196) (open, P3 — "Xcode build does not update the generated package's supported platforms"). Related, already-fixed context: [#162072](https://github.com/flutter/flutter/issues/162072). • Found: 2026-08-25 • Flutter: 3.44.1
+- Issue / waiting on: [flutter/flutter#162196](https://github.com/flutter/flutter/issues/162196) (open, P3 — "Xcode build does not update the generated package's supported platforms"). Related, already-fixed context: [#162072](https://github.com/flutter/flutter/issues/162072). • Found: 2026-08-25 • Flutter: 3.44.1. **Dormant since 3.47.7:** the bug is still open, but Flutter's own iOS default is now 15.0 (`darwin.dart` → `Version(15, 0, null)`), so `flutter pub get` writes the manifest at `.iOS("15.0")`. That is above `file_picker`'s 14.0, which matches the project's migrated 15.0, so the archive error can't occur until some plugin declares a floor above 15.0. The script stays as the guard for that case.
 - Symptom: a hand-built iOS **Product → Archive** from Xcode fails during Swift package resolution — `The package product 'file-picker' requires minimum platform version 14.0 for the iOS platform, but this target supports 13.0` — even though `ios/Podfile` and all three project-level `IPHONEOS_DEPLOYMENT_TARGET` entries in `ios/Runner.xcodeproj/project.pbxproj` are already `14.0`. CLI builds (`tools/build_release.sh ios` → `flutter build ipa`) and CI (`appstore-ios.yml`, which carries its own `--config-only` step) are unaffected, so it only bites a developer archiving from the IDE.
 - Root cause: `flutter_tools` writes `ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift` — the top-level SwiftPM package the Runner target links — at its **hardcoded** iOS default (`packages/flutter_tools/lib/src/darwin/darwin.dart` → `ios => Version(13, 0, null)`), and raises it to the project's real target only in `SwiftPackageManager.updateMinimumDeployment`, which is called from a single site inside `flutter build ios`/`ipa`/`run` (`packages/flutter_tools/lib/src/ios/mac.dart`). Xcode's archive path never calls it, and every `flutter pub get` regenerates the manifest back down to 13.0. The 14.0 floor itself is legitimate: `file_picker` ≥ 12 declares `.iOS("14.0")` and is the only plugin in the graph above 13.0.
 - Commit ref: _not yet committed — fill in the SHA when committed._
 - Change(s):
   - `tools/prepare_ios_archive.sh` — **MUST-REVERT**: new script. Runs `flutter build ios --release --config-only`, then verifies the regenerated manifest against the project's `IPHONEOS_DEPLOYMENT_TARGET` and against the highest iOS floor declared by any package under `ios/Flutter/ephemeral/Packages/.packages/`, exiting non-zero (and naming the package) when the manifest can't clear it. The verification half is what makes it more than a one-line wrapper: it predicts the *next* occurrence, when some plugin bumps past the project target.
   - `docs/setup.md` § Release builds with Sentry — **MUST-REVERT**: the `**iOS archives need one terminal command first (SwiftPM).**` paragraph (run `tools/prepare_ios_archive.sh` before each Xcode archive).
-  - `docs/setup.md` § Platform targets — **KEEP**: the `**Minimum OS versions.**` paragraph. Recording iOS 14.0 / macOS 10.15 is correct regardless of upstream, and its absence is what made "raise the deployment target" look like the fix when it was already done.
+  - `docs/setup.md` § Platform targets — **KEEP**: the `**Minimum OS versions.**` paragraph. Recording the minimum OS versions (iOS 15.0 / macOS 12.0 since Flutter 3.47) is correct regardless of upstream, and its absence is what made "raise the deployment target" look like the fix when it was already done.
   - `CLAUDE.md` Quick Index — **MUST-REVERT**: the "iOS Product → Archive failing on a plugin's minimum platform version" row.
 - Revert: delete `tools/prepare_ios_archive.sh`, the `docs/setup.md` § Release builds with Sentry paragraph, the script mentions in § Platform targets and § iOS / macOS — App Store & TestFlight, and the `CLAUDE.md` Quick Index row; keep the § Platform targets paragraph itself. Nothing in `lib/` or the Xcode/Podfile build config is touched — the workaround is a manual step plus the script that performs and checks it.
 - **Do not** try to automate this with a Runner scheme pre-action or a build-phase script. Xcode resolves the Swift package graph *before* either runs, so a hook can only ever fix the *next* archive — and a `flutter build … --config-only` pre-action is the exact thing that previously hung iOS archives (see the header comment in `tools/xcode_inject_sentry_dsn.sh`). Hand-editing the manifest is also futile: it is gitignored (`ios/.gitignore`) and rewritten by the next `flutter pub get`.
@@ -179,7 +179,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 13. flutter_tools: the AOT snapshot embeds the absolute project path, so an APK depends on where it was built
 
-- Issue / waiting on: none filed as of 2026-10-15. F-Droid's Flutter template works around it rather than citing an issue (`templates/build-flutter.yml` in fdroiddata: "Use the same build path as upstream for reproducible build"). • Found: 2026-10-15 (invoiceninja/flutter#175) • Flutter: 3.44.1
+- Issue / waiting on: none filed as of 2026-10-15. F-Droid's Flutter template works around it rather than citing an issue (`templates/build-flutter.yml` in fdroiddata: "Use the same build path as upstream for reproducible build"). • Found: 2026-10-15 (invoiceninja/flutter#175) • Flutter: 3.44.1, still present in 3.47.7 (a release arm64 `libapp.so` carries `file:///<project>/.dart_tool/flutter_build/dart_plugin_registrant.dart`)
 - Symptom: two builds of one commit at different paths differ in `lib/<abi>/libapp.so` alone (measured on the arm64 split: 1 of 522 entries). F-Droid publishes our signed APK only when its own rebuild is byte-identical, so a build at any other path is a version F-Droid silently skips.
 - Root cause: the generated `.dart_tool/flutter_build/dart_plugin_registrant.dart` is compiled in as a `file://<project>/…` URI rather than a package-relative one, and the URI survives into the snapshot (`strings libapp.so | grep file://`).
 - Commit ref: not yet committed

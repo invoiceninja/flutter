@@ -403,21 +403,19 @@ void main() {
       },
     );
 
-    _screenTest(
-      'a figure opens the Expenses tab',
-      _vendor(),
-      (tester, screen) async {
-        await screen.untilFound(_standing(r'$1,250.00'), 'the total');
-        expect(find.byType(ExpenseListScreen), findsNothing);
+    _screenTest('a figure opens the Expenses tab', _vendor(), (
+      tester,
+      screen,
+    ) async {
+      await screen.untilFound(_standing(r'$1,250.00'), 'the total');
+      expect(find.byType(ExpenseListScreen), findsNothing);
 
-        await tester.tap(_standing('TOTAL EXPENSES'));
-        await screen.untilFound(
-          find.byType(ExpenseListScreen),
-          'the Expenses tab',
-        );
-      },
-      expenses: [_expense('e1', '1250.00', '2024-02-11')],
-    );
+      await tester.tap(_standing('TOTAL EXPENSES'));
+      await screen.untilFound(
+        find.byType(ExpenseListScreen),
+        'the Expenses tab',
+      );
+    }, expenses: [_expense('e1', '1250.00', '2024-02-11')]);
 
     final short = _Server()
       ..totals = const {'/api/v1/expenses': 3}

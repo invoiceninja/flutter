@@ -830,11 +830,9 @@ void main() {
       // The fake stub has inv_1 (amount=100) and inv_2 (amount=200, archived).
       // The override drops anything with amount < 150 — exercises the hook
       // wiring without depending on entity-specific semantics.
-      expect(
-        vm.items.map((i) => i.id),
-        ['inv_2'],
-        reason: 'transformPage(raw) wrapped watchPage() before _onItems ran',
-      );
+      expect(vm.items.map((i) => i.id), [
+        'inv_2',
+      ], reason: 'transformPage(raw) wrapped watchPage() before _onItems ran');
       vm.dispose();
     },
   );

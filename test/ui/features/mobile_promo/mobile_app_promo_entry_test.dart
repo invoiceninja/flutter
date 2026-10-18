@@ -199,14 +199,10 @@ void main() {
       expect(find.text(_entry), findsNothing);
     }, variant: windows);
 
-    testWidgets(
-      'absent on the phone apps',
-      (tester) async {
-        await pump(tester, footer());
-        expect(find.text(_entry), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-    );
+    testWidgets('absent on the phone apps', (tester) async {
+      await pump(tester, footer());
+      expect(find.text(_entry), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   });
 
   group('MobileAppPromoHost', () {
@@ -290,19 +286,17 @@ void main() {
     Widget section() =>
         const Scaffold(body: SingleChildScrollView(child: MobileAppSection()));
 
-    testWidgets(
-      'offers the promo on a desktop, opened as a request',
-      (tester) async {
-        await pump(tester, section(), promote: false);
-        expect(find.text('Mobile app'), findsOneWidget);
-        await tester.tap(find.text(_entry));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 600));
-        expect(find.text('Invoice Ninja on your phone'), findsOneWidget);
-        expect(find.text('Close'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('offers the promo on a desktop, opened as a request', (
+      tester,
+    ) async {
+      await pump(tester, section(), promote: false);
+      expect(find.text('Mobile app'), findsOneWidget);
+      await tester.tap(find.text(_entry));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Invoice Ninja on your phone'), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('absent for the demo and for a server only this machine '
         'reaches', (tester) async {
@@ -316,13 +310,9 @@ void main() {
       }
     }, variant: windows);
 
-    testWidgets(
-      'absent on the phone apps',
-      (tester) async {
-        await pump(tester, section());
-        expect(find.text('Mobile app'), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+    testWidgets('absent on the phone apps', (tester) async {
+      await pump(tester, section());
+      expect(find.text('Mobile app'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
   });
 }

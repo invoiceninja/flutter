@@ -22,9 +22,9 @@ mixin _$DocumentApi {
 // restore are no-ops (`DocumentRepository::archive`) and delete is a
 // hard `forceDelete`. Modeled so a server that starts archiving is read
 // honestly rather than silently.
-@JsonKey(name: 'archived_at') int get archivedAt;// The record the file is attached to. `DocumentTransformer` does not send
-// these today (BACKEND.md § Documents list); read tolerantly so a server
-// that does starts filling "Linked to" with no client change.
+@JsonKey(name: 'archived_at') int get archivedAt;// The record the file is attached to. `DocumentTransformer` sends these
+// from invoiceninja/invoiceninja#13365 (BACKEND.md § Documents list); an
+// older server omits both, so they're nullable and read tolerantly.
 @JsonKey(name: 'documentable_type', fromJson: jsonScalarToString) String? get documentableType;@JsonKey(name: 'documentable_id', fromJson: jsonScalarToString) String? get documentableId;
 /// Create a copy of DocumentApi
 /// with the given fields replaced by the non-null parameter values.
@@ -260,9 +260,9 @@ class _DocumentApi implements DocumentApi {
 // hard `forceDelete`. Modeled so a server that starts archiving is read
 // honestly rather than silently.
 @override@JsonKey(name: 'archived_at') final  int archivedAt;
-// The record the file is attached to. `DocumentTransformer` does not send
-// these today (BACKEND.md § Documents list); read tolerantly so a server
-// that does starts filling "Linked to" with no client change.
+// The record the file is attached to. `DocumentTransformer` sends these
+// from invoiceninja/invoiceninja#13365 (BACKEND.md § Documents list); an
+// older server omits both, so they're nullable and read tolerantly.
 @override@JsonKey(name: 'documentable_type', fromJson: jsonScalarToString) final  String? documentableType;
 @override@JsonKey(name: 'documentable_id', fromJson: jsonScalarToString) final  String? documentableId;
 

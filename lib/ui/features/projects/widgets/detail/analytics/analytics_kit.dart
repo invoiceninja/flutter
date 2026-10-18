@@ -70,7 +70,11 @@ class AnalyticsSubheading extends StatelessWidget {
       color: context.inTheme.ink2,
       fontWeight: FontWeight.w600,
     );
-    final label = Semantics(header: true, child: Text(text, style: style));
+    final label = Semantics(
+      header: true,
+      headingLevel: 2,
+      child: Text(text, style: style),
+    );
     return Padding(
       padding: EdgeInsets.only(bottom: InSpacing.sm),
       child: trailing == null

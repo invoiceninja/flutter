@@ -672,7 +672,9 @@ Future<OpenedDatabase> openAppDatabase({
       // A check or a repair that *errors* — a lock, an I/O error, a full disk
       // — is not drift: it propagates to the catch below and is classified
       // like any other open failure. Only drift the repair cannot fix resets.
-      if (await _schemaIntact(db)) return finish(db, wasReset: false);
+      // Awaited, so a salvage put off by [finish] reaches the
+      // `on DatabaseUnavailableException` clause below instead of skipping it.
+      if (await _schemaIntact(db)) return await finish(db, wasReset: false);
       // Drifted — a prior migration didn't fully land on this device. Bring
       // it to the declared shape in place when that costs nothing but cache;
       // reset only when it can't (a durable table missing a column that
@@ -681,7 +683,7 @@ Future<OpenedDatabase> openAppDatabase({
         final report = await repairSchema(db);
         if (await _schemaIntact(db)) {
           _log.warning('Local schema had drifted; repaired in place: $report');
-          return finish(db, wasReset: false);
+          return await finish(db, wasReset: false);
         }
       } on SchemaUnrepairableException catch (e, st) {
         _log.severe('The drifted schema cannot be repaired in place', e, st);

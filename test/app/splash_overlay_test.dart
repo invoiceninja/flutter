@@ -12,62 +12,56 @@ import 'package:admin/app/splash_overlay.dart';
 void main() {
   tearDown(() => NativeSplash.dismissed.value = false);
 
-  testWidgets(
-    'what the splash covers keeps its state when the splash ends',
-    (tester) async {
-      var mounts = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: SplashOverlay(
-            // The shape `main` hands it: the app's own Stack of siblings.
-            child: Stack(
-              children: [
-                const SizedBox.expand(),
-                _Mounts(onMount: () => mounts++),
-              ],
-            ),
+  testWidgets('what the splash covers keeps its state when the splash ends', (
+    tester,
+  ) async {
+    var mounts = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SplashOverlay(
+          // The shape `main` hands it: the app's own Stack of siblings.
+          child: Stack(
+            children: [
+              const SizedBox.expand(),
+              _Mounts(onMount: () => mounts++),
+            ],
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-      expect(mounts, 1);
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(mounts, 1);
 
-      NativeSplash.dismissed.value = true;
-      // The overlay's exit starts on the next frame; in the app its own entry
-      // animation has one scheduled, here nothing does.
-      tester.binding.scheduleFrame();
-      await tester.pumpAndSettle();
-      expect(
-        find.descendant(
-          of: find.byType(SplashOverlay),
-          matching: find.byType(IgnorePointer),
-        ),
-        findsNothing,
-        reason: 'the splash has gone',
-      );
+    NativeSplash.dismissed.value = true;
+    // The overlay's exit starts on the next frame; in the app its own entry
+    // animation has one scheduled, here nothing does.
+    tester.binding.scheduleFrame();
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(SplashOverlay),
+        matching: find.byType(IgnorePointer),
+      ),
+      findsNothing,
+      reason: 'the splash has gone',
+    );
 
-      expect(mounts, 1, reason: 'a remount repeats whatever it does on mount');
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-  );
+    expect(mounts, 1, reason: 'a remount repeats whatever it does on mount');
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
-  testWidgets(
-    'elsewhere it is a passthrough',
-    (tester) async {
-      const child = SizedBox.expand(key: Key('app'));
-      await tester.pumpWidget(
-        const MaterialApp(home: SplashOverlay(child: child)),
-      );
-      expect(
-        find.descendant(
-          of: find.byType(SplashOverlay),
-          matching: find.byType(Stack),
-        ),
-        findsNothing,
-      );
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.android),
-  );
+  testWidgets('elsewhere it is a passthrough', (tester) async {
+    const child = SizedBox.expand(key: Key('app'));
+    await tester.pumpWidget(
+      const MaterialApp(home: SplashOverlay(child: child)),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(SplashOverlay),
+        matching: find.byType(Stack),
+      ),
+      findsNothing,
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }
 
 class _Mounts extends StatefulWidget {

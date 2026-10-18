@@ -55,32 +55,26 @@ void main() {
   ];
 
   for (final width in [390.0, 1440.0]) {
-    testWidgets(
-      'Enter in a header field saves the document ($width px)',
-      (tester) async {
-        final (:fixture, :saves) = await mount(tester, width);
-        // Counted per field: a total alone passes when one field saves twice
-        // and another not at all.
-        for (final (i, label) in headerFields.indexed) {
-          await enterIn(tester, label);
-          expect(saves(), i + 1, reason: label);
-        }
-        await unmount(tester, fixture);
-      },
-      timeout: const Timeout(Duration(seconds: 60)),
-    );
+    testWidgets('Enter in a header field saves the document ($width px)', (
+      tester,
+    ) async {
+      final (:fixture, :saves) = await mount(tester, width);
+      // Counted per field: a total alone passes when one field saves twice
+      // and another not at all.
+      for (final (i, label) in headerFields.indexed) {
+        await enterIn(tester, label);
+        expect(saves(), i + 1, reason: label);
+      }
+      await unmount(tester, fixture);
+    }, timeout: const Timeout(Duration(seconds: 60)));
   }
 
-  testWidgets(
-    'Enter in Exchange Rate saves the document',
-    (tester) async {
-      final (:fixture, :saves) = await mount(tester, 390);
-      final tabs = tabBarLabels(tester).first;
-      await showTab(tester, tabs.indexOf('Settings'));
-      await enterIn(tester, 'Exchange Rate');
-      expect(saves(), 1);
-      await unmount(tester, fixture);
-    },
-    timeout: const Timeout(Duration(seconds: 60)),
-  );
+  testWidgets('Enter in Exchange Rate saves the document', (tester) async {
+    final (:fixture, :saves) = await mount(tester, 390);
+    final tabs = tabBarLabels(tester).first;
+    await showTab(tester, tabs.indexOf('Settings'));
+    await enterIn(tester, 'Exchange Rate');
+    expect(saves(), 1);
+    await unmount(tester, fixture);
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }

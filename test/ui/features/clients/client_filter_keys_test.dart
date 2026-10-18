@@ -265,11 +265,9 @@ void main() {
 
       await vm.setStates({EntityState.archived});
       await key.removeValue(vm, 'archived');
-      expect(
-        vm.states,
-        {EntityState.active},
-        reason: 'archived / deleted are opt-in; the default is active-only',
-      );
+      expect(vm.states, {
+        EntityState.active,
+      }, reason: 'archived / deleted are opt-in; the default is active-only');
       vm.dispose();
     });
 
@@ -509,11 +507,9 @@ void main() {
           ),
         );
         await key.addValue(vm, 'US');
-        expect(
-          vm.extraFilters['country_id'],
-          {'840'},
-          reason: 'paste compat: `country:US` resolves through ISO2',
-        );
+        expect(vm.extraFilters['country_id'], {
+          '840',
+        }, reason: 'paste compat: `country:US` resolves through ISO2');
         vm.dispose();
       },
     );

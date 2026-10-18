@@ -127,11 +127,9 @@ void main() {
     expect(jsonDecode(saved.tableColumnsJson), {
       'client': ['name'],
     });
-    expect(
-      jsonDecode(saved.extraJson),
-      {'other': 'kept'},
-      reason: 'table_columns is split out of the extra blob',
-    );
+    expect(jsonDecode(saved.extraJson), {
+      'other': 'kept',
+    }, reason: 'table_columns is split out of the extra blob');
   });
 
   test('a response with no user block falls back to the locally stored userId '
@@ -174,22 +172,18 @@ void main() {
       await seedLocalRow();
       await dispatch();
 
-      expect(
-        jsonDecode((await db.userSettingsDao.get('co'))!.extraJson),
-        {'seed': 'kept'},
-        reason: 'the cached settings must survive untouched',
-      );
+      expect(jsonDecode((await db.userSettingsDao.get('co'))!.extraJson), {
+        'seed': 'kept',
+      }, reason: 'the cached settings must survive untouched');
     });
 
     test('a response with no data block writes nothing', () async {
       await seedLocalRow();
       await dispatch(response: {'meta': 'only'});
 
-      expect(
-        jsonDecode((await db.userSettingsDao.get('co'))!.extraJson),
-        {'seed': 'kept'},
-        reason: 'the cached settings must survive untouched',
-      );
+      expect(jsonDecode((await db.userSettingsDao.get('co'))!.extraJson), {
+        'seed': 'kept',
+      }, reason: 'the cached settings must survive untouched');
     });
 
     test('a response whose settings is not an object writes nothing', () async {
@@ -200,11 +194,9 @@ void main() {
         },
       );
 
-      expect(
-        jsonDecode((await db.userSettingsDao.get('co'))!.extraJson),
-        {'seed': 'kept'},
-        reason: 'the cached settings must survive untouched',
-      );
+      expect(jsonDecode((await db.userSettingsDao.get('co'))!.extraJson), {
+        'seed': 'kept',
+      }, reason: 'the cached settings must survive untouched');
     });
   });
 

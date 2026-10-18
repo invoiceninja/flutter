@@ -301,11 +301,9 @@ void main() {
         budgets: budgets({'a.b': {}, 'c.d': {}}),
         history: history,
       );
-      expect(
-        c.active.map((a) => a.key),
-        ['regression:c.d'],
-        reason: 'c.d was not asked for, so it is neither failed nor resolved',
-      );
+      expect(c.active.map((a) => a.key), [
+        'regression:c.d',
+      ], reason: 'c.d was not asked for, so it is neither failed nor resolved');
       expect(c.newKeys, isEmpty);
       expect(c.resolvedKeys, isEmpty);
       expect(c.reports.map((r) => r.id), ['a.b']);
@@ -356,11 +354,9 @@ void main() {
         }),
         history: history,
       );
-      expect(
-        next.active.map((a) => a.key),
-        ['regression:a.b'],
-        reason: 'the new normal is guarded like the old one',
-      );
+      expect(next.active.map((a) => a.key), [
+        'regression:a.b',
+      ], reason: 'the new normal is guarded like the old one');
     });
 
     test('a slowdown that eases into drift is the same news, neither new '

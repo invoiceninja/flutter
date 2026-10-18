@@ -298,11 +298,10 @@ void main() {
       );
 
       expect(api.updates, hasLength(1));
-      expect(
-        api.setDefaults.map((s) => s.entity),
-        ['invoice', 'quote'],
-        reason: 'one entity failing must not abort the remaining entries',
-      );
+      expect(api.setDefaults.map((s) => s.entity), [
+        'invoice',
+        'quote',
+      ], reason: 'one entity failing must not abort the remaining entries');
     });
   });
 

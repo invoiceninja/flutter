@@ -229,11 +229,9 @@ void main() {
       expect(a.team.single.billableValue, Decimal.parse('700'));
       expect(a.tasks.single.number, '0007');
       expect(a.tasks.single.isCompleted, isTrue);
-      expect(
-        a.velocity.map((d) => d.day),
-        [const Date(2026, 8, 3)],
-        reason: 'a row with no readable date is dropped',
-      );
+      expect(a.velocity.map((d) => d.day), [
+        const Date(2026, 8, 3),
+      ], reason: 'a row with no readable date is dropped');
       expect(a.expenseCategories.single.categoryId, isNull);
       expect(a.cumulativeSpend.single.total, Decimal.parse('550'));
     });

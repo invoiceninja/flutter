@@ -1287,17 +1287,15 @@ void main() {
     double height(WidgetTester tester) =>
         tester.getSize(find.byType(ActivityRecordRow)).height;
 
-    testWidgets(
-      'the row drops below the Normal floor with a pointer',
-      (tester) async {
-        await pumpRow(tester, scoped: false);
-        expect(height(tester), kEntityListRowHeight);
-        await pumpRow(tester);
-        expect(height(tester), lessThan(kEntityListRowHeight));
-        expect(height(tester), greaterThanOrEqualTo(40));
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('the row drops below the Normal floor with a pointer', (
+      tester,
+    ) async {
+      await pumpRow(tester, scoped: false);
+      expect(height(tester), kEntityListRowHeight);
+      await pumpRow(tester);
+      expect(height(tester), lessThan(kEntityListRowHeight));
+      expect(height(tester), greaterThanOrEqualTo(40));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('keeps a 44 px target plus padding on touch', (tester) async {
       await pumpRow(tester);

@@ -440,11 +440,9 @@ void main() {
         await seedGroupedClient({'lock_invoices': 'end_of_month'});
 
         await repo.resolved(companyId: 'co', clientId: 'cl1');
-        expect(
-          repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'),
-          {'lock_invoices': 'end_of_month'},
-          reason: 'precondition: all three tiers are warm',
-        );
+        expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'), {
+          'lock_invoices': 'end_of_month',
+        }, reason: 'precondition: all three tiers are warm');
 
         // Push `cl1`'s client layer out of the bounded mirror. `_clientGroup`
         // used to be a plain map write with no eviction at all, so it kept

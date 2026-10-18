@@ -391,6 +391,8 @@ Run them in this order — cheapest failure first:
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
 | Microsoft | Certification, then the live listing | Automatic — no promotion step |
 
+**After a Flutter bump that changes desktop rendering, run the desktop builds on real machines before they ship.** CI only *builds* Windows and Linux; nothing runs them. Flutter 3.47 made Impeller the renderer on Windows (over ANGLE) and Linux (over OpenGL), with new text rendering. Launch a `flutter build windows` build on real Windows hardware before running `microsoft-store.yml`, because Microsoft publishes straight to the listing after certification. Launch the AppImage or Snap on Linux before you promote it out of prerelease / `edge`. If either renders wrong, the per-platform opt-out is one line: `project.set_impeller_switch(flutter::ImpellerSwitch::Disabled)` in `windows/runner/main.cpp`, or `fl_dart_project_set_enable_impeller(project, FALSE)` in `linux/runner/my_application.cc`. Log it in `docs/upstream-workarounds.md` as MUST-REVERT, because Flutter says the Skia fallback will be removed.
+
 ---
 
 ## 5. Per release

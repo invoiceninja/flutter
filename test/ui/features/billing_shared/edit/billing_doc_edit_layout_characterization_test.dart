@@ -315,19 +315,17 @@ void main() {
         await unmount(tester, fixture);
       }, timeout: timeout);
 
-      testWidgets(
-        'e-invoicing adds a tab only where the entity supports it',
-        (tester) async {
-          final fixture = await mount(tester, doc, 390, eInvoice: true);
-          final tabs = tabBarLabels(tester).first;
-          expect(tabs, [
-            ..._phone[doc]!.keys,
-            if (_hasEInvoice.contains(doc)) 'E-Invoice',
-          ]);
-          await unmount(tester, fixture);
-        },
-        timeout: timeout,
-      );
+      testWidgets('e-invoicing adds a tab only where the entity supports it', (
+        tester,
+      ) async {
+        final fixture = await mount(tester, doc, 390, eInvoice: true);
+        final tabs = tabBarLabels(tester).first;
+        expect(tabs, [
+          ..._phone[doc]!.keys,
+          if (_hasEInvoice.contains(doc)) 'E-Invoice',
+        ]);
+        await unmount(tester, fixture);
+      }, timeout: timeout);
 
       testWidgets('e-invoicing on a tablet comes after the PDF tab', (
         tester,

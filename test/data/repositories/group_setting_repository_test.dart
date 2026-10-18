@@ -415,11 +415,9 @@ void main() {
       await repo.save(companyId: 'co', group: stale);
       final after = (await repo.watchAll(companyId: 'co').first).single;
       expect(after.name, 'Renamed');
-      expect(
-        after.documents.map((d) => d.id).toList(),
-        ['d1'],
-        reason: '_domainToCompanion must leave documents untouched',
-      );
+      expect(after.documents.map((d) => d.id).toList(), [
+        'd1',
+      ], reason: '_domainToCompanion must leave documents untouched');
     });
 
     test('applyBundle preserves the local payload of an is_dirty row '

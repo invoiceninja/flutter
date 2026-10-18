@@ -125,11 +125,9 @@ void main() {
       );
       expect(_one(b, r'^    commit: (\S+)$'), 'v$name', reason: abi);
     }
-    expect(
-      _all(recipe, r"^  - '(%c \+ \d+)'$"),
-      [for (final abi in platforms.keys) '%c + ${digits[abi]! * 1000}'],
-      reason: 'VercodeOperation must list the blocks in the same order',
-    );
+    expect(_all(recipe, r"^  - '(%c \+ \d+)'$"), [
+      for (final abi in platforms.keys) '%c + ${digits[abi]! * 1000}',
+    ], reason: 'VercodeOperation must list the blocks in the same order');
     expect(_one(recipe, r'^CurrentVersion: (\S+)$'), name);
     expect(
       int.parse(_one(recipe, r'^CurrentVersionCode: (\d+)$')),

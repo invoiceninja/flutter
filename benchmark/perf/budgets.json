@@ -7,7 +7,8 @@
   "defaults": {
     "regression": 0.25,
     "drift": 0.4,
-    "minDeltaMs": 0.1
+    "minDeltaMs": 0.1,
+    "since": "2026-10-18"
   },
   "benchmarks": {
     "billing.invoice_totals": {

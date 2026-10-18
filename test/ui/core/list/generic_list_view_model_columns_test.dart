@@ -188,11 +188,10 @@ void main() {
         ['name'],
         reason: 'nothing honest to render',
       );
-      expect(
-        vm.columnIds,
-        ['name', 'custom1'],
-        reason: 'the preference survives — this must not be destructive',
-      );
+      expect(vm.columnIds, [
+        'name',
+        'custom1',
+      ], reason: 'the preference survives — this must not be destructive');
 
       // …and restoring it brings the column back.
       controller.add(company(const {'widget1': 'Region'}));

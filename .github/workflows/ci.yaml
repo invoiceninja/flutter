@@ -66,19 +66,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Pinned to match local dev (3.44.1). Bumped deliberately from 3.41.9:
-      # 3.44 made IconData a final class, so material_design_icons_flutter
-      # (which subclassed it) was removed; the pencil-in-circle edit glyph we
-      # still want from it is now vendored as a plain const IconData over a
-      # bundled font (lib/app/mdi_icons.dart). super_editor / re_editor compile
-      # cleanly under 3.44 (the new TextInput members are all defaulted).
+      # Pinned to match local dev (3.47.7). Bumped deliberately from 3.44.1:
+      # 3.47 raised Flutter's own floors to iOS 15.0 / macOS 12.0 (the tool
+      # migrated the Podfiles + pbxproj), made `Semantics.header` a no-op on
+      # iOS/Android (every heading now also sets `headingLevel` —
+      # docs/screen-reader-headings.md), and made Impeller the desktop
+      # renderer. Before that, 3.44 (from 3.41.9) made IconData a final class,
+      # so material_design_icons_flutter was removed and its edit glyph
+      # vendored (lib/app/mdi_icons.dart).
       # Keep pinned — never let `channel: stable` drift the version on its own.
       # `cache: true` caches the Flutter SDK; `pub-cache` defaults to it, so
       # ~/.pub-cache is cached too.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -129,7 +131,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -158,7 +160,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -185,7 +187,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Prepare the FOSS build
@@ -251,7 +253,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install Linux build deps
@@ -292,7 +294,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -322,7 +324,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Select Xcode 26.4.1
@@ -373,7 +375,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.1
+          flutter-version: 3.47.7
           cache: true
 
       - name: Enable web

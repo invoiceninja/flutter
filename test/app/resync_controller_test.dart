@@ -105,11 +105,9 @@ void main() {
       expect(results[0].disposition, ResyncDisposition.completed);
       expect(results[1].disposition, ResyncDisposition.joined);
       expect(results[0].failedEntities, ['invoice']);
-      expect(
-        results[1].failedEntities,
-        ['invoice'],
-        reason: 'the joiner settles with the same outcome',
-      );
+      expect(results[1].failedEntities, [
+        'invoice',
+      ], reason: 'the joiner settles with the same outcome');
     },
   );
 

@@ -82,42 +82,40 @@ void main() {
     expect(find.byIcon(Icons.photo_camera), findsOneWidget);
   }, variant: onAndroid);
 
-  testWidgets(
-    'renders without a Scaffold/Material ancestor (mobile shell)',
-    (tester) async {
-      // The narrow shell hosts the band in a bare Column with no Scaffold above
-      // it, so the panel must supply its own Material. Regression for the
-      // "No Material widget found" crash on phones — built directly here because
-      // the shared `pumpAt` harness wraps everything in a Scaffold and so masks
-      // the bug.
-      await tester.binding.setSurfaceSize(const Size(390, 720));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('renders without a Scaffold/Material ancestor (mobile shell)', (
+    tester,
+  ) async {
+    // The narrow shell hosts the band in a bare Column with no Scaffold above
+    // it, so the panel must supply its own Material. Regression for the
+    // "No Material widget found" crash on phones — built directly here because
+    // the shared `pumpAt` harness wraps everything in a Scaffold and so masks
+    // the bug.
+    await tester.binding.setSurfaceSize(const Size(390, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildInTheme(InTheme.light),
-          localizationsDelegates: kTestLocalizationsDelegates,
-          supportedLocales: kTestSupportedLocales,
-          home: Center(
-            child: SizedBox(
-              width: 390,
-              height: 480,
-              child: DebugPanelSection(
-                store: DebugCaptureStore(),
-                windowController: ScreenshotWindowController(),
-                onHide: () {},
-              ),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Center(
+          child: SizedBox(
+            width: 390,
+            height: 480,
+            child: DebugPanelSection(
+              store: DebugCaptureStore(),
+              windowController: ScreenshotWindowController(),
+              onHide: () {},
             ),
           ),
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      expect(tester.takeException(), isNull);
-      expect(find.byType(Switch), findsOneWidget);
-    },
-    variant: onAndroid,
-  );
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Switch), findsOneWidget);
+  }, variant: onAndroid);
 
   testWidgets('toolbar stacks into two rows when narrow', (tester) async {
     final controller = ScreenshotWindowController();
@@ -180,51 +178,49 @@ void main() {
     );
   }, variant: onMacOS);
 
-  testWidgets(
-    'custom size dialog validates and applies through the channel',
-    (tester) async {
-      tester.view.devicePixelRatio = 2.0;
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final controller = ScreenshotWindowController();
+  testWidgets('custom size dialog validates and applies through the channel', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ScreenshotWindowController();
 
-      await pumpAt(tester, 900, buildPanel(controller), scroll: false);
-      await tester.tap(find.byIcon(Icons.aspect_ratio));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Custom size…'));
-      await tester.pumpAndSettle();
+    await pumpAt(tester, 900, buildPanel(controller), scroll: false);
+    await tester.tap(find.byIcon(Icons.aspect_ratio));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Custom size…'));
+    await tester.pumpAndSettle();
 
-      final widthField = find.widgetWithText(TextField, 'Width (px)');
-      final heightField = find.widgetWithText(TextField, 'Height (px)');
-      final applyButton = find.widgetWithText(FilledButton, 'Apply');
-      expect(widthField, findsOneWidget);
-      expect(heightField, findsOneWidget);
+    final widthField = find.widgetWithText(TextField, 'Width (px)');
+    final heightField = find.widgetWithText(TextField, 'Height (px)');
+    final applyButton = find.widgetWithText(FilledButton, 'Apply');
+    expect(widthField, findsOneWidget);
+    expect(heightField, findsOneWidget);
 
-      // Out-of-range input disables Apply.
-      await tester.enterText(widthField, '50');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(applyButton).onPressed, isNull);
+    // Out-of-range input disables Apply.
+    await tester.enterText(widthField, '50');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(applyButton).onPressed, isNull);
 
-      // Digits-only: letters are filtered out, leaving the field empty.
-      await tester.enterText(widthField, 'abc');
-      await tester.pump();
-      expect(tester.widget<TextField>(widthField).controller!.text, isEmpty);
+    // Digits-only: letters are filtered out, leaving the field empty.
+    await tester.enterText(widthField, 'abc');
+    await tester.pump();
+    expect(tester.widget<TextField>(widthField).controller!.text, isEmpty);
 
-      await tester.enterText(widthField, '2000');
-      await tester.enterText(heightField, '1200');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(applyButton).onPressed, isNotNull);
+    await tester.enterText(widthField, '2000');
+    await tester.enterText(heightField, '1200');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(applyButton).onPressed, isNotNull);
 
-      // Enter in the height field submits via FormSaveScope.
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
+    // Enter in the height field submits via FormSaveScope.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
 
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(sizeCalls(), hasLength(1));
-      expect(sizeCalls().single.arguments, {'width': 1000.0, 'height': 600.0});
-      expect(controller.appliedSizePx, (width: 2000, height: 1200));
-    },
-    variant: onMacOS,
-  );
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(sizeCalls(), hasLength(1));
+    expect(sizeCalls().single.arguments, {'width': 1000.0, 'height': 600.0});
+    expect(controller.appliedSizePx, (width: 2000, height: 1200));
+  }, variant: onMacOS);
 
   testWidgets('errors tab level filter stays usable at 320', (tester) async {
     final controller = ScreenshotWindowController();

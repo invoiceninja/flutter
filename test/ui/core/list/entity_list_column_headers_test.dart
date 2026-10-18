@@ -184,16 +184,14 @@ void main() {
     double height(WidgetTester tester) =>
         tester.getSize(find.byType(EntityListColumnHeaders<_Row>)).height;
 
-    testWidgets(
-      'the strip is 45 px with a pointer, against 57',
-      (tester) async {
-        // 12 + the 32 px select-all slot + 12 + the 1 px rule, then 6 + 32 + 6 + 1.
-        await pump(tester, company: const Company());
-        expect(height(tester), 57);
-        await pump(tester, company: const Company(), density: compact);
-        expect(height(tester), 45);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('the strip is 45 px with a pointer, against 57', (
+      tester,
+    ) async {
+      // 12 + the 32 px select-all slot + 12 + the 1 px rule, then 6 + 32 + 6 + 1.
+      await pump(tester, company: const Company());
+      expect(height(tester), 57);
+      await pump(tester, company: const Company(), density: compact);
+      expect(height(tester), 45);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }

@@ -716,11 +716,9 @@ void main() {
           await tester.testTextInput.receiveAction(TextInputAction.done);
           await tester.pumpAndSettle();
 
-          expect(
-            navigations,
-            ['/clients/abc'],
-            reason: 'Enter used the stale results instead of the pasted link',
-          );
+          expect(navigations, [
+            '/clients/abc',
+          ], reason: 'Enter used the stale results instead of the pasted link');
         },
       );
     });

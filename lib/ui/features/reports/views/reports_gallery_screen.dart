@@ -263,6 +263,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       header: true,
+      headingLevel: 2,
       child: Text(
         text.toUpperCase(),
         style: Theme.of(context).textTheme.bodySmall?.copyWith(

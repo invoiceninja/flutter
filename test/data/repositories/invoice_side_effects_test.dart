@@ -86,11 +86,9 @@ void main() {
 
     expect(calls, hasLength(1));
     expect(calls.single[EntityType.client], {'c1'});
-    expect(
-      calls.single[EntityType.task],
-      {'t1'},
-      reason: 'the delete un-bills the task server-side',
-    );
+    expect(calls.single[EntityType.task], {
+      't1',
+    }, reason: 'the delete un-bills the task server-side');
   });
 
   test('a plain invoice still refreshes its client (AR balance)', () async {

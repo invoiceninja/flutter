@@ -127,6 +127,7 @@ class QuickCreateSheet extends StatelessWidget {
           children: [
             Semantics(
               header: true,
+              headingLevel: 1,
               child: Text(
                 context.tr('create_new'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(

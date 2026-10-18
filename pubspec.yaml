@@ -13,14 +13,14 @@ flutter_icons:
   adaptive_icon_foreground: "assets/images/icon.png"
   adaptive_icon_background: "#000000"
 
-# Dependency versions: `flutter pub outdated` lists ~21 transitive packages with a
-# newer "Latest" (analyzer 13, xml 7, qr 4, meta / vector_math / the test family, …)
-# that are NOT updatable from here — `flutter pub upgrade --major-versions` moves none
-# of them. Each is capped by an already-latest upstream (freezed pins analyzer <11; pdf
-# pins xml <7; qr_flutter pins qr <4) or by the Flutter SDK's exact pins (meta,
-# vector_math, test*). They clear only when those upstreams widen their bounds or
-# Flutter ships a newer stable. Full blocker map + routine-bump recipe:
-# docs/setup.md § Dependency updates. (verified 2026-06-02, Flutter 3.44.1)
+# Dependency versions: on Flutter 3.47 `flutter pub upgrade --major-versions` would
+# move ~126 packages (freezed 4 + analyzer 13, drift 2.35, printing 5.15 + xml 7,
+# flutter_secure_storage 11, app_links 7, file_picker 13). The 3.47 bump deliberately
+# took only what the SDK forced, so those are follow-up majors. A smaller tail stays
+# capped even then: test pins analyzer <14, the SDK pins test_api and
+# material_color_utilities, qr_flutter pins qr <4, and flutter_launcher_icons pins
+# cli_util <0.5. Full blocker map + routine-bump recipe:
+# docs/setup.md § Dependency updates. (verified 2026-10-18, Flutter 3.47.7)
 dependencies:
   app_links: ^6.3.0
   collection: ^1.18.0
@@ -45,7 +45,7 @@ dependencies:
   http: ^1.5.0
   image_picker: ^1.0.0
   # integration_test lives here (not dev_dependencies) as a workaround for
-  # flutter/flutter#186800 + #169336: on Flutter 3.44.x the dev-dependency
+  # flutter/flutter#186800 + #169336: on Flutter 3.44–3.47 the dev-dependency
   # plugin is dropped from the release native classpath but still emitted into
   # GeneratedPluginRegistrant.java, breaking release builds on every native
   # platform (Android/iOS/macOS). Move back to dev_dependencies once fixed upstream.

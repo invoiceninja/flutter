@@ -53,6 +53,7 @@ class EntityListSectionHeader extends StatelessWidget {
     );
     return Semantics(
       header: true,
+      headingLevel: 2,
       button: true,
       expanded: !collapsed,
       child: Material(

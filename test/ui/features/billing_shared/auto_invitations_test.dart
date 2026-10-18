@@ -97,11 +97,10 @@ void main() {
         _contact('c'),
       ]);
 
-      expect(
-        vm.draft.invitations.map((i) => i.clientContactId),
-        ['a', 'b'],
-        reason: 'CC-only auto-clears sendEmail but must keep an invitation',
-      );
+      expect(vm.draft.invitations.map((i) => i.clientContactId), [
+        'a',
+        'b',
+      ], reason: 'CC-only auto-clears sendEmail but must keep an invitation');
     });
 
     test('falls back to the primary contact when none opt in', () {

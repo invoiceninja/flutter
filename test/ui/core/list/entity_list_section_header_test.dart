@@ -117,22 +117,18 @@ void main() {
     double height(WidgetTester tester) =>
         tester.getSize(find.byType(EntityListSectionHeader)).height;
 
-    testWidgets(
-      'is shorter with a pointer',
-      (tester) async {
-        await _pump(tester, collapsed: false, onToggle: () {}, isFirst: true);
-        final normal = height(tester);
-        await _pump(
-          tester,
-          collapsed: false,
-          onToggle: () {},
-          isFirst: true,
-          density: compact,
-        );
-        expect(height(tester), lessThan(normal));
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('is shorter with a pointer', (tester) async {
+      await _pump(tester, collapsed: false, onToggle: () {}, isFirst: true);
+      final normal = height(tester);
+      await _pump(
+        tester,
+        collapsed: false,
+        onToggle: () {},
+        isFirst: true,
+        density: compact,
+      );
+      expect(height(tester), lessThan(normal));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('keeps the touch floor', (tester) async {
       await _pump(

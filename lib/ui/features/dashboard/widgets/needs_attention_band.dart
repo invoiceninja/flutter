@@ -882,6 +882,7 @@ class _ListHeader extends StatelessWidget {
           Expanded(
             child: Semantics(
               header: true,
+              headingLevel: 2,
               label: [label, '$count', ?sum].join(', '),
               excludeSemantics: true,
               child: Row(

@@ -351,6 +351,7 @@ class _WhatsNewDialogState extends State<WhatsNewDialog> {
             children: [
               Semantics(
                 header: true,
+                headingLevel: 1,
                 namesRoute: true,
                 child: Text(
                   context.tr('whats_new_in_version', {
@@ -492,6 +493,7 @@ class _WhatsNewDialogState extends State<WhatsNewDialog> {
     ),
     child: Semantics(
       header: true,
+      headingLevel: 2,
       child: Text(
         context.tr(switch (kind) {
           ReleaseNoteKind.added => 'release_notes_added',

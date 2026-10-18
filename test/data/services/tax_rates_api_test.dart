@@ -145,11 +145,10 @@ void main() {
 
         final result = await t.api.list(page: 1);
 
-        expect(
-          result.data.data.map((r) => r.id),
-          ['t1', 't3'],
-          reason: 'the good rows must survive a single bad row',
-        );
+        expect(result.data.data.map((r) => r.id), [
+          't1',
+          't3',
+        ], reason: 'the good rows must survive a single bad row');
       },
     );
   });

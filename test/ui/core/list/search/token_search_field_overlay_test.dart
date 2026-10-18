@@ -375,11 +375,9 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
-      expect(
-        vm.extraFilters['balance'],
-        {'lt:500'},
-        reason: 'row 0 (`>`) used to win whatever was typed',
-      );
+      expect(vm.extraFilters['balance'], {
+        'lt:500',
+      }, reason: 'row 0 (`>`) used to win whatever was typed');
       expect(boxText(tester), '');
     });
 
@@ -407,11 +405,9 @@ void main() {
       await settleMenu(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
-      expect(
-        vm.extraFilters['date'],
-        {'gte:2026-05-14'},
-        reason: 'Enter used to loop comparator → back row and never commit',
-      );
+      expect(vm.extraFilters['date'], {
+        'gte:2026-05-14',
+      }, reason: 'Enter used to loop comparator → back row and never commit');
 
       await tester.enterText(inputFinder, 'date:<today');
       await settleMenu(tester);
@@ -539,11 +535,9 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
-      expect(
-        vm.extraFilters['date'],
-        {'lt:2026-05-14'},
-        reason: 'it applied the default "is on or after" — the opposite',
-      );
+      expect(vm.extraFilters['date'], {
+        'lt:2026-05-14',
+      }, reason: 'it applied the default "is on or after" — the opposite');
     });
 
     fieldTest('Enter never commits rows left over from the previous query', (
@@ -623,31 +617,27 @@ void main() {
       );
     });
 
-    fieldTest(
-      'a tick made by touch keeps the query',
-      (tester) async {
-        final vm = newHarnessVm(db);
-        await pumpWideField(tester, vm: vm, keys: [FruitKey(checkbox: true)]);
+    fieldTest('a tick made by touch keeps the query', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: [FruitKey(checkbox: true)]);
 
-        await tester.tap(inputFinder);
-        await settleMenu(tester);
-        await tester.tap(inMenu('Fruit'));
-        await settleMenu(tester);
-        await tester.enterText(inputFinder, 'an');
-        await settleMenu(tester);
-        await tester.tap(inMenu('Banana'));
-        await settleMenu(tester);
+      await tester.tap(inputFinder);
+      await settleMenu(tester);
+      await tester.tap(inMenu('Fruit'));
+      await settleMenu(tester);
+      await tester.enterText(inputFinder, 'an');
+      await settleMenu(tester);
+      await tester.tap(inMenu('Banana'));
+      await settleMenu(tester);
 
-        expect(vm.extraFilters['fruit_id'], {'b'});
-        expect(
-          boxText(tester),
-          'an',
-          reason: 'a tap was mistaken for Enter and the list reshuffled',
-        );
-        expect(inMenu('Cherry'), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+      expect(vm.extraFilters['fruit_id'], {'b'});
+      expect(
+        boxText(tester),
+        'an',
+        reason: 'a tap was mistaken for Enter and the list reshuffled',
+      );
+      expect(inMenu('Cherry'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
     fieldTest('Backspace removes the chip it armed, all of it', (tester) async {
       final vm = newHarnessVm(db);
@@ -731,11 +721,9 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
-      expect(
-        vm.extraFilters['date'],
-        {'lt:rel:m0s'},
-        reason: 'committing the window dropped the comparator the user chose',
-      );
+      expect(vm.extraFilters['date'], {
+        'lt:rel:m0s',
+      }, reason: 'committing the window dropped the comparator the user chose');
       expect(vm.extraFilters['date_range'], isNull);
     });
 
@@ -777,11 +765,10 @@ void main() {
 
       await tester.tap(find.text('Apple'));
       await settleMenu(tester);
-      expect(
-        vm.extraFilters['fruit_id'],
-        {'a', 'b'},
-        reason: 'the value used to be removed before the picker opened',
-      );
+      expect(vm.extraFilters['fruit_id'], {
+        'a',
+        'b',
+      }, reason: 'the value used to be removed before the picker opened');
       // The picker hangs under the chip it edits.
       final menu = tester.getRect(menuFinder);
       expect(menu.left, greaterThanOrEqualTo(chip.left - 12));
@@ -1576,20 +1563,16 @@ void main() {
       expect(menuFinder, findsNothing);
     });
 
-    fieldTest(
-      'on touch every row offers Only',
-      (tester) async {
-        final vm = newHarnessVm(db);
-        await pumpWideField(tester, vm: vm, keys: [FruitKey(checkbox: true)]);
+    fieldTest('on touch every row offers Only', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: [FruitKey(checkbox: true)]);
 
-        await tester.tap(inputFinder);
-        await settleMenu(tester);
-        await tester.tap(inMenu('Fruit'));
-        await settleMenu(tester);
-        expect(inMenu('Only').hitTestable(), findsNWidgets(3));
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+      await tester.tap(inputFinder);
+      await settleMenu(tester);
+      await tester.tap(inMenu('Fruit'));
+      await settleMenu(tester);
+      expect(inMenu('Only').hitTestable(), findsNWidgets(3));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
   });
 
   group('first view', () {
@@ -1625,24 +1608,20 @@ void main() {
       expect(inMenu('Navigate'), findsOneWidget);
     });
 
-    fieldTest(
-      'no keyboard hints on touch',
-      (tester) async {
-        final vm = newHarnessVm(db);
-        await pumpWideField(
-          tester,
-          vm: vm,
-          keys: const [BalanceFilterKey(), IsFilterKey()],
-        );
+    fieldTest('no keyboard hints on touch', (tester) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(
+        tester,
+        vm: vm,
+        keys: const [BalanceFilterKey(), IsFilterKey()],
+      );
 
-        await tester.tap(inputFinder);
-        await settleMenu(tester);
-        expect(inMenu('Balance'), findsOneWidget);
-        expect(inMenu('balance:'), findsNothing);
-        expect(inMenu('Navigate'), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+      await tester.tap(inputFinder);
+      await settleMenu(tester);
+      expect(inMenu('Balance'), findsOneWidget);
+      expect(inMenu('balance:'), findsNothing);
+      expect(inMenu('Navigate'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
     fieldTest('a key with one value applies it on pick', (tester) async {
       final vm = newHarnessVm(db);
@@ -1703,25 +1682,23 @@ void main() {
   });
 
   group('keyboard and pointer', () {
-    fieldTest(
-      'a click anywhere in the box focuses it and opens the menu',
-      (tester) async {
-        final vm = newHarnessVm(db);
-        await pumpWideField(tester, vm: vm, keys: const [IsFilterKey()]);
+    fieldTest('a click anywhere in the box focuses it and opens the menu', (
+      tester,
+    ) async {
+      final vm = newHarnessVm(db);
+      await pumpWideField(tester, vm: vm, keys: const [IsFilterKey()]);
 
-        // Far from the input, which is only as wide as its hint.
-        final field = tester.getRect(fieldFinder);
-        final input = tester.getRect(inputFinder);
-        final blank = Offset(field.right - 40, field.center.dy);
-        expect(input.contains(blank), isFalse);
-        await tester.tapAt(blank);
-        await settleMenu(tester);
+      // Far from the input, which is only as wide as its hint.
+      final field = tester.getRect(fieldFinder);
+      final input = tester.getRect(inputFinder);
+      final blank = Offset(field.right - 40, field.center.dy);
+      expect(input.contains(blank), isFalse);
+      await tester.tapAt(blank);
+      await settleMenu(tester);
 
-        expect(menuFinder, findsOneWidget);
-        expect(boxFocus(tester).hasFocus, isTrue);
-      },
-      variant: desktop,
-    );
+      expect(menuFinder, findsOneWidget);
+      expect(boxFocus(tester).hasFocus, isTrue);
+    }, variant: desktop);
 
     fieldTest('Down opens a closed menu', (tester) async {
       final vm = newHarnessVm(db);

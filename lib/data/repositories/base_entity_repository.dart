@@ -1838,12 +1838,15 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       // Always upsert (preserving dirty) — even when we skip the cursor
       // write below, the rows (incl. archived/deleted flags) must land.
       await upsert(byId);
-      if (lastId == null) return;
+      // A local final: Dart 3.13 no longer keeps a captured variable promoted
+      // across the `await` below.
+      final cursorId = lastId;
+      if (cursorId == null) return;
       if (wasFullSync) {
         await advanceCursor(
           companyId: companyId,
           updatedAt: maxUpdatedAt,
-          id: lastId,
+          id: cursorId,
           wasFullSync: true,
         );
         return;
@@ -1876,7 +1879,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       await advanceCursor(
         companyId: companyId,
         updatedAt: maxUpdatedAt,
-        id: lastId,
+        id: cursorId,
         wasFullSync: false,
       );
     });

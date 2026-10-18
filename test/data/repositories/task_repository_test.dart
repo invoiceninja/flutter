@@ -555,11 +555,9 @@ void main() {
         ids: [created.entity.id],
       );
       expect(row.single.tagNames, 'design', reason: 'sort key keeps the tag');
-      expect(
-        created.entity.tagIds,
-        ['real9'],
-        reason: 'the stored id follows the remap, not just the sort key',
-      );
+      expect(created.entity.tagIds, [
+        'real9',
+      ], reason: 'the stored id follows the remap, not just the sort key');
     });
 
     test(

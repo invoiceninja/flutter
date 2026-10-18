@@ -4,19 +4,24 @@ set -euo pipefail
 # Prepare the tree for a hand-built iOS "Product > Archive" in Xcode, then
 # verify the thing that actually breaks it.
 #
-# WHY: an Xcode archive fails Swift Package Manager resolution with
+# WHY: through Flutter 3.44 an Xcode archive failed Swift Package Manager
+# resolution with
 #
 #     The package product 'file-picker' requires minimum platform version 14.0
 #     for the iOS platform, but this target supports 13.0
 #
 # even though ios/Podfile and all three IPHONEOS_DEPLOYMENT_TARGET entries in
-# ios/Runner.xcodeproj/project.pbxproj already say 14.0. The 13.0 lives in the
+# ios/Runner.xcodeproj/project.pbxproj already said 14.0. The 13.0 lived in the
 # *generated, gitignored*
 #
 #     ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
 #
-# which is the top-level SwiftPM package the Runner target links. flutter_tools
-# writes it at its hardcoded iOS default (darwin.dart -> Version(13, 0)) and
+# Since 3.47 that default is 15.0, above file_picker's 14.0, so today this
+# changes nothing. It still fails loudly, by name, when a plugin declares a
+# floor above the default.
+#
+# The manifest is the top-level SwiftPM package the Runner target links. flutter_tools
+# writes it at its hardcoded iOS default (darwin.dart -> Version(15, 0)) and
 # raises it to the project's real target only in
 # SwiftPackageManager.updateMinimumDeployment, called from a single site inside
 # `flutter build ios`/`ipa`/`run` (ios/mac.dart). An Xcode archive never calls

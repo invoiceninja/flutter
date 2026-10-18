@@ -353,49 +353,45 @@ void main() {
     expect(find.text('INV-0'), findsNothing);
   });
 
-  testWidgets(
-    'a header click sorts; a shift-click adds a second key',
-    (tester) async {
-      final vm = await vmWith(tester, _preview(6));
-      await pump(tester, vm, width: 1600);
+  testWidgets('a header click sorts; a shift-click adds a second key', (
+    tester,
+  ) async {
+    final vm = await vmWith(tester, _preview(6));
+    await pump(tester, vm, width: 1600);
 
-      await tester.tap(find.text('STATUS'));
-      await tester.pump();
-      expect(vm.sortField, 'invoice.status');
-      expect(vm.sortAscending, isTrue);
+    await tester.tap(find.text('STATUS'));
+    await tester.pump();
+    expect(vm.sortField, 'invoice.status');
+    expect(vm.sortAscending, isTrue);
 
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-      await tester.tap(find.text('AMOUNT'));
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      await tester.pump();
-      expect(vm.sortField, 'invoice.status');
-      expect(vm.thenBy.single.columnId, 'invoice.amount');
-      // With a pointer: `flutter test` runs as Android, where a header is one
-      // target and opens the menu instead (the next test).
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-  );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.tap(find.text('AMOUNT'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(vm.sortField, 'invoice.status');
+    expect(vm.thenBy.single.columnId, 'invoice.amount');
+    // With a pointer: `flutter test` runs as Android, where a header is one
+    // target and opens the menu instead (the next test).
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets(
-    'under a finger the whole header opens the column menu',
-    (tester) async {
-      final vm = await vmWith(tester, _preview(6));
-      await pump(tester, vm, width: 1600);
+  testWidgets('under a finger the whole header opens the column menu', (
+    tester,
+  ) async {
+    final vm = await vmWith(tester, _preview(6));
+    await pump(tester, vm, width: 1600);
 
-      await tester.tap(find.text('STATUS'));
-      await tester.pumpAndSettle();
-      // Not a sort: one target per column on touch, and it is the menu, which
-      // leads with both sorts.
-      expect(vm.sortField, isNull);
-      expect(find.text('Sort: Descending'), findsOneWidget);
+    await tester.tap(find.text('STATUS'));
+    await tester.pumpAndSettle();
+    // Not a sort: one target per column on touch, and it is the menu, which
+    // leads with both sorts.
+    expect(vm.sortField, isNull);
+    expect(find.text('Sort: Descending'), findsOneWidget);
 
-      await tester.tap(find.text('Sort: Descending'));
-      await tester.pumpAndSettle();
-      expect(vm.sortField, 'invoice.status');
-      expect(vm.sortAscending, isFalse);
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.android),
-  );
+    await tester.tap(find.text('Sort: Descending'));
+    await tester.pumpAndSettle();
+    expect(vm.sortField, 'invoice.status');
+    expect(vm.sortAscending, isFalse);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets('a narrow grouped table leads each group with one figure', (
     tester,

@@ -2870,11 +2870,10 @@ void main() {
 
       final removed = await engine.discardOutboxRow(parentId);
 
-      expect(
-        repo.localDeletes,
-        [('co', 'tmp_parent'), ('co', 'tmp_child')],
-        reason: 'the cascade really did reach the throwing child',
-      );
+      expect(repo.localDeletes, [
+        ('co', 'tmp_parent'),
+        ('co', 'tmp_child'),
+      ], reason: 'the cascade really did reach the throwing child');
       expect(removed, isTrue, reason: 'the parent record went');
       expect(await rawRow(parentId), isNull);
       expect(
@@ -4297,11 +4296,9 @@ void main() {
       final removed = await engine.pruneDeadRows(ttl: Duration.zero);
 
       expect(removed, 1);
-      expect(
-        disp.clearedDirty,
-        ['c1'],
-        reason: 'once the row is gone there is nothing left to retry from',
-      );
+      expect(disp.clearedDirty, [
+        'c1',
+      ], reason: 'once the row is gone there is nothing left to retry from');
     });
 
     test('a dead row inside the TTL is left alone', () async {

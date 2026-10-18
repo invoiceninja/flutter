@@ -188,6 +188,7 @@ class _Heading extends StatelessWidget {
     final tokens = context.inTheme;
     return Semantics(
       header: true,
+      headingLevel: 2,
       child: Text(
         text.toUpperCase(),
         style: TextStyle(

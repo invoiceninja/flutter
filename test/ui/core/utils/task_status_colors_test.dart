@@ -131,11 +131,10 @@ void main() {
         'FFFFFF',
         '#FFFFFFFF', // opaque white in the 8-char form the parser accepts
       ]) {
-        expect(
-          await _resolve(tester, name: 'Done', color: unset),
-          (fg: tokens.paid, bg: tokens.paidSoft),
-          reason: 'color "$unset" should count as unset',
-        );
+        expect(await _resolve(tester, name: 'Done', color: unset), (
+          fg: tokens.paid,
+          bg: tokens.paidSoft,
+        ), reason: 'color "$unset" should count as unset');
       }
     });
 

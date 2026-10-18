@@ -51,32 +51,14 @@ On a phone, the two-line tile goes from 72 px to about 57 px per row.
   - A flip rebuilds only the widgets that read it, never `MaterialApp`.
   - With no scope above (most widget tests), every reader gets Normal. That is why the
     lint test pins that `main.dart` mounts it: nothing else would notice it was missing.
-- **The two controls.** Both write the same controller.
-  - **Device Settings → Theme → List density.** A `SegmentedSettingRow` sits under
-    Font Size, the other "how much fits on screen" control. It is the canonical home,
-    is searchable, and is the only entry point on a phone.
-  - **`ListDensityToggle`.** It sits beside the wide list toolbar's Columns button,
-    following the MUI DataGrid "Columns / Density" pair.
-    - It is one click, the list reflowing behind it is its feedback, and the icon turns
-      accent while Compact is on.
-    - It gets its controller from the scope, not from `Services`, and renders nothing
-      without one. The app-bar tests pump the toolbar under a `FakeSearchServices` whose
-      `noSuchMethod` throws, so reading `Services.listDensity` there would fail every one
-      of them.
-    - It listens to the controller itself, so it stays current whatever hosts it.
-    - It lives in `EntityListTopRow`, so the Tasks kanban, calendar, daily and weekly
-      views, which are separate screens, never show it.
-    - **It shows only when there is room.** It shares the search field's slot, and it
-      appears only if the field keeps at least `kDensityToggleMinSearchWidth` (200 px)
-      beside it. Below that, the field keeps every pixel and Device Settings is the way
-      in. The gate measures the slot itself rather than a pane breakpoint, because the
-      siblings vary per entity:
-      - A plain list's field is pane − 500 px, so the toggle appears from a ~744 px pane.
-      - The Tasks toolbar adds a five-segment view switcher, so its toggle waits for a
-        ~1036 px pane.
-      - The field stays the first child of the same `Row` either way, so typed text and
-        focus survive a resize across the threshold.
-      `test/ui/core/list/list_density_toolbar_width_test.dart` pins all of this.
+- **The one control.** Device Settings → Theme → List density, a `SegmentedSettingRow`
+  under Font Size, the other "how much fits on screen" control. It is searchable and
+  works at every width.
+  - There is deliberately no toggle in the list toolbar. One shipped briefly beside the
+    Columns button and was removed: a setting changed once per device does not earn a
+    permanent slot in every list's header, and the slot cost the search field width it
+    could not spare (the Tasks toolbar's view switcher left no room below a ~1036 px
+    pane).
 
 ## What Compact changes
 
@@ -154,5 +136,5 @@ rule 1).
 
 `test/ui/core/list/list_density_test.dart` measures the actual rows: 72 under Normal, 40
 with a pointer and 52 on touch under Compact. It also checks that a dense strip is 8 px
-shorter, that the card inset keeps its horizontal 24, and the toggle. The column-header,
+shorter, and that the card inset keeps its horizontal 24. The column-header,
 section-header and activity-row tests each carry a Compact case of their own.

@@ -37,9 +37,4 @@ class ListDensityScope extends InheritedNotifier<ListDensityController> {
           ?.notifier
           ?.isCompact ??
       false;
-
-  /// The controller itself, or null with no scope above. Subscribes. For a
-  /// control that changes the density — it renders nothing when this is null.
-  static ListDensityController? controllerOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<ListDensityScope>()?.notifier;
 }

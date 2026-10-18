@@ -1223,7 +1223,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 |---|---|---|---|---|---|
 | Theme (light / dark / system, local) | — | ✅ | ✅ | ✅ | |
 | Font Size (text scale, local) | — | ✅ | ✅ | ✅ | |
-| List density — Normal / Compact rows and list chrome, for more records on screen (local; also a toggle beside a list's Columns button) | — | — | ✅ | | |
+| List density — Normal / Compact rows and list chrome, for more records on screen (local; Device Settings only) | — | — | ✅ | | |
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |

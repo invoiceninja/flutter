@@ -14,7 +14,6 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/entity_list_status_tabs.dart';
 import 'package:admin/ui/core/list/list_density_scope.dart';
-import 'package:admin/ui/core/list/list_density_toggle.dart';
 import 'package:admin/ui/features/expense_categories/widgets/expense_category_list_tile.dart';
 
 import '../../../_localization_helper.dart';
@@ -200,75 +199,6 @@ void main() {
       expect(entityListCardInset(compact: false).bottom, 24);
       expect(entityListCardInset(compact: true).top, 12);
       expect(entityListCardInset(compact: true).bottom, 12);
-    });
-  });
-
-  group('toolbar toggle', () {
-    testWidgets('flips the density and says which one is on', (tester) async {
-      await pump(
-        tester,
-        Builder(
-          builder: (context) => ListDensityToggle(
-            controller: ListDensityScope.controllerOf(context)!,
-          ),
-        ),
-      );
-      final button = find.byType(IconButton);
-      expect(tester.widget<IconButton>(button).isSelected, isFalse);
-      expect(tester.widget<IconButton>(button).tooltip, 'List density: Normal');
-
-      await tester.tap(button);
-      await tester.pump();
-      expect(density.isCompact, isTrue);
-      expect(tester.widget<IconButton>(button).isSelected, isTrue);
-      expect(
-        tester.widget<IconButton>(button).tooltip,
-        'List density: Compact',
-      );
-
-      await tester.tap(button);
-      await tester.pump();
-      expect(density.isCompact, isFalse);
-    });
-
-    testWidgets('keeps itself current with no host rebuilding it', (
-      tester,
-    ) async {
-      // Pumped with no scope and nothing above it listening: the toggle must
-      // follow the controller on its own, or a future host passing
-      // `services.listDensity` straight in would show a stale state.
-      await pump(tester, ListDensityToggle(controller: density), scoped: false);
-      final button = find.byType(IconButton);
-      expect(tester.widget<IconButton>(button).isSelected, isFalse);
-      await tester.tap(button);
-      await tester.pump();
-      expect(tester.widget<IconButton>(button).isSelected, isTrue);
-      await density.setCompact(false);
-      await tester.pump();
-      expect(tester.widget<IconButton>(button).isSelected, isFalse);
-    });
-
-    testWidgets('keeps the touch target on touch', (tester) async {
-      await pump(tester, ListDensityToggle(controller: density));
-      expect(
-        tester.getSize(find.byType(IconButton)),
-        const Size.square(InSizes.touchTarget),
-      );
-    });
-
-    testWidgets('no scope means no controller to toggle', (tester) async {
-      ListDensityController? found;
-      await pump(
-        tester,
-        Builder(
-          builder: (context) {
-            found = ListDensityScope.controllerOf(context);
-            return const SizedBox();
-          },
-        ),
-        scoped: false,
-      );
-      expect(found, isNull);
     });
   });
 }

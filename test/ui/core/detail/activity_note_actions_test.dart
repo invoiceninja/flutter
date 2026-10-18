@@ -18,7 +18,7 @@ import '../../../_localization_helper.dart';
 import '../../../_support/phone_actions_test_services.dart';
 
 /// The single implementation behind every note-writing entry point — all
-/// twelve `⋯` menu arms and all eleven Activity-tab buttons now route through
+/// twelve `⋯` menu arms and all twelve Activity-tab buttons now route through
 /// here, so this is the one place the whole path can be exercised without
 /// building twelve repositories.
 ///

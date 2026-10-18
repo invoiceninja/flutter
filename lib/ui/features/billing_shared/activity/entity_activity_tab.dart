@@ -190,8 +190,21 @@ class _EntityActivityTabState extends State<EntityActivityTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          ActivityNoteButtons(actions: widget.actions),
-          if (widget.actions.hasAny) SizedBox(height: InSpacing.md(context)),
+          AnimatedBuilder(
+            animation: widget.vm,
+            builder: (context, _) {
+              // No buttons where the server has no feed for the record type:
+              // a note written there is saved (on such a server, filed onto
+              // an unrelated expense too) and then shown nowhere.
+              if (widget.vm.isUnsupported || !widget.actions.hasAny) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+                child: ActivityNoteButtons(actions: widget.actions),
+              );
+            },
+          ),
           AnimatedBuilder(
             animation: widget.vm,
             builder: (context, _) =>
@@ -207,6 +220,15 @@ class _EntityActivityTabState extends State<EntityActivityTab> {
     final pending = vm.pendingRows;
     final rows = widget.commentsOnly ? vm.comments : vm.activities;
 
+    // Before the error branch: nothing to retry until the server is updated.
+    // Queued comments still render — the notes endpoint takes them.
+    if (vm.isUnsupported && pending.isEmpty) {
+      return EmptyState(
+        icon: Icons.history_toggle_off_outlined,
+        title: context.tr('not_available'),
+        subtitle: context.tr('activity_unavailable'),
+      );
+    }
     if (vm.error != null && rows.isEmpty && pending.isEmpty) {
       return ErrorView(
         message: context

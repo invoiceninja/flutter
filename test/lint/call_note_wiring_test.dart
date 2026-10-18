@@ -72,6 +72,9 @@ void main() {
       ],
       ['lib/ui/features/payments/views/payment_detail_screen.dart'],
       ['lib/ui/features/expenses/views/expense_detail_screen.dart'],
+      [
+        'lib/ui/features/recurring_expenses/views/recurring_expense_detail_screen.dart',
+      ],
       ['lib/ui/features/vendors/views/vendor_detail_screen.dart'],
       ['lib/ui/features/tasks/views/task_detail_screen.dart'],
       [

@@ -19,7 +19,7 @@ import 'package:flutter/foundation.dart';
 /// It is deliberately **not** state on `EntityActivityViewModel`. That class
 /// documents at length why it must not notify from a build — `kick()` runs
 /// inside the host's `build`, so `_adopt` takes `notify: false` on both paths —
-/// and it is shared by three surfaces on eleven hosts, so a reveal notify would
+/// and it is shared by three surfaces on twelve hosts, so a reveal notify would
 /// repaint the Comments card and the comments-only tab for nothing.
 class ActivityRevealRequest {
   const ActivityRevealRequest({

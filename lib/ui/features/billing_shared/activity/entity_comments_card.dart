@@ -81,9 +81,9 @@ class EntityCommentsCard extends StatelessWidget {
   /// about it: the card shows `min(pending + comments, kCommentsCardInlineLimit)`
   /// rows by construction, so the two cannot drift. It is honest about the
   /// *destination* too — with `commentsOnly: true` the Comments tab renders
-  /// precisely these same two lists off this same view model, and both are
-  /// bounded by the one `kEntityActivityRows` fetch window, so neither the tab
-  /// nor the window can make it lie.
+  /// precisely these same two lists off this same view model, comments past
+  /// the `kEntityActivityRows` window included, so neither the tab nor the
+  /// window can make it lie.
   ///
   /// **Queued rows count.** [_body] spends the inline budget on them first and
   /// the tab shows them too. A server echo landing before its outbox row is
@@ -164,7 +164,7 @@ class EntityCommentsCard extends StatelessWidget {
       // `n > 0` at all five of its sites; `view_all` is a header link meaning
       // "this card is an index, the real surface is elsewhere", and carries no
       // N at any of its four. Moving the count in here would also swap a
-      // Transifex-translated string for an app-local English-only one on eleven
+      // Transifex-translated string for an app-local English-only one on twelve
       // detail screens, and the N would be silently bounded by the feed window.
       trailing: onViewAllTap == null
           ? null

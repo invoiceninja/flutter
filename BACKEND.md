@@ -26,15 +26,15 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
-- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
+- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), 2026-10-18, § F3b — the client already sends the filter when the window is full); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) — the target's name now lands in `notes` (`fd8cd8ad6c`), but the template still reads `":user created user :user"` (**half shipped**, § F6; the client fills the second slot from `notes`).
-- `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
-- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**merged** as #12278, v5.13.44, but not yet live on `invoicing.co`: both documents 404 on 2026-10-15; § App Links).
+- `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148); no client change).
+- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**merged** as #12278, v5.13.44, but not yet live on `invoicing.co`: both documents 404 on 2026-10-15; § App Links). The F-Droid signing key joins the default fingerprints in [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 - `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
 - Visual (block) designs — five renderer gaps the client now works around: no `tasks-table` renderer, an empty `blocks` list read as a block design, unguarded `properties`, a lone block's width ignored, unknown page sizes dropping the orientation; plus an archived design never reaching the refresh bundle (**O**, § Visual designer).
-- Documents list — `GET /api/v1/documents` names no parent record, a deleted document leaves no trace a delta can see, `status=archived|deleted` reads a column the table doesn't have, and `type=` ANDs its values (**O**, § Documents list; the client fills "Linked to" from the records it has cached).
+- Documents list — `GET /api/v1/documents` names no parent record, a deleted document leaves no trace a delta can see, `status=archived|deleted` reads a column the table doesn't have, and `type=` ANDs its values (the parent is **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), the rest **O**, § Documents list; the client fills "Linked to" from the records it has cached, and reads the parent once a server sends it).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -386,7 +386,7 @@ user lacking `view_activity` who hits the non-`reactv2` path should take an
 unknown-column SQL error. Not runtime-confirmed; the column genuinely does not
 exist. Switching to `reactv2` sidesteps it for the v2 client.
 
-### F3b. `POST /activities/entity` — no notes filter, and the window is over *all* activity — **O**
+### F3b. `POST /activities/entity` — no notes filter, and the window is over *all* activity — **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)
 
 `ActivityController::entityActivity` (`app/Http/Controllers/ActivityController.php:86-104`):
 
@@ -405,6 +405,13 @@ is now visible rather than buried.
 
 **Fixed client-side as far as it can be:** `kEntityActivityRows` sends `rows=200`, moving the cliff
 out by 2.7× for one bounded payload. It is not a fix — a busy client can have 200 non-note rows.
+
+**Ready for the PR** (2026-10-18), which accepts `activity_type_id` (comma-separated ints, applied
+in SQL before `take()`): when the feed comes back a full 200 rows, `EntityActivityViewModel` asks
+again with `activity_type_id: "141"` and merges the comments by `hashed_id`. An older server ignores
+the param (demo 5.13.49 answered a `141` ask with types 4, 5, 10, 54), so `ActivitiesApi` narrows
+client-side and stops asking for the session (`ignoresActivityTypeFilter`) —
+`docs/comments-and-activity.md`.
 
 **O.** Accept `activity_type_id` (or a `notes_only` flag) on this endpoint and apply it before the
 `take()`, e.g. `->when($request->has('activity_type_id'), fn ($q) => $q->where('activity_type_id',
@@ -648,7 +655,7 @@ actor-only sentence ("Alice created a user") when the template still carries
 two `:user` tokens. The check counts tokens rather than hardcoding the types,
 so the translated template comes back on its own once this ships.
 
-### F7. `TaskAssigned` never fires — assigning a task notifies nobody — **O** ([flutter#148](https://github.com/invoiceninja/flutter/issues/148))
+### F7. `TaskAssigned` never fires — assigning a task notifies nobody — **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) ([flutter#148](https://github.com/invoiceninja/flutter/issues/148))
 
 `TaskRepository::save` has two branches — the calendar-event one under a cache lock
 (`app/Repositories/TaskRepository.php:181-196`) and the ordinary one (`:197-202`) — and **both** run
@@ -671,9 +678,11 @@ Nothing changes client-side. The app has always sent `assigned_user_id` on every
 (`Task.toApiJson`), and flutter#148 added the picker that makes an assignment easy to set from an
 invoice or quote line, which is what surfaced this.
 
-**O.** Capture the previous value *before* `fill()` — e.g. `$previous = $task->assigned_user_id;`
-above the branch — and compare against that after the save. Note `getOriginal('assigned_user_id')`
-is not a substitute: `saveQuietly()` resyncs the original before the guard runs.
+**In PR** (2026-10-18), as proposed here, dispatching after the final save so a new task has its
+number. **O** until it ships: Capture the previous value *before* `fill()` — e.g.
+`$previous = $task->assigned_user_id;` above the branch — and compare against that after the
+save. Note `getOriginal('assigned_user_id')` is not a substitute: `saveQuietly()` resyncs the
+original before the guard runs.
 
 ### H. `task_statuses/sort` endpoint — **O** (client now works around it)
 
@@ -991,6 +1000,9 @@ consistency. `custom_value1..4` ❌ → § B.
   `…,2026-10-16 23:59:59`). The client appends ` 23:59:59` to a bare end date
   (`timestampWindowsForServer`). React sends the same bare dates and has the
   same bug. Fix: `->endOfDay()` the end bound when it has no time part.
+  **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) as `col >= start AND col < end + 1 day` for a bare end date; an
+  end with a time is still compared exactly, so the client's suffix means the
+  same on both servers and stays for older ones.
 - **`client_id` takes one id.** It runs `decodePrimaryKey($client_id)` on the
   whole value, so `client_id=a,b` decodes nothing and every list answered it
   with zero rows (measured on all nine client-scoped lists). The list param is
@@ -1603,8 +1615,9 @@ $input['net'] = filter_var($input['net'] ?? false, FILTER_VALIDATE_BOOLEAN);
 `totalsV2()` (L63), `chart_summaryV2()` (L75), `calculatedFields()` (L174).
 **Fold in a pre-existing bug:** `chart_summaryV2()` builds `ChartService`
 **without** the `include_drafts` arg (L75), so the hero chart silently ignores
-the drafts toggle the client already sends (`dashboard_api.dart:45`) — thread
-**both** here:
+the drafts toggle the client already sends (`DashboardApi.fetchChartSummary`;
+pinned by `dashboard_api_test` › chart — carries the drafts switch). That half
+is **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); `net` is still open — thread **both** here:
 
 ```php
 $cs = new ChartService($user->company(), $user, $admin_equivalent_permissions,
@@ -2727,7 +2740,9 @@ translates an app route to the web client's — they differ on four screens, and
 new entity needs a new entry or its links lose the `/edit` the web client needs.
 
 **Acceptance.** `curl -s https://invoicing.co/.well-known/assetlinks.json` returns
-JSON (not the SPA shell) carrying the Play **app signing** SHA-256;
+JSON (not the SPA shell) carrying the Play **app signing** SHA-256 and the F-Droid
+signing key's (`D1:7F:AC:8D:…:C1:7D`, in the default from [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) — a host that sets
+`APP_LINKS_ANDROID_FINGERPRINTS` must append it);
 `curl -sI …/apple-app-site-association` reports `application/json` with no
 redirect; `adb shell pm get-app-links com.invoiceninja.admin` reports `verified`;
 and `https://<any instance>/app/invoices/<id>?company=<id>` renders a page
@@ -2737,7 +2752,8 @@ offering the app and continuing to that instance's web client.
 shims, the share sheet). Until this deploys, a shared link is tappable but 404s in
 a browser, and only the hosted host can open the app at all. The manual console
 steps — the Apple capability and the Play fingerprints `assetlinks.json` needs —
-are in `APP_LINKS.md`.
+are in `APP_LINKS.md`, which also records the F-Droid fingerprint. Nothing differs
+on the F-Droid build: same manifest, same `autoVerify` filter.
 
 
 ## Entity revisions — backups are rendered HTML, not data, and cover five entity types — **O (client ships PDF-only history)**
@@ -2894,7 +2910,7 @@ every request failing; an `error_type` would let it sign out on that, and only t
 
 ---
 
-## Activity notes — two entities are filed under an unrelated expense, one is dropped — **O (data pollution; client shows no feed for a recurring expense)**
+## Activity notes — two entities are filed under an unrelated expense, one is dropped — **(1) and (2) In PR [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); (3) O**
 
 **Provenance** — 2026-10-07, read against `v5-develop` (`ActivityController::note`,
 `StoreNoteRequest`, `ShowActivityRequest`); found putting the comments card on every record screen
@@ -2929,10 +2945,13 @@ nowhere, except on the wrong expense.
 ### Client status
 
 The Flutter app posts notes for ten entities, purchase orders and recurring expenses among them, so
-it produces the stray rows described above. It shows no comments card or Activity tab on a
-recurring expense — there is no feed to fill them from — and offers no notes on a bank
-transaction. With (1) and (2) shipped a recurring expense takes the same card and tabs an expense
-has, with no other change.
+on a server without (1) it produces the stray rows described above. Ready for the PR (2026-10-18):
+a recurring expense now mounts the same comments card and Comments / Activity tabs an expense has;
+on a server without (2) the 422 on `entity` reads as "not available from this server" (no Retry)
+and the card stays hidden, so it lights up with no client change. An expense's own feed drops a
+note carrying a `purchase_order` / `recurring_expense` ref (`isMisfiledExpenseNote`), which covers
+the rows (1) leaves behind unless the PR's optional cleanup runs. It offers no notes on a bank
+transaction.
 
 ---
 
@@ -2991,8 +3010,8 @@ invoice with **no** due date. The client labels those "No due date set".)
 
 **6. `include_drafts` reaches the totals and nothing else.** Already noted under
 "Dashboard net (ex-tax) chart totals" above — `chart_summary_v2` is called
-without the argument — and equally true of the list endpoints and the
-calculated fields. *Client:* the switch sits with the figures it changes rather
+without the argument (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); the client already sends it) — and
+equally true of the list endpoints and the calculated fields. *Client:* the switch sits with the figures it changes rather
 than as a page-wide filter.
 
 **Not shipped because of the server: a "To invoice" tab.** The calculated fields
@@ -3095,7 +3114,8 @@ endpoint rather than use it:
 - **Parent:** emit `documentable_type` as the snake-case entity name (`invoice`,
   `recurring_invoice`, `purchase_order`, `group_setting`, `company`, …) and `documentable_id` as the
   hashed id. Additive; the Flutter client already reads both when present (`DocumentApi`, which maps
-  `group_setting` to a group). **In PR** `fix/api-gaps-from-v2-apps` (2026-10-18).
+  `group_setting` to a group). **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) (`fix/api-gaps-from-v2-apps`, 2026-10-18);
+`document_repository_test` › a server that names the parent pins the wire keys.
 - **Deletes:** either soft-delete documents (`is_deleted` + `deleted_at`, as every other entity),
   or expose the ids deleted since a timestamp so a delta can carry them.
 - **Filters:** override `status`, `is_deleted` and `without_deleted_clients` in `DocumentFilters`

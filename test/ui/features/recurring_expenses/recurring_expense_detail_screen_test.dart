@@ -3,6 +3,8 @@
 // network played by a `MockClient`. The harness is
 // `test/_support/record_screen_harness.dart`.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +98,10 @@ class _Server {
   /// unanswered. The schedule request is the very same URL.
   Map<String, dynamic>? record;
 
+  /// Answer `POST /activities/entity` the way a server without
+  /// invoiceninja/invoiceninja#13365 does: a 422 on `entity`.
+  bool refusesActivity = false;
+
   /// Every request, whoever made it — the fixture's own background sync
   /// included.
   final List<http.Request> requests = [];
@@ -114,6 +120,18 @@ class _Server {
         request.url.path == '/api/v1/recurring_expenses/r1' &&
         record != null) {
       return jsonOk({'data': record});
+    }
+    if (refusesActivity && request.url.path == '/api/v1/activities/entity') {
+      return http.Response(
+        jsonEncode({
+          'message': 'The given data was invalid.',
+          'errors': {
+            'entity': ['The selected entity is invalid.'],
+          },
+        }),
+        422,
+        headers: const {'content-type': 'application/json'},
+      );
     }
     throw http.ClientException('offline (test fixture)');
   });
@@ -210,15 +228,33 @@ void main() {
       expect(_card('Taxes'), findsOneWidget);
       expect(find.text('Three seats.'), findsOneWidget);
 
-      // Documents, then the Schedule. No Overview — it is all above the
-      // strip — and no feed this screen never had.
+      // The feed leads, as on every record, then Documents — where it opens
+      // — then the Schedule. No Overview: it is all above the strip.
+      final comments = tester.getTopLeft(find.text('Comments')).dx;
+      final activity = tester.getTopLeft(find.text('Activity')).dx;
       final documents = tester.getTopLeft(find.text('Documents')).dx;
       final schedule = tester.getTopLeft(find.text('Schedule')).dx;
+      expect(comments, lessThan(activity));
+      expect(activity, lessThan(documents));
       expect(documents, lessThan(schedule));
       expect(find.text('Overview'), findsNothing);
-      expect(find.text('Comments'), findsNothing);
       expect(find.byType(EntityDocumentsTab), findsOneWidget);
     },
+  );
+
+  _screenTest(
+    'an older server that has no feed for it says so on the Comments tab',
+    _recurring(),
+    (tester, screen) async {
+      await tester.tap(find.text('Comments'));
+      await screen.untilFound(
+        find.textContaining('available from this server'),
+        'the unsupported state',
+      );
+      expect(find.text('Retry'), findsNothing);
+    },
+    server: _Server()..refusesActivity = true,
+    online: true,
   );
 
   _screenTest(

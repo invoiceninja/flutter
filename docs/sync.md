@@ -215,7 +215,7 @@ a Sync pass listens to `lastCompletion`.)
    is not repainted, because `EntityActivityViewModel` has no Drift subscription for synced rows
    (it re-kicks only on an outbox tick for its own record). The broadcast signal that would fix it
    now exists — `ResyncController.lastCompletion`, built for #162 — but `EntityActivityViewModel`
-   does not listen to it yet (it is constructed on eleven detail screens).
+   does not listen to it yet (it is constructed on twelve detail screens).
 3. **The memoized `Formatter` and the resolved-settings cascade** — `invalidateFormatter` /
    `settings.clearResolvedCache`. `invalidateFormatter`'s own contract is "call after writing the
    company's settings **or after a statics refresh**", and the pass does both:

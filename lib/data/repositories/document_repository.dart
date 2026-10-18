@@ -72,9 +72,11 @@ typedef DocumentParentSlice = ({
 ///    names them ([applyRefreshDelta]), and a full sweep that walked to the
 ///    end without seeing them ([refreshAll]) — never a dirty row or one an
 ///    outbox row still speaks for.
-///  * **The server doesn't say what a document is attached to.** The parent
-///    link is filled from the records the app sees: the `/refresh` delta, a
-///    record tab's own change ([DocumentMirror]), and [relinkParents].
+///  * **An older server doesn't say what a document is attached to.** One
+///    with invoiceninja/invoiceninja#13365 sends `documentable_type` / `_id`,
+///    which [_apiToCompanion] takes; without it the parent link is filled from
+///    the records the app sees: the `/refresh` delta, a record tab's own
+///    change ([DocumentMirror]), and [relinkParents].
 ///  * **A change here is a change to the parent's embedded copy too**, so a
 ///    rename, a visibility change or a delete patches the parent's
 ///    `documents` column through [ownerFor].
@@ -382,8 +384,8 @@ class DocumentRepository
       id: serverResponse.id,
       write: () async {
         _noteSeen(companyId, [serverResponse.id]);
-        // The PUT echo names no parent; the stored link is kept because the
-        // companion leaves those columns absent.
+        // An older server's PUT echo names no parent; the stored link is kept
+        // because the companion then leaves those columns absent.
         await db.documentDao.upsert(_apiToCompanion(serverResponse, companyId));
         final parent = await _parentOf(companyId, serverResponse.id);
         if (parent == null) return;

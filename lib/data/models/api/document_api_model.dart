@@ -44,9 +44,9 @@ abstract class DocumentApi with _$DocumentApi {
     // hard `forceDelete`. Modeled so a server that starts archiving is read
     // honestly rather than silently.
     @JsonKey(name: 'archived_at') @Default(0) int archivedAt,
-    // The record the file is attached to. `DocumentTransformer` does not send
-    // these today (BACKEND.md § Documents list); read tolerantly so a server
-    // that does starts filling "Linked to" with no client change.
+    // The record the file is attached to. `DocumentTransformer` sends these
+    // from invoiceninja/invoiceninja#13365 (BACKEND.md § Documents list); an
+    // older server omits both, so they're nullable and read tolerantly.
     @JsonKey(name: 'documentable_type', fromJson: jsonScalarToString)
     String? documentableType,
     @JsonKey(name: 'documentable_id', fromJson: jsonScalarToString)

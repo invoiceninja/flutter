@@ -373,9 +373,10 @@ class DocumentDao
   /// Fill `parent_type` / `parent_id` on rows that have no link yet, from the
   /// `documents` arrays already cached on the records themselves.
   ///
-  /// The server's list response names no parent, so this is how a file seen
-  /// first through `GET /documents` learns what it is attached to once its
-  /// record has been loaded. One `UPDATE … FROM json_each(…)` per parent
+  /// An older server's list response names no parent (one with
+  /// invoiceninja/invoiceninja#13365 does), so this is how a file seen first
+  /// through `GET /documents` learns what it is attached to once its record
+  /// has been loaded. One `UPDATE … FROM json_each(…)` per parent
   /// table; the `json_valid` guard matters because a row can hold `''` or
   /// NULL, and `json_each` throws on anything that isn't JSON. Returns how
   /// many rows gained a link.

@@ -12,8 +12,8 @@ import 'package:admin/ui/core/widgets/link_text.dart';
 /// "Linked to" for an uploaded file: the kind of record it hangs off and,
 /// when that record is cached locally, its name or number — "Invoice 0042".
 ///
-/// The server's document list names no parent (BACKEND.md § Documents list),
-/// so [parentType] / [parentId] are whatever the app has learned
+/// An older server's document list names no parent (BACKEND.md § Documents
+/// list), so [parentType] / [parentId] are whatever the app has learned
 /// (`docs/documents-list.md`); both null renders the em dash. A record that
 /// isn't cached shows its type alone and still links — the record screen
 /// fetches it — so this never fans out one request per row.

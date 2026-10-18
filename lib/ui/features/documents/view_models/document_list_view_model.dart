@@ -26,8 +26,8 @@ class DocumentListViewModel extends GenericListViewModel<DocumentRecord> {
     super.persistDebounce,
     super.now,
   }) {
-    // The server's list names no parent, so link what the records already
-    // cached can tell — each time the list opens, since browsing an invoice
+    // An older server's list names no parent, so link what the records
+    // already cached can tell — each time the list opens, since browsing an invoice
     // in between is how a file learns its record. Cheap when nothing is
     // unlinked.
     repo.relinkParents(companyId: companyId);

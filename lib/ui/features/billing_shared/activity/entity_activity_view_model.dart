@@ -5,13 +5,19 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
+import 'package:admin/data/models/api/activity_api_model.dart'
+    show kCommentActivityTypeId;
 import 'package:admin/data/models/domain/activity.dart';
 import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/domain/activity/activity_refs.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 
 final _log = Logger('EntityActivityViewModel');
+
+/// The types the comments-only follow-up asks for — see [kEntityActivityRows].
+const Set<int> _kCommentTypes = {kCommentActivityTypeId};
 
 /// State for one record's activity feed — the Activity tab, the comments-only
 /// tab, and the Comments card, all reading the same fetch.
@@ -30,7 +36,9 @@ final _log = Logger('EntityActivityViewModel');
 /// Two slices feed the UI:
 ///
 /// 1. **Synced activities** — `POST /api/v1/activities/entity`, kicked once
-///    (debounced) and again whenever the pending outbox drains.
+///    (debounced) and again whenever the pending outbox drains. A feed that
+///    fills the [kEntityActivityRows] window is followed by a comments-only
+///    fetch, so a comment older than the window still reaches [comments].
 /// 2. **Pending mutations** — `addComment` outbox rows for this entity, so the
 ///    UI can render optimistic "syncing…" entries above the synced list.
 class EntityActivityViewModel extends ChangeNotifier {
@@ -75,8 +83,17 @@ class EntityActivityViewModel extends ChangeNotifier {
   /// The human-written subset — typed comments and logged calls alike, which
   /// is the same slice `ActivityLens.comments` means on `/activity`. Computed
   /// once per refresh rather than per build.
+  ///
+  /// Not always a subset of [activities]: it also carries what the last
+  /// comments-only fetch found beyond the window ([_commentsBeyondWindow]).
   List<Activity> _comments = const [];
   List<Activity> get comments => _comments;
+
+  /// The last comments-only fetch, kept across refreshes so a re-fetch of the
+  /// main feed doesn't drop the older comments for the round trip until the
+  /// follow-up lands again. Comments are never deleted server-side, so a kept
+  /// row cannot be one that has gone.
+  List<Activity> _commentsBeyondWindow = const [];
 
   /// Queued `addComment` rows for this record.
   ///
@@ -96,6 +113,12 @@ class EntityActivityViewModel extends ChangeNotifier {
 
   Object? _error;
   Object? get error => _error;
+
+  /// The server has no feed for this record type at all — a recurring expense
+  /// on a server without invoiceninja/invoiceninja#13365. Not an [error]: there
+  /// is nothing to retry until the server is updated.
+  bool _isUnsupported = false;
+  bool get isUnsupported => _isUnsupported;
 
   bool _kicked = false;
   bool _settled = false;
@@ -125,7 +148,20 @@ class EntityActivityViewModel extends ChangeNotifier {
   void kick() {
     if (_kicked || _disposed) return;
     _kicked = true;
+    // Known before the first frame, so a type refused once this session never
+    // draws the note buttons it would then have to take away.
+    _isUnsupported = api.isEntityUnsupported(entityWireName);
     final seed = api.peekForEntity(entity: entityWireName, entityId: entityId);
+    final seedComments = api.peekForEntity(
+      entity: entityWireName,
+      entityId: entityId,
+      activityTypeIds: _kCommentTypes,
+    );
+    if (seedComments != null) {
+      _commentsBeyondWindow = seedComments
+          .map(Activity.fromApi)
+          .toList(growable: false);
+    }
     if (seed != null) _adopt(seed.map(Activity.fromApi), notify: false);
     _kickTimer = Timer(kickDebounce, () {
       _kickTimer = null;
@@ -155,9 +191,18 @@ class EntityActivityViewModel extends ChangeNotifier {
       _settled = true;
       return;
     }
+    // Refused once this session — asking again would only repeat the 422.
+    if (api.isEntityUnsupported(entityWireName)) {
+      _started = true;
+      _settled = true;
+      _isUnsupported = true;
+      notifyListeners();
+      return;
+    }
     _started = true;
     _isLoading = true;
     _error = null;
+    _isUnsupported = false;
     notifyListeners();
     try {
       final raw = await api.fetchForEntity(
@@ -165,6 +210,20 @@ class EntityActivityViewModel extends ChangeNotifier {
         entityId: entityId,
       );
       _adopt(raw.map(Activity.fromApi), notify: false);
+      // A full window may have cut comments off; a shorter one holds all of
+      // them, so only a full one pays for the second request.
+      if (raw.length >= kEntityActivityRows &&
+          !api.ignoresActivityTypeFilter &&
+          !_disposed) {
+        // Paint the window now rather than one round trip later. After an
+        // await, so never mid-build; `isLoading` stays true until `finally`,
+        // and the tab only spins while it has no rows.
+        notifyListeners();
+        await _fetchCommentsBeyondWindow();
+      }
+    } on ActivityFeedUnsupportedException {
+      _isUnsupported = true;
+      _log.fine('no activity feed for $entityWireName on this server');
     } on NetworkException catch (e) {
       // Same policy as the sidebar prefetch: an offline blip is expected and
       // must not pollute the WARNING+ diagnostics log.
@@ -191,13 +250,61 @@ class EntityActivityViewModel extends ChangeNotifier {
     }
   }
 
+  /// The comments-only follow-up. Its failure costs only the comments past
+  /// the window — the main feed is already adopted — so it never becomes
+  /// [error].
+  Future<void> _fetchCommentsBeyondWindow() async {
+    try {
+      final notes = await api.fetchForEntity(
+        entity: entityWireName,
+        entityId: entityId,
+        activityTypeIds: _kCommentTypes,
+      );
+      _commentsBeyondWindow = notes
+          .map(Activity.fromApi)
+          .toList(growable: false);
+      // Re-adopting the adopted feed is idempotent; it only re-merges.
+      _adopt(_activities, notify: false);
+    } on NetworkException catch (e) {
+      _log.fine('comments fetch skipped for $entityWireName: ${e.message}');
+    } catch (e, st) {
+      _log.warning('comments fetch failed for $entityWireName', e, st);
+    }
+  }
+
   void _adopt(Iterable<Activity> rows, {bool notify = true}) {
-    final mapped = rows.toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final mapped =
+        rows
+            .where((a) => !isMisfiledExpenseNote(a, host: entityWireName))
+            .toList()
+          ..sort(_newestFirst);
     _activities = mapped;
-    _comments = mapped.where((a) => a.isComment).toList(growable: false);
+    final comments = mapped.where((a) => a.isComment).toList();
+    if (_commentsBeyondWindow.isNotEmpty) {
+      // By id, and only a non-blank one: a row without a `hashed_id` can't be
+      // matched, and collapsing those would lose comments rather than dupes.
+      final seen = {
+        for (final a in comments)
+          if (a.id.isNotEmpty) a.id,
+      };
+      comments
+        ..addAll(
+          _commentsBeyondWindow.where(
+            (a) =>
+                a.isComment &&
+                a.id.isNotEmpty &&
+                !seen.contains(a.id) &&
+                !isMisfiledExpenseNote(a, host: entityWireName),
+          ),
+        )
+        ..sort(_newestFirst);
+    }
+    _comments = List.unmodifiable(comments);
     if (notify && !_disposed) notifyListeners();
   }
+
+  static int _newestFirst(Activity a, Activity b) =>
+      b.createdAt.compareTo(a.createdAt);
 
   void _onPendingTick(List<OutboxRow> rows) {
     if (_disposed) return;

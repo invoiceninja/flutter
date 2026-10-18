@@ -181,7 +181,7 @@ Where a screen departs from the client's, and why:
 - **An expense's subtitle is icon-led entries, not dotted segments.** Four heterogeneous names in a row (vendor, client, category, date) do not say which is which, and a dotted line that wraps leaves a dangling dot at the end of its first line at 480 px.
 - **A transaction has no tabs**: nothing hangs off it. Matching is its job, so the match panel is a card in the profile — above Details on a narrow screen, beside it on a wide one — and is not drawn for a deleted transaction.
 - **The three settings-hosted records** go through `SettingsRecordBody` (`lib/ui/core/detail/settings_record_body.dart`), which keeps the `SettingsFormShell` width cap every screen under `/settings/…` has while scrolling on the scaffold's controller, so the compact title and pull-to-refresh work there too.
-- **A recurring expense has no comments card.** The server stores a note on one and has no feed to read it back from — `BACKEND.md`.
+- **A recurring expense's feed needs a newer server.** It mounts the comments card and the Comments / Activity tabs like an expense, but before invoiceninja/invoiceninja#13365 the server stored a note on one with no feed to read it back from; there the tabs say "not available from this server" and the card stays hidden (`docs/comments-and-activity.md`, `BACKEND.md`).
 - **Applying a payment asks first.** The Apply tile used to allocate the unapplied amount to the client's oldest unpaid invoice on one tap, to an invoice the user was never shown, and an allocation cannot be undone from the app. It now names the invoice, what is owed on it and what will be applied (`applyPaymentToOldestInvoice`), Cancel focused.
 
 **Permissions came with the tiles.** A tile puts an action one tap away, so the action lists were brought closer to what the server enforces. These gates are on the items, so they reach list rows and edit screens as well:
@@ -199,6 +199,6 @@ What a host supplies: a `RecordScreenController`; a header; a priority list of `
 
 One per-record summary call on the server would replace nine requests (eight counts and the unpaid-invoices fetch) and make the past-due figure exact rather than proven-or-withheld — `BACKEND.md` § A per-client summary endpoint. The same call for a vendor and a project would replace the page-by-page fetch `RelatedRowsProof` makes to prove a total.
 
-Notes on a recurring expense and on a purchase order are filed under an unrelated expense on the server, and a bank transaction's is accepted and dropped — `BACKEND.md` § Activity notes.
+Notes on a recurring expense and on a purchase order are filed under an unrelated expense on a server without invoiceninja/invoiceninja#13365 (the expense's screen drops them — `docs/comments-and-activity.md`), and a bank transaction's is accepted and dropped — `BACKEND.md` § Activity notes.
 
 Still open on the client side: the activity feed is built from the route's id, so a record opened as `tmp_…` that syncs while open never loads its comments; cross-record name links are permission-gated on some headers and not others; the tiled actions also appear in the wide action bar (see § A quick-action tile is a second render of an existing action); there is no Refresh item in the `⋮` menu; and a derived total past twenty pages of rows is withheld rather than shown with a caveat.

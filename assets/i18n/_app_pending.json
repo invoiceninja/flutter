@@ -15,6 +15,7 @@
   "activity_51_actor_only": ":user deleted a user",
   "activity_52_actor_only": ":user restored a user",
   "activity_feed_window": "This feed covers the :count most recent activities",
+  "activity_unavailable": "Comments and activity for this record aren't available from this server yet.",
   "activity_unknown": "Activity #:id",
   "actual_spend": "Actual Spend",
   "add_a_block_to_save": "Add a block to save this design",

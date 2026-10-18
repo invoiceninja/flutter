@@ -281,7 +281,7 @@ goes through `promptLogCallFor` / `promptAddCommentFor`
 and the success/error toast; a caller supplies only its own `repo.addComment`. That is reachable
 from the record's `⋯` menu on all twelve comment-capable entities and from the
 `Log call` / `Add comment` pair (`ActivityNoteButtons`) on the shared Activity tab
-(`EntityActivityTab`, mounted by eleven detail screens, all of them writable) — the same edit that
+(`EntityActivityTab`, mounted by twelve detail screens, all of them writable) — the same edit that
 finally switched on `onAddComment`, which had shipped as a declared-but-never-passed parameter.
 Task and Project mounted the same tab read-only, with `EntityNoteActions.none`, until their
 repositories gained `addComment`; a task or project note's party is its client.
@@ -293,7 +293,8 @@ has a named contact or a stored number the Contact field seeds and the picker ic
 this only Client and Vendor passed a candidate list, because only those two screens hold a resolved
 record with `contacts` on it; every invoice, quote, credit, recurring invoice, purchase order,
 payment, expense and recurring expense fell through to an empty default at all **15** of their call
-sites — two each, bar recurring expense, which mounts no Activity tab and so has only its `⋯` arm.
+sites — two each, bar recurring expense, which then mounted no Activity tab and so had only its `⋯`
+arm (it has both now).
 The field was blank and the picker icon absent. Nothing failed — the button rendered, the sheet
 opened, the note saved — which is why `test/lint/call_note_wiring_test.dart` now fails the build on
 a `promptLogCallFor(` call site that names the wrong party or none.

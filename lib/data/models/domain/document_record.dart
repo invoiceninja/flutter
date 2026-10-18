@@ -17,7 +17,7 @@ part 'document_record.freezed.dart';
 /// with the API token.
 ///
 /// [parentType] / [parentId] name the record the file is attached to when the
-/// app knows it — the server's list response doesn't say
+/// app knows it — an older server's list response doesn't say
 /// (`docs/documents-list.md`). `isDirty` and `isDeleted` are overlaid by the
 /// repository from the Drift row; `fromApi` defaults both to `false`.
 @freezed

@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/password_cache.dart';
 
 ValueListenable<ApiCredentials?> _creds() => ValueNotifier<ApiCredentials?>(
@@ -376,7 +377,7 @@ void main() {
     );
 
     test('a stale in-flight future does not evict a newer one', () async {
-      // `addNote` calls `clearCache()` on every comment, so a newer request for
+      // `addNote` drops the feeds on every comment, so a newer request for
       // the same record is routinely registered while an older one is still on
       // the wire. An unconditional `remove(key)` on the older future's
       // completion turned the dedupe off for the rest of the newer one's
@@ -403,7 +404,7 @@ void main() {
 
       final first = api.fetchForEntity(entity: 'client', entityId: 'c1');
       await Future<void>.delayed(Duration.zero);
-      api.clearCache(); // what `addNote` does on every comment
+      api.clearCache(); // what `addNote` does to the feeds on every comment
       final second = api.fetchForEntity(entity: 'client', entityId: 'c1');
       await Future<void>.delayed(Duration.zero);
       expect(gates, hasLength(2));
@@ -437,6 +438,192 @@ void main() {
         ),
         isNotNull,
       );
+    });
+  });
+
+  group('ActivitiesApi.fetchForEntity — activityTypeIds '
+      '(invoiceninja/invoiceninja#13365)', () {
+    Map<String, dynamic> row(String id, int type) => {
+      'hashed_id': id,
+      'activity_type_id': type,
+      'notes': '',
+      'created_at': 1778990481,
+    };
+
+    test('sends the filter as a string, beside the window', () async {
+      final fake = _clientRecordingBodies({
+        'data': [row('n1', 141)],
+      });
+      await ActivitiesApi(fake.client).fetchForEntity(
+        entity: 'client',
+        entityId: 'c1',
+        activityTypeIds: const {141},
+      );
+      expect(fake.bodies.single, {
+        'entity': 'client',
+        'entity_id': 'c1',
+        'rows': kEntityActivityRows,
+        'activity_type_id': '141',
+      });
+    });
+
+    test('a filtered feed is cached apart from the whole one', () async {
+      final fake = _clientRecordingBodies({
+        'data': [row('n1', 141)],
+      });
+      final api = ActivitiesApi(fake.client);
+      await api.fetchForEntity(
+        entity: 'client',
+        entityId: 'c1',
+        activityTypeIds: const {141},
+      );
+      expect(api.peekForEntity(entity: 'client', entityId: 'c1'), isNull);
+      expect(
+        api.peekForEntity(
+          entity: 'client',
+          entityId: 'c1',
+          activityTypeIds: const {141},
+        ),
+        hasLength(1),
+      );
+      // Concurrent callers of the two shapes are two requests, not one.
+      await Future.wait([
+        api.fetchForEntity(entity: 'client', entityId: 'c1'),
+        api.fetchForEntity(
+          entity: 'client',
+          entityId: 'c1',
+          activityTypeIds: const {141},
+        ),
+      ]);
+      expect(fake.bodies, hasLength(3));
+    });
+
+    test('a server honouring the filter is trusted to again', () async {
+      final fake = _clientRecordingBodies({
+        'data': [row('n1', 141)],
+      });
+      final api = ActivitiesApi(fake.client);
+      await api.fetchForEntity(
+        entity: 'client',
+        entityId: 'c1',
+        activityTypeIds: const {141},
+      );
+      expect(api.ignoresActivityTypeFilter, isFalse);
+    });
+
+    test('an older server that ignores it is narrowed here and remembered — '
+        'until clearCache', () async {
+      // What demo.invoiceninja.com (5.13.49) answers: the whole window.
+      final fake = _clientRecordingBodies({
+        'data': [row('n1', 141), row('s1', 4), row('s2', 5)],
+      });
+      final api = ActivitiesApi(fake.client);
+      final rows = await api.fetchForEntity(
+        entity: 'client',
+        entityId: 'c1',
+        activityTypeIds: const {141},
+      );
+      expect(rows.map((r) => r.id), ['n1']);
+      expect(api.ignoresActivityTypeFilter, isTrue);
+      api.clearCache();
+      expect(api.ignoresActivityTypeFilter, isFalse);
+    });
+  });
+
+  group('ActivitiesApi.fetchForEntity — a refused entity', () {
+    ({ApiClient client, List<Map<String, dynamic>> bodies}) refusing(
+      Map<String, List<String>> errors,
+    ) {
+      final bodies = <Map<String, dynamic>>[];
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient((req) async {
+          bodies.add(jsonDecode(req.body) as Map<String, dynamic>);
+          return http.Response(
+            jsonEncode({
+              'message': 'The given data was invalid.',
+              'errors': errors,
+            }),
+            422,
+            headers: const {'content-type': 'application/json'},
+          );
+        }),
+      );
+      return (client: client, bodies: bodies);
+    }
+
+    test(
+      'a 422 on `entity` is unsupported, remembered until clearCache',
+      () async {
+        // The demo server's answer for `recurring_expense` before #13365.
+        final fake = refusing({
+          'entity': ['The selected entity is invalid.'],
+        });
+        final api = ActivitiesApi(fake.client);
+        await expectLater(
+          api.fetchForEntity(entity: 'recurring_expense', entityId: 'r1'),
+          throwsA(isA<ActivityFeedUnsupportedException>()),
+        );
+        expect(api.isEntityUnsupported('recurring_expense'), isTrue);
+        expect(api.isEntityUnsupported('expense'), isFalse);
+        api.clearCache();
+        expect(api.isEntityUnsupported('recurring_expense'), isFalse);
+      },
+    );
+
+    test('a 422 on `entity_id` alone is a missing record, not that', () async {
+      final fake = refusing({
+        'entity_id': ['The selected entity id is invalid.'],
+      });
+      final api = ActivitiesApi(fake.client);
+      await expectLater(
+        api.fetchForEntity(entity: 'invoice', entityId: 'gone'),
+        throwsA(isA<ValidationException>()),
+      );
+      expect(api.isEntityUnsupported('invoice'), isFalse);
+    });
+
+    test('a comment drops the feeds but not what the server refused', () async {
+      // `addNote` clears the feeds on every comment; forgetting the refusal
+      // with them would re-send the request the server already 422'd.
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient((req) async {
+          if (req.url.path == '/api/v1/activities/notes') {
+            return http.Response(
+              jsonEncode({'data': <String, Object?>{}}),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'message': 'The given data was invalid.',
+              'errors': {
+                'entity': ['The selected entity is invalid.'],
+              },
+            }),
+            422,
+            headers: const {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final api = ActivitiesApi(client);
+      await expectLater(
+        api.fetchForEntity(entity: 'recurring_expense', entityId: 'r1'),
+        throwsA(isA<ActivityFeedUnsupportedException>()),
+      );
+      await api.addNote(
+        entity: 'recurring_expenses',
+        entityId: 'r1',
+        notes: 'hi',
+        idempotencyKey: 'k1',
+      );
+      expect(api.isEntityUnsupported('recurring_expense'), isTrue);
     });
   });
 }

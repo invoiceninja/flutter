@@ -31,6 +31,7 @@ class _FakeApi implements ActivitiesApi {
   List<ActivityApi>? peekForEntity({
     required String entity,
     required String entityId,
+    Set<int>? activityTypeIds,
   }) => null;
 
   @override
@@ -38,7 +39,14 @@ class _FakeApi implements ActivitiesApi {
     required String entity,
     required String entityId,
     int rows = kEntityActivityRows,
+    Set<int>? activityTypeIds,
   }) async => this.rows;
+
+  @override
+  bool isEntityUnsupported(String entity) => false;
+
+  @override
+  bool get ignoresActivityTypeFilter => false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

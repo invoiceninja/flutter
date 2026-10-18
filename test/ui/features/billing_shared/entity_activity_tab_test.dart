@@ -38,6 +38,7 @@ class _FakeActivitiesApi implements ActivitiesApi {
   List<ActivityApi>? peekForEntity({
     required String entity,
     required String entityId,
+    Set<int>? activityTypeIds,
   }) => null;
 
   @override
@@ -45,10 +46,28 @@ class _FakeActivitiesApi implements ActivitiesApi {
     required String entity,
     required String entityId,
     int rows = kEntityActivityRows,
+    Set<int>? activityTypeIds,
   }) async {
     fetchCount++;
+    if (refusesOnFetch) {
+      refusesEntity = true;
+      throw ActivityFeedUnsupportedException(entity);
+    }
     return this.rows;
   }
+
+  /// A server that 422s the entity name — see [ActivityFeedUnsupportedException].
+  /// Already known when the VM is kicked, as on a second open in a session.
+  bool refusesEntity = false;
+
+  /// Not known yet: the first fetch is what finds out.
+  bool refusesOnFetch = false;
+
+  @override
+  bool isEntityUnsupported(String entity) => refusesEntity;
+
+  @override
+  bool get ignoresActivityTypeFilter => false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -295,6 +314,45 @@ void main() {
       await pump(tester, vmWith(_FakeActivitiesApi()), actions: both);
       expect(find.text('No comments yet'), findsNothing);
       expect(find.text('No records found'), findsOneWidget);
+    });
+  });
+
+  group('a server with no feed for the record type', () {
+    // A recurring expense on a server without invoiceninja/invoiceninja#13365:
+    // nothing to retry, so neither the error panel nor the empty copy.
+    for (final commentsOnly in [true, false]) {
+      testWidgets('says so, with no Retry (commentsOnly: $commentsOnly)', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          vmWith(_FakeActivitiesApi()..refusesEntity = true),
+          actions: both,
+          commentsOnly: commentsOnly,
+        );
+        expect(find.textContaining('available from this server'), findsOne);
+        expect(find.text('No comments yet'), findsNothing);
+        expect(find.text('No records found'), findsNothing);
+        expect(find.text('Retry'), findsNothing);
+        // A note written here would be saved and then shown nowhere.
+        expect(
+          find.widgetWithText(OutlinedButton, 'Add Comment'),
+          findsNothing,
+        );
+        expect(find.widgetWithText(OutlinedButton, 'Log Call'), findsNothing);
+      });
+    }
+
+    testWidgets('the buttons go once the first refusal lands', (tester) async {
+      await pump(
+        tester,
+        vmWith(_FakeActivitiesApi()..refusesOnFetch = true),
+        actions: both,
+        commentsOnly: true,
+      );
+      expect(find.textContaining('available from this server'), findsOne);
+      expect(find.widgetWithText(OutlinedButton, 'Add Comment'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Log Call'), findsNothing);
     });
   });
   group('ActivityNoteButtons latching', () {

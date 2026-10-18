@@ -107,10 +107,14 @@ with our own dedicated key (`docs/fdroid.md` § Signing the F-Droid APK), not
 either Play key, so without it links on an F-Droid install open in the browser.
 It is the `AllowedAPKSigningKeys` value in `tools/foss/com.invoiceninja.admin.yml`
 — lowercase and unbroken there, so reformat it with the `sed` above
-(`toupper`, then pairs) before adding it to the list.
+(`toupper`, then pairs) before adding it to the list:
+`D1:7F:AC:8D:58:95:99:23:1C:31:CE:52:A5:E6:FD:E7:2B:BA:9B:7D:DC:8B:18:03:07:E2:5C:C6:88:03:C1:7D`.
+invoiceninja/invoiceninja#13365 adds it to the `config/ninja.php` default; a
+server that sets `APP_LINKS_ANDROID_FINGERPRINTS` overrides that default and
+must append it itself.
 
-> This repo records neither the fingerprint nor whether Play App Signing is
-> enrolled. Write the answer down here once it is known.
+> This repo records neither the Play fingerprints nor whether Play App Signing
+> is enrolled. Write the answer down here once it is known.
 
 Set them on the server as a comma-separated list — `APP_LINKS_ANDROID_FINGERPRINTS`
 — or as the default in `config/ninja.php` (`ninja.app_links.android_fingerprints`).

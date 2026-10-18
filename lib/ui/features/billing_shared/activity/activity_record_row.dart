@@ -483,7 +483,7 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
           ),
           // The flash is its own layer, deliberately: making the box above an
           // `AnimatedContainer` would put a 250 ms ramp on *hover* for every
-          // row on all eleven hosts — five times the framework's own 50 ms —
+          // row on all twelve hosts — five times the framework's own 50 ms —
           // which reads as lag when the pointer runs down a long audit list.
           // Nested, it also paints over the hover fill (a flashed row you
           // happen to be hovering should read as flashed) and stays mounted, so

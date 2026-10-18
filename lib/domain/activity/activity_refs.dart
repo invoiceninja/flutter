@@ -59,6 +59,20 @@ const Set<String> kExpenseIdAliasHosts = {
   'recurring_expense',
 };
 
+/// Whether [a] is a purchase order's or recurring expense's note sitting in an
+/// **expense's** feed only because of the `expense_id` collision
+/// [kExpenseIdAliasHosts] describes — a comment about another record, on an
+/// expense it has nothing to do with.
+///
+/// Safe to drop: `note()` sets neither `purchase_order_id` nor
+/// `recurring_expense_id` for an `Expense`, and `harvestNoteEntities` adds
+/// those refs only when the column is set. invoiceninja/invoiceninja#13365
+/// stops new collisions; the rows already written keep theirs, so this stays.
+bool isMisfiledExpenseNote(Activity a, {required String? host}) =>
+    host == 'expense' &&
+    a.isComment &&
+    kExpenseIdAliasHosts.any(a.refs.containsKey);
+
 /// First ref in [kActivityDocumentTokens] order that isn't the record on screen
 /// and that [accept]s.
 ///

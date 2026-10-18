@@ -252,6 +252,17 @@ void main() {
     expect(call.body!['end_date'], end.toIso());
   });
 
+  test('chart — carries the drafts switch', () async {
+    // The chart follows it on servers with invoiceninja/invoiceninja#13365
+    // (`ChartController::chart_summary_v2` used to drop it); an older one
+    // ignores it. Pinned so the chart and the totals can't disagree once
+    // the server reads it.
+    await api.fetchChartSummary(
+      DashboardFilter.defaults().copyWith(includeDrafts: true),
+    );
+    expect(client.posts.single.query, {'include_drafts': 'true'});
+  });
+
   test('calculated_fields — keep the preset name', () async {
     // The server derives a card's `previous` period from the name; for
     // `custom` it hands back the same window.

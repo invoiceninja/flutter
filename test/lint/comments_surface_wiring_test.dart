@@ -40,9 +40,9 @@ void main() {
       ?.add('lib/ui/features/projects/views/project_detail_screen.dart');
 
   test('the scan finds every detail screen that mounts the activity tab', () {
-    // Eleven entities: client, vendor, invoice, quote, credit, purchase order,
-    // recurring invoice, payment, expense, project, task.
-    expect(mounts.length, 11, reason: mounts.map((f) => f.path).join('\n'));
+    // Twelve entities: client, vendor, invoice, quote, credit, purchase order,
+    // recurring invoice, payment, expense, recurring expense, project, task.
+    expect(mounts.length, 12, reason: mounts.map((f) => f.path).join('\n'));
   });
 
   test('every one of them also mounts the Comments card and tab', () {
@@ -238,7 +238,7 @@ void main() {
     // Closes the chain the membership test leans on: constant value <-> strip
     // position <-> what `select()` is handed. "The strip leads with Comments
     // then Activity" above already proves entry 0 is the `commentsOnly` tab and
-    // entry 1 the Activity one, on all eleven hosts.
+    // entry 1 the Activity one, on all twelve hosts.
     expect(kCommentsTabIndex, 0);
     expect(kActivityTabIndex, 1);
   });

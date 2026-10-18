@@ -235,4 +235,62 @@ void main() {
       );
     });
   });
+
+  group('isMisfiledExpenseNote', () {
+    const po = ActivityRef(
+      label: 'PO-0005',
+      type: EntityType.purchaseOrder,
+      id: 'po5',
+    );
+    const rec = ActivityRef(
+      label: 'R-0002',
+      type: EntityType.recurringExpense,
+      id: 'r2',
+    );
+
+    test("a PO's or recurring expense's note on an expense is misfiled", () {
+      expect(
+        isMisfiledExpenseNote(
+          _a({'purchase_order': po}, typeId: 141),
+          host: 'expense',
+        ),
+        isTrue,
+      );
+      expect(
+        isMisfiledExpenseNote(
+          _a({'recurring_expense': rec}, typeId: 141),
+          host: 'expense',
+        ),
+        isTrue,
+      );
+    });
+
+    test("the expense's own note, and any system row, are not", () {
+      expect(
+        isMisfiledExpenseNote(
+          _a({'client': _client}, typeId: 141),
+          host: 'expense',
+        ),
+        isFalse,
+      );
+      // A generated expense's row names its recurring expense for real.
+      expect(
+        isMisfiledExpenseNote(_a({'recurring_expense': rec}), host: 'expense'),
+        isFalse,
+      );
+    });
+
+    test('on any other host the same note belongs', () {
+      for (final host in ['client', 'vendor', 'purchase_order', null]) {
+        expect(
+          isMisfiledExpenseNote(
+            _a({'purchase_order': po}, typeId: 141),
+            host: host,
+          ),
+          isFalse,
+          reason: '$host',
+        );
+      }
+    });
+  });
 }

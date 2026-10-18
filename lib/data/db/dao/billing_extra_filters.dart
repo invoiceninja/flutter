@@ -430,8 +430,12 @@ const Map<String, String> _timestampWindowServerParams = {
 /// stretched to `23:59:59` of that day: `whereBetween` takes a bare date as
 /// 00:00, so the server used to leave the window's last day out while the
 /// local list kept it — measured on the demo server, `created_between=D,D`
-/// matched nothing created on D. Returns the input itself when no window slot
-/// is set.
+/// matched nothing created on D. Keep the suffix after
+/// invoiceninja/invoiceninja#13365 too: that server covers a bare end date's
+/// whole day itself but compares an end with a time exactly, so `D 23:59:59`
+/// means the same thing on both and never adds a day — and an older
+/// self-hosted server still needs it. Returns the input itself when no window
+/// slot is set.
 Map<String, Set<String>> timestampWindowsForServer(
   Map<String, Set<String>> extraFilters, {
   DateTime? now,

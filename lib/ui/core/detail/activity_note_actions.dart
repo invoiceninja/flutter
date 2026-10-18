@@ -65,7 +65,8 @@ Future<void> promptAddCommentFor(
 /// and Vendor screens passed a candidate list — they hold a resolved record
 /// with `contacts` on it — while all eight document entities fell through to an
 /// empty default at every one of their 15 call sites (two each, bar recurring
-/// expense, which mounts no Activity tab and so has only its `⋯` arm). The
+/// expense, which then mounted no Activity tab and so had only its `⋯` arm;
+/// it has both now). The
 /// field was blank and the picker icon absent on every invoice, quote, credit,
 /// recurring invoice, purchase order, payment, expense and recurring expense.
 /// Nothing failed: the button rendered, the sheet opened, the note saved.

@@ -13,7 +13,7 @@
 ///
 /// The values are pinned to the strip's real shape by that same test, which
 /// already asserts entry 0 is the `commentsOnly` tab and entry 1 the Activity
-/// one on all eleven hosts.
+/// one on all twelve hosts.
 ///
 /// There is deliberately **no** landing-tab constant: the hosts' `initialIndex:
 /// 2` is asserted as a literal string, and converting it would buy nothing.

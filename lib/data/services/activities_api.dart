@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/data/models/api/activity_api_model.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/services/api_client.dart';
+import 'package:admin/data/services/api_exception.dart';
 
 /// How many of the most-recent company activity rows one user-activity screen
 /// load pulls down before filtering to a single actor. The `?reactv2` branch is
@@ -17,13 +18,15 @@ const int kUserActivityScanRows = 250;
 ///
 /// The endpoint's window is over **all** activity for the record, not just the
 /// notes — `ActivityController::entityActivity` runs
-/// `orderBy('created_at','DESC')->take($rows)` and only then does the app filter
-/// to `activity_type_id == 141` — so on a record whose newest rows are all
-/// invoice-created / email-sent / payment-applied, a comment falls out of the
-/// window entirely and the Comments surfaces render a silent zero. The server
-/// default is 75. Widening to 200 does not *fix* that (only a server-side
-/// notes filter can — see BACKEND.md) but moves the cliff out by 2.7× for one
-/// bounded payload.
+/// `orderBy('created_at','DESC')->take($rows)` — so on a record whose newest
+/// rows are all invoice-created / email-sent / payment-applied, a comment falls
+/// out of the window. The server default is 75; 200 moves the cliff out by
+/// 2.7× for one bounded payload.
+///
+/// A feed that comes back this full is the one case where the window can have
+/// cut a comment off, so `EntityActivityViewModel` then asks again for the
+/// comments alone (`activityTypeIds:`, invoiceninja/invoiceninja#13365). A
+/// server without that filter returns the same window, and the gap stays.
 ///
 /// Sibling of [kUserActivityScanRows] and `kActivityFeedRows`.
 const int kEntityActivityRows = 200;
@@ -44,6 +47,19 @@ const Duration kEntityActivityCacheTtl = Duration(minutes: 2);
 /// so an unbounded map would grow one entry per row visited.
 @visibleForTesting
 const int kEntityActivityCacheLimit = 24;
+
+/// Thrown by [ActivitiesApi.fetchForEntity] when the server refuses the
+/// `entity` name itself — `ShowActivityRequest`'s `in:` list, which before
+/// invoiceninja/invoiceninja#13365 had no `recurring_expense`. An answer about
+/// the server rather than a failure: the caller renders "needs a newer server",
+/// not an error with a Retry that cannot help.
+class ActivityFeedUnsupportedException implements Exception {
+  const ActivityFeedUnsupportedException(this.entity);
+  final String entity;
+
+  @override
+  String toString() => 'ActivityFeedUnsupportedException($entity)';
+}
 
 /// One cached per-entity feed plus the instant it landed.
 class _FeedCacheEntry {
@@ -77,18 +93,42 @@ class ActivitiesApi {
   final Map<String, Future<List<ActivityApi>>> _feedInFlight =
       <String, Future<List<ActivityApi>>>{};
 
-  /// Bumped by [clearCache]. A request already on the wire when the session
-  /// ends completes *after* the wipe, and would otherwise write the previous
-  /// user's rows straight back into the emptied map. `_ensureInFlight` has no
-  /// such hazard because its result lands in Drift; a value cache does.
+  /// Bumped whenever the feeds are dropped. A request already on the wire when
+  /// the session ends completes *after* the wipe, and would otherwise write the
+  /// previous user's rows straight back into the emptied map. `_ensureInFlight`
+  /// has no such hazard because its result lands in Drift; a value cache does.
   int _feedGeneration = 0;
+
+  /// Entity names this server's `/activities/entity` refused (a 422 on
+  /// `entity`), so a record of that type is not asked again this session.
+  /// Cleared by [clearCache] — a sign-in can reach a different server — but
+  /// not by [addNote].
+  final Set<String> _unsupportedEntities = <String>{};
+
+  /// Whether this server answered an `activityTypeIds:` fetch with rows of
+  /// other types, i.e. it predates the `activity_type_id` filter and the
+  /// follow-up fetch would only repeat the window. Cleared by [clearCache].
+  bool _ignoresActivityTypeFilter = false;
+
+  /// See [_unsupportedEntities].
+  bool isEntityUnsupported(String entity) =>
+      _unsupportedEntities.contains(entity);
+
+  /// See [_ignoresActivityTypeFilter].
+  bool get ignoresActivityTypeFilter => _ignoresActivityTypeFilter;
 
   /// The cache is keyed by the credential fingerprint, not by company: the
   /// endpoint narrows its result to the acting user for anyone who
   /// `cannot('view', $entity)`, so two users on the same install legitimately
-  /// get different rows for the same record.
-  String _feedKey(String entity, String entityId) =>
-      '${client.credentialFingerprint}/$entity/$entityId';
+  /// get different rows for the same record. A type-filtered feed is a
+  /// different set of rows, so it gets a key of its own.
+  String _feedKey(String entity, String entityId, Set<int>? activityTypeIds) {
+    final key = '${client.credentialFingerprint}/$entity/$entityId';
+    if (activityTypeIds == null) return key;
+    return '$key/types=${_typeList(activityTypeIds)}';
+  }
+
+  static String _typeList(Set<int> ids) => (ids.toList()..sort()).join(',');
 
   /// `POST /api/v1/activities/notes` — append a user comment to [entity]'s
   /// activity stream. The server creates an Activity row with
@@ -118,10 +158,14 @@ class ActivitiesApi {
     // `fetchForEntity` takes the singular). Comments are rare and the cache
     // holds at most [kEntityActivityCacheLimit] entries, so the cost is a
     // handful of re-fetches that were going to happen anyway.
-    clearCache();
+    //
+    // The feeds only: what the server turned out to support is unchanged by a
+    // comment, and forgetting it would re-send the request it already refused.
+    _clearFeeds();
   }
 
-  /// The cached feed for [entity]/[entityId] if one landed within
+  /// The cached feed for [entity]/[entityId] (narrowed to [activityTypeIds],
+  /// as [fetchForEntity] takes it) if one landed within
   /// [kEntityActivityCacheTtl], else null.
   ///
   /// A **first-frame seed only**, the same contract as
@@ -130,8 +174,9 @@ class ActivitiesApi {
   List<ActivityApi>? peekForEntity({
     required String entity,
     required String entityId,
+    Set<int>? activityTypeIds,
   }) {
-    final key = _feedKey(entity, entityId);
+    final key = _feedKey(entity, entityId, activityTypeIds);
     final hit = _feedCache[key];
     if (hit == null) return null;
     if (_now().difference(hit.at) > kEntityActivityCacheTtl) {
@@ -145,10 +190,17 @@ class ActivitiesApi {
     return hit.rows;
   }
 
-  /// Drop every cached feed. Wired into the logout fan-out in `Services`:
-  /// these rows carry comment bodies, author names and IP addresses, and a
-  /// second user signing in on the same install must not inherit them.
+  /// Drop every cached feed, and what this server was found to support.
+  /// Wired into the logout fan-out in `Services`: these rows carry comment
+  /// bodies, author names and IP addresses, and a second user signing in on
+  /// the same install must not inherit them — and may be on another server.
   void clearCache() {
+    _clearFeeds();
+    _unsupportedEntities.clear();
+    _ignoresActivityTypeFilter = false;
+  }
+
+  void _clearFeeds() {
     _feedGeneration++;
     _feedCache.clear();
     _feedInFlight.clear();
@@ -170,12 +222,22 @@ class ActivitiesApi {
   /// because `MasterDetailLayout` binds J/K/↑/↓ to step through a list and the
   /// router re-keys the detail subtree per `:id`, so a held key would otherwise
   /// issue one uncancelled POST per repeat.
+  ///
+  /// [activityTypeIds] narrows the feed to those types, server-side and before
+  /// the `rows` window (`activity_type_id`, invoiceninja/invoiceninja#13365).
+  /// An older server ignores the param and sends the whole window; the rows are
+  /// then narrowed here instead, so the result means the same on both, and
+  /// [ignoresActivityTypeFilter] records that asking again buys nothing.
+  ///
+  /// Throws [ActivityFeedUnsupportedException] when the server refuses
+  /// [entity] itself, and remembers it ([isEntityUnsupported]).
   Future<List<ActivityApi>> fetchForEntity({
     required String entity,
     required String entityId,
     int rows = kEntityActivityRows,
+    Set<int>? activityTypeIds,
   }) {
-    final key = _feedKey(entity, entityId);
+    final key = _feedKey(entity, entityId, activityTypeIds);
     final inFlight = _feedInFlight[key];
     if (inFlight != null) return inFlight;
 
@@ -184,11 +246,13 @@ class ActivitiesApi {
       entity: entity,
       entityId: entityId,
       rows: rows,
+      activityTypeIds: activityTypeIds,
+      generation: generation,
     );
     _feedInFlight[key] = future;
     return future
         .whenComplete(() {
-          // `identical`, not a bare `remove`: `addNote` calls `clearCache()` on
+          // `identical`, not a bare `remove`: `addNote` drops the feeds on
           // every comment, so a *newer* request for the same record is routinely
           // registered while an older one is still on the wire. An unconditional
           // remove would evict the newer entry when the older future settled,
@@ -208,15 +272,40 @@ class ActivitiesApi {
     required String entity,
     required String entityId,
     required int rows,
+    required Set<int>? activityTypeIds,
+    required int generation,
   }) async {
-    final raw = await client.postJson(
-      '/api/v1/activities/entity',
-      readOnly: true,
-      body: {'entity': entity, 'entity_id': entityId, 'rows': rows},
-    );
+    final Object? raw;
+    try {
+      raw = await client.postJson(
+        '/api/v1/activities/entity',
+        readOnly: true,
+        body: {
+          'entity': entity,
+          'entity_id': entityId,
+          'rows': rows,
+          // A string: the server validates it as `^\d+(,\d+)*$`.
+          if (activityTypeIds != null)
+            'activity_type_id': _typeList(activityTypeIds),
+        },
+      );
+    } on ValidationException catch (e) {
+      // `entity_id` failing `exists` is a missing record, not this; only a
+      // refused `entity` says the server has no feed for the type.
+      if (!e.fieldErrors.containsKey('entity')) rethrow;
+      if (generation == _feedGeneration) _unsupportedEntities.add(entity);
+      throw ActivityFeedUnsupportedException(entity);
+    }
     if (raw is! Map<String, dynamic>) return const [];
-    final parsed = ActivityListApi.fromJson(raw);
-    return parsed.data;
+    final parsed = ActivityListApi.fromJson(raw).data;
+    if (activityTypeIds == null) return parsed;
+    final narrowed = parsed
+        .where((a) => activityTypeIds.contains(a.activityTypeId))
+        .toList(growable: false);
+    if (narrowed.length != parsed.length && generation == _feedGeneration) {
+      _ignoresActivityTypeFilter = true;
+    }
+    return narrowed;
   }
 
   void _remember(String key, List<ActivityApi> rows) {

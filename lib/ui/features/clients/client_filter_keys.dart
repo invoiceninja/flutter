@@ -105,12 +105,13 @@ export 'package:admin/ui/core/list/search/number_filter_key.dart'
 //                            `DateColumnFilterKey`, whose `between` operator
 //                            writes a window to `created_at_range` /
 //                            `updated_at_range` (3-part `<col>,<start>,<end>`
-//                            wire). Those window params' server support is
-//                            unverified — the local Drift mirror
-//                            (`parse{Created,Updated}AtRangeFilter` →
-//                            `created/updatedFrom/To`) narrows the list
-//                            regardless. The legacy 2-part `updated_between`
-//                            param is no longer emitted. Lifecycle is the
+//                            wire). The server has no handler for those, so
+//                            the fetch renames them to the 2-part
+//                            `created_between` / `updated_between` it does
+//                            honour (`timestampWindowsForServer`); the local
+//                            Drift mirror (`parse{Created,Updated}AtRangeFilter`
+//                            → `created/updatedFrom/To`) reads the `*_range`
+//                            keys as stored. Lifecycle is the
 //                            `status` param (handled by `stateQueryParams`),
 //                            not `client_status`.
 //

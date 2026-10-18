@@ -12,9 +12,10 @@ import 'package:admin/data/db/tables/_entity_table_mixin.dart';
 /// table of its own (schema v14).
 ///
 /// `parent_type` / `parent_id` name the record the file is attached to when
-/// the app knows it. The server's list response does not say
-/// (BACKEND.md § Documents list), so they are filled from what the app sees
-/// of the records themselves: the `/refresh` delta, a record tab's own
+/// the app knows it. A server with invoiceninja/invoiceninja#13365 says so on
+/// every document; an older one's list response does not
+/// (BACKEND.md § Documents list), so they are also filled from what the app
+/// sees of the records themselves: the `/refresh` delta, a record tab's own
 /// change, and a pass over the parent tables' cached `documents` columns —
 /// see `docs/documents-list.md`. `parent_type` holds the wire name from
 /// `kDocumentParentWireNames`.

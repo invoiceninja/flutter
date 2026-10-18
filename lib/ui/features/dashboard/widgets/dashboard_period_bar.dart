@@ -181,9 +181,10 @@ class _CurrencyButton extends StatelessWidget {
 /// "Include Drafts" as a label and a switch — its state visible without
 /// opening anything.
 ///
-/// The server applies it to the totals (`totals_v2`) and to nothing else, so it
-/// sits with the figures and is not offered as if it re-scoped the chart or the
-/// lists (`BACKEND.md`).
+/// The server applies it to the totals (`totals_v2`) and, from
+/// invoiceninja/invoiceninja#13365, to the chart (`chart_summary_v2`, which
+/// the app already sends it to) — never to the lists. So it sits with the
+/// figures and is not offered as if it re-scoped the page (`BACKEND.md`).
 class IncludeDraftsSwitch extends StatelessWidget {
   const IncludeDraftsSwitch({super.key, required this.vm});
 

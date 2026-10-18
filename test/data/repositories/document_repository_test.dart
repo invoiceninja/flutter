@@ -16,8 +16,8 @@ import 'package:admin/domain/sync/mutation.dart';
 /// The company-wide Documents list's repository. What sets it apart from the
 /// other list repositories is what the server does with a document — no
 /// lifecycle, a hard delete with no tombstone, no parent link in the list
-/// response — and every test here pins one consequence of that
-/// (`docs/documents-list.md`).
+/// response before invoiceninja/invoiceninja#13365 — and every test here pins
+/// one consequence of that (`docs/documents-list.md`).
 void main() {
   late AppDatabase db;
   late _FakeDocumentsApi api;
@@ -105,6 +105,25 @@ void main() {
         expect(d.parentId, 'inv1');
       },
     );
+
+    test('a server that names the parent fills the link from a list page '
+        '(invoiceninja/invoiceninja#13365)', () async {
+      // Through `fromJson`, so the wire keys are pinned too — exactly what
+      // `DocumentTransformer` sends: the snake_case model name and the
+      // hashed id.
+      api.pages[1] = [
+        DocumentApi.fromJson({
+          ...doc('d1').toJson(),
+          'documentable_type': 'recurring_invoice',
+          'documentable_id': 'ri1',
+        }),
+      ];
+      await repo.ensurePageLoaded(companyId: co, page: 1);
+
+      final d = await repo.watch(companyId: co, id: 'd1').first;
+      expect(d!.parentType, EntityType.recurringInvoice);
+      expect(d.parentId, 'ri1');
+    });
   });
 
   group('writing', () {

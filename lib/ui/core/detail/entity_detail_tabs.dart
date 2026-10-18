@@ -102,7 +102,7 @@ class EntityDetailTabs extends StatefulWidget {
   /// Which tab a *fresh* pane opens on, when there is no remembered one.
   ///
   /// A structural default, deliberately outranked by
-  /// `MasterDetailNavController.lastTab` — all eleven entities that lead with
+  /// `MasterDetailNavController.lastTab` — all twelve entities that lead with
   /// the Comments + Activity pair pass 2 so the landing tab stays whatever used
   /// to be first, while a user who has picked a tab keeps getting it back. A
   /// real deep-link-to-a-tab would want the opposite precedence and needs this

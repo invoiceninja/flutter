@@ -171,6 +171,7 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/widgets/assigned_users_section.dart',
       'lib/ui/features/settings/widgets/dashboard_panels_section.dart',
       'lib/ui/features/settings/widgets/contacts_sync_section.dart',
+      'lib/ui/features/settings/widgets/mobile_app_section.dart',
       'lib/ui/features/settings/widgets/list_status_tabs_section.dart',
       'lib/ui/features/settings/widgets/sidebar_menu_section.dart',
       'lib/ui/features/settings/widgets/sidebar_counters_section.dart',

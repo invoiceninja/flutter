@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/db/salvage.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 
@@ -212,6 +213,9 @@ class _LocalDataRecoveryNoticeState extends State<LocalDataRecoveryNotice> {
     }
     final notice = widget.slot.take();
     if (notice == null) return;
+    // A launch that opens on this has asked enough of the user; the
+    // mobile-app promo waits for another.
+    AutomaticDialogs.noteShown();
     final dialog = switch (notice.kind) {
       LocalDataNoticeKind.rebuilt => null,
       LocalDataNoticeKind.partlyRecovered => (

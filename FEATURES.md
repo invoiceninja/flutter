@@ -1802,3 +1802,4 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Web auth token storage (localStorage) | — | — | ✅ | | |
 | Web data writes (sent without `Idempotency-Key`, the one header the API's CORS rejected — see BACKEND.md) | — | — | ✅ | | |
 | Biometric / IAP / native-window / OAuth-login on web | — | — | — | | |
+| Mobile-app promo on desktop / web (QR code or store button; iPhone-only on macOS per Apple 2.3.10) | — | 🟡 | ✅ | | v1's beta promo pitched this app; v2 pitches the phone app — `docs/mobile-app-promo.md` |

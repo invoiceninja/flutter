@@ -30,7 +30,7 @@ class ScreenshotSizeMenuButton extends StatelessWidget {
         onPressed: () => menu.isOpen ? menu.close() : menu.open(),
       ),
       menuChildren: [
-        for (final (i, group) in kScreenshotPresetGroups.indexed) ...[
+        for (final (i, group) in visibleScreenshotPresetGroups().indexed) ...[
           if (i > 0) const Divider(height: 8),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),

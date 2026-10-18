@@ -11,12 +11,14 @@ import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_destination.dart';
+import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/conflict_resolution_sheet.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/auth/widgets/name_required_dialog.dart';
+import 'package:admin/ui/features/mobile_promo/mobile_app_promo_host.dart';
 import 'package:admin/ui/features/tokens/widgets/token_created_dialog.dart';
 
 final _log = Logger('SyncEventListener');
@@ -167,6 +169,7 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       return;
     }
     _namePromptedUserId = session!.userId;
+    AutomaticDialogs.noteShown();
     _dialogOpen = true;
     try {
       await promptForUserName(context, services);
@@ -587,6 +590,9 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     }
   }
 
+  // The mobile-app promo's auto-open rides along: it is the other app-wide
+  // prompt, and it shares this listener's guarantee of never landing over
+  // `/lock` or `/setup`.
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => MobileAppPromoHost(child: widget.child);
 }

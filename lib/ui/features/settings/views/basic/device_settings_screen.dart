@@ -23,6 +23,7 @@ import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart
 import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
+import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
 import 'package:admin/ui/features/settings/widgets/segmented_setting_row.dart';
@@ -54,6 +55,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'biometric_authentication',
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
+  ...kMobileAppSearchKeys,
   ...kAssignedUsersSearchKeys,
   'default_tab',
   'hide_peppol_sent_status',
@@ -128,6 +130,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Native mobile only — hides itself where the app can't write
               // the address book (desktop, web).
               const ContactsSyncSection(),
+              // Its mirror: everywhere *but* a phone, the way to the phone app
+              // that does both cards above.
+              const MobileAppSection(),
               // Between the phone/contacts pair and the chrome block on
               // purpose: the cards below change chrome, this one changes what a
               // *form* offers. The load-bearing reason to keep it here rather

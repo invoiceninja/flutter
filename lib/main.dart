@@ -20,6 +20,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
 import 'package:admin/app/memory_pressure_observer.dart';
+import 'package:admin/app/mobile_app_promo_controller.dart';
 import 'package:admin/app/native_splash.dart';
 import 'package:admin/app/native_window.dart';
 import 'package:admin/app/native_window_theme.dart';
@@ -243,6 +244,7 @@ Future<void> _bootstrap() async {
     db: opened.db,
     diagnosticsLog: diag,
     realtimeUpdates: true,
+    mobileAppPromote: true,
   );
   // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
   // seed the current state. No-op off desktop; nothing downstream awaits it, so
@@ -794,6 +796,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // `context.read<SignOutNotice?>()` for the same reason.
         ChangeNotifierProvider<SignOutNotice>.value(
           value: widget.services.signOutNotice,
+        ),
+        // For the shell's promo host and its three entry points, read as
+        // `context.read<MobileAppPromoController?>()` for the same reason.
+        ChangeNotifierProvider<MobileAppPromoController>.value(
+          value: widget.services.mobileAppPromo,
         ),
       ],
       child: ListenableBuilder(

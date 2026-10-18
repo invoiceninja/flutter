@@ -282,4 +282,43 @@ void main() {
       }
     });
   });
+
+  group('visibleScreenshotPresetGroups', () {
+    List<String> labels({
+      required bool isWeb,
+      required bool isRelease,
+      required TargetPlatform platform,
+    }) => [
+      for (final g in visibleScreenshotPresetGroups(
+        isWeb: isWeb,
+        isRelease: isRelease,
+        platform: platform,
+      ))
+        g.labelKey,
+    ];
+
+    test('a release Mac build never names Google Play (App Review 2.3.10)', () {
+      expect(
+        labels(isWeb: false, isRelease: true, platform: TargetPlatform.macOS),
+        isNot(contains('google_play')),
+      );
+    });
+
+    test('every other build keeps every group — a debug Mac run is where '
+        'the store screenshots are captured', () {
+      final all = [for (final g in kScreenshotPresetGroups) g.labelKey];
+      for (final (isWeb, isRelease, platform) in [
+        (false, false, TargetPlatform.macOS),
+        (false, true, TargetPlatform.windows),
+        (false, true, TargetPlatform.linux),
+        (true, true, TargetPlatform.macOS),
+      ]) {
+        expect(
+          labels(isWeb: isWeb, isRelease: isRelease, platform: platform),
+          all,
+          reason: '$platform web=$isWeb release=$isRelease',
+        );
+      }
+    });
+  });
 }

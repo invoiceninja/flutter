@@ -152,6 +152,12 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.signOutNotice.record(SignOutReason.inactivity),
     (s) => s.signOutNotice.pending == null,
   ),
+  // "This machine has been told" — the next person to sign in on it isn't
+  // pitched the phone app again.
+  DevicePrefKeys.mobileAppPromo: _Probe(
+    (s) => s.mobileAppPromo.finish(),
+    (s) => !s.mobileAppPromo.state.done,
+  ),
 };
 
 final _certificate = CertificateFacts(

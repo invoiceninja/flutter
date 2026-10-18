@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -9,6 +8,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/qr_code_image.dart';
 import 'package:admin/ui/features/settings/views/basic/user_details/view_models/two_factor_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -502,7 +502,7 @@ class _QrShow extends StatelessWidget {
           style: TextStyle(color: context.inTheme.ink2, height: 1.4),
         ),
         SizedBox(height: InSpacing.lg(context)),
-        Center(child: _QrImage(qrData: vm.qrCode)),
+        Center(child: QrCodeImage(data: vm.qrCode)),
         SizedBox(height: InSpacing.lg(context)),
         Text(
           context.tr('or_enter_code_manually'),
@@ -561,57 +561,6 @@ class _QrShow extends StatelessWidget {
     } else if (vm.errorMessage != null) {
       Notify.error(context, vm.errorMessage!, messenger: messenger);
     }
-  }
-}
-
-class _QrImage extends StatelessWidget {
-  const _QrImage({required this.qrData});
-
-  /// The `otpauth://totp/...` URL the server returns under `data.qrCode`
-  /// (Laravel `Google2FA::getQRCodeUrl`). It's a URL string, not an image, so
-  /// we render it client-side — matching the legacy app (`QrImageView(data:)`)
-  /// and React (`<QRCode value={...} />`).
-  final String qrData;
-
-  @override
-  Widget build(BuildContext context) {
-    // Empty payload (server hiccup) → 220px placeholder so the layout doesn't
-    // jump; the secret below stays available for manual entry.
-    if (qrData.isEmpty) {
-      return Container(
-        width: 220,
-        height: 220,
-        decoration: BoxDecoration(
-          border: Border.all(color: context.inTheme.border),
-          borderRadius: BorderRadius.circular(InRadii.r2),
-        ),
-        alignment: Alignment.center,
-        child: const Icon(Icons.qr_code, size: 64),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.all(InSpacing.sm),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-        border: Border.all(color: context.inTheme.border),
-      ),
-      // Force black-on-white so the code scans regardless of theme.
-      child: QrImageView(
-        data: qrData,
-        version: QrVersions.auto,
-        size: 220,
-        backgroundColor: Colors.white,
-        eyeStyle: const QrEyeStyle(
-          eyeShape: QrEyeShape.square,
-          color: Colors.black,
-        ),
-        dataModuleStyle: const QrDataModuleStyle(
-          dataModuleShape: QrDataModuleShape.square,
-          color: Colors.black,
-        ),
-      ),
-    );
   }
 }
 

@@ -7,10 +7,12 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/shell/widgets/health_check_dialog.dart';
+import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 
 /// Pushes Flutter's bundled `LicensePage`. Modal sub-flow (not page
@@ -69,6 +71,18 @@ Future<void> showAppAboutDialog(BuildContext context) async {
         Navigator.of(ctx).pop();
         services.debugPanelRevealed.value = true;
       },
+      // The promo's permanent way back — still offered after "Don't show
+      // again", which only ends the automatic opens. Null wherever the promo
+      // has nothing to offer: on a phone, or a demo / localhost session.
+      onShowMobileApp:
+          currentMobilePromoTargets().isNotEmpty && mobilePromoEligible(session)
+          ? () {
+              Navigator.of(ctx).pop();
+              if (outerContext.mounted) {
+                showMobileAppPromoDialog(outerContext, isManual: true);
+              }
+            }
+          : null,
     ),
   );
 }
@@ -93,6 +107,7 @@ class _AboutDialog extends StatelessWidget {
     required this.onShowHealthCheck,
     required this.onShowKeyboardShortcuts,
     required this.onShowDebugPanel,
+    this.onShowMobileApp,
   });
 
   final ValueListenable<String?> serverVersion;
@@ -103,6 +118,7 @@ class _AboutDialog extends StatelessWidget {
   final VoidCallback? onShowHealthCheck;
   final VoidCallback? onShowKeyboardShortcuts;
   final VoidCallback onShowDebugPanel;
+  final VoidCallback? onShowMobileApp;
 
   /// Combined `v<server>-<platformLetter><clientBuild>` label (see
   /// [AppVersion.versionLabel]). [server] is the live `x-app-version` value.
@@ -191,6 +207,17 @@ class _AboutDialog extends StatelessWidget {
                 Text(
                   userEmail!,
                   style: TextStyle(fontSize: 12, color: tokens.ink3),
+                ),
+              ],
+              if (onShowMobileApp != null) ...[
+                SizedBox(height: InSpacing.md(context)),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                  ),
+                  onPressed: onShowMobileApp,
+                  icon: const Icon(Icons.smartphone_outlined, size: 18),
+                  label: Text(context.tr('mobile_app_promo_entry')),
                 ),
               ],
               SizedBox(height: InSpacing.md(context)),

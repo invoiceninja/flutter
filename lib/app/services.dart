@@ -11,6 +11,7 @@ import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
+import 'package:admin/app/mobile_app_promo_controller.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/hide_peppol_status_controller.dart';
@@ -346,6 +347,7 @@ class Services implements SidebarBadgeContext {
     required this.phoneActions,
     required this.certificateTrust,
     required this.signOutNotice,
+    required this.mobileAppPromo,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -761,6 +763,10 @@ class Services implements SidebarBadgeContext {
   /// Why the last session ended on its own, for the sign-in screen
   /// (`SignOutNotice`). Read there through its root provider.
   final SignOutNotice signOutNotice;
+
+  /// The "get the mobile app" promo's schedule (docs/mobile-app-promo.md).
+  /// Read through its root provider, like [signOutNotice].
+  final MobileAppPromoController mobileAppPromo;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1445,6 +1451,9 @@ class Services implements SidebarBadgeContext {
     // Off unless the app asks: a test or harness that builds the graph must
     // never open a socket to the hosted server (docs/realtime-updates.md).
     bool realtimeUpdates = false,
+    // Off unless the app asks, for the same reason: a harness must never get
+    // the mobile-app promo over the screen it is driving, nor its sidebar card.
+    bool mobileAppPromote = false,
     DiagnosticsLog? diagnosticsLog,
     DebugCaptureStore? debugCaptureStore,
   }) {
@@ -1497,6 +1506,10 @@ class Services implements SidebarBadgeContext {
     final signOutNotice = SignOutNotice(
       prefs: devicePrefs,
       credentials: auth.credentials,
+    );
+    final mobileAppPromo = MobileAppPromoController(
+      prefs: devicePrefs,
+      promote: mobileAppPromote,
     );
     // Assigned a few lines below; the `onUnauthorized` closure captures the
     // variable (not its value) and only ever runs once a request has come
@@ -2238,6 +2251,7 @@ class Services implements SidebarBadgeContext {
       phoneActions: phoneActions,
       certificateTrust: certificateTrust,
       signOutNotice: signOutNotice,
+      mobileAppPromo: mobileAppPromo,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

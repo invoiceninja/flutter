@@ -230,6 +230,16 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// The "get the mobile app" promo's schedule — `{closes, nextAt, done,
+  /// engaged, daysSeen, lastDay}` JSON (`MobileAppPromoController`). It is
+  /// "this machine has been told", not a fact about an account, so a
+  /// sign-out keeps it and the next user of the same desktop isn't re-pitched.
+  static const mobileAppPromo = PrefKey<String>(
+    'mobile_app_promo_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -255,6 +265,7 @@ abstract final class DevicePrefKeys {
     hidePeppolStatus,
     trustedCertificates,
     signOutNotice,
+    mobileAppPromo,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

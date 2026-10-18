@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:admin/app/native_window.dart';
@@ -97,6 +98,26 @@ const kScreenshotPresetGroups = <ScreenshotPresetGroup>[
     ],
   ),
 ];
+
+/// The groups the size menu may show. A Mac App Store build must not name
+/// another platform's store anywhere a reviewer can reach — About → Debug
+/// Panel included (App Review 2.3.10, docs/mobile-app-promo.md) — so a
+/// **release** macOS build drops the Google Play sizes. Debug and profile
+/// runs, where the store screenshots are captured, keep them.
+List<ScreenshotPresetGroup> visibleScreenshotPresetGroups({
+  bool isWeb = kIsWeb,
+  bool isRelease = kReleaseMode,
+  TargetPlatform? platform,
+}) {
+  final macStoreBuild =
+      !isWeb &&
+      isRelease &&
+      (platform ?? defaultTargetPlatform) == TargetPlatform.macOS;
+  return [
+    for (final group in kScreenshotPresetGroups)
+      if (!(macStoreBuild && group.labelKey == 'google_play')) group,
+  ];
+}
 
 /// Outcome of a programmatic window resize. [achievedPx] is null when the
 /// native side couldn't answer (non-desktop platform, channel error, or a

@@ -35,6 +35,7 @@ import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
+import 'package:admin/ui/features/shell/widgets/mobile_app_promo_footer.dart';
 import 'package:admin/ui/features/shell/widgets/plan_expired_footer.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
 import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
@@ -758,6 +759,16 @@ class _InSidebarState extends State<InSidebar> {
                   // — hosted vs self-hosted — so at most one ever renders.)
                   TrialFooter(compact: collapsed),
                   PlanExpiredFooter(compact: collapsed),
+                  // The mobile-app promo's way back, below every other card
+                  // in rank: it renders only when none of them does, and
+                  // only where the upsell would fit. Above the white-label
+                  // card in source, because nothing may follow that one.
+                  MobileAppPromoFooter(
+                    compact: collapsed,
+                    touch: touch,
+                    affordable: showsUpsell,
+                    onBeforeOpen: widget.onBeforeModal,
+                  ),
                   if (showsUpsell) WhiteLabelFooter(compact: collapsed),
                   // Nothing goes below this line. The sidebar's bottom inset is
                   // the outer SafeArea's (see its comment above), so a widget

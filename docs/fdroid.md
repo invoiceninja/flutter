@@ -299,10 +299,22 @@ A dry run (`publish` unchecked) builds, signs and checks everything, and publish
 
 ### Bumping the F-Droid toolchain
 
-- **Flutter.** Raise `srclibs: flutter@` in all three blocks together with the workflows'
-  `flutter-version:`. Set `ndk:` to the new Flutter's `ndkVersion`
-  (`packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt`).
-  `test/lint/fdroid_recipe_test.dart` fails until both agree.
+- **Flutter.** Raise the workflows' `flutter-version:`. The recipe follows on its own:
+  - Each block takes the srclib at `flutter@stable`, and its `prebuild` checks out the version
+    it reads from `.github/workflows/appimage.yml`. This is fdroiddata's
+    `templates/build-flutter.yml` pattern.
+  - So F-Droid's checkupdates bot builds every new tag with the Flutter that tag was released
+    with. A pinned `flutter@<version>` would build it with the old one, and the binary check
+    would fail.
+  - fdroiddata's `srclibs/flutter.yml` has no `Prepare:`, so `stable` + `checkout -f <version>`
+    is the same tree as `flutter@<version>`.
+- **The NDK.** If the new Flutter's `ndkVersion` moved
+  (`packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt`), set `ndk:` to it in all
+  three blocks.
+  - The recipe can't read `ndk:` from the source, so once the app is listed, that change also
+    needs a merge request on fdroiddata.
+  - `test/lint/fdroid_recipe_test.dart` fails until the NDK agrees, and until the prebuild's
+    `sed` reads exactly one `flutter-version:` line, the pin, from `appimage.yml`.
 - **The image.** Move `IMAGE`'s digest, `FDROIDSERVER_COMMIT` and `FDROIDDATA_COMMIT` in
   `tools/fdroid_build.sh` together, to what fdroiddata's CI uses that day.
   - Read the digest from the registry:
@@ -497,4 +509,25 @@ Decisions (2026-10):
 
 **Submitting.** Once a Release carries pinned APKs, open a merge request on fdroiddata adding this
 file as `metadata/com.invoiceninja.admin.yml`, or hand it, with the fingerprint, to the maintainer
-on invoiceninja/flutter#175.
+on invoiceninja/flutter#175. Use the "App inclusion" template and the title `New app: Invoice Ninja`.
+
+- **The submitted copy names the full commit hash, not the tag.** fdroiddata's template asks for
+  that: "The `commit` field should be the full hash. Please don't use tag or branch."
+- **Ours keeps `commit: v<version>`.** The hash doesn't exist yet when `bump_client_version.sh`
+  writes the line, and `fdroid_recipe_test` pins it. CI passes the real sha with `--commit`
+  anyway.
+- **So the two copies differ only on those three lines.** Make the submitted copy from the
+  current recipe, not the tag's, so it carries any listing fix made since:
+  `sed "s/^    commit: v<ver>\$/    commit: $(git rev-parse v<ver>^{commit})/" tools/foss/com.invoiceninja.admin.yml`.
+- **`AutoName` is the launcher label, "Ninja Beta".**
+  - fdroiddata's `checkupdates` job runs `fdroid checkupdates --auto` and then fails on any
+    diff.
+  - Its `fetch_autoname` reads `<application android:label>` from `android/app`, the directory
+    whose Gradle file names the `applicationId`. Any other `AutoName` is rewritten, and the
+    merge request fails.
+  - The listing's name comes from `fastlane/.../title.txt`, "Invoice Ninja".
+- **Before submitting, run fdroiddata's metadata checks on the copy.** These are `fdroid lint`,
+  `rewritemeta`, `checkupdates`, `check-fastlane.py` and the JSON schema. They need no build, so
+  they run in a `debian:trixie-slim` container in a few minutes, natively on an arm64 Mac.
+- First submission: 5.1.16, `ef0e87c48980c258f48f09ab46a8b4ed9cbbaa18`, built by run
+  39122121758.

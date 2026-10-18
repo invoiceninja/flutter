@@ -9,8 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Nothing else would notice the recipe drifting, so each test pins one way
 /// it can:
 ///
-///  * `flutter@` / `ndk:` leaving CI's Flutter pin, or that Flutter's NDK: the
-///    APK F-Droid rebuilds is no longer the one CI tested;
+///  * the prebuild that checks out CI's Flutter pin, or `ndk:` leaving that
+///    Flutter's NDK: the APK F-Droid rebuilds is no longer the one CI tested;
 ///  * the three ABI blocks leaving Flutter's split versionCode scheme;
 ///  * a build that doesn't pin `ANDROID_NDK_HOME`: Flutter then compiles the
 ///    SQLite hook with whichever NDK is newest on the buildserver;
@@ -47,16 +47,42 @@ void main() {
     );
   });
 
-  test('the Flutter srclib is the version every workflow pins', () {
-    final srclibs = {for (final b in blocks) ..._all(b, r'- (flutter@\S+)$')};
-    final pins = <String>{};
-    for (final f in Directory('.github/workflows').listSync()) {
-      if (f is! File || !RegExp(r'\.ya?ml$').hasMatch(f.path)) continue;
-      pins.addAll(_all(f.readAsStringSync(), r'flutter-version:\s*(\S+)'));
-    }
-    expect(pins, hasLength(1), reason: 'the workflows disagree: $pins');
-    expect(srclibs, {'flutter@${pins.single}'});
-  });
+  test(
+    'the Flutter srclib is checked out at the version every workflow pins',
+    () {
+      final pins = <String>{};
+      for (final f in Directory('.github/workflows').listSync()) {
+        if (f is! File || !RegExp(r'\.ya?ml$').hasMatch(f.path)) continue;
+        pins.addAll(_all(f.readAsStringSync(), r'flutter-version:\s*(\S+)'));
+      }
+      expect(pins, hasLength(1), reason: 'the workflows disagree: $pins');
+
+      // fdroiddata's templates/build-flutter.yml: srclib at `stable`, then the
+      // tag's own pin checked out in prebuild, so F-Droid's checkupdates bot
+      // builds each new tag with the Flutter it was released with.
+      const readPin =
+          r'''      - flutterVersion=$(sed -n -E "s/^ *flutter-version:\ ([0-9.]+) *$/\1/p" .github/workflows/appimage.yml)''';
+      const prebuild = [
+        '    prebuild:',
+        readPin,
+        "      - '[[ \$flutterVersion ]]'",
+        r'      - git -C $$flutter$$ checkout -f $flutterVersion',
+      ];
+      for (final b in blocks) {
+        expect(_all(b, r'- (flutter@\S+)$'), [
+          'flutter@stable',
+        ], reason: _abiOf(b));
+        expect(b, contains(prebuild.join('\n')), reason: _abiOf(b));
+      }
+
+      // The prebuild's sed, applied here: one line of appimage.yml, the pin.
+      final read = RegExp(r'^ *flutter-version: ([0-9.]+) *$', multiLine: true)
+          .allMatches(File('.github/workflows/appimage.yml').readAsStringSync())
+          .map((m) => m.group(1))
+          .toList();
+      expect(read, [pins.single]);
+    },
+  );
 
   test("the NDK is the one that Flutter's Gradle plugin pins", () {
     final kotlin = File(
@@ -169,8 +195,9 @@ void main() {
         reason: abi,
       );
       // The build path is embedded in libapp.so, so both steps must run at
-      // the same fixed path, with the pub cache inside it.
-      for (final step in [prebuild, build]) {
+      // the same fixed path, with the pub cache inside it. prebuild's first
+      // three commands check out Flutter (tested above) before the move.
+      for (final step in [prebuild.sublist(3), build]) {
         expect(step, contains('export repo=/build/com.invoiceninja.admin'));
         expect(step, contains(r'export PUB_CACHE=$(pwd)/.pub-cache'));
         expect(step.first, 'export repo=/build/com.invoiceninja.admin');

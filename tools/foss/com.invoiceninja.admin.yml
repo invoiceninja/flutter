@@ -11,8 +11,9 @@ WebSite: https://www.invoiceninja.org/
 SourceCode: https://github.com/invoiceninja/flutter
 IssueTracker: https://github.com/invoiceninja/flutter/issues
 Translation: https://explore.transifex.com/invoice-ninja/invoice-ninja/
+Changelog: https://github.com/invoiceninja/flutter/releases
 
-AutoName: Invoice Ninja
+AutoName: Ninja Beta
 
 RepoType: git
 Repo: https://github.com/invoiceninja/flutter.git
@@ -32,7 +33,7 @@ Builds:
     binary: 
       https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-armeabi-v7a.apk
     srclibs:
-      - flutter@3.44.1
+      - flutter@stable
     rm:
       - appimage
       - ios
@@ -43,6 +44,9 @@ Builds:
       - web
       - windows
     prebuild:
+      - flutterVersion=$(sed -n -E "s/^ *flutter-version:\ ([0-9.]+) *$/\1/p" .github/workflows/appimage.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
       - export repo=/build/com.invoiceninja.admin
       - cd ..
       - mv com.invoiceninja.admin $repo
@@ -82,7 +86,7 @@ Builds:
     binary: 
       https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-arm64-v8a.apk
     srclibs:
-      - flutter@3.44.1
+      - flutter@stable
     rm:
       - appimage
       - ios
@@ -93,6 +97,9 @@ Builds:
       - web
       - windows
     prebuild:
+      - flutterVersion=$(sed -n -E "s/^ *flutter-version:\ ([0-9.]+) *$/\1/p" .github/workflows/appimage.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
       - export repo=/build/com.invoiceninja.admin
       - cd ..
       - mv com.invoiceninja.admin $repo
@@ -132,7 +139,7 @@ Builds:
     binary: 
       https://github.com/invoiceninja/flutter/releases/download/v%v/InvoiceNinja-%v-x86_64.apk
     srclibs:
-      - flutter@3.44.1
+      - flutter@stable
     rm:
       - appimage
       - ios
@@ -143,6 +150,9 @@ Builds:
       - web
       - windows
     prebuild:
+      - flutterVersion=$(sed -n -E "s/^ *flutter-version:\ ([0-9.]+) *$/\1/p" .github/workflows/appimage.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
       - export repo=/build/com.invoiceninja.admin
       - cd ..
       - mv com.invoiceninja.admin $repo
@@ -175,11 +185,20 @@ MaintainerNotes: |-
   fdroidserver:buildserver-trixie image, before publishing the binaries
   (tools/fdroid_build.sh, docs/fdroid.md in the source repo). The server it
   talks to uses the Elastic-2.0 license, which is approved neither by OSI nor
-  FSF, see https://invoiceninja.github.io/docs/legal/license/
+  FSF, see https://invoiceninja.github.io/docs/legal/license
 
   tools/prepare_foss.sh runs `flutter pub get --enforce-lockfile` against
   tools/foss/pubspec.lock, the committed lock of the FOSS dependency graph:
   the store build's pubspec.lock minus the store SDKs, checked in CI.
+
+  prebuild checks out the Flutter version upstream releases with, read from
+  .github/workflows/appimage.yml, so a Flutter bump needs no recipe change.
+  ndk: is Flutter's ndkVersion and is not read from the source: upstream
+  opens a merge request when a Flutter bump moves it. The sudo block pins
+  JDK 21, as fdroiddata's build job does, because the JDK changes the DEX.
+
+  AutoName is the launcher label, "Ninja Beta"; the listing name comes from
+  fastlane title.txt.
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$

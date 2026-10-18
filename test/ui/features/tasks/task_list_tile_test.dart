@@ -62,10 +62,9 @@ void main() {
     required Task task,
     required bool wide,
     bool selecting = false,
+    FakeCompany company = const FakeCompany(id: 'co1', name: 'Co'),
   }) async {
-    final fixture = await buildFixture(
-      companies: [const FakeCompany(id: 'co1', name: 'Co')],
-    );
+    final fixture = await buildFixture(companies: [company]);
     addTearDown(fixture.dispose);
     await tester.pumpWidget(
       wrapWithShell(
@@ -149,6 +148,43 @@ void main() {
         selecting: true,
       );
       expect(find.byIcon(Icons.play_circle_outlined), findsNothing);
+    });
+
+    // A start or stop is a `PUT /tasks/{id}`, which the server refuses with a
+    // 401 to a user who may not edit the task — and that 401 used to sign
+    // them out.
+    testWidgets('$mode: a user who may not edit the task gets no toggle', (
+      tester,
+    ) async {
+      await pumpTile(
+        tester,
+        task: _task(log: _stopped),
+        wide: wide,
+        company: const FakeCompany(
+          id: 'co1',
+          name: 'Co',
+          isAdmin: false,
+          isOwner: false,
+          permissions: 'view_task',
+        ),
+      );
+      expect(find.byIcon(Icons.play_circle_outlined), findsNothing);
+    });
+
+    testWidgets('$mode: edit_task is enough for the toggle', (tester) async {
+      await pumpTile(
+        tester,
+        task: _task(log: _stopped),
+        wide: wide,
+        company: const FakeCompany(
+          id: 'co1',
+          name: 'Co',
+          isAdmin: false,
+          isOwner: false,
+          permissions: 'view_task,edit_task',
+        ),
+      );
+      expect(find.byIcon(Icons.play_circle_outlined), findsOneWidget);
     });
   }
   group('the booked-time slot (flutter#149)', () {

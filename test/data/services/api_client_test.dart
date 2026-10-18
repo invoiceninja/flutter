@@ -555,6 +555,8 @@ void main() {
         // …or in a body that is not JSON at all.
         http.Response('This action is unauthorized.', 401),
       ]) {
+        // The session check gets the same 401 (the mock answers everything
+        // with it), so the session ends — see the next group for the check.
         final (:client, :calls) = clientFor(response);
         await expectLater(
           client.getOne('/api/v1/x'),
@@ -564,6 +566,163 @@ void main() {
         await Future<void>.delayed(Duration.zero);
         expect(calls, ['veto', 'logout'], reason: response.body);
       }
+    });
+  });
+
+  group('ApiClient 401: the session is checked before it ends', () {
+    // A dead token is a 403 on this server; a 401 is an `AuthorizationException`,
+    // and ~15 form requests throw it with words of their own. The one on the
+    // timer path — `UpdateTaskRequest`, translated per user — signed out
+    // anyone who started or stopped a timer on a task they may not edit.
+    http.Response taskRefusal() => http.Response(
+      jsonEncode({
+        'message': 'Insufficient permissions, or task may be locked',
+      }),
+      401,
+      headers: {'content-type': 'application/json'},
+    );
+
+    ({ApiClient client, List<String> calls, List<String> sent}) clientFor(
+      Future<http.Response> Function(http.Request request) ping,
+    ) {
+      final calls = <String>[];
+      final sent = <String>[];
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => calls.add('logout'),
+        onUnauthorizedCandidate: (_) async {
+          calls.add('veto');
+          return true;
+        },
+        onAuthenticatedResponse: (_) => calls.add('proven'),
+        httpClient: MockClient((request) async {
+          sent.add(request.url.path);
+          return request.url.path == '/api/v1/ping'
+              ? ping(request)
+              : taskRefusal();
+        }),
+      );
+      return (client: client, calls: calls, sent: sent);
+    }
+
+    Future<http.Response> pingOk(http.Request _) async => http.Response(
+      '{"company_name":"Acme","user_name":"Sam"}',
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+
+    test('a 401 under a session the ping proves refuses that one request, '
+        'with the server\'s words, and ends nothing', () async {
+      final (:client, :calls, :sent) = clientFor(pingOk);
+      await expectLater(
+        client.mutate(
+          method: 'PUT',
+          path: '/api/v1/tasks/t1',
+          idempotencyKey: 'k',
+          body: const {},
+        ),
+        throwsA(
+          isA<PermissionDeniedException>().having(
+            (e) => e.message,
+            'message',
+            'Insufficient permissions, or task may be locked',
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sent, ['/api/v1/tasks/t1', '/api/v1/ping']);
+      expect(
+        calls,
+        ['proven'],
+        reason: 'no logout and no company-switch rollback; the ping proved it',
+      );
+      expect(client.lastSessionRejection, isNull);
+    });
+
+    test('a ping the server also refuses ends the session as before', () async {
+      final (:client, :calls, sent: _) = clientFor(
+        (_) async => http.Response('{"message":"Invalid token"}', 403),
+      );
+      await expectLater(
+        client.getOne('/api/v1/tasks/t1'),
+        throwsA(isA<UnauthorizedException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, ['veto', 'logout']);
+      expect(client.lastSessionRejection, 'GET test/api/v1/tasks/t1');
+    });
+
+    test(
+      'a ping that cannot reach the server ends the session as before',
+      () async {
+        final (:client, :calls, sent: _) = clientFor(
+          (request) async =>
+              throw http.ClientException('Connection reset', request.url),
+        );
+        await expectLater(
+          client.getOne('/api/v1/tasks/t1'),
+          throwsA(isA<UnauthorizedException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(calls, ['veto', 'logout']);
+      },
+    );
+
+    test('a company switch while the ping is out makes the 401 stale, and '
+        'ends nothing', () async {
+      // The staleness check used to sit right before the logout. The ping put
+      // an await between them, and a switch inside it would have signed the
+      // user out of the company they had just switched into.
+      final calls = <String>[];
+      final credentials = ValueNotifier<ApiCredentials?>(
+        const ApiCredentials(baseUrl: 'https://test', token: 'old'),
+      );
+      final client = ApiClient(
+        credentials: credentials,
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => calls.add('logout'),
+        onUnauthorizedCandidate: (_) async {
+          calls.add('veto');
+          return true;
+        },
+        httpClient: MockClient((request) async {
+          if (request.url.path != '/api/v1/ping') return taskRefusal();
+          credentials.value = const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 'new',
+          );
+          return http.Response('{"message":"Invalid token"}', 403);
+        }),
+      );
+
+      await expectLater(
+        client.getOne('/api/v1/tasks/t1'),
+        throwsA(
+          isA<UnauthorizedException>().having(
+            (e) => e.isStaleCredential,
+            'isStaleCredential',
+            isTrue,
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, isEmpty);
+    });
+
+    test('a burst of 401s checks the session once', () async {
+      final (:client, calls: _, :sent) = clientFor((request) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return pingOk(request);
+      });
+      final errors = await Future.wait([
+        for (var i = 0; i < 5; i++)
+          client
+              .getOne('/api/v1/tasks/t$i')
+              .then<Object?>((_) => null, onError: (Object e) => e),
+      ]);
+      expect(errors, everyElement(isA<PermissionDeniedException>()));
+      expect(sent.where((p) => p == '/api/v1/ping'), hasLength(1));
     });
   });
 
@@ -603,6 +762,8 @@ void main() {
       );
 
       await client.getOne('/api/v1/x').catchError((_) => null);
+      // The logout is detached (see `_postFlight`); let it run.
+      await Future<void>.delayed(Duration.zero);
       expect(unauthorizedCalls, 1);
     });
 
@@ -634,6 +795,8 @@ void main() {
       );
 
       await client.getOne('/api/v1/x').catchError((_) => null);
+      // The logout is detached (see `_postFlight`); let it run.
+      await Future<void>.delayed(Duration.zero);
       expect(unauthorizedCalls, 1);
     });
 

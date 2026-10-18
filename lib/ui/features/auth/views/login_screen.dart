@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
@@ -280,6 +281,7 @@ class _LoginScreenState extends State<LoginScreen> {
           height: 48,
         ),
         const SizedBox(height: InSpacing.xl),
+        const _SignOutNoticeCard(),
         AuthSurfaceCard(
           shadow: tokens.shadow2,
           padding: const EdgeInsets.all(InSpacing.xl),
@@ -866,6 +868,80 @@ class _TrustedCertificateLine extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Why the last session ended on its own (`SignOutNotice`) — the web's idle
+/// timeout, or a 401 the server confirmed. Without it an automatic sign-out
+/// left the user here with no idea why. Renders nothing when there is nothing
+/// to say, or when the screen is pumped without the root provider.
+class _SignOutNoticeCard extends StatelessWidget {
+  const _SignOutNoticeCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final notice = context.read<SignOutNotice?>();
+    if (notice == null) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: notice,
+      builder: (context, _) {
+        final pending = notice.pending;
+        if (pending == null) return const SizedBox.shrink();
+        final tokens = context.inTheme;
+        final message = context.tr(switch (pending.reason) {
+          SignOutReason.inactivity => 'inactive_logout',
+          SignOutReason.sessionRejected => 'session_expired',
+        });
+        final detail = pending.detail;
+        return Padding(
+          padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+          child: Container(
+            key: const ValueKey('login_sign_out_notice'),
+            padding: EdgeInsetsDirectional.only(
+              start: InSpacing.lg(context),
+              top: InSpacing.sm,
+              bottom: InSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: tokens.partialSoft,
+              border: Border.all(color: tokens.border),
+              borderRadius: BorderRadius.circular(InRadii.r3),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: tokens.partial),
+                const SizedBox(width: InSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message,
+                        style: TextStyle(color: tokens.ink, fontSize: 13),
+                      ),
+                      // The request the server refused — for whoever the
+                      // user reports this to.
+                      if (detail != null && detail.isNotEmpty)
+                        Text(
+                          detail,
+                          style: TextStyle(color: tokens.ink3, fontSize: 12),
+                        ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('login_sign_out_notice_dismiss'),
+                  tooltip: context.tr('dismiss'),
+                  icon: const Icon(Icons.close, size: 18),
+                  color: tokens.ink3,
+                  onPressed: notice.dismiss,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

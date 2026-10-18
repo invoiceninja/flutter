@@ -372,6 +372,28 @@ void main() {
     expect(await repo.watchRunningCount(companyId: 'co').first, 0);
   });
 
+  test('stopAllRunning(only:) leaves the timers it refuses running', () async {
+    // The pill's "Stop all" passes the user's edit rule: every running timer
+    // in the company is in Drift, a teammate's too, and the server refuses
+    // (401) the save of a task the user may not edit.
+    final repo = makeRepo();
+    final mine = await repo.create(companyId: 'co', draft: task());
+    final theirs = await repo.create(companyId: 'co', draft: task());
+    await repo.startTimer(companyId: 'co', taskId: mine.entity.id);
+    await repo.startTimer(companyId: 'co', taskId: theirs.entity.id);
+
+    await repo.stopAllRunning(
+      companyId: 'co',
+      only: (t) => t.id == mine.entity.id,
+    );
+
+    final a = await repo.watch(companyId: 'co', id: mine.entity.id).first;
+    final b = await repo.watch(companyId: 'co', id: theirs.entity.id).first;
+    expect(a!.isRunning, isFalse);
+    expect(b!.isRunning, isTrue);
+    expect(await repo.watchRunningCount(companyId: 'co').first, 1);
+  });
+
   test('startTimer is a no-op on a soft-deleted task', () async {
     final repo = makeRepo();
     final created = await repo.create(

@@ -11,6 +11,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/task_status.dart';
@@ -101,6 +102,26 @@ class TaskActions {
   static bool canToggleTimer(Task task) =>
       !task.isInvoiced && !task.isDeleted && !task.id.startsWith('tmp_');
 
+  /// Whether the signed-in user may change [task] — the server's rule for
+  /// every task write (`AuthSession.canEditRecord`), a timer start or stop
+  /// included.
+  static bool canEditTask(AuthSession? session, Task task) =>
+      session?.canEditRecord(
+        'task',
+        createdBy: task.userId,
+        assignedTo: task.assignedUserId,
+        recordId: task.id,
+      ) ??
+      false;
+
+  /// [canToggleTimer] for this user: a start or stop is a `PUT /tasks/{id}`,
+  /// which `UpdateTaskRequest` refuses — with a 401 — to anyone who may not
+  /// edit the task, so no timer control is offered to them. That 401 used to
+  /// sign them out (see `docs/sync.md` § A permission denial is a 401 too).
+  static bool canTimeTask(BuildContext context, Task task) =>
+      canToggleTimer(task) &&
+      canEditTask(context.read<Services>().auth.session.value, task);
+
   /// One-tap start/stop of [task]'s timer through the outbox (repo
   /// primitives), guarded against unsynced `tmp_` rows, with a success
   /// toast. The single code path shared by every inline surface — the
@@ -118,6 +139,7 @@ class TaskActions {
     // can't mutate one or fire a lying toast. A `tmp_` task still falls
     // through to requireSynced below, keeping its "not synced yet" toast.
     if (task.isInvoiced || task.isDeleted) return;
+    if (!canEditTask(services.auth.session.value, task)) return;
     if (!requireSynced(context, task.id)) return;
     if (!task.isRunning) {
       // Starting is never a bare `save` from here: it may need to claim a
@@ -185,9 +207,10 @@ class TaskActions {
     // company switch.
     final canViewClient = me?.can('view_client') ?? false;
 
-    // Start/Stop/Resume — only one renders at a time, gated by task state.
+    // Start/Stop/Resume — only one renders at a time, gated by task state and,
+    // like Archive, by the edit rule (see [canTimeTask]).
     EntityActionItem<TaskAction>? timerItem;
-    if (!task.isInvoiced && !task.isDeleted) {
+    if (canEditTask && !task.isInvoiced && !task.isDeleted) {
       if (task.isRunning) {
         timerItem = EntityActionItem(
           kind: TaskAction.stop,

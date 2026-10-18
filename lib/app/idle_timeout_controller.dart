@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
@@ -12,6 +16,20 @@ import 'package:admin/data/repositories/sync_repository.dart';
 /// Never). The setting UI + persistence already existed; this is the missing
 /// enforcement: after the configured span of no user interaction the session
 /// is logged out (the router then redirects to `/login`).
+///
+/// **Web only** ([enforced] defaults to `kIsWeb`). The setting is named for the
+/// web app, admin-portal's `WebSessionTimeout` / `DesktopSessionTimeout` both
+/// returned early off the web, and the server never enforces it. Enforcing it
+/// in the native apps signed people out mid-task: a running task timer is
+/// exactly when nobody touches the app — the phone goes in a pocket (and time
+/// backgrounded counted as idle, so coming back to stop the timer was itself
+/// the sign-out), or the work happens in another desktop app — and with an
+/// empty outbox that sign-out wiped the local database too. A native device
+/// has its own lock and the app's biometric lock.
+///
+/// [warnBefore] the deadline, [expiringSoon] turns true — `SessionExpiryBanner`
+/// shows it in the shell with a Stay Logged In button (admin-portal's
+/// `DesktopSessionTimeout` warning). Any activity clears it.
 ///
 /// Design mirrors [SyncLifecycleObserver]/[PasswordCacheLifecycleObserver]:
 /// the controller owns only timing state; the actual work delegates to
@@ -32,9 +50,14 @@ class IdleTimeoutController with WidgetsBindingObserver {
     required this.auth,
     required this.company,
     required this.sync,
+    this.enforced = kIsWeb,
+    this.notice,
     DateTime Function() now = DateTime.now,
   }) : _now = now {
     _lastActivity = _now();
+    // Inert off the web: no listeners, no ticker, so nothing can expire.
+    // `dispose` removing listeners that were never added is a no-op.
+    if (!enforced) return;
     auth.session.addListener(_onSessionChanged);
     _onSessionChanged();
     HardwareKeyboard.instance.addHandler(_onKey);
@@ -45,7 +68,23 @@ class IdleTimeoutController with WidgetsBindingObserver {
   final AuthRepository auth;
   final CompanyRepository company;
   final SyncRepository sync;
+
+  /// Whether the timeout is enforced at all — the web only; see the class doc.
+  final bool enforced;
+
+  /// Told why, so the sign-in screen can say so ([SignOutReason.inactivity]).
+  final SignOutNotice? notice;
+
   final DateTime Function() _now;
+
+  /// How long before the deadline [expiringSoon] turns true — or a quarter of
+  /// the timeout, when that is shorter.
+  @visibleForTesting
+  static const warnBefore = Duration(minutes: 2);
+
+  /// True from [warnBefore] the deadline until activity or the sign-out.
+  ValueListenable<bool> get expiringSoon => _expiringSoon;
+  final _DeferredBoolNotifier _expiringSoon = _DeferredBoolNotifier();
 
   StreamSubscription<void>? _companySub;
   Timer? _ticker;
@@ -56,9 +95,13 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// The focused text field's controller, listened to so each edit pokes.
   TextEditingController? _watchedText;
 
-  /// Record user activity. Cheap — just stamps the clock; the periodic
-  /// [_check] reads it. Safe to call on every pointer event.
-  void poke() => _lastActivity = _now();
+  /// Record user activity. Cheap — just stamps the clock (and drops a raised
+  /// warning); the periodic [_check] reads it. Safe to call on every pointer
+  /// event.
+  void poke() {
+    _lastActivity = _now();
+    if (_expiringSoon.value) _expiringSoon.value = false;
+  }
 
   /// Every hardware key event is activity. Returns false so the event carries
   /// on to the shortcut layer and the focused field untouched.
@@ -113,10 +156,12 @@ class IdleTimeoutController with WidgetsBindingObserver {
     _ticker?.cancel();
     _ticker = null;
     _timeoutMs = 0;
+    _expiringSoon.value = false;
   }
 
   void _rearm() {
     _ticker?.cancel();
+    _expiringSoon.value = false;
     if (_timeoutMs <= 0) {
       _ticker = null;
       return;
@@ -134,15 +179,23 @@ class IdleTimeoutController with WidgetsBindingObserver {
   }
 
   void _check() {
-    if (_timeoutMs <= 0) return;
+    if (!enforced || _timeoutMs <= 0) return;
     if (auth.session.value == null) return;
     final idleMs = _now().difference(_lastActivity).inMilliseconds;
-    if (idleMs < _timeoutMs) return;
+    if (idleMs < _timeoutMs) {
+      // At most a quarter of the timeout: the settings' shortest is 30 min,
+      // but the API takes any value, and a 2-minute timeout would otherwise
+      // be warned about from its first tick.
+      final lead = min(warnBefore.inMilliseconds, _timeoutMs ~/ 4);
+      _expiringSoon.value = _timeoutMs - idleMs <= lead;
+      return;
+    }
     // Expired. Stop the ticker first so a slow logout can't double-fire,
     // then end the session (fire-and-forget — lifecycle/timer callbacks must
     // never throw; the router redirects to /login when the session clears).
     _ticker?.cancel();
     _ticker = null;
+    _expiringSoon.value = false;
     unawaited(_expire());
   }
 
@@ -153,9 +206,13 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// pending, or everything drained) does the normal full logout.
   Future<void> _expire() async {
     final preserve = await shouldPreserveOnTimeout();
-    await auth.logout(
-      data: preserve ? LocalDataPolicy.keep : LocalDataPolicy.destroy,
-    );
+    try {
+      await notice?.record(SignOutReason.inactivity);
+    } finally {
+      await auth.logout(
+        data: preserve ? LocalDataPolicy.keep : LocalDataPolicy.destroy,
+      );
+    }
   }
 
   /// Decide whether an idle timeout should PRESERVE local data (re-lock, keeping
@@ -189,5 +246,41 @@ class IdleTimeoutController with WidgetsBindingObserver {
     auth.session.removeListener(_onSessionChanged);
     _companySub?.cancel();
     _ticker?.cancel();
+    _expiringSoon.dispose();
+  }
+}
+
+/// [IdleTimeoutController.expiringSoon]'s notifier. [IdleTimeoutController.poke]
+/// clears it, and a poke can come from the focused field's controller being
+/// written mid-build — notifying the banner's builder then is "setState()
+/// called during build". So mid-frame the notification waits for the frame's
+/// end; the value itself changes at once. Same guard as
+/// `ShellMountedNotifier.notifyListeners`.
+class _DeferredBoolNotifier extends ValueNotifier<bool> {
+  _DeferredBoolNotifier() : super(false);
+
+  bool _notifyScheduled = false;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_notifyScheduled) return;
+      _notifyScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _notifyScheduled = false;
+        if (!_disposed) super.notifyListeners();
+      });
+      return;
+    }
+    super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

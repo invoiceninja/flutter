@@ -11,6 +11,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// in `docs/<topic>.md`. Prose alone did not survive a session that skimmed,
 /// so the convention in CLAUDE.md's preamble is enforced here.
 ///
+/// The 120 KB cap then filled to the byte with inline paragraphs and a
+/// symptom table, and in October 2026 the file was cut to ~74 KB: the long
+/// paragraphs went to their docs, the full table to `docs/README.md`
+/// § Symptom index, and each pointer lost its `§ <heading>` echo. The caps
+/// below sit ~20% above that, so the file cannot drift back.
+///
 /// The sharp assertion is the line-length one: a rule fits on a line, an
 /// investigation does not.
 void main() {
@@ -28,10 +34,10 @@ void main() {
   /// and prefer moving the paragraph to a doc instead.
   const allowedLongLines = <String>{};
 
-  const maxBytes = 120 * 1024;
-  const maxLineChars = 1500;
-  const maxSectionBytes = 20 * 1024;
-  const maxQuickIndexRows = 80;
+  const maxBytes = 89 * 1024;
+  const maxLineChars = 800;
+  const maxSectionBytes = 12 * 1024;
+  const maxQuickIndexRows = 52;
 
   test('CLAUDE.md stays under ${maxBytes ~/ 1024} KB', () {
     final size = claude.lengthSync();

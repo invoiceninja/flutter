@@ -132,7 +132,7 @@ tools/import_transifex_zip.dart
 
 ## Strict-rule evidence
 
-Two of CLAUDE.md § Strict rules' bullets are investigations rather than rules. The rule stays there; the history is here. Both concern structure this doc already owns — the import graph, and § Navigation above.
+Several of CLAUDE.md § Strict rules' bullets carry investigations rather than rules (the import rule's evidence is at the end of this doc). The rule stays there; the history is here. Both concern structure this doc already owns — the import graph, and § Navigation above.
 
 ## Why `lib/data/**` must not reach `lib/ui/**`
 
@@ -272,3 +272,7 @@ Invoice, quote, credit, purchase order and recurring invoice had five edit layou
 - **Accidental differences were kept, not unified:** the partial field sits in three places on a phone (`BillingDocPartialPlacement`), and the recurring invoice's desktop number label says "Invoice Number" while its narrow one says "Recurring Number". Unifying them is a product decision; `billing_doc_type_test.dart` pins every value so a change is deliberate.
 
 `billing_doc_edit_layout_characterization_test.dart` (every tab's fields at 390 / 900 / 1440 px, the e-invoice variants, hero tags and the drift invariants) was written against the five copies and passed unchanged against the shared layout; `billing_doc_edit_vm_setters_test.dart` does the same for the setters. `billing_edit_tab_strip_wiring_test`, `billing_items_affordance_test` and `frozen_party_field_wiring_test` assert the shared wiring once, and that no wrapper grows a copy of it back.
+
+## Imports are `package:` inside lib/, relative in test/
+
+**Imports**: always `package:admin/...` inside `lib/`, never relative (`../`, `./`, bare) — and that covers `export` directives and *both* branches of a conditional `if (dart.library.io)` seam. `always_use_package_imports` only visits `import` directives in `lib/` (measured), so `test/lint/package_imports_test.dart` is the real gate. **The test tree is a deliberate exception** — `package:` resolves only into `lib/`, so a test importing a test helper (`test/_localization_helper.dart`, `_shell_test_helpers.dart`, …) stays relative and must not be "fixed"; what is banned there is a relative path reaching *into* `lib/`.

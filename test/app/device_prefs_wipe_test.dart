@@ -7,6 +7,7 @@ import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/shortcuts/key_binding.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/app/text_scale_controller.dart';
@@ -144,6 +145,12 @@ final Map<PrefKey<Object>, _Probe> _probes = {
   DevicePrefKeys.trustedCertificates: _Probe(
     (s) => s.certificateTrust.trust('pay.example.com', 443, _certificate),
     (s) => s.certificateTrust.pins.isEmpty,
+  ),
+  // Written just before the logout it explains — which may wipe — so it has
+  // to survive one.
+  DevicePrefKeys.signOutNotice: _Probe(
+    (s) => s.signOutNotice.record(SignOutReason.inactivity),
+    (s) => s.signOutNotice.pending == null,
   ),
 };
 

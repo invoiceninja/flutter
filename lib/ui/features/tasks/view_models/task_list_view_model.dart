@@ -33,9 +33,17 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     super.now,
     this.clientId,
     this.projectId,
+    this.canEditTask,
   });
 
   final TaskRepository repo;
+
+  /// Whether this user may change a task (`TaskActions.canEditTask`). Bulk
+  /// Start / Stop skip a task it refuses: the server answers its save with a
+  /// 401. Null admits every task.
+  final bool Function(Task task)? canEditTask;
+
+  bool _mayEdit(Task t) => canEditTask?.call(t) ?? true;
 
   /// When non-null, scopes the watch + fetch to one client.
   final String? clientId;
@@ -245,6 +253,7 @@ class TaskListViewModel extends GenericListViewModel<Task> {
       // to report it.
       eligible: (t) {
         if (t.isRunning || t.isInvoiced || t.isDeleted) return false;
+        if (!_mayEdit(t)) return false;
         final outcome = planTaskStart(
           t.timeLog,
           now: DateTime.now(),
@@ -261,7 +270,7 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     BulkAction<Task>(
       id: 'stop',
       labelKey: 'stop',
-      eligible: (t) => t.isRunning && !t.isDeleted,
+      eligible: (t) => t.isRunning && !t.isDeleted && _mayEdit(t),
       apply: (id) => repo.stopRunningTimer(companyId: companyId, taskId: id),
     ),
     ...standardCrudBulkActions(

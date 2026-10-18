@@ -261,6 +261,7 @@ void main() {
         'hours_format',
         'hide_peppol_status',
         'trusted_certificates_json',
+        'sign_out_notice_json',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

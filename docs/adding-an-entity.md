@@ -102,9 +102,19 @@ Three-step seam:
 
 **Bundled today**: the auth user record (via `data[N].user`, written directly in `_persistAndActivate` — separate from the hook path; see CLAUDE.md § Strict rules), `task_statuses`, `company_gateways`, and `payment_terms`. Add new ones following the three-step seam; the screens whose entities are bundled don't need a separate fetcher on first paint.
 
+## Which actions take `confirm: true`
+
+A risky new action sets `confirm: true` on its `EntityActionItem` (plus `confirmSubject: _confirmSubject(x)` so the prompt names the record, `isDestructive: true` if it destroys data, and `confirmMessageKey:` when Transifex already has more precise copy than `are_you_sure`). The user-facing switch is Settings → Device Settings → Security → **Confirm actions**, device-local in `DevicePrefKeys.confirmActions` and **on by default** (invoiceninja/flutter#49) — an account preference, so a sign-out puts the next user back on the guard.
+
+Tag a verb iff it (a) fires a mutation immediately with no further UI step and (b) is outward-facing, financially significant, or hard to reverse — `approve`, `markSent`, `cancel`, `sendNow`, `autoBill`, and the shared `archive` / `delete` / `purge` factories. **Don't** tag one that already opens its own dialog (invoice `markPaid`, client `merge`/`purge`) or navigates to a screen with its own action button (`sendEmail` → the Send Email screen, `refund` → the refund screen) — a second prompt in front of those is worse than none. Bulk-toolbar items are `EntityActionItem`s too but stay untagged: `EntityListScreenScaffold._onBulk` owns that gate via `BulkAction.confirm`, and only for verbs that don't already stop for a password sheet or a prep dialog.
+
+## Every surface wires `guardedOnTap`
+
+Every render surface must wire `guardedOnTap(context, item)` rather than `item.onTap` — it reads the preference at *tap* time, so a flipped switch reaches menus that are already built, and an untagged action never touches `Services` at all. Surfaces outside the item model (the Documents tab, Outbox → Discard, User → Archive) call `showConfirmActionDialog` (`lib/ui/core/dialogs/confirm_action_dialog.dart`) behind `services.confirmActions.value` themselves. That dialog autofocuses **Cancel**, never the confirm — a stray Enter must not complete the action it exists to guard.
+
 ## Action confirmations — the sign-out case
 
-Moved here from CLAUDE.md § Action confirmations, which keeps the tagging rules. Signing out is the one confirmation the device preference cannot switch off, and the reasons are not guessable from the call site.
+Moved here from CLAUDE.md § Action confirmations, which keeps the rule in three lines; the tagging criteria are in the two sections above. Signing out is the one confirmation the device preference cannot switch off, and the reasons are not guessable from the call site.
 
 ## Signing out is the one confirmation the preference cannot switch off
 

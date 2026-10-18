@@ -120,6 +120,16 @@ class ApiClient {
   /// logout is in flight `await`s the same future.
   Future<void>? _logoutFuture;
 
+  /// One in-flight [_sessionStillValid] check per token, so a burst of 401s
+  /// pings the server once.
+  final Map<String, Future<bool>> _sessionChecks = {};
+
+  /// The request (`PUT host/path`, no query) whose 401 most recently went on
+  /// to end the session — for the sign-in screen's "why you were signed out"
+  /// (`SignOutNotice`). Read by the `onUnauthorized` callback.
+  String? get lastSessionRejection => _lastSessionRejection;
+  String? _lastSessionRejection;
+
   ApiCredentials? get _creds => _credentialsListenable.value;
 
   /// GET — `path` is relative (e.g. `/api/v1/clients`).
@@ -900,8 +910,33 @@ class ApiClient {
       // company's URL — that 401 says nothing about whether the live session
       // is still valid, so swallow it instead of dropping the user back to
       // /login.
-      final current = _credentialsListenable.value;
-      final isStaleCredential = current != null && current.token != creds.token;
+      var current = _credentialsListenable.value;
+      var isStaleCredential = current != null && current.token != creds.token;
+      if (!isStaleCredential) {
+        if (await _sessionStillValid(creds)) {
+          // The token still opens `/ping`, so this 401 refused one request,
+          // not the session. On this server a dead token is a 403
+          // (`TokenAuth`); a 401 is an `AuthorizationException`, and ~15 form
+          // requests throw it with their own words — `UpdateTaskRequest`'s
+          // translated "Insufficient permissions, or task may be locked", on
+          // every timer start and stop by a user who may not edit that task,
+          // signed them out, and the parked row signed them out again after
+          // each sign-in.
+          _log.info(
+            '401 under a live session (ping OK), treated as a refusal: '
+            '$method ${uri.host}${uri.path}',
+          );
+          final message = _jsonMessage(response, contentType);
+          throw message == null
+              ? const PermissionDeniedException()
+              : PermissionDeniedException(message);
+        }
+        // Asked again: the ping takes time, and a company switch while it was
+        // out makes this 401 just as stale — a logout now would end the
+        // session the user just switched into.
+        current = _credentialsListenable.value;
+        isStaleCredential = current != null && current.token != creds.token;
+      }
       if (isStaleCredential) {
         // Expected race (company-switch / logout): the 401 says nothing about
         // the live session, so swallow it rather than dropping to /login.
@@ -942,6 +977,7 @@ class ApiClient {
           'liveToken=${_tokenFingerprint(current?.token)} '
           'body=${body.length > 200 ? '${body.substring(0, 200)}…' : body}',
         );
+        _lastSessionRejection = '$method ${uri.host}${uri.path}';
         // Outside this request's scope: the handling is not part of an
         // outbox row's attempt, and the rollback's heal makes requests under
         // the previous company's token that the row's scope would refuse as
@@ -1010,6 +1046,51 @@ class ApiClient {
         _log.warning('onUnauthorized threw', e, st);
       }
     }().whenComplete(() => _logoutFuture = null);
+  }
+
+  /// Whether [creds]' token still opens `GET /api/v1/ping` — asked before an
+  /// unrecognised 401 is allowed to end the session. Sent straight through
+  /// [_sendNoRedirect] (its answer must not re-enter this 401 handling) and
+  /// outside any outbox row's scope, like [_handleUnauthorized]. Anything but
+  /// a 2xx — a 401 or 403, no connection, a timeout — answers false, which
+  /// signs the user out exactly as before; only a proof keeps the session.
+  Future<bool> _sessionStillValid(ApiCredentials creds) {
+    final token = creds.token;
+    final check = _sessionChecks[token] ??= RequestScope.outside(() async {
+      try {
+        final response = await _sendNoRedirect(
+          method: 'GET',
+          uri: Uri.parse(creds.baseUrl).resolve('/api/v1/ping'),
+          headers: _buildHeaders(creds: creds, contentTypeJson: false),
+        );
+        final ok = response.statusCode >= 200 && response.statusCode < 300;
+        if (ok) _onAuthenticatedResponse?.call(creds);
+        return ok;
+      } catch (e) {
+        _log.fine('session check after a 401 failed', e);
+        return false;
+      }
+    });
+    // A block, not `=> remove(token)`: `remove` would return `check`, and
+    // `whenComplete` waits for a future its callback returns — itself, here.
+    return check.whenComplete(() {
+      if (identical(_sessionChecks[token], check)) _sessionChecks.remove(token);
+    });
+  }
+
+  /// The JSON `message` of [response], or null.
+  static String? _jsonMessage(http.Response response, String contentType) {
+    if (!contentType.contains('application/json')) return null;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final message = decoded['message'];
+      return message is String && message.trim().isNotEmpty
+          ? message.trim()
+          : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   /// The server's message when a 401 is a permission denial rather than a

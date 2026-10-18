@@ -53,11 +53,12 @@ Much of what that section calls a "rejected company token" was this. A genuinely
 What changed:
 
 - `ApiClient`'s 401 branch checks for the denial **before** the stale-credential test, the veto and the logout, and throws `PermissionDeniedException` — a `ServerException(401)`, deliberately not an `UnauthorizedException`, so nothing parks itself waiting for a re-login that is not coming. Logged at `info`: it is an expected answer and a screen can get it on every open.
-- **The match is exact** (`kPermissionDeniedMessage`, case and surrounding whitespace aside, JSON `message` key only). The rule is "this one message is not a session failure", never "401s are usually fine" — any other 401, a non-JSON one, or the same words under another key ends the session exactly as before. Laravel's message is a hardcoded English default, not `ctrans`, so it is locale-stable.
+- **The match is exact** (`kPermissionDeniedMessage`, case and surrounding whitespace aside, JSON `message` key only). Laravel's message is a hardcoded English default, not `ctrans`, so it is locale-stable.
+- **Any other 401 asks the server before it ends the session.** `_postFlight` sends one `GET /api/v1/ping` under the same token (`_sessionStillValid` — single-flight per token, straight through `_sendNoRedirect`, outside the row's `RequestScope`). A 2xx proves the token, so the 401 becomes a `PermissionDeniedException` carrying the server's own `message`; a 401, a 403, no connection or a timeout ends the session exactly as before. The exact match alone was not enough: about fifteen form requests throw `AuthorizationException` with words of their own, and on the timer path `UpdateTaskRequest::failedAuthorization` says `ctrans('texts.task_update_authorization_error')` — "Insufficient permissions, or task may be locked", in the user's language. A user who started or stopped a timer on a task they may not edit was signed out, and because a 401 parks its row for after the re-login (`UnauthorizedException`), signed out again after every sign-in. The others: the four report requests (`authorization_failure` / `upgrade_to_view_reports`), `StoreCompanyRequest`, seven e-invoice / Peppol requests, `UserVerified` (unconfirmed email on hosted), `PaymentRefundFailed`, `ConnectedAccountController` and `UserController`'s detach-owner list. The timer controls are also gated on `TaskActions.canTimeTask` now, so the refusal is not offered in the first place.
 - `ensureLoadedTemplate` maps it to `EnsureLoadedOutcome.missing` and negative-caches it: to a screen a record it may not see is not there, and asking again gets the same answer.
 - A refused **write** flows through the drain's existing permanent-4xx arm: the row dies into the Outbox with the server's words, where it used to be re-queued every minute behind a logout.
 
-Pinned by `api_client_test.dart` ("a permission denial is not a dead session" — including the list of 401s that must *still* log out) and end to end by `client_detail_screen_test.dart` ("a record the server will not give this user"), which fails with the session ended if the check is removed.
+Pinned by `api_client_test.dart` ("a permission denial is not a dead session" — including the list of 401s that must *still* log out when the ping fails too — and "the session is checked before it ends") and end to end by `client_detail_screen_test.dart` ("a record the server will not give this user"), which fails with the session ended if the check is removed.
 
 **Open, and not changed here:** the app does nothing on the 403 a dead token actually produces (`ServerException(403)`), so a token revoked mid-session leaves the user signed in with every request failing. React signs out on 401 and toasts on 403, mirroring the same inversion. Worth settling with the server rather than by another message sniff — `BACKEND.md` § 401 and 403 are the wrong way round.
 
@@ -506,8 +507,8 @@ has *succeeded* — a failed wipe keeps the identity and sets `kAuthWipePendingK
 identity on the same device wipes the local database — but for this window that changes nothing:
 the wipe did succeed, and the rows arrived after it.)
 
-Reachable with no user action: the idle-timeout controller takes the *destructive* branch whenever
-the outbox is empty. The window was pre-existing and used to leak only the thirteen small reference
+Reachable with no user action: the idle-timeout controller (web only — `IdleTimeoutController.enforced`)
+takes the *destructive* branch whenever the outbox is empty. The window was pre-existing and used to leak only the thirteen small reference
 bundles; adding the fourteen browsable entity tables to it is what turned it into user data.
 `_persistAndActivate` now re-checks the generation immediately before the fan-out **and once per
 company inside it**, since each iteration awaits its own transaction.
@@ -522,3 +523,15 @@ into the signed-out session. Those writes are now registered in `AuthRepository.
 generation once its writes land and returns before touching in-memory state. Everything else the
 commit needs from storage (the biometric flag, a delta's company rows) is read *before* the guard.
 `handleUnauthorized`'s token-map write is gated the same way and returns false when a logout won.
+
+## Outbox FIFO is per company, in strict global id order
+
+Outbox FIFO is **per company, strict global id order** in M1 (only one entity type exists). The stronger "per (company, entity_type)" guarantee is needed once M2+ introduces cross-entity references with retry-driven head-of-line blocking — revisit `OutboxDao.nextReady` then.
+
+## Destructive ops need the API password, and who is exempt
+
+Destructive ops (delete, purge, password change) require `X-API-PASSWORD-BASE64`. Password is captured by `ConfirmPasswordSheet`, held in a 5-min in-memory cache. **An OAuth user is never asked when the company leaves `oauth_password_required` off** (the server lets them through) — `PasswordCache.isExempt`; an Apple user re-authenticates via `X-API-OAUTH-PASSWORD` instead.
+
+## `is_dirty` is layered onto the domain model in `_decode`
+
+The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._decode` — `<Entity>.fromApi` defaults it to `false`, the repo overlays the Drift row's, or an unsaved edit reads clean after restart. **`_decode` reads its row and nothing else**: `decodeRow` reuses its result while the row is unchanged (`test/lint/row_decoder_purity_test.dart`).

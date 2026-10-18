@@ -4,6 +4,14 @@ Companion to CLAUDE.md §§ List columns, List status tabs, List state filter an
 
 ## List columns
 
+`lib/domain/columns/<entity>_columns.dart` is one registry per entity: an ordered `kAll<Entity>Columns`, the `kDefault<Entity>Columns` subset shown out-of-the-box, and a `<entity>ColumnsById` map. The user's selection lives in `user_settings.table_columns` (**not** `nav_state`) in the same byte format the legacy admin-portal uses, so **renaming a column id silently drops a user's saved layout** — don't. (The one safe case is a constant no registry ever referenced, i.e. one that cannot be in anybody's stored list: that is why `ProjectFieldIds.customValue1..4` could become `custom1..4`.)
+
+Hiding a column is **never** destructive: `_resolveColumns` drops an id it can't render while `_columnIds` (and `user_settings`) keep it, and `EntityColumnPickerSheet` re-inserts it at its original index on Done.
+
+**Client and Vendor ids must also join `k<Entity>ColumnIds`** in `lib/domain/columns/ids/` — their DAOs guard `_sortExpression` on that set and degrade to name-order in release when an id is missing. `column_ids_match_registry_test` is the guard.
+
+A user-facing label needs a placeholder-free key: use `user` for created-by, never `created_by` ("Created by :name").
+
 ### Every field the edit screen can set earns a column
 
 **Every field the entity's edit screen can set earns a column** (that rule is
@@ -49,6 +57,32 @@ name**: quotes / credits / purchase orders / recurring invoices all read
 
 ## List status tabs
 
+A one-tap status strip above every entity list — `All / Draft / Unpaid / Overdue` on Invoices, and so on for the other 13 entities that declare status counters (invoiceninja/flutter#98: reaching a draft through the search field's filter menu cost three or four taps). It is a **view over the sidebar-counter catalog**, not a second one: `lib/domain/list_status_tabs.dart` adds only the tab *order* (lifecycle, deliberately not the badge lists' "most actionable first") and the optional server translation. Labels, tones and the inventory gate all resolve from the entity's own `badgeModes` at render time.
+
+### The count and the rows are one predicate
+
+**The count and the rows are one predicate.** The badge reads `watchBadgeCount(modeId:)`; the list passes `badgeModeId:` down VM → repo → DAO, where `BaseEntityDao.badgeModeListFilter` applies the *same* `badgeModePredicate` inside `watchPage`'s WHERE (pre-`LIMIT`, so the Drift window stays aligned with the page count). `list_status_tab_filter_test` asserts `rows == count` for all 14 entities × every mode; that test is the feature.
+
+### The whole state is `extraFilters['badge_mode']`
+
+**The whole state is `extraFilters['badge_mode'] = {modeId}`** — one key, so `currentSnapshot()` carries it into `nav_state` and saved views for free, `clearAllFilters()` resets the strip without knowing it exists, and the strip's selection is always literally that value (no second source to drift). It is **app-private and never reaches the wire**: `_serverExtraFilters()` strips it and splices in the entity's real query params instead.
+
+### Don't map a mode whose only superset is nearly the whole table
+
+**Don't map a mode whose only superset is nearly the whole table.** Payment / credit `unapplied` were mapped once (`completed,partially_refunded` and every non-draft status): no useful narrowing, and `isNarrowedFetch` then costs the delta cursor too. Local-only plus the auto-chain is strictly better there. This is about supersets that buy nothing — an **exact** mapping pays the same cursor cost and it isn't a cost, because the fetch discards nothing after it lands, so a true offset page of precisely the tab's rows beats a delta slice.
+
+### No strip on an embedded list
+
+**No strip on an embedded list** (`widget.embedded`): the counts are company-wide, so "Draft 47" on one client's Invoices tab would be a flat lie.
+
+### The strip renders whenever a tab is active, even with the device setting off
+
+**The strip renders whenever a tab is active, even with the device setting off** — a `badge_mode` restored from `nav_state` or applied by a saved view is a live filter, and hiding its only control would leave the list narrowed with nothing but "Clear filters" to escape. `_hydrate` drops a `badge_mode` naming a mode this build no longer offers, for the same reason `_migrateLegacyUpdatedBetween` exists.
+
+### Status-tab counts are active-only
+
+Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do. Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`DevicePrefKeys.statusTabs`, `StatusTabsController`).
+
 ### A server mapping must return a superset of the local predicate
 
 **A server mapping must return a SUPERSET of the local predicate.** Over-fetching is free (the local predicate discards the extras); under-fetching silently hides rows — the tab reads "Expired 12" over eight rows and the missing four never arrive. Where the obvious value is a subset, *widen* it (quotes send `client_status=expired,draft` because the app also counts a past-due draft as expired) rather than dropping to local-only. The unmapped modes each say why in `list_status_tabs.dart`, and `list_status_tabs_test` pins the exact set so mapping one later is a deliberate edit. The cleanest case is an **exact** mapping — clients send `balance=gt:0`, which is `ClientFilters::balance` clause-for-clause, so `widened` stays false and the chain stays off; note the operator lives in the *value* and the server parses it off the PREFIX, so a suffix `0:gt` silently runs `where('balance','=','gt')` (≈ "balance is zero"), the exact inverse of that tab.
@@ -66,6 +100,8 @@ name**: quotes / credits / purchase orders / recurring invoices all read
 **The strip's edge fades are gated on the scroll position, like `EntityDetailTabs`'.** An unconditional trailing fade veils the **last tab's own count badge**: the scroller carries a `start:` `contentPadding` and no `end:` one, and the badge is the tab's final child behind only `InSpacing.md` (8 px on a phone), so once the strip reaches its end the number sits inside the 24 px gradient. Two ordinary routes get there — flicking the strip, and a `badge_mode` restored from `nav_state`, where `_revealSelection`'s one-shot `ensureVisible(alignment: 0.5)` clamps to `maxScrollExtent` and parks that tab flush against the edge. Three things follow the sibling strip — `EntityDetailTabs`, in `docs/comments-and-activity.md` § The record’s own history leads every detail strip — for the same reasons documented there: `hasContentDimensions` (not just `hasClients`, or reading extents pre-layout throws out of `ScrollPosition.minScrollExtent`); a **post-first-frame `setState`**, because `attach` adds the listener without notifying, so a strip nobody scrolls would never paint its trailing fade; and a `NotificationListener<ScrollMetricsNotification>`, because a width change that leaves `pixels` alone reaches no `ScrollController` listener. Unlike the sibling it uses `PositionedDirectional` + `AlignmentDirectional`, so the fades stay on the right physical edge in Arabic / Hebrew — which is why the two `_edgeFade` helpers are **not** shared. Note `_revealSelection` uses the *static* `Scrollable.ensureVisible`, which walks every enclosing scrollable; that is safe only because `_bodyWithBanner` mounts the strip as a plain `Column` sibling of the list. Move it inside a scroll view and it would drag the page vertically on launch.
 
 ## List state filter
+
+The lifecycle dimension (`is:` / `state:` — active / archived / deleted) is a **`Set<EntityState>` that is never empty**, and deleted rows therefore appear only when somebody asks for them. `normalizeListStates` (`lib/domain/entity_state.dart`) makes that true by construction at **three** writers, not one: `setStates` — which is the choke point for every *user gesture*, since the filter key's `clear` / `addValue` / `removeValue` back the chip `×`, the checkbox picker and Backspace-on-an-empty-search-box alike — plus `_applyDecoded` (nav_state hydrate and saved-view apply) and `_applyIntentState` (dashboard deep links), which assign `_states` directly and so normalize themselves. Keep the three in step. A fourth site writes the *snapshot* rather than the set — see `docs/entity-lists.md` § A snapshot on disk needs healing at every site that reads one.
 
 ### Why the empty set was a one-way trap (flutter#126)
 
@@ -94,6 +130,18 @@ Two more consequences, both the rule rather than bugs: this **reverses** the old
 `cancelled` (`status_id = '6'`, shipped with the quote cancel action 2026-09-22) is the same *kind* of status and gets the opposite treatment — a tab **and** a chip — which is this rule working rather than an exception to it. The rule was never "quote statuses don't get chips"; it is "a chip must be a dimension the server can honour". `QuoteFilters::client_status` grew a `cancelled` branch, so the value narrows the fetch instead of hitting the no-op, the tab declares `client_status: {'cancelled'}` (exact, not `widened`), and it stays **out** of `list_status_tabs_test`'s `localOnly` set — that set is an allowlist of tabs that send nothing, so a server-backed tab listed there inverts the assertion. `rejected` is still local-only and `BACKEND.md` § F1 is still open for it alone. The `notTerminal` clause excludes '6' alongside '5', so `cancelled` is likewise disjoint from `expired` / `upcoming`.
 
 ## Sidebar counters
+
+`lib/domain/sidebar_badge_modes.dart` is the single source of truth for what each sidebar row's count badge can count (`total` / `overdue` / `low_stock` / `assigned_to_me` / …, plus `none` to hide it). Every mode is answerable from columns already in Drift — **the badge never issues a network call**. The catalog now drives **two** surfaces — the rail's badge and the list's status tabs (below) — so adding or changing a mode is four coordinated edits:
+
+1. the per-entity `SidebarBadgeMode` list here (+ its `badgeModes:` reference in `kWiredEntityModules`),
+2. a case in that DAO's `badgeModePredicate` (`BaseEntityDao`; `BankTransactionDao` hand-rolls the same hook),
+3. the mode's `labelKey`, plus an entry in `kSidebarBadgeModeSearchKeys` if it is a *specific* word worth surfacing in settings search (the generic status words — `draft` / `sent` / `approved` / `rejected` — are deliberately excluded, so most modes need no edit here),
+4. a `ListStatusTabSpec` in `lib/domain/list_status_tabs.dart` — `list_status_tabs_test` fails the build if the two catalogs disagree, so a new mode can't quietly ship as a counter with no way to filter by it.
+
+
+`sidebar_badge_count_test` fails the build if a declared mode has no predicate — the failure mode otherwise is silent, since a null predicate makes the badge count *every* row and still look like it works. Both pickers (the row's right-click menu and Settings → Device Settings → Sidebar counters) read the same registry list through `availableBadgeModes(...)`, so they can't drift apart.
+
+Note `BaseEntityDao.watchBadgeCount` counts **active** rows (`archived_at IS NULL`), unlike the older `watchCount`, which is archived-inclusive and still backs list empty-states.
 
 ### Counts come from the local Drift cache, so they can under-report
 

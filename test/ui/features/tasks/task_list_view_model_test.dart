@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
+import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/view_models/task_list_view_model.dart';
 
 /// The Upcoming tab tops the local cache up itself (invoiceninja/flutter#149).
@@ -129,6 +131,35 @@ void main() {
       reason:
           'a best-effort top-up must not '
           'break the list the user actually asked for',
+    );
+    vm.dispose();
+  });
+
+  // A start or stop is a `PUT /tasks/{id}`; the server refuses (401) the save
+  // of a task this user may not edit, so bulk leaves those out.
+  test('bulk Start and Stop skip a task this user may not edit', () {
+    final vm = TaskListViewModel(
+      repo: repo,
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      companyId: 'co',
+      canEditTask: (t) => t.id == 'mine',
+    );
+    final start = vm.bulkActions.firstWhere((a) => a.id == 'start');
+    final stop = vm.bulkActions.firstWhere((a) => a.id == 'stop');
+    final running = [
+      TimeEntry(start: DateTime.utc(2026, 1, 1, 12), stop: null),
+    ];
+
+    expect(start.eligible(emptyTask().copyWith(id: 'mine')), isTrue);
+    expect(start.eligible(emptyTask().copyWith(id: 'theirs')), isFalse);
+    expect(
+      stop.eligible(emptyTask().copyWith(id: 'mine', timeLog: running)),
+      isTrue,
+    );
+    expect(
+      stop.eligible(emptyTask().copyWith(id: 'theirs', timeLog: running)),
+      isFalse,
     );
     vm.dispose();
   });

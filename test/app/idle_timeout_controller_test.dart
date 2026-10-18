@@ -3,17 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:super_editor/super_editor.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/user_activity_notification.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
+import 'package:admin/ui/core/widgets/session_expiry_banner.dart';
 
 import '../_localization_helper.dart';
 
@@ -207,6 +212,114 @@ void main() {
       h.dispose();
     });
   });
+
+  // The setting is the *Web* Session Timeout. Enforced in the native apps, it
+  // signed people out while a task timer ran: nobody touches the app then, and
+  // time in the background counted as idle, so coming back to stop the timer
+  // was itself the sign-out.
+  group('web only', () {
+    late _TimedHarness h;
+
+    setUp(() {
+      h = _TimedHarness();
+    });
+
+    testWidgets('off the web the timeout never ends a session', (tester) async {
+      await h.start(tester, enforced: false);
+      await h.advance(tester, const Duration(minutes: 3));
+      h.controller.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(h.auth.logouts, isEmpty);
+      expect(h.controller.expiringSoon.value, isFalse);
+      h.dispose();
+    });
+  });
+
+  group('the expiry warning', () {
+    const timeout = Duration(minutes: 30);
+    late _TimedHarness h;
+
+    setUp(() {
+      h = _TimedHarness();
+    });
+
+    testWidgets('warns two minutes before expiry, then expires on time', (
+      tester,
+    ) async {
+      await h.start(tester, timeout: timeout);
+      await h.advance(tester, const Duration(minutes: 27, seconds: 30));
+      expect(h.controller.expiringSoon.value, isFalse);
+      await h.advance(tester, const Duration(seconds: 30));
+      expect(h.controller.expiringSoon.value, isTrue);
+      expect(h.auth.logouts, isEmpty);
+      await h.advance(tester, const Duration(minutes: 2));
+      expect(h.auth.logouts, hasLength(1));
+      expect(h.controller.expiringSoon.value, isFalse);
+      h.dispose();
+    });
+
+    testWidgets('activity clears the warning and restarts the clock', (
+      tester,
+    ) async {
+      await h.start(tester, timeout: timeout);
+      await h.advance(tester, const Duration(minutes: 28));
+      expect(h.controller.expiringSoon.value, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      expect(h.controller.expiringSoon.value, isFalse);
+      await h.advance(tester, const Duration(minutes: 29));
+      expect(h.auth.logouts, isEmpty, reason: 'idle for 29 min, not 30');
+      expect(
+        h.controller.expiringSoon.value,
+        isTrue,
+        reason: 'counted from the key press',
+      );
+      h.dispose();
+    });
+
+    testWidgets('the banner shows the warning, and Stay Logged In keeps the '
+        'session', (tester) async {
+      await h.start(
+        tester,
+        timeout: timeout,
+        child: const Scaffold(body: Column(children: [SessionExpiryBanner()])),
+      );
+      final banner = find.byKey(const ValueKey('session_expiry_banner'));
+      await h.advance(tester, const Duration(minutes: 27, seconds: 30));
+      expect(banner, findsNothing);
+      await h.advance(tester, const Duration(seconds: 30));
+      expect(banner, findsOneWidget);
+      expect(find.text('Warning: Your session is about to expire'), findsOne);
+
+      await tester.tap(find.byKey(const ValueKey('session_expiry_stay')));
+      await tester.pump();
+      expect(banner, findsNothing);
+      await h.advance(tester, const Duration(minutes: 2));
+      expect(h.auth.logouts, isEmpty);
+      h.dispose();
+    });
+
+    testWidgets('the sign-in screen is told why', (tester) async {
+      final notice = SignOutNotice(
+        prefs: DevicePrefsStore(null),
+        credentials: ValueNotifier<ApiCredentials?>(null),
+      );
+      addTearDown(notice.dispose);
+      await h.start(tester, notice: notice);
+      await h.advance(tester, const Duration(seconds: 60));
+      expect(h.auth.logouts, hasLength(1));
+      expect(notice.pending?.reason, SignOutReason.inactivity);
+      h.dispose();
+    });
+
+    testWidgets('without the provider the banner renders nothing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: SessionExpiryBanner())),
+      );
+      expect(find.byKey(const ValueKey('session_expiry_banner')), findsNothing);
+    });
+  });
 }
 
 /// A controller armed with a 60 s timeout for company `co1`, a hand-driven
@@ -222,7 +335,15 @@ class _TimedHarness {
   var notifications = 0;
   late IdleTimeoutController controller;
 
-  Future<void> start(WidgetTester tester, {Widget? child}) async {
+  /// [enforced] is the web gate — tests run with `kIsWeb == false`, so every
+  /// test of the timeout itself opts in.
+  Future<void> start(
+    WidgetTester tester, {
+    Widget? child,
+    Duration timeout = const Duration(seconds: 60),
+    bool enforced = true,
+    SignOutNotice? notice,
+  }) async {
     company.rows = companyRows.stream;
     auth.session.value = const AuthSession(
       baseUrl: 'https://example.com',
@@ -231,27 +352,40 @@ class _TimedHarness {
       companies: [],
       currentCompanyId: 'co1',
     );
-    controller = IdleTimeoutController(
-      auth: auth,
-      company: company,
-      sync: sync,
-      now: () => clock,
-    );
-    companyRows.add(const Company(id: 'co1', sessionTimeout: 60000));
+    controller = enforced
+        ? IdleTimeoutController(
+            auth: auth,
+            company: company,
+            sync: sync,
+            enforced: true,
+            notice: notice,
+            now: () => clock,
+          )
+        // The production default, which is what a native build gets.
+        : IdleTimeoutController(
+            auth: auth,
+            company: company,
+            sync: sync,
+            now: () => clock,
+          );
+    companyRows.add(Company(id: 'co1', sessionTimeout: timeout.inMilliseconds));
     await tester.pumpWidget(
       MaterialApp(
         theme: buildInTheme(InTheme.light),
         localizationsDelegates: kTestLocalizationsDelegates,
         supportedLocales: kTestSupportedLocales,
-        builder: (context, routed) =>
-            NotificationListener<UserActivityNotification>(
-              onNotification: (_) {
-                notifications++;
-                controller.poke();
-                return true;
-              },
-              child: routed!,
-            ),
+        // Provided the way `main.dart` provides it, for `SessionExpiryBanner`.
+        builder: (context, routed) => Provider<IdleTimeoutController>.value(
+          value: controller,
+          child: NotificationListener<UserActivityNotification>(
+            onNotification: (_) {
+              notifications++;
+              controller.poke();
+              return true;
+            },
+            child: routed!,
+          ),
+        ),
         home: child ?? const SizedBox.shrink(),
       ),
     );

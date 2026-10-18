@@ -1,6 +1,6 @@
 # Touch targets
 
-Companion to CLAUDE.md § Design system (v2) (the touch-target rules). Hit-area size is a property of the input device, not the viewport — which is why it is the one responsive branch in the app that does not key off width. The five numbered traps stay listed in CLAUDE.md so a citation like "trap 4" still resolves there; the evidence for traps 3 and 5 is here.
+Companion to CLAUDE.md § Design system (v2) (the touch-target rules). Hit-area size is a property of the input device, not the viewport — which is why it is the one responsive branch in the app that does not key off width. CLAUDE.md lists the five numbered traps one line each, so a citation like "trap 4" still lands there; the full text of every trap is here.
 
 ## Touch targets are gated on the platform, not the viewport
 
@@ -10,7 +10,17 @@ Companion to CLAUDE.md § Design system (v2) (the touch-target rules). Hit-area 
 
 **A landscape phone is not a small desktop.** `Breakpoints.isPhone(context)` (`lib/ui/core/adaptive.dart`) — `Env.isTouchPrimary` **and** `MediaQuery.sizeOf(context).shortestSide < 600` — is the app's second responsive **layout** gate keyed on the device rather than the viewport. (`Env.isMobile` also gates *behavior* — `SelectionArea`, copy haptics — which is a different question.) Width can't answer this one: a phone in landscape is a ~890 px *window*, so the persistent rail comes up and its 232 still leaves a ~660 px pane, which every width test reads as "desktop" on a viewport only ~412 px tall — and the wide layout then spends that width on full-label chrome the handset can't carry (invoiceninja/flutter#51, where the dashboard's desktop top bar truncated the company name and wrapped its five buttons onto two runs). Both halves are load-bearing: without `isTouchPrimary` a short desktop window (890×412) matches on `shortestSide` alone. **Wire it in per screen, deliberately** — `Breakpoints.isWide` stays the default gate and the callers are a small, deliberate set (`DashboardScreen`, and `showCommandPalette`, which uses it to pick its whole presentation — a full-screen `Scaffold` page on a phone, the floating Spotlight card everywhere else — plus its keyboard-only hints); other wide layouts (`MasterDetailLayout`, entity lists) still hand a landscape phone the desktop branch.
 
+## Trap 1 — a row floor is a `ConstrainedBox`, never a `SizedBox`
+
+Express a row floor as `ConstrainedBox(minHeight:)`, never `SizedBox(height:)` — a fixed height clamps the label's line box and slices descenders at large text scale.
+
+## Trap 2 — `compact` density subtracts 8 from an `IconButton`'s constraints
+
+An `IconButton`'s explicit `constraints` are run through `visualDensity.effectiveConstraints` (M3 routes them into `ButtonStyle` `minimumSize`/`maximumSize`, then `button_style_button.dart` adjusts), so `compact` subtracts 8 and a `tightFor(44, 44)` renders **36**. Drop the density on touch; the theme default is already `standard` there.
+
 ## Trap 3 — a hover-revealed button is laid out by the touch theme too
+
+`ThemeData.materialTapTargetSize` is `padded` on iOS/Android, which inflates an `IconButton`'s **layout** size (not just its hit area) to `kMinInteractiveDimension` = 48 and ignores your constraints. Pass `tapTargetSize: MaterialTapTargetSize.shrinkWrap` — a sidebar row's buttons get it from `SidebarRowIconButton`, and a *hover*-revealed one needs it too:
 
 **A hover-revealed button still gets the touch theme, because an iPad with a trackpad hovers.** The sidebar's entity rows reveal a `+` on hover, and the Dashboard row reveals a search icon (`SidebarNavItem.trailingHover`). `_showsTrailingHover` checks the compact rail, the tile grid and disabled rows, but not `touch`, and it should not: a trackpad or a mouse on iPadOS or Android is a real hover device, and the `+` is a useful shortcut there. But the two buttons had been written for a desktop that never runs the `padded` theme. They set `tightFor(18, 18)` and `VisualDensity.compact`, and not `tapTargetSize: shrinkWrap`. On iOS/Android `ThemeData.materialTapTargetSize` is `padded`, so `ButtonStyleButton` floors the button's *layout* at `kMinInteractiveDimension` + the density adjustment = 48 − 8 = **40 px**, and ignores the constraints (trap 3). The button sits inside the row's `Row`, so it drives the cross axis (trap 4): 40 + the row's 7/7 padding = **54 px** against the 44-px touch floor. Every hover-in grew the row by 10 px and shoved each row below it down, and every hover-out pulled them back. That was invoiceninja/flutter#171, reported from an iPad Pro with a Magic Keyboard.
 
@@ -28,6 +38,10 @@ Three things pin it, all in `test/ui/features/shell/widgets/sidebar_nav_item_tes
 - a source scan that fails if `in_sidebar.dart` builds a bare `IconButton(`.
 
 With the `shrinkWrap` line deleted, the first test sees a 40-px button, the second a 33 → 54 px row on android (macOS still passes), and the saved-view size test a 48×48 button.
+
+## Trap 4 — a `SidebarNavItem`'s trailing drives the row's cross axis
+
+A `SidebarNavItem`'s `trailing` sits inside the row's `Row`, so it drives the cross axis and the row's own padding stacks on top: a 44 px trailing makes a 58 px row. Cap trailing widgets to the row's content box (target − vertical padding), not the target.
 
 ## Trap 5 — a fixed-width slot of `IconButton`s
 

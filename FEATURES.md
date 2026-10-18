@@ -86,8 +86,11 @@ the honest default.
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
 | Demo-account access | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Logout | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Idle session timeout | ✅ | ✅ | ✅ | ✅ | |
+| Idle session timeout (web only — the phone and desktop apps never sign out for being idle, as v1) | ✅ | ✅ | ✅ | ✅ | |
+| Session-about-to-expire warning with Stay Logged In (web, 2 minutes before the idle timeout) | ❌ | ✅ | ✅ | | |
 | Single-flight 401 → logout coordination | ✅ | ✅ | ✅ | ✅ | |
+| A 401 that refuses one request ends nothing — the session is checked with `/ping` before a 401 signs anyone out (the task timer's "Insufficient permissions" used to) | — | — | ✅ | | |
+| Sign-in screen says why the last session ended on its own (inactivity, or a rejected session with the request) | — | — | ✅ | | |
 | Minimum-client-version gate | ✅ | ✅ | ✅ | ✅ | |
 | Multi-company switching within session | ✅ | ✅ | ✅ | ✅ | |
 | Password confirmation modal for destructive actions | ✅ | ✅ | ✅ | ✅ | |
@@ -440,6 +443,7 @@ the honest default.
 | Task — timer start | ✅ | ✅ | ✅ | ✅ | |
 | Task — timer stop | ✅ | ✅ | ✅ | ✅ | |
 | Task — timer resume from time log | ✅ | ✅ | ✅ | ✅ | |
+| Task — timer controls offered only to users who may edit the task (row and kanban toggles, ⋮ menu, bulk, the shell pill's Stop / Stop all) | — | — | ✅ | | |
 | Task — time-log entries (edit each row) | ✅ | ✅ | ✅ | ✅ | |
 | Task — due date (`tasks.due_date`) | ✅ | ❌ | ✅ |  | Server field added 2026-08-31; React on its develop branch, unreleased |
 | Task — `Overdue` status tab + sidebar counter (due date passed, not invoiced; local-only) | ✅ | ❌ | ✅ |  | |

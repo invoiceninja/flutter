@@ -11,6 +11,7 @@ import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/company_label_overrides.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
 import 'package:admin/app/hide_peppol_status_controller.dart';
 import 'package:admin/app/hours_format_controller.dart';
@@ -344,6 +345,7 @@ class Services implements SidebarBadgeContext {
     required this.hidePeppolStatus,
     required this.phoneActions,
     required this.certificateTrust,
+    required this.signOutNotice,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -755,6 +757,10 @@ class Services implements SidebarBadgeContext {
   /// `main.dart` installs, the login screen, the shell's certificate banner
   /// and Device Settings → Trusted certificates.
   final CertificateTrustStore certificateTrust;
+
+  /// Why the last session ended on its own, for the sign-in screen
+  /// (`SignOutNotice`). Read there through its root provider.
+  final SignOutNotice signOutNotice;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1486,11 +1492,19 @@ class Services implements SidebarBadgeContext {
     );
     final debugStore = debugCaptureStore ?? DebugCaptureStore();
     final debugPanelRevealed = ValueNotifier<bool>(false);
+    // Why the session ended, for the sign-in screen — written by the 401
+    // closure below and by the web's idle timeout.
+    final signOutNotice = SignOutNotice(
+      prefs: devicePrefs,
+      credentials: auth.credentials,
+    );
     // Assigned a few lines below; the `onUnauthorized` closure captures the
     // variable (not its value) and only ever runs once a request has come
     // back 401 — long after construction completes.
     late final SyncRepository sync;
-    final apiClient = ApiClient(
+    // `late` so that closure can name the request that ended the session.
+    late final ApiClient apiClient;
+    apiClient = ApiClient(
       credentials: auth.credentials,
       passwordCache: passwordCache,
       // A 401 ends the session involuntarily (token revoked, "end all
@@ -1514,7 +1528,16 @@ class Services implements SidebarBadgeContext {
       // which only the wipe does.
       // `logout()` still writes the re-lock gate, so re-entry requires
       // re-auth.
-      onUnauthorized: () async => auth.logout(data: LocalDataPolicy.keep),
+      onUnauthorized: () async {
+        try {
+          await signOutNotice.record(
+            SignOutReason.sessionRejected,
+            detail: apiClient.lastSessionRejection,
+          );
+        } finally {
+          await auth.logout(data: LocalDataPolicy.keep);
+        }
+      },
       // Consulted first: a 401 under a company token the user *just* switched
       // into fails the switch (roll back + heal) instead of the session.
       onUnauthorizedCandidate: auth.handleUnauthorized,
@@ -2214,6 +2237,7 @@ class Services implements SidebarBadgeContext {
       hidePeppolStatus: hidePeppolStatus,
       phoneActions: phoneActions,
       certificateTrust: certificateTrust,
+      signOutNotice: signOutNotice,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

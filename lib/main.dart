@@ -28,6 +28,7 @@ import 'package:admin/app/nav_state_persister.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/sentry_gate.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/user_activity_notification.dart';
@@ -655,6 +656,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     auth: widget.services.auth,
     company: widget.services.company,
     sync: widget.services.sync,
+    notice: widget.services.signOutNotice,
   );
 
   @override
@@ -785,6 +787,14 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         ChangeNotifierProvider<CertificateTrustStore>.value(
           value: widget.services.certificateTrust,
         ),
+        // For the shell's `SessionExpiryBanner`, read as
+        // `context.read<IdleTimeoutController?>()` for the same reason.
+        Provider<IdleTimeoutController>.value(value: _idleTimeout),
+        // For the sign-in screen's "why you were signed out", read as
+        // `context.read<SignOutNotice?>()` for the same reason.
+        ChangeNotifierProvider<SignOutNotice>.value(
+          value: widget.services.signOutNotice,
+        ),
       ],
       child: ListenableBuilder(
         listenable: Listenable.merge([
@@ -868,7 +878,9 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                   ),
                   // Feed user activity to the idle-timeout enforcer. Translucent
                   // so it never intercepts gestures; `poke()` is a cheap clock
-                  // stamp read by the controller's periodic check. The
+                  // stamp read by the controller's periodic check — on the web
+                  // only; off it the controller is inert and nothing reads
+                  // it. The
                   // notification carries edits in a `MarkdownTextField`, which
                   // neither a pointer nor (on a soft keyboard) a key event
                   // reports; plain text fields and hardware keys are fed by the

@@ -225,6 +225,10 @@ class _AccountManagementSecuritySettingsScreenState
               initialValue: sessionTimeoutValue,
               decoration: InputDecoration(
                 labelText: context.tr('web_session_timeout'),
+                // Only the browser enforces it (`IdleTimeoutController`), so
+                // say so where the phone and desktop apps show the setting.
+                helperText: context.tr('web_session_timeout_help'),
+                helperMaxLines: 3,
                 border: const OutlineInputBorder(),
               ),
               items: [

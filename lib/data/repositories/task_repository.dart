@@ -419,9 +419,14 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   /// the standard `save` path); a future v2 optimization can swap to a
   /// targeted `MutationKind.stopTimer` that ships only `time_log`, but
   /// today this centralizes the logic in one place.
+  ///
+  /// [only], when given, leaves a task it refuses running — the pill's
+  /// "Stop all" passes the user's edit rule, since the server refuses (401)
+  /// the save of a task they may not edit.
   Future<void> stopRunningTimer({
     required String companyId,
     required String taskId,
+    bool Function(Task task)? only,
   }) async {
     final row = await db.taskDao
         .watchById(companyId: companyId, id: taskId)
@@ -429,6 +434,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     if (row == null) return;
     final task = _fromRow(row);
     if (task.timeLog.isEmpty || !task.timeLog.last.isRunning) return;
+    if (only != null && !only(task)) return;
     final entries = <TimeEntry>[...task.timeLog];
     entries[entries.length - 1] = entries.last.copyWith(stop: DateTime.now());
     await save(
@@ -562,12 +568,16 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   Stream<int> watchRunningCount({required String companyId}) =>
       db.taskDao.watchRunningCount(companyId: companyId);
 
-  /// Stop every running timer for the company (the pill's "Stop all").
+  /// Stop every running timer for the company (the pill's "Stop all") —
+  /// every one [only] admits, when given (see [stopRunningTimer]).
   /// Sequential so each stop lands as its own outbox row.
-  Future<void> stopAllRunning({required String companyId}) async {
+  Future<void> stopAllRunning({
+    required String companyId,
+    bool Function(Task task)? only,
+  }) async {
     final ids = await db.taskDao.runningTaskIds(companyId: companyId);
     for (final id in ids) {
-      await stopRunningTimer(companyId: companyId, taskId: id);
+      await stopRunningTimer(companyId: companyId, taskId: id, only: only);
     }
   }
 

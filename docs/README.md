@@ -4,11 +4,12 @@ Topic docs for the Invoice Ninja Flutter v2 admin app. `CLAUDE.md` at the repo r
 of rules — one or two lines each; these files carry the evidence behind them: the mechanism, the
 SDK or server source that explains it, the measured numbers, and the failure each rule shipped as.
 
-Start at `CLAUDE.md`'s Quick Index, which routes by symptom. `ARCHITECTURE.md` is the
+`CLAUDE.md`'s Quick Index routes the common cases; the full symptom table is § Symptom index at the end of this file. `ARCHITECTURE.md` is the
 read-it-first orientation for a new developer.
 
 - [`adding-an-entity.md`](adding-an-entity.md) — **Adding a new entity.** The main file lists the leverage points and the 13-step recipe at a glance; this doc carries the full shape of each step, the standard / non-standard action helpers, and the bundled-entity sub-recipe.
 - [`architecture.md`](architecture.md) — **Architecture.** The MVVM block diagram and the layered-split summary live there; this doc carries the DI / routing / persistence / HTTP detail, the offline-first write pipeline, and the on-disk project layout.
+- [`buttons-and-spacing.md`](buttons-and-spacing.md) — **Buttons and spacing.** Why a button stretches edge to edge or dialog actions stack (the `Size.fromHeight(44)` theme default and the per-call `minimumSize` override), what `PrimaryDialogAction` bakes in, and how the responsive `InSpacing` tokens and card padding are sized.
 - [`comments-and-activity.md`](comments-and-activity.md) — **Comments and the activity feed.** A comment is an `activity_type_id = 141` row, so comments and activity are one feed rendered two ways.
 - [`contacts-and-invitations.md`](contacts-and-invitations.md) — **Server-seeded contacts and invitations.** The server seeds rows the user never created — one blank contact per client and vendor, one invitation per send-email contact, and a placeholder email address it typed itself — so `isNotEmpty` is never the question.
 - [`contacts-sync.md`](contacts-sync.md) — **Contacts sync — pushing client contacts to the device address book.** Settings → Device Settings → **Contacts**.
@@ -38,6 +39,7 @@ read-it-first orientation for a new developer.
 - [`probing-the-demo-api.md`](probing-the-demo-api.md) — **Probing the demo API.** The main file lists the legacy code pointers; this doc carries the live-server probe workflow.
 - [`pull-to-refresh.md`](pull-to-refresh.md) — **Pull-to-refresh.** Why a `RefreshIndicator` can sit on a list and still never start, and what keeps every refreshable list in the app pullable at any length.
 - [`realtime-updates.md`](realtime-updates.md) — **Real-time updates.** The main file carries the one rule — a pushed event only schedules the delta; this doc carries what the hosted server broadcasts and where (probed), who opens the socket, the protocol client's liveness and close-code handling, and how a push becomes a refresh and a dashboard refetch.
+- [`release-notes.md`](release-notes.md) — **Release notes.** The procedure for a "release notes" request: the next version, the commits since the last tag, the house style, and the file it writes.
 - [`reports.md`](reports.md) — **Reports.** The gallery and the report screen: why a report runs itself and what hedges that, what a figure may add up (row ids, currencies, repeated parent lines), the table, the file-only reports read back on screen, comparison with the period before, saved views — plus the `$date_key` map, the optional date column and the chart's bucketing rules.
 - [`rich-text-editing.md`](rich-text-editing.md) — **Rich text editing.** `MarkdownTextField` is the shared WYSIWYG editor for the note-shaped fields, which are HTML on the wire: what converts in each direction, and how a read-only surface renders one.
 - [`row-actions-and-values.md`](row-actions-and-values.md) — **What a row shows, and what its actions do.** A narrow list row carries no labels, which changes what a tap means and what an empty value should render as.
@@ -52,9 +54,97 @@ read-it-first orientation for a new developer.
 - [`task-scheduling.md`](task-scheduling.md) — **Task scheduling — booked blocks and starting the timer.** A task carries no stored start time, so scheduling one means seeding a future `time_log` entry — which makes "start the timer" a decision rather than an append.
 - [`tasks-views.md`](tasks-views.md) — **Tasks layout views.** The main file carries the `?view=` / `nav_state` precedence rule and the rule for each behaviour; this doc carries the evidence — why the URL is an override rather than the carrier, what the lock exists for, and why the kanban board has no create FAB.
 - [`template-variables.md`](template-variables.md) — **Email-template variables as chips.** One topic that used to have two homes: the chips are super_editor inline placeholders, so the field rules and the editor rules belong together.
+- [`toast-messages.md`](toast-messages.md) — **Toast messages.** What `ToastController.show` normalizes (one trimmed title line, capped detail, nothing queued when blank) and why a raw server string once painted a blank, stretched card.
 - [`token-rotation.md`](token-rotation.md) — **API token rotation (is_system UI token).** **Status: blocked on server.** Implement the client side once the backend ships.
 - [`touch-targets.md`](touch-targets.md) — **Touch targets.** Hit-area size is a property of the input device, not the viewport — which is why it is the one responsive branch in the app that does not key off width.
 - [`trusting-a-self-hosted-certificate.md`](trusting-a-self-hosted-certificate.md) — **Trusting a self-hosted server's certificate.** A certificate the device refuses is explained, and for a self-hosted server can be trusted by its exact SHA-256 pin: the `dart:io` callback paths, the one override `main.dart` installs, device scope, the login dialog, the shell banner and Device Settings.
 - [`translated-string-rendering.md`](translated-string-rendering.md) — **Why a translated string renders wrong.** HTML entities in the Transifex PHP, a dead `_app_pending.json` key, a placeholder name that prefixes another, and a raw `:placeholder` reaching the screen — the mechanism and the test for each.
 - [`upstream-workarounds.md`](upstream-workarounds.md) — **Upstream-bug workarounds.** The single registry of workarounds this app carries for **open upstream bugs/limitations** — in Flutter, Dart, third-party pub packages, or platform SDKs — that we expect to **remove once the upstream ships a fix**.
+- [`web-platform-differences.md`](web-platform-differences.md) — **Web platform differences.** Unencrypted IndexedDB persistence, the conditional-import seams, the vendored WASM assets, the hash URL strategy, what is disabled, the missing `Idempotency-Key`, and the demo build.
 - [`web-benchmarks.md`](web-benchmarks.md) — **Web benchmarks — WASM against JS.** The harness in `tools/web_bench/` that builds the app with dart2js and with dart2wasm and measures startup, frame times, compute and size in Chrome; the rules that keep a sample honest; the last recorded results.
+
+## Symptom index
+
+The full routing table, moved here from CLAUDE.md's Quick Index (which keeps a shorter version). A bare `§ <Section>` in the right-hand column is a CLAUDE.md section.
+
+| When you're doing… | Look at |
+|---|---|
+| Adding a new entity, or one with no create screen (the Documents list) | § Adding a new entity + `docs/adding-an-entity.md` · `docs/documents-list.md` |
+| Adding / editing a settings screen, or anything in the visual invoice designer | § Settings screens + `docs/settings-screens.md` · § Visual invoice designer + `docs/invoice-designer.md` |
+| Wiring a form field, picker, or Enter-to-save | § Forms · `docs/pickers.md` · `docs/form-fields.md` |
+| Keyboard type, autofill, capitalization, or a negative amount on touch | § Forms — Input types · `docs/form-fields.md` · `test/lint/field_input_types_test.dart` |
+| A picker popover or hand-rolled `OverlayPortal` that won't close on touch or Android back, the ✕, or the ▾ on a picker | `docs/popup-dismissal.md` · `lib/ui/core/widgets/picker_dismissal.dart` · `test/lint/picker_popover_wiring_test.dart` · `overlay_back_dismiss_test.dart` |
+| A picker showing a dead empty box or stuck on "Loading", or blanking when its value is archived | `docs/pickers.md` § A picker's empty state has to say something · `lib/ui/core/widgets/entity_picker_field.dart` |
+| A Client / Vendor field that must stop being editable once the record is saved | `docs/pickers.md` § A field the server freezes is a locked row, not a disabled picker · `lib/ui/core/widgets/locked_entity_field_row.dart` · `test/lint/frozen_party_field_wiring_test.dart` |
+| Adding an Assigned User or task Status picker, or a field to the create-task-from-a-line sheet | `docs/pickers.md` § The assignee roster has one home · `lib/ui/core/widgets/assigned_user_picker_field.dart` |
+| Hiding unverified users from Assigned User fields, or the "never onboarded" rule | `docs/pickers.md` § Hiding unverified users · `lib/domain/assignable_users.dart` · `test/lint/assigned_user_picker_wiring_test.dart` |
+| Anything money / date / parsing | § Strict rules + § Forms |
+| Changing invoice / quote / credit totals math | `docs/sync.md` § The server's rounding scale is a two-level map · `tool/totals_oracle.php` |
+| Dialog buttons rendering stacked | § Design system (v2) |
+| Picking the icon for an overflow / "more" menu | § Design system (v2) · `test/lint/no_horizontal_more_icon_test.dart` |
+| Adding a `MenuAnchor` / overflow menu, or Android back not closing one | `docs/popup-dismissal.md` § A `MenuAnchor` is not a route · `test/lint/menu_anchor_back_dismiss_test.dart` |
+| Adding a sign-out / session-ending surface | § Action confirmations · `docs/adding-an-entity.md` § Action confirmations — the sign-out case |
+| A shortcut that stops working until you click, a macOS beep, or a bare key served by the wrong screen | `docs/keyboard.md` § The whole keyboard layer hangs off one focus node · `test/lint/focus_owner_wiring_test.dart` |
+| Adding or changing a `G`-leader jump (`G` then a letter) | `docs/keyboard.md` § The `G`-leader table has one copy · `lib/domain/leader_shortcuts.dart` |
+| Sync / outbox / 400-401-403-404-409-412-422 behavior, or a hosted real-time push | § Sync — non-obvious rules (all 37 rules) · `docs/sync.md` (the evidence) · `docs/realtime-updates.md` |
+| Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
+| Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
+| Changing the Drift schema (forward migration), or adding a device preference (which needs none) | `docs/migrations.md` · `docs/device-preferences.md` · `lib/data/prefs/device_pref_keys.dart` |
+| Adding / changing a sidebar count badge | § Sidebar counters · `docs/entity-lists.md` § Sidebar counters · `lib/domain/sidebar_badge_modes.dart` |
+| Changing the main menu's layout, order, or which rows it can hide | `docs/sidebar-and-shell.md` § The main menu is a preference · `lib/domain/sidebar_menu.dart` |
+| Moving the pinned Settings / Outbox rows, or changing a nav row's selected treatment | `docs/sidebar-and-shell.md` § Settings and Outbox are chrome · `test/lint/sidebar_menu_wiring_test.dart` |
+| Adding / changing a list's status tabs | § List status tabs · `docs/entity-lists.md` · `lib/domain/list_status_tabs.dart` |
+| Changing a list's State (active / archived / deleted) filter | § List state filter · `docs/entity-lists.md` · `lib/domain/entity_state.dart` |
+| Adding a column to an entity list (or a custom-field column) | § List columns · `docs/entity-lists.md` · `lib/domain/columns/` |
+| Adding a report, its date field, grouping granularity, or the report chart | § Reports · `docs/reports.md` · `lib/domain/reports/report_registry.dart` |
+| Adding a dashboard panel, hiding empty ones, or the task-calendar panel's colours / month fetch | § Dashboard panels · `docs/dashboard-panels.md` · `lib/ui/features/dashboard/helpers/enabled_panel_kinds.dart` · `lib/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart` |
+| An entry in the dashboard's `+` create sheet, who is offered it, or the running-timer pill sitting on a FAB | `docs/dashboard-panels.md` § The `+` is a FAB that opens a create sheet · `lib/domain/quick_create.dart` · `runningTimerPillBottom` |
+| A task that is booked but not started, the Start/Resume label, or billing booked time | `docs/task-scheduling.md` · `lib/domain/tasks/task_schedule.dart` · `test/lint/task_start_rules_test.dart` |
+| Changing the Tasks layout view (list / daily / weekly / calendar / kanban) or how it sticks | § Tasks layout view · `docs/tasks-views.md` · `lib/domain/tasks/tasks_view_mode.dart` |
+| Adding a create affordance to the kanban board (its `+ New Task` footer, or a FAB) | `docs/tasks-views.md` § The kanban board is the one Tasks view with no create FAB · `test/lint/tasks_view_wiring_test.dart` |
+| Collapsing a filter bar to an icon, or the removable-chip strip that replaces it | `docs/pane-width-and-overflow.md` § A filter surface too tall for its pane becomes an icon · `lib/ui/core/widgets/filter_icon_button.dart` |
+| Changing a Tasks view header (day / week / month nav), or its narrow branch | `docs/pane-width-and-overflow.md` § The three time-oriented Tasks headers · `lib/ui/features/tasks/widgets/calendar/task_calendar_header.dart` |
+| Viewing an older version of an invoice / quote / credit / PO / recurring invoice, or its History tab | § Document version history · `docs/document-version-history.md` · `lib/data/services/document_versions_api.dart` |
+| Changing an invoice / quote / credit / PO / recurring-invoice edit screen — a tab, the PDF preview button, a strip running off the edge | `lib/ui/features/billing_shared/edit/billing_doc_edit_layout.dart` · `BillingDocType` (the spec) · `docs/pane-width-and-overflow.md` § A tab strip is a width budget · `lib/ui/core/widgets/scroll_edge_fades.dart` |
+| Changing the Items tab's add affordances or empty state on a billing-doc edit screen, or a FAB there | `docs/pane-width-and-overflow.md` § A `Stack` mounted for a FAB · `test/lint/billing_items_affordance_test.dart` |
+| A create `+` covering the last row of a list, or adding a FAB over any scrollable | `docs/pane-width-and-overflow.md` § A floating button is a bottom inset · `lib/ui/core/utils/fab_clearance.dart` · `test/lint/fab_clearance_wiring_test.dart` |
+| Making a name in a list row or table cell tappable (or a link visible on touch) | `docs/row-actions-and-values.md` § A narrow list row has exactly one destination · `test/lint/no_list_tile_name_link_test.dart` |
+| Adding an action that only navigates (View client / View vendor) | `docs/row-actions-and-values.md` § A pure navigation action must never reach an edit screen · `test/lint/view_party_action_coverage_test.dart` |
+| Building a list tile cell, empty state, search field, or a record's figures | `lib/ui/core/list/cell_slot.dart` · `entity_list_empty_state.dart` · `search/entity_token_search_field.dart` · `lib/ui/core/detail/standing_card.dart` · `test/lint/shared_list_widgets_test.dart` |
+| A pull-to-refresh that won't start on a short list, or giving a refreshable list a `ScrollController` | `docs/pull-to-refresh.md` · `test/lint/refresh_indicator_physics_test.dart` · `test/ui/core/list/entity_list_pull_to_refresh_test.dart` |
+| Deciding whether a zero renders, dashes, or disappears | `docs/row-actions-and-values.md` §§ An empty value… · A zero in a detail KPI cell… |
+| An "Email History" tab listing contacts nothing was sent to, an invisible spam complaint, or either email tab's empty copy | `docs/contacts-and-invitations.md` § An invitation is created when the document is saved · `lib/data/models/domain/billing/invitation.dart` |
+| Localization / Transifex import, or a string showing `&#39;` / a raw `:placeholder` | § Localization · `docs/translated-string-rendering.md` |
+| Email-template `$variables` as chips (T&R subject/body, Send Email subject/body), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
+| Cross-checking against legacy admin-portal / React / API docs | § Reference points |
+| A self-hosted server's TLS certificate the device refuses (`HandshakeException`), or trusting one | `docs/trusting-a-self-hosted-certificate.md` · `lib/data/services/tls/` · `test/lint/certificate_trust_wiring_test.dart` |
+| macOS entitlement, dev login pre-fill, platform targets, "Sign in with Google" missing on iOS / Android | `docs/setup.md` (§ Google Sign-In client IDs) |
+| Building a release app / injecting the Sentry DSN, an Xcode archive carrying an old version number, the F-Droid (FOSS) build, or a store-only SDK | `docs/fdroid.md` · `tools/prepare_foss.sh` · `tools/foss/com.invoiceninja.admin.yml` + `tools/fdroid_build.sh` (the F-Droid APK) · `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
+| iOS Product → Archive failing on a plugin's minimum platform version | `tools/prepare_ios_archive.sh` (run it first) · `docs/setup.md` § Release builds with Sentry · `docs/upstream-workarounds.md` § 8 |
+| Writing release notes for a new version | § Release Notes |
+| Setting up store deploys / CI signing secrets | `docs/store-deployment-setup.md` (runbook) · `docs/setup.md` § Shipping to the stores (reference) |
+| Regenerating app icons (Windows / web / Snap) | `dart run tools/gen_app_icons.dart` · `docs/setup.md` § App icons |
+| Probing the demo API for live response shapes | `docs/probing-the-demo-api.md` |
+| Server-side filter gaps / required API changes | `BACKEND.md` |
+| Running integration tests | `docs/integration-tests.md` |
+| Editing a CI / release workflow (test gate, job wiring), or a perf benchmark, budget or alert | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores · `docs/performance-tracking.md` |
+| Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
+| Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
+| Changing the desktop title bar, its drawn window buttons, or where the nav arrows live — including hiding them behind the browser's own | `docs/desktop-window-state.md` § Drawn window buttons · § The sidebar's history arrows hide behind the browser's own · `lib/ui/features/shell/widgets/window_frame.dart` · `lib/app/browser_chrome.dart` |
+| Sharing a link to a record, handling an incoming one, or a file shared into the app (→ New Expense) | § Deep links · `docs/deep-links.md` · `docs/sharing-files-into-the-app.md` |
+| Enabling https App Links / Universal Links (Apple capability, Play fingerprints, deploy order) | `APP_LINKS.md` |
+| Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
+| Surfacing a record's comments (the Comments card / tab), how a note renders, or a detail screen's layout, tiles, tab order or counts | `docs/comments-and-activity.md` · `docs/detail-screen-layout.md` · `lib/ui/features/billing_shared/activity/` |
+| Making an activity row open the record it names, or adding an inline link to a rich-text sentence | `docs/comments-and-activity.md` § An inline link in a sentence cannot be hit by a finger · `lib/domain/activity/activity_refs.dart` |
+| A `Viewed` pill that should lead to its activity, when a doc was looked at, or an activity row wearing the wrong icon | `docs/comments-and-activity.md` § A `Viewed` pill is the way into the activity that recorded the view · `lib/ui/features/billing_shared/viewed_status_pill_link.dart` |
+| A `Semantics` role that a screen reader can announce but not activate | `docs/row-actions-and-values.md` § A narrow list row has exactly one destination · `test/lint/semantics_excludes_need_ontap_test.dart` |
+| Tap-to-call / SMS on a phone number, its business-hours warning, a call button (billing-doc header, list row), or logging a call into Activity | `docs/tap-to-call.md` (§ Non-obvious rules for the traps) |
+| Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
+| Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
+| Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
+| Sizing a tap target, or a row that grew taller than you expected | `docs/touch-targets.md` · `lib/ui/core/adaptive.dart` · `docs/list-density.md` |
+| A keyboard covering a field, an invisible ripple, or sidebar spacing | `docs/sidebar-and-shell.md` · `test/lint/no_ink_widget_test.dart` |
+| A contact row reading `(no name)`, or an email address nobody typed | `docs/contacts-and-invitations.md` · `lib/data/models/value/parsing.dart` |
+| A markdown field: inbound HTML, the mobile caret, read-only mode | `docs/rich-text-editing.md` · `lib/ui/core/widgets/markdown_text_field.dart` |
+| Writing a notes / terms / footer value, or rendering one read-only | `docs/rich-text-editing.md` · `lib/utils/editor_html.dart` · `lib/utils/notes_html.dart` |
+| Finding the right doc at all | `docs/README.md` (one line per doc) |

@@ -170,12 +170,20 @@ class _Pill extends StatelessWidget {
   Future<void> _stopAll(BuildContext context) async {
     final session = services.auth.session.value;
     if (session == null) return;
-    await services.tasks.stopAllRunning(companyId: session.currentCompanyId);
+    // Every running timer in the company is in Drift, a teammate's too — so
+    // only the ones this user may edit; the server refuses the rest (401).
+    await services.tasks.stopAllRunning(
+      companyId: session.currentCompanyId,
+      only: (t) => TaskActions.canEditTask(session, t),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // The newest running timer may be a teammate's: no Stop for a task this
+    // user may not edit (`TaskActions.canTimeTask`).
+    final canStop = TaskActions.canEditTask(services.auth.session.value, task);
     final label = task.description.isEmpty
         ? (task.number.isEmpty ? context.tr('running') : '#${task.number}')
         : task.description;
@@ -215,15 +223,20 @@ class _Pill extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: tokens.ink2),
                 ),
               ),
-              const SizedBox(width: 6),
-              IconButton(
-                tooltip: context.tr('stop'),
-                icon: const Icon(Icons.stop_circle_outlined, size: 18),
-                onPressed: () => _stop(context),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                padding: EdgeInsets.zero,
-              ),
+              if (canStop) ...[
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: context.tr('stop'),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  onPressed: () => _stop(context),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
               // Concurrent timers stay visible + clearable: this pill only
               // renders the newest running task, so surface a count + a
               // one-tap "stop them all".
@@ -340,32 +353,38 @@ class _DueNowPillState extends State<_DueNowPill> {
                       style: TextStyle(fontSize: 12, color: tokens.ink2),
                     ),
                   ),
-                  const SizedBox(width: 6),
                   // The whole point: start the job without leaving the screen
                   // you are on. Routed through `TaskActions.toggleTimer` so it
                   // claims the booking, moves the status and offers Undo
-                  // exactly as the list row does.
-                  IconButton(
-                    tooltip: context.tr('start'),
-                    icon: const Icon(Icons.play_circle_outlined, size: 18),
-                    // Same box as `_Pill`'s stop button — without the zeroed
-                    // padding an `IconButton`'s default `EdgeInsets.all(8)`
-                    // makes this pill taller than the one it alternates with,
-                    // in the same slot.
-                    padding: EdgeInsets.zero,
-                    color: tokens.warning,
-                    onPressed: () => TaskActions.toggleTimer(
-                      context,
-                      services,
-                      companyId,
-                      task,
+                  // exactly as the list row does. Not for a booking this user
+                  // may not edit (`TaskActions.canTimeTask`).
+                  if (TaskActions.canEditTask(
+                    services.auth.session.value,
+                    task,
+                  )) ...[
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: context.tr('start'),
+                      icon: const Icon(Icons.play_circle_outlined, size: 18),
+                      // Same box as `_Pill`'s stop button — without the zeroed
+                      // padding an `IconButton`'s default `EdgeInsets.all(8)`
+                      // makes this pill taller than the one it alternates
+                      // with, in the same slot.
+                      padding: EdgeInsets.zero,
+                      color: tokens.warning,
+                      onPressed: () => TaskActions.toggleTimer(
+                        context,
+                        services,
+                        companyId,
+                        task,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
                     ),
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),

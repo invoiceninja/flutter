@@ -59,7 +59,7 @@ class TaskDailyEntryRow extends StatelessWidget {
     // The shared gate, not a fourth hand-rolled copy: this one was missing
     // `isDeleted`, so a soft-deleted task's row still offered a timer that
     // `TaskRepository.startTimer` then refuses — a button that does nothing.
-    final canToggle = TaskActions.canToggleTimer(task);
+    final canToggle = TaskActions.canTimeTask(context, task);
 
     return InkWell(
       onTap: () => context.go('/tasks/${task.id}/edit'),

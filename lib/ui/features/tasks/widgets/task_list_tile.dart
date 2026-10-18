@@ -286,7 +286,7 @@ class _TaskListTileState extends State<TaskListTile> {
               );
             },
           ),
-        if (!w.selecting && TaskActions.canToggleTimer(t)) ...[
+        if (!w.selecting && TaskActions.canTimeTask(context, t)) ...[
           const SizedBox(width: InSpacing.sm),
           InlineTimerToggleButton(task: t, companyId: w.companyId),
         ],

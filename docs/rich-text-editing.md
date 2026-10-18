@@ -2,6 +2,26 @@
 
 Companion to CLAUDE.md § Rich text editing. `MarkdownTextField` is the shared WYSIWYG editor for the note-shaped fields. The main file carries one line per rule; this doc carries the evidence — what the stored value actually is and what converts in each direction, the read-only surfaces, the inbound-HTML fold, the sliver pointer gate, and the caret theming. Template-variable chips live in `docs/template-variables.md`.
 
+## The shared editor and its dependency pin
+
+`lib/ui/core/widgets/markdown_text_field.dart` is the shared WYSIWYG editor for every markdown-bearing field — the four billing-doc notes fields on all five entities, the 8 Defaults terms/footers, email settings, reminder templates, the user signature. It wraps `super_editor`, pinned in `dependency_overrides` to a monorepo SHA; the markdown serializer lives inside that package (the separate `super_editor_markdown` dependency is gone).
+
+## One-way data flow
+
+**One-way data flow.** Parent owns the stored string and feeds `initialValue` + `externalValueKey`; the widget debounces edits and emits HTML via `onChanged`. Changing `externalValueKey` forces a reseed after an external write — see `overridable_markdown_field.dart`.
+
+## Server content is safe by construction
+
+**Server content is safe by construction.** `super_editor` deserializes markdown into Flutter's widget AST — no HTML/JS execution context.
+
+## `height` is a floor, not a size
+
+**`height` is a floor, not a size.** The field grows with its content up to `maxHeight` (half the viewport, capped 480) and only then scrolls internally; a contradiction resolves in favour of the floor (asserted). `expand: true` opts out — the parent bounds it, which is what the desktop notes pane does.
+
+## No new editor instances
+
+**No new editor instances.** Don't reach for `TextField` + markdown post-processing for a free-text field that needs formatting — reuse `MarkdownTextField`.
+
 ## Inbound HTML is folded to markdown, never handed to the deserializer raw
 
 **Inbound HTML is folded to markdown by `markdownFromLegacyHtml` (`lib/utils/legacy_html_markdown.dart`) — never handed to the deserializer raw, and never with a hand-rolled `replaceAll`.** HTML is a **permanent** inbound shape for these fields, not legacy Quill residue: the React client edits the very same `public_notes` / `terms` / `footer` with TinyMCE. Raw, it is destroyed two ways, both silent. A **block** tag makes `markdown`'s `HtmlBlockSyntax` treat the line as a raw HTML block *running to the next blank line*, and super_editor's block visitor drops raw text — so a `<ul>` deleted the list **and everything after it** (invoiceninja/flutter#107). An **inline** tag survives as literal text, because `InlineHtmlSyntax` isn't in `markdown`'s default set and super_editor's `defaultInlineHtmlSyntaxes` only ever see `md.Element`s (from `**bold**` / `[t](u)`), so `<strong>` is painted to the user verbatim. Either way the loss **persists**: `_seedDocument` baselines `_lastEmitted` on the round-tripped value, so the first keystroke writes the mangled document back. Three traps if you extend the converter: (1) the tag regex must require `<` to abut the name **and** attributes to carry `=value` — a permissive tail (`[^<>]*`) turns `'qty < table rate > 10'` and `'mail <form@x.com> now'` into tags and eats the text between the brackets; (2) merge line breaks *as they are emitted* (`_MarkdownWriter`), never with a `\n{3,}` sweep at the end — a sweep can't tell a run it created from a blank line the user typed, which super_editor preserves as an empty paragraph node; (3) it must stay **idempotent**, since its own output is what gets re-parsed on the next open. Entities are deliberately untouched — `markdown`'s `DecodeHtmlSyntax` resolves them downstream against the full WHATWG table.

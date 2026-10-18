@@ -92,7 +92,8 @@ on the next launch. An end that keeps local data wipes nothing, so every
 preference stays: a 401 (`LocalDataPolicy.keep`), and an idle timeout while any
 company has unsynced work. An idle timeout with nothing unsynced is a sign-out
 (`LocalDataPolicy.destroy`, `IdleTimeoutController._expire`), and the account
-preferences go with it.
+preferences go with it. The idle timeout runs on the web only
+(`IdleTimeoutController.enforced`).
 
 A key's scope is pinned in `device_pref_keys_test.dart`, because changing it
 changes what a sign-out does.

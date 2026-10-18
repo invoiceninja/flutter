@@ -119,7 +119,8 @@ class KanbanCard extends StatelessWidget {
                       );
                     },
                   ),
-                if (showTimerButton && TaskActions.canToggleTimer(task)) ...[
+                if (showTimerButton &&
+                    TaskActions.canTimeTask(context, task)) ...[
                   const Spacer(),
                   InlineTimerToggleButton(
                     task: task,

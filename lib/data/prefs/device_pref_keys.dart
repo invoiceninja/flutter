@@ -220,6 +220,16 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// Why the last session ended on its own — `{reason, detail?}` JSON, shown
+  /// once on the sign-in screen (`SignOutNotice`). Written just before the
+  /// logout it explains, which may wipe local data, so it belongs to the
+  /// device: an account scope would forget it in the same breath.
+  static const signOutNotice = PrefKey<String>(
+    'sign_out_notice_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -244,6 +254,7 @@ abstract final class DevicePrefKeys {
     hoursFormat,
     hidePeppolStatus,
     trustedCertificates,
+    signOutNotice,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

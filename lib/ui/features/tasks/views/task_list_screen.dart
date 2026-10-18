@@ -157,6 +157,9 @@ class TaskListScreen extends StatelessWidget {
         savedViews: services.savedViews,
         clientId: clientId,
         projectId: projectId,
+        // Read per call, so a company switch or a permission change applies.
+        canEditTask: (t) =>
+            TaskActions.canEditTask(services.auth.session.value, t),
       ),
       sortOptions: (context) => [
         SortOption(

@@ -9,8 +9,9 @@ import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 
 /// One-tap play/stop timer button shared by every inline task surface —
 /// list rows, kanban cards, and the detail KPI strip. Self-gating: renders
-/// nothing when [TaskActions.canToggleTimer] is false (invoiced / deleted /
-/// unsynced `tmp_`), so callers drop it in unconditionally.
+/// nothing when [TaskActions.canTimeTask] is false (invoiced / deleted /
+/// unsynced `tmp_`, or a task this user may not edit), so callers drop it in
+/// unconditionally.
 ///
 /// Idle → a muted `play_circle_outlined` that lifts to the accent color on
 /// desktop hover (touch keeps the muted resting state). Running → an accent
@@ -51,7 +52,7 @@ class _InlineTimerToggleButtonState extends State<InlineTimerToggleButton> {
   @override
   Widget build(BuildContext context) {
     final task = widget.task;
-    if (!TaskActions.canToggleTimer(task)) return const SizedBox.shrink();
+    if (!TaskActions.canTimeTask(context, task)) return const SizedBox.shrink();
 
     final tokens = context.inTheme;
     final services = context.read<Services>();

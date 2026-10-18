@@ -1,6 +1,6 @@
 # Probing the demo API
 
-Companion to CLAUDE.md § Reference points. The main file lists the legacy code pointers; this doc carries the live-server probe workflow.
+Companion to CLAUDE.md § Reference points. This doc carries the live-server probe workflow and, at the end, the legacy admin-portal code pointers.
 
 `demo.invoiceninja.com` accepts canned credentials for unauthenticated read probes — useful for confirming filter shapes and response payloads against a live server before wiring code to expectations:
 
@@ -36,3 +36,14 @@ curl -s -X POST "https://demo.invoiceninja.com/api/v1/login?include_static=true&
 ```
 
 The shared demo account is reset periodically. Don't lean on data persistence across runs.
+
+## Legacy admin-portal code pointers
+
+Read-only references in `/Users/hillel/Code/admin-portal`, the previous Flutter (Redux) app — mirror, never copy:
+
+- `lib/data/models/client_model.dart` — Client field set.
+- `lib/data/web_client.dart` — header set (213-231), version negotiation (245-258), demo mode (31, 266).
+- `lib/redux/auth/auth_middleware.dart` (102-120) — login response envelope.
+- `lib/redux/static/static_state.dart` — shape of the `/api/v1/statics` response.
+- `lib/redux/settings/settings_state.dart` (93-99) — settings cascade resolver.
+- `lib/data/models/entities.dart` — full EntityType enum + parent/child relationships.

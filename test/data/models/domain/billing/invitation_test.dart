@@ -78,7 +78,8 @@ void main() {
       );
       expect(inv.sentDate, isEmpty);
       expect(inv.hasSendHistory, isTrue);
-      expect(inv.hasError, isTrue);
+      expect(inv.sendState, InvitationSendState.errored);
+      expect(inv.hasFailedDelivery, isTrue);
     });
 
     test('a clone starts with an empty history', () {
@@ -165,11 +166,45 @@ void main() {
 
     test('the dead email_status == error arm still resolves', () {
       // The server never writes it (the column is an enum of the other
-      // three), but hasError's clause is still live code.
+      // three), but _hasError's clause is still live code.
       expect(
         base.copyWith(emailStatus: 'error').sendState,
         InvitationSendState.errored,
       );
+    });
+  });
+
+  group('hasFailedDelivery', () {
+    const base = Invitation(id: 'i1', clientContactId: 'c1');
+
+    test('a delivered mail carrying the MTA success line is not a failure', () {
+      // The beta report: every emailed doc wore the red bounce badge, because
+      // Postmark / Mailgun / Brevo store the delivery `Details` in
+      // email_error and the badge read any non-empty email_error as a bounce.
+      final delivered = base.copyWith(
+        emailStatus: 'delivered',
+        emailError: 'smtp;250 2.0.0 OK 1615496594 z6si',
+        sentDate: '2026-05-01',
+      );
+      expect(delivered.hasFailedDelivery, isFalse);
+    });
+
+    test('follows sendState for every state', () {
+      final cases = <Invitation, bool>{
+        base: false,
+        base.copyWith(sentDate: '2026-05-01'): false,
+        base.copyWith(emailStatus: 'delivered'): false,
+        base.copyWith(emailStatus: 'bounced', emailError: 'mailbox full'): true,
+        base.copyWith(emailStatus: 'spam'): true,
+        base.copyWith(emailError: 'Connection refused'): true,
+      };
+      for (final MapEntry(key: invitation, value: failed) in cases.entries) {
+        expect(
+          invitation.hasFailedDelivery,
+          failed,
+          reason: '${invitation.sendState}',
+        );
+      }
     });
   });
 

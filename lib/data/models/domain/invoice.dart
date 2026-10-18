@@ -227,11 +227,12 @@ extension InvoiceCalculation on Invoice {
 
   bool get hasViewedInvitation => invitations.any((i) => i.hasBeenViewed);
 
-  /// Any invitation whose email bounced or errored — drives the red
-  /// alert overlay on the list status chip (mirrors admin-portal
-  /// `invoice_model.dart` `isBounced`).
-  bool get hasBouncedInvitation =>
-      invitations.any((i) => i.hasBounced || i.hasError);
+  /// Any invitation whose send bounced, drew a spam complaint or failed —
+  /// drives the red alert overlay on the list status chip (mirrors
+  /// admin-portal `invoice_model.dart` `isBounced`). Goes through
+  /// `Invitation.hasFailedDelivery`, never `email_error`: on a delivered mail
+  /// that holds the MTA's success line.
+  bool get hasBouncedInvitation => invitations.any((i) => i.hasFailedDelivery);
 
   /// True iff the active due date (partial first, then full) is in the past
   /// AND the invoice still has a non-zero balance. Mirrors admin-portal

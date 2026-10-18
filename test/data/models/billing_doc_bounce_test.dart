@@ -26,6 +26,29 @@ void main() {
       expect(inv.hasBouncedInvitation, isFalse);
     });
 
+    test('false for a delivered invitation whose email_error holds the '
+        'MTA success line', () {
+      // Every webhook ESP stores the delivery `Details` in email_error, so
+      // reading a non-empty email_error as a bounce badged every delivered
+      // document (beta report: "all emails indicate they have bounced").
+      final inv = _invoiceWith([
+        {
+          'id': 'i1',
+          'email_status': 'delivered',
+          'email_error': 'smtp;250 2.0.0 OK 1615496594 z6si',
+          'sent_date': '2026-05-01',
+        },
+      ]);
+      expect(inv.hasBouncedInvitation, isFalse);
+    });
+
+    test('true when an invitation drew a spam complaint', () {
+      final inv = _invoiceWith([
+        {'id': 'i1', 'email_status': 'spam'},
+      ]);
+      expect(inv.hasBouncedInvitation, isTrue);
+    });
+
     test('true when an invitation status is bounced', () {
       final inv = _invoiceWith([
         {'id': 'i1', 'email_status': 'delivered'},

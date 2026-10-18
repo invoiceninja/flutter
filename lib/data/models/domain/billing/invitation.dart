@@ -55,7 +55,28 @@ extension InvitationAccessors on Invitation {
   bool get hasBeenViewed => viewedDate.isNotEmpty;
   bool get hasBeenOpened => openedDate.isNotEmpty;
   bool get hasBounced => emailStatus == 'bounced';
-  bool get hasError => emailStatus == 'error' || emailError.isNotEmpty;
+
+  /// Private on purpose: a non-empty `email_error` is **not** a failure — on a
+  /// delivered mail it is the MTA's success line (see [sendState]). Read
+  /// [hasFailedDelivery] or [sendState] instead.
+  bool get _hasError => emailStatus == 'error' || emailError.isNotEmpty;
+
+  /// The send bounced, drew a spam complaint, or failed at the MTA — what the
+  /// red overlay on a billing doc's status pill (`hasBouncedInvitation`) and
+  /// the Send Email screen's bounce warning report.
+  ///
+  /// Delegates to [sendState] so `email_status` wins whenever it is set. The
+  /// `hasBounced || hasError` this replaces read the Postmark / Mailgun / Brevo
+  /// delivery `Details` stored in `email_error` as a failure, and badged every
+  /// delivered document. admin-portal's `isBounced` had the same guard
+  /// (`emailStatus != delivered`). Spam counts because the ESP suppresses a
+  /// complaining address, so a resend fails too.
+  bool get hasFailedDelivery => switch (sendState) {
+    InvitationSendState.bounced ||
+    InvitationSendState.spam ||
+    InvitationSendState.errored => true,
+    InvitationSendState.delivered || InvitationSendState.none => false,
+  };
 
   /// True when this invitation has something to report in the Email History
   /// tab (`BillingDocSendsTab`, which also lists the reads that must NOT use
@@ -115,7 +136,7 @@ extension InvitationAccessors on Invitation {
   /// The server writes exactly three `email_status` values — `delivered`,
   /// `bounced`, `spam`, twelve sites across the four ESP webhook jobs, behind
   /// an `enum('delivered','bounced','spam')` column — and never `'error'`, so
-  /// [hasError]'s `== 'error'` arm is dead code.
+  /// [_hasError]'s `== 'error'` arm is dead code.
   ///
   /// Resolved here rather than in the widget so it is unit-testable, and
   /// carrying no `Color` so `lib/data` never reaches `lib/ui` — the same
@@ -124,7 +145,7 @@ extension InvitationAccessors on Invitation {
     if (hasBounced) return InvitationSendState.bounced;
     if (emailStatus == 'spam') return InvitationSendState.spam;
     if (emailStatus == 'delivered') return InvitationSendState.delivered;
-    if (hasError) return InvitationSendState.errored;
+    if (_hasError) return InvitationSendState.errored;
     return InvitationSendState.none;
   }
 }

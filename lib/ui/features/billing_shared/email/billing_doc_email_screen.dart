@@ -253,10 +253,12 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   bool get _hasDeliverable => _emailState != RecipientEmailState.none;
 
   /// Every recipient previously bounced / errored — resending just bounces
-  /// again until they're reactivated from the History tab.
+  /// again until they're reactivated from the History tab. Through
+  /// `hasFailedDelivery`, so a delivered mail (whose `email_error` holds the
+  /// MTA's success line) never raises the warning.
   bool get _allBounced =>
       widget.invitations.isNotEmpty &&
-      widget.invitations.every((i) => i.hasBounced || i.hasError);
+      widget.invitations.every((i) => i.hasFailedDelivery);
 
   bool get _canSend => !_inFlight && !_isTmp && _hasDeliverable && !_ccInvalid;
 

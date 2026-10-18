@@ -46,26 +46,20 @@ Future<Map<String, EmailContact>?> loadEmailContacts(
 Future<String?> showAddContactEmailDialog(
   BuildContext context, {
   required String contactLabel,
-}) async {
-  final controller = TextEditingController();
-  final result = await showDialog<String>(
-    context: context,
-    builder: (ctx) => _AddContactEmailDialog(
-      controller: controller,
-      contactLabel: contactLabel,
-    ),
-  );
-  controller.dispose();
-  return result;
-}
+}) => showDialog<String>(
+  context: context,
+  builder: (ctx) => _AddContactEmailDialog(contactLabel: contactLabel),
+);
 
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
 class _AddContactEmailDialog extends StatefulWidget {
-  const _AddContactEmailDialog({
-    required this.controller,
-    required this.contactLabel,
-  });
+  const _AddContactEmailDialog({required this.contactLabel});
 
-  final TextEditingController controller;
   final String contactLabel;
 
   @override
@@ -73,10 +67,17 @@ class _AddContactEmailDialog extends StatefulWidget {
 }
 
 class _AddContactEmailDialogState extends State<_AddContactEmailDialog> {
+  final _controller = TextEditingController();
   bool _invalid = false;
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _submit() {
-    final email = widget.controller.text.trim();
+    final email = _controller.text.trim();
     if (!isLikelyEmailAddress(email)) {
       setState(() => _invalid = true);
       return;
@@ -91,7 +92,7 @@ class _AddContactEmailDialogState extends State<_AddContactEmailDialog> {
       child: AlertDialog(
         title: Text(context.tr('add_email')),
         content: TextField(
-          controller: widget.controller,
+          controller: _controller,
           autofocus: true,
           keyboardType: TextInputType.emailAddress,
           autocorrect: false,

@@ -47,17 +47,10 @@ class EntityActivityViewModel extends ChangeNotifier {
     required this.outbox,
     required this.companyId,
     required this.entityWireName,
-    required this.entityId,
+    required String entityId,
     this.kickDebounce = const Duration(milliseconds: 300),
-  }) {
-    _pendingSub = outbox
-        .watchPendingForEntity(
-          companyId: companyId,
-          entityType: entityWireName,
-          entityId: entityId,
-          kind: MutationKind.addComment,
-        )
-        .listen(_onPendingTick);
+  }) : _entityId = entityId {
+    _pendingSub = _watchPending();
   }
 
   final ActivitiesApi api;
@@ -67,7 +60,11 @@ class EntityActivityViewModel extends ChangeNotifier {
   /// Singular wire name — what `POST /activities/entity` wants. Note
   /// `ActivitiesApi.addNote` takes the *plural* form.
   final String entityWireName;
-  final String entityId;
+
+  /// The record whose feed this is. Fixed for the life of the view model,
+  /// except for the one switch [rebind] makes when a `tmp_` record syncs.
+  String get entityId => _entityId;
+  String _entityId;
 
   /// Collapses a burst of mounts into one request. `MasterDetailLayout` binds
   /// J/K/↑/↓ to step through a list and the router re-keys the detail subtree
@@ -163,11 +160,63 @@ class EntityActivityViewModel extends ChangeNotifier {
           .toList(growable: false);
     }
     if (seed != null) _adopt(seed.map(Activity.fromApi), notify: false);
+    _armFetch();
+  }
+
+  void _armFetch() {
+    _kickTimer?.cancel();
     _kickTimer = Timer(kickDebounce, () {
       _kickTimer = null;
       unawaited(refresh());
     });
   }
+
+  /// Follow the record from its `tmp_` id to the real one once its create has
+  /// synced. Call it from the host's `bodyBuilder` with the record's *current*
+  /// id, just before [kick].
+  ///
+  /// The screen is routed by the id it was opened with, and the scaffold
+  /// follows the `id_remap` to the real record — but this view model was built
+  /// with that `tmp_` id, and [refresh] never fetches one. So a just-created
+  /// record never loaded its Comments or Activity, and a comment added once it
+  /// had synced — queued under the real id, since a `tmp_` record takes no
+  /// comments at all (`requireSynced`) — never appeared.
+  ///
+  /// One-shot: nothing happens once disposed, for the same id, when the
+  /// current id is already real (a real record is never re-pointed), or when
+  /// the new id is still a `tmp_`. Otherwise the feed simply follows the
+  /// record: the pending watch moves to the new id (the old one cancelled
+  /// first, as any replaced subscription is) and, when [kick] has already
+  /// run, the debounced fetch is armed again for the real id.
+  ///
+  /// [pendingRows] is deliberately kept: the new watch's first emission
+  /// replaces it, and clearing it here would animate a card whose only
+  /// comment is pending shut and open again. Never notifies — it runs inside
+  /// the host's `build` (see [kick]).
+  void rebind(String id) {
+    if (_disposed || id == _entityId) return;
+    if (!isUnsynced(_entityId) || isUnsynced(id)) return;
+    _entityId = id;
+    unawaited(_pendingSub?.cancel());
+    _pendingSub = _watchPending();
+    _lastPendingCount = 0;
+    _settled = false;
+    // Back to "not started": `refresh`'s `tmp_` early return set it, and left
+    // set, a drain edge on the new watch would fetch at once while the armed
+    // fetch below fetched again — `refresh` has no in-flight guard. The armed
+    // fetch covers any edge that arrives before it.
+    _started = false;
+    if (_kicked) _armFetch();
+  }
+
+  StreamSubscription<List<OutboxRow>> _watchPending() => outbox
+      .watchPendingForEntity(
+        companyId: companyId,
+        entityType: entityWireName,
+        entityId: _entityId,
+        kind: MutationKind.addComment,
+      )
+      .listen(_onPendingTick);
 
   /// True once a [refresh] has finished — with rows, with an error, or without
   /// going out at all for a `tmp_` id.

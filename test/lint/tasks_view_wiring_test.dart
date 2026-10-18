@@ -120,11 +120,12 @@ void main() {
   });
 
   test('the kanban screen has no create FAB', () {
-    // Its three siblings — daily / weekly / calendar — each hardcode an
-    // identical `FloatingActionButton`, and they keep it: a FAB may only be
-    // dropped where the substitute is the SAME verb. Daily and weekly do have
-    // a second create (`TaskDailyActions.logTime`, behind an always-visible
-    // `Log time` button), but it pre-fills a time entry and says so, and
+    // Its three siblings — daily / weekly / calendar — each build the same
+    // `FloatingActionButton` (withdrawn, like the list's, from a user without
+    // `create_task`), and they keep it: a FAB may only be dropped where the
+    // substitute is the SAME verb. Daily and weekly do have a second create
+    // (`TaskDailyActions.logTime`, behind a `Log time` button under the same
+    // permission gate), but it pre-fills a time entry and says so, and
     // calendar's is convert-this-event — neither is a plain new task. Kanban's
     // FAB was the one true duplicate: every column already ends in a
     // `+ New Task` that seeds that column's status, where the FAB seeded

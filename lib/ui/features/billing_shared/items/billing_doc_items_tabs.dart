@@ -107,7 +107,9 @@ enum _LineKind { products, tasks, expenses }
 // (`type_id` 2, no `task_id`) is a Tasks line — the server prints it in the
 // PDF's task table. Expense lines are `standard` + `expense_id`; the only
 // type-6 line this app makes is the desktop row-menu clone of one, which drops
-// the link and is stamped type 6 so it stays in the Expenses tab.
+// the link and is stamped type 6 so it stays in the Expenses tab. Nothing
+// else can make one: the Expenses tab takes no typed rows (`allowNewRows`), so
+// its lines come from existing expenses (or a clone of one), never typed.
 bool _isExpenseLine(LineItem li) =>
     (li.expenseId ?? '').isNotEmpty || li.typeId == LineItemType.expense;
 bool _isTaskLine(LineItem li) =>
@@ -460,6 +462,11 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
 
   /// A new row in the Tasks tab is hourly (`type_id` 2) — otherwise the line
   /// typed there would be a product line and jump straight out of the tab.
+  ///
+  /// The Expenses tab gets the plain factory, but never uses it to add a row:
+  /// a typed line there would be a product line for the same reason, and its
+  /// editor takes no new rows (`allowNewRows` in [_editor]). Its row Clone
+  /// copies an existing line rather than calling this.
   LineItem Function() _factoryFor(_LineKind kind) => kind == _LineKind.tasks
       ? () => widget.newItemFactory().copyWith(typeId: LineItemType.task)
       : widget.newItemFactory;
@@ -497,6 +504,11 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       ),
       onPickItems: widget.onPickItems,
       onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
+      // An expense line is `standard` + `expense_id`, and a typed row has no
+      // expense: it committed as a product line, left this subset still
+      // holding its text, and committed again at every pause — a duplicate
+      // product line each time, all of them saved. Typed lines go on Products.
+      allowNewRows: kind != _LineKind.expenses,
     );
   }
 

@@ -138,6 +138,21 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
         perPage: 200,
         filters: {'entity_types': types},
       );
+      // The company changed while this page was in flight, so these rows came
+      // back under a different workspace's token and stamping them with our
+      // `companyId` would file one workspace's records under another. Tags are
+      // the one entity with no `ensurePageLoaded` at all — `refreshAll` pages
+      // `api.list` directly, across every entity type at once — so this repo
+      // can't inherit the guard from `ensurePageLoadedTemplate` and writes it
+      // out. Checked before the empty-page `break`, as the template does: the
+      // other company's empty page is not this company's end of list.
+      if (!companyStillActive(companyId)) {
+        throw CompanySwitchedException(
+          expected: companyId,
+          active: activeCompanyId?.call(),
+          entityType: entityTypeName,
+        );
+      }
       final items = result.data.data;
       if (items.isEmpty) break;
       // Scope comes from the row's own `entity_type`, never from what we asked
@@ -147,20 +162,6 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
       final byId = <String, TagsCompanion>{
         for (final a in items) a.id: _apiToCompanion(a, companyId),
       };
-      // The company changed while this page was in flight, so these rows came
-      // back under a different workspace's token and stamping them with our
-      // `companyId` would file one workspace's records under another. Tags are
-      // the one entity with no `ensurePageLoaded` at all — `refreshAll` pages
-      // `api.list` directly, across every entity type at once — so this repo
-      // can't inherit the guard from `ensurePageLoadedTemplate` and writes it
-      // out.
-      if (!companyStillActive(companyId)) {
-        throw CompanySwitchedException(
-          expected: companyId,
-          active: activeCompanyId?.call(),
-          entityType: entityTypeName,
-        );
-      }
 
       await db.tagDao.upsertAllPreservingDirty(
         companyId: companyId,

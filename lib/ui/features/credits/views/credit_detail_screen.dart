@@ -148,8 +148,12 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
         figure: credit.balance,
         formatter: formatter,
       ),
-      // A deleted credit is read-only until restored.
-      isReadOnly: (credit) => credit.isDeleted,
+      // A deleted credit is read-only until restored, and so is one this
+      // user may not edit — `E` must not open an editor the menu hides.
+      // The session is read when the key is pressed, not at build.
+      isReadOnly: (credit) =>
+          credit.isDeleted ||
+          !mayEditCredit(_services.auth.session.value, credit),
       onRefresh: _record.refresh,
       bannerForItem: (context, credit) => recordStateBanner<CreditAction>(
         context,
@@ -169,7 +173,11 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
   }
 
   Widget _body(BuildContext context, Credit credit) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(credit.id)
+      ..kick();
     _record.attach(recordId: credit.id, revision: credit.updatedAt);
     Future<void> submit(String text) => _services.credits.addComment(
       companyId: _companyId,

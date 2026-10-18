@@ -1167,7 +1167,18 @@ class Services implements SidebarBadgeContext {
       try {
         await run();
       } catch (e, st) {
-        _servicesLog.warning('resyncAllEntities: "${type.name}" failed', e, st);
+        if (e is CompanySwitchedException) {
+          // Raised BY DESIGN when a switch lands mid-sweep, as in the
+          // prefetch: still a step that did not finish, but an expected
+          // condition stays out of the WARNING+ diagnostics log.
+          _servicesLog.fine('resyncAllEntities: "${type.name}" abandoned: $e');
+        } else {
+          _servicesLog.warning(
+            'resyncAllEntities: "${type.name}" failed',
+            e,
+            st,
+          );
+        }
         failed.add(type.name);
       }
       onProgress?.call(i + 1, planned.length);

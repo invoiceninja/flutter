@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/data/models/domain/recurring_invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
@@ -57,6 +58,20 @@ enum RecurringInvoiceAction {
   restore,
   delete,
 }
+
+/// Whether [session]'s user may edit [ri] — the server's rule, not just
+/// the permission: the record's creator or assignee may change it too
+/// (`AuthSession.canEditRecord`). The Edit action and the record screen's
+/// `E` shortcut (`isReadOnly`) both read it, so the key cannot open an
+/// editor the menu does not offer.
+bool mayEditRecurringInvoice(AuthSession? session, RecurringInvoice ri) =>
+    session?.canEditRecord(
+      'recurring_invoice',
+      createdBy: ri.userId,
+      assignedTo: ri.assignedUserId,
+      recordId: ri.id,
+    ) ??
+    false;
 
 class RecurringInvoiceActions {
   RecurringInvoiceActions._();
@@ -132,16 +147,10 @@ class RecurringInvoiceActions {
     // Read lazily here (itemsFor runs per build) so it re-resolves on a
     // company switch.
     final canViewClient = me?.can('view_client') ?? false;
-    // The server's rule, not just the permission: the record's creator or
-    // assignee may change it too (`AuthSession.canEditRecord`).
-    final canEdit =
-        context.read<Services>().auth.session.value?.canEditRecord(
-          'recurring_invoice',
-          createdBy: ri.userId,
-          assignedTo: ri.assignedUserId,
-          recordId: ri.id,
-        ) ??
-        false;
+    final canEdit = mayEditRecurringInvoice(
+      context.read<Services>().auth.session.value,
+      ri,
+    );
     final canCreate = me?.can('create_recurring_invoice') ?? false;
     final canDelete = canEdit;
     // React gates send_now on draft (it sends the first occurrence now); it is

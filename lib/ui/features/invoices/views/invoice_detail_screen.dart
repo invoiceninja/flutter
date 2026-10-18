@@ -184,8 +184,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
         figure: invoice.balance,
         formatter: formatter,
       ),
-      // A deleted invoice is read-only until restored.
-      isReadOnly: (invoice) => invoice.isDeleted,
+      // A deleted invoice is read-only until restored, and so is one this
+      // user may not edit — `E` must not open an editor the menu hides.
+      // The session is read when the key is pressed, not at build.
+      isReadOnly: (invoice) =>
+          invoice.isDeleted ||
+          !mayEditInvoice(_services.auth.session.value, invoice),
       onRefresh: _record.refresh,
       bannerForItem: (context, invoice) => recordStateBanner<InvoiceAction>(
         context,
@@ -209,7 +213,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   }
 
   Widget _body(BuildContext context, Invoice invoice) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(invoice.id)
+      ..kick();
     _record.attach(recordId: invoice.id, revision: invoice.updatedAt);
     Future<void> submit(String text) => _services.invoices.addComment(
       companyId: _companyId,

@@ -120,11 +120,14 @@ void main() {
     bool readOnly = false,
     EmbeddedListIntents? intents,
     DetailRefreshSignal? refresh,
+    FakeCompany company = const FakeCompany(
+      id: 'co1',
+      name: 'Acme',
+      isAdmin: true,
+    ),
   }) async {
     final created = <int>[];
-    final fixture = await buildFixture(
-      companies: const [FakeCompany(id: 'co1', name: 'Acme', isAdmin: true)],
-    );
+    final fixture = await buildFixture(companies: [company]);
     addTearDown(fixture.dispose);
 
     Widget list = SingleChildScrollView(
@@ -187,6 +190,48 @@ void main() {
     await tester.tap(newButton);
     expect(created, hasLength(1));
     await dispose(tester);
+  });
+
+  // The New button and `N` asked nothing of the user, so a view-only one
+  // was handed a create form the server would refuse to save.
+  group('a user without create_invoice', () {
+    testWidgets('gets no New button, and N does nothing', (tester) async {
+      final created = await pumpList(
+        tester,
+        parentId: 'c1',
+        company: const FakeCompany(
+          id: 'co1',
+          name: 'Acme',
+          isAdmin: false,
+          isOwner: false,
+          permissions: 'view_invoice',
+        ),
+      );
+      expect(newButton, findsNothing, reason: 'left out, not greyed');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await _frames(tester);
+      expect(created, isEmpty);
+      await dispose(tester);
+    });
+
+    testWidgets('control: with it, both work', (tester) async {
+      final created = await pumpList(
+        tester,
+        parentId: 'c1',
+        company: const FakeCompany(
+          id: 'co1',
+          name: 'Acme',
+          isAdmin: false,
+          isOwner: false,
+          permissions: 'view_invoice,create_invoice',
+        ),
+      );
+      await tester.tap(newButton);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await _frames(tester);
+      expect(created, hasLength(2));
+      await dispose(tester);
+    });
   });
 
   testWidgets('a read-only parent withdraws New — button and shortcut', (

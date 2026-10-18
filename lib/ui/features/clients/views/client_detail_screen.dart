@@ -197,7 +197,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
   }
 
   Widget _body(BuildContext context, Client c) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(c.id)
+      ..kick();
     Future<void> submit(String text) => _services.clients.addComment(
       companyId: _companyId,
       entityId: c.id,

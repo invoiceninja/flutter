@@ -20,35 +20,10 @@ Future<void> showRenameSavedViewDialog(
   BuildContext context,
   SavedView view,
 ) async {
-  final controller = TextEditingController(text: view.name);
   final result = await showDialog<String>(
     context: context,
-    builder: (ctx) {
-      return AlertDialog(
-        title: Text(ctx.tr('rename')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(labelText: ctx.tr('view_name')),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('save'),
-            // The name field owns focus + fires Enter via its onSubmitted.
-            autofocus: false,
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-          ),
-        ],
-      );
-    },
+    builder: (_) => _RenameSavedViewDialog(initialName: view.name),
   );
-  controller.dispose();
   if (result == null || result.isEmpty || result == view.name) return;
   if (!context.mounted) return;
   final services = context.read<Services>();
@@ -66,6 +41,57 @@ Future<void> showRenameSavedViewDialog(
       context.tr('could_not_save'),
       error: e,
       messenger: messenger,
+    );
+  }
+}
+
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
+class _RenameSavedViewDialog extends StatefulWidget {
+  const _RenameSavedViewDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_RenameSavedViewDialog> createState() => _RenameSavedViewDialogState();
+}
+
+class _RenameSavedViewDialogState extends State<_RenameSavedViewDialog> {
+  late final _controller = TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.tr('rename')),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(labelText: context.tr('view_name')),
+        onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('save'),
+          // The name field owns focus + fires Enter via its onSubmitted.
+          autofocus: false,
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -33,7 +34,11 @@ Future<void> applyPaymentToOldestInvoice(
 ) async {
   if (!requireSynced(context, payment.id)) return;
   try {
-    final target = await _oldestUnpaidInvoice(services, companyId, payment);
+    final target = await oldestUnpaidInvoice(
+      services.invoices,
+      companyId: companyId,
+      clientId: payment.clientId,
+    );
     if (!context.mounted) return;
     if (target == null) {
       Notify.error(context, context.tr('no_unpaid_invoices'));
@@ -70,6 +75,12 @@ Future<void> applyPaymentToOldestInvoice(
     if (context.mounted) {
       Notify.success(context, context.tr('applied_payment'));
     }
+  } on StaleApplyTargetsException {
+    // Not "no unpaid invoices": an unchecked one may well be unpaid, and the
+    // re-fetches corrected the cache, so trying again gets past them.
+    if (context.mounted) {
+      Notify.error(context, context.tr('an_error_occurred_try_again'));
+    }
   } on CompanySwitchedException {
     // The company changed under the prefetch. Benign — the payment belongs to
     // the workspace the user just left.
@@ -86,46 +97,91 @@ Future<void> applyPaymentToOldestInvoice(
   }
 }
 
-Future<Invoice?> _oldestUnpaidInvoice(
-  Services services,
-  String companyId,
-  Payment payment,
-) async {
+/// How many cached winners [oldestUnpaidInvoice] re-checks against the server
+/// before it gives up. Each one it re-fetches is corrected in the cache, so a
+/// second tap starts past them.
+const int _kMaxTargetChecks = 3;
+
+/// [oldestUnpaidInvoice] ran out of re-checks with candidates still unchecked:
+/// every one it looked at had been paid since it was cached. Distinct from
+/// "none" — there may well be an unpaid invoice further down.
+@visibleForTesting
+class StaleApplyTargetsException implements Exception {
+  const StaleApplyTargetsException();
+}
+
+/// The client's oldest invoice that money can be applied to, re-read from the
+/// server so its balance is current; null when there is none.
+///
+/// Two things made the old pick wrong:
+///
+/// - **The fetch was the client's newest page of any status.** A client with
+///   fifty newer invoices never had the oldest unpaid one in the cache, so the
+///   "oldest" was whatever old-enough invoice happened to be there. It now asks
+///   for the client's unpaid invoices, oldest first (`client_status`, `sort` —
+///   a narrowed fetch, so it neither reads nor advances the list's cursor).
+///   Still `ensurePageLoaded`, not `ensureUnpaidForClientLoaded`: that one is
+///   newest-first too, and swallows the error this action has to report.
+/// - **The pick reads the whole local cache**, which can hold an invoice that
+///   was paid since it was cached. So the winner is re-fetched
+///   ([InvoiceRepository.refreshByIds]), re-read and re-filtered; one that no
+///   longer qualifies yields to the next, up to [_kMaxTargetChecks] times;
+///   past that, with candidates left, it throws [StaleApplyTargetsException]
+///   rather than claim there are none. `refreshByIds` swallows errors, so a
+///   failed re-fetch keeps the cached balance — the server still validates
+///   the payment.
+@visibleForTesting
+Future<Invoice?> oldestUnpaidInvoice(
+  InvoiceRepository invoices, {
+  required String companyId,
+  required String clientId,
+}) async {
   // Make sure the client's invoices are in Drift before reading the local
   // cache. Without this, a user landing on the payment before ever opening
   // the invoices list would be told there is nothing unpaid when the server
   // has plenty.
-  await services.invoices.ensurePageLoaded(
+  await invoices.ensurePageLoaded(
     companyId: companyId,
     page: 1,
     extraFilters: {
-      'client_id': {payment.clientId},
+      'client_id': {clientId},
+      // Sent + Partial, server-side — the oldest of them first, so the page
+      // holds the invoice this is looking for.
+      'client_status': const {'unpaid'},
+      'sort': const {'date|asc'},
     },
   );
-  final invoices = await services.invoices
-      .watchForClient(companyId: companyId, clientId: payment.clientId)
+  final cached = await invoices
+      .watchForClient(companyId: companyId, clientId: clientId)
       .first;
-  // Drafts and archived invoices are NOT targets: the server's `applyPayment`
-  // calls `markSent()` first, so applying to a draft would silently send AND
-  // pay it. Mirrors the manual picker's filter in
-  // `payment_allocations_section.dart`.
-  final candidates =
-      invoices
-          .where(
-            (i) =>
-                i.balance > Decimal.zero &&
-                !i.isDeleted &&
-                !i.isDraft &&
-                i.archivedAt == null,
-          )
-          .toList()
-        ..sort((a, b) {
-          final ad = a.date?.toIso() ?? '';
-          final bd = b.date?.toIso() ?? '';
-          return ad.compareTo(bd);
-        });
-  return candidates.isEmpty ? null : candidates.first;
+  final candidates = cached.where(_isApplyTarget).toList()
+    ..sort((a, b) {
+      final ad = a.date?.toIso() ?? '';
+      final bd = b.date?.toIso() ?? '';
+      return ad.compareTo(bd);
+    });
+  for (final candidate in candidates.take(_kMaxTargetChecks)) {
+    await invoices.refreshByIds(companyId: companyId, ids: [candidate.id]);
+    final current = await invoices
+        .watchByRealId(companyId: companyId, id: candidate.id)
+        .first;
+    if (current != null && _isApplyTarget(current)) return current;
+  }
+  if (candidates.length > _kMaxTargetChecks) {
+    throw const StaleApplyTargetsException();
+  }
+  return null;
 }
+
+/// Drafts and archived invoices are NOT targets: the server's `applyPayment`
+/// calls `markSent()` first, so applying to a draft would silently send AND
+/// pay it. Mirrors the manual picker's filter in
+/// `payment_allocations_section.dart`.
+bool _isApplyTarget(Invoice i) =>
+    i.balance > Decimal.zero &&
+    !i.isDeleted &&
+    !i.isDraft &&
+    i.archivedAt == null;
 
 /// Names the invoice, what is owed on it and what will be applied — label and
 /// value pairs rather than a sentence, so there is no word order for a

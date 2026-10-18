@@ -23,10 +23,10 @@ import 'package:admin/utils/formatting.dart';
 /// [showLineItemEditDialog].
 ///
 /// Both add affordances render in BOTH states — empty and populated — via
-/// [_AddItemActions]. That is not cosmetic: the Items-tab FAB that used to
-/// carry the picker is gone on this branch (invoiceninja/flutter#142), so
-/// `Add Items` here is the only door to it on a phone, and it used to exist
-/// only while the list was empty.
+/// [_AddItemActions] (`Add Line` only where [allowNewRows]). That is not
+/// cosmetic: the Items-tab FAB that used to carry the picker is gone on this
+/// branch (invoiceninja/flutter#142), so `Add Items` here is the only door to
+/// it on a phone, and it used to exist only while the list was empty.
 class LineItemCardListMobile extends StatelessWidget {
   const LineItemCardListMobile({
     super.key,
@@ -39,6 +39,7 @@ class LineItemCardListMobile extends StatelessWidget {
     this.onPickItems,
     this.onCreateTaskFromLineItem,
     this.rowErrors,
+    this.allowNewRows = true,
   });
 
   /// Company scope used to look up the active [Formatter] so cost /
@@ -78,6 +79,10 @@ class LineItemCardListMobile extends StatelessWidget {
   /// colour and names them, so a 422 on `line_items.2.cost` points at the
   /// row on a phone too, not only in the desktop table.
   final Map<int, Map<String, String>>? rowErrors;
+
+  /// False hides `Add Line` — see `LineItemEditor.allowNewRows`. `Add Items`
+  /// stays: the picker adds real linked lines.
+  final bool allowNewRows;
 
   Future<void> _openEditor(BuildContext context, int index) async {
     final fmt = context.read<Services>().formatterIfReady(companyId);
@@ -160,7 +165,7 @@ class LineItemCardListMobile extends StatelessWidget {
             title: context.tr('no_line_items'),
             action: _AddItemActions(
               alignment: WrapAlignment.center,
-              onAdd: () => _add(context),
+              onAdd: allowNewRows ? () => _add(context) : null,
               onPickItems: onPickItems,
             ),
           ),
@@ -176,7 +181,7 @@ class LineItemCardListMobile extends StatelessWidget {
           padding: EdgeInsets.only(top: InSpacing.sm),
           child: _AddItemActions(
             alignment: WrapAlignment.start,
-            onAdd: () => _add(context),
+            onAdd: allowNewRows ? () => _add(context) : null,
             onPickItems: onPickItems,
           ),
         ),
@@ -240,7 +245,8 @@ class _AddItemActions extends StatelessWidget {
   /// the buttons continue the rows above rather than heading the pane.
   final WrapAlignment alignment;
 
-  final VoidCallback onAdd;
+  /// Null hides `Add Line` — see [LineItemCardListMobile.allowNewRows].
+  final VoidCallback? onAdd;
 
   /// Null hides the picker button — see [LineItemCardListMobile.onPickItems].
   final VoidCallback? onPickItems;
@@ -252,16 +258,17 @@ class _AddItemActions extends StatelessWidget {
       spacing: InSpacing.md(context),
       runSpacing: InSpacing.sm,
       children: [
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-          icon: const Icon(Icons.add),
-          // "Add Line", not "Add Item": the two buttons are now always
-          // adjacent, and `Add Item` / `Add Items` differ by one letter while
-          // doing different things — which is how #142's reporter came to read
-          // the picker FAB as a duplicate of the button beside it.
-          label: Text(context.tr('add_line')),
-          onPressed: onAdd,
-        ),
+        if (onAdd != null)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            icon: const Icon(Icons.add),
+            // "Add Line", not "Add Item": the two buttons are now always
+            // adjacent, and `Add Item` / `Add Items` differ by one letter while
+            // doing different things — which is how #142's reporter came to
+            // read the picker FAB as a duplicate of the button beside it.
+            label: Text(context.tr('add_line')),
+            onPressed: onAdd,
+          ),
         if (onPickItems != null)
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),

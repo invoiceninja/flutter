@@ -179,8 +179,13 @@ extension PurchaseOrderPayload on PurchaseOrder {
       'vendor_id': vendorId,
       'project_id': projectId,
       'expense_id': expenseId,
-      'invoice_id': invoiceId,
-      'quote_id': quoteId,
+      // The two source links, only when set. A PO cached before `quote_id`
+      // was modelled decodes it as '' (no key in its stored payload), and the
+      // server takes an empty string as "clear the link", so a plain edit of
+      // that PO unlinked its quote. Nothing in the app clears either link on
+      // an update, and a create with no source omits them just the same.
+      if (invoiceId.isNotEmpty) 'invoice_id': invoiceId,
+      if (quoteId.isNotEmpty) 'quote_id': quoteId,
       'design_id': designId,
       'assigned_user_id': assignedUserId,
       'user_id': userId,

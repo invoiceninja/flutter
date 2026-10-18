@@ -8,6 +8,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/repositories/document_repository.dart';
 import 'package:admin/data/repositories/embedded_documents_owner.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -546,6 +547,54 @@ void main() {
       await repo.refreshAll(companyId: co);
       expect(await storedIds(), unorderedEquals(['a', 'b']));
     });
+
+    test('a company switch mid-sweep prunes nothing — the other company\'s '
+        'empty page is not this company\'s end of list', () async {
+      // One row a page, so the sweep needs three requests and the switch can
+      // land between them; at the default 50, page 2 is never asked for.
+      final sweeper = DocumentRepository(db: db, api: api, pageSize: 1);
+      // Three clean server copies: no `tmp_` id, no outbox row, and no cached
+      // record lists them, so a sweep that reached the end may take any it
+      // didn't see.
+      api.pages[1] = [doc('a'), doc('b'), doc('c')];
+      await sweeper.ensurePageLoaded(
+        companyId: co,
+        page: 1,
+        ignoreCursor: true,
+      );
+      expect(await storedIds(), unorderedEquals(['a', 'b', 'c']));
+
+      // The sweep: `a` on page 1, `b` on page 2. The user switches company
+      // while page 3 is in flight, and it comes back empty — company B's
+      // answer, under B's token.
+      api.pages
+        ..clear()
+        ..[1] = [doc('a')]
+        ..[2] = [doc('b')];
+      api.onList = (page) {
+        if (page == 3) sweeper.activeCompanyId = () => 'co_b';
+      };
+
+      await expectLater(
+        sweeper.refreshAll(companyId: co, full: true),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+
+      expect(
+        await storedIds(),
+        contains('c'),
+        reason: 'never fetched is not the same as gone',
+      );
+      final cursor = await db.syncStateDao.read(
+        companyId: co,
+        entityType: 'document',
+      );
+      expect(
+        cursor.lastFullAt,
+        isNull,
+        reason: 'a sweep that never finished must not stamp a full sync',
+      );
+    });
   });
 
   test(
@@ -623,6 +672,10 @@ class _FakeDocumentsApi implements DocumentsApi {
   final Map<int, List<DocumentApi>> pages = {};
   final List<Map<String, String>> listFilters = [];
 
+  /// Called with the requested page before it is answered — what a test uses
+  /// to land a company switch while a page is in flight.
+  void Function(int page)? onList;
+
   @override
   Future<({DocumentListApi data, int? cursorUpdatedAt, String? cursorId})>
   list({
@@ -633,6 +686,7 @@ class _FakeDocumentsApi implements DocumentsApi {
     String? sinceId,
     Map<String, String> filters = const {},
   }) async {
+    onList?.call(page);
     listFilters.add(filters);
     final rows = pages[page] ?? const <DocumentApi>[];
     return (

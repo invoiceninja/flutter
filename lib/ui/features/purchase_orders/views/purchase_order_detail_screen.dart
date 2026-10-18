@@ -161,8 +161,12 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         figure: po.amount,
         formatter: formatter,
       ),
-      // A deleted purchase order is read-only until restored.
-      isReadOnly: (po) => po.isDeleted,
+      // A deleted purchase order is read-only until restored, and so is one
+      // this user may not edit — `E` must not open an editor the menu hides.
+      // The session is read when the key is pressed, not at build.
+      isReadOnly: (po) =>
+          po.isDeleted ||
+          !mayEditPurchaseOrder(_services.auth.session.value, po),
       onRefresh: _record.refresh,
       bannerForItem: (context, po) => recordStateBanner<PurchaseOrderAction>(
         context,
@@ -182,7 +186,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   }
 
   Widget _body(BuildContext context, PurchaseOrder po) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(po.id)
+      ..kick();
     _record.attach(recordId: po.id, revision: po.updatedAt);
     Future<void> submit(String text) => _services.purchaseOrders.addComment(
       companyId: _companyId,

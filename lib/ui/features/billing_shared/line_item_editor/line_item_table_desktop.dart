@@ -132,8 +132,10 @@ int debugLineItemRowBuilds = 0;
 /// Inline-editable desktop line-item table. Each cell is its own editor
 /// (product autocomplete, debounced text fields, tax dropdown). Drag
 /// handles + per-row overflow menu cover reorder / clone / insert /
-/// remove. A synthetic trailing blank row is always rendered so the
-/// user can start typing without first clicking Add.
+/// remove. A synthetic trailing blank row is rendered so the user can
+/// start typing without first clicking Add — unless [allowNewRows] is
+/// false, when it stays in `_rows` (rows pair with items by position) but
+/// is never rendered or promoted.
 class LineItemTableDesktop extends StatefulWidget {
   const LineItemTableDesktop({
     super.key,
@@ -148,6 +150,7 @@ class LineItemTableDesktop extends StatefulWidget {
     this.rowErrors,
     this.showStockQuantity = false,
     this.onCreateTaskFromLineItem,
+    this.allowNewRows = true,
   });
 
   final String companyId;
@@ -182,6 +185,12 @@ class LineItemTableDesktop extends StatefulWidget {
   /// invoice / quote layouts so `billing_shared` stays free of task imports;
   /// null everywhere else, and the menu item simply doesn't render.
   final ValueChanged<LineItem>? onCreateTaskFromLineItem;
+
+  /// False hides the trailing blank row and every row's "Insert Below" — see
+  /// `LineItemEditor.allowNewRows`. The ghost row's `_RowState` still exists,
+  /// because [_LineItemTableDesktopState._commitPending] pairs rows with items
+  /// by position; it is just never rendered, committed or promoted.
+  final bool allowNewRows;
 
   @override
   State<LineItemTableDesktop> createState() => _LineItemTableDesktopState();
@@ -347,12 +356,15 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     }
     // The host's factory, not `emptyLineItem()`: in the Tasks tab it makes an
     // hourly (`type_id` 2) row, and a ghost committed from here as `standard`
-    // would leave the tab it was typed into.
-    final ghost = _rows.last.buildItem(
-      widget.newItemFactory(),
-      useComma: _useComma,
-    );
-    if (!ghost.isBlank) next.add(ghost);
+    // would leave the tab it was typed into. A table that takes no new rows
+    // never commits its (unrendered) ghost, whatever it holds.
+    if (widget.allowNewRows) {
+      final ghost = _rows.last.buildItem(
+        widget.newItemFactory(),
+        useComma: _useComma,
+      );
+      if (!ghost.isBlank) next.add(ghost);
+    }
     if (_listsEqual(next, base)) return base;
     _emitted = next;
     _suppressSync = true;
@@ -379,7 +391,8 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       updated[index] = next;
       _emit(updated);
     } else {
-      // Promoting the ghost row.
+      // Promoting the ghost row — never in a table that takes no new rows.
+      if (!widget.allowNewRows) return;
       final updated = List<LineItem>.from(base)..add(next);
       _emit(updated);
     }
@@ -656,6 +669,10 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       stream: _companyStream,
       builder: (context, snapshot) {
         final company = snapshot.data;
+        // The ghost row stays in `_rows` either way — `_commitPending` pairs
+        // rows with items by position — but a table that takes no new rows
+        // doesn't render it.
+        final itemCount = widget.allowNewRows ? _rows.length : _items.length;
         // Flat, title-less card matching the React / old-Flutter
         // references: hairline border, no header, no shadow.
         return Container(
@@ -679,7 +696,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       buildDefaultDragHandles: false,
-                      itemCount: _rows.length,
+                      itemCount: itemCount,
                       onReorderItem: _onReorder,
                       onReorderStart: (_) {
                         // Close any open product/tax dropdown before the drag
@@ -742,9 +759,13 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         // `screens.invoice_edit_typing` benchmark).
                         final inputs = _RowInputs(
                           index: index,
-                          isLast: index == _rows.length - 1,
+                          // The last RENDERED row: with no ghost row under it,
+                          // the last item's own bottom border would double the
+                          // divider below the list.
+                          isLast: index == itemCount - 1,
                           isGhost: isGhost,
                           lastRealIndex: items.length - 1,
+                          allowNewRows: widget.allowNewRows,
                           config: widget.config,
                           companyId: widget.companyId,
                           company: company,
@@ -769,6 +790,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                           isLast: inputs.isLast,
                           isGhost: isGhost,
                           lastRealIndex: inputs.lastRealIndex,
+                          allowNewRows: inputs.allowNewRows,
                           config: widget.config,
                           companyId: widget.companyId,
                           company: company,
@@ -892,7 +914,10 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                     // keystroke, Tab from the last cell adds another row,
                     // and bulk adds go through the items-section FAB →
                     // line-item picker. `_addBlankRow` survives because
-                    // it's still called by `onTabFromLastCell`.
+                    // it's still called by `onTabFromLastCell`. Where
+                    // `allowNewRows` is false (the billing-doc Expenses tab)
+                    // there is no ghost row, so the picker is the only way
+                    // in.
                   ],
                 ),
               ),
@@ -1139,6 +1164,7 @@ class _RowInputs {
     required this.isLast,
     required this.isGhost,
     required this.lastRealIndex,
+    required this.allowNewRows,
     required this.config,
     required this.companyId,
     required this.company,
@@ -1155,6 +1181,7 @@ class _RowInputs {
   final bool isLast;
   final bool isGhost;
   final int lastRealIndex;
+  final bool allowNewRows;
   final LineItemColumnConfig config;
   final String companyId;
   final Company? company;
@@ -1173,6 +1200,7 @@ class _RowInputs {
       other.isLast == isLast &&
       other.isGhost == isGhost &&
       other.lastRealIndex == lastRealIndex &&
+      other.allowNewRows == allowNewRows &&
       other.config == config &&
       other.companyId == companyId &&
       // By identity: a new company row from Drift is a new object, and the
@@ -1383,6 +1411,7 @@ class _Row extends StatefulWidget {
     required this.isLast,
     required this.isGhost,
     required this.lastRealIndex,
+    required this.allowNewRows,
     required this.config,
     required this.companyId,
     required this.company,
@@ -1406,6 +1435,10 @@ class _Row extends StatefulWidget {
   final bool isLast;
   final bool isGhost;
   final int lastRealIndex;
+
+  /// False drops "Insert Below" from both row menus — see
+  /// [LineItemTableDesktop.allowNewRows].
+  final bool allowNewRows;
   final LineItemColumnConfig config;
   final String companyId;
   final Company? company;
@@ -1440,6 +1473,7 @@ class _RowStateW extends State<_Row> {
   bool get isLast => widget.isLast;
   bool get isGhost => widget.isGhost;
   int get lastRealIndex => widget.lastRealIndex;
+  bool get allowNewRows => widget.allowNewRows;
   LineItemColumnConfig get config => widget.config;
   String get companyId => widget.companyId;
   bool get useComma => widget.useComma;
@@ -1777,6 +1811,7 @@ class _RowStateW extends State<_Row> {
                             canMoveUp: index > 0,
                             canMoveDown: index < lastRealIndex,
                             canCreateTask: canCreateTask,
+                            allowNewRows: allowNewRows,
                           ),
                         ),
                       ),
@@ -1824,10 +1859,11 @@ class _RowStateW extends State<_Row> {
           const PopupMenuDivider(),
         ],
         PopupMenuItem(value: _RowAction.clone, child: Text(ctx.tr('clone'))),
-        PopupMenuItem(
-          value: _RowAction.insertBelow,
-          child: Text(ctx.tr('insert_below')),
-        ),
+        if (allowNewRows)
+          PopupMenuItem(
+            value: _RowAction.insertBelow,
+            child: Text(ctx.tr('insert_below')),
+          ),
         if (index > 0 || index < lastRealIndex) const PopupMenuDivider(),
         if (index > 0)
           PopupMenuItem(
@@ -1856,12 +1892,16 @@ class _RowMenu extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.canCreateTask,
+    required this.allowNewRows,
   });
 
   final ValueChanged<_RowAction> onSelected;
   final bool canMoveUp;
   final bool canMoveDown;
   final bool canCreateTask;
+
+  /// False drops "Insert Below" — see [LineItemTableDesktop.allowNewRows].
+  final bool allowNewRows;
 
   @override
   Widget build(BuildContext context) {
@@ -1882,10 +1922,11 @@ class _RowMenu extends StatelessWidget {
           value: _RowAction.clone,
           child: Text(context.tr('clone')),
         ),
-        PopupMenuItem(
-          value: _RowAction.insertBelow,
-          child: Text(context.tr('insert_below')),
-        ),
+        if (allowNewRows)
+          PopupMenuItem(
+            value: _RowAction.insertBelow,
+            child: Text(context.tr('insert_below')),
+          ),
         if (canMoveUp || canMoveDown) const PopupMenuDivider(),
         if (canMoveUp)
           PopupMenuItem(

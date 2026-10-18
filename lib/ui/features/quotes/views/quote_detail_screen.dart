@@ -154,8 +154,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
         figure: quote.amount,
         formatter: formatter,
       ),
-      // A deleted quote is read-only until restored.
-      isReadOnly: (quote) => quote.isDeleted,
+      // A deleted quote is read-only until restored, and so is one this
+      // user may not edit — `E` must not open an editor the menu hides.
+      // The session is read when the key is pressed, not at build.
+      isReadOnly: (quote) =>
+          quote.isDeleted || !mayEditQuote(_services.auth.session.value, quote),
       onRefresh: _record.refresh,
       bannerForItem: (context, quote) => recordStateBanner<QuoteAction>(
         context,
@@ -175,7 +178,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   }
 
   Widget _body(BuildContext context, Quote quote) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(quote.id)
+      ..kick();
     _record.attach(recordId: quote.id, revision: quote.updatedAt);
     Future<void> submit(String text) => _services.quotes.addComment(
       companyId: _companyId,

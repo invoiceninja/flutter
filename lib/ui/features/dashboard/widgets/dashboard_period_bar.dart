@@ -54,14 +54,20 @@ class DashboardPeriodBar extends StatelessWidget {
   /// the 7th is seven days, set against the first seven of the month before
   /// (flutter#37 was a header that named only the window's last month). A
   /// custom range already prints its own dates on the button, so there it is
-  /// only the compared window that needs saying.
+  /// only the compared window that needs saying — unless the range is still in
+  /// progress: the figures then sum it only up to today
+  /// (`DashboardApi.fetchTotals`), which the button's dates do not say, so the
+  /// current window is named as it is for a preset.
   String _windows(BuildContext context, DashboardComparison comparison) {
     final previous = formatter.dateRange(
       comparison.previousStart.toIso(),
       comparison.previousEnd.toIso(),
     );
     if (vm.filter.range is DashboardCustomRange) {
-      return context.tr('compared_with_range', {'range': previous});
+      final (_, end) = vm.filter.resolveDates(today: vm.today);
+      if (comparison.currentEnd.compareTo(end) >= 0) {
+        return context.tr('compared_with_range', {'range': previous});
+      }
     }
     return context.tr('period_vs_period', {
       'current': formatter.dateRange(

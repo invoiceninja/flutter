@@ -21,6 +21,7 @@ import 'package:admin/domain/entity_registry.dart' show EntityHandlers;
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/domain/permissions.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
@@ -446,8 +447,24 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   late final Services _services;
 
   /// Whether this entity is created from its list at all — see
-  /// [EntityListScreenScaffold.newRoute].
-  bool get _offersCreate => widget.newRoute != null;
+  /// [EntityListScreenScaffold.newRoute] — by this user. Drives the FAB, its
+  /// scroll clearance and the wide "New X" button.
+  bool get _offersCreate => widget.newRoute != null && _mayCreate;
+
+  /// Whether the user holds `create_<entity>` (`mayCreateEntity`). Hidden,
+  /// not greyed, when they don't — greyed is
+  /// [EntityListScreenScaffold.canCreate]'s plan gate. Read live, so a company
+  /// switch re-resolves it.
+  bool get _mayCreate {
+    final me = _services.auth.session.value?.currentCompany;
+    return mayCreateEntity(_vm.entityType, can: (p) => me?.can(p) ?? false);
+  }
+
+  /// [_mayCreate] as of the last session this State built against, so a
+  /// same-company session that flips it — the background `/refresh` healing
+  /// cached permissions — rebuilds; see `_onSessionChanged`.
+  late bool _builtMayCreate;
+
   late String _companyId;
 
   /// Company row watch behind the status strip's inventory gate, cached
@@ -527,6 +544,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // didChangeDependencies instead.
     if (!widget.embedded) _vScroll.addListener(_onScroll);
     _services.auth.session.addListener(_onSessionChanged);
+    _builtMayCreate = _mayCreate;
     if (widget.wantsFormatter) loadFormatter(_services, _companyId);
   }
 
@@ -534,15 +552,28 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   /// a company switch because every entity branch's `Navigator` has a
   /// `GlobalKey` in `router.dart`, which preserves `State` across the
   /// rebuild — so the scaffold has to track `auth.session` itself.
+  ///
+  /// The same company can come back with different permissions too — cold
+  /// start restores cached ones and `/refresh` heals them in the background —
+  /// so a flipped create gate rebuilds, or a hidden FAB / New button stays
+  /// hidden until something unrelated happens to rebuild.
   void _onSessionChanged() {
     final s = _services.auth.session.value;
-    if (s == null || s.currentCompanyId == _companyId) return;
+    if (s == null) return;
+    if (s.currentCompanyId == _companyId) {
+      final mayCreate = _mayCreate;
+      if (mayCreate != _builtMayCreate) {
+        setState(() => _builtMayCreate = mayCreate);
+      }
+      return;
+    }
     final oldVm = _vm;
     setState(() {
       _companyId = s.currentCompanyId;
       _vm = widget.buildVm(_services, _companyId);
       _vm.bindResync(_services.resync);
       _vm.bindCompany(_services.company.watchCompany(_companyId));
+      _builtMayCreate = _mayCreate;
     });
     // Dispose AFTER swapping in the new VM so any in-flight rebuild keyed
     // on the old `_vm` reference has already moved on.
@@ -1001,7 +1032,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
           // `_stepSelection` — they keep the in-handler guard.)
           _NewRecordIntent: GuardedShortcutAction<_NewRecordIntent>(
             onInvoke: (_) {
-              if (!widget.canCreate) return null;
+              if (!widget.canCreate || !_mayCreate) return null;
               final newRoute = widget.newRoute;
               if (newRoute == null && widget.embeddedNewOverride == null) {
                 return null;
@@ -1103,6 +1134,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   void Function(BuildContext context)? _embeddedNewHandler(
     BuildContext context,
   ) {
+    // A user without `create_<entity>` gets no New at all, like the FAB.
+    if (!_mayCreate) return null;
     final parent = EmbeddedListParentScope.maybeOf(context);
     if (parent?.readOnly ?? false) return null;
     final newRoute = widget.newRoute;
@@ -1456,7 +1489,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                 showHamburger: !globalNav,
                 settingsBackTarget: settingsBackTarget,
                 titleKey: widget.titleKey,
-                newRoute: widget.newRoute,
+                // Null withdraws the wide "New X" button for a user who may
+                // not create one.
+                newRoute: _offersCreate ? widget.newRoute : null,
                 newLabelKey: widget.newLabelKey,
                 sortOptions: widget.sortOptions(context),
                 groupOptions:

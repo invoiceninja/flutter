@@ -14,6 +14,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/leader_shortcuts.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sidebar_menu.dart';
 import 'package:admin/l10n/localization.dart';
@@ -1139,8 +1140,15 @@ class _InSidebarState extends State<InSidebar> {
     final label = context.tr(handlers.effectiveLabelKey);
     // Hover affordance — `+` shortcut to the entity's /new route. Only
     // surfaces on rows that have a `newRoute` configured AND in expanded
-    // mode (compact rail has no horizontal room).
-    final Widget? hoverAdd = (!compact && !tile && handlers.newRoute != null)
+    // mode (compact rail has no horizontal room), and only for a user who
+    // may create one (`mayCreateEntity`) — hidden, not greyed. Re-evaluated
+    // on every session change through the outer `ValueListenableBuilder`.
+    final me = services.auth.session.value?.currentCompany;
+    final Widget? hoverAdd =
+        (!compact &&
+            !tile &&
+            handlers.newRoute != null &&
+            mayCreateEntity(handlers.type, can: (p) => me?.can(p) ?? false))
         ? _HoverAddButton(route: handlers.newRoute!)
         : null;
     final onTap = handlers.disabled || branch == null

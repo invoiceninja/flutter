@@ -155,8 +155,12 @@ class _RecurringInvoiceDetailScreenState
         figure: ri.amount,
         formatter: formatter,
       ),
-      // A deleted recurring invoice is read-only until restored.
-      isReadOnly: (ri) => ri.isDeleted,
+      // A deleted recurring invoice is read-only until restored, and so is one
+      // this user may not edit — `E` must not open an editor the menu hides.
+      // The session is read when the key is pressed, not at build.
+      isReadOnly: (ri) =>
+          ri.isDeleted ||
+          !mayEditRecurringInvoice(_services.auth.session.value, ri),
       onRefresh: _record.refresh,
       bannerForItem: (context, ri) => recordStateBanner<RecurringInvoiceAction>(
         context,
@@ -176,7 +180,11 @@ class _RecurringInvoiceDetailScreenState
   }
 
   Widget _body(BuildContext context, RecurringInvoice ri) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(ri.id)
+      ..kick();
     _record.attach(recordId: ri.id, revision: ri.updatedAt);
     Future<void> submit(String text) => _services.recurringInvoices.addComment(
       companyId: _companyId,

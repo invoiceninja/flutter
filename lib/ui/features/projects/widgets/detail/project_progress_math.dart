@@ -75,7 +75,10 @@ List<({DateTime t, double hours})> buildCumulativeSeries(
 
 /// Linearly extrapolate total hours at project finish, given current burn
 /// rate. Returns null when there isn't enough signal to extrapolate (no due
-/// date, no hours logged, or less than a day elapsed).
+/// date, no hours logged, or less than a day elapsed), and once the due date
+/// has passed: past the finish there is nothing left to project, and the
+/// ratio — below 1 from then on — shrank the "projection" under the hours
+/// already logged (a past-due project read "Projected 46.5 h" beside 60).
 double? computeProjected(
   double logged,
   DateTime createdAt,
@@ -87,22 +90,30 @@ double? computeProjected(
   final totalDays = dueDt.difference(createdAt).inMinutes / (60.0 * 24.0);
   final elapsedDays = now.difference(createdAt).inMinutes / (60.0 * 24.0);
   if (elapsedDays < 1.0 || totalDays <= 0) return null;
+  if (elapsedDays >= totalDays) return null;
   return logged * (totalDays / elapsedDays);
 }
 
 /// Three-state pace status from logged vs budgeted vs projected. Returns
-/// `unknown` when there's no budget to compare against, or when there's no
-/// due date to define "on schedule" against — the pill renders a contextual
-/// fallback in either case.
+/// `unknown` when there's no budget to compare against, when there's no due
+/// date to define "on schedule" against, or once [today] is past that due
+/// date — a pace verdict needs time left, and "On track" beside a red "Past
+/// due" said the opposite of it. The pill renders a contextual fallback in
+/// each case. Over budget still wins at any date.
+///
+/// [today] is required, not defaulted to `Date.today()`: a caller that forgot
+/// it would judge every due date against the wrong day without a sign.
 ProgressStatus deriveStatus(
   double logged,
   double budgeted,
   double? projected, {
   required Date? dueDate,
+  required Date today,
 }) {
   if (budgeted <= 0) return ProgressStatus.unknown;
   if (logged >= budgeted) return ProgressStatus.overBudget;
   if (dueDate == null) return ProgressStatus.unknown;
+  if (today.differenceInDays(dueDate) > 0) return ProgressStatus.unknown;
   if (projected != null && projected > budgeted) return ProgressStatus.offPace;
   return ProgressStatus.onTrack;
 }

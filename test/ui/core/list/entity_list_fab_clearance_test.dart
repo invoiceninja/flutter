@@ -84,14 +84,15 @@ class _Vm extends GenericListViewModel<_Row> {
 
 void main() {
   /// Mounts the list on a phone-sized window, optionally with a bottom safe
-  /// inset, and returns nothing — the tests measure the tree.
-  Future<void> pumpList(
+  /// inset, and returns the fixture — most tests only measure the tree.
+  Future<ShellFixture> pumpList(
     WidgetTester tester, {
     required int rowCount,
     bool embedded = false,
     double bottomInset = 0,
     bool creatable = true,
     Size window = const Size(400, 800),
+    FakeCompany company = const FakeCompany(id: 'co1', name: 'Acme'),
   }) async {
     // `tester.view`, not `setSurfaceSize`: the latter leaves `MediaQuery` at
     // 800x600, which would put the scaffold on its wide branch — where there
@@ -103,9 +104,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPadding);
 
-    final fixture = await buildFixture(
-      companies: const [FakeCompany(id: 'co1', name: 'Acme')],
-    );
+    final fixture = await buildFixture(companies: [company]);
     addTearDown(fixture.dispose);
 
     await tester.pumpWidget(
@@ -136,6 +135,7 @@ void main() {
       ),
     );
     await _pumpFrames(tester);
+    return fixture;
   }
 
   /// The list the scaffold builds for its rows.
@@ -205,6 +205,88 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(listOf(tester).padding, isNull);
     await _disposeTree(tester);
+  });
+
+  // The FAB and the wide New button asked nothing of the user, so a
+  // view-only one was handed a create form the server would refuse to save.
+  // Hidden, not greyed: greyed is the plan gate's `canCreate: false`.
+  group('a user without create_quote', () {
+    const viewOnly = FakeCompany(
+      id: 'co1',
+      name: 'Acme',
+      isAdmin: false,
+      isOwner: false,
+      permissions: 'view_quote',
+    );
+
+    testWidgets('has no FAB and pays no clearance for one', (tester) async {
+      await pumpList(tester, rowCount: 30, company: viewOnly);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(listOf(tester).padding, isNull);
+      await _disposeTree(tester);
+    });
+
+    testWidgets('has no New button on a wide list', (tester) async {
+      await pumpList(
+        tester,
+        rowCount: 5,
+        company: viewOnly,
+        window: const Size(1400, 900),
+      );
+      expect(find.byIcon(Icons.add), findsNothing);
+      await _disposeTree(tester);
+    });
+
+    // Cold start restores cached permissions and `/refresh` heals them in
+    // the background, for the SAME company — which the session listener used
+    // to ignore, so a FAB hidden by a stale cache stayed hidden until
+    // something unrelated rebuilt (offline, the heal never comes at all).
+    testWidgets('gets the FAB back when the same company gains it', (
+      tester,
+    ) async {
+      final fixture = await pumpList(tester, rowCount: 30, company: viewOnly);
+      expect(find.byType(FloatingActionButton), findsNothing);
+
+      // The heal's write: `_persistAndActivate` → `touchSessionColumns`, and
+      // the companies watcher re-publishes the session with the new grant.
+      await fixture.db.companiesDao.touchSessionColumns(
+        companyId: 'co1',
+        at: 1,
+        permissions: 'view_quote,create_quote',
+        accountId: 'acct1',
+        isAdmin: false,
+        isOwner: false,
+      );
+      await _pumpFrames(tester);
+      expect(
+        fixture.services.auth.session.value!.currentCompany!.can(
+          'create_quote',
+        ),
+        isTrue,
+        reason: 'precondition: the session itself carries the new grant',
+      );
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(listOf(tester).padding, isNotNull);
+      await _disposeTree(tester);
+    });
+
+    testWidgets('(control) with create_quote, the FAB is back', (tester) async {
+      await pumpList(
+        tester,
+        rowCount: 30,
+        company: const FakeCompany(
+          id: 'co1',
+          name: 'Acme',
+          isAdmin: false,
+          isOwner: false,
+          permissions: 'view_quote,create_quote',
+        ),
+      );
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(listOf(tester).padding, isNotNull);
+      await _disposeTree(tester);
+    });
   });
 
   testWidgets('a wide list with no create route has no New button', (

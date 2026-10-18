@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
+import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
@@ -397,8 +398,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// invoices dated in the window (plus drafts when they are counted). The
   /// statuses are stated because the server leaves cancelled and reversed
   /// invoices out of the figure, and a bare date window would list them.
+  ///
+  /// The window is the figure's own ([dashboardFigureWindow]), which ends
+  /// today while the period is in progress (`DashboardApi.fetchTotals`) — so
+  /// the list holds no post-dated invoice the figure leaves out.
   ListFilterIntent _invoicedIntent() {
-    final (start, end) = _vm.filter.resolveDates();
+    // Null only on "All time", which sends no window at all.
+    final window = dashboardFigureWindow(
+      _vm.filter,
+      today: _vm.today,
+      wholeWindowOnAllTime: false,
+    );
     return ListFilterIntent(
       extraFilters: {
         'status_id': {
@@ -407,17 +417,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           InvoiceStatus.partial.wireId,
           InvoiceStatus.paid.wireId,
         },
-        if (!_isAllTimeRange)
-          'date_range': {'date,${start.toIso()},${end.toIso()}'},
+        if (window != null)
+          'date_range': {'date,${window.$1.toIso()},${window.$2.toIso()}'},
       },
     );
   }
 
   /// KPI "Paid" → payments with `client_status=completed` and the dashboard's
   /// date window as the canonical `date,<start>,<end>` (v5 unified
-  /// `QueryFilters::date_range`).
+  /// `QueryFilters::date_range`). Like [_invoicedIntent], the window is the
+  /// figure's own ([dashboardFigureWindow]), or the whole resolved window on
+  /// "All time", which has no comparison.
   ListFilterIntent get _paidPaymentsIntent {
-    final (start, end) = _vm.filter.resolveDates();
+    final (start, end) = dashboardFigureWindow(
+      _vm.filter,
+      today: _vm.today,
+      wholeWindowOnAllTime: true,
+    )!;
     return ListFilterIntent(
       extraFilters: {
         'client_status': const {'completed'},
@@ -1137,6 +1153,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 /// card has about 470 px, which holds that row at the app's largest text size
 /// with the client name still readable.
 const double kDashboardTwoColumnPane = 1000;
+
+/// The date window a dashboard figure's drill-down list opens on: the
+/// figure's own, so the list holds what the figure sums. That is the
+/// comparison's current window — up to [today] while the period is in
+/// progress (`DashboardApi.fetchTotals`), the whole window once it is over.
+///
+/// "All time" has no comparison. [wholeWindowOnAllTime] then picks the
+/// resolved window (the Paid list, which always carries one) over none at all
+/// (the Invoices list). Null only in that second case.
+@visibleForTesting
+(Date, Date)? dashboardFigureWindow(
+  DashboardFilter filter, {
+  required Date today,
+  required bool wholeWindowOnAllTime,
+}) {
+  final current = filter.comparison(today: today);
+  if (current != null) return (current.currentStart, current.currentEnd);
+  return wholeWindowOnAllTime ? filter.resolveDates(today: today) : null;
+}
 
 /// Builds the deep-link [ListFilterIntent] for the Outstanding / Overdue KPI
 /// cards. Extracted as a pure function so the period-window rule is unit

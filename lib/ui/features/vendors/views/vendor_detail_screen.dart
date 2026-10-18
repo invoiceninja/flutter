@@ -218,7 +218,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
   }
 
   Widget _body(BuildContext context, Vendor v) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(v.id)
+      ..kick();
     Future<void> submit(String text) => _services.vendors.addComment(
       companyId: _companyId,
       entityId: v.id,

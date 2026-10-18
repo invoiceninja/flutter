@@ -321,6 +321,16 @@ void main() {
         contains('.kick()'),
         reason: '${file.path} builds the VM but never arms its fetch',
       );
+      // Built on the routed id, which for a record created here is a `tmp_`
+      // the feed never fetches: without the rebind it never loads, and a
+      // comment added there never appears.
+      expect(
+        src,
+        contains('..rebind('),
+        reason:
+            '${file.path} never rebinds the VM to the record\'s current id, so '
+            'a just-created record never loads its comments or activity',
+      );
       expect(
         src,
         contains('_activityVm.dispose()'),

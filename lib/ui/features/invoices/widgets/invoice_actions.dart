@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
@@ -100,6 +101,20 @@ enum InvoiceAction {
   restore,
   delete,
 }
+
+/// Whether [session]'s user may edit [invoice] — the server's rule, not just
+/// the permission: the record's creator or assignee may change it too
+/// (`AuthSession.canEditRecord`). The Edit action and the record screen's
+/// `E` shortcut (`isReadOnly`) both read it, so the key cannot open an
+/// editor the menu does not offer.
+bool mayEditInvoice(AuthSession? session, Invoice invoice) =>
+    session?.canEditRecord(
+      'invoice',
+      createdBy: invoice.userId,
+      assignedTo: invoice.assignedUserId,
+      recordId: invoice.id,
+    ) ??
+    false;
 
 class InvoiceActions {
   InvoiceActions._();
@@ -202,16 +217,10 @@ class InvoiceActions {
     // Permission gates. Admin / owner bypass `can(...)`; otherwise check
     // the comma-separated `permissions` string. Server enforces too — UI
     // gates just hide affordances the user can't action.
-    // The server's rule, not just the permission: the record's creator or
-    // assignee may change it too (`AuthSession.canEditRecord`).
-    final canEditInvoice =
-        context.read<Services>().auth.session.value?.canEditRecord(
-          'invoice',
-          createdBy: invoice.userId,
-          assignedTo: invoice.assignedUserId,
-          recordId: invoice.id,
-        ) ??
-        false;
+    final canEditInvoice = mayEditInvoice(
+      context.read<Services>().auth.session.value,
+      invoice,
+    );
     final canCreateInvoice = me?.can('create_invoice') ?? false;
     // There is no `delete_*` permission in the product — the server authorizes
     // a destroy through `EntityPolicy::edit` (`DestroyInvoiceRequest` →

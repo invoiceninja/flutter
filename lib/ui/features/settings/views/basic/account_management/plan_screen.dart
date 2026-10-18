@@ -434,51 +434,72 @@ class _SelfHostedLicenseCardState extends State<_SelfHostedLicenseCard> {
 /// Inline single-field input dialog. Returns the trimmed entered value, or
 /// null when the user cancels. Kept private to this screen — if a second
 /// place ever needs it, lift to `lib/ui/core/widgets/`.
-Future<String?> _promptLicenseKey(BuildContext context) async {
-  final controller = TextEditingController();
-  final result = await showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      void submit() {
-        final v = controller.text.trim();
-        if (v.isEmpty) return;
-        Navigator.of(ctx).pop(v);
-      }
+Future<String?> _promptLicenseKey(BuildContext context) => showDialog<String>(
+  context: context,
+  builder: (_) => const _LicenseKeyDialog(),
+);
 
-      return AlertDialog(
-        title: Text(ctx.tr('apply_license')),
-        content: SizedBox(
-          width: 360,
-          child: FormSaveScope(
-            enabled: true,
-            onSubmit: submit,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: ctx.tr('license'),
-                border: const OutlineInputBorder(),
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => submit(),
-              autocorrect: false,
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
+class _LicenseKeyDialog extends StatefulWidget {
+  const _LicenseKeyDialog();
+
+  @override
+  State<_LicenseKeyDialog> createState() => _LicenseKeyDialogState();
+}
+
+class _LicenseKeyDialogState extends State<_LicenseKeyDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final v = _controller.text.trim();
+    if (v.isEmpty) return;
+    Navigator.of(context).pop(v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.tr('apply_license')),
+      content: SizedBox(
+        width: 360,
+        child: FormSaveScope(
+          enabled: true,
+          onSubmit: _submit,
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: context.tr('license'),
+              border: const OutlineInputBorder(),
             ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            autocorrect: false,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('submit'),
-            autofocus: false,
-            onPressed: submit,
-          ),
-        ],
-      );
-    },
-  );
-  controller.dispose();
-  return result;
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('submit'),
+          autofocus: false,
+          onPressed: _submit,
+        ),
+      ],
+    );
+  }
 }

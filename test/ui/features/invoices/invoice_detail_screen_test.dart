@@ -14,6 +14,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/standing_card.dart';
 import 'package:admin/ui/core/widgets/party_contact_row.dart';
@@ -379,6 +380,39 @@ void main() {
       permissions: 'view_invoice,view_client',
     ),
   );
+
+  // `E` opens the editor unless `isReadOnly` says no, and it said no only to
+  // a deleted record — so a user the Edit action is hidden from could still
+  // open the form with a key, and have the save refused.
+  group('the E shortcut follows the Edit action', () {
+    EntityDetailScaffold<Invoice> scaffold(WidgetTester tester) =>
+        tester.widget<EntityDetailScaffold<Invoice>>(
+          find.byType(EntityDetailScaffold<Invoice>),
+        );
+
+    _screenTest(
+      'a user who may only view invoices cannot open the editor',
+      docJson(),
+      (tester, screen) async {
+        final s = scaffold(tester);
+        expect(s.vm.item, isNotNull);
+        expect(s.isReadOnly!(s.vm.item!), isTrue);
+      },
+      company: const FakeCompany(
+        id: 'co1',
+        name: 'Co',
+        isAdmin: false,
+        isOwner: false,
+        permissions: 'view_invoice,view_client',
+      ),
+    );
+
+    _screenTest('an admin can', docJson(), (tester, screen) async {
+      final s = scaffold(tester);
+      expect(s.vm.item, isNotNull);
+      expect(s.isReadOnly!(s.vm.item!), isFalse);
+    });
+  });
 
   final unsynced = DocServer('/api/v1/invoices/tmp_1')
     ..record = docJson(id: 'tmp_1');

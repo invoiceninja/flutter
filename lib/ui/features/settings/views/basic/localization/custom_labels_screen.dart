@@ -258,42 +258,13 @@ class _AddRow extends StatelessWidget {
     // Capture before the async gap so we don't touch `context` after `await`.
     final toasts = Notify.capture(context);
     final duplicateMessage = context.tr('label_already_added');
-    final controller = TextEditingController();
-    try {
-      final key = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(dialogContext.tr('add_custom')),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: dialogContext.tr('property_name'),
-            ),
-            textInputAction: TextInputAction.done,
-            onSubmitted: (v) => Navigator.of(dialogContext).pop(v.trim()),
-          ),
-          actions: [
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(dialogContext.tr('cancel')),
-            ),
-            PrimaryDialogAction(
-              label: dialogContext.tr('add'),
-              autofocus: false,
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-            ),
-          ],
-        ),
-      );
-      if (key == null || key.isEmpty) return;
-      if (!_addLabel(host, key)) {
-        toasts?.warning(duplicateMessage);
-      }
-    } finally {
-      controller.dispose();
+    final key = await showDialog<String>(
+      context: context,
+      builder: (_) => const _AddCustomLabelDialog(),
+    );
+    if (key == null || key.isEmpty) return;
+    if (!_addLabel(host, key)) {
+      toasts?.warning(duplicateMessage);
     }
   }
 
@@ -311,6 +282,55 @@ class _AddRow extends StatelessWidget {
     if (!_addLabel(host, '$_countryKeyPrefix${country.name}')) {
       toasts?.warning(duplicateMessage);
     }
+  }
+}
+
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
+class _AddCustomLabelDialog extends StatefulWidget {
+  const _AddCustomLabelDialog();
+
+  @override
+  State<_AddCustomLabelDialog> createState() => _AddCustomLabelDialogState();
+}
+
+class _AddCustomLabelDialogState extends State<_AddCustomLabelDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.tr('add_custom')),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: context.tr('property_name')),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+      ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('add'),
+          autofocus: false,
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+        ),
+      ],
+    );
   }
 }
 

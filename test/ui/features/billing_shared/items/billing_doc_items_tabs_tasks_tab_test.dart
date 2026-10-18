@@ -631,6 +631,66 @@ void main() {
     });
   });
 
+  group('the Expenses tab takes no typed rows', () {
+    // Its lines come from expenses. A row typed there had no expense behind
+    // it, so it committed as a product line, left the tab while its blank row
+    // still held the text, and committed again at every pause: three product
+    // lines for one typed line, all saved. A typed line goes on Products.
+    List<LineItem> productAndExpense() => [
+      _product(),
+      emptyLineItem().copyWith(
+        productKey: 'Taxi',
+        notes: 'expense note',
+        cost: Decimal.fromInt(30),
+        expenseId: 'exp-1',
+      ),
+    ];
+
+    testWidgets('desktop: no blank row and no Insert Below', (tester) async {
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company(showTasksTable: false)),
+        lines: productAndExpense(),
+      );
+      await tester.tap(find.text('Expenses (1)'));
+      await tester.pumpAndSettle();
+      // The blank row's product hint (it ends in a real `…`).
+      expect(find.textContaining('Add an item'), findsNothing);
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Clone'), findsOneWidget);
+      expect(find.text('Insert Below'), findsNothing);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+
+      // Products keeps its blank row.
+      await tester.tap(find.text('Products (1)'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Add an item'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('phone: no Add Line on Expenses, still one on Products', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        repo: _CompanyRepo(_company(showTasksTable: false)),
+        lines: productAndExpense(),
+        width: 400,
+      );
+      expect(find.widgetWithText(OutlinedButton, 'Add Line'), findsOneWidget);
+
+      await tester.tap(find.text('Expenses (1)'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, 'Add Line'), findsNothing);
+      // The picker still adds real expense lines.
+      expect(find.widgetWithText(OutlinedButton, 'Add Items'), findsOneWidget);
+      await unmount(tester);
+    });
+  });
+
   group('layout under the tabs', () {
     testWidgets('the phone empty state still centres in the viewport', (
       tester,

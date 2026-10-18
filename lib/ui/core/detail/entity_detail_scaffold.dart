@@ -86,9 +86,14 @@ class EntityDetailScaffold<T> extends StatefulWidget {
   /// yet synced. Return null for the ordinary record.
   final Widget? Function(BuildContext context, T item)? bannerForItem;
 
-  /// Whether [item] cannot be edited (a soft-deleted record). Gates the `E`
-  /// shortcut, which used to open the edit screen on a record the server
-  /// would then refuse to save.
+  /// Whether [item] cannot be edited — a soft-deleted record, and on the
+  /// billing documents and Documents also one this user may not edit (the
+  /// Edit action's own rule, e.g. `mayEditInvoice` / `documentEditable`).
+  /// Gates the `E` shortcut only, which used to open the edit screen on a
+  /// record the server would then refuse to save, or that the hidden Edit
+  /// action had already said no to. Called when the key is pressed, so a
+  /// session read inside it is current. Drives no banner and no embedded-list
+  /// lock.
   final bool Function(T item)? isReadOnly;
 
   /// Re-fetches the record. Bound to `R` here; the body wires the same
@@ -307,7 +312,8 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
             onInvoke: (_) {
               final item = _resolveItem();
               if (item == null) return null;
-              // A deleted record cannot be saved; do not open a form for it.
+              // A record the user cannot save — deleted, or one whose Edit
+              // action is hidden from them — gets no form.
               if (widget.isReadOnly?.call(item) ?? false) return null;
               // Universal: detail routes follow `/<entity>/:id`, edit is
               // the sibling `/<entity>/:id/edit`. Appending `/edit` to

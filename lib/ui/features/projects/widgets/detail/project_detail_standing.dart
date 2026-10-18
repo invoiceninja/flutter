@@ -209,7 +209,13 @@ class _ProjectDetailStandingState extends State<ProjectDetailStanding> {
       final series = buildCumulativeSeries(tasks, _now);
       logged = series.isEmpty ? 0.0 : series.last.hours;
       projected = computeProjected(logged, createdAt, p.dueDate, _now);
-      status = deriveStatus(logged, budgeted, projected, dueDate: p.dueDate);
+      status = deriveStatus(
+        logged,
+        budgeted,
+        projected,
+        dueDate: p.dueDate,
+        today: Date.today(),
+      );
     }
     final tokens = context.inTheme;
     final hasLine = budgeted > 0 || p.dueDate != null;

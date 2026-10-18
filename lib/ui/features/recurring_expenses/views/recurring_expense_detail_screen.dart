@@ -157,7 +157,11 @@ class _RecurringExpenseDetailScreenState
   }
 
   Widget _body(BuildContext context, RecurringExpense e) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(e.id)
+      ..kick();
     Future<void> submit(String text) => _services.recurringExpenses.addComment(
       companyId: _companyId,
       entityId: e.id,

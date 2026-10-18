@@ -133,7 +133,7 @@ Opt-in, beside the range. It is a **second run** of the same report over the ear
 
 What it draws: a delta under each figure, with the good direction decided by what the figure is (a rising unpaid balance or expense is red, not green); a delta on each line of a ranking, where a group that did not exist before shows a dash rather than an infinite rise; and in a trend, the earlier period beside each column in neutral ink, with a legend that says the earlier period in dates.
 
-Known limit: the current figures are of the whole selected range, so a range holding future-dated documents is compared with slightly less than itself.
+Known limit: the current figures are of whatever window the server sums, which is not always the elapsed span the earlier one is cut to. `this_month` is already month-to-date server-side (`BaseExport::addDateRange` ends it at `now()`), so it compares like with like; `this_quarter`, `this_year` and an in-progress custom range are summed whole, so one holding future-dated documents is compared with slightly less than itself. Task Items, built on the device, sums the whole window for every preset. The dashboard clamps its own figures to today instead (`DashboardApi.fetchTotals`, `docs/dashboard-panels.md`); reports keep the server's window.
 
 ## Saved report views
 

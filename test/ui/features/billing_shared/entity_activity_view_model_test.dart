@@ -50,6 +50,9 @@ class _CountingApi implements ActivitiesApi {
   int commentFetches = 0;
   int peeks = 0;
 
+  /// The `entityId` of every unfiltered fetch, in order.
+  final List<String> fetchedIds = [];
+
   @override
   bool isEntityUnsupported(String entity) => _refused;
 
@@ -78,6 +81,7 @@ class _CountingApi implements ActivitiesApi {
       return commentRows;
     }
     fetches++;
+    fetchedIds.add(entityId);
     if (refusesEntity) {
       _refused = true;
       throw ActivityFeedUnsupportedException(entity);
@@ -96,6 +100,9 @@ class _Outbox implements OutboxDao {
   final List<OutboxRow> rows;
   final _controller = StreamController<List<OutboxRow>>.broadcast();
 
+  /// The `entityId` of every pending watch opened, in order.
+  final List<String> watchedIds = [];
+
   @override
   Stream<List<OutboxRow>> watchPendingForEntity({
     required String companyId,
@@ -103,6 +110,7 @@ class _Outbox implements OutboxDao {
     required String entityId,
     MutationKind? kind,
   }) async* {
+    watchedIds.add(entityId);
     yield rows;
     yield* _controller.stream;
   }
@@ -188,6 +196,86 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(api.fetches, 0);
     vm.dispose();
+  });
+
+  // The detail screen is routed by the id it was opened with, and the record
+  // follows the `id_remap` — but the feed was built on the `tmp_` id and never
+  // fetched it, so a just-created record never loaded Comments or Activity,
+  // and a comment added there (queued under the real id) never appeared.
+  group('rebind', () {
+    test('a tmp_ record follows its create to the real id', () async {
+      final api = _CountingApi();
+      final outbox = _Outbox();
+      final vm = _build(api, outbox: outbox, entityId: 'tmp_abc')..kick();
+      await Future<void>.delayed(Duration.zero);
+      expect(api.fetches, 0);
+      expect(outbox.watchedIds, ['tmp_abc']);
+
+      vm.rebind('c1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.entityId, 'c1');
+      expect(api.fetchedIds, ['c1']);
+      expect(outbox.watchedIds, ['tmp_abc', 'c1']);
+      vm.dispose();
+    });
+
+    test('a real id is never re-pointed', () async {
+      final api = _CountingApi();
+      final outbox = _Outbox();
+      final vm = _build(api, outbox: outbox)..kick();
+      await Future<void>.delayed(Duration.zero);
+
+      vm
+        ..rebind('c2')
+        ..rebind('c1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.entityId, 'c1');
+      expect(api.fetchedIds, ['c1']);
+      expect(outbox.watchedIds, ['c1']);
+      vm.dispose();
+    });
+
+    test(
+      'a drain edge before the re-armed fetch costs no second request',
+      () async {
+        final api = _CountingApi();
+        final outbox = _Outbox([_pending()]);
+        final vm = _build(
+          api,
+          outbox: outbox,
+          entityId: 'tmp_abc',
+          debounce: const Duration(milliseconds: 20),
+        )..kick();
+        // The `tmp_` refresh ran — and went nowhere.
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+        expect(api.fetches, 0);
+
+        vm.rebind('c1');
+        // The new watch's first emission: one pending comment…
+        await Future<void>.delayed(Duration.zero);
+        // …which drains before the armed fetch fires.
+        outbox.emit(const []);
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+
+        expect(api.fetchedIds, ['c1']);
+        vm.dispose();
+      },
+    );
+
+    test('a still-unsynced id is not a rebind', () async {
+      final api = _CountingApi();
+      final outbox = _Outbox();
+      final vm = _build(api, outbox: outbox, entityId: 'tmp_abc')..kick();
+      vm.rebind('tmp_def');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.entityId, 'tmp_abc');
+      expect(api.fetches, 0);
+      expect(outbox.watchedIds, ['tmp_abc']);
+      vm.dispose();
+    });
   });
 
   test('a cached feed paints immediately and still refetches', () async {

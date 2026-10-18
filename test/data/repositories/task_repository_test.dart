@@ -667,6 +667,14 @@ void main() {
       'upserts rows and advances the cursor without claiming a full sync',
       () async {
         final repo = makeRepo();
+        // A cursor a page-1 fetch already stored — a delta only moves one.
+        await db.syncStateDao.writeCursor(
+          companyId: 'co',
+          entityType: 'task',
+          updatedAt: 50,
+          id: 'seed',
+          now: 0,
+        );
         await repo.applyRefreshDelta(
           companyId: 'co',
           bundle: const [
@@ -687,6 +695,24 @@ void main() {
         expect(cursor.lastFullAt, isNull);
       },
     );
+
+    test('never seeds a cursor', () async {
+      // The contract's twin: no cursor means the list never fetched page 1,
+      // and a seeded one would narrow every later page 1 to the delta.
+      final repo = makeRepo();
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: const [TaskApi(id: 't_s1', description: 'A', updatedAt: 100)],
+      );
+
+      final row = await repo.watchByRealId(companyId: 'co', id: 't_s1').first;
+      expect(row, isNotNull);
+      final cursor = await db.syncStateDao.read(
+        companyId: 'co',
+        entityType: 'task',
+      );
+      expect(cursor.isEmpty, isTrue);
+    });
 
     test('a newer row replaces the one already stored', () async {
       // Paired with the drop test below: together they pin that the staleness

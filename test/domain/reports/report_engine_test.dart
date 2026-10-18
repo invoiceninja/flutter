@@ -586,6 +586,60 @@ void main() {
       );
       expect(view.groups.single.key, isNot('2026-03-01'));
     });
+
+    // The date-range filter reads the same local day the grouping above and
+    // the cell display do. It compared the UTC day, so a row could show and
+    // group as Mar 2 yet be dropped by a "Mar 2" filter and kept by "Mar 1".
+    //
+    // Same caveat as the test above: there is nothing to convert at UTC, so
+    // the test returns there. The instant is picked by the sign of the
+    // device's offset so its local day differs from its UTC one both east of
+    // UTC (23:30 UTC is already tomorrow) and west of it (00:30 UTC is still
+    // yesterday) — verified failing against the pre-fix code under
+    // `TZ=Australia/Sydney` and `TZ=America/New_York`.
+    test('a dateTime filters on the local day, not the UTC one', () {
+      final probe = DateTime.utc(2026, 3, 1, 12);
+      final east = probe.toLocal().timeZoneOffset > Duration.zero;
+      final instant = east
+          ? DateTime.utc(2026, 3, 1, 23, 30)
+          : DateTime.utc(2026, 3, 1, 0, 30);
+      final local = instant.toLocal();
+      if (local.day == instant.day) return; // device is at UTC
+
+      final preview = previewWith(
+        columns: [createdAtCol, amountCol],
+        rows: [
+          [
+            ReportDateTimeCell(value: instant),
+            ReportNumberCell(value: d('10'), isMoney: true, currencyId: '1'),
+          ],
+        ],
+      );
+      int rowsFor(Date day) => engine
+          .compute(
+            preview: preview,
+            ui: ReportUiState(
+              columnFilters: {
+                'client.created_at': '${day.toIso()}..${day.toIso()}',
+              },
+            ),
+            exchangeRates: const {},
+            companyCurrencyId: '1',
+          )
+          .rows
+          .length;
+
+      expect(
+        rowsFor(Date(local.year, local.month, local.day)),
+        1,
+        reason: 'the day the row shows and groups under keeps it',
+      );
+      expect(
+        rowsFor(Date(instant.year, instant.month, instant.day)),
+        0,
+        reason: 'the UTC day is not the day the row is on',
+      );
+    });
   });
 
   group('ReportEngine period split (periodColumn)', () {

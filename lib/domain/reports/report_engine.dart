@@ -716,7 +716,12 @@ class ReportEngine {
         // date branch above and the dateTime grouping in _groupKey. Comparing
         // the raw DateTime against a midnight-parsed end bound would drop every
         // same-day timestamp on the end date (off-by-one excluding the end day).
-        final v = cell.value!;
+        // The *local* day, as grouping, CSV and display read it: a UTC value
+        // (a `Z` / offset string, or a unix timestamp) kept its UTC fields, so
+        // a row created at 23:30 UTC on Mar 1 showed and grouped as Mar 2 in
+        // Sydney yet was filtered as Mar 1. A string with no offset already
+        // parses local, so for it this is a no-op.
+        final v = cell.value!.toLocal();
         final cellDate = Date(v.year, v.month, v.day);
         if (start.isNotEmpty) {
           final s = Date.tryParse(start);

@@ -132,7 +132,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
   }
 
   Widget _body(BuildContext context, Payment p) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(p.id)
+      ..kick();
     Future<void> submit(String text) => _services.payments.addComment(
       companyId: _companyId,
       entityId: p.id,

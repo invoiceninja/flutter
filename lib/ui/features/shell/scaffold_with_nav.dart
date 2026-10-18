@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/leader_shortcuts.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/tasks/tasks_view_mode.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -406,9 +407,10 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   };
 
   /// Navigate to an entity's create route (fired by a `create_<entity>`
-  /// shortcut). No-op when the entity has no create route or its module is
+  /// shortcut). No-op when the entity has no create route, its module is
   /// disabled for the active company (mirrors [_goBranch] — avoids the flash of
-  /// a router redirect).
+  /// a router redirect), or the user lacks the `create_<entity>` permission
+  /// (`mayCreateEntity`, the gate behind every `+`).
   Future<void> _createEntity(EntityType type) async {
     // A modal sheet lives in THIS navigator (`showModalBottomSheet` defaults to
     // `useRootNavigator: false`, and all but one call site takes that default),
@@ -421,9 +423,12 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     if (route == null || route.isEmpty) return;
     // Don't navigate into an entity whose module is disabled for the active
     // company (mirrors [_goBranch] — avoids the flash of a router redirect).
-    final modules =
-        services.auth.session.value?.currentCompany?.enabledModules ?? 0;
+    final me = services.auth.session.value?.currentCompany;
+    final modules = me?.enabledModules ?? 0;
     if (!isEntityModuleEnabledForCompany(type, modules)) return;
+    // Nor into a create form whose save the server would refuse: the list's
+    // `+` and the dashboard's create menu ask for `create_<entity>` too.
+    if (!mayCreateEntity(type, can: (p) => me?.can(p) ?? false)) return;
     // Same guard every other shell-level navigation runs: leaving a dirty
     // editor must prompt, not silently discard. Async like [_goBranch], which
     // is likewise invoked fire-and-forget from a shortcut action.

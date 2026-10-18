@@ -265,41 +265,11 @@ class _DisableSection extends StatelessWidget {
     }
   }
 
-  Future<String?> _promptForPassword(BuildContext context) async {
-    final controller = TextEditingController();
-    try {
-      return await showDialog<String>(
+  Future<String?> _promptForPassword(BuildContext context) =>
+      showDialog<String>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(ctx.tr('please_type_password')),
-          content: TextField(
-            controller: controller,
-            obscureText: true,
-            autofocus: true,
-            keyboardType: TextInputType.visiblePassword,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(labelText: ctx.tr('password')),
-            onSubmitted: (v) => Navigator.of(ctx).pop(v),
-          ),
-          actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              child: Text(ctx.tr('cancel')),
-            ),
-            PrimaryDialogAction(
-              label: ctx.tr('confirm'),
-              autofocus: false,
-              onPressed: () => Navigator.of(ctx).pop(controller.text),
-            ),
-          ],
-        ),
+        builder: (_) => const _ConfirmPasswordDialog(),
       );
-    } finally {
-      controller.dispose();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -326,6 +296,58 @@ class _DisableSection extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
+class _ConfirmPasswordDialog extends StatefulWidget {
+  const _ConfirmPasswordDialog();
+
+  @override
+  State<_ConfirmPasswordDialog> createState() => _ConfirmPasswordDialogState();
+}
+
+class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.tr('please_type_password')),
+      content: TextField(
+        controller: _controller,
+        obscureText: true,
+        autofocus: true,
+        keyboardType: TextInputType.visiblePassword,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: InputDecoration(labelText: context.tr('password')),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('confirm'),
+          autofocus: false,
+          onPressed: () => Navigator.of(context).pop(_controller.text),
         ),
       ],
     );

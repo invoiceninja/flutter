@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -60,6 +62,19 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
   /// synchronous.
   bool _weekStartApplied = false;
 
+  /// [_mayCreateTask] as of the last session this State built against, so a
+  /// same-company session that flips it — the background `/refresh` healing
+  /// cached permissions — rebuilds; see `_onSessionChanged`.
+  late bool _builtMayCreateTask;
+
+  /// The `+` is hidden, not greyed, from a user without `create_task` — the
+  /// list view's rule (`mayCreateEntity`). Read live, so a company switch
+  /// re-resolves it.
+  bool get _mayCreateTask {
+    final me = _services.auth.session.value?.currentCompany;
+    return mayCreateEntity(EntityType.task, can: (p) => me?.can(p) ?? false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +96,7 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
     _vm.addListener(_onTaskVmChanged);
     _calVm.addListener(_onCalVmChanged);
     _services.auth.session.addListener(_onSessionChanged);
+    _builtMayCreateTask = _mayCreateTask;
     _resolveFormatter();
     _initCalendar();
   }
@@ -167,7 +183,17 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
 
   void _onSessionChanged() {
     final s = _services.auth.session.value;
-    if (s == null || s.currentCompanyId == _companyId) return;
+    if (s == null) return;
+    if (s.currentCompanyId == _companyId) {
+      // Same company, maybe new permissions (cold start restores cached ones
+      // and `/refresh` heals them in the background): a flipped
+      // `create_task` has to rebuild, or a hidden `+` stays hidden.
+      final mayCreate = _mayCreateTask;
+      if (mayCreate != _builtMayCreateTask) {
+        setState(() => _builtMayCreateTask = mayCreate);
+      }
+      return;
+    }
     final old = _vm;
     _companyId = s.currentCompanyId;
     _formatter = _services.formatterIfReady(_companyId);
@@ -182,6 +208,7 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
           isHosted: _services.auth.session.value?.isHosted ?? false,
         ),
       );
+      _builtMayCreateTask = _mayCreateTask;
     });
     old.removeListener(_onTaskVmChanged);
     old.dispose();
@@ -240,11 +267,13 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
           drawer: Breakpoints.isGlobalNavVisible(context)
               ? null
               : const AppDrawer(),
-          floatingActionButton: FloatingActionButton(
-            tooltip: context.tr('new_task'),
-            onPressed: () => goToCreateRoute(context, '/tasks/new'),
-            child: const Icon(Icons.add),
-          ),
+          floatingActionButton: _mayCreateTask
+              ? FloatingActionButton(
+                  tooltip: context.tr('new_task'),
+                  onPressed: () => goToCreateRoute(context, '/tasks/new'),
+                  child: const Icon(Icons.add),
+                )
+              : null,
           body: MultiProvider(
             providers: [
               ChangeNotifierProvider<TaskCalendarViewModel>.value(value: _vm),
@@ -279,7 +308,11 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
                       padding: EdgeInsets.only(
                         bottom: taskCalendarFabClearance(
                           availableHeight: constraints.maxHeight,
-                          desired: fabScrollClearance(context),
+                          // Only the safe inset when there is no `+`
+                          // (no `create_task`).
+                          desired: _mayCreateTask
+                              ? fabScrollClearance(context)
+                              : MediaQuery.paddingOf(context).bottom,
                         ),
                       ),
                       child: TaskCalendarGrid(formatter: _formatter),

@@ -1089,8 +1089,8 @@ abstract class BaseEntityRepository<TDomain, TApi> {
 
   /// Whether a just-fetched page implies more rows are reachable.
   ///
-  /// Shared by [ensurePageLoadedTemplate] and by the repos that hand-roll their
-  /// own `ensurePageLoaded` body, so the rule can't drift between them again.
+  /// Read by [ensurePageLoadedTemplate], which every paginated repo's
+  /// `ensurePageLoaded` delegates to, so the rule lives in one place.
   ///
   /// [cursorApplied] must mean a REAL watermark went out on the request, not
   /// merely that a cursor object was read: `SyncStateDao.read` returns an
@@ -1204,9 +1204,8 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   }
 
   /// Read the shared keyset cursor when this fetch is entitled to it, else
-  /// null. The single call every `ensurePageLoaded` body uses — including the
-  /// six repos that hand-roll their own — so the gate expression exists in
-  /// exactly one place.
+  /// null. The single call [ensurePageLoadedTemplate] makes, so the gate
+  /// expression exists in exactly one place.
   ///
   /// Pass the `extraFilters` map **after** [resolveRelativeFilterTokens], the
   /// same one handed to [shouldAdvanceCursor].
@@ -1290,14 +1289,17 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   ///      open-ended [extraFilters] map (each set comma-joined, keys sorted
   ///      deterministically) into a flat `Map<String, String>`.
   ///   3. Call [listCall] with cursor + filters.
-  ///   4. Empty page → return false (no more rows).
-  ///   5. Upsert via [upsert] with `{id → companion}` projected via [idOf] +
+  ///   4. The company switched while the page was in flight → throw
+  ///      [CompanySwitchedException], before anything reads the page — an
+  ///      empty page from the other company's token is not "end of list".
+  ///   5. Empty page → return false (no more rows).
+  ///   6. Upsert via [upsert] with `{id → companion}` projected via [idOf] +
   ///      [toCompanion].
-  ///   6. Advance the cursor when the server returned a non-null
+  ///   7. Advance the cursor when the server returned a non-null
   ///      `(cursorUpdatedAt, cursorId)` — never as a full sync, whatever
   ///      `ignoreCursor` says. `refreshAllTemplate` stamps that once, after a
   ///      full sweep has actually finished (`SyncStateDao.markFullSync`).
-  ///   7. Return `apiRows.length >= pageSize` — more pages remain when the
+  ///   8. Return `apiRows.length >= pageSize` — more pages remain when the
   ///      server filled the page.
   ///
   /// [listCall] accepts the typed `*Api.list` tear-off directly (the
@@ -1366,11 +1368,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     //    **The enumeration is belt-and-braces, not the guarantee.** What
     //    actually keeps a scoped fetch off the cursor is `isNarrowedFetch`'s
     //    `extraFilters` arm, which is true for ANY non-empty filter — so
-    //    adding the three keys here changes no behaviour, and the six repos
-    //    that hand-roll this body and pass only their own parent key
-    //    (`hasClientScope` / `hasVendorScope` / `false`) are equally correct
-    //    without them. Don't read this list as a contract every call site owes
-    //    you; a new scope param is safe the moment it lands in `extraFilters`.
+    //    adding the three keys here changes no behaviour. Don't read this list
+    //    as a contract every call site owes you; a new scope param is safe the
+    //    moment it lands in `extraFilters`.
     //    It is written out anyway because DIVERGENCE between this gate and
     //    `isNarrowedFetch` is precisely what flutter#32 was — the two
     //    disagreed, and a stale enumeration is how they start to.
@@ -1425,17 +1425,8 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       filters: filters,
     );
 
-    final apiRows = itemsOf(result.data);
-    if (apiRows.isEmpty) {
-      return hasMoreAfterPage(
-        rowCount: 0,
-        cursorApplied: cursor?.isEmpty == false,
-        pageSize: pageSize,
-      );
-    }
-
-    // The company switched while this page was in flight, so `apiRows` came
-    // back under a DIFFERENT company's token and stamping them with our
+    // The company switched while this page was in flight, so the page came
+    // back under a DIFFERENT company's token and stamping its rows with our
     // `companyId` would file one workspace's records under another. Abandon
     // the page, leave the cursor alone.
     //
@@ -1445,11 +1436,26 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     // through its 1000-page cap re-fetching pages it will keep discarding.
     // `CompanySwitchedException` ends the loop and leaves `hasMore` untouched
     // in the list VM, which catches it and stays armed for the next attempt.
+    //
+    // Checked BEFORE the empty-page return, because an empty page is an
+    // answer too. The other company's empty page 3 reads as "end of list",
+    // and a full sweep that reaches the end prunes what it never saw — so a
+    // switch during a Sync's Documents step deleted the first company's
+    // cached files, and stamped a full sync it never finished.
     if (!companyStillActive(companyId)) {
       throw CompanySwitchedException(
         expected: companyId,
         active: activeCompanyId?.call(),
         entityType: entityTypeName,
+      );
+    }
+
+    final apiRows = itemsOf(result.data);
+    if (apiRows.isEmpty) {
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
       );
     }
 
@@ -1782,10 +1788,15 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// short-circuits its first page fetch. On a *delta* refresh
   /// (`current_company=true`, `wasFullSync: false`) the bundle is **partial**:
   ///   * the cursor is advanced but **not** marked full (so pagination still
-  ///     back-fills rows the delta didn't carry), and
+  ///     back-fills rows the delta didn't carry),
   ///   * it is never *regressed* — a delta whose max `updated_at` is behind
   ///     the cursor we already hold leaves the cursor untouched (the upsert
-  ///     still runs, so archived/deleted flags from the delta still land).
+  ///     still runs, so archived/deleted flags from the delta still land), and
+  ///   * it is never *created* — with no cursor stored, page 1 has never been
+  ///     fetched, and seeding one from a delta would narrow every later page 1
+  ///     to `updated_at >=` rows while page 2 starts at row 51, stranding the
+  ///     newest records. The upsert still runs; only the cursor write is
+  ///     skipped.
   ///
   /// Soft-delete note: this is upsert-only and never deletes. A delta returns
   /// archived/deleted rows with their flags set; bundled-entity `watchAll`
@@ -1847,11 +1858,21 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       // cheap idempotent re-fetch, never a skip. The server's
       // `updated_at >= T-buffer` window is complete, so a strictly-greater
       // max is a legitimate forward move.
+      //
+      // And a delta may only MOVE a cursor, never create one. A cursor says
+      // "page 1 was fetched up to here", and with none stored the list has
+      // never fetched its page 1 — the activation prefetch failed or was
+      // abandoned, or a delta beat it on a first switch to the company. A
+      // cursor seeded from the delta's newest row turns every later page 1
+      // into an `updated_at >= W` delta, while page 2 starts at offset row 51,
+      // so the newest ~50 records the delta didn't carry never load — and the
+      // cursor persists in Drift, so that lasts until a full Sync.
       final existing = await _syncState.read(
         companyId: companyId,
         entityType: entityTypeName,
       );
-      if (maxUpdatedAt <= (existing.updatedAt ?? 0)) return;
+      final storedAt = existing.updatedAt;
+      if (storedAt == null || maxUpdatedAt <= storedAt) return;
       await advanceCursor(
         companyId: companyId,
         updatedAt: maxUpdatedAt,
@@ -1876,7 +1897,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   ///  1. **`wasFullSync: false` is not a parameter.** A browsable entity's
   ///     cursor must never be marked full from a delta, or its own pagination
   ///     stops back-filling. Hard-coding it means a call site cannot get it
-  ///     wrong.
+  ///     wrong. The delta branch it selects also moves only a cursor that
+  ///     already exists — it never creates one, since a list whose page 1 was
+  ///     never fetched would then never fetch its newest rows (see
+  ///     [applyBundleUpsertOnly]).
   ///  2. **A staleness guard.** The `/refresh` body is computed server-side
   ///     before it is persisted here, so an outbox echo landing in between
   ///     holds a NEWER row than the delta does — and that echo has already

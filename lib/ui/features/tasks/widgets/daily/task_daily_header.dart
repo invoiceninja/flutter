@@ -10,7 +10,12 @@ import 'package:admin/utils/formatting.dart';
 
 /// Day navigation + day totals + actions above the daily timeline.
 class TaskDailyHeader extends StatelessWidget {
-  const TaskDailyHeader({super.key, required this.wide, this.formatter});
+  const TaskDailyHeader({
+    super.key,
+    required this.wide,
+    required this.mayCreate,
+    this.formatter,
+  });
 
   /// From the host screen's `LayoutBuilder` — the **content pane**, not the
   /// window. Read locally it answered a pane question with a window number, so
@@ -18,6 +23,12 @@ class TaskDailyHeader extends StatelessWidget {
   /// full-label chrome into a narrow pane. One bool per screen now feeds the
   /// AppBar, the filter bar and this row; see `taskFiltersInline`.
   final bool wide;
+
+  /// Whether the user holds `create_task` — the host screen's gate, passed
+  /// down rather than read here. Log time opens a new-task draft and
+  /// Duplicate yesterday clones tasks, so both are withdrawn, like the
+  /// screen's `+`, from a user without it.
+  final bool mayCreate;
 
   final Formatter? formatter;
 
@@ -84,7 +95,7 @@ class TaskDailyHeader extends StatelessWidget {
               icon: const Icon(Icons.today_outlined),
               onPressed: vm.goToToday,
             ),
-          if (vm.isToday)
+          if (vm.isToday && mayCreate)
             IconButton(
               tooltip: context.tr('duplicate_yesterday'),
               icon: const Icon(Icons.copy_outlined),
@@ -99,20 +110,22 @@ class TaskDailyHeader extends StatelessWidget {
                     )
                   : null,
             ),
-          const SizedBox(width: 8),
-          if (wide)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: () => TaskDailyActions.logTime(context, vm.day),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(context.tr('log_time')),
-            )
-          else
-            IconButton.filledTonal(
-              tooltip: context.tr('log_time'),
-              onPressed: () => TaskDailyActions.logTime(context, vm.day),
-              icon: const Icon(Icons.add),
-            ),
+          if (mayCreate) ...[
+            const SizedBox(width: 8),
+            if (wide)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
+                onPressed: () => TaskDailyActions.logTime(context, vm.day),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(context.tr('log_time')),
+              )
+            else
+              IconButton.filledTonal(
+                tooltip: context.tr('log_time'),
+                onPressed: () => TaskDailyActions.logTime(context, vm.day),
+                icon: const Icon(Icons.add),
+              ),
+          ],
         ],
       ),
     );

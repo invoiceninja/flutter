@@ -95,6 +95,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen>
           fontWeight: FontWeight.w600,
         ),
       ),
+      // The Edit action's own rule (deleted, plan, permission): `E` must not
+      // open an editor the menu hides. Read when the key is pressed.
+      isReadOnly: (d) => !documentEditable(_services.auth.session.value, d),
       onRefresh: _record.refresh,
       bodyBuilder: (context, d) {
         _record.attach(recordId: d.id, revision: d.updatedAt);

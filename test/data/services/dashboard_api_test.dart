@@ -1,6 +1,7 @@
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/dashboard_api.dart';
@@ -167,17 +168,34 @@ void main() {
     final filter = DashboardFilter.defaults();
     await api.fetchTotals(filter);
     final call = client.posts.single;
-    final (start, end) = filter.resolveDates();
+    final (start, _) = filter.resolveDates();
     expect(call.path, '/api/v1/charts/totals_v2');
     // Given `this_month` the server ignores the dates and works the window out
     // again from its own clock; `custom` makes it sum the window the header
-    // shows.
+    // shows. And the month is in progress, so it is summed only up to today —
+    // the span the trend compares with — not through post-dated rows at its
+    // end (on its last day the two are the same).
     expect(call.body, {
+      'start_date': start.toIso(),
+      'end_date': Date.today().toIso(),
+      'date_range': 'custom',
+    });
+    expect(call.query, {'include_drafts': 'false'});
+  });
+
+  test('totals — a window that is over is summed whole', () async {
+    const filter = DashboardFilter(
+      range: DashboardPresetRange(DashboardDatePreset.lastMonth),
+    );
+    await api.fetchTotals(filter);
+    final body = client.posts.single.body!;
+    final (start, end) = filter.resolveDates();
+    expect(body, {
       'start_date': start.toIso(),
       'end_date': end.toIso(),
       'date_range': 'custom',
     });
-    expect(call.query, {'include_drafts': 'false'});
+    expect(end.compareTo(Date.today()), lessThan(0));
   });
 
   test('totals — a rolling preset is sent as custom too', () async {
@@ -247,6 +265,7 @@ void main() {
     final call = client.posts.single;
     final (start, end) = filter.resolveDates();
     expect(call.path, '/api/v1/charts/chart_summary_v2');
+    // The whole window, unlike the totals: the chart's axis is the month.
     expect(call.body!['date_range'], 'custom');
     expect(call.body!['start_date'], start.toIso());
     expect(call.body!['end_date'], end.toIso());

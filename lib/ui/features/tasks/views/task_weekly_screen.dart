@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/calendar_week_start.dart';
@@ -47,6 +49,19 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
   /// synchronous.
   bool _weekStartApplied = false;
 
+  /// [_mayCreateTask] as of the last session this State built against, so a
+  /// same-company session that flips it — the background `/refresh` healing
+  /// cached permissions — rebuilds; see `_onSessionChanged`.
+  late bool _builtMayCreateTask;
+
+  /// The `+` and Log time are hidden, not greyed, from a user without
+  /// `create_task` — the list view's rule (`mayCreateEntity`). Read live, so a
+  /// company switch re-resolves it.
+  bool get _mayCreateTask {
+    final me = _services.auth.session.value?.currentCompany;
+    return mayCreateEntity(EntityType.task, can: (p) => me?.can(p) ?? false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +71,7 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
     _vm = _buildVm();
     _vm.addListener(_onVmChanged);
     _services.auth.session.addListener(_onSessionChanged);
+    _builtMayCreateTask = _mayCreateTask;
     _resolveFormatter();
   }
 
@@ -137,13 +153,24 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
 
   void _onSessionChanged() {
     final s = _services.auth.session.value;
-    if (s == null || s.currentCompanyId == _companyId) return;
+    if (s == null) return;
+    if (s.currentCompanyId == _companyId) {
+      // Same company, maybe new permissions (cold start restores cached ones
+      // and `/refresh` heals them in the background): a flipped
+      // `create_task` has to rebuild, or a hidden `+` stays hidden.
+      final mayCreate = _mayCreateTask;
+      if (mayCreate != _builtMayCreateTask) {
+        setState(() => _builtMayCreateTask = mayCreate);
+      }
+      return;
+    }
     final old = _vm;
     _companyId = s.currentCompanyId;
     _formatter = _services.formatterIfReady(_companyId);
     setState(() {
       _vm = _buildVm();
       _lastErrorNonce = 0;
+      _builtMayCreateTask = _mayCreateTask;
     });
     _vm.addListener(_onVmChanged);
     old.removeListener(_onVmChanged);
@@ -196,11 +223,13 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
           drawer: Breakpoints.isGlobalNavVisible(context)
               ? null
               : const AppDrawer(),
-          floatingActionButton: FloatingActionButton(
-            tooltip: context.tr('new_task'),
-            onPressed: () => goToCreateRoute(context, '/tasks/new'),
-            child: const Icon(Icons.add),
-          ),
+          floatingActionButton: _mayCreateTask
+              ? FloatingActionButton(
+                  tooltip: context.tr('new_task'),
+                  onPressed: () => goToCreateRoute(context, '/tasks/new'),
+                  child: const Icon(Icons.add),
+                )
+              : null,
           body: ChangeNotifierProvider<TaskWeeklyViewModel>.value(
             value: _vm,
             child: ValueListenableBuilder<String>(
@@ -227,6 +256,7 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
           formatter: _formatter,
           wide: wide,
           hoursMinutes: hoursMinutes,
+          mayCreate: _mayCreateTask,
         ),
         // Clear the `+` above (invoiceninja/flutter#167). Around the
         // grid, not inside its scroll view: the totals row is pinned
@@ -237,7 +267,13 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
         // alternative leaves the grand total permanently covered.
         Expanded(
           child: Padding(
-            padding: EdgeInsets.only(bottom: fabScrollClearance(context)),
+            // No `+` for a user without `create_task`: then only the bottom
+            // safe inset, which the button's clearance otherwise carries.
+            padding: EdgeInsets.only(
+              bottom: _mayCreateTask
+                  ? fabScrollClearance(context)
+                  : MediaQuery.paddingOf(context).bottom,
+            ),
             child: WeeklyGrid(
               formatter: _formatter,
               hoursMinutes: hoursMinutes,
@@ -254,6 +290,7 @@ class _WeeklyHeader extends StatelessWidget {
   const _WeeklyHeader({
     required this.wide,
     required this.hoursMinutes,
+    required this.mayCreate,
     this.formatter,
   });
 
@@ -262,6 +299,10 @@ class _WeeklyHeader extends StatelessWidget {
 
   /// See `WeeklyGrid.hoursMinutes`.
   final bool hoursMinutes;
+
+  /// See `TaskDailyHeader.mayCreate`: Log time opens a new-task draft, so it
+  /// is withdrawn, like the `+`, from a user without `create_task`.
+  final bool mayCreate;
 
   final Formatter? formatter;
 
@@ -341,20 +382,22 @@ class _WeeklyHeader extends StatelessWidget {
               icon: const Icon(Icons.today_outlined),
               onPressed: vm.goToToday,
             ),
-          const SizedBox(width: 8),
-          if (wide)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: () => TaskDailyActions.logTime(context, logDay),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(context.tr('log_time')),
-            )
-          else
-            IconButton.filledTonal(
-              tooltip: context.tr('log_time'),
-              onPressed: () => TaskDailyActions.logTime(context, logDay),
-              icon: const Icon(Icons.add),
-            ),
+          if (mayCreate) ...[
+            const SizedBox(width: 8),
+            if (wide)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
+                onPressed: () => TaskDailyActions.logTime(context, logDay),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(context.tr('log_time')),
+              )
+            else
+              IconButton.filledTonal(
+                tooltip: context.tr('log_time'),
+                onPressed: () => TaskDailyActions.logTime(context, logDay),
+                icon: const Icon(Icons.add),
+              ),
+          ],
         ],
       ),
     );

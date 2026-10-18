@@ -93,3 +93,18 @@ List<EntityType> quickCreateEntities({
         can(createPermissionFor(type)))
       type,
 ];
+
+/// Whether a user may start a new [type] from one of the app's other create
+/// surfaces — a list's New button, its `+` FAB and `N`, an embedded list's
+/// New, the global create shortcuts, the sidebar's hover `+`.
+///
+/// [createPermissionFor] for every entity the create menu can offer: those
+/// surfaces used to ask nothing, so a view-only user was handed a create form
+/// whose save the server then refused. Any other entity — a settings-type
+/// list such as bank accounts or tax rates — is not gated here (the server
+/// still refuses it). Callers hide the surface rather than greying it:
+/// greyed is how a plan gate explains itself, and this is not one.
+bool mayCreateEntity(
+  EntityType type, {
+  required bool Function(String permission) can,
+}) => !kQuickCreateEntities.contains(type) || can(createPermissionFor(type));

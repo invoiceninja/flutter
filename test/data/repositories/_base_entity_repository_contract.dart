@@ -883,6 +883,14 @@ void runEntityRepositoryContract<TDomain, TApi>(
     if (applyDelta != null) {
       test('a delta upserts rows and advances the cursor without claiming a '
           'full sync', () async {
+        // A cursor a page-1 fetch already stored — a delta only moves one.
+        await db.syncStateDao.writeCursor(
+          companyId: 'co',
+          entityType: fixture.entityType,
+          updatedAt: 50,
+          id: 'seed',
+          now: 0,
+        );
         await applyDelta(
           repo,
           companyId: 'co',
@@ -904,6 +912,32 @@ void runEntityRepositoryContract<TDomain, TApi>(
         // Never `lastFullAt`: marking a browsable entity's cursor full from a
         // partial delta stops its own pagination back-filling.
         expect(cursor.lastFullAt, isNull);
+      });
+
+      test('a delta never seeds a cursor', () async {
+        // No cursor means this list has never fetched its page 1. A cursor
+        // seeded from the delta's newest row would make every later page 1 an
+        // `updated_at >=` delta while page 2 starts at offset row 51, so the
+        // newest records the delta didn't carry would never load.
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(id: 's1', displayValue: 'A', updatedAt: 100),
+            fixture.buildApiModel(id: 's2', displayValue: 'B', updatedAt: 200),
+          ],
+        );
+
+        expect(
+          await fixture.watch(repo, companyId: 'co', id: 's2').first,
+          isNotNull,
+          reason: 'the rows still land; only the cursor write is skipped',
+        );
+        final cursor = await db.syncStateDao.read(
+          companyId: 'co',
+          entityType: fixture.entityType,
+        );
+        expect(cursor.isEmpty, isTrue);
       });
 
       test('a delta never clobbers a row with a pending offline edit', () async {

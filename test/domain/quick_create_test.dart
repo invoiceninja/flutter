@@ -250,4 +250,33 @@ void main() {
       expect(offered(company()), isEmpty);
     });
   });
+
+  // The list's New / FAB / `N`, the global create shortcuts and the sidebar's
+  // `+` ask this; they asked nothing before.
+  group('mayCreateEntity', () {
+    bool may(AuthCompany me, EntityType type) =>
+        mayCreateEntity(type, can: me.can);
+
+    test('an entity the menu offers needs its create token', () {
+      final viewOnly = company(permissions: 'view_invoice,edit_invoice');
+      expect(may(viewOnly, EntityType.invoice), isFalse);
+      expect(
+        may(company(permissions: 'create_invoice'), EntityType.invoice),
+        isTrue,
+      );
+      expect(
+        may(
+          company(permissions: 'create_bank_transaction'),
+          EntityType.transaction,
+        ),
+        isTrue,
+      );
+      expect(may(company(isAdmin: true), EntityType.invoice), isTrue);
+    });
+
+    test('a settings-type entity outside the menu is not gated here', () {
+      expect(kQuickCreateEntities, isNot(contains(EntityType.taxRate)));
+      expect(may(company(), EntityType.taxRate), isTrue);
+    });
+  });
 }

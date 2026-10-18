@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -39,6 +41,19 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
   late TaskDailyViewModel _vm;
   Formatter? _formatter;
 
+  /// [_mayCreateTask] as of the last session this State built against, so a
+  /// same-company session that flips it — the background `/refresh` healing
+  /// cached permissions — rebuilds; see `_onSessionChanged`.
+  late bool _builtMayCreateTask;
+
+  /// The `+`, Log time and Duplicate yesterday are hidden, not greyed, from a
+  /// user without `create_task` — the list view's rule (`mayCreateEntity`).
+  /// Read live, so a company switch re-resolves it.
+  bool get _mayCreateTask {
+    final me = _services.auth.session.value?.currentCompany;
+    return mayCreateEntity(EntityType.task, can: (p) => me?.can(p) ?? false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +66,7 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
       focusDay: widget.focusDate,
     );
     _services.auth.session.addListener(_onSessionChanged);
+    _builtMayCreateTask = _mayCreateTask;
     _resolveFormatter();
   }
 
@@ -63,12 +79,23 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
 
   void _onSessionChanged() {
     final s = _services.auth.session.value;
-    if (s == null || s.currentCompanyId == _companyId) return;
+    if (s == null) return;
+    if (s.currentCompanyId == _companyId) {
+      // Same company, maybe new permissions (cold start restores cached ones
+      // and `/refresh` heals them in the background): a flipped
+      // `create_task` has to rebuild, or a hidden `+` stays hidden.
+      final mayCreate = _mayCreateTask;
+      if (mayCreate != _builtMayCreateTask) {
+        setState(() => _builtMayCreateTask = mayCreate);
+      }
+      return;
+    }
     final old = _vm;
     _companyId = s.currentCompanyId;
     _formatter = _services.formatterIfReady(_companyId);
     setState(() {
       _vm = TaskDailyViewModel(repo: _services.tasks, companyId: _companyId);
+      _builtMayCreateTask = _mayCreateTask;
     });
     old.dispose();
     _resolveFormatter();
@@ -118,11 +145,13 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
           drawer: Breakpoints.isGlobalNavVisible(context)
               ? null
               : const AppDrawer(),
-          floatingActionButton: FloatingActionButton(
-            tooltip: context.tr('new_task'),
-            onPressed: () => goToCreateRoute(context, '/tasks/new'),
-            child: const Icon(Icons.add),
-          ),
+          floatingActionButton: _mayCreateTask
+              ? FloatingActionButton(
+                  tooltip: context.tr('new_task'),
+                  onPressed: () => goToCreateRoute(context, '/tasks/new'),
+                  child: const Icon(Icons.add),
+                )
+              : null,
           body: ChangeNotifierProvider<TaskDailyViewModel>.value(
             value: _vm,
             child: Column(
@@ -133,11 +162,16 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
                   inline: inline,
                   onEditFilters: _openFilters,
                 ),
-                TaskDailyHeader(formatter: _formatter, wide: wide),
+                TaskDailyHeader(
+                  formatter: _formatter,
+                  wide: wide,
+                  mayCreate: _mayCreateTask,
+                ),
                 Expanded(
                   child: _DailyList(
                     formatter: _formatter,
                     companyId: _companyId,
+                    mayCreate: _mayCreateTask,
                   ),
                 ),
               ],
@@ -150,10 +184,19 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
 }
 
 class _DailyList extends StatelessWidget {
-  const _DailyList({required this.companyId, this.formatter});
+  const _DailyList({
+    required this.companyId,
+    required this.mayCreate,
+    this.formatter,
+  });
 
   final String companyId;
   final Formatter? formatter;
+
+  /// Whether the user holds `create_task`. Without it the screen has no `+`,
+  /// so there is nothing to scroll clear of, and the empty day offers no
+  /// Log time — it opens a new-task draft.
+  final bool mayCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -192,12 +235,14 @@ class _DailyList extends StatelessWidget {
       return EmptyState(
         icon: Icons.schedule_outlined,
         title: context.tr('no_records_found'),
-        action: FilledButton.icon(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: () => TaskDailyActions.logTime(context, vm.day),
-          icon: const Icon(Icons.add, size: 18),
-          label: Text(context.tr('log_time')),
-        ),
+        action: mayCreate
+            ? FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+                onPressed: () => TaskDailyActions.logTime(context, vm.day),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(context.tr('log_time')),
+              )
+            : null,
       );
     }
     final tokens = context.inTheme;
@@ -205,8 +250,12 @@ class _DailyList extends StatelessWidget {
       // Clear the screen's `+` (invoiceninja/flutter#167). Inside the scroll
       // view rather than around it, so rows travel *through* the padded region
       // instead of stopping short of it. `fabScrollClearance` carries the
-      // bottom safe inset, which a non-null padding turns off.
-      padding: EdgeInsets.only(bottom: fabScrollClearance(context)),
+      // bottom safe inset, which a non-null padding turns off — so with no
+      // `+` it is `null`, never `EdgeInsets.zero`, and the list applies the
+      // inset itself.
+      padding: mayCreate
+          ? EdgeInsets.only(bottom: fabScrollClearance(context))
+          : null,
       itemCount: rows.length,
       separatorBuilder: (_, _) => Divider(height: 1, color: tokens.border),
       itemBuilder: (context, i) {

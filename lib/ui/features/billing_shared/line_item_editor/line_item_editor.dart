@@ -59,6 +59,7 @@ class LineItemEditor extends StatefulWidget {
     this.onPickItems,
     this.showStockQuantity = false,
     this.onCreateTaskFromLineItem,
+    this.allowNewRows = true,
   });
 
   /// Company scope for the desktop table's product autocomplete +
@@ -131,6 +132,17 @@ class LineItemEditor extends StatefulWidget {
   /// so this widget stays free of task-feature imports. Null on credit /
   /// recurring invoice / purchase order, where the affordance never renders.
   final ValueChanged<LineItem>? onCreateTaskFromLineItem;
+
+  /// Whether the user can add a row here by hand — the desktop table's
+  /// trailing blank row and its "Insert Below", the phone's `Add Line`.
+  ///
+  /// False only for the billing-doc Expenses tab: its lines come from
+  /// existing expenses (or a clone of one), never typed, and a typed line has
+  /// nothing that keeps it in that tab. Its blank row committed as a product
+  /// line, left the tab's subset while still holding the text, and committed
+  /// again at the next pause — a duplicate product line per pause, all of them
+  /// saved. A typed line goes on Products. The picker is unaffected.
+  final bool allowNewRows;
 
   @override
   State<LineItemEditor> createState() => _LineItemEditorState();
@@ -252,6 +264,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
             rowErrors: widget.rowErrors,
             showStockQuantity: widget.showStockQuantity,
             onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
+            allowNewRows: widget.allowNewRows,
           );
         }
         return LineItemCardListMobile(
@@ -264,6 +277,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
           onPickItems: widget.onPickItems,
           onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
           rowErrors: widget.rowErrors,
+          allowNewRows: widget.allowNewRows,
         );
       },
     );

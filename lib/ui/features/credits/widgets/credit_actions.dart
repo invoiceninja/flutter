@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
@@ -62,6 +63,20 @@ enum CreditAction {
   restore,
   delete,
 }
+
+/// Whether [session]'s user may edit [credit] — the server's rule, not just
+/// the permission: the record's creator or assignee may change it too
+/// (`AuthSession.canEditRecord`). The Edit action and the record screen's
+/// `E` shortcut (`isReadOnly`) both read it, so the key cannot open an
+/// editor the menu does not offer.
+bool mayEditCredit(AuthSession? session, Credit credit) =>
+    session?.canEditRecord(
+      'credit',
+      createdBy: credit.userId,
+      assignedTo: credit.assignedUserId,
+      recordId: credit.id,
+    ) ??
+    false;
 
 class CreditActions {
   CreditActions._();
@@ -137,16 +152,10 @@ class CreditActions {
     // Read lazily here (itemsFor runs per build) so it re-resolves on a
     // company switch.
     final canViewClient = me?.can('view_client') ?? false;
-    // The server's rule, not just the permission: the record's creator or
-    // assignee may change it too (`AuthSession.canEditRecord`).
-    final canEdit =
-        context.read<Services>().auth.session.value?.canEditRecord(
-          'credit',
-          createdBy: credit.userId,
-          assignedTo: credit.assignedUserId,
-          recordId: credit.id,
-        ) ??
-        false;
+    final canEdit = mayEditCredit(
+      context.read<Services>().auth.session.value,
+      credit,
+    );
     final canCreate = me?.can('create_credit') ?? false;
     final canDelete = canEdit;
     final canMarkSent = canEdit && credit.isDraft;

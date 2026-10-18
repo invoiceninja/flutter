@@ -131,7 +131,11 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
   }
 
   Widget _body(BuildContext context, Expense e) {
-    _activityVm.kick();
+    // The feed was built on the routed id; follow a `tmp_` record to its
+    // real id once its create syncs, or it never loads.
+    _activityVm
+      ..rebind(e.id)
+      ..kick();
     Future<void> submit(String text) => _services.expenses.addComment(
       companyId: _companyId,
       entityId: e.id,

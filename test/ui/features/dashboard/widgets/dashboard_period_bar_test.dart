@@ -173,6 +173,24 @@ void main() {
       expect(find.text(windows(c, both: true)), findsNothing);
     });
 
+    // An in-progress custom range is summed only up to today
+    // (`DashboardApi.fetchTotals`), and the button's dates do not say so —
+    // the caption names the window the figures actually cover.
+    testWidgets('an in-progress custom range names the window it sums', (
+      tester,
+    ) async {
+      final today = vm.today;
+      await vm.setDateRange(
+        DashboardCustomRange(start: today.addDays(-5), end: today.addDays(30)),
+      );
+      await pumpBar(tester);
+
+      final c = vm.comparison!;
+      expect(c.currentEnd, today, reason: 'the window runs to today');
+      expect(find.text(windows(c, both: true)), findsOneWidget);
+      expect(find.text(windows(c, both: false)), findsNothing);
+    });
+
     testWidgets('All Time has nothing to compare with, and says nothing', (
       tester,
     ) async {

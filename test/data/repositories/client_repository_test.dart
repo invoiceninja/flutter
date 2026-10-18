@@ -1403,6 +1403,19 @@ void main() {
             'those rows forever',
       );
     });
+
+    test('an EMPTY page that arrives after a company switch is discarded '
+        'too — it is the other company\'s end of list, not ours', () async {
+      // Read as "end of list", the other company's empty page ended a full
+      // sweep early, and a sweep that reaches the end prunes whatever it
+      // never saw (the Documents step deleted company A's cached files).
+      final (:repo, :api) = makeRepo();
+      repo.activeCompanyId = () => 'co_b';
+      await expectLater(
+        repo.ensurePageLoaded(companyId: 'co', page: 2),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+    });
   });
 
   group('pagination', () {
@@ -1485,6 +1498,28 @@ void main() {
         reason:
             'a partial delta page must not latch hasMore=false — that '
             'permanently capped warm-session lists at ~50 rows',
+      );
+    });
+
+    test('a /refresh delta landing before the first page-1 fetch leaves that '
+        'fetch unnarrowed — a delta never creates the cursor', () async {
+      // The activation prefetch failed (or a delta beat it on a first switch
+      // to this company), so no page 1 has ever been fetched. Seeding the
+      // cursor from the delta made this page 1 an `updated_at >=` delta while
+      // page 2 starts at offset row 51: the newest ~50 records never loaded
+      // until a full Sync.
+      final (:repo, :api) = makeRepo();
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: [apiClient('d1', updatedAt: 1700000500)],
+      );
+
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+
+      expect(
+        api.calls.single.since,
+        isNull,
+        reason: 'the first page 1 must be a true first page, not a delta',
       );
     });
 

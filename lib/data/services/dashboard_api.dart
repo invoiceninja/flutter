@@ -46,17 +46,30 @@ class DashboardApi {
   /// period before, not the whole window shifted back. Returns null without a
   /// request when there is no such period ("All time"): nothing is cached, and
   /// the figures draw no trend.
+  ///
+  /// The current figures sum the comparison's *current* window, not the whole
+  /// selected one: for a window still in progress that ends today. Summing the
+  /// whole of "This Month" set every post-dated invoice in it against a
+  /// previous span that stops at the same day of last month, so the trend
+  /// rose with rows that had not happened yet — and the figure disagreed with
+  /// the "Oct 1 – Oct 18 vs Sep 1 – Sep 18" caption above it. A window that is
+  /// over (or has not started) is summed whole, as before. The chart
+  /// ([fetchChartSummary]) keeps the whole window, and Outstanding has its own
+  /// open one ([kOutstandingWindowStart]..[kOutstandingWindowEnd]).
   Future<Object?> fetchTotals(
     DashboardFilter filter, {
     bool previousPeriod = false,
   }) async {
     final Map<String, dynamic> body;
+    final c = filter.comparison();
     if (previousPeriod) {
-      final c = filter.comparison();
       if (c == null) return null;
       body = _customBody(c.previousStart, c.previousEnd);
     } else {
-      body = _windowBody(filter);
+      // Null only for "All time", which keeps its preset name.
+      body = c == null
+          ? _windowBody(filter)
+          : _customBody(c.currentStart, c.currentEnd);
     }
     final raw = await client.postJson(
       '/api/v1/charts/totals_v2',
@@ -243,7 +256,8 @@ class DashboardApi {
     return {'rows': rows, 'total': asInt};
   }
 
-  /// The selected window for the totals and the chart.
+  /// The whole selected window: the chart's, and the totals' on "All time"
+  /// (every other range sums the comparison's current window — [fetchTotals]).
   ///
   /// Sent as `custom` with the app's own dates for every range but "All time".
   /// Given a preset name the server ignores `start_date` / `end_date` and works

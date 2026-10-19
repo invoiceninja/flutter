@@ -186,6 +186,17 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.18',
+    items: [
+      ReleaseNoteItem(
+        'Updated: The F-Droid APKs now number each CPU architecture the way '
+        'F-Droid expects, so a new version always installs over the previous '
+        'one.',
+        hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.17',
     highlights: [
       ReleaseHighlight(

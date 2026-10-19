@@ -1,0 +1,1 @@
+- The F-Droid APKs now number each CPU architecture the way F-Droid expects, so a new version always installs over the previous one

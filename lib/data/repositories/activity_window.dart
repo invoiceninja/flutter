@@ -5,7 +5,8 @@
 /// without a database (`test/data/repositories/activity_window_test.dart`).
 library;
 
-import 'package:admin/data/services/dashboard_api.dart' show kActivityWindowMax;
+import 'package:admin/data/services/dashboard_api.dart'
+    show kActivityCursorWindowMax, kActivityWindowMax;
 
 int _createdAt(Object? row) {
   if (row is! Map) return 0;
@@ -45,11 +46,14 @@ int _newestFirst(Object? a, Object? b) {
 ///    fetched (or tied with its oldest second, which the fetch may have cut
 ///    through) are carried over.
 ///
-/// The result is newest first, trimmed to [cap].
+/// The result is newest first, trimmed to [cap] — the cursor cap, not the
+/// growing-window one: a window paged back with the cursor must survive the
+/// card's next refresh, and a fetch without it never asks for more than
+/// [kActivityWindowMax] anyway.
 List<Object?> mergeActivityWindow({
   required List<Object?> fetched,
   required List<Object?>? cached,
-  int cap = kActivityWindowMax,
+  int cap = kActivityCursorWindowMax,
 }) {
   final out = [...fetched]..sort(_newestFirst);
   if (fetched.isEmpty || cached == null || cached.isEmpty) {
@@ -72,6 +76,49 @@ List<Object?> mergeActivityWindow({
   for (final row in cached) {
     final t = _createdAt(row);
     if (t > fetchedOldest) continue;
+    if (have.add(_id(row))) out.add(row);
+  }
+  out.sort(_newestFirst);
+  return out.length > cap ? out.sublist(0, cap) : out;
+}
+
+/// The row a Load more pages back from: the oldest row held, by the same
+/// order [mergeActivityWindow] keeps. Null for an empty window.
+///
+/// The payload's `created_at` is whole seconds while the server orders by the
+/// stored microseconds, so inside one second this may not be the row the feed
+/// itself lists last. That costs nothing: the server answers with every row
+/// after it in feed order, a few of them already held, and
+/// [appendOlderActivities] drops those by id — nothing older can be skipped.
+Object? oldestActivityRow(List<Object?> rows) {
+  if (rows.isEmpty) return null;
+  return ([...rows]..sort(_newestFirst)).last;
+}
+
+/// Whether [page] honoured a `before` cursor naming [boundary]: no row in it
+/// is newer than the boundary's second.
+///
+/// A server without the cursor ignores the parameter and answers with the
+/// newest rows, which sit after the boundary — so this tells the two apart
+/// from the reply itself, with no version check.
+bool pageHonouredCursor(List<Object?> page, Object? boundary) {
+  final limit = _createdAt(boundary);
+  return page.every((row) => _createdAt(row) <= limit);
+}
+
+/// [older] (a page fetched with a `before` cursor) appended to [cached].
+///
+/// The page is contiguous with the window by the server's guarantee, so —
+/// unlike [mergeActivityWindow] — nothing is dropped as a gap; rows already
+/// held are skipped by id. Newest first, trimmed to [cap].
+List<Object?> appendOlderActivities({
+  required List<Object?> cached,
+  required List<Object?> older,
+  int cap = kActivityCursorWindowMax,
+}) {
+  final out = [...cached];
+  final have = {for (final row in cached) _id(row)};
+  for (final row in older) {
     if (have.add(_id(row))) out.add(row);
   }
   out.sort(_newestFirst);

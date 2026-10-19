@@ -254,15 +254,30 @@ abstract class BaseEntityApi<TList, TItem> {
   /// date-only, must be ≥ today). [template] is the **bare** email template
   /// name (not the `email_template_` settings key). The response is a
   /// Scheduler, not the billing entity, so this returns void.
+  ///
+  /// [subject], [body] and [ccEmail] are the composer's edits. They ride in
+  /// `parameters`, which the server stores whole; a server that sends
+  /// scheduled emails with them uses them, and an older one (BACKEND.md
+  /// § Scheduled emails drop the subject/body the user edited) stores and
+  /// ignores them — so the composer keeps warning until that is versioned.
+  /// [ccEmail] is split into a list of addresses: unlike `/emails`, the
+  /// scheduler doesn't split a comma string itself.
   Future<void> scheduleEmailRecord({
     required String entity,
     required String id,
     required String template,
     required String sendAt,
+    String? subject,
+    String? body,
+    String? ccEmail,
     required String idempotencyKey,
   }) async {
     final nextRun = sendAt.length >= 10 ? sendAt.substring(0, 10) : sendAt;
     final name = template == 'endless_reminder' ? 'reminder_endless' : template;
+    final cc = (ccEmail ?? '')
+        .split(RegExp(r'[,\s]+'))
+        .where((address) => address.isNotEmpty)
+        .toList();
     await client.mutate(
       method: 'POST',
       path: '/api/v1/task_schedulers',
@@ -271,7 +286,14 @@ abstract class BaseEntityApi<TList, TItem> {
         'template': 'email_record',
         'frequency_id': 0,
         'next_run': nextRun,
-        'parameters': {'entity': entity, 'entity_id': id, 'template': name},
+        'parameters': {
+          'entity': entity,
+          'entity_id': id,
+          'template': name,
+          if (subject != null && subject.isNotEmpty) 'subject': subject,
+          if (body != null && body.isNotEmpty) 'body': body,
+          if (cc.isNotEmpty) 'cc_email': cc,
+        },
       },
     );
   }

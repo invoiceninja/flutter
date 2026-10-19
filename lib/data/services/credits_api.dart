@@ -86,6 +86,9 @@ class CreditsApi extends BaseEntityApi<CreditListApi, CreditItemApi> {
       id: id,
       template: template,
       sendAt: sendAt,
+      subject: subject,
+      body: body,
+      ccEmail: ccEmail,
       idempotencyKey: idempotencyKey,
     );
     return null;

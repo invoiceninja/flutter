@@ -45,8 +45,9 @@ class UnsupportedDeviceContactsService implements DeviceContactsService {
   Future<List<String>> groupMemberIds(String groupId) async => const <String>[];
 
   @override
-  Future<Set<String>> existingContactIds(Iterable<String> ids) async =>
-      const <String>{};
+  Future<Map<String, DeviceContactState>?> resolveContacts(
+    Iterable<DeviceContactRef> refs,
+  ) async => const <String, DeviceContactState>{};
 
   @override
   Future<void> addContactsToGroup({
@@ -55,13 +56,14 @@ class UnsupportedDeviceContactsService implements DeviceContactsService {
   }) async {}
 
   @override
-  Future<List<String>> createContacts(
+  Future<List<DeviceContactState>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,
-  }) async => const <String>[];
+  }) async => const <DeviceContactState>[];
 
   @override
-  Future<void> updateContacts(List<DeviceContactUpdate> items) async {}
+  Future<Set<String>> updateContacts(List<DeviceContactUpdate> items) async =>
+      const <String>{};
 
   @override
   Future<void> deleteContacts(List<String> deviceIds) async {}

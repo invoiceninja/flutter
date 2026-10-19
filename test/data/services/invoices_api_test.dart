@@ -307,7 +307,35 @@ void main() {
         expect(params['entity'], 'invoice');
         expect(params['entity_id'], 'inv_1');
         expect(params['template'], 'reminder1');
+        // No edits, no keys: a scheduled send without them is unchanged.
+        expect(params.containsKey('subject'), isFalse);
+        expect(params.containsKey('body'), isFalse);
+        expect(params.containsKey('cc_email'), isFalse);
       },
     );
+
+    test('scheduleEmail carries the edited subject, body and cc', () async {
+      http.BaseRequest? captured;
+      final fake = MockClient((req) async {
+        captured = req;
+        return http.Response('', 200);
+      });
+      await InvoicesApi(_client(fake)).scheduleEmail(
+        id: 'inv_1',
+        template: 'invoice',
+        sendAt: '2030-01-15',
+        subject: 'Your invoice \$number',
+        body: '<p>Hi \$client</p>',
+        ccEmail: 'a@example.com, b@example.com',
+        idempotencyKey: 'k',
+      );
+      final body =
+          jsonDecode((captured! as http.Request).body) as Map<String, dynamic>;
+      final params = body['parameters'] as Map<String, dynamic>;
+      expect(params['subject'], r'Your invoice $number');
+      expect(params['body'], r'<p>Hi $client</p>');
+      // The scheduler doesn't split a comma string the way /emails does.
+      expect(params['cc_email'], ['a@example.com', 'b@example.com']);
+    });
   });
 }

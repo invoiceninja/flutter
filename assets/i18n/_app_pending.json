@@ -248,6 +248,7 @@
   "contacts_sync_permission_required": "Allow access to your contacts",
   "contacts_sync_preflight": "This will add about :count contacts to this device under the :label label. You can remove them at any time.",
   "contacts_sync_result": ":added added · :updated updated · :removed removed",
+  "contacts_sync_skipped_merged": ":count synced contacts are merged with contacts of your own, so they were left unchanged to keep your contacts safe.",
   "contacts_with_count": "Contacts (:count)",
   "contain": "Contain",
   "continue_label": "Continue",

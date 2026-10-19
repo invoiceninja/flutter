@@ -14,13 +14,20 @@ import 'package:admin/data/services/api_client.dart';
 /// `activities_api.dart`, which scans the same endpoint for one actor.
 const int kActivityFeedRows = 250;
 
-/// The most rows the `/activity` window is grown to.
+/// The most rows the `/activity` window is grown to on a server without the
+/// feed cursor.
 ///
-/// With no cursor on the endpoint (BACKEND.md § F3), Load more re-asks for
-/// the newest `N + 250` rows — each step re-sends every row before it — so the
-/// window is capped rather than left to grow without bound. Older activity is
-/// the Activity report's job: it takes a date range.
+/// There Load more re-asks for the newest `N + 250` rows — each step re-sends
+/// every row before it — so the window is capped rather than left to grow
+/// without bound. Older activity is the Activity report's job: it takes a
+/// date range.
 const int kActivityWindowMax = 1000;
+
+/// The cap once the server pages the feed with `before` (BACKEND.md § F3f):
+/// each Load more then fetches only the next [kActivityFeedRows], so the bound
+/// is the cache row's size — every emission of it is decoded whole — rather
+/// than the cost of re-downloading the window.
+const int kActivityCursorWindowMax = 2500;
 
 /// Rows one dashboard list fetch asks for. A list that comes back shorter than
 /// this is the whole answer; one that comes back this long may have more behind
@@ -166,16 +173,27 @@ class DashboardApi {
   }
 
   /// `GET /api/v1/activities?reactv2&rows=[rows]` — the newest [rows]
-  /// activity objects, newest first.
+  /// activity objects, newest first; with [before] (an activity's hashed id),
+  /// the [rows] after that activity in feed order instead.
   ///
   /// One cache row (`dashboard_cache`, kind `activities`) serves **both** the
   /// dashboard's 5-row card and the full `/activity` screen; the repository
   /// merges each fetch into it rather than replacing it, so the screen's
   /// grown window survives the card's [kActivityFeedRows] refreshes.
-  Future<Object?> fetchActivities({int rows = kActivityFeedRows}) async {
+  ///
+  /// A server without the cursor ignores [before] and answers with the newest
+  /// rows — `DashboardRepository.loadOlderActivities` detects exactly that.
+  Future<Object?> fetchActivities({
+    int rows = kActivityFeedRows,
+    String? before,
+  }) async {
     final raw = await client.getOneWithQuery(
       '/api/v1/activities',
-      query: {'reactv2': '', 'rows': '$rows'},
+      query: {
+        'reactv2': '',
+        'rows': '$rows',
+        if (before != null) 'before': before,
+      },
     );
     return _unwrap(raw);
   }

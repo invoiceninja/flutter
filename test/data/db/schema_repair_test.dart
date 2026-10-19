@@ -73,6 +73,9 @@ void main() {
       ];
       expect(unclassified, isEmpty);
       expect(retentionOf('outbox'), TableRetention.durable);
+      // Contacts sync's only ownership record: dropped, every synced card is
+      // re-created beside the old one and the old one can never be removed.
+      expect(retentionOf('device_contact_links'), TableRetention.durable);
       expect(retentionOf('a_table_nobody_classified'), TableRetention.durable);
     },
   );

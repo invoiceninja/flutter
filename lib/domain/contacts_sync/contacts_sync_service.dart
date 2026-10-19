@@ -28,11 +28,13 @@ const String _tempIdPrefix = 'tmp_';
 /// issues only the creates/updates/deletes needed. A second run right after a
 /// first does nothing but read.
 ///
-/// Ownership is the label, not the link table. Everything this feature writes
-/// goes into one group per company, and the reconcile deletes any group member
-/// it doesn't recognise — which is what lets it recover after `logout()` wipes
-/// the link table, or after a pass dies half-way. Contacts outside the group are
-/// never read, never written, never deleted.
+/// Ownership is the link table, never the label. A device contact is updated
+/// or deleted only through a link row, and only once the device shows it is
+/// still only ours (`ownsDeviceContact`): Android merges a card into the
+/// user's own contact for the same person, and a write through the merged
+/// contact reaches their copy too. The label groups the cards for display and
+/// is a liveness hint — trusting its membership once deleted every contact on
+/// the phone.
 ///
 /// See `docs/contacts-sync.md`.
 class ContactsSyncService implements ContactsSyncEngine {
@@ -163,96 +165,153 @@ class ContactsSyncService implements ContactsSyncEngine {
 
     final links = await _db.deviceContactLinkDao.byCompany(companyId);
 
-    // Read the label's members *before* diffing, not after. Membership is what
-    // tells us a link still points at a real card: without it, a contact the
-    // user deleted by hand would be "updated" into the void, get a fresh hash
-    // stamped on its link, and then read as unchanged on every subsequent pass
-    // — gone from the device but never re-created.
+    // The label's members are a liveness hint and nothing more: no card is
+    // ever deleted because of what is, or isn't, in the label. flutter_contacts
+    // before 2.3.0 answered an *empty* label with every contact on the phone,
+    // and the heal pass that used to delete "members we don't recognise"
+    // wiped the user's whole address book on a first sync. A linked card that
+    // is a member is taken as present without asking the device again, which
+    // keeps a repeat sync down to this one read.
     //
     // Null when there's no label to enumerate (a device with no contacts
-    // account, see `DeviceContactsService.ensureGroup`). The link table is then
-    // the only ownership record we have, so both this check and the heal below
-    // are skipped.
+    // account, see `DeviceContactsService.ensureGroup`); every link is then
+    // taken as present.
     final memberIds = groupId == null
         ? null
         : (await _device.groupMemberIds(groupId)).toSet();
+    bool isMember(DeviceContactLinkRow link) =>
+        memberIds == null || memberIds.contains(link.deviceContactId);
+    bool needsCheck(DeviceContactLinkRow link) =>
+        !isMember(link) || desired[link.sourceId]?.hash != link.hash;
 
-    // Links whose card isn't in the label. Normally empty. Non-empty means one
-    // of two opposite things, and only the device can tell them apart:
+    // Ask the device about every link we are about to act on, or can't vouch
+    // for:
     //
-    //  * the user deleted the CARD by hand — it really is gone, re-create it;
-    //  * the user deleted the LABEL (or this device only just gained its first
-    //    contacts account), so `ensureGroup` minted an empty replacement while
-    //    every card is still sitting there.
-    //
-    // Guessing the first way round for the second case re-created the entire
-    // address book, and `upsertAll` then re-pointed each link at the new copy —
-    // orphaning the originals somewhere the heal pass can never reach them,
-    // because they are outside the new group. One probe settles it.
-    var unlabelled = const <String>{};
-    if (memberIds != null) {
-      final missing = <String>{
-        for (final link in links.values)
-          if (!memberIds.contains(link.deviceContactId)) link.deviceContactId,
-      };
-      if (missing.isNotEmpty) {
-        unlabelled = await _device.existingContactIds(missing);
-      }
-    }
+    //  * not in the label — the user deleted the card, or deleted the label
+    //    (or this device only just gained its first contacts account, so
+    //    `ensureGroup` minted an empty one), or Android merged the card into
+    //    another contact and its id moved;
+    //  * about to be updated or deleted — on Android both address the whole
+    //    merged contact, so they wait for proof that it is only ours
+    //    (`ownsDeviceContact`).
+    final toCheck = <DeviceContactRef>[
+      for (final link in links.values)
+        if (needsCheck(link)) _ref(link),
+    ];
+    final states = toCheck.isEmpty
+        ? const <String, DeviceContactState>{}
+        : await _device.resolveContacts(toCheck);
+    // Null: the device couldn't be read. Every link then counts as present —
+    // re-creating them all would double the address book — and as not
+    // provably ours, so nothing is updated or deleted this pass.
+    final verified = states != null;
 
     final toCreate = <DeviceContactCard>[];
     final toUpdate = <DeviceContactUpdate>[];
-    // Device ids we intend to keep — everything else in the label is ours to
-    // reclaim.
-    final keepDeviceIds = <String>{};
+    // The entry id to record for each updated card, by source id.
+    final updateEntries = <String, String?>{};
+    // Links whose card moved (merged into another contact) or whose entry id
+    // was settled, re-written with the hash they already had.
+    final relinks = <DeviceContactLinksCompanion>[];
+    // Cards that outlived their label, put back in it.
+    final readopt = <String>[];
     var unchanged = 0;
+    var skippedMerged = 0;
+
+    void relinkIfMoved(DeviceContactLinkRow link, DeviceContactState? state) {
+      if (state == null) return;
+      final recorded = _entryToRecord(link, state);
+      if (state.contactId == link.deviceContactId &&
+          recorded == link.rawContactId) {
+        return;
+      }
+      relinks.add(
+        _link(
+          companyId: companyId,
+          sourceId: link.sourceId,
+          deviceContactId: state.contactId,
+          rawContactId: recorded,
+          hash: link.hash,
+        ),
+      );
+    }
+
     for (final entry in desired.entries) {
       final link = links[entry.key];
-      final alive =
-          link != null &&
-          (memberIds == null ||
-              memberIds.contains(link.deviceContactId) ||
-              // Outlived its label — still a real card, just not in the group
-              // yet. Re-adopted below.
-              unlabelled.contains(link.deviceContactId));
-      if (!alive) {
-        // No link at all, or one whose card is gone. Either way, create — the
+      if (link == null) {
+        toCreate.add(entry.value.card);
+        continue;
+      }
+      final checked = needsCheck(link);
+      final state = states?[link.deviceContactId];
+      if (checked && verified && state == null) {
+        // Gone from the device — the user deleted it by hand. Re-create; the
         // upsert re-points the link row, since it is keyed by source id.
         toCreate.add(entry.value.card);
         continue;
       }
-      keepDeviceIds.add(link.deviceContactId);
-      if (link.hash == entry.value.hash) {
+      final owned =
+          state != null &&
+          ownsDeviceContact(
+            recorded: link.rawContactId,
+            entryIds: state.entryIds,
+          );
+      // Outlived its label — still a real card, just not in the group. Only a
+      // card that is only ours goes back in: on a merged contact Android files
+      // the membership under whichever entry shares the label's account, and
+      // that may be the user's.
+      if (!isMember(link) && owned && groupId != null) {
+        readopt.add(state.contactId);
+      }
+      if (entry.value.hash == link.hash) {
         unchanged++;
-      } else {
+        relinkIfMoved(link, state);
+      } else if (owned) {
         toUpdate.add(
           DeviceContactUpdate(
-            deviceId: link.deviceContactId,
+            deviceId: state.contactId,
             card: entry.value.card,
           ),
         );
+        updateEntries[entry.key] = _entryToRecord(link, state);
+      } else {
+        // Merged with a contact that isn't only ours (or unreadable): writing
+        // through it would overwrite the user's own phones and emails. Leave
+        // the card one edit behind; the hash stays old, so a later pass
+        // updates it if the contacts are ever split apart again.
+        if (state != null) skippedMerged++;
+        relinkIfMoved(link, state);
       }
     }
 
     // Links whose client or contact is gone (deleted, archived, or filtered out
-    // by the scope).
-    final staleSourceIds = [
-      for (final sourceId in links.keys)
-        if (!desired.containsKey(sourceId)) sourceId,
-    ];
-    final toDelete = <String>{
-      for (final sourceId in staleSourceIds) links[sourceId]!.deviceContactId,
-    };
-
-    // Heal against the label. Anything in it we're not keeping is
-    // ours-but-forgotten — a `logout()` wipe of the link table, or a pass that
-    // died between the OS write and the Drift write. Without this those cards
-    // would be stranded on the device forever, and the next run would create
-    // duplicates alongside them.
-    if (memberIds != null) {
-      for (final memberId in memberIds) {
-        if (!keepDeviceIds.contains(memberId)) toDelete.add(memberId);
+    // by the scope). A card is deleted only once the device has shown it is
+    // only ours; a merged one stays, and so does its link row, so a later
+    // pass can still remove it if the contacts are split apart again.
+    final toDelete = <String>{};
+    final droppedSourceIds = <String>[];
+    for (final link in links.values) {
+      if (desired.containsKey(link.sourceId) || states == null) continue;
+      final state = states[link.deviceContactId];
+      if (state == null) {
+        droppedSourceIds.add(link.sourceId); // already gone from the device
+      } else if (ownsDeviceContact(
+        recorded: link.rawContactId,
+        entryIds: state.entryIds,
+      )) {
+        toDelete.add(state.contactId);
+        droppedSourceIds.add(link.sourceId);
+      } else {
+        skippedMerged++;
+        relinkIfMoved(link, state);
       }
+    }
+    if (skippedMerged > 0) {
+      _log.warning(
+        'contacts sync for $companyId: $skippedMerged card(s) merged with '
+        'another contact were left in place rather than writing through the '
+        "user's own entry",
+      );
     }
 
     final total = toCreate.length + toUpdate.length + toDelete.length;
@@ -260,6 +319,7 @@ class ContactsSyncService implements ContactsSyncEngine {
     var done = 0;
     var summary = ContactsSyncSummary(
       unchanged: unchanged,
+      skippedMerged: skippedMerged,
       labelled: groupId != null,
     );
 
@@ -273,40 +333,34 @@ class ContactsSyncService implements ContactsSyncEngine {
       done += chunk.length;
       onProgress?.call(done, total);
     }
-    if (staleSourceIds.isNotEmpty) {
+    if (droppedSourceIds.isNotEmpty) {
       await _db.deviceContactLinkDao.deleteBySourceIds(
         companyId: companyId,
-        sourceIds: staleSourceIds,
+        sourceIds: droppedSourceIds,
       );
     }
     summary = summary.copyWith(deleted: toDelete.length);
 
-    // Pull the cards that outlived their label back into the group, so the
-    // next pass can go back to trusting membership on its own.
-    if (groupId != null && unlabelled.isNotEmpty) {
-      await _device.addContactsToGroup(
-        groupId: groupId,
-        contactIds: [
-          for (final id in unlabelled)
-            if (keepDeviceIds.contains(id)) id,
-        ],
-      );
+    await _db.deviceContactLinkDao.upsertAll(relinks);
+    if (groupId != null && readopt.isNotEmpty) {
+      await _device.addContactsToGroup(groupId: groupId, contactIds: readopt);
     }
 
     for (final chunk in _chunks(toCreate)) {
       if (isCancelled()) {
         return summary.copyWith(outcome: ContactsSyncOutcome.cancelled);
       }
-      final ids = await _device.createContacts(chunk, groupId: groupId);
+      final created = await _device.createContacts(chunk, groupId: groupId);
       // Persist the links immediately, chunk by chunk. Deferring to the end
       // would mean a mid-pass crash left real device contacts with no link row
-      // — recoverable only via the group heal, and not at all without a label.
+      // — and the link row is the only thing that lets a card be removed.
       await _db.deviceContactLinkDao.upsertAll([
-        for (var i = 0; i < chunk.length && i < ids.length; i++)
+        for (var i = 0; i < chunk.length && i < created.length; i++)
           _link(
             companyId: companyId,
             sourceId: chunk[i].sourceId,
-            deviceContactId: ids[i],
+            deviceContactId: created[i].contactId,
+            rawContactId: entryIdToRecord(created[i].entryIds),
             hash: desired[chunk[i].sourceId]!.hash,
           ),
       ]);
@@ -315,28 +369,38 @@ class ContactsSyncService implements ContactsSyncEngine {
     }
     summary = summary.copyWith(created: toCreate.length);
 
+    var updated = 0;
     for (final chunk in _chunks(toUpdate)) {
       if (isCancelled()) {
-        return summary.copyWith(outcome: ContactsSyncOutcome.cancelled);
+        return summary.copyWith(
+          outcome: ContactsSyncOutcome.cancelled,
+          updated: updated,
+        );
       }
-      await _device.updateContacts(chunk);
+      final written = await _device.updateContacts(chunk);
+      updated += written.length;
+      // Only what reached the device gets the new hash. A refused or skipped
+      // card keeps its old one, so the next pass tries again rather than
+      // treating it as up to date.
       await _db.deviceContactLinkDao.upsertAll([
         for (final item in chunk)
-          _link(
-            companyId: companyId,
-            sourceId: item.card.sourceId,
-            deviceContactId: item.deviceId,
-            hash: desired[item.card.sourceId]!.hash,
-          ),
+          if (written.contains(item.deviceId))
+            _link(
+              companyId: companyId,
+              sourceId: item.card.sourceId,
+              deviceContactId: item.deviceId,
+              rawContactId: updateEntries[item.card.sourceId],
+              hash: desired[item.card.sourceId]!.hash,
+            ),
       ]);
       done += chunk.length;
       onProgress?.call(done, total);
     }
-    summary = summary.copyWith(updated: toUpdate.length);
+    summary = summary.copyWith(updated: updated);
 
     _log.info(
       'contacts sync for $companyId: +${summary.created} ~${summary.updated} '
-      '-${summary.deleted} =${summary.unchanged}'
+      '-${summary.deleted} =${summary.unchanged} !${summary.skippedMerged}'
       '${groupId == null ? ' (no label)' : ''}',
     );
     return summary;
@@ -472,28 +536,61 @@ class ContactsSyncService implements ContactsSyncEngine {
   /// Backs both the "Remove synced contacts" button and the logout cleanup —
   /// `logout()` wipes the link table, so without this the user's address book
   /// would keep a former employer's whole client list.
+  ///
+  /// Only link rows say what is ours, and only [ownsDeviceContact] says a card
+  /// is safe to delete: never the label's members (flutter_contacts before
+  /// 2.3.0 reported an empty label as every contact on the phone, and this is
+  /// the path that then deleted them all), and never a card merged into one of
+  /// the user's own contacts, which on Android would go with it.
   @override
   Future<void> removeAll({required String companyId}) async {
     if (!_device.canSync) return;
     try {
       final links = await _db.deviceContactLinkDao.byCompany(companyId);
-      final ids = <String>{
-        for (final link in links.values) link.deviceContactId,
-      };
-
-      // Find-only: `ensureGroup` would *create* the label on a device that
-      // never had one, seconds before deleting it again. A missing label just
-      // means there's nothing of ours left to enumerate.
-      final groupId = await _resolveGroupId(companyId, createIfMissing: false);
-      if (groupId != null) {
-        ids.addAll(await _device.groupMemberIds(groupId));
+      final states = links.isEmpty
+          ? const <String, DeviceContactState>{}
+          : await _device.resolveContacts([
+              for (final link in links.values) _ref(link),
+            ]);
+      if (states == null) {
+        // Nothing can be proven ours, so nothing is deleted — and the link
+        // rows stay, so a later Remove can still reach the cards. (On logout
+        // the wipe that follows takes the rows anyway; stray cards are the
+        // lesser loss.)
+        _log.warning(
+          'removing synced contacts for $companyId: the device could not be '
+          'read, so nothing was deleted',
+        );
+        return;
+      }
+      final ids = <String>{};
+      var leftMerged = 0;
+      for (final link in links.values) {
+        final state = states[link.deviceContactId];
+        if (state == null) continue; // already gone
+        if (ownsDeviceContact(
+          recorded: link.rawContactId,
+          entryIds: state.entryIds,
+        )) {
+          ids.add(state.contactId);
+        } else {
+          leftMerged++;
+        }
+      }
+      if (leftMerged > 0) {
+        _log.warning(
+          'removing synced contacts for $companyId: $leftMerged card(s) merged '
+          "with the user's own contacts were left in place",
+        );
       }
 
       for (final chunk in _chunks(ids.toList())) {
         await _device.deleteContacts(chunk);
       }
-      // Members first, then the label — deleting a group does not delete its
-      // contacts, and doing it the other way round strands every card.
+      // Find-only: `ensureGroup` would *create* the label on a device that
+      // never had one, seconds before deleting it again. Members first, then
+      // the label — deleting a group does not delete its contacts.
+      final groupId = await _resolveGroupId(companyId, createIfMissing: false);
       if (groupId != null) await _device.deleteGroup(groupId);
       await _groupStore().setSyncedGroupId(companyId, null);
       await _db.deviceContactLinkDao.deleteCompany(companyId);
@@ -533,14 +630,29 @@ class ContactsSyncService implements ContactsSyncEngine {
     required String companyId,
     required String sourceId,
     required String deviceContactId,
+    required String? rawContactId,
     required String hash,
   }) => DeviceContactLinksCompanion(
     companyId: Value(companyId),
     sourceId: Value(sourceId),
     deviceContactId: Value(deviceContactId),
+    rawContactId: Value(rawContactId),
     hash: Value(hash),
     updatedAt: Value(_now().millisecondsSinceEpoch),
   );
+
+  static DeviceContactRef _ref(DeviceContactLinkRow link) => DeviceContactRef(
+    contactId: link.deviceContactId,
+    rawContactId: link.rawContactId,
+  );
+
+  /// The entry id to keep on [link]'s row once the device has shown [state]:
+  /// the recorded one, or — for a row from before schema v15 — whatever the
+  /// device shows now (`entryIdToRecord`).
+  static String? _entryToRecord(
+    DeviceContactLinkRow link,
+    DeviceContactState state,
+  ) => link.rawContactId ?? entryIdToRecord(state.entryIds);
 
   static Iterable<List<T>> _chunks<T>(List<T> items) sync* {
     for (var i = 0; i < items.length; i += kContactsSyncBatchSize) {

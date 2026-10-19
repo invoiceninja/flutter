@@ -520,6 +520,22 @@ class _StatusRow extends StatelessWidget {
             ).textTheme.bodySmall?.copyWith(color: tokens.ink3),
           ),
         ],
+        // Cards Android merged into the user's own contacts. Writing through
+        // them would reach the user's copy, so they're left as they are — and
+        // said so, or the list would look silently out of date.
+        if (controller.lastSummaryFor(companyId) case final summary?
+            when summary.outcome == ContactsSyncOutcome.ok &&
+                summary.skippedMerged > 0) ...[
+          const SizedBox(height: InSpacing.xs),
+          Text(
+            context.tr('contacts_sync_skipped_merged', {
+              'count': '${summary.skippedMerged}',
+            }),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.ink3),
+          ),
+        ],
         SizedBox(height: InSpacing.md(context)),
         // Wrap, not Row: "Remove synced contacts" beside "Sync now" needs more
         // width than a 360px handset has once the shell and card padding are

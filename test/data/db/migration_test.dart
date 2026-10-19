@@ -16,6 +16,7 @@ import '../../generated/schema_v1.dart' as v1;
 import '../../generated/schema_v8.dart' as v8;
 import '../../generated/schema_v11.dart' as v11;
 import '../../generated/schema_v13.dart' as v13;
+import '../../generated/schema_v14.dart' as v14;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -59,6 +60,7 @@ void main() {
     // below are what pin it.
     13: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
     14: 'a97b89f9b596bee6c58211ad778d68913e8fb933579484795fd61c653242821d',
+    15: 'a9e25a73d3eeb9b00cc83e412a95a8d20f1069609eccfbdd2e25ea2015e63269',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -404,6 +406,27 @@ void main() {
           (await db.customSelect('PRAGMA index_list(document_records)').get())
               .map((r) => r.data['name']);
       expect(indexes, contains('idx_document_records_company_updated'));
+      await db.close();
+    });
+
+    test('v14 → v15 adds device_contact_links.raw_contact_id as null, keeping '
+        'the links already written', () async {
+      final schema = await verifier.schemaAt(14);
+      final old = v14.DatabaseAtV14(schema.newConnection());
+      await old.customStatement(
+        'INSERT INTO device_contact_links (company_id, source_id, '
+        "device_contact_id, hash, updated_at) VALUES ('co', 'c1', '42', "
+        "'h', 0)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final link = (await db.deviceContactLinkDao.byCompany('co'))['c1']!;
+      expect(link.deviceContactId, '42');
+      // Null is "not checked yet" — the reconcile settles it on its first
+      // update or delete of the row (`ownsDeviceContact`).
+      expect(link.rawContactId, isNull);
       await db.close();
     });
 

@@ -48,14 +48,14 @@ The day header still counts every row in a run. Whether a run is open is view st
 - **The fetch must reach back to the newest cached row.** Otherwise both windows are missing something in between, and keeping the old rows would draw a quiet stretch that wasn't quiet. The fetch replaces the row instead.
 - **Inside its own time span, the fetch wins.** A cached row there that the fetch no longer returns is dropped. Only rows older than everything fetched carry over, plus rows tied with its oldest second, which the fetch may have cut through.
 
-The result is newest first, trimmed to `kActivityWindowMax`.
+The result is newest first, trimmed to `kActivityCursorWindowMax` (2500). That is the larger cap on purpose: a window paged back with the cursor (below) must survive the card's next refresh, and a fetch without the cursor never asks for more than `kActivityWindowMax` anyway.
 
 **One refresh at a time.** Each refresh reads the row, merges and writes it back. Two interleaved refreshes would each merge onto the row as it was before the other, and the later write would drop the earlier one's rows. So `refreshActivities` chains its calls, and a failed call doesn't block the chain. `dashboard_repository_test` › activity window pins this with `peakInFlight == 1`.
 
-**Load more grows the window, because there is no cursor yet.** `ActivityViewModel.loadMore` asks for the newest `N + 250` rows, capped at `kActivityWindowMax` (1000). Each step re-sends every row before it, which is why the cap exists. The button appears both under the feed and in the timeline's header, since the chart is where the window visibly ends. It is offered only while the window is full: `canLoadMore`. Two things turn it off:
+**Without the server cursor, Load more grows the window.** On a server without `before` (below), `DashboardRepository.loadOlderActivities` asks for the newest `N + 250` rows, capped at `kActivityWindowMax` (1000). Each step re-sends every row before it, which is why the cap exists. The button appears both under the feed and in the timeline's header, since the chart is where the window visibly ends. It is offered only while the window is full: `canLoadMore`. Two things turn it off:
 
 - **A short fetch.** Any fetch that returns fewer rows than it asked for means the history is complete, and the flag stays set.
-- **The cap.** At 1000 rows the footer points to the Activity report instead, and only when `openableReport` would let the route open.
+- **The cap.** At the cap (`ActivityViewModel.windowMax`: 1000 without the cursor, 2500 with it) the footer points to the Activity report instead, and only when `openableReport` would let the route open.
 
 **What the server offers, probed against `demo.invoiceninja.com` on 2026-10-18:**
 
@@ -63,4 +63,14 @@ The result is newest first, trimmed to `kActivityWindowMax`.
 - **The flat `?per_page=N&page=P` branch really pages** (`meta.pagination`), but it carries no labels. A sentence would read "User created invoice" with no number or name, unless every row also asks for `include=client,invoice,…`.
 - **That flat branch likely errors for a restricted user** (BACKEND.md § F3, the `assigned_user_id` note). Not probed; the demo token is an admin.
 
-The real fix is a `before` / `before_id` keyset cursor on the `reactv2` branch (BACKEND.md § F3f). Once it ships, Load more can append an older page instead of re-asking for the whole window, and the cap can go.
+The real fix is a keyset cursor on the `reactv2` branch (BACKEND.md § F3f), which the app already uses where the server has it — next section.
+
+## With the server cursor, Load more pages back instead of re-downloading
+
+**The cursor names an activity.** `GET /activities?reactv2&before=<hashed id>` returns the activities after that one in feed order (BACKEND.md § F3f). `loadOlderActivities` sends the hashed id of the oldest row held (`oldestActivityRow`) and appends the reply with `appendOlderActivities`, which skips rows already held by id. Each Load more then costs one page, so the cap rises to `kActivityCursorWindowMax` (2500), bounded by the cache row's size — every emission of it is decoded whole — rather than by re-download cost.
+
+**Picking the cursor row inside a second is safe.** The payload's `created_at` is whole seconds; the server orders by the stored microseconds. Within the oldest second the app may name a row that isn't the feed's last, and the server then answers with a few rows already held. They are dropped by id; nothing older can be skipped, because everything older is after any row of that second.
+
+**Support is read from the reply, not a version.** A server without the cursor ignores `before` and answers with the newest rows. `pageHonouredCursor` checks that no returned row is newer than the cursor row's second. If one is, the company is remembered as cursor-less for the session and Load more falls back to the growing window. Unknown counts as paged, so the first Load more past 1000 rows still asks. A reply that isn't a list falls back once without being remembered.
+
+**Tests:** `activity_window_test` › paging back with the cursor, `dashboard_repository_test` › loadOlderActivities, `activity_view_model_test` › load more.

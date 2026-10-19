@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -420,32 +419,39 @@ class ActivityViewModel extends ChangeNotifier {
 
   bool _exhausted = false;
 
+  /// The window's cap: [kActivityCursorWindowMax] unless the server is known
+  /// not to page the feed with `before`, then [kActivityWindowMax] — without
+  /// the cursor every Load more re-downloads the whole window. Unknown counts
+  /// as paged, so the first Load more past the lower cap still asks.
+  int get windowMax => repo.activityCursorSupported(companyId) == false
+      ? kActivityWindowMax
+      : kActivityCursorWindowMax;
+
   /// Whether older activity may exist that a Load more would bring in: the
   /// window is full (a short one is already everything), under the cap, and
   /// no fetch has come back short.
   bool get canLoadMore =>
       !_exhausted &&
       windowCount >= kActivityFeedRows &&
-      windowCount < kActivityWindowMax;
+      windowCount < windowMax;
 
-  /// The window has reached [kActivityWindowMax] — older activity is the
-  /// Activity report's.
-  bool get atWindowMax => windowCount >= kActivityWindowMax;
+  /// The window has reached [windowMax] — older activity is the Activity
+  /// report's.
+  bool get atWindowMax => windowCount >= windowMax;
 
-  /// Grows the window by [kActivityFeedRows], up to [kActivityWindowMax].
-  ///
-  /// The endpoint has no cursor (BACKEND.md § F3), so this asks for the newest
-  /// `N + 250` rows and the repository merges them into the cached window;
-  /// the rows arrive the way every other write does, through the watch.
+  /// Grows the window into older activity
+  /// (`DashboardRepository.loadOlderActivities`): the next [kActivityFeedRows]
+  /// rows by the feed's `before` cursor where the server has it, else the
+  /// newest `N + 250` rows again. The rows arrive the way every other write
+  /// does, through the watch.
   Future<void> loadMore() async {
     if (!canLoadMore || _loadingMore || _disposed) return;
-    final asked = math.min(windowCount + kActivityFeedRows, kActivityWindowMax);
     _loadingMore = true;
     _loadMoreFailed = false;
     notifyListeners();
     try {
-      final got = await repo.refreshActivities(companyId, rows: asked);
-      if (got < asked) _exhausted = true;
+      final page = await repo.loadOlderActivities(companyId);
+      if (page.received < page.asked) _exhausted = true;
     } catch (e, st) {
       _log.warning('Activity load more failed', e, st);
       _loadMoreFailed = true;

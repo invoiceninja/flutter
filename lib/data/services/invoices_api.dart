@@ -155,10 +155,10 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
   );
 
   /// Schedule this invoice's email for a future date via a `email_record`
-  /// task_scheduler (`scheduleEmailRecord`). Custom subject/body/cc don't apply
-  /// to a scheduled send (the scheduler emails the named template), so they're
-  /// accepted for call-site parity but ignored. Returns null — the response is
-  /// a Scheduler, not the invoice.
+  /// task_scheduler (`scheduleEmailRecord`), carrying the composer's custom
+  /// subject/body/cc — which only a server that honours them uses (see
+  /// [scheduleEmailRecord]). Returns null — the response is a Scheduler, not
+  /// the invoice.
   Future<InvoiceItemApi?> scheduleEmail({
     required String id,
     required String template,
@@ -173,6 +173,9 @@ class InvoicesApi extends BaseEntityApi<InvoiceListApi, InvoiceItemApi> {
       id: id,
       template: template,
       sendAt: sendAt,
+      subject: subject,
+      body: body,
+      ccEmail: ccEmail,
       idempotencyKey: idempotencyKey,
     );
     return null;

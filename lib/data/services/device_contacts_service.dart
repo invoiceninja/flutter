@@ -220,38 +220,54 @@ abstract class DeviceContactsService {
   /// device that had none. [knownId] is tried first, as in [ensureGroup].
   Future<String?> findGroup(String name, {String? knownId});
 
-  /// The device contact ids currently in [groupId]. The reconcile's ownership
-  /// boundary: everything here was written by this feature, and nothing outside
-  /// it is ever touched.
+  /// The device contact ids currently in [groupId].
+  ///
+  /// A **liveness hint only, never an ownership record.** Nothing is ever
+  /// deleted because it is (or is not) in this list: flutter_contacts before
+  /// 2.3.0 answered an *empty* group with every contact on the phone, and the
+  /// reconcile that trusted it deleted the user's whole address book on its
+  /// first pass. Ownership is the link table plus [ownsDeviceContact] — see
+  /// `docs/contacts-sync.md`.
   Future<List<String>> groupMemberIds(String groupId);
 
-  /// Which of [ids] still exist on the device.
+  /// Where each of [refs] lives on the device now, keyed by the
+  /// [DeviceContactRef.contactId] it was stored under. A ref missing from the
+  /// result is gone from the device.
   ///
-  /// The reconcile's liveness test is normally group membership — that is what
-  /// lets it heal after `logout()` wipes the link table. Membership is wrong
-  /// for exactly one case, and expensively so: a label the user deleted by
-  /// hand (or a device that has only just gained its first contacts account)
-  /// leaves [ContactsSyncService] holding links to cards that are all still
-  /// there while [groupMemberIds] reports an empty, freshly-minted group.
-  /// Treating those as dead re-creates every one of them — doubling the user's
-  /// address book and orphaning the originals, which the heal pass can never
-  /// reclaim because they sit outside the new group.
+  /// Android merges contacts on its own (same name, phone or email), so a card
+  /// can move: our entry joins the user's existing contact and the id we stored
+  /// stops existing. A ref with a [DeviceContactRef.rawContactId] is then found
+  /// again by that entry id, and its state names the contact it moved into —
+  /// re-creating it instead would add another entry to the user's contact on
+  /// every pass.
   ///
-  /// Asked only about links that already failed the membership test, so on a
-  /// healthy device this is never called.
-  Future<Set<String>> existingContactIds(Iterable<String> ids);
+  /// Returns **null** when the device couldn't be read. The caller must then
+  /// treat every ref as still present (re-creating them all doubles the
+  /// address book) *and* as not provably ours (so nothing is updated or
+  /// deleted this pass).
+  Future<Map<String, DeviceContactState>?> resolveContacts(
+    Iterable<DeviceContactRef> refs,
+  );
 
   /// Put already-created contacts into [groupId]. Used to re-adopt cards that
-  /// outlived their label (see [existingContactIds]) so ownership converges
-  /// back onto the group. Failures are cosmetic — the cards still work.
+  /// outlived their label (see [resolveContacts]) so the label shows them
+  /// again. Failures are cosmetic — the cards still work.
   Future<void> addContactsToGroup({
     required String groupId,
     required List<String> contactIds,
   });
 
-  /// Create [cards], returning the new device contact ids **in the same order**.
-  /// When [groupId] is non-null the new contacts are added to it.
-  Future<List<String>> createContacts(
+  /// Create [cards], returning the new contacts' states **in the same order**.
+  /// When [groupId] is non-null, each new contact that is its own single entry
+  /// is added to it. One Android merged into another contact on insert is
+  /// left out: labelling the merged contact labels the user's own entry too.
+  ///
+  /// The state is read back after the write because Android may already have
+  /// merged a new card into one of the user's contacts — its
+  /// [DeviceContactState.entryIds] then lists more than ours, and
+  /// [entryIdToRecord] says so. A failed read-back yields empty `entryIds`
+  /// (unknown, settled on a later pass), never a guess.
+  Future<List<DeviceContactState>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,
   });
@@ -260,14 +276,84 @@ abstract class DeviceContactsService {
   /// preserving everything else the user or OS put there (photo, favourite,
   /// ringtone). Silently skips ids that no longer exist — a contact the user
   /// deleted by hand is not an error, and the next reconcile re-creates it.
-  Future<void> updateContacts(List<DeviceContactUpdate> items);
+  ///
+  /// Returns the ids actually written. A skipped or refused contact is left
+  /// out, so the caller keeps its old hash and the next pass tries again.
+  ///
+  /// **Callers pass only contacts [ownsDeviceContact] cleared.** On Android an
+  /// update addresses the whole merged contact, so on one the user also owns
+  /// it overwrites *their* phones and emails.
+  Future<Set<String>> updateContacts(List<DeviceContactUpdate> items);
 
   /// Delete by device contact id. Ids that no longer exist are ignored.
+  ///
+  /// **Callers pass only contacts [ownsDeviceContact] cleared.** On Android this
+  /// deletes every entry merged into the contact (flutter_contacts deletes
+  /// `RawContacts WHERE CONTACT_ID IN …`), so a card merged into one of the
+  /// user's contacts takes the user's own copy with it.
   Future<void> deleteContacts(List<String> deviceIds);
 
   /// Delete the label itself. Does **not** delete its members — callers remove
   /// the contacts first.
   Future<void> deleteGroup(String groupId);
+}
+
+/// A device contact one link row points at.
+class DeviceContactRef {
+  const DeviceContactRef({required this.contactId, this.rawContactId});
+
+  /// The contact id the link row stored.
+  final String contactId;
+
+  /// The entry id recorded for the card — see `DeviceContactLinks.rawContactId`
+  /// for what null and [kUnidentifiedEntry] mean.
+  final String? rawContactId;
+}
+
+/// What the device holds for one contact right now.
+class DeviceContactState {
+  const DeviceContactState({required this.contactId, required this.entryIds});
+
+  /// Where the card lives now — the stored id, or the contact Android merged
+  /// it into.
+  final String contactId;
+
+  /// Every entry that makes up [contactId]. Android: the ids of its raw
+  /// contacts, one per account or app that contributed to it (Google,
+  /// WhatsApp, this feature…). iOS has no such level, so a contact is its own
+  /// single entry: `[contactId]`. Empty means it couldn't be read.
+  final List<String> entryIds;
+}
+
+/// The recorded entry id for a card that was already merged into another
+/// contact when it was created: the contact has several entries and nothing
+/// says which one is ours. Never null — null means "not checked yet".
+const String kUnidentifiedEntry = '';
+
+/// The entry id to record for a contact whose entries are [entryIds]: its
+/// only entry, [kUnidentifiedEntry] when there are several, or null when they
+/// couldn't be read (left for a later pass to settle).
+String? entryIdToRecord(List<String> entryIds) => switch (entryIds.length) {
+  0 => null,
+  1 => entryIds.single,
+  _ => kUnidentifiedEntry,
+};
+
+/// Whether a contact may be updated or deleted by contacts sync: true only
+/// when it consists of **exactly one entry, and that entry is ours**.
+///
+/// [recorded] is the link row's entry id. A null one predates the column
+/// (schema v15) and is adopted on a single entry — the one case the old rows
+/// leave to judgement, documented in `docs/contacts-sync.md`. Anything else —
+/// merged with the user's own contact, split since, unidentified, unreadable —
+/// is left alone: a stray card is recoverable, the user's contact is not.
+bool ownsDeviceContact({
+  required String? recorded,
+  required List<String> entryIds,
+}) {
+  if (entryIds.length != 1) return false;
+  if (recorded == null) return true;
+  return recorded.isNotEmpty && entryIds.single == recorded;
 }
 
 /// One entry of an [DeviceContactsService.updateContacts] batch.

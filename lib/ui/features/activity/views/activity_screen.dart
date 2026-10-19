@@ -6,7 +6,6 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
-import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -811,7 +810,7 @@ String dayHeaderLabel(
 /// Explains the feed's ceiling at the end of the list — shown only while the
 /// window is full, i.e. older activity may exist (`?reactv2` has no cursor, so
 /// the window is a hard boundary, not a page) — and offers the way past it:
-/// Load more under [kActivityWindowMax], the Activity report at it.
+/// Load more under the window's cap, the Activity report at it.
 ///
 /// Phrased as a statement about the feed's *scope* rather than a row count, so
 /// it stays true — and doesn't read as "rows are missing" — while a filter is

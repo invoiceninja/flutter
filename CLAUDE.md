@@ -109,6 +109,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Boot must always reach `runApp()` — every await in front of it is bounded and caught, and on web the failure has to be printed or it is invisible.** → `docs/architecture.md`
 - **Launch-time work is measured with `traceSync` / `traceAsync`, not guessed.** → `docs/startup-responsiveness.md`
 - **A path users wait on gets a benchmark in `benchmark/perf/` and a budget; never rename a benchmark id — its history is filed under it.** → `docs/performance-tracking.md`
+- **Contacts sync touches only a device contact it can prove it wrote — a link row whose recorded entry is the contact's only one (`ownsDeviceContact`) — never one found by label membership; Android merges cards into the user's own contacts, and a delete through the merged contact takes theirs.** → `docs/contacts-sync.md`
 - **Workarounds for open upstream bugs are logged in `docs/upstream-workarounds.md`** — issue link, files tagged KEEP vs MUST-REVERT, revert steps — whenever you add, change or remove one.
 
 ## Architecture — at a glance
@@ -214,7 +215,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 - **The `activity_type_id` → tone map is the server's catalog, not a guess — and the bundled template is the test.** → `docs/comments-and-activity.md`
 
 - **The `/activity` timeline charts only the loaded window, and each count leaves out its own filter — the bars ignore the date range, the category chips ignore the categories.** → `docs/activity-timeline.md`
-- **The activity cache row is shared with the dashboard card, so a fetch merges into it (never a gap, the fetch owns its span) and Load more grows it to `kActivityWindowMax` — never replace it.** → `docs/activity-timeline.md`
+- **The activity cache row is shared with the dashboard card, so a fetch merges into it (never a gap, the fetch owns its span) — never replace it; Load more pages back with the feed's `before` cursor where the server honours it, else grows the window to `kActivityWindowMax`.** → `docs/activity-timeline.md`
 
 - **A screen-reader heading sets both `header: true` and `headingLevel:` (1 for a dialog or sheet title, 2 for a section) — since Flutter 3.47 iOS and Android read only the level, while desktop and web still read the flag.** → `docs/screen-reader-headings.md`
 

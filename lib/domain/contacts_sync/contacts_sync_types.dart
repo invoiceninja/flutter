@@ -62,6 +62,7 @@ class ContactsSyncSummary {
     this.updated = 0,
     this.deleted = 0,
     this.unchanged = 0,
+    this.skippedMerged = 0,
     this.labelled = true,
     this.error,
   });
@@ -72,6 +73,7 @@ class ContactsSyncSummary {
       updated = 0,
       deleted = 0,
       unchanged = 0,
+      skippedMerged = 0,
       labelled = true;
 
   final ContactsSyncOutcome outcome;
@@ -82,6 +84,13 @@ class ContactsSyncSummary {
   /// Cards whose content hash matched, so nothing was written to the device.
   /// The number that should dominate on a repeat sync.
   final int unchanged;
+
+  /// Cards that needed an update or a delete but were left as they are,
+  /// because Android had merged them into a contact that is not only ours
+  /// (the user's own entry for the same person). Writing through the merged
+  /// contact would overwrite or delete the user's copy, so the card stays —
+  /// see `ownsDeviceContact`. The settings card says how many.
+  final int skippedMerged;
 
   /// False when the device had no contacts account to hang a label on, so the
   /// cards were written without one (see `DeviceContactsService.ensureGroup`).
@@ -97,6 +106,7 @@ class ContactsSyncSummary {
     int? updated,
     int? deleted,
     int? unchanged,
+    int? skippedMerged,
     bool? labelled,
   }) => ContactsSyncSummary(
     outcome: outcome ?? this.outcome,
@@ -104,6 +114,7 @@ class ContactsSyncSummary {
     updated: updated ?? this.updated,
     deleted: deleted ?? this.deleted,
     unchanged: unchanged ?? this.unchanged,
+    skippedMerged: skippedMerged ?? this.skippedMerged,
     labelled: labelled ?? this.labelled,
     error: error,
   );
@@ -157,8 +168,10 @@ abstract class ContactsSyncEngine {
 /// derived from the company *name*, so a name lookup makes any two companies
 /// sharing a name share one group — and since an unnamed company falls back to
 /// a bare `Invoice Ninja`, that includes every company the user hasn't named
-/// yet. The reconcile deletes any group member it doesn't recognise, so a
-/// shared group means each pass wipes the other company's cards off the phone.
+/// yet. The reconcile once deleted any group member it didn't recognise, so a
+/// shared group meant each pass wiped the other company's cards off the phone.
+/// It no longer deletes by membership at all, but the label a company's cards
+/// are shown under is still its own.
 ///
 /// Implemented by [ContactsSyncController], which already owns the device-local
 /// `DevicePrefKeys.contactsSync` blob these ids live in. A narrow interface so

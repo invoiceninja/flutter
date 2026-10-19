@@ -51,6 +51,26 @@ class _FakeDeviceContacts implements DeviceContactsService {
 
   final Map<String, DeviceContactCard> contacts = {};
 
+  /// contact id -> the entries (Android raw contacts) merged into it. A card
+  /// this feature creates is one entry, `raw-N`; [addUserContact] seeds the
+  /// user's own. A contact missing here is a single entry named after itself.
+  final Map<String, List<String>> entries = {};
+
+  /// flutter_contacts before 2.3.0: an *empty* group filter matched every
+  /// contact on the phone. The reconcile once deleted on that answer.
+  bool emptyGroupReturnsEverything = false;
+
+  /// The next [createContacts] card is merged by Android into this existing
+  /// contact on insert — the user already had the same person.
+  String? mergeNextCreateInto;
+
+  /// [resolveContacts] fails: the device couldn't be read.
+  bool unreadable = false;
+
+  /// Contact ids [updateContacts] refuses — a transient platform failure, or
+  /// 2.5.0+'s `read_only_contact`.
+  final Set<String> refuseUpdates = {};
+
   /// groupId -> display name. Models the device's label table, not a single
   /// group: the collision this feature had to be fixed for is two companies
   /// resolving to the *same* label, which a one-group fake cannot express.
@@ -60,6 +80,7 @@ class _FakeDeviceContacts implements DeviceContactsService {
   final Map<String, Set<String>> members = {};
 
   int _nextId = 1;
+  int _nextEntry = 1;
   int _nextGroupId = 1;
 
   final List<String> created = [];
@@ -80,6 +101,32 @@ class _FakeDeviceContacts implements DeviceContactsService {
       ids.remove(deviceId);
     }
   }
+
+  /// The user's own contact, in nobody's label.
+  void addUserContact(String id, {String firstName = 'Jane'}) {
+    contacts[id] = DeviceContactCard(
+      sourceId: 'user:$id',
+      firstName: firstName,
+      lastName: 'Smith',
+    );
+    entries[id] = ['user-$id'];
+  }
+
+  /// Android merging our card [ourId] into [intoId] after the fact (the
+  /// user's own contact for the same person changed and re-aggregated). The
+  /// merged contact keeps [intoId]'s content and id; [ourId] stops existing,
+  /// and label membership follows the entry, so it now reports [intoId].
+  void merge(String ourId, {required String intoId}) {
+    entries[intoId] = [...entriesOf(intoId), ...entriesOf(ourId)];
+    entries.remove(ourId);
+    contacts.remove(ourId);
+    for (final ids in members.values) {
+      if (ids.remove(ourId)) ids.add(intoId);
+    }
+  }
+
+  List<String> entriesOf(String contactId) =>
+      entries[contactId] ?? ['raw-of-$contactId'];
 
   void clearMembers() {
     for (final ids in members.values) {
@@ -144,16 +191,40 @@ class _FakeDeviceContacts implements DeviceContactsService {
   }
 
   @override
-  Future<List<String>> groupMemberIds(String id) async =>
-      (members[id] ?? const <String>{}).toList();
+  Future<List<String>> groupMemberIds(String id) async {
+    final ids = members[id] ?? const <String>{};
+    if (ids.isEmpty && emptyGroupReturnsEverything) {
+      return contacts.keys.toList();
+    }
+    return ids.toList();
+  }
 
   /// Backed by the address book, not by the label — which is the whole point:
-  /// a card can be present while its group is gone.
+  /// a card can be present while its group is gone. A ref whose contact id
+  /// vanished is found again by its recorded entry, as Android's merge leaves
+  /// it.
   @override
-  Future<Set<String>> existingContactIds(Iterable<String> ids) async => {
-    for (final id in ids)
-      if (contacts.containsKey(id)) id,
-  };
+  Future<Map<String, DeviceContactState>?> resolveContacts(
+    Iterable<DeviceContactRef> refs,
+  ) async {
+    if (unreadable) return null;
+    final found = <String, DeviceContactState>{};
+    for (final ref in refs) {
+      if (contacts.containsKey(ref.contactId)) {
+        found[ref.contactId] = _state(ref.contactId);
+        continue;
+      }
+      final entry = ref.rawContactId;
+      if (entry == null || entry.isEmpty) continue;
+      for (final id in contacts.keys) {
+        if (entriesOf(id).contains(entry)) found[ref.contactId] = _state(id);
+      }
+    }
+    return found;
+  }
+
+  DeviceContactState _state(String id) =>
+      DeviceContactState(contactId: id, entryIds: entriesOf(id));
 
   @override
   Future<void> addContactsToGroup({
@@ -164,37 +235,59 @@ class _FakeDeviceContacts implements DeviceContactsService {
   }
 
   @override
-  Future<List<String>> createContacts(
+  Future<List<DeviceContactState>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,
   }) async {
-    final ids = <String>[];
+    final states = <DeviceContactState>[];
     for (final card in cards) {
-      final id = 'dev-${_nextId++}';
-      contacts[id] = card;
-      ids.add(id);
+      final entry = 'raw-${_nextEntry++}';
+      final String id;
+      if (mergeNextCreateInto case final into?) {
+        // Android returns the merged contact's id, not one of our own.
+        mergeNextCreateInto = null;
+        id = into;
+        entries[id] = [...entriesOf(id), entry];
+      } else {
+        id = 'dev-${_nextId++}';
+        contacts[id] = card;
+        entries[id] = [entry];
+      }
+      final state = _state(id);
+      states.add(state);
       created.add(card.sourceId);
-      if (groupId != null) (members[groupId] ??= {}).add(id);
+      // Like the real impl: a card merged on insert stays out of the label,
+      // because labelling the merged contact labels the user's entry too.
+      if (groupId != null && state.entryIds.length == 1) {
+        (members[groupId] ??= {}).add(id);
+      }
     }
-    return ids;
+    return states;
   }
 
   @override
-  Future<void> updateContacts(List<DeviceContactUpdate> items) async {
+  Future<Set<String>> updateContacts(List<DeviceContactUpdate> items) async {
+    final written = <String>{};
     for (final item in items) {
+      if (refuseUpdates.contains(item.deviceId)) continue;
       // Matches the real impl: a contact that no longer exists is skipped, not
       // resurrected. Assigning blindly here would hide the bug where a card the
       // user deleted by hand gets a fresh hash and is never re-created.
       if (!contacts.containsKey(item.deviceId)) continue;
       contacts[item.deviceId] = item.card;
       updated.add(item.card.sourceId);
+      written.add(item.deviceId);
     }
+    return written;
   }
 
+  /// Android's delete: every entry merged into the contact goes with it —
+  /// the user's own included. Only the reconcile can keep that from happening.
   @override
   Future<void> deleteContacts(List<String> deviceIds) async {
     for (final id in deviceIds) {
       contacts.remove(id);
+      entries.remove(id);
       forgetMember(id);
       deleted.add(id);
     }
@@ -528,25 +621,26 @@ void main() {
   });
 
   group('healing', () {
-    test('a group member with no link row is deleted — the post-logout case, '
-        'where the wipe took the link table but not the address book', () async {
+    test('a label member with no link row is never deleted — the price is a '
+        'duplicate after a lost link table, never a deleted contact', () async {
+      // This used to be "reclaimed": the heal pass deleted every label member
+      // it had no link for. Before flutter_contacts 2.3.0 an empty label read
+      // as every contact on the phone, so that pass deleted the user's whole
+      // address book on a first sync. Membership proves nothing.
       await seed([
         _api('c1', contacts: [_contact('k1')]),
       ]);
       await run();
-      // Simulate `logout()` wiping the link table while the device keeps the
-      // cards it was given.
       await db.deviceContactLinkDao.deleteCompany('co');
       final orphanId = device.contacts.keys.single;
 
       final summary = await run(isFirstRun: false);
 
-      // The orphan is reclaimed (deleted) and the card re-created fresh, so the
-      // user ends up with exactly one — not two.
-      expect(summary.deleted, 1);
+      expect(summary.deleted, 0);
+      expect(device.deleted, isEmpty);
       expect(summary.created, 1);
-      expect(device.contacts, hasLength(1));
-      expect(device.contacts.keys.single, isNot(orphanId));
+      expect(device.contacts.keys, contains(orphanId));
+      expect(device.contacts, hasLength(2));
     });
 
     test('a card the user deleted by hand comes back, rather than having a '
@@ -595,12 +689,10 @@ void main() {
 
     test('deleting the LABEL by hand re-adopts the cards, it does not '
         'duplicate them', () async {
-      // Ownership is the group, so an empty group normally means "these cards
-      // are gone, re-create them". That reading is catastrophic for the one
-      // case where the group is empty because the *label* was deleted: every
-      // card is re-created, and `upsertAll` re-points each link at the copy —
-      // stranding the originals outside the new group, where the heal pass can
-      // never reach them. Only the address book can tell the two apart.
+      // An empty group could mean "these cards are gone, re-create them" or
+      // "the *label* was deleted and every card is still there". Reading the
+      // second as the first re-creates the whole set beside the originals.
+      // Only the address book can tell the two apart.
       await seed([
         _api('c1', contacts: [_contact('k1')]),
       ]);
@@ -618,8 +710,7 @@ void main() {
       expect(summary.unchanged, 1);
       expect(device.contacts, hasLength(1), reason: 'no duplicate');
       expect(device.contacts.keys.single, original);
-      // ...and it is back under a label, so the next pass can go on trusting
-      // membership by itself.
+      // ...and it is back under a label, so the next pass needn't ask again.
       expect(device.allMembers, contains(original));
     });
 
@@ -641,8 +732,8 @@ void main() {
       expect(device.contacts.containsKey('someone-else'), isTrue);
     });
 
-    test('with no label available the pass still syncs, skips the heal, and '
-        'says so — a device with no contacts account cannot group', () async {
+    test('with no label available the pass still syncs and says so — a '
+        'device with no contacts account cannot group', () async {
       device.supportsGroups = false;
       await seed([
         _api('c1', contacts: [_contact('k1')]),
@@ -654,6 +745,256 @@ void main() {
       expect(summary.created, 1);
       expect(summary.labelled, isFalse);
       expect(device.contacts, hasLength(1));
+    });
+  });
+
+  // A beta user's address book was wiped by contacts sync (Android). Two
+  // routes, both closed here: an empty label read as every contact on the
+  // phone (flutter_contacts < 2.3.0) and the heal pass deleted them; and a
+  // card Android merged into the user's own contact was deleted — or
+  // overwritten — through the merged contact, taking the user's copy too.
+  group('never touches a contact it cannot prove it wrote', () {
+    test('an empty label that reads as every contact on the phone deletes '
+        'nothing on a first sync', () async {
+      device.emptyGroupReturnsEverything = true;
+      device.addUserContact('mum');
+      device.addUserContact('dentist');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+
+      final summary = await run();
+
+      expect(summary.deleted, 0);
+      expect(device.deleted, isEmpty);
+      expect(device.contacts.keys, containsAll(<String>['mum', 'dentist']));
+      expect(summary.created, 1);
+    });
+
+    test('Remove synced contacts on an empty label that reads as every '
+        'contact deletes only our cards', () async {
+      device.addUserContact('mum');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await run();
+      final ours = device.contacts.keys.where((id) => id != 'mum').single;
+      device.clearMembers();
+      device.emptyGroupReturnsEverything = true;
+
+      await service.removeAll(companyId: 'co');
+
+      expect(device.deleted, [ours]);
+      expect(device.contacts.keys, ['mum']);
+    });
+
+    test('a card merged into the user\'s contact on insert is never deleted, '
+        'and the user\'s copy survives the client leaving', () async {
+      device.addUserContact('jane');
+      device.mergeNextCreateInto = 'jane';
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await run();
+      final link = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+      expect(link.deviceContactId, 'jane');
+      expect(link.rawContactId, kUnidentifiedEntry);
+
+      await db.clientDao.setArchived(
+        companyId: 'co',
+        id: 'c1',
+        atEpochSeconds: 1700000001,
+      );
+      final summary = await run(isFirstRun: false);
+
+      expect(device.deleted, isEmpty);
+      expect(device.contacts.containsKey('jane'), isTrue);
+      expect(summary.deleted, 0);
+      expect(summary.skippedMerged, 1);
+      // The link stays, so a later pass can still remove our half if the user
+      // splits the contacts apart.
+      expect(await db.deviceContactLinkDao.byCompany('co'), contains('k1'));
+    });
+
+    test('a card merged into the user\'s contact is never written through — '
+        'their phone and name stay theirs', () async {
+      device.addUserContact('jane');
+      device.mergeNextCreateInto = 'jane';
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-0100')]),
+      ]);
+      await run();
+
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-9999')]),
+      ]);
+      final summary = await run(isFirstRun: false);
+
+      expect(device.updated, isEmpty);
+      expect(device.contacts['jane']!.sourceId, 'user:jane');
+      expect(summary.updated, 0);
+      expect(summary.skippedMerged, 1);
+    });
+
+    test('a card Android merges later is found again by its entry — no '
+        'duplicate, no write through the merged contact', () async {
+      device.addUserContact('jane');
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-0100')]),
+      ]);
+      await run();
+      final ours = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+      expect(ours.rawContactId, isNotNull);
+      device.merge(ours.deviceContactId, intoId: 'jane');
+
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-9999')]),
+      ]);
+      final summary = await run(isFirstRun: false);
+
+      expect(summary.created, 0, reason: 'no duplicate inside her contact');
+      expect(summary.updated, 0);
+      expect(summary.skippedMerged, 1);
+      expect(device.contacts['jane']!.sourceId, 'user:jane');
+      final link = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+      expect(link.deviceContactId, 'jane');
+      expect(link.rawContactId, ours.rawContactId);
+
+      await service.removeAll(companyId: 'co');
+      expect(device.contacts.containsKey('jane'), isTrue);
+      expect(device.deleted, isEmpty);
+    });
+
+    test(
+      'a card only we wrote is still deleted when its client leaves',
+      () async {
+        device.addUserContact('mum');
+        await seed([
+          _api('c1', contacts: [_contact('k1')]),
+        ]);
+        await run();
+        final ours = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+
+        await db.clientDao.setArchived(
+          companyId: 'co',
+          id: 'c1',
+          atEpochSeconds: 1700000001,
+        );
+        final summary = await run(isFirstRun: false);
+
+        expect(device.deleted, [ours.deviceContactId]);
+        expect(summary.deleted, 1);
+        expect(summary.skippedMerged, 0);
+        expect(device.contacts.keys, ['mum']);
+      },
+    );
+
+    test('a link from before the entry column is adopted on a single entry, '
+        'and marked unidentified on a merged one', () async {
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+        _api('c2', contacts: [_contact('k2')]),
+      ]);
+      await run();
+      final links = await db.deviceContactLinkDao.byCompany('co');
+      final alone = links['k1']!.deviceContactId;
+      device.addUserContact('jane');
+      device.merge(links['k2']!.deviceContactId, intoId: 'jane');
+      // Rows as an upgraded v14 install has them: no entry recorded. k2 points
+      // at the merged contact, which is the id `createAll` hands back when
+      // Android merges on insert.
+      await db.deviceContactLinkDao.upsertAll([
+        for (final (sourceId, deviceId) in [('k1', alone), ('k2', 'jane')])
+          DeviceContactLinksCompanion(
+            companyId: const Value('co'),
+            sourceId: Value(sourceId),
+            deviceContactId: Value(deviceId),
+            rawContactId: const Value(null),
+            hash: const Value('stale'),
+            updatedAt: const Value(0),
+          ),
+      ]);
+
+      final summary = await run(isFirstRun: false);
+
+      expect(summary.updated, 1);
+      expect(summary.skippedMerged, 1);
+      expect(device.contacts['jane']!.sourceId, 'user:jane');
+      final after = await db.deviceContactLinkDao.byCompany('co');
+      expect(after['k1']!.rawContactId, device.entriesOf(alone).single);
+      expect(after['k2']!.rawContactId, kUnidentifiedEntry);
+    });
+
+    test('a card merged into the user\'s contact on insert stays out of the '
+        'label, so their own entry is never filed under it', () async {
+      device.addUserContact('jane');
+      device.mergeNextCreateInto = 'jane';
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+
+      await run();
+
+      expect(device.allMembers, isNot(contains('jane')));
+      // ...and a later pass doesn't put it there either.
+      await run(isFirstRun: false);
+      expect(device.allMembers, isNot(contains('jane')));
+      expect(device.created, hasLength(1), reason: 'and no duplicate');
+    });
+
+    test('an update the device refuses keeps its old hash, so the next pass '
+        'tries again', () async {
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-0100')]),
+      ]);
+      await run();
+      final before = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+      device.refuseUpdates.add(before.deviceContactId);
+
+      await seed([
+        _api('c1', contacts: [_contact('k1', phone: '555-9999')]),
+      ]);
+      final refused = await run(isFirstRun: false);
+
+      expect(refused.updated, 0);
+      final after = (await db.deviceContactLinkDao.byCompany('co'))['k1']!;
+      expect(after.hash, before.hash);
+
+      device.refuseUpdates.clear();
+      final retried = await run(isFirstRun: false);
+      expect(retried.updated, 1);
+      expect(
+        device.contacts[before.deviceContactId]!.phones.first.number,
+        '555-9999',
+      );
+    });
+
+    test('a device that cannot be read deletes nothing and re-creates '
+        'nothing', () async {
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+        _api('c2', contacts: [_contact('k2')]),
+      ]);
+      await run();
+      device.clearMembers();
+      await db.clientDao.setArchived(
+        companyId: 'co',
+        id: 'c2',
+        atEpochSeconds: 1700000001,
+      );
+      device.unreadable = true;
+      device.created.clear();
+
+      final summary = await run(isFirstRun: false);
+
+      expect(device.deleted, isEmpty);
+      expect(device.created, isEmpty);
+      expect(summary.deleted, 0);
+      expect(await db.deviceContactLinkDao.byCompany('co'), hasLength(2));
+
+      await service.removeAll(companyId: 'co');
+      expect(device.deleted, isEmpty);
+      expect(await db.deviceContactLinkDao.byCompany('co'), hasLength(2));
     });
   });
 
@@ -693,7 +1034,8 @@ void main() {
       expect(device.deletedGroups, 0);
     });
 
-    test('reaches cards whose link row is gone, via the label', () async {
+    test('never deletes a label member it has no link row for — the label '
+        'is not an ownership record', () async {
       await seed([
         _api('c1', contacts: [_contact('k1')]),
       ]);
@@ -702,7 +1044,9 @@ void main() {
 
       await service.removeAll(companyId: 'co');
 
-      expect(device.contacts, isEmpty);
+      expect(device.contacts, hasLength(1));
+      expect(device.deleted, isEmpty);
+      expect(device.deletedGroups, 1);
     });
   });
 
@@ -767,9 +1111,9 @@ void main() {
 
   // invoiceninja/flutter — the label is derived from the company *name*, so
   // resolving the group by name handed two same-named companies one group. The
-  // reconcile deletes every group member it doesn't recognise, so each pass
-  // wiped the other company's cards off the phone. Ownership keys on the
-  // company id instead.
+  // reconcile then deleted every group member it didn't recognise, so each
+  // pass wiped the other company's cards off the phone. Groups key on the
+  // company id, and nothing is deleted by membership any more.
   group('two companies never share a group', () {
     /// A second company, plus one client with one contact in it.
     Future<void> seedSecondCompany({required String name}) async {
@@ -892,8 +1236,8 @@ void main() {
       expect(device.deleted, isEmpty);
     });
 
-    test('after a logout wipes the link table the rename-proof group still '
-        'heals, rather than duplicating', () async {
+    test('after a logout wipes the link table the rename-proof group is '
+        'reused, and its unlinked member is left, never deleted', () async {
       await renameCompanyOne('Acme Co');
       await seed([
         _api('c1', contacts: [_contact('k1')]),
@@ -905,9 +1249,9 @@ void main() {
       await db.deviceContactLinkDao.deleteCompany('co');
       final summary = await runFor('co');
 
-      // The old card is reclaimed via the group and re-created once — not left
-      // stranded with a duplicate alongside it.
-      expect(device.contacts, hasLength(1));
+      // A duplicate, not a deletion: nothing proves the old card is ours.
+      expect(device.deleted, isEmpty);
+      expect(device.contacts, hasLength(2));
       expect(summary.created, 1);
       expect(device.groups, hasLength(1));
     });

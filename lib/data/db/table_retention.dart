@@ -31,6 +31,11 @@ const Map<String, TableRetention> kTableRetention = {
   'nav_state': TableRetention.durable,
   'device_prefs': TableRetention.durable,
   'drafts': TableRetention.durable,
+  // The only record of which address-book cards contacts sync wrote: a card is
+  // updated or deleted only through its row here (`ownsDeviceContact`), never
+  // found again by its label. Lose the rows and every card is re-created beside
+  // the old one, which the app can then never remove (docs/contacts-sync.md).
+  'device_contact_links': TableRetention.durable,
   // What `restore()` resumes a session from.
   'accounts': TableRetention.anchor,
   'companies': TableRetention.anchor,
@@ -43,9 +48,6 @@ const Map<String, TableRetention> kTableRetention = {
   'credits': TableRetention.cache,
   'dashboard_cache': TableRetention.cache,
   'designs': TableRetention.cache,
-  // Rebuildable only because the address-book group ids it hangs off live in
-  // the `contacts_sync_json` device preference, which is durable.
-  'device_contact_links': TableRetention.cache,
   'document_records': TableRetention.cache,
   'documents': TableRetention.cache,
   'expense_categories': TableRetention.cache,

@@ -208,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -314,6 +314,13 @@ class AppDatabase extends _$AppDatabase {
     // list (`GET /api/v1/documents`). Brand new and a cache, so there is
     // nothing to backfill: the list's first page fills it. Not the old
     // `documents` scaffold table, which stays untouched (see the table doc).
+    //
+    // v14 → v15: add `device_contact_links.raw_contact_id` — the address-book
+    // entry contacts sync inserted for each card, so a delete can tell our
+    // card from the user's own contact once Android has merged the two.
+    // Nullable with no backfill: null means "not checked yet", and the
+    // reconcile settles it the first time it acts on the row
+    // (`ownsDeviceContact`, docs/contacts-sync.md).
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -385,6 +392,13 @@ class AppDatabase extends _$AppDatabase {
               "AND name = 'document_records'",
             ).get();
             if (exists.isEmpty) await m.createTable(documentRecords);
+          }
+          if (from < 15) {
+            await _addColumnIfMissing(
+              m,
+              deviceContactLinks,
+              deviceContactLinks.rawContactId,
+            );
           }
           // Create any declared table this database is missing, before the
           // index pass below touches it.

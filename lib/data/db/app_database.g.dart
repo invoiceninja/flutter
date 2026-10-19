@@ -44873,6 +44873,17 @@ class $DeviceContactLinksTable extends DeviceContactLinks
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _rawContactIdMeta = const VerificationMeta(
+    'rawContactId',
+  );
+  @override
+  late final GeneratedColumn<String> rawContactId = GeneratedColumn<String>(
+    'raw_contact_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     companyId,
@@ -44880,6 +44891,7 @@ class $DeviceContactLinksTable extends DeviceContactLinks
     deviceContactId,
     hash,
     updatedAt,
+    rawContactId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -44936,6 +44948,15 @@ class $DeviceContactLinksTable extends DeviceContactLinks
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('raw_contact_id')) {
+      context.handle(
+        _rawContactIdMeta,
+        rawContactId.isAcceptableOrUnknown(
+          data['raw_contact_id']!,
+          _rawContactIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -44965,6 +44986,10 @@ class $DeviceContactLinksTable extends DeviceContactLinks
         DriftSqlType.int,
         data['${effectivePrefix}updated_at'],
       )!,
+      rawContactId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_contact_id'],
+      ),
     );
   }
 
@@ -44984,12 +45009,24 @@ class DeviceContactLinkRow extends DataClass
   /// no write at all, which is what keeps a repeat sync near-free.
   final String hash;
   final int updatedAt;
+
+  /// The entry this install inserted for the card: Android's raw contact id
+  /// (iOS has no such level, so it is the contact id itself). It is what lets
+  /// a delete or update tell our card from the user's own contact once
+  /// Android has merged the two — see `ownsDeviceContact`.
+  ///
+  /// Null: the row predates schema v15 and hasn't been checked yet.
+  /// `kUnidentifiedEntry` (`''`): the card was merged into another contact
+  /// before we could tell which entry was ours, so it is never touched.
+  /// Added in schema v15.
+  final String? rawContactId;
   const DeviceContactLinkRow({
     required this.companyId,
     required this.sourceId,
     required this.deviceContactId,
     required this.hash,
     required this.updatedAt,
+    this.rawContactId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -44999,6 +45036,9 @@ class DeviceContactLinkRow extends DataClass
     map['device_contact_id'] = Variable<String>(deviceContactId);
     map['hash'] = Variable<String>(hash);
     map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || rawContactId != null) {
+      map['raw_contact_id'] = Variable<String>(rawContactId);
+    }
     return map;
   }
 
@@ -45009,6 +45049,9 @@ class DeviceContactLinkRow extends DataClass
       deviceContactId: Value(deviceContactId),
       hash: Value(hash),
       updatedAt: Value(updatedAt),
+      rawContactId: rawContactId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rawContactId),
     );
   }
 
@@ -45023,6 +45066,7 @@ class DeviceContactLinkRow extends DataClass
       deviceContactId: serializer.fromJson<String>(json['deviceContactId']),
       hash: serializer.fromJson<String>(json['hash']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      rawContactId: serializer.fromJson<String?>(json['rawContactId']),
     );
   }
   @override
@@ -45034,6 +45078,7 @@ class DeviceContactLinkRow extends DataClass
       'deviceContactId': serializer.toJson<String>(deviceContactId),
       'hash': serializer.toJson<String>(hash),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'rawContactId': serializer.toJson<String?>(rawContactId),
     };
   }
 
@@ -45043,12 +45088,14 @@ class DeviceContactLinkRow extends DataClass
     String? deviceContactId,
     String? hash,
     int? updatedAt,
+    Value<String?> rawContactId = const Value.absent(),
   }) => DeviceContactLinkRow(
     companyId: companyId ?? this.companyId,
     sourceId: sourceId ?? this.sourceId,
     deviceContactId: deviceContactId ?? this.deviceContactId,
     hash: hash ?? this.hash,
     updatedAt: updatedAt ?? this.updatedAt,
+    rawContactId: rawContactId.present ? rawContactId.value : this.rawContactId,
   );
   DeviceContactLinkRow copyWithCompanion(DeviceContactLinksCompanion data) {
     return DeviceContactLinkRow(
@@ -45059,6 +45106,9 @@ class DeviceContactLinkRow extends DataClass
           : this.deviceContactId,
       hash: data.hash.present ? data.hash.value : this.hash,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      rawContactId: data.rawContactId.present
+          ? data.rawContactId.value
+          : this.rawContactId,
     );
   }
 
@@ -45069,14 +45119,21 @@ class DeviceContactLinkRow extends DataClass
           ..write('sourceId: $sourceId, ')
           ..write('deviceContactId: $deviceContactId, ')
           ..write('hash: $hash, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rawContactId: $rawContactId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(companyId, sourceId, deviceContactId, hash, updatedAt);
+  int get hashCode => Object.hash(
+    companyId,
+    sourceId,
+    deviceContactId,
+    hash,
+    updatedAt,
+    rawContactId,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -45085,7 +45142,8 @@ class DeviceContactLinkRow extends DataClass
           other.sourceId == this.sourceId &&
           other.deviceContactId == this.deviceContactId &&
           other.hash == this.hash &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.rawContactId == this.rawContactId);
 }
 
 class DeviceContactLinksCompanion
@@ -45095,6 +45153,7 @@ class DeviceContactLinksCompanion
   final Value<String> deviceContactId;
   final Value<String> hash;
   final Value<int> updatedAt;
+  final Value<String?> rawContactId;
   final Value<int> rowid;
   const DeviceContactLinksCompanion({
     this.companyId = const Value.absent(),
@@ -45102,6 +45161,7 @@ class DeviceContactLinksCompanion
     this.deviceContactId = const Value.absent(),
     this.hash = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.rawContactId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DeviceContactLinksCompanion.insert({
@@ -45110,6 +45170,7 @@ class DeviceContactLinksCompanion
     required String deviceContactId,
     required String hash,
     required int updatedAt,
+    this.rawContactId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : companyId = Value(companyId),
        sourceId = Value(sourceId),
@@ -45122,6 +45183,7 @@ class DeviceContactLinksCompanion
     Expression<String>? deviceContactId,
     Expression<String>? hash,
     Expression<int>? updatedAt,
+    Expression<String>? rawContactId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -45130,6 +45192,7 @@ class DeviceContactLinksCompanion
       if (deviceContactId != null) 'device_contact_id': deviceContactId,
       if (hash != null) 'hash': hash,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (rawContactId != null) 'raw_contact_id': rawContactId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -45140,6 +45203,7 @@ class DeviceContactLinksCompanion
     Value<String>? deviceContactId,
     Value<String>? hash,
     Value<int>? updatedAt,
+    Value<String?>? rawContactId,
     Value<int>? rowid,
   }) {
     return DeviceContactLinksCompanion(
@@ -45148,6 +45212,7 @@ class DeviceContactLinksCompanion
       deviceContactId: deviceContactId ?? this.deviceContactId,
       hash: hash ?? this.hash,
       updatedAt: updatedAt ?? this.updatedAt,
+      rawContactId: rawContactId ?? this.rawContactId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -45170,6 +45235,9 @@ class DeviceContactLinksCompanion
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (rawContactId.present) {
+      map['raw_contact_id'] = Variable<String>(rawContactId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -45184,6 +45252,7 @@ class DeviceContactLinksCompanion
           ..write('deviceContactId: $deviceContactId, ')
           ..write('hash: $hash, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('rawContactId: $rawContactId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -66672,6 +66741,7 @@ typedef $$DeviceContactLinksTableCreateCompanionBuilder =
       required String deviceContactId,
       required String hash,
       required int updatedAt,
+      Value<String?> rawContactId,
       Value<int> rowid,
     });
 typedef $$DeviceContactLinksTableUpdateCompanionBuilder =
@@ -66681,6 +66751,7 @@ typedef $$DeviceContactLinksTableUpdateCompanionBuilder =
       Value<String> deviceContactId,
       Value<String> hash,
       Value<int> updatedAt,
+      Value<String?> rawContactId,
       Value<int> rowid,
     });
 
@@ -66715,6 +66786,11 @@ class $$DeviceContactLinksTableFilterComposer
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawContactId => $composableBuilder(
+    column: $table.rawContactId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -66752,6 +66828,11 @@ class $$DeviceContactLinksTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get rawContactId => $composableBuilder(
+    column: $table.rawContactId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DeviceContactLinksTableAnnotationComposer
@@ -66779,6 +66860,11 @@ class $$DeviceContactLinksTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get rawContactId => $composableBuilder(
+    column: $table.rawContactId,
+    builder: (column) => column,
+  );
 }
 
 class $$DeviceContactLinksTableTableManager
@@ -66826,6 +66912,7 @@ class $$DeviceContactLinksTableTableManager
                 Value<String> deviceContactId = const Value.absent(),
                 Value<String> hash = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
+                Value<String?> rawContactId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DeviceContactLinksCompanion(
                 companyId: companyId,
@@ -66833,6 +66920,7 @@ class $$DeviceContactLinksTableTableManager
                 deviceContactId: deviceContactId,
                 hash: hash,
                 updatedAt: updatedAt,
+                rawContactId: rawContactId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -66842,6 +66930,7 @@ class $$DeviceContactLinksTableTableManager
                 required String deviceContactId,
                 required String hash,
                 required int updatedAt,
+                Value<String?> rawContactId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DeviceContactLinksCompanion.insert(
                 companyId: companyId,
@@ -66849,6 +66938,7 @@ class $$DeviceContactLinksTableTableManager
                 deviceContactId: deviceContactId,
                 hash: hash,
                 updatedAt: updatedAt,
+                rawContactId: rawContactId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

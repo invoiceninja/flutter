@@ -105,6 +105,9 @@ class QuotesApi extends BaseEntityApi<QuoteListApi, QuoteItemApi> {
       id: id,
       template: scheduledName,
       sendAt: sendAt,
+      subject: subject,
+      body: body,
+      ccEmail: ccEmail,
       idempotencyKey: idempotencyKey,
     );
     return null;

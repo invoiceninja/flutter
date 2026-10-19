@@ -79,4 +79,51 @@ void main() {
       expect(await svc.pickContact(), isNull);
     });
   });
+
+  // Android merges a card into the user's own contact for the same person,
+  // and flutter_contacts deletes and updates the whole merged contact. This
+  // rule is all that keeps a delete from taking the user's copy with ours.
+  group('ownsDeviceContact', () {
+    test('only a contact that is exactly our one recorded entry is ours', () {
+      expect(ownsDeviceContact(recorded: 'r1', entryIds: ['r1']), isTrue);
+    });
+
+    test('a contact merged with anyone else is never ours', () {
+      expect(
+        ownsDeviceContact(recorded: 'r1', entryIds: ['r1', 'user-9']),
+        isFalse,
+      );
+    });
+
+    test('a contact that no longer holds our entry is not ours — split apart, '
+        'the id now belongs to the user\'s half', () {
+      expect(ownsDeviceContact(recorded: 'r1', entryIds: ['user-9']), isFalse);
+    });
+
+    test('an unidentified entry is never ours, even on its own', () {
+      expect(
+        ownsDeviceContact(recorded: kUnidentifiedEntry, entryIds: ['x']),
+        isFalse,
+      );
+    });
+
+    test('an unreadable contact is never ours', () {
+      expect(ownsDeviceContact(recorded: 'r1', entryIds: const []), isFalse);
+      expect(ownsDeviceContact(recorded: null, entryIds: const []), isFalse);
+    });
+
+    test('a row from before the column is adopted on a single entry only', () {
+      expect(ownsDeviceContact(recorded: null, entryIds: ['r1']), isTrue);
+      expect(ownsDeviceContact(recorded: null, entryIds: ['a', 'b']), isFalse);
+    });
+  });
+
+  group('entryIdToRecord', () {
+    test('records the only entry, marks a merged contact unidentified, and '
+        'leaves an unreadable one unchecked', () {
+      expect(entryIdToRecord(['r1']), 'r1');
+      expect(entryIdToRecord(['r1', 'user-9']), kUnidentifiedEntry);
+      expect(entryIdToRecord(const []), isNull);
+    });
+  });
 }

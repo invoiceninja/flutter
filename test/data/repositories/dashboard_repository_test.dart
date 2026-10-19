@@ -114,13 +114,27 @@ class _FakeDashboardApi extends DashboardApi {
   Future<Object?> fetchChartSummary(DashboardFilter filter) =>
       _maybe('chart', chartSummary);
 
-  /// The `rows` each activity fetch asked for, in order.
+  /// The `rows` and `before` each activity fetch asked for, in order.
   final List<int> activityRows = [];
+  final List<String?> activityBefore = [];
+
+  /// When set, answers a fetch carrying `before` instead of [activities] — a
+  /// server that pages the feed. Unset, `before` is ignored like an older
+  /// server does.
+  Object? activitiesBefore;
 
   @override
-  Future<Object?> fetchActivities({int rows = kActivityFeedRows}) {
+  Future<Object?> fetchActivities({
+    int rows = kActivityFeedRows,
+    String? before,
+  }) {
     activityRows.add(rows);
-    return _maybe('activities', activities);
+    activityBefore.add(before);
+    final paged = activitiesBefore;
+    return _maybe(
+      'activities',
+      before != null && paged != null ? paged : activities,
+    );
   }
 
   @override
@@ -795,6 +809,49 @@ void main() {
         expect(api.peakInFlight, 1);
       },
     );
+
+    group('loadOlderActivities', () {
+      Map<String, Object?> hashed(int id) => {...row(id), 'hashed_id': 'h$id'};
+
+      test(
+        'pages back from the oldest row when the server has the cursor',
+        () async {
+          api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
+          await repo.refreshActivities('co_a');
+
+          api.activitiesBefore = [for (var i = 5; i >= 3; i--) hashed(i)];
+          final page = await repo.loadOlderActivities('co_a');
+
+          expect(page, (asked: kActivityFeedRows, received: 3));
+          expect(api.activityBefore.last, 'h6');
+          expect(api.activityRows.last, kActivityFeedRows);
+          expect(repo.activityCursorSupported('co_a'), isTrue);
+          expect(await cachedIds(), ['10', '9', '8', '7', '6', '5', '4', '3']);
+        },
+      );
+
+      test(
+        'falls back to a bigger window when the server ignores it',
+        () async {
+          api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
+          await repo.refreshActivities('co_a');
+
+          // An older server answers `before=` with the newest rows.
+          api.activities = [for (var i = 12; i >= 6; i--) hashed(i)];
+          final page = await repo.loadOlderActivities('co_a');
+
+          expect(repo.activityCursorSupported('co_a'), isFalse);
+          expect(api.activityBefore.last, isNull);
+          expect(api.activityRows.last, 5 + kActivityFeedRows);
+          expect(page, (asked: 5 + kActivityFeedRows, received: 7));
+
+          // Remembered: the next Load more doesn't ask with the cursor again.
+          final calls = api.activityBefore.length;
+          await repo.loadOlderActivities('co_a');
+          expect(api.activityBefore.skip(calls), [null]);
+        },
+      );
+    });
 
     test('a failed refresh does not wedge the next one', () async {
       api.failures['activities'] = StateError('boom');

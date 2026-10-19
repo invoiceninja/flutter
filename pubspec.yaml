@@ -34,7 +34,7 @@ dependencies:
   fl_chart: ^1.2.0
   flutter:
     sdk: flutter
-  flutter_contacts: ^2.2.0
+  flutter_contacts: ^2.6.0
   flutter_localizations:
     sdk: flutter
   flutter_secure_storage: ^10.3.1

@@ -240,7 +240,7 @@ void main() {
       await tester.pump();
       await tester.tap(button);
       await tester.pump();
-      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+      expect(repo.loadOlderActivitiesCalls, 1);
     });
 
     testWidgets('and above it, where the timeline ends', (tester) async {
@@ -248,7 +248,7 @@ void main() {
       await emit(tester, window(kActivityFeedRows));
       await tester.tap(find.widgetWithText(TextButton, 'Load more'));
       await tester.pump();
-      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+      expect(repo.loadOlderActivitiesCalls, 1);
     });
 
     testWidgets('a short window offers neither', (tester) async {
@@ -261,6 +261,8 @@ void main() {
       tester,
     ) async {
       await pumpScreen(tester);
+      // A server without the feed cursor: the window stops at the lower cap.
+      repo.cursorSupported = false;
       await emit(tester, window(kActivityWindowMax));
       expect(find.text('Load more'), findsNothing);
       await tester.scrollUntilVisible(

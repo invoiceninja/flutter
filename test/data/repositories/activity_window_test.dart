@@ -87,4 +87,56 @@ void main() {
     );
     expect(_ids(merged), ['2', '1']);
   });
+
+  group('paging back with the cursor', () {
+    test('the cursor row is the oldest held', () {
+      final rows = [_row(3, 300), _row(1, 100), _row(2, 200)];
+      expect((oldestActivityRow(rows)! as Map)['id'], '1');
+      expect(oldestActivityRow(const []), isNull);
+    });
+
+    test(
+      'a page whose rows are no newer than the cursor second honoured it',
+      () {
+        final boundary = _row(5, 500);
+        // Same second as the boundary is allowed: the server splits a second
+        // by microseconds the payload doesn't carry.
+        expect(
+          pageHonouredCursor([_row(4, 500), _row(3, 400)], boundary),
+          isTrue,
+        );
+        expect(pageHonouredCursor(const [], boundary), isTrue);
+      },
+    );
+
+    test('a page carrying newer rows is a server that ignored the cursor', () {
+      // An older server answers `before=` with the newest rows.
+      expect(
+        pageHonouredCursor([_row(9, 900), _row(8, 800)], _row(5, 500)),
+        isFalse,
+      );
+    });
+
+    test('an older page is appended, skipping rows already held', () {
+      final cached = [_row(6, 600), _row(5, 500)];
+      final older = [_row(5, 500), _row(4, 400), _row(3, 300)];
+
+      expect(_ids(appendOlderActivities(cached: cached, older: older)), [
+        '6',
+        '5',
+        '4',
+        '3',
+      ]);
+    });
+
+    test('appending trims to the cap, dropping the oldest', () {
+      final cached = [_row(6, 600), _row(5, 500)];
+      final older = [_row(4, 400), _row(3, 300)];
+
+      expect(
+        _ids(appendOlderActivities(cached: cached, older: older, cap: 3)),
+        ['6', '5', '4'],
+      );
+    });
+  });
 }

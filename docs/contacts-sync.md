@@ -61,12 +61,13 @@ can't collide.
 3. `ensureGroup('Invoice Ninja — <Company>')`.
 4. Read active clients from Drift in pages of 100 (`ClientDao.pageForContactSync`), skipping `tmp_`
    ids (an offline create whose id is about to change).
-5. Read the label's members, then diff the desired cards against the link table → create / update /
-   **unchanged** / delete. Membership is read *before* the diff on purpose: it's what proves a link
-   still points at a real card. A contact the user deleted by hand would otherwise be "updated" into
-   the void, get a fresh hash stamped on its link, and read as unchanged forever after — gone from
-   the device and never re-created.
-6. **Heal against the label** (below).
+5. Read the label's members — a **liveness hint, nothing more** — and diff the desired cards against
+   the link table → create / update / **unchanged** / delete.
+6. Ask the device (`DeviceContactsService.resolveContacts`, one call) about every link the pass is
+   about to update or delete, and every link whose card isn't in the label. It answers where each
+   card lives now and which entries make up that contact. An update or delete goes ahead only when
+   `ownsDeviceContact` clears it (below); a card that is gone is re-created; a card that moved is
+   re-pointed.
 7. Apply in chunks, polling `isCancelled` between them, persisting link rows **per chunk**.
 
 ### Who refreshes
@@ -85,36 +86,85 @@ Get it wrong and you lose performance, not correctness — but the pre-flight ca
 counting off an unrefreshed cache reports ~50 for an account with thousands, which inverts the one
 guard rail this feature has.
 
-### Ownership is the label, not the link table
+### Contacts sync touches only a device contact it can prove it wrote
 
-Everything the feature writes goes into one group per company, and the reconcile deletes any group
-member it has no link row for. That's what makes it recover from `logout()` wiping the link table, or
-a pass dying between the OS write and the Drift write — without it those cards would be stranded
-forever and the next run would create duplicates beside them. **Contacts outside the group are never
-read, written or deleted.**
+A device contact is updated or deleted only through a link row, and only when
+`ownsDeviceContact(recorded:, entryIds:)` (`lib/data/services/device_contacts_service.dart`) says the
+contact consists of **exactly one entry, and that entry is the one this install recorded** when it
+created the card (`device_contact_links.raw_contact_id`, schema v15). Label membership never
+decides anything destructive. Both rules come from a beta user whose address book the feature
+wiped (v5.1.8 – v5.1.16, Android).
 
-#### …but an empty group is ambiguous, so it is never trusted on its own
+#### The label is not an ownership record
 
-Membership answers "is this link's card still real?" — except when the group itself is empty, which
-means one of two opposite things:
+The reconcile used to treat the label as the ownership boundary: it deleted every member it had no
+link row for, so it could reclaim cards after `logout()` wiped the link table. But flutter_contacts
+before **2.3.0** answers an *empty* group filter with **every contact on the phone**:
+`ContactFilterUtils.getContactIdsFromGroups` returns `[]`, and
+`ContactQueryBuilder.buildContactIdSelection` treats an empty list as "no filter"
+(`!contactIds.isNullOrEmpty()`). Verified in the 2.2.0 sources the app shipped with; 2.3.0 fixed
+it (#240) and 2.6.0's `ContactFetcher` returns nothing for a non-null empty list. On a first sync
+`ensureGroup` mints an empty label, so the heal pass deleted the user's whole address book — and on
+most phones those contacts live in a Google account, so the delete synced to the cloud. "Remove
+synced contacts" and the logout cleanup did the same through `removeAll`.
 
-* the user deleted the **cards** by hand, and they really are gone; or
-* the user deleted the **label** (or the device only just gained its first contacts account), so
-  `ensureGroup` minted an empty replacement while every card is still sitting there.
+So membership is now only a liveness hint. A linked card that is a member is taken as present
+without asking again (a repeat sync stays one read); one that isn't is checked against the address
+book. The cost is honest: after `logout()` wipes the link table, or a pass dies between the OS write
+and the Drift write, a card can be left behind and re-created beside its old copy. A duplicate is
+recoverable; a wiped address book is not.
 
-Reading the second case as the first re-created the entire address book, and `upsertAll` then
-re-pointed each link at the new copy — leaving the originals outside the new group where the heal
-pass can never reclaim them, not even via *Remove synced contacts*. So a link whose card is **not**
-in the group is not dead yet: `_reconcile` asks `DeviceContactsService.existingContactIds` (one
-platform call, and only for links that already failed the membership test) and keeps the ones that
-still exist, then re-adopts them with `addContactsToGroup` so the next pass can go back to trusting
-membership by itself. A card that genuinely was deleted returns from neither, and is re-created as
-before.
+#### A merged contact is never ours
+
+Android merges contacts on its own: a card for someone already in the phone (same name, phone or
+email — the common case for a client contact) joins the user's existing contact, on insert or later
+when either side changes. flutter_contacts works at the merged level: `createAll` returns the
+merged contact's id, `deleteAll` runs `DELETE FROM raw_contacts WHERE contact_id IN (…)` — every
+entry, the user's own included — and `updateAll` writes through whichever entry
+`getPrimaryRawContactIdForUpdate` picks. Still true in 2.6.0, and the plugin has no per-entry
+delete. So:
+
+- **On create** the new contacts are read back with `ContactProperty.identifiers`.
+  `entryIdToRecord` records the single entry's id, `kUnidentifiedEntry` (`''`) when Android had
+  already merged the card (nothing says which entry is ours, so it is never touched), or null when
+  the read failed (settled later).
+- **Only a card that is its own contact goes into the label.** `groups.addContacts` writes a
+  membership for every entry of the contact in the label's account
+  (`GroupUtils.addContactsToGroup`), so labelling a card merged on insert files the user's own entry
+  under "Invoice Ninja — …". A merged card stays unlabelled, and so is checked by id on every pass
+  (one by-id read, since it is never a member).
+- **Before an update or delete** the contact must be exactly `[recorded]`. A merged one is left as
+  it is and counted in `ContactsSyncSummary.skippedMerged`, which the settings card reports; its
+  link row stays, so a later pass can still act if the contacts are split apart.
+- **A card merged after the fact** loses the id we stored. `resolveContacts` finds it again by its
+  recorded entry and the link is re-pointed — re-creating it would add another entry to the user's
+  contact on every pass.
+- **iOS** has no entry level, so a contact is its own single entry (`entryIds: [id]`) and the rule
+  reduces to "it still exists". *Unverified:* iOS links contacts across accounts (iCloud + Gmail),
+  and whether deleting a unified contact deletes its linked ones was not confirmed — check on a
+  device with two accounts.
+- **Rows from before v15** have a null entry and are adopted the first time the pass acts on them:
+  a single entry is taken as ours, a merged contact becomes `kUnidentifiedEntry`. The one case left
+  to judgement is a pre-v15 row whose merged contact the user has since split, leaving the user's
+  half alone under our stored id.
+
+#### …but an empty group is still ambiguous, so it never re-creates on its own
+
+A linked card missing from the label means one of two opposite things: the user deleted the
+**card**, or deleted the **label** (or the device only just gained its first contacts account, so
+`ensureGroup` minted an empty replacement) while every card is still there. Reading the second as
+the first re-creates the entire set beside the originals, so the pass asks the address book
+(`resolveContacts`) and re-creates only what is really gone. Cards that outlived their label are
+put back in it with `addContactsToGroup` — but only ones that are only ours: on a merged contact
+Android files the membership under whichever entry shares the label's account, which may be the
+user's. If the device can't be read at all (`resolveContacts` returns null), every card counts as
+present and none as ours: nothing is created, updated or deleted for those links that pass.
 
 ### …and the label is found by id, never by name
 
-Since the reconcile deletes every group member it doesn't recognise, *which* group a company resolves
-to is a data-safety question, not a lookup detail. `labelFor(companyName)` is a **display name only**:
+When the reconcile still deleted every group member it didn't recognise, *which* group a company
+resolved to was a data-safety question, not a lookup detail; it is still what keeps each company's
+cards under its own label. `labelFor(companyName)` is a **display name only**:
 two companies can share a name, and every unnamed one falls back to a bare `Invoice Ninja`. Resolving
 by name therefore handed them one group, and each pass deleted the other company's cards off the
 phone — silently, in both directions, and the same flaw let "Remove synced contacts" for one company
@@ -138,9 +188,23 @@ The blob is free-form JSON and the controller's parse tolerates missing keys, so
 
 ## Traps
 
-Each of these is a real constraint that was verified in the `flutter_contacts` 2.2.2 sources, and each
-fails in a way that doesn't look like the cause.
+Each of these is a real constraint verified in the `flutter_contacts` sources (2.2.0, re-checked
+against 2.6.0, the version now locked), and each fails in a way that doesn't look like the cause.
 
+- **An empty group filter matched every contact before 2.3.0.** Never let a group read decide a
+  delete; and if the plugin is ever pinned back below 2.3.0, `groupMemberIds` must guard an empty
+  group itself. `test/domain/contacts_sync/contacts_sync_service_test.dart` › "never touches a
+  contact it cannot prove it wrote" runs the fake with `emptyGroupReturnsEverything`.
+- **Delete and update address the whole merged contact.** `deleteAll` / `delete` / `updateAll` take
+  a contact id, and on Android that is every raw contact merged under it. Nothing reaches them
+  except through `ownsDeviceContact`.
+- **2.5.0+ `update` throws `read_only_contact`,** and one such contact fails a whole `updateAll`.
+  `updateContacts` retries the batch one contact at a time so it can't fail the pass, and returns
+  the ids it actually wrote: only those get the new hash, so a refused card is retried next pass.
+- **`device_contact_links` is `durable` in `kTableRetention`.** It is the only record of which cards
+  are ours. As `cache`, a schema repair could drop it and a reset leave it behind, and every synced
+  card would then be re-created beside one the app can never remove. Salvage imports the columns
+  both schemas share, so a pre-v15 snapshot lands with `raw_contact_id` null (not checked yet).
 - **One account, used for both the label and the contacts.** `GroupUtils.addContactsToGroup` throws
   `IllegalStateException` if the group has a null account, and throws again if the contact has no raw
   contact *in that same account*. `NativeDeviceContactsService` resolves one `Account` once
@@ -148,7 +212,7 @@ fails in a way that doesn't look like the cause.
   `create`. Getting this wrong doesn't degrade — it throws on the first grouped write.
 - **No account ⇒ no label, not a failure.** A device whose contacts are local-only has no account to
   hang a group on. `ensureGroup` returns `null`, the sync runs *without* a label, `summary.labelled`
-  is false, and the heal step is skipped (the link table is then the only ownership record).
+  is false, and every linked card is taken as present (there is no membership to check).
 - **`update` only writes properties you fetched.** The package enforces this. The `get()` before an
   `update()` requests exactly `_ownedProperties`; fetch a narrower set and those writes are silently
   dropped — a sync that runs clean and changes nothing.
@@ -167,8 +231,8 @@ fails in a way that doesn't look like the cause.
   same stored group id (above), so purging one company can't reach an identically-named sibling's
   cards.
 - **`labelFor` is not an identity.** It is derived from the company name, so it collides by design —
-  see the section above. A change that makes anything resolve a group by name alone re-introduces a
-  silent contact-destroying bug; `test/domain/contacts_sync/contacts_sync_service_test.dart`'s
+  see the section above. A change that makes anything resolve a group by name alone puts two
+  companies' cards under one label; `test/domain/contacts_sync/contacts_sync_service_test.dart`'s
   "two companies never share a group" group is the guard.
 - **`removeAllCompanies` awaits the in-flight pass**, it doesn't just `cancel()` it. Cancellation is
   cooperative and returns immediately, so a running pass would otherwise keep creating contacts after
@@ -193,7 +257,9 @@ fails in a way that doesn't look like the cause.
 | What | Where |
 |---|---|
 | Card mapping + hash | `test/domain/contacts_sync/contact_card_builder_test.dart` |
-| Reconcile, heal, scope, removal | `test/domain/contacts_sync/contacts_sync_service_test.dart` |
+| Reconcile, ownership, merged contacts, scope, removal | `test/domain/contacts_sync/contacts_sync_service_test.dart` |
+| `ownsDeviceContact` / `entryIdToRecord` | `test/data/services/device_contacts_service_test.dart` |
+| The v15 `raw_contact_id` upgrade | `test/data/db/migration_test.dart` |
 | Preference persistence + single-flight | `test/app/contacts_sync_controller_test.dart` |
 | Paged Drift read | `test/data/db/dao/client_dao_contact_sync_test.dart` |
 | Settings card + permission states | `test/ui/features/settings/widgets/contacts_sync_section_test.dart` |

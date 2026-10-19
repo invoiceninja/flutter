@@ -23,18 +23,18 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 - Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**SHIPPED** 2026-09-08; the prop, its cast and the `SavesDocuments` fallback all landed, so the v2 toggle should now persist).
-- `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it); its `reactv2` window has **no cursor**, so Load more re-sends every row (**committed locally, not pushed**, § F3f).
+- `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it); its `reactv2` window has **no cursor**, so Load more re-sends every row; the `user_id` filter, the restricted-user 500 and a `before` cursor are **In PR** (`fix/email-and-activity-gaps`, § F3, § F3f).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
-- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), 2026-10-18, § F3b — the client already sends the filter when the window is full); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
+- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)), 2026-10-18, § F3b — the client already sends the filter when the window is full); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) — the target's name now lands in `notes` (`fd8cd8ad6c`), but the template still reads `":user created user :user"` (**half shipped**, § F6; the client fills the second slot from `notes`).
-- `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148); no client change).
-- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**merged** as #12278, v5.13.44, but not yet live on `invoicing.co`: both documents 404 on 2026-10-15; § App Links). The F-Droid signing key joins the default fingerprints in [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365).
+- `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)), § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148); no client change).
+- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**merged** as #12278, v5.13.44, but not yet live on `invoicing.co`: both documents 404 on 2026-10-15; § App Links). The F-Droid signing key joined the default fingerprints in [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) (merged 2026-10-19).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 - `POST /login/precheck` reports `secret_required` even in hosted mode, where `ApiSecretCheck` checks nothing (**O**, § H2; the client only labels the field, never blocks on it).
 - Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
 - Visual (block) designs — five renderer gaps the client now works around: no `tasks-table` renderer, an empty `blocks` list read as a block design, unguarded `properties`, a lone block's width ignored, unknown page sizes dropping the orientation; plus an archived design never reaching the refresh bundle (**O**, § Visual designer).
-- Documents list — `GET /api/v1/documents` names no parent record, a deleted document leaves no trace a delta can see, `status=archived|deleted` reads a column the table doesn't have, and `type=` ANDs its values (the parent is **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), the rest **O**, § Documents list; the client fills "Linked to" from the records it has cached, and reads the parent once a server sends it).
+- Documents list — `GET /api/v1/documents` names no parent record, a deleted document leaves no trace a delta can see, `status=archived|deleted` reads a column the table doesn't have, and `type=` ANDs its values (the parent is **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)), the rest **O**, § Documents list; the client fills "Linked to" from the records it has cached, and reads the parent once a server sends it).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -306,6 +306,10 @@ and become a chip — behind a ≥ 5.13.44 gate for self-hosted servers.
 
 ### F2. `app/Filters/PaymentFilters.php` — `company_gateway_id` — **O**
 
+**Left out of the 2026-10-19 PR:** no client sends it yet, and v2 already
+caches payments with `company_gateway_id`, so per-gateway tiles can be derived
+locally.
+
 `payments?company_gateway_id=<id>` is **silently ignored today** — confirmed
 against the live demo server: a bogus id returns the full unfiltered set (same
 silent-no-op as `status_id` above). The v2 client wants this to power
@@ -344,7 +348,12 @@ This caused **invoiceninja/flutter#45** — the v2 client's per-user activity lo
 with the viewed user's name. Every user's Activity section listed every action
 in the company, attributed to whoever was on screen.
 
-**O.** Add a `user_id` filter mirroring `app/Filters/TaskFilters.php:250`
+**In PR** (`fix/email-and-activity-gaps`, 2026-10-19), but **not** as sketched
+below: `QueryFilters::apply` ends in `withTrashed()` and `Activity` has no
+`SoftDeletes`, so `Filterable` would throw. The PR applies `user_id` inline on
+both branches, after the non-admin clamp, decoding each comma-separated id and
+dropping any that don't decode (an array value is ignored). The original sketch,
+kept for the record — add a `user_id` filter mirroring `app/Filters/TaskFilters.php:263`
 (the wire format is hashed, so `decodePrimaryKey` is required):
 ```php
 public function user_id(string $user = ''): Builder
@@ -376,17 +385,19 @@ them. `activity_string()` omits the `user` object for exactly those.) Correct to
 stop over-fetching (and would fix the one residual: a rarely-active user in a
 very busy account can fall outside the window).
 
-**Adjacent bug spotted in the same path (not client-visible after the above).**
+**Adjacent bug spotted in the same path (not client-visible after the above) —
+In PR (`fix/email-and-activity-gaps`), confirmed by a test that hit `Unknown
+column 'assigned_user_id'`; `Activity` joins the tables-without-that-column list.**
 `BaseController::listResponse` (`app/Http/Controllers/BaseController.php:1018`)
 has no special case for `Activity`, so it falls through to the generic branch
 and applies `$q->where('user_id', $user->id)->orWhere('assigned_user_id',
 $user->id)`. The `activities` table has **no `assigned_user_id` column**
 (`database/migrations/2014_10_13_000000_create_users_table.php:1075`), so any
 user lacking `view_activity` who hits the non-`reactv2` path should take an
-unknown-column SQL error. Not runtime-confirmed; the column genuinely does not
-exist. Switching to `reactv2` sidesteps it for the v2 client.
+unknown-column SQL error. Confirmed 2026-10-19 by `ActivityApiTest`. Switching to
+`reactv2` sidesteps it for the v2 client.
 
-### F3b. `POST /activities/entity` — no notes filter, and the window is over *all* activity — **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)
+### F3b. `POST /activities/entity` — no notes filter, and the window is over *all* activity — **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365))
 
 `ActivityController::entityActivity` (`app/Http/Controllers/ActivityController.php:86-104`):
 
@@ -482,37 +493,46 @@ company's users (excluding the author), and — if "external" is ever wanted —
 opt-in flag, since these notes are internal by every current definition and none of the existing UI
 warns otherwise.
 
-### F3f. `GET /activities?reactv2` has no cursor, so a bigger window re-sends every row — **committed on `fix/api-gaps-from-v2-apps` (789c503a32), not yet pushed**
+### F3f. `GET /activities?reactv2` has no cursor, so a bigger window re-sends every row — **In PR** (branch `fix/email-and-activity-gaps`; client already uses it)
 
 The `reactv2` branch is `orderBy('created_at','DESC')->take($rows)` and nothing
-else: no `page`, no offset, no cursor. The `/activity` screen's **Load more**
-(`ActivityViewModel.loadMore`) therefore re-asks for the newest `N + 250` rows,
-and the repository merges them into the cached window
-(`mergeActivityWindow`, `lib/data/repositories/activity_window.dart`). Each
-step re-downloads every row before it, which is why the window is capped at
-`kActivityWindowMax` (1000). The flat branch *does* page (`per_page` / `page`
-through `listResponse`), but it carries no labels, and for a restricted user it
-takes the unknown-column path noted under § F3.
+else: no `page`, no offset, no cursor. Without one, the `/activity` screen's
+**Load more** re-asks for the newest `N + 250` rows and merges them into the
+cached window (`mergeActivityWindow`, `lib/data/repositories/activity_window.dart`);
+each step re-downloads every row before it, which is why that window is capped
+at `kActivityWindowMax` (1000). The flat branch *does* page (`per_page` /
+`page` through `listResponse`), but it carries no labels.
 
-**The fix.** Add optional `before` (a row's `created_at`, unix seconds) and
-`before_id` (its raw id) to the `reactv2` branch, returning only rows older
-than that row. This is a keyset cursor, so new activity arriving between
-requests can't shift a page. `before_id` splits rows that share a second, and
-the second is matched as a range because the column is `DATETIME(6)`. The query
-also gains `->orderBy('id','DESC')`, so a page boundary that falls inside a
-second is deterministic. Without either parameter the response is unchanged.
-- Accept: `activities?reactv2&rows=2&before=<t>&before_id=<id>` returns the
-  two rows after `<id>` in feed order, including one sharing its second
-  (`ActivityApiTest::testActivityFeedPagesWithABeforeCursor`, CI-only: the
-  feature suite needs MySQL).
-- Client follow-up once it ships: Load more sends the cursor and *appends*
-  the older page instead of re-asking for the whole window. That needs its
-  own merge, because `mergeActivityWindow` treats a fetch as the newest rows
-  and drops cached rows inside its span. Detect support by whether every
-  returned row is older than the cursor, and fall back to the growing window
-  on a server that ignores the parameters. The cap can then go.
+**The fix (in the PR).** Optional `before` — the **hashed id of an activity**
+of the company — returns only the activities after it in feed order. The
+server loads that row and compares its **stored** `created_at` exactly
+(`created_at < X OR (created_at = X AND id < id)`), so there is no time-zone
+conversion and no same-second race: `Activity` extends `StaticModel`, which
+stores microseconds (`timestamp(6)`), while the payload's `created_at` is whole
+seconds. The feed also orders by `id` after `created_at`, to match. An id that
+isn't an activity of the company is a 422; without `before` nothing changes.
+(The first draft, `before=<unix seconds>&before_id=<raw id>`, was dropped: Carbon
+3 builds the timestamp in UTC while Eloquent stores wall-clock time, and the
+row order inside a second follows microseconds, not ids.)
+- Accept (`ActivityApiTest`): paging from a row inside a shared timestamp
+  continues with the other row of that timestamp; two rows in the same second
+  page by microseconds even when the earlier-written one is later; a
+  non-admin's cursor stays inside their own rows; a foreign, undecodable,
+  empty or array `before` is a 422.
+- **Client:** `DashboardRepository.loadOlderActivities` sends `before` with the
+  oldest held row's hashed id and appends the page (`appendOlderActivities`).
+  A server without the cursor answers with the newest rows; `pageHonouredCursor`
+  spots that, the company is remembered as cursor-less for the session, and
+  Load more falls back to the growing window. With the cursor the cap is
+  `kActivityCursorWindowMax` (2500). See `docs/activity-timeline.md`.
 
 ### F4. No wire field expresses a "pending invite" — **O** (client now under-claims)
+
+**Left out of the 2026-10-19 PR:** a derived `is_invite_pending` adds nothing the
+response doesn't already carry (`email_verified_at`, `has_password`,
+`oauth_provider_id`, `last_confirmed_email_address`), and it misreports an
+invite whose email was corrected (`last_confirmed_email_address` gets the old,
+never-confirmed address).
 
 `UserTransformer` (`app/Transformers/UserTransformer.php:64`) exposes
 `email_verified_at` via `User::getEmailVerifiedAt()`
@@ -685,7 +705,7 @@ actor-only sentence ("Alice created a user") when the template still carries
 two `:user` tokens. The check counts tokens rather than hardcoding the types,
 so the translated template comes back on its own once this ships.
 
-### F7. `TaskAssigned` never fires — assigning a task notifies nobody — **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) ([flutter#148](https://github.com/invoiceninja/flutter/issues/148))
+### F7. `TaskAssigned` never fires — assigning a task notifies nobody — **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)) ([flutter#148](https://github.com/invoiceninja/flutter/issues/148))
 
 `TaskRepository::save` has two branches — the calendar-event one under a cache lock
 (`app/Repositories/TaskRepository.php:181-196`) and the ordinary one (`:197-202`) — and **both** run
@@ -708,8 +728,8 @@ Nothing changes client-side. The app has always sent `assigned_user_id` on every
 (`Task.toApiJson`), and flutter#148 added the picker that makes an assignment easy to set from an
 invoice or quote line, which is what surfaced this.
 
-**In PR** (2026-10-18), as proposed here, dispatching after the final save so a new task has its
-number. **O** until it ships: Capture the previous value *before* `fill()` — e.g.
+**SHIPPED** 2026-10-19 (invoiceninja#13365), as proposed here, dispatching after the final save so a new task has its
+number. The fix as proposed: Capture the previous value *before* `fill()` — e.g.
 `$previous = $task->assigned_user_id;` above the branch — and compare against that after the
 save. Note `getOriginal('assigned_user_id')` is not a substitute: `saveQuietly()` resyncs the
 original before the guard runs.
@@ -735,6 +755,10 @@ could batch a multi-move into one request; until then per-move PUTs are
 correct and sufficient (status counts are tiny).
 
 ### H2. `POST /login/precheck` reports `secret_required` in hosted mode — **O** (client works around it)
+
+**Left out of the 2026-10-19 PR:** cosmetic only — React and v2 both ignore the
+flag on hosted, so it shows only when someone reaches hosted through the
+self-hosted toggle, and login is never blocked.
 
 `LoginController::precheck` returns `'secret_required' => (bool) config('ninja.api_secret')`,
 but `ApiSecretCheck::handle` passes every request through when `Ninja::isHosted()`, whatever
@@ -1022,6 +1046,9 @@ consistency. `custom_value1..4` ❌ → § B.
 
 ### Two base `QueryFilters` gaps the client works around — **O**
 
+**2026-10-19:** a comma list in `client_id` still matches nothing, but no client
+sends one (v2 uses `client_ids`), so it was left out of the PR.
+
 - **`created_between` / `updated_between` drop the window's last day.** Both
   run `whereBetween(column, [Carbon::parse($start), Carbon::parse($end)])` on a
   TIMESTAMP column, and a bare end date parses to its 00:00 — so
@@ -1030,7 +1057,7 @@ consistency. `custom_value1..4` ❌ → § B.
   `…,2026-10-16 23:59:59`). The client appends ` 23:59:59` to a bare end date
   (`timestampWindowsForServer`). React sends the same bare dates and has the
   same bug. Fix: `->endOfDay()` the end bound when it has no time part.
-  **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) as `col >= start AND col < end + 1 day` for a bare end date; an
+  **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)) as `col >= start AND col < end + 1 day` for a bare end date; an
   end with a time is still compared exactly, so the client's suffix means the
   same on both servers and stays for older ones.
 - **`client_id` takes one id.** It runs `decodePrimaryKey($client_id)` on the
@@ -1185,6 +1212,13 @@ No server change is required; this note exists only so the gap is traceable.
 
 ## OAuth re-authentication for Google users can never pass — **O (server bug; client works around it)**
 
+**Verified 2026-10-19 — worse than described below.** Besides the swapped
+`Hash::check` and the id-token-only verification, the identity check is
+`MultiDB::hasUser(['oauth_user_id' => sub, …])`, which passes for **any** Google
+user known to the server, not the signed-in one; and the `!oauth_password_required`
+branch at `PasswordProtection.php:86` is dead code (`:63` already admits those
+users). A fix must compare `sub` with `auth()->user()->oauth_user_id`.
+
 **Provenance** — 2026-09-25, reading `app/Http/Middleware/PasswordProtection.php`
 (official `v5-develop`) while porting admin-portal's OAuth options.
 
@@ -1213,6 +1247,10 @@ credential is needed and the client now sends none.
 ---
 
 ## Web platform CORS — `Idempotency-Key` not allow-listed — **R (server gap, blocks web writes)**
+
+**Verified 2026-10-19.** Still open: `app/Http/Middleware/Cors.php:26` (the
+pre-flight allow-list) lacks `Idempotency-Key` **and** `X-API-OAUTH-PASSWORD`.
+`config/cors.php` is not wired. Pair it with the dedupe middleware above.
 
 > **UPDATE 2026-09-24 — no longer blocking.** The client now omits
 > `Idempotency-Key` on web (`ApiClient(sendIdempotencyKey:)` defaults to
@@ -1280,6 +1318,17 @@ no change — `Idempotency-Key` stays sent unconditionally; it is correct
 and required for retry safety on every platform.
 
 ## Server-side `Idempotency-Key` dedupe — not implemented — **R (retry-safety gap)**
+
+**Verified 2026-10-19.** Still open, and the "1-second body hash" below is not a
+dedupe window: the `Atomic` lock (`StoreInvoiceRequest` / `StorePaymentRequest`)
+is **deleted when the request succeeds**, so it only blocks two identical
+requests in flight at once and stores no response to replay — it can't be
+re-keyed onto the header. The fix is a new middleware (replay a stored 2xx;
+429 + `Retry-After` while in flight, never 409, which the outbox parks; key on
+token + method + **full URL**, because chunked uploads reuse one key across
+`?chunk_number=`; never cache a 4xx such as the 412 password prompt). Payments
+already have durable dedupe: a body `idempotency_key` with a unique index — v2
+could send its outbox key there today.
 
 > **UPDATE 2026-09-08 — the server now has the machinery; it just isn't keyed
 > on the header.** `StoreInvoiceRequest.php:100-104` and
@@ -1500,6 +1549,13 @@ a request with no platform still redirects to `react_url`.
 
 ## OIDC sign-in — callback hardcodes the React SPA, so no Flutter client can complete it — **O (blocks self-hosted SSO on every Flutter target)**
 
+**Verified 2026-10-19.** Still open (now `LoginController.php:1075`). A plain
+copy of the calendar-connect fix is **not** enough: the OIDC exchange code is a
+bearer credential (`POST /oidc/exchange` is unauthenticated and returns a
+company token), and a custom-scheme redirect can be claimed by another app, so
+the native flow needs PKCE-style binding (`code_challenge` stored with the
+exchange code, `code_verifier` required at exchange).
+
 Found 2026-09-08 while auditing the generic-OIDC feature added in Aug–Sep 2026
 (`avanzzada/feat/oidc-sso`, PR #12073).
 
@@ -1647,7 +1703,7 @@ $input['net'] = filter_var($input['net'] ?? false, FILTER_VALIDATE_BOOLEAN);
 **without** the `include_drafts` arg (L75), so the hero chart silently ignores
 the drafts toggle the client already sends (`DashboardApi.fetchChartSummary`;
 pinned by `dashboard_api_test` › chart — carries the drafts switch). That half
-is **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); `net` is still open — thread **both** here:
+is **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)); `net` is still open — thread **both** here:
 
 ```php
 $cs = new ChartService($user->company(), $user, $admin_equivalent_permissions,
@@ -2138,7 +2194,18 @@ the same file is a malformed rule — the `|` sits inside an array element, so t
 whole string is treated as one rule name and `new_value` is never actually
 required. Harmless, but worth fixing in the same pass.
 
-## `POST /api/v1/emails` with `entity=recurring_invoice` always fatals — **R (server bug)**
+## `POST /api/v1/emails` with `entity=recurring_invoice` always fatals — **In PR** (`fix/email-and-activity-gaps`)
+
+**Status 2026-10-19:** reproduced by a test (`markSent()` on `RecurringService`
+is the first throw). Two more defects sat behind it: `resolveClass()` fell back
+to `Invoice::class`, so the queued job loaded *the invoice sharing the recurring
+invoice's id*, and `EmailObject`'s typed `$invitation` / `$entity` refused a
+recurring invoice. The PR uses `get_class($entity_obj)` (deleting
+`resolveClass()`), skips `markSent()` / `entityEmailEvent()` / `last_sent_date`
+for a recurring invoice (`last_sent_date` is its cycle cursor), adds the
+`HtmlEngine` variables arm and widens the two types. Tests: `InvoiceEmailTest`.
+Separately, `entity=payment` passes validation and then 500s (`Payment` has no
+`invitations()`); not in the PR.
 
 Found 2026-09-14 by source inspection while fixing invoiceninja/flutter#146.
 Client-triggerable: the v2 client offers **Send Email** on a recurring invoice
@@ -2192,6 +2259,18 @@ The v2 client leaves the action wired and treats the failure as an ordinary dead
 outbox row. Its Email History tab on a recurring invoice reads "No emails have
 been sent", which is accurate today; the generated invoices carry their own
 history on their own tabs. No client change is needed when this ships.
+
+## Scheduled and bulk endless reminders send the initial invoice template — **In PR** (`fix/email-and-activity-gaps`)
+
+The scheduler only accepts the template name `reminder_endless`
+(`StoreSchedulerRequest::$templates`), and bulk email (`BulkInvoiceRequest`)
+accepts it too, but `Invoice\SendEmail::resolveTemplateString` matched only
+`endless_reminder` and fell through to `email_template_invoice`. Every client
+hit it: React's schedule form and bulk email, Flutter v1's bulk email, and v2's
+`scheduleEmailRecord` (which maps `endless_reminder` to `reminder_endless`
+because that is all the scheduler takes). The PR adds the
+`'reminder_endless' => 'email_template_reminder_endless'` arm; events and
+activity 66 already accept both spellings. Test: `InvoiceEmailTest`.
 
 ## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **fixed client-side**
 
@@ -2418,6 +2497,12 @@ Details → Documents):
 
 ## Reserved date keywords in descriptions / terms — six defects in `processReservedKeywords` — **five shipped; defect 4 open**
 
+**2026-10-19 — defect 4 is a crash, not just a float.** `month()` throws on a
+float, so `Rent :MONTH/2026` 500s the save of a new invoice's line items
+(`BaseRepository.php:222`) and `Rent :MONTH/:YEAR` loses its slash. `intdiv`
+would only swap the crash for a wrong month (`month(0)` is December); the
+safer fix keeps the slash as text when the division isn't exact. Its own PR.
+
 > **STATUS 2026-09-28.** `fd8cd8ad6c` (2026-09-01, released in v5.13.37)
 > fixed defects 1 (`Str::replaceFirst`, so `/2` no longer erases the field),
 > 2 (`[MONTHYEAR|MONTHYEAR-n]`), 3 (`:QUARTER±n` → `Qn`), 5 (one untranslated
@@ -2578,6 +2663,15 @@ or anyone reading the database directly.
 ---
 
 ## Scheduled emails drop the subject/body the user edited — **O (silent data loss in the composer)**
+
+**Status 2026-10-19:** a fix is written and tested (the four `SendEmail`
+services take optional subject/body/cc; `EmailRecord` passes them, CC only on
+self-host or premium, checked when the email is sent), but it is **held back
+until a related scheduler change lands upstream**, so it isn't in the public PR.
+Correction to the section below: the client did **not** send the edits; since
+2026-10-19 `scheduleEmailRecord` sends `subject`, `body` and `cc_email` (a list —
+the scheduler won't split a comma string). Older servers store and ignore them,
+so the composer keeps its `scheduled_email_ignores_edits` warning.
 
 **Provenance** — 2026-09-11, found while working on invoiceninja/flutter#139
 (template variables as chips in the Send Email composer), verified against
@@ -2908,6 +3002,13 @@ line stops being "proven or withheld".
 
 ## 401 and 403 are the wrong way round — a client cannot tell a dead session from a refused request — **O (clients sniff the message)**
 
+**Verified 2026-10-19.** `Handler.php:231-232` maps `AuthorizationException` to
+401 for JSON requests only (non-JSON gets Laravel's 403). Flipping it breaks
+React's Peppol onboarding, which shows `peppol_not_paid_message` only on a 401
+(`Onboarding.tsx:477`), and ~19 existing test assertions; the least disruptive
+form adds `error_type` (`forbidden` on that path, `invalid_token` on
+`TokenAuth`'s 403s) rather than changing a status Flutter v1 relies on.
+
 **Provenance** — 2026-10-06, read against `v5-develop`; found chasing a sign-out on company switch
 in the Flutter app.
 
@@ -2940,7 +3041,7 @@ every request failing; an `error_type` would let it sign out on that, and only t
 
 ---
 
-## Activity notes — two entities are filed under an unrelated expense, one is dropped — **(1) and (2) In PR [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); (3) O**
+## Activity notes — two entities are filed under an unrelated expense, one is dropped — **(1) and (2) SHIPPED 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)); (3) O**
 
 **Provenance** — 2026-10-07, read against `v5-develop` (`ActivityController::note`,
 `StoreNoteRequest`, `ShowActivityRequest`); found putting the comments card on every record screen
@@ -3040,7 +3141,7 @@ invoice with **no** due date. The client labels those "No due date set".)
 
 **6. `include_drafts` reaches the totals and nothing else.** Already noted under
 "Dashboard net (ex-tax) chart totals" above — `chart_summary_v2` is called
-without the argument (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365); the client already sends it) — and
+without the argument (**SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)); the client already sends it) — and
 equally true of the list endpoints and the calculated fields. *Client:* the switch sits with the figures it changes rather
 than as a page-wide filter.
 
@@ -3110,6 +3211,13 @@ with the delta like any other change.
 
 ## Documents list — `GET /api/v1/documents` names no parent record, and a deleted document leaves no trace — **O (client fills "Linked to" locally)**
 
+**2026-10-19:** the parent half shipped in invoiceninja#13365 (`documentable_type`,
+`documentable_id`). Also open: `without_deleted_clients`, `without_deleted_vendors`,
+`filter_deleted_clients=true` and `with_trashed=false` 500 on `/documents`
+(`Document` has no `client`/`vendor` relation or `is_deleted` column). No client
+sends them, and a silent no-op would be the wrong fix, so they stay out of PRs
+until the filters can mean something.
+
 **Provenance** — 2026-10-17, the Flutter v2 Documents list (beta feedback: admin-portal had it on
 the menu and v2 did not; `docs/documents-list.md`), read against `v5-develop`. The demo returned
 200 for every probe below, but holds zero documents, so nothing here is confirmed against data.
@@ -3144,7 +3252,7 @@ endpoint rather than use it:
 - **Parent:** emit `documentable_type` as the snake-case entity name (`invoice`,
   `recurring_invoice`, `purchase_order`, `group_setting`, `company`, …) and `documentable_id` as the
   hashed id. Additive; the Flutter client already reads both when present (`DocumentApi`, which maps
-  `group_setting` to a group). **In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365) (`fix/api-gaps-from-v2-apps`, 2026-10-18);
+  `group_setting` to a group). **SHIPPED** 2026-10-19 ([invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365)) (`fix/api-gaps-from-v2-apps`, 2026-10-18);
 `document_repository_test` › a server that names the parent pins the wire keys.
 - **Deletes:** either soft-delete documents (`is_deleted` + `deleted_at`, as every other entity),
   or expose the ids deleted since a timestamp so a delta can carry them.

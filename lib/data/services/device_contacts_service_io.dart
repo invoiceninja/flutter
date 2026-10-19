@@ -284,25 +284,91 @@ class NativeDeviceContactsService implements DeviceContactsService {
   }
 
   @override
-  Future<Set<String>> existingContactIds(Iterable<String> ids) async {
-    final wanted = ids.toSet();
-    if (wanted.isEmpty) return const <String>{};
+  Future<Map<String, DeviceContactState>?> resolveContacts(
+    Iterable<DeviceContactRef> refs,
+  ) async {
+    final wanted = <String, DeviceContactRef>{
+      for (final ref in refs) ref.contactId: ref,
+    };
+    if (wanted.isEmpty) return const <String, DeviceContactState>{};
     try {
-      // One platform call rather than N `get()`s — with no `properties` this
-      // returns id + display name only.
-      final all = await FlutterContacts.getAll();
-      return <String>{
-        for (final c in all)
-          if (c.id case final id?)
-            if (wanted.contains(id)) id,
-      };
+      final found = await _statesOf(wanted.keys.toList());
+      // Android only: a card whose id vanished has usually been merged into
+      // another contact (the user's own entry for the same person). Find it by
+      // the entry we recorded rather than re-creating it, which would add
+      // another entry to their contact on every pass.
+      final moved = [
+        for (final ref in wanted.values)
+          if (!found.containsKey(ref.contactId) &&
+              (ref.rawContactId?.isNotEmpty ?? false))
+            ref,
+      ];
+      if (_isAndroid && moved.isNotEmpty) {
+        final byEntry = <String, DeviceContactState>{};
+        final all = await FlutterContacts.getAll(
+          properties: _identityProperties,
+        );
+        for (final contact in all) {
+          final state = _stateOf(contact);
+          if (state == null) continue;
+          for (final entryId in state.entryIds) {
+            byEntry[entryId] = state;
+          }
+        }
+        for (final ref in moved) {
+          if (byEntry[ref.rawContactId] case final state?) {
+            found[ref.contactId] = state;
+          }
+        }
+      }
+      return found;
     } catch (e, st) {
-      // Fail toward "they still exist". The caller only asks once it already
-      // suspects the label is untrustworthy, and re-creating every card is by
-      // far the worse of the two errors.
-      _log.warning('could not enumerate contacts to verify links', e, st);
-      return wanted;
+      // Null, not "they're all gone": the caller then treats every card as
+      // present (no re-create) and as not provably ours (no write).
+      _log.warning('could not read device contacts to verify links', e, st);
+      return null;
     }
+  }
+
+  static bool get _isAndroid => defaultTargetPlatform == TargetPlatform.android;
+
+  /// What [DeviceContactState.entryIds] is read from. Android's raw contact ids
+  /// come with `identifiers`; iOS has no such level and no such property.
+  static Set<ContactProperty> get _identityProperties =>
+      _isAndroid ? const {ContactProperty.identifiers} : const {};
+
+  /// The states of [ids], keyed by contact id; a missing key is gone. Throws on
+  /// a platform failure — callers decide which way that fails.
+  Future<Map<String, DeviceContactState>> _statesOf(List<String> ids) async {
+    final found = <String, DeviceContactState>{};
+    // Chunked: Android binds one SQL parameter per id, and SQLite caps those.
+    for (var i = 0; i < ids.length; i += _idChunk) {
+      final chunk = ids.sublist(i, (i + _idChunk).clamp(0, ids.length));
+      final contacts = await FlutterContacts.getAll(
+        properties: _identityProperties,
+        filter: ContactFilter.ids(chunk),
+      );
+      for (final contact in contacts) {
+        if (_stateOf(contact) case final state?) found[state.contactId] = state;
+      }
+    }
+    return found;
+  }
+
+  static const _idChunk = 500;
+
+  static DeviceContactState? _stateOf(Contact contact) {
+    final id = contact.id;
+    if (id == null) return null;
+    if (!_isAndroid) return DeviceContactState(contactId: id, entryIds: [id]);
+    final raw = contact.android?.identifiers?.rawContacts ?? const [];
+    return DeviceContactState(
+      contactId: id,
+      entryIds: [
+        for (final entry in raw)
+          if (entry.rawContactId case final rawId?) rawId,
+      ],
+    );
   }
 
   @override
@@ -324,21 +390,47 @@ class NativeDeviceContactsService implements DeviceContactsService {
   }
 
   @override
-  Future<List<String>> createContacts(
+  Future<List<DeviceContactState>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,
   }) async {
-    if (cards.isEmpty) return const <String>[];
+    if (cards.isEmpty) return const <DeviceContactState>[];
     // Same account as the label, or Android's group insert throws.
     final account = await _resolveAccount();
     final ids = await FlutterContacts.createAll([
       for (final card in cards) _toContact(card),
     ], account: account);
-    if (groupId != null && ids.isNotEmpty) {
+    // Read back what Android made of them: `createAll` returns the merged
+    // contact's id, and a card for someone already in the phone is merged into
+    // the user's own contact on insert. Its entries then say so.
+    Map<String, DeviceContactState> states;
+    try {
+      states = await _statesOf(ids);
+    } catch (e, st) {
+      // Empty entries record as "not checked yet", settled on a later pass —
+      // never as ours.
+      _log.warning('could not read back the new contacts', e, st);
+      states = const <String, DeviceContactState>{};
+    }
+    final created = [
+      for (final id in ids)
+        states[id] ??
+            DeviceContactState(contactId: id, entryIds: const <String>[]),
+    ];
+    // Label only a card that is its own contact. `groups.addContacts` writes a
+    // membership for every entry of the contact in the label's account, so on
+    // a card merged into the user's contact it files *their* entry under
+    // "Invoice Ninja — …" too. An unread one waits: once a later pass shows it
+    // is only ours, the reconcile puts it in the label.
+    final labelled = [
+      for (final state in created)
+        if (state.entryIds.length == 1) state.contactId,
+    ];
+    if (groupId != null && labelled.isNotEmpty) {
       try {
         await FlutterContacts.groups.addContacts(
           groupId: groupId,
-          contactIds: ids,
+          contactIds: labelled,
         );
       } catch (e, st) {
         // The cards exist and work for caller ID; they're just unlabelled.
@@ -346,12 +438,12 @@ class NativeDeviceContactsService implements DeviceContactsService {
         _log.warning('could not add new contacts to the label', e, st);
       }
     }
-    return ids;
+    return created;
   }
 
   @override
-  Future<void> updateContacts(List<DeviceContactUpdate> items) async {
-    if (items.isEmpty) return;
+  Future<Set<String>> updateContacts(List<DeviceContactUpdate> items) async {
+    if (items.isEmpty) return const <String>{};
     final updated = <Contact>[];
     for (final item in items) {
       final Contact? current;
@@ -381,8 +473,29 @@ class NativeDeviceContactsService implements DeviceContactsService {
         ),
       );
     }
-    if (updated.isEmpty) return;
-    await FlutterContacts.updateAll(updated);
+    if (updated.isEmpty) return const <String>{};
+    try {
+      await FlutterContacts.updateAll(updated);
+      return {
+        for (final contact in updated)
+          if (contact.id case final id?) id,
+      };
+    } on PlatformException catch (e, st) {
+      // One contact the plugin refuses (since 2.5.0, `read_only_contact` for
+      // fields a sync adapter owns) fails the whole batch. Retry one by one so
+      // it can't hold back the rest — or fail the pass.
+      _log.fine('batch update failed, retrying individually', e, st);
+      final written = <String>{};
+      for (final contact in updated) {
+        try {
+          await FlutterContacts.update(contact);
+          if (contact.id case final id?) written.add(id);
+        } on PlatformException catch (e2, st2) {
+          _log.warning('could not update contact ${contact.id}', e2, st2);
+        }
+      }
+      return written;
+    }
   }
 
   @override

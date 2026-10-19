@@ -428,19 +428,22 @@ void main() {
         ),
     ];
 
-    test('a full window asks for 250 more', () async {
+    test('a full window asks the repository for older activity', () async {
       await emit(window(kActivityFeedRows));
       expect(vm.canLoadMore, isTrue);
 
       await vm.loadMore();
-      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+      expect(repo.loadOlderActivitiesCalls, 1);
       expect(vm.canLoadMore, isTrue);
       expect(vm.isLoadingMore, isFalse);
     });
 
     test('a short answer means there is nothing older', () async {
       await emit(window(kActivityFeedRows));
-      repo.refreshActivitiesReturns = 300;
+      repo.loadOlderActivitiesReturns = (
+        asked: kActivityFeedRows,
+        received: 40,
+      );
       await vm.loadMore();
       expect(vm.canLoadMore, isFalse);
       expect(vm.atWindowMax, isFalse);
@@ -449,30 +452,43 @@ void main() {
     test('a window that is not full has nothing to load', () async {
       await emit(window(10));
       expect(vm.canLoadMore, isFalse);
-      final before = repo.refreshActivitiesCalls;
       await vm.loadMore();
-      expect(repo.refreshActivitiesCalls, before);
+      expect(repo.loadOlderActivitiesCalls, 0);
     });
 
-    test('the window stops growing at the max', () async {
-      await emit(window(kActivityWindowMax - 100));
-      await vm.loadMore();
-      // Asks for the remainder, not past the cap.
-      expect(repo.refreshActivitiesRows.last, kActivityWindowMax);
+    test(
+      'without the server cursor the window stops at the lower cap',
+      () async {
+        repo.cursorSupported = false;
+        await emit(window(kActivityWindowMax));
+        expect(vm.windowMax, kActivityWindowMax);
+        expect(vm.canLoadMore, isFalse);
+        expect(vm.atWindowMax, isTrue);
+      },
+    );
 
-      await emit(window(kActivityWindowMax));
-      expect(vm.canLoadMore, isFalse);
-      expect(vm.atWindowMax, isTrue);
-    });
+    test(
+      'with the cursor, or before it is known, it grows to the higher cap',
+      () async {
+        await emit(window(kActivityWindowMax));
+        expect(vm.windowMax, kActivityCursorWindowMax);
+        expect(vm.canLoadMore, isTrue);
+
+        repo.cursorSupported = true;
+        await emit(window(kActivityCursorWindowMax));
+        expect(vm.canLoadMore, isFalse);
+        expect(vm.atWindowMax, isTrue);
+      },
+    );
 
     test('a failure is reported, and a retry clears it', () async {
       await emit(window(kActivityFeedRows));
-      repo.refreshActivitiesError = StateError('offline');
+      repo.loadOlderActivitiesError = StateError('offline');
       await vm.loadMore();
       expect(vm.loadMoreFailed, isTrue);
       expect(vm.canLoadMore, isTrue);
 
-      repo.refreshActivitiesError = null;
+      repo.loadOlderActivitiesError = null;
       await vm.loadMore();
       expect(vm.loadMoreFailed, isFalse);
     });

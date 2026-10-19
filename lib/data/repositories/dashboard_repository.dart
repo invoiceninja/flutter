@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:logging/logging.dart';
 
@@ -454,17 +455,103 @@ class DashboardRepository {
   Future<int> refreshActivities(
     String companyId, {
     int rows = kActivityFeedRows,
-  }) {
-    final run = _activitiesTail.then(
-      (_) => _refreshActivities(companyId, rows),
-    );
+  }) => _serialiseActivities(() => _refreshActivities(companyId, rows));
+
+  Future<void> _activitiesTail = Future<void>.value();
+
+  /// Runs [task] after every activity refresh or page already queued — the
+  /// read-merge-write in each must not interleave with another's.
+  Future<T> _serialiseActivities<T>(Future<T> Function() task) {
+    final run = _activitiesTail.then((_) => task());
     // The chain must survive a failed link, or one error wedges every later
     // refresh behind it.
     _activitiesTail = run.then((_) {}, onError: (_) {});
     return run;
   }
 
-  Future<void> _activitiesTail = Future<void>.value();
+  /// Per company: whether the server honours the feed's `before` cursor —
+  /// learned from the first reply, null until then. Session-scoped on
+  /// purpose: a server upgrade is picked up by the next sign-in.
+  final Map<String, bool> _activityCursor = {};
+
+  /// Whether the server pages the activity feed with `before`: true or false
+  /// once a Load more has asked, null before that.
+  bool? activityCursorSupported(String companyId) => _activityCursor[companyId];
+
+  /// Grows the cached activity window into older activity, for the
+  /// `/activity` screen's Load more.
+  ///
+  /// Asks for the [kActivityFeedRows] rows after the oldest row held
+  /// (`before=<its hashed id>`, BACKEND.md § F3f) and appends them. A server
+  /// without that cursor ignores the parameter and answers with the newest
+  /// rows — `pageHonouredCursor` sees that, the company is remembered as
+  /// cursor-less, and this falls back to re-asking for the newest
+  /// `N + 250` rows (at most [kActivityWindowMax]), as every server allows.
+  ///
+  /// Returns how many rows were asked for and how many came back: fewer than
+  /// asked means there is no older activity.
+  Future<({int asked, int received})> loadOlderActivities(String companyId) =>
+      _serialiseActivities(() => _loadOlderActivities(companyId));
+
+  Future<({int asked, int received})> _loadOlderActivities(
+    String companyId,
+  ) async {
+    const kind = DashboardKind.activities;
+    final cached = await _readActivityWindow(companyId);
+    final boundary = oldestActivityRow(cached ?? const []);
+    final before = boundary is Map ? boundary['hashed_id'] : null;
+
+    if (_activityCursor[companyId] != false && before is String) {
+      _ensureStillActive(companyId, kind);
+      final raw = await api.fetchActivities(
+        rows: kActivityFeedRows,
+        before: before,
+      );
+      _ensureStillActive(companyId, kind);
+      if (raw is List) {
+        if (pageHonouredCursor(raw, boundary)) {
+          _activityCursor[companyId] = true;
+          // `cached` is still the row as stored: every writer of it runs on
+          // this chain.
+          await _dao.upsert(
+            companyId: companyId,
+            kind: kind,
+            filterHash: kDashboardListFilterHash,
+            payload: jsonEncode(
+              appendOlderActivities(cached: cached ?? const [], older: raw),
+            ),
+            fetchedAt: _now(),
+          );
+          return (asked: kActivityFeedRows, received: raw.length);
+        }
+        _activityCursor[companyId] = false;
+      }
+    }
+
+    final asked = math.min(
+      (cached?.length ?? 0) + kActivityFeedRows,
+      kActivityWindowMax,
+    );
+    return (asked: asked, received: await _refreshActivities(companyId, asked));
+  }
+
+  /// The cached activity window as raw rows, or null when there is none or it
+  /// won't decode.
+  Future<List<Object?>?> _readActivityWindow(String companyId) async {
+    final row = await _dao.read(
+      companyId: companyId,
+      kind: DashboardKind.activities,
+      filterHash: kDashboardListFilterHash,
+    );
+    try {
+      final decoded = row == null ? null : jsonDecode(row.payload);
+      if (decoded is List) return decoded;
+    } catch (e) {
+      // A row that won't decode is replaced, not merged into.
+      _log.fine('Activity cache row unreadable; replacing it: $e');
+    }
+    return null;
+  }
 
   Future<int> _refreshActivities(String companyId, int rows) async {
     const kind = DashboardKind.activities;
@@ -484,19 +571,7 @@ class DashboardRepository {
       );
       return 0;
     }
-    final row = await _dao.read(
-      companyId: companyId,
-      kind: kind,
-      filterHash: kDashboardListFilterHash,
-    );
-    List<Object?>? cached;
-    try {
-      final decoded = row == null ? null : jsonDecode(row.payload);
-      if (decoded is List) cached = decoded;
-    } catch (e) {
-      // A row that won't decode is replaced, not merged into.
-      _log.fine('Activity cache row unreadable; replacing it: $e');
-    }
+    final cached = await _readActivityWindow(companyId);
     // Again after the read: a sign-out wipe can land while it is out, and this
     // write would otherwise recreate the row it just deleted.
     _ensureStillActive(companyId, kind);

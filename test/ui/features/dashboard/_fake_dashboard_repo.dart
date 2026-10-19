@@ -136,6 +136,15 @@ class FakeDashboardRepo extends DashboardRepository {
   /// a server with more activity behind every window, so Load more stays on.
   int? refreshActivitiesReturns;
 
+  /// Calls to [loadOlderActivities], and what each reports. Null answers a
+  /// full cursor page — older activity remains.
+  int loadOlderActivitiesCalls = 0;
+  ({int asked, int received})? loadOlderActivitiesReturns;
+  Object? loadOlderActivitiesError;
+
+  /// What [activityCursorSupported] answers.
+  bool? cursorSupported;
+
   /// Cards the VM asked us to fetch (asserted by tests). The last refresh
   /// wins; reset by reading then clearing.
   final List<String> refreshedCardKeys = [];
@@ -237,6 +246,18 @@ class FakeDashboardRepo extends DashboardRepository {
     if (err != null) throw err;
     return refreshActivitiesReturns ?? rows;
   }
+
+  @override
+  Future<({int asked, int received})> loadOlderActivities(String c) async {
+    loadOlderActivitiesCalls++;
+    final err = loadOlderActivitiesError;
+    if (err != null) throw err;
+    return loadOlderActivitiesReturns ??
+        (asked: kActivityFeedRows, received: kActivityFeedRows);
+  }
+
+  @override
+  bool? activityCursorSupported(String c) => cursorSupported;
 
   @override
   Future<void> refreshPastDue(String c) async {}

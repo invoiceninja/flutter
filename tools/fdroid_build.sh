@@ -51,11 +51,13 @@ die() {
   exit 1
 }
 
+# The ABI digit in the split APKs' versionCode, build * 10 + digit: abiCodes in
+# android/app/build.gradle.kts.
 abi_code() {
   case "$1" in
     armeabi-v7a) echo 1 ;;
     arm64-v8a) echo 2 ;;
-    x86_64) echo 4 ;;
+    x86_64) echo 3 ;;
     *) die "unknown ABI '$1' (armeabi-v7a, arm64-v8a or x86_64)" ;;
   esac
 }
@@ -168,7 +170,7 @@ cmd_build() {
   local name number vercode
   name="$(pubspec_version name)"
   number="$(pubspec_version code)"
-  vercode=$(($(abi_code "$abi") * 1000 + number))
+  vercode=$((number * 10 + $(abi_code "$abi")))
   commit="${commit:-$(git rev-parse HEAD)}"
 
   local work="$OUT/$abi${vary:+-vary}"

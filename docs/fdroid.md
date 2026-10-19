@@ -441,11 +441,26 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
   - `AntiFeatures: NonFreeNet`, because the server is Elastic-2.0;
   - `Categories: Finance Manager` (the earlier draft's `Money` is a retired category);
   - the author fields and the Transifex link.
-- **One block per ABI**, with Flutter's split versionCodes: the ABI digit × 1000 + N, using
-  `FlutterPluginConstants.ABI_VERSION` (1, 2 and 4).
-  - `VercodeOperation` lists them in block order, and `CurrentVersionCode` is the highest
-    (4000 + N).
+- **One block per ABI, with versionCode = N × 10 + the ABI digit**: armeabi-v7a 1, arm64-v8a 2,
+  x86_64 3, from the `abiCodes` map in `android/app/build.gradle.kts`.
+  - `VercodeOperation` lists them in block order (`10 * %c + 1` …), and `CurrentVersionCode`
+    is the highest (N × 10 + 3).
   - A device installs the highest versionCode it can run, so an arm64 phone gets arm64.
+  - **Why not Flutter's own scheme** (`--split-per-abi` gives the ABI digit × 1000 + N, from
+    `FlutterPluginConstants.ABI_VERSION`)? F-Droid keeps only the highest versionCodes in the
+    repo and moves the rest to the archive, so every ABI of a new release has to outrank every
+    ABI of an old one. Under ×1000 an old arm64 build (2020) outranks a new armeabi one (1021),
+    and the ABIs collide at build 1000. The fdroiddata reviewer asked for the switch
+    ([MR 53132](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/53132#note_4040863146)),
+    following the [Quick Start Guide](https://f-droid.org/en/docs/Submitting_to_F-Droid_Quick_Start_Guide/#setup-abi-split).
+  - **The override wins because of when it registers.** The Flutter plugin registers its own
+    `applicationVariants.configureEach` (`FlutterPlugin.kt`'s `addFlutterTasks`) when it is
+    applied in `plugins {}`. Ours comes later in the script, so it runs second for each
+    variant. `variant.versionCode` is pubspec's `+N`, not Flutter's per-output override. An
+    AAB or a universal APK has no ABI filter, so Play's versionCode is untouched.
+  - `test/lint/fdroid_recipe_test.dart` reads the digits from `abiCodes` and fails if the
+    override line goes missing. `fdroid build` would then reject the APK, whose versionCode
+    no longer matches the recipe.
   - Measured: the arm64 APK is 59.7 MB; the universal one was 169.5 MB.
 - **`binary:`** per block, naming the asset `InvoiceNinja-<version>-<abi>.apk`. `sign` derives the
   file name from the same line.
@@ -463,12 +478,11 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
   - The lint test requires a `scanignore` for every resolved plugin that names an unknown repo,
     and no others, because an unused `scanignore` path fails F-Droid's scan.
 - **The version fields follow `pubspec.yaml`, automatically.** `tools/bump_client_version.sh`
-  rewrites each block's `versionName`, `versionCode` (ABI digit × 1000 + build) and
+  rewrites each block's `versionName`, `versionCode` (build × 10 + ABI digit) and
   `commit: v<version>`, plus `CurrentVersion` / `CurrentVersionCode`, as it does
   `snap/snapcraft.yaml`.
   - So the recipe already names the release that gets tagged, ready to submit.
   - The lint test fails if the recipe and pubspec disagree.
-  - The bump refuses a build number of 1000 or more, where the ABIs' versionCodes would collide.
   - Once listed, F-Droid's checkupdates bot adds blocks for each new tag in fdroiddata's copy.
     Our CI rewrites the version lines for each build anyway.
 - **After the fdroiddata merge request lands, fdroiddata's copy is authoritative.** Reviewers do
@@ -492,9 +506,10 @@ vary: the image or the JDK. Compare their build log with our `toolchain.txt`, th
     - The demo account's products and task titles are lorem ipsum, so the product and task lists
       are left out. The task board keeps its lorem titles, because the board is the point.
   - **Changelogs:** `changelogs/<versionCode>.txt`, three identical files per release, one per
-    split APK's code (`1xxx`, `2xxx`, `4xxx`). Plain text, under F-Droid's 500-byte cap: a
+    split APK's code (`<N>1`, `<N>2`, `<N>3`). Plain text, under F-Droid's 500-byte cap: a
     digest of that release's notes. They must be in the tagged commit, since F-Droid reads them
-    from the tag. First written for 5.1.16 (`1019` / `2019` / `4019`).
+    from the tag. The ×1000 files for 5.1.16 were dropped, and 5.1.17's were renamed to
+    `201` / `202` / `203`.
 
 Decisions (2026-10):
 
@@ -502,6 +517,13 @@ Decisions (2026-10):
   `com.invoiceninja.app` listing (admin-portal, F-Droid-signed, versionCode 194) is untouched,
   and its users are not moved: it is a different application id, and local data would not carry
   over anyway.
+- **versionCode scheme.** It changed with 5.1.18, from Flutter's ×1000 to N × 10 + ABI digit
+  (§ The F-Droid recipe).
+  - The GitHub Releases for 5.1.16 and 5.1.17 carry F-Droid-signed APKs at ×1000 codes (up to
+    4020), above 5.1.18's 211–213. Anyone who sideloaded one reinstalls once, which wipes the
+    local database, as switching signers does. The 5.1.18 release notes say so.
+  - The resubmitted merge request names 5.1.18, the first tag carrying the override. Earlier
+    tags would build with Flutter's ×1000 codes, so they can't be submitted.
 - **Signing.** Our dedicated key (§ Signing the F-Droid APK). Play and F-Droid installs share
   `com.invoiceninja.admin` but have different signers, so neither can update the other.
   Switching means uninstalling, which **destroys the local database, including any unsynced
@@ -530,4 +552,5 @@ on invoiceninja/flutter#175. Use the "App inclusion" template and the title `New
   `rewritemeta`, `checkupdates`, `check-fastlane.py` and the JSON schema. They need no build, so
   they run in a `debian:trixie-slim` container in a few minutes, natively on an arm64 Mac.
 - First submission: 5.1.16, `ef0e87c48980c258f48f09ab46a8b4ed9cbbaa18`, built by run
-  39122121758.
+  39122121758. The reviewer asked for the ABI-split versionCodes, so it is superseded by 5.1.18
+  (the versionCode-scheme decision above).

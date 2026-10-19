@@ -20,7 +20,7 @@ Repo: https://github.com/invoiceninja/flutter.git
 
 Builds:
   - versionName: 5.1.17
-    versionCode: 1020
+    versionCode: 201
     commit: v5.1.17
     sudo:
       - apt-get update
@@ -73,7 +73,7 @@ Builds:
     ndk: 28.2.13676358
 
   - versionName: 5.1.17
-    versionCode: 2020
+    versionCode: 202
     commit: v5.1.17
     sudo:
       - apt-get update
@@ -126,7 +126,7 @@ Builds:
     ndk: 28.2.13676358
 
   - versionName: 5.1.17
-    versionCode: 4020
+    versionCode: 203
     commit: v5.1.17
     sudo:
       - apt-get update
@@ -203,9 +203,9 @@ MaintainerNotes: |-
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
 VercodeOperation:
-  - '%c + 1000'
-  - '%c + 2000'
-  - '%c + 4000'
+  - 10 * %c + 1
+  - 10 * %c + 2
+  - 10 * %c + 3
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 5.1.17
-CurrentVersionCode: 4020
+CurrentVersionCode: 203

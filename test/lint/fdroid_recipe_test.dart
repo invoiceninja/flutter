@@ -11,7 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 ///  * the prebuild that checks out CI's Flutter pin, or `ndk:` leaving that
 ///    Flutter's NDK: the APK F-Droid rebuilds is no longer the one CI tested;
-///  * the three ABI blocks leaving Flutter's split versionCode scheme;
+///  * the three ABI blocks leaving the Gradle file's build * 10 + ABI
+///    versionCode scheme, or the Gradle file dropping it;
 ///  * a build that doesn't pin `ANDROID_NDK_HOME`: Flutter then compiles the
 ///    SQLite hook with whichever NDK is newest on the buildserver;
 ///  * a malformed signing key or download URL;
@@ -30,7 +31,7 @@ void main() {
   final blocks = _buildBlocks(recipe);
 
   // ABI -> Flutter's --target-platform. The versionCode digit is read from
-  // the Flutter SDK itself, below.
+  // android/app/build.gradle.kts, below.
   const platforms = {
     'armeabi-v7a': 'android-arm',
     'arm64-v8a': 'android-arm64',
@@ -98,40 +99,52 @@ void main() {
     }
   });
 
-  test("versionCodes follow Flutter's split-per-ABI scheme", () {
-    final constants = File(
-      '${_flutterRoot()}/packages/flutter_tools/gradle/src/main/kotlin/'
-      'FlutterPluginConstants.kt',
-    ).readAsStringSync();
-    int abiDigit(String arch) =>
-        int.parse(RegExp('$arch to (\\d+)').firstMatch(constants)!.group(1)!);
+  test("versionCodes follow the Gradle file's build * 10 + ABI scheme", () {
+    // F-Droid installs the highest versionCode a device can run and archives
+    // all but the highest, so the ABI goes in the last digit and every ABI of
+    // a new release outranks every ABI of an old one. Flutter's own split
+    // scheme (<digit> * 1000 + build) doesn't, so the Gradle file overrides
+    // it; a recipe that disagrees fails `fdroid build` on the APK's code.
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    expect(
+      gradle,
+      contains(
+        'versionCodeOverride = variant.versionCode * 10 + abiVersionCode',
+      ),
+      reason:
+          'without the override Flutter gives the split APK '
+          '<digit> * 1000 + N, which the recipe no longer names',
+    );
+    final abiCodes = RegExp(r'val abiCodes = mapOf\((.*)\)').firstMatch(gradle);
+    expect(abiCodes, isNotNull, reason: 'android/app/build.gradle.kts');
     final digits = {
-      'armeabi-v7a': abiDigit('ARCH_ARM32'),
-      'arm64-v8a': abiDigit('ARCH_ARM64'),
-      'x86_64': abiDigit('ARCH_X86_64'),
+      for (final m in RegExp(
+        r'"([\w-]+)" to (\d+)',
+      ).allMatches(abiCodes!.group(1)!))
+        m.group(1)!: int.parse(m.group(2)!),
     };
+    expect(digits.keys, platforms.keys, reason: 'abiCodes covers each ABI');
 
     final name = _one(blocks.first, r'^  - versionName: (\S+)$');
     final number =
-        int.parse(_one(blocks.first, r'^    versionCode: (\d+)$')) -
-        digits['armeabi-v7a']! * 1000;
+        int.parse(_one(blocks.first, r'^    versionCode: (\d+)$')) ~/ 10;
     for (final b in blocks) {
       final abi = _abiOf(b);
       expect(_one(b, r'^  - versionName: (\S+)$'), name, reason: abi);
       expect(
         int.parse(_one(b, r'^    versionCode: (\d+)$')),
-        digits[abi]! * 1000 + number,
-        reason: '$abi: Flutter gives the split APK <abi digit> * 1000 + N',
+        number * 10 + digits[abi]!,
+        reason: '$abi: the Gradle file gives the split APK N * 10 + <digit>',
       );
       expect(_one(b, r'^    commit: (\S+)$'), 'v$name', reason: abi);
     }
-    expect(_all(recipe, r"^  - '(%c \+ \d+)'$"), [
-      for (final abi in platforms.keys) '%c + ${digits[abi]! * 1000}',
+    expect(_all(recipe, r"^  - '?(10 \* %c \+ \d+)'?$"), [
+      for (final abi in platforms.keys) '10 * %c + ${digits[abi]}',
     ], reason: 'VercodeOperation must list the blocks in the same order');
     expect(_one(recipe, r'^CurrentVersion: (\S+)$'), name);
     expect(
       int.parse(_one(recipe, r'^CurrentVersionCode: (\d+)$')),
-      digits['x86_64']! * 1000 + number,
+      number * 10 + digits['x86_64']!,
       reason: 'the highest of the three',
     );
   });
@@ -146,7 +159,7 @@ void main() {
     for (final b in blocks) {
       expect(_one(b, r'^  - versionName: (\S+)$'), name, reason: _abiOf(b));
       expect(
-        int.parse(_one(b, r'^    versionCode: (\d+)$')) % 1000,
+        int.parse(_one(b, r'^    versionCode: (\d+)$')) ~/ 10,
         build,
         reason: _abiOf(b),
       );

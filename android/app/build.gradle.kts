@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import com.android.build.gradle.internal.api.ApkVariantOutputImpl
 
 plugins {
     id("com.android.application")
@@ -62,6 +63,21 @@ android {
     // to Google, so F-Droid flags it. Play reads the bundle's copy, which stays.
     dependenciesInfo {
         includeInApk = false
+    }
+}
+
+// F-Droid's split-APK versionCode: build * 10 + ABI digit, overriding Flutter's
+// <digit> * 1000 + build so a new release outranks every ABI of an old one
+// (docs/fdroid.md § The F-Droid recipe). Runs after Flutter's own override,
+// which the plugin registers when it is applied above.
+val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+android.applicationVariants.configureEach {
+    val variant = this
+    variant.outputs.forEach { output ->
+        val abiVersionCode = abiCodes[output.filters.find { it.filterType == "ABI" }?.identifier]
+        if (abiVersionCode != null) {
+            (output as ApkVariantOutputImpl).versionCodeOverride = variant.versionCode * 10 + abiVersionCode
+        }
     }
 }
 

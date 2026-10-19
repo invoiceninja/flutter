@@ -259,8 +259,11 @@ So the bytes we sign must be the bytes that F-Droid's recipe produces on F-Droid
     `PUB_CACHE` inside it. This is the move-and-move-back pattern of fdroiddata's
     `templates/build-flutter.yml`, and `docs/upstream-workarounds.md` § 13 tracks it.
 - **The toolchain.**
-  - The JDK's major version changes the DEX, so the recipe's `sudo:` installs JDK 21 and selects
-    it, with the same `update-alternatives` line fdroiddata's CI uses.
+  - The JDK's major version changes the DEX. The recipe installs none: the pinned
+    `buildserver-trixie` image ships JDK 21 as its only JDK (checked 2026-10-19,
+    `/usr/lib/jvm/java-21-openjdk-amd64`). The recipe used to install and select JDK 21 in
+    `sudo:`, but the fdroiddata reviewer dropped those lines as redundant, and the image is what
+    fixes the JDK.
   - The NDK compiles `libsqlite3.so`, so the recipe names it, and the build pins
     `ANDROID_NDK_HOME` (§ SQLite is compiled from source).
 - **What F-Droid does to a source tree:** `remove_signing_keys`, `rm:`, `scandelete:`, the
@@ -321,8 +324,10 @@ A dry run (`publish` unchecked) builds, signs and checks everything, and publish
     `curl -sI -H "Authorization: Bearer $(curl -s 'https://gitlab.com/jwt/auth?service=container_registry&scope=repository:fdroid/fdroidserver:pull' | jq -r .token)" -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' https://registry.gitlab.com/v2/fdroid/fdroidserver/manifests/buildserver-trixie | grep -i digest`.
   - Do it when F-Droid reports a mismatch our gate didn't, and their log shows newer components
     than our `toolchain.txt`, or when fdroiddata's CI changes image.
-- **The JDK.** The recipe's `sudo:` JDK lines follow the `apt-get install … openjdk-*` /
-  `update-alternatives` pair in fdroiddata's `.gitlab-ci.yml` `fdroid build` job.
+- **The JDK** comes from the image, so moving the image's digest is what moves it. Check
+  `ls /usr/lib/jvm` in the new image. If it no longer holds JDK 21 alone, either pin the JDK in
+  the recipe's `sudo:` (an `apt-get install` plus `update-alternatives --set java` / `javac`)
+  or take the new JDK with a release.
 
 ## F-Droid's signing stripper must leave an unsigned build
 

@@ -23,10 +23,6 @@ Builds:
     versionCode: 211
     commit: v5.1.18
     sudo:
-      - apt-get update
-      - apt-get install -y openjdk-21-jdk-headless
-      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
-      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
@@ -76,10 +72,6 @@ Builds:
     versionCode: 212
     commit: v5.1.18
     sudo:
-      - apt-get update
-      - apt-get install -y openjdk-21-jdk-headless
-      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
-      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
@@ -129,10 +121,6 @@ Builds:
     versionCode: 213
     commit: v5.1.18
     sudo:
-      - apt-get update
-      - apt-get install -y openjdk-21-jdk-headless
-      - update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
-      - update-alternatives --set javac /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
       - mkdir -p /build
       - chown -R vagrant /build
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
@@ -194,8 +182,9 @@ MaintainerNotes: |-
   prebuild checks out the Flutter version upstream releases with, read from
   .github/workflows/appimage.yml, so a Flutter bump needs no recipe change.
   ndk: is Flutter's ndkVersion and is not read from the source: upstream
-  opens a merge request when a Flutter bump moves it. The sudo block pins
-  JDK 21, as fdroiddata's build job does, because the JDK changes the DEX.
+  opens a merge request when a Flutter bump moves it. The JDK changes the
+  DEX, so upstream's reproducibility gate builds in the same buildserver
+  image, whose only JDK is 21.
 
   AutoName is the launcher label, "Ninja Beta"; the listing name comes from
   fastlane title.txt.

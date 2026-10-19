@@ -1754,8 +1754,12 @@ class Services implements SidebarBadgeContext {
     final templatesApi = TemplatesApi(apiClient);
 
     // Assemble the registry from the static module specs. Wired modules
-    // pick up the dispatcher [wireEntity] registered above; disabled
-    // modules get a stub dispatcher that throws if invoked.
+    // pick up the dispatcher [wireEntity] registered above. A disabled module
+    // keeps its real dispatcher when it has one — `disabled` hides the
+    // sidebar / route chrome, not the sync: Designs and Tax Rates are edited
+    // from Settings while their specs stay disabled, and the stub turned
+    // every save of theirs into a dead outbox row. Only a module with no
+    // wiring at all gets the stub that throws if invoked.
     final handlers = <EntityType, EntityHandlers>{};
     for (final spec in kWiredEntityModules) {
       final dispatcher = dispatchers[spec.type];
@@ -1767,7 +1771,7 @@ class Services implements SidebarBadgeContext {
     }
     for (final spec in kDisabledEntityModules) {
       handlers[spec.type] = spec.toHandlers(
-        DisabledEntityDispatcher(spec.type),
+        dispatchers[spec.type] ?? DisabledEntityDispatcher(spec.type),
       );
     }
     // Non-entity registrations that exist only for sync (no list/detail UI,

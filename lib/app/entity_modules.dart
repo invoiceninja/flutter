@@ -1099,10 +1099,11 @@ const kBranchOrder = <BranchSpec>[
   // indices keep their meaning.
 ];
 
-/// Dispatcher used for disabled-but-registered entities. Outbox rows for
-/// these will never appear (no UI to enqueue them), but if one ever does
-/// the throw surfaces as a "marked dead" entry on the outbox screen rather
-/// than a silent no-op.
+/// Dispatcher used for a disabled entity that has no wiring in
+/// `services_entity_wiring.dart` — a disabled spec with a wired repo keeps
+/// its real dispatcher (`Services.build`). Outbox rows for these will never
+/// appear (no UI to enqueue them), but if one ever does the throw surfaces
+/// as a "marked dead" entry on the outbox screen rather than a silent no-op.
 class DisabledEntityDispatcher implements SyncDispatcher {
   const DisabledEntityDispatcher(this.type);
   final EntityType type;

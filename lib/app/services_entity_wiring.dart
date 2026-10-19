@@ -1061,12 +1061,9 @@ _wireRecurringExpense(_EntityWiring reg) {
 /// lands, move the spec from `kDisabledEntityModules` to `kWiredEntityModules`
 /// and the existing dispatcher / api / repo all keep working.
 ///
-/// Trade-off: this entity gets a real (functional) sync dispatcher even
-/// though it's listed as disabled. There is no UI path today that enqueues
-/// a TaxRate mutation, so the live dispatcher is dormant. If a future bug
-/// does enqueue one, the outbox will fire real HTTP — preferable to a
-/// silent no-op (we'd hear about it via the outbox screen) and matches
-/// the contract the CRUD screen will eventually rely on.
+/// The spec being disabled hides only the sidebar / route chrome: this
+/// dispatcher is the one the registry hands the outbox (`Services.build`),
+/// so a save from the Settings tax-rate editor really syncs.
 (TaxRatesApi api, TaxRateRepository repo) _wireTaxRate(_EntityWiring reg) {
   final taxRatesApi = TaxRatesApi(reg.ctx.apiClient);
   final taxRateRepo = TaxRateRepository(

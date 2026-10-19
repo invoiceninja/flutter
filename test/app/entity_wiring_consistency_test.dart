@@ -62,4 +62,29 @@ void main() {
       await db.close();
     }
   });
+
+  // Designs and Tax Rates are edited from Settings while their specs sit in
+  // kDisabledEntityModules. The registry used to hand them the throwing stub
+  // regardless, so every save died in the outbox with "No sync dispatcher
+  // for EntityType.design".
+  test('a disabled spec with wired sync keeps its real dispatcher', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    final services = Services.build(
+      db: db,
+      tokenStorage: InMemoryTokenStorage(),
+      connectivityWatcher: ConnectivityWatcher.fixed(online: false),
+    );
+    try {
+      for (final type in [EntityType.design, EntityType.taxRate]) {
+        expect(
+          services.entityRegistry[type]?.dispatcher,
+          isNot(isA<DisabledEntityDispatcher>()),
+          reason: '$type is edited from Settings, so its saves must sync',
+        );
+      }
+    } finally {
+      await services.auth.dispose();
+      await db.close();
+    }
+  });
 }

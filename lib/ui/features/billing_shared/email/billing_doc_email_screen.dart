@@ -54,8 +54,8 @@ typedef ScheduleEmailCallback =
       String? ccEmail,
     });
 
-/// Full-screen "Send Email" surface, shared by all five billing docs
-/// (invoice / quote / credit / purchase order / recurring invoice).
+/// Full-screen "Send Email" surface, shared by the four emailable billing docs
+/// (invoice / quote / credit / purchase order).
 ///
 /// Desktop (≥1024): two panels — left = the email form (read-only
 /// recipients, template, CC, subject, body) at full height; right =
@@ -88,7 +88,7 @@ class BillingDocEmailScreen extends StatefulWidget {
     this.canCustomizeEmail = true,
     required this.formatter,
     required this.onSend,
-    this.onSchedule,
+    required this.onSchedule,
     required this.onReactivate,
     required this.pdfFetcher,
     this.initialTemplate,
@@ -133,10 +133,7 @@ class BillingDocEmailScreen extends StatefulWidget {
 
   final SendEmailCallback onSend;
 
-  /// Null when the doc type can't be scheduled (recurring invoices). The
-  /// Schedule action is hidden in that case — see [_wideActions] /
-  /// [_narrowActions] and [BillingDocType.supportsScheduledSend].
-  final ScheduleEmailCallback? onSchedule;
+  final ScheduleEmailCallback onSchedule;
   final Future<int> Function(String messageId) onReactivate;
   final Future<Uint8List> Function({
     String? designId,
@@ -603,7 +600,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   }
 
   Future<void> _schedule() async {
-    if (_inFlight || widget.onSchedule == null) return;
+    if (_inFlight) return;
     if (!_validateCc()) return;
     // Flush BEFORE the edited check, not merely before the send: the warning
     // below is the only thing standing between a just-typed body and the
@@ -637,7 +634,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     // (or previous) calendar day vs what the picker + confirmation toast show.
     final sendAt = picked.toIso8601String();
     try {
-      await widget.onSchedule!(
+      await widget.onSchedule(
         template: _template,
         sendAt: sendAt,
         subject: _subjectOrNull(),
@@ -732,22 +729,18 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     );
   }
 
-  /// Desktop: Schedule (secondary) + Send (primary) side by side. Schedule
-  /// is hidden for doc types that can't be scheduled (recurring invoices —
-  /// the server's task_scheduler rejects them, so it would silently send now).
+  /// Desktop: Schedule (secondary) + Send (primary) side by side.
   List<Widget> _wideActions(BuildContext context) {
     return [
-      if (widget.type.supportsScheduledSend) ...[
-        Center(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-            icon: const Icon(Icons.schedule_outlined, size: 18),
-            label: Text(context.tr('schedule')),
-            onPressed: _canSend ? _schedule : null,
-          ),
+      Center(
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          icon: const Icon(Icons.schedule_outlined, size: 18),
+          label: Text(context.tr('schedule')),
+          onPressed: _canSend ? _schedule : null,
         ),
-        SizedBox(width: InSpacing.md(context)),
-      ],
+      ),
+      SizedBox(width: InSpacing.md(context)),
       Center(
         child: FilledButton.icon(
           style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
@@ -771,27 +764,26 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
           child: Text(context.tr('send')),
         ),
       ),
-      if (widget.type.supportsScheduledSend)
-        PopupMenuButton<String>(
-          // Explicit: the default is `Icons.adaptive.more`, which is
-          // `more_horiz` on iOS and macOS. CLAUDE.md § Design system (v2).
-          icon: const Icon(Icons.more_vert),
-          enabled: _canSend,
-          onSelected: (_) => _schedule(),
-          itemBuilder: (context) => [
-            PopupMenuItem<String>(
-              value: 'schedule',
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.schedule_outlined, size: 18),
-                  SizedBox(width: InSpacing.sm),
-                  Text(context.tr('schedule')),
-                ],
-              ),
+      PopupMenuButton<String>(
+        // Explicit: the default is `Icons.adaptive.more`, which is
+        // `more_horiz` on iOS and macOS. CLAUDE.md § Design system (v2).
+        icon: const Icon(Icons.more_vert),
+        enabled: _canSend,
+        onSelected: (_) => _schedule(),
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'schedule',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule_outlined, size: 18),
+                SizedBox(width: InSpacing.sm),
+                Text(context.tr('schedule')),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     ];
   }
 

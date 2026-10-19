@@ -2194,9 +2194,16 @@ the same file is a malformed rule — the `|` sits inside an array element, so t
 whole string is treated as one rule name and `new_value` is never actually
 required. Harmless, but worth fixing in the same pass.
 
-## `POST /api/v1/emails` with `entity=recurring_invoice` always fatals — **In PR** (`fix/email-and-activity-gaps`)
+## `POST /api/v1/emails` with `entity=recurring_invoice` always fatals — **WITHDRAWN (by design)**
 
-**Status 2026-10-19:** reproduced by a test (`markSent()` on `RecurringService`
+**Withdrawn 2026-10-19:** the maintainer ruled that a recurring invoice is not
+emailed: "There is a send_now action available, but only if the Recurring
+Invoice is in a draft state" (invoiceninja/invoiceninja#13368). The fix was
+reverted from the PR (`2eb293f7ea`) and the v2 client's Send Email action on a
+recurring invoice removed. React and admin-portal never offered one. The rest of
+this entry is the original report.
+
+**Status before withdrawal:** reproduced by a test (`markSent()` on `RecurringService`
 is the first throw). Two more defects sat behind it: `resolveClass()` fell back
 to `Invoice::class`, so the queued job loaded *the invoice sharing the recurring
 invoice's id*, and `EmailObject`'s typed `$invitation` / `$entity` refused a
@@ -2208,9 +2215,9 @@ Separately, `entity=payment` passes validation and then 500s (`Payment` has no
 `invitations()`); not in the PR.
 
 Found 2026-09-14 by source inspection while fixing invoiceninja/flutter#146.
-Client-triggerable: the v2 client offers **Send Email** on a recurring invoice
-(`RecurringInvoiceAction.sendEmail` → `/recurring_invoices/:id/email`), which
-enqueues an `emailEntity` outbox row that can only die.
+Was client-triggerable: the v2 client offered **Send Email** on a recurring
+invoice (`/recurring_invoices/:id/email`), which enqueued an `emailEntity`
+outbox row that could only die.
 
 `app/Http/Requests/Email/SendEmailRequest.php:34` accepts the entity:
 
@@ -2255,10 +2262,12 @@ contacts, and each of its invitations carries a `sent_date`.
 
 ### Client status
 
-The v2 client leaves the action wired and treats the failure as an ordinary dead
-outbox row. Its Email History tab on a recurring invoice reads "No emails have
-been sent", which is accurate today; the generated invoices carry their own
-history on their own tabs. No client change is needed when this ships.
+The v2 client has no Send Email on a recurring invoice; Send Now on a draft is
+the only send. The `/recurring_invoices/:id/email` route redirects to the record
+so a restored or linked URL from an older build still lands somewhere, and an
+`emailEntity` row already queued for one dead-letters on drain (no handler).
+The Email History tab on a recurring invoice reads "No emails have been sent",
+which stays accurate; the generated invoices carry their own history.
 
 ## Scheduled and bulk endless reminders send the initial invoice template — **In PR** (`fix/email-and-activity-gaps`)
 

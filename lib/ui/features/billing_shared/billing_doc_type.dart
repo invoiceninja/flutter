@@ -57,13 +57,6 @@ enum BillingDocType {
   /// the toggle.
   bool get supportsDeliveryNote => this == BillingDocType.invoice;
 
-  /// Whether a *future* (scheduled) send is supported. The server's
-  /// `task_scheduler` only accepts invoice / quote / credit / purchase_order
-  /// as schedulable entities — `recurring_invoice` is not valid, so a
-  /// "schedule" there silently degrades to an immediate send. The email
-  /// composer hides the Schedule action when this is false.
-  bool get supportsScheduledSend => this != BillingDocType.recurringInvoice;
-
   /// In-stock quantity is shown at the product-selection point (line-item
   /// picker + inline typeahead) only on invoices — the doc that consumes
   /// stock. React parity (its product selector passes `displayStockQuantity`

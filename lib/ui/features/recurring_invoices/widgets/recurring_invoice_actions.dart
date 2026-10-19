@@ -39,7 +39,6 @@ enum RecurringInvoiceAction {
   viewPdf,
   downloadPdf,
   printPdf,
-  sendEmail,
   sendNow,
   start,
   stop,
@@ -81,8 +80,7 @@ class RecurringInvoiceActions {
   /// params (server creates/updates and acts atomically — no temp-id
   /// gap). Keys are recurring-invoice-specific (verified against
   /// admin-portal `recurring_invoice_repository.saveData`: `start` /
-  /// `stop` / `send_now`). `sendEmail` is intentionally **not** here — it
-  /// is an after-save separate request.
+  /// `stop` / `send_now`).
   static Map<String, String>? saveParamFor(RecurringInvoiceAction action) {
     switch (action) {
       case RecurringInvoiceAction.start:
@@ -121,7 +119,6 @@ class RecurringInvoiceActions {
   /// redirecting to the detail screen. See `InvoiceActions.navigatesOnCreate`.
   static bool navigatesOnCreate(RecurringInvoiceAction action) {
     switch (action) {
-      case RecurringInvoiceAction.sendEmail:
       case RecurringInvoiceAction.viewPdf:
         return true;
       default:
@@ -154,7 +151,9 @@ class RecurringInvoiceActions {
     final canCreate = me?.can('create_recurring_invoice') ?? false;
     final canDelete = canEdit;
     // React gates send_now on draft (it sends the first occurrence now); it is
-    // performed as `?send_now=true` on a normal save, not a bulk action.
+    // performed as `?send_now=true` on a normal save, not a bulk action. There
+    // is deliberately no Send Email: the server does not email a recurring
+    // invoice (invoiceninja/invoiceninja#13368), only the invoices it generates.
     final canSendNow = canEdit && ri.isDraft;
     final canStart = canEdit && (ri.isDraft || ri.isPaused);
     final canStop = canEdit && ri.isActive;
@@ -192,14 +191,6 @@ class RecurringInvoiceActions {
             onTap: () => onTap(RecurringInvoiceAction.printPdf),
           ),
         ],
-      ),
-      EntityActionItem(
-        kind: RecurringInvoiceAction.sendEmail,
-        icon: Icons.mail_outline,
-        label: context.tr('send_email'),
-        // The record's edit rule and the user's own right to send at all.
-        enabled: canEdit && (me?.maySendEmails ?? false),
-        onTap: () => onTap(RecurringInvoiceAction.sendEmail),
       ),
       EntityActionItem(
         kind: RecurringInvoiceAction.sendNow,
@@ -362,7 +353,6 @@ class RecurringInvoiceActions {
       ?q.pick(RecurringInvoiceAction.start, context.tr('start')),
       ?q.pick(RecurringInvoiceAction.stop, context.tr('stop')),
       ?q.pick(RecurringInvoiceAction.sendNow, context.tr('send_now')),
-      ?q.pick(RecurringInvoiceAction.sendEmail, context.tr('email')),
       ?q.pick(
         RecurringInvoiceAction.viewPdf,
         context.tr('pdf'),
@@ -414,14 +404,6 @@ class RecurringInvoiceActions {
           if (!context.mounted) return;
           Notify.error(context, context.tr('error'), error: e);
         }
-
-      case RecurringInvoiceAction.sendEmail:
-        if (tmpGate()) return;
-        // Full-screen Send Email surface; bulk multi-select still uses the
-        // showBillingDocEmailSheet bottom sheet. (Recurring invoices have no
-        // "schedule send" — the server's task_scheduler rejects them — so the
-        // composer hides its Schedule action; see BillingDocType.supportsScheduledSend.)
-        context.go('/recurring_invoices/${ri.id}/email?view=full');
 
       case RecurringInvoiceAction.sendNow:
         if (tmpGate()) return;

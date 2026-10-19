@@ -4,12 +4,13 @@ import 'package:admin/domain/sync/mutation.dart';
 /// The two outbox-enqueue wrappers every billing document shares: send an
 /// email now, or schedule one for later.
 ///
-/// Mixed into Invoice / Quote / Credit / RecurringInvoice / PurchaseOrder
-/// repositories, which each carried a byte-identical private copy of both
-/// methods. Deliberately a mixin rather than methods on
-/// [BaseEntityRepository]: only these five wire the `emailEntity` /
-/// `scheduleEmail` dispatch handlers, so putting them on the base would
-/// offer every repository a mutation whose drain has no handler.
+/// Mixed into Invoice / Quote / Credit / PurchaseOrder repositories, which
+/// each carried a byte-identical private copy of both methods. Deliberately a
+/// mixin rather than methods on [BaseEntityRepository]: only these four wire
+/// the `emailEntity` / `scheduleEmail` dispatch handlers, so putting them on
+/// the base would offer every repository a mutation whose drain has no
+/// handler. A recurring invoice is never emailed
+/// (invoiceninja/invoiceninja#13368), so its repository does not mix this in.
 ///
 /// `sendAt` is passed through verbatim — NOT `.toUtc()`. The server reads it
 /// in the company's timezone; see the note on the list-VM bulk email action.

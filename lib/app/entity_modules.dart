@@ -762,12 +762,13 @@ final kWiredEntityModules = <EntityModuleSpec>[
           activityId: state.uri.queryParameters['activity_id'],
         ),
       ),
+      // A recurring invoice is never emailed (invoiceninja/invoiceninja#13368),
+      // so Send Email is gone; a restored or linked `/email` route from an
+      // older build lands on the record instead.
       GoRoute(
         path: 'email',
-        builder: (context, state) => BillingDocEmailRouteScreen(
-          type: BillingDocType.recurringInvoice,
-          id: state.pathParameters['id']!,
-        ),
+        redirect: (context, state) =>
+            '/recurring_invoices/${state.pathParameters['id']}',
       ),
     ],
     badgeStream: (ctx, companyId, modeId) => ctx.watchEntityCount(

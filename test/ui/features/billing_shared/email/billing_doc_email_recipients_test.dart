@@ -151,6 +151,14 @@ Future<List<String?>> _pump(
           onSend: ({required template, subject, body, ccEmail}) async {
             sentCc.add(ccEmail);
           },
+          onSchedule:
+              ({
+                required template,
+                required sendAt,
+                subject,
+                body,
+                ccEmail,
+              }) async {},
           onReactivate: (_) async => 0,
           pdfFetcher: ({designId, required deliveryNote}) async => Uint8List(0),
         ),

@@ -161,7 +161,7 @@ The order, each step there for a failure that happened without it:
 
 **Which buttons a row gets is decided per row by the host** (`AttentionActions`): `create_payment` for Payment; `AuthSession.canEditRecord` *and* `maySendEmails` for Remind. The band knows nothing of sessions. A button is drawn on every row of a tab or on none — a row that may not do what its neighbours can keeps the slot, invisible and inert (`Visibility(maintainSize:)`), so amounts stay in one column.
 
-**`maySendEmails` (`AuthCompany`, `!can('disable_emails')`) is new, and every Send Email action now asks it** — invoice, quote, credit, purchase order, recurring invoice. `SendEmailRequest` refuses a holder of that token before it looks at the record, so the action used to open a screen whose Send could only fail. It is a *negative* token (`kPermissionNegative`): the admin's blanket grant must not confer it.
+**`maySendEmails` (`AuthCompany`, `!can('disable_emails')`) is new, and every Send Email action now asks it** — invoice, quote, credit, purchase order (a recurring invoice has no Send Email: the server never emails one, invoiceninja/invoiceninja#13368). `SendEmailRequest` refuses a holder of that token before it looks at the record, so the action used to open a screen whose Send could only fail. It is a *negative* token (`kPermissionNegative`): the admin's blanket grant must not confer it.
 
 ## Unknown is not zero
 

@@ -146,7 +146,7 @@ class RecurringInvoiceEditScreen extends StatelessWidget {
         );
       },
       // Create-mode: resolve the tmp id to the real one so navigating actions
-      // (Send Email, View PDF) keep their navigation instead of the redirect.
+      // (View PDF) keep their navigation instead of the redirect.
       onAfterSaveActionOnCreate: (ctx, saved, a) {
         final services = ctx.read<Services>();
         final companyId = services.auth.session.value!.currentCompanyId;

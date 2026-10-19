@@ -11,7 +11,6 @@ import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/models/domain/quote.dart';
-import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -62,7 +61,6 @@ class _BillingDocEmailRouteScreenState
   Stream<Quote?>? _quoteDoc;
   Stream<Credit?>? _creditDoc;
   Stream<PurchaseOrder?>? _purchaseOrderDoc;
-  Stream<RecurringInvoice?>? _recurringDoc;
 
   /// Set when reached with an unsaved `tmp_` id (deep link / restored
   /// route) — there's no server id to email, so redirect to the detail.
@@ -106,10 +104,9 @@ class _BillingDocEmailRouteScreenState
           id: widget.id,
         );
       case BillingDocType.recurringInvoice:
-        _recurringDoc = _services.recurringInvoices.watch(
-          companyId: _companyId,
-          id: widget.id,
-        );
+        // Never routed here: a recurring invoice is not emailed, and its
+        // `/email` route redirects to the record (`entity_modules.dart`).
+        break;
     }
     _services.formatterFor(_companyId).then((f) {
       if (mounted) setState(() => _formatter = f);
@@ -124,7 +121,7 @@ class _BillingDocEmailRouteScreenState
       BillingDocType.quote => _quote(),
       BillingDocType.credit => _credit(),
       BillingDocType.purchaseOrder => _purchaseOrder(),
-      BillingDocType.recurringInvoice => _recurring(),
+      BillingDocType.recurringInvoice => _notFound(context),
     };
   }
 
@@ -146,7 +143,7 @@ class _BillingDocEmailRouteScreenState
     required String vendorId,
     required String number,
     required SendEmailCallback onSend,
-    ScheduleEmailCallback? onSchedule,
+    required ScheduleEmailCallback onSchedule,
     required Future<int> Function(String messageId) onReactivate,
     required Future<Uint8List> Function({
       String? designId,
@@ -367,48 +364,6 @@ class _BillingDocEmailRouteScreenState
               entityJson: e.toApiJson(),
               designId: designId ?? (e.designId.isEmpty ? null : e.designId),
               storedPdfKey: e.storedPdfInvitationKey,
-            ),
-      );
-    },
-  );
-
-  Widget _recurring() => StreamBuilder<RecurringInvoice?>(
-    stream: _recurringDoc,
-    builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-        return _loading();
-      }
-      final e = snap.data;
-      if (e == null) return _notFound(context);
-      return _screen(
-        invitations: e.invitations,
-        isDirty: e.isDirty,
-        clientId: e.clientId,
-        vendorId: '',
-        number: e.number,
-        onSend: ({required template, subject, body, ccEmail}) =>
-            _services.recurringInvoices.email(
-              companyId: _companyId,
-              id: widget.id,
-              template: template,
-              subject: subject,
-              body: body,
-              ccEmail: ccEmail,
-            ),
-        // No scheduled send for recurring invoices — the server's
-        // task_scheduler rejects them. The composer hides its Schedule action
-        // (BillingDocType.supportsScheduledSend == false), so this stays null.
-        onSchedule: null,
-        onReactivate: (m) =>
-            _services.recurringInvoices.reactivateInvitationEmail(
-              companyId: _companyId,
-              id: widget.id,
-              messageId: m,
-            ),
-        pdfFetcher: ({String? designId, required bool deliveryNote}) =>
-            _services.recurringInvoices.api.downloadPdf(
-              entityJson: e.toApiJson(),
-              designId: designId ?? (e.designId.isEmpty ? null : e.designId),
             ),
       );
     },

@@ -108,7 +108,8 @@ void main() {
       expect(find.byType(BillingDocDueLine), findsNothing);
 
       // Running, so the switch reads Stop — and only Stop.
-      expect(_tiles(tester), ['Stop', 'Email', 'PDF', 'Download']);
+      // No Email tile: a recurring invoice is never emailed (#13368).
+      expect(_tiles(tester), ['Stop', 'PDF', 'Download', 'Clone']);
 
       // What is set on it that is not the default.
       expect(find.text('Day 15'), findsOneWidget);
@@ -141,7 +142,7 @@ void main() {
         _inStanding('Frequency: Monthly · Remaining Cycles: 12'),
         findsOneWidget,
       );
-      expect(_tiles(tester), ['Start', 'Send Now', 'Email', 'PDF']);
+      expect(_tiles(tester), ['Start', 'Send Now', 'PDF', 'Download']);
       // The defaults are not rows.
       expect(find.text('Auto Bill'), findsNothing);
       expect(find.text('Due Date'), findsNothing);

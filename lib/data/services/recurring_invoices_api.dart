@@ -39,46 +39,6 @@ class RecurringInvoicesApi
     required String idempotencyKey,
   }) => bulkActionOne(id: id, action: 'stop', idempotencyKey: idempotencyKey);
 
-  Future<RecurringInvoiceItemApi?> email({
-    required String id,
-    required String template,
-    String? subject,
-    String? body,
-    String? ccEmail,
-    required String idempotencyKey,
-  }) => sendEmail(
-    entity: 'recurring_invoice',
-    id: id,
-    template: template,
-    subject: subject,
-    body: body,
-    ccEmail: ccEmail,
-    idempotencyKey: idempotencyKey,
-  );
-
-  Future<RecurringInvoiceItemApi?> scheduleEmail({
-    required String id,
-    required String template,
-    required String sendAt,
-    String? subject,
-    String? body,
-    String? ccEmail,
-    required String idempotencyKey,
-  }) {
-    // recurring_invoice is not a valid task_scheduler entity (the server's
-    // scheduler accepts invoice / quote / credit / purchase_order only), so a
-    // future send can't be scheduled — degrade to an immediate send.
-    return sendEmail(
-      entity: 'recurring_invoice',
-      id: id,
-      template: template,
-      subject: subject,
-      body: body,
-      ccEmail: ccEmail,
-      idempotencyKey: idempotencyKey,
-    );
-  }
-
   Future<RecurringInvoiceItemApi?> cloneTo({
     required String id,
     required String targetType,

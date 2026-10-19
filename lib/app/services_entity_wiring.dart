@@ -1894,9 +1894,10 @@ _wireRecurringExpense(_EntityWiring reg) {
 
 /// RecurringInvoice — invoice-shaped template with recurring lifecycle.
 /// Uses the shared `start` / `stop` MutationKinds (originally added for
-/// RecurringExpense) plus the usual mark_sent / email / schedule_email /
-/// clone_to_* / run_template / addComment / document trio. Status
-/// lifecycle: Draft → Active → Paused → Completed.
+/// RecurringExpense) plus the usual clone_to_* / run_template / addComment /
+/// document trio. No email / schedule_email: a recurring invoice is never
+/// emailed (invoiceninja/invoiceninja#13368) — send_now rides an update.
+/// Status lifecycle: Draft → Active → Paused → Completed.
 (RecurringInvoicesApi api, RecurringInvoiceRepository repo)
 _wireRecurringInvoice(_EntityWiring reg) {
   final recurringInvoicesApi = RecurringInvoicesApi(reg.ctx.apiClient);
@@ -1920,29 +1921,6 @@ _wireRecurringInvoice(_EntityWiring reg) {
       MutationKind.stop: ({required row, required payload}) async {
         final response = await recurringInvoicesApi.stop(
           id: payload['id'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return response?.data;
-      },
-      MutationKind.emailEntity: ({required row, required payload}) async {
-        final response = await recurringInvoicesApi.email(
-          id: payload['id'] as String,
-          template: payload['template'] as String,
-          subject: payload['subject'] as String?,
-          body: payload['body'] as String?,
-          ccEmail: payload['cc_email'] as String?,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return response?.data;
-      },
-      MutationKind.scheduleEmail: ({required row, required payload}) async {
-        final response = await recurringInvoicesApi.scheduleEmail(
-          id: payload['id'] as String,
-          template: payload['template'] as String,
-          sendAt: payload['send_at'] as String,
-          subject: payload['subject'] as String?,
-          body: payload['body'] as String?,
-          ccEmail: payload['cc_email'] as String?,
           idempotencyKey: row.idempotencyKey,
         );
         return response?.data;

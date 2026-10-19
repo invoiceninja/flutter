@@ -17,7 +17,6 @@ import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
-import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/recurring_invoices_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -30,9 +29,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 
 class RecurringInvoiceRepository
     extends BaseEntityRepository<RecurringInvoice, RecurringInvoiceApi>
-    with
-        EntityCommentMutations<RecurringInvoice, RecurringInvoiceApi>,
-        BillingDocEmailMutations<RecurringInvoice, RecurringInvoiceApi>
+    with EntityCommentMutations<RecurringInvoice, RecurringInvoiceApi>
     implements EmbeddedDocumentsOwner {
   RecurringInvoiceRepository({
     required super.db,

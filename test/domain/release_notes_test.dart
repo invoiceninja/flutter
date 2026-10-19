@@ -10,6 +10,10 @@ import 'package:admin/domain/release_notes.dart';
 /// catalog, the releases an update shows, the text the dialog prints, and
 /// the store rule — an App Store build never names another platform's store.
 void main() {
+  // The release that carries the F-Droid bullet and the phone-app promo,
+  // looked up by version so a newer release at the top doesn't move it.
+  final withStoreNames = kReleaseNotes.firstWhere((r) => r.version == '5.1.16');
+
   group('the catalog', () {
     test('versions are unique and strictly newest first', () {
       for (var i = 1; i < kReleaseNotes.length; i++) {
@@ -104,7 +108,7 @@ void main() {
         releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.macOS),
         releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.windows),
       ]) {
-        final items = kReleaseNotes.first.visibleOn(surfaces).items;
+        final items = withStoreNames.visibleOn(surfaces).items;
         expect(items.where((i) => i.text.contains('F-Droid')), hasLength(1));
       }
     });
@@ -112,7 +116,7 @@ void main() {
 
   test('the phone apps are not pitched the phone app', () {
     for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
-      final visible = kReleaseNotes.first.visibleOn(
+      final visible = withStoreNames.visibleOn(
         releaseNoteSurfaces(isWeb: false, platform: platform),
       );
       expect(

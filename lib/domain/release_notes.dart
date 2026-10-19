@@ -186,6 +186,62 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.17',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.history,
+        title: 'An Activity timeline',
+        body: 'Tap or drag a period to filter, or narrow it by category.',
+        target: ReleaseHighlightRoute('/activity'),
+      ),
+      ReleaseHighlight(
+        icon: Icons.event_repeat_outlined,
+        title: 'Comments on recurring expenses',
+        body: 'Recurring expenses now have comments and activity.',
+        target: ReleaseHighlightRoute(
+          '/recurring_expenses',
+          module: EntityType.recurringExpense,
+        ),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: An Activity timeline. Tap or drag a period to filter the feed, '
+        'narrow it by date range or category with a count beside each, and use '
+        'Load more to reach further back. Repeated events are folded together.',
+      ),
+      ReleaseNoteItem('Added: Comments and activity on recurring expenses.'),
+      ReleaseNoteItem(
+        'Updated: List density is now set only in Device Settings, which gives '
+        "each list's search field more room.",
+      ),
+      ReleaseNoteItem(
+        'Fixed: Contacts sync on Android could delete or change contacts of '
+        'your own. It now only changes contacts it created, and leaves alone '
+        'any that Android merged with one of yours.',
+        hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+      ReleaseNoteItem(
+        'Fixed: Typing on the Expenses tab of an invoice no longer saves a '
+        'duplicate line at every pause.',
+      ),
+      ReleaseNoteItem(
+        "Fixed: Users who can't create a record no longer see New buttons, the "
+        '+ button or create shortcuts for it.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Dashboard Invoices, Payments and Expenses figures for a period '
+        'still in progress now run to today, matching their trend and '
+        'drill-down.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: A list no longer misses its newest records until the next full '
+        'Sync, Apply to oldest invoice picks the oldest unpaid invoice, and a '
+        'past-due project no longer reads "On track".',
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.16',
     highlights: [
       ReleaseHighlight(

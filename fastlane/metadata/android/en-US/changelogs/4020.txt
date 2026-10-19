@@ -1,0 +1,6 @@
+- Activity timeline: tap or drag a period to filter, or narrow by category
+- Comments and activity on recurring expenses
+- Contacts sync only changes contacts it created, never your own
+- The Expenses tab no longer duplicates typed lines
+- Lists no longer miss their newest records
+- Dashboard figures for a period in progress run to today

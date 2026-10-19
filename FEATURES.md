@@ -124,6 +124,7 @@ the honest default.
 | Act from a dashboard row — Remind (opens the next unsent reminder), Enter Payment, Call; the record is re-read first, so a row paid elsewhere says so | — | — | ✅ | | |
 | Activity feed (recent entity changes) | ✅ | ✅ | ✅ | ✅ | |
 | Global activity feed screen (day-grouped, filterable) | ❌ | 🟡 | ✅ | | |
+| Global activity feed — timeline of the loaded window (tap or drag a period to filter), date-range and category filters with counts, repeated events folded, filters as a side rail on wide panes, Load more (250 at a time, up to 1000) | — | — | ✅ | | `GET /activities?reactv2` has no cursor, so Load more re-asks for a bigger window; past 1000 the Activity report takes over (BACKEND.md § F3f) |
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | v2 draws the nearest grouping the range can show (one month by month is a single line) and the control shows the one in effect |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |

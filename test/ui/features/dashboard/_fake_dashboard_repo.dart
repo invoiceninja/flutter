@@ -129,6 +129,13 @@ class FakeDashboardRepo extends DashboardRepository {
   /// flight and dispose the ViewModel underneath it. Mirrors [refreshAllGate].
   Completer<void>? refreshActivitiesGate;
 
+  /// The `rows` each [refreshActivities] call asked for, in order.
+  final List<int> refreshActivitiesRows = [];
+
+  /// What [refreshActivities] reports the server sent. Null answers `rows` —
+  /// a server with more activity behind every window, so Load more stays on.
+  int? refreshActivitiesReturns;
+
   /// Cards the VM asked us to fetch (asserted by tests). The last refresh
   /// wins; reset by reading then clearing.
   final List<String> refreshedCardKeys = [];
@@ -218,12 +225,17 @@ class FakeDashboardRepo extends DashboardRepository {
   @override
   Future<void> refreshChart(String c, DashboardFilter f) async {}
   @override
-  Future<void> refreshActivities(String c) async {
+  Future<int> refreshActivities(
+    String c, {
+    int rows = kActivityFeedRows,
+  }) async {
     refreshActivitiesCalls++;
+    refreshActivitiesRows.add(rows);
     final gate = refreshActivitiesGate;
     if (gate != null) await gate.future;
     final err = refreshActivitiesError;
     if (err != null) throw err;
+    return refreshActivitiesReturns ?? rows;
   }
 
   @override

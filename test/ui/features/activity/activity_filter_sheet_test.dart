@@ -7,8 +7,10 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/user_repository.dart';
+import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/ui/core/widgets/multi_entity_picker.dart';
 import 'package:admin/ui/features/activity/view_models/activity_view_model.dart';
 import 'package:admin/ui/features/activity/widgets/activity_filter_sheet.dart';
@@ -47,11 +49,13 @@ class _FakeServices implements Services {
 
 void main() {
   late AppDatabase db;
+  late FakeDashboardRepo repo;
   late ActivityViewModel vm;
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
-    vm = ActivityViewModel(repo: FakeDashboardRepo(db), companyId: 'co');
+    repo = FakeDashboardRepo(db);
+    vm = ActivityViewModel(repo: repo, companyId: 'co');
   });
 
   tearDown(() async {
@@ -154,5 +158,47 @@ void main() {
       ),
     );
     expect(dimmed.opacity, lessThan(1.0));
+  });
+
+  group('category chips', () {
+    DashboardActivity row(String id, int type) => DashboardActivity.fromJson({
+      'id': id,
+      'activity_type_id': type,
+      'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'notes': '',
+    });
+
+    testWidgets('carry their counts and toggle the filter', (tester) async {
+      repo.activities.add([row('a', 6), row('b', 6), row('c', 10)]);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await open(tester, width: 900);
+
+      final sent = find.widgetWithText(FilterChip, 'Sent  2');
+      expect(sent, findsOneWidget);
+      await tester.tap(sent);
+      await tester.pumpAndSettle();
+      expect(vm.filters.categories, {ActivityCategory.sent});
+    });
+
+    testWidgets('a chip that could only empty the feed is disabled', (
+      tester,
+    ) async {
+      repo.activities.add([row('a', 6)]);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await open(tester, width: 900);
+
+      final viewed = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, 'Viewed  0'),
+      );
+      expect(viewed.onSelected, isNull);
+    });
+  });
+
+  testWidgets('a held range can be cleared from the panel', (tester) async {
+    vm.setRange(DateTime(2026, 6, 7), DateTime(2026, 6, 8));
+    await open(tester, width: 900);
+    await tester.tap(find.byTooltip('Clear'));
+    await tester.pumpAndSettle();
+    expect(vm.filters.hasRange, isFalse);
   });
 }

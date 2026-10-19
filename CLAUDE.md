@@ -213,6 +213,9 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 - **A one-shot reveal outlives its consumer, and the row scrolls itself.** → `docs/comments-and-activity.md`
 - **The `activity_type_id` → tone map is the server's catalog, not a guess — and the bundled template is the test.** → `docs/comments-and-activity.md`
 
+- **The `/activity` timeline charts only the loaded window, and each count leaves out its own filter — the bars ignore the date range, the category chips ignore the categories.** → `docs/activity-timeline.md`
+- **The activity cache row is shared with the dashboard card, so a fetch merges into it (never a gap, the fetch owns its span) and Load more grows it to `kActivityWindowMax` — never replace it.** → `docs/activity-timeline.md`
+
 - **A screen-reader heading sets both `header: true` and `headingLevel:` (1 for a dialog or sheet title, 2 for a section) — since Flutter 3.47 iOS and Android read only the level, while desktop and web still read the flag.** → `docs/screen-reader-headings.md`
 
 - **Toast strings are normalized centrally by `ToastController.show` — don't hand-guard them, never put a newline in a title (join with `' · '`), and give the context-free `Notify.capture` path a `tr()` string, never a raw server one.** → `docs/toast-messages.md`

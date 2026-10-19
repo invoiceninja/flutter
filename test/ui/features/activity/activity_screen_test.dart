@@ -11,13 +11,19 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/data/models/domain/user.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/activity/views/activity_screen.dart';
 import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
+import 'package:admin/ui/features/activity/widgets/activity_filter_sheet.dart';
+import 'package:admin/ui/features/activity/widgets/activity_timeline_chart.dart';
 import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
@@ -41,6 +47,16 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
+/// The wide pane's filter rail lists the roster.
+class _FakeUserRepo implements UserRepository {
+  @override
+  Stream<List<User>> watchAllForPicker({required String companyId}) =>
+      Stream<List<User>>.value(const <User>[]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 class _FakeServices implements Services {
   _FakeServices({
     required this.auth,
@@ -54,6 +70,9 @@ class _FakeServices implements Services {
   final DashboardRepository dashboard;
   @override
   final AppDatabase db;
+
+  @override
+  late final UserRepository user = _FakeUserRepo();
 
   @override
   Future<Formatter> formatterFor(String companyId) =>
@@ -89,6 +108,7 @@ DashboardActivity _activity({
   int type = 4,
   String? invoiceId,
   String? userLabel = 'Alice',
+  String? userId,
   int? createdAt,
 }) => DashboardActivity.fromJson(<String, dynamic>{
   'id': id,
@@ -96,7 +116,8 @@ DashboardActivity _activity({
   'created_at': createdAt ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
   'notes': '',
   'ip': '10.0.0.1',
-  if (userLabel != null) 'user': {'label': userLabel, 'hashed_id': 'u_$id'},
+  if (userLabel != null)
+    'user': {'label': userLabel, 'hashed_id': userId ?? 'u_$id'},
   if (invoiceId != null) 'invoice': {'label': '0042', 'hashed_id': invoiceId},
 });
 
@@ -117,8 +138,11 @@ void main() {
 
   tearDown(() async => db.close());
 
-  Future<void> pumpScreen(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(500, 900));
+  Future<void> pumpScreen(
+    WidgetTester tester, {
+    Size size = const Size(500, 900),
+  }) async {
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       Provider<Services>.value(
@@ -195,10 +219,65 @@ void main() {
     });
   });
 
+  group('load more', () {
+    Finder feed() => find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+
+    List<DashboardActivity> window(int n) => [
+      for (var i = 0; i < n; i++) _activity(id: '$i', invoiceId: 'inv$i'),
+    ];
+
+    testWidgets('a full window offers it under the feed', (tester) async {
+      await pumpScreen(tester);
+      await emit(tester, window(kActivityFeedRows));
+      final button = find.widgetWithText(OutlinedButton, 'Load more');
+      await tester.scrollUntilVisible(button, 2000, scrollable: feed());
+      // `scrollUntilVisible` stops once any of it is on screen; the tap needs
+      // its centre.
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pump();
+      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+    });
+
+    testWidgets('and above it, where the timeline ends', (tester) async {
+      await pumpScreen(tester);
+      await emit(tester, window(kActivityFeedRows));
+      await tester.tap(find.widgetWithText(TextButton, 'Load more'));
+      await tester.pump();
+      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+    });
+
+    testWidgets('a short window offers neither', (tester) async {
+      await pumpScreen(tester);
+      await emit(tester, window(3));
+      expect(find.text('Load more'), findsNothing);
+    });
+
+    testWidgets('at the max, the footer points to the Activity report', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await emit(tester, window(kActivityWindowMax));
+      expect(find.text('Load more'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Open the Activity report'),
+        5000,
+        scrollable: feed(),
+      );
+      expect(find.text('Open the Activity report'), findsOneWidget);
+    });
+  });
+
   testWidgets('groups rows under a day header', (tester) async {
     await pumpScreen(tester);
     await emit(tester, [_activity(id: '1', invoiceId: 'inv1')]);
-    expect(find.text('Today'), findsOneWidget);
+    // The header is a node on the timeline spine, and says how many events
+    // the day holds.
+    expect(find.text('Today · 1 event'), findsOneWidget);
   });
 
   testWidgets('a row with no entity reference renders inert', (tester) async {
@@ -295,6 +374,111 @@ void main() {
         tester.widget<TextField>(find.byType(TextField)).controller?.text,
         isEmpty,
       );
+    });
+  });
+
+  group('layout', () {
+    testWidgets('a wide pane shows the filters as a rail, with no button', (
+      tester,
+    ) async {
+      await pumpScreen(tester, size: const Size(1200, 900));
+      await emit(tester, [_activity(id: '1', invoiceId: 'inv1')]);
+      expect(find.byType(ActivityFilterPanel), findsOneWidget);
+      // Two controls for one state is the thing the rail replaces.
+      expect(find.byType(FilterIconButton), findsNothing);
+      final chart = tester.widget<ActivityTimelineChart>(
+        find.byType(ActivityTimelineChart),
+      );
+      expect(chart.compact, isFalse);
+    });
+
+    testWidgets('a narrow pane keeps the button and a compact timeline', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await emit(tester, [_activity(id: '1', invoiceId: 'inv1')]);
+      expect(find.byType(ActivityFilterPanel), findsNothing);
+      expect(find.byType(FilterIconButton), findsOneWidget);
+      final chart = tester.widget<ActivityTimelineChart>(
+        find.byType(ActivityTimelineChart),
+      );
+      expect(chart.compact, isTrue);
+    });
+
+    testWidgets('a short pane drops the timeline, not the feed', (
+      tester,
+    ) async {
+      await pumpScreen(tester, size: const Size(800, 420));
+      await emit(tester, [_activity(id: '1', invoiceId: 'inv1')]);
+      expect(find.byType(ActivityTimelineChart), findsNothing);
+      expect(find.byType(ActivityFeedRow), findsOneWidget);
+    });
+  });
+
+  group('timeline', () {
+    testWidgets('tapping a bar keeps that period, and tapping it again '
+        'lets go', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpScreen(tester);
+      final now = DateTime.now();
+      final old = DateTime(now.year, now.month, now.day - 3, 12);
+      await emit(tester, [
+        _activity(id: '1', invoiceId: 'inv1'),
+        _activity(
+          id: '2',
+          invoiceId: 'inv2',
+          createdAt: old.millisecondsSinceEpoch ~/ 1000,
+        ),
+      ]);
+      expect(find.byType(ActivityFeedRow), findsNWidgets(2));
+
+      // No company `Formatter` here, so a day reads as ISO.
+      final iso = Date(old.year, old.month, old.day).toIso();
+      final bar = find.bySemanticsLabel(RegExp('^${RegExp.escape(iso)}: '));
+      await tester.tap(bar);
+      await tester.pump();
+      expect(find.byType(ActivityFeedRow), findsOneWidget);
+      expect(find.widgetWithText(InputChip, iso), findsOneWidget);
+
+      await tester.tap(bar);
+      await tester.pump();
+      expect(find.byType(ActivityFeedRow), findsNWidgets(2));
+      expect(find.byType(InputChip), findsNothing);
+      semantics.dispose();
+    });
+  });
+
+  group('runs', () {
+    testWidgets('a burst on one record folds behind "+N more"', (tester) async {
+      await pumpScreen(tester);
+      final now = DateTime.now();
+      int at(int minute) =>
+          DateTime(
+            now.year,
+            now.month,
+            now.day,
+            12,
+            minute,
+          ).millisecondsSinceEpoch ~/
+          1000;
+      await emit(tester, [
+        for (final m in [3, 2, 1])
+          _activity(
+            id: 'r$m',
+            invoiceId: 'inv1',
+            userId: 'alice',
+            createdAt: at(m),
+          ),
+      ]);
+      expect(find.byType(ActivityFeedRow), findsOneWidget);
+
+      await tester.tap(find.text('+2 more'));
+      await tester.pump();
+      expect(find.byType(ActivityFeedRow), findsNWidgets(3));
+
+      await tester.tap(find.text('Collapse'));
+      await tester.pump();
+      expect(find.byType(ActivityFeedRow), findsOneWidget);
     });
   });
 }

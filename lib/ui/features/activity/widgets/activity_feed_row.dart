@@ -13,10 +13,15 @@ import 'package:admin/utils/formatting.dart';
 /// Falls back to the relative [ActivityRender.meta] until the company
 /// `Formatter` has loaded, and note the IP is only in the raw payload
 /// (`DashboardActivity` doesn't destructure it).
+///
+/// [showDate] false drops the date and keeps the time — for a row already
+/// sitting under a day header that names the date, where repeating it on every
+/// line is the noise the `/activity` timeline removes.
 String activityAuditMeta(
   DashboardActivity a, {
   required ActivityRender render,
   required Formatter? formatter,
+  bool showDate = true,
 }) {
   final when =
       formatter?.date(
@@ -24,12 +29,30 @@ String activityAuditMeta(
           a.createdAt * 1000,
           isUtc: true,
         ).toIso8601String(),
+        showDate: showDate,
         showTime: true,
         showSeconds: false,
       ) ??
       render.meta;
   final ip = (a.raw['ip'] ?? '').toString();
   return ip.isEmpty ? when : '$when · $ip';
+}
+
+/// Where an [ActivityFeedRow] sits on the `/activity` timeline's spine — the
+/// vertical line joining the row icons.
+enum ActivityFeedSpine {
+  /// No line: the dashboard card and User Details.
+  none,
+
+  /// Top to bottom, behind the icon.
+  through,
+
+  /// Top to the icon's centre: the feed's last row, so the line ends on it.
+  end,
+
+  /// The icon's centre to the bottom: the feed's first node, so the line
+  /// starts on it rather than poking out above.
+  start,
 }
 
 /// Visual weight of an [ActivityFeedRow].
@@ -59,12 +82,18 @@ class ActivityFeedRow extends StatelessWidget {
     required this.render,
     required this.meta,
     this.density = ActivityRowDensity.page,
+    this.spine = ActivityFeedSpine.none,
     this.onTap,
   });
 
   final ActivityRender render;
   final String meta;
   final ActivityRowDensity density;
+
+  /// Painted **inside** the ink surface, under the icon: behind the whole row
+  /// it would vanish under the hover fill, which is opaque. The icon's soft
+  /// tone fill is opaque too, so the line passes behind it, not through it.
+  final ActivityFeedSpine spine;
 
   /// Null → the row is not a navigation target and must not look like one.
   final VoidCallback? onTap;
@@ -78,7 +107,7 @@ class ActivityFeedRow extends StatelessWidget {
     final (bg, fg) = activityToneColors(tokens, render.tone);
 
     final avatarSize = _isCard ? 26.0 : 28.0;
-    final content = Padding(
+    final padded = Padding(
       padding: _isCard
           ? const EdgeInsets.symmetric(vertical: 10, horizontal: 4)
           : const EdgeInsets.symmetric(vertical: InSpacing.sm),
@@ -143,6 +172,25 @@ class ActivityFeedRow extends StatelessWidget {
         ],
       ),
     );
+    final content = spine == ActivityFeedSpine.none || _isCard
+        ? padded
+        : Stack(
+            children: [
+              Positioned(
+                left: avatarSize / 2 - 1,
+                width: 2,
+                top: spine == ActivityFeedSpine.start
+                    ? InSpacing.sm + avatarSize / 2
+                    : 0,
+                bottom: spine == ActivityFeedSpine.end ? null : 0,
+                height: spine == ActivityFeedSpine.end
+                    ? InSpacing.sm + avatarSize / 2
+                    : null,
+                child: ColoredBox(color: tokens.border),
+              ),
+              padded,
+            ],
+          );
 
     if (onTap == null) return content;
 

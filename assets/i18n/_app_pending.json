@@ -14,7 +14,13 @@
   "activity_50_actor_only": ":user archived a user",
   "activity_51_actor_only": ":user deleted a user",
   "activity_52_actor_only": ":user restored a user",
+  "activity_category_edited": "Created & edited",
+  "activity_category_paid": "Paid & approved",
+  "activity_event_count": ":count events",
+  "activity_event_count_one": "1 event",
   "activity_feed_window": "This feed covers the :count most recent activities",
+  "activity_open_report": "Open the Activity report",
+  "activity_timeline_since": ":events since :date",
   "activity_unavailable": "Comments and activity for this record aren't available from this server yet.",
   "activity_unknown": "Activity #:id",
   "actual_spend": "Actual Spend",
@@ -1608,5 +1614,6 @@
   "release_notes_updated": "Improved",
   "release_notes_fixed": "Fixed",
   "release_changes_count": ":count changes",
-  "release_change_count_one": "1 change"
+  "release_change_count_one": "1 change",
+  "load_more": "Load more"
 }

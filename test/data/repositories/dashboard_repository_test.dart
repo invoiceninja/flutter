@@ -12,6 +12,8 @@ import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 /// These tests target DashboardRepository's behavioral contracts:
@@ -112,8 +114,14 @@ class _FakeDashboardApi extends DashboardApi {
   Future<Object?> fetchChartSummary(DashboardFilter filter) =>
       _maybe('chart', chartSummary);
 
+  /// The `rows` each activity fetch asked for, in order.
+  final List<int> activityRows = [];
+
   @override
-  Future<Object?> fetchActivities() => _maybe('activities', activities);
+  Future<Object?> fetchActivities({int rows = kActivityFeedRows}) {
+    activityRows.add(rows);
+    return _maybe('activities', activities);
+  }
 
   @override
   Future<Object?> fetchPastDueInvoices() => _maybe('past_due', pastDue);
@@ -739,5 +747,61 @@ void main() {
         expect(api.peakInFlight, greaterThan(1));
       },
     );
+  });
+
+  /// The cache row is shared by the dashboard card (250-row refreshes) and the
+  /// `/activity` screen's Load more, so a fetch merges into it.
+  group('activity window', () {
+    Map<String, Object?> row(int id) => {'id': '$id', 'created_at': id * 100};
+
+    Future<List<String>> cachedIds() async {
+      final r = await db.dashboardCacheDao.read(
+        companyId: 'co_a',
+        kind: DashboardKind.activities,
+        filterHash: kDashboardListFilterHash,
+      );
+      return [
+        for (final m in jsonDecode(r!.payload) as List)
+          (m as Map)['id'] as String,
+      ];
+    }
+
+    test('a smaller refresh does not shrink a grown window', () async {
+      api.activities = [for (var i = 6; i >= 1; i--) row(i)];
+      expect(await repo.refreshActivities('co_a', rows: 500), 6);
+      expect(api.activityRows.last, 500);
+
+      api.activities = [row(7), row(6)];
+      expect(await repo.refreshActivities('co_a'), 2);
+      expect(api.activityRows.last, kActivityFeedRows);
+      expect(await cachedIds(), ['7', '6', '5', '4', '3', '2', '1']);
+    });
+
+    test(
+      'concurrent refreshes run in turn, so neither drops the other',
+      () async {
+        api.activities = [for (var i = 4; i >= 1; i--) row(i)];
+        await repo.refreshActivities('co_a');
+
+        // Unqueued, both would read the row before either wrote it, and the
+        // later write would discard the earlier one's rows.
+        api.activities = [for (var i = 8; i >= 1; i--) row(i)];
+        await Future.wait([
+          repo.refreshActivities('co_a', rows: 500),
+          repo.refreshActivities('co_a'),
+        ]);
+
+        expect(await cachedIds(), ['8', '7', '6', '5', '4', '3', '2', '1']);
+        expect(api.peakInFlight, 1);
+      },
+    );
+
+    test('a failed refresh does not wedge the next one', () async {
+      api.failures['activities'] = StateError('boom');
+      await expectLater(repo.refreshActivities('co_a'), throwsStateError);
+      api.failures.clear();
+      api.activities = [row(1)];
+      expect(await repo.refreshActivities('co_a'), 1);
+    });
   });
 }

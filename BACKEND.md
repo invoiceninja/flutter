@@ -23,7 +23,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 - Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**SHIPPED** 2026-09-08; the prop, its cast and the `SavesDocuments` fallback all landed, so the v2 toggle should now persist).
-- `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
+- `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it); its `reactv2` window has **no cursor**, so Load more re-sends every row (**committed locally, not pushed**, § F3f).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**In PR** [invoiceninja#13365](https://github.com/invoiceninja/invoiceninja/pull/13365), 2026-10-18, § F3b — the client already sends the filter when the window is full); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
@@ -481,6 +481,36 @@ comments empty state now says so in as many words, which is the honest interim a
 company's users (excluding the author), and — if "external" is ever wanted — a separate, explicitly
 opt-in flag, since these notes are internal by every current definition and none of the existing UI
 warns otherwise.
+
+### F3f. `GET /activities?reactv2` has no cursor, so a bigger window re-sends every row — **committed on `fix/api-gaps-from-v2-apps` (789c503a32), not yet pushed**
+
+The `reactv2` branch is `orderBy('created_at','DESC')->take($rows)` and nothing
+else: no `page`, no offset, no cursor. The `/activity` screen's **Load more**
+(`ActivityViewModel.loadMore`) therefore re-asks for the newest `N + 250` rows,
+and the repository merges them into the cached window
+(`mergeActivityWindow`, `lib/data/repositories/activity_window.dart`). Each
+step re-downloads every row before it, which is why the window is capped at
+`kActivityWindowMax` (1000). The flat branch *does* page (`per_page` / `page`
+through `listResponse`), but it carries no labels, and for a restricted user it
+takes the unknown-column path noted under § F3.
+
+**The fix.** Add optional `before` (a row's `created_at`, unix seconds) and
+`before_id` (its raw id) to the `reactv2` branch, returning only rows older
+than that row. This is a keyset cursor, so new activity arriving between
+requests can't shift a page. `before_id` splits rows that share a second, and
+the second is matched as a range because the column is `DATETIME(6)`. The query
+also gains `->orderBy('id','DESC')`, so a page boundary that falls inside a
+second is deterministic. Without either parameter the response is unchanged.
+- Accept: `activities?reactv2&rows=2&before=<t>&before_id=<id>` returns the
+  two rows after `<id>` in feed order, including one sharing its second
+  (`ActivityApiTest::testActivityFeedPagesWithABeforeCursor`, CI-only: the
+  feature suite needs MySQL).
+- Client follow-up once it ships: Load more sends the cursor and *appends*
+  the older page instead of re-asking for the whole window. That needs its
+  own merge, because `mergeActivityWindow` treats a fetch as the newest rows
+  and drops cached rows inside its span. Detect support by whether every
+  returned row is older than the cursor, and fall back to the growing window
+  on a server that ignores the parameters. The cap can then go.
 
 ### F4. No wire field expresses a "pending invite" — **O** (client now under-claims)
 

@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/activity_window.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart'
     show CompanySwitchedException;
 import 'package:admin/data/services/dashboard_api.dart';
@@ -437,12 +438,77 @@ class DashboardRepository {
         fetch: () => api.fetchChartSummary(filter),
       );
 
-  Future<void> refreshActivities(String companyId) => _refresh(
-    companyId: companyId,
-    kind: DashboardKind.activities,
-    filterHash: kDashboardListFilterHash,
-    fetch: api.fetchActivities,
-  );
+  /// Fetches the newest [rows] activities and merges them into the cached
+  /// window (`mergeActivityWindow`), returning how many rows the server sent
+  /// — fewer than [rows] means there is no older activity to ask for.
+  ///
+  /// **Merged, not replaced**, because the row is shared: the dashboard card
+  /// refreshes it with [kActivityFeedRows] while the `/activity` screen's Load
+  /// more grows it toward [kActivityWindowMax], and a replace let the card's
+  /// next refresh shrink the screen's window back.
+  ///
+  /// **One at a time per repository.** Each call reads the row, merges and
+  /// writes it back; two interleaved calls would each write a merge of the
+  /// row as it was before the other — the later one dropping whatever the
+  /// earlier one added.
+  Future<int> refreshActivities(
+    String companyId, {
+    int rows = kActivityFeedRows,
+  }) {
+    final run = _activitiesTail.then(
+      (_) => _refreshActivities(companyId, rows),
+    );
+    // The chain must survive a failed link, or one error wedges every later
+    // refresh behind it.
+    _activitiesTail = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
+  Future<void> _activitiesTail = Future<void>.value();
+
+  Future<int> _refreshActivities(String companyId, int rows) async {
+    const kind = DashboardKind.activities;
+    _ensureStillActive(companyId, kind);
+    final raw = await api.fetchActivities(rows: rows);
+    if (raw == null) return 0;
+    _ensureStillActive(companyId, kind);
+    if (raw is! List) {
+      // Not the list this endpoint answers with — store it as before and let
+      // the decoder's tolerance deal with it, rather than merge into it.
+      await _dao.upsert(
+        companyId: companyId,
+        kind: kind,
+        filterHash: kDashboardListFilterHash,
+        payload: jsonEncode(raw),
+        fetchedAt: _now(),
+      );
+      return 0;
+    }
+    final row = await _dao.read(
+      companyId: companyId,
+      kind: kind,
+      filterHash: kDashboardListFilterHash,
+    );
+    List<Object?>? cached;
+    try {
+      final decoded = row == null ? null : jsonDecode(row.payload);
+      if (decoded is List) cached = decoded;
+    } catch (e) {
+      // A row that won't decode is replaced, not merged into.
+      _log.fine('Activity cache row unreadable; replacing it: $e');
+    }
+    // Again after the read: a sign-out wipe can land while it is out, and this
+    // write would otherwise recreate the row it just deleted.
+    _ensureStillActive(companyId, kind);
+    await _dao.upsert(
+      companyId: companyId,
+      kind: kind,
+      filterHash: kDashboardListFilterHash,
+      payload: jsonEncode(mergeActivityWindow(fetched: raw, cached: cached)),
+      fetchedAt: _now(),
+    );
+    return raw.length;
+  }
 
   Future<void> refreshPastDue(String companyId) => _refresh(
     companyId: companyId,

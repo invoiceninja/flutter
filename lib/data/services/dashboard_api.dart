@@ -7,11 +7,20 @@ import 'package:admin/data/services/api_client.dart';
 /// How many of the most-recent company activity rows one fetch pulls down.
 ///
 /// `GET /api/v1/activities?reactv2` is **unpaginated** — the server does
-/// `->take($rows)` and defaults to 75 (`ActivityController::index`) — so this
-/// is the whole window the app ever sees, and every filter on the `/activity`
-/// screen narrows *within* it. Sibling of `kUserActivityScanRows` in
+/// `->take($rows)` and defaults to 75 (`ActivityController::index`) — so every
+/// filter on the `/activity` screen narrows *within* the window the app holds.
+/// This is that window's floor and the step its Load more grows it by, up to
+/// [kActivityWindowMax]. Sibling of `kUserActivityScanRows` in
 /// `activities_api.dart`, which scans the same endpoint for one actor.
 const int kActivityFeedRows = 250;
+
+/// The most rows the `/activity` window is grown to.
+///
+/// With no cursor on the endpoint (BACKEND.md § F3), Load more re-asks for
+/// the newest `N + 250` rows — each step re-sends every row before it — so the
+/// window is capped rather than left to grow without bound. Older activity is
+/// the Activity report's job: it takes a date range.
+const int kActivityWindowMax = 1000;
 
 /// Rows one dashboard list fetch asks for. A list that comes back shorter than
 /// this is the whole answer; one that comes back this long may have more behind
@@ -156,16 +165,17 @@ class DashboardApi {
     return _unwrap(raw);
   }
 
-  /// `GET /api/v1/activities?reactv2&rows=$kActivityFeedRows`. Returns a list
-  /// of activity objects.
+  /// `GET /api/v1/activities?reactv2&rows=[rows]` — the newest [rows]
+  /// activity objects, newest first.
   ///
   /// One cache row (`dashboard_cache`, kind `activities`) serves **both** the
-  /// dashboard's 5-row card and the full `/activity` screen, so there is a
-  /// single window size — see [kActivityFeedRows].
-  Future<Object?> fetchActivities() async {
+  /// dashboard's 5-row card and the full `/activity` screen; the repository
+  /// merges each fetch into it rather than replacing it, so the screen's
+  /// grown window survives the card's [kActivityFeedRows] refreshes.
+  Future<Object?> fetchActivities({int rows = kActivityFeedRows}) async {
     final raw = await client.getOneWithQuery(
       '/api/v1/activities',
-      query: const {'reactv2': '', 'rows': '$kActivityFeedRows'},
+      query: {'reactv2': '', 'rows': '$rows'},
     );
     return _unwrap(raw);
   }

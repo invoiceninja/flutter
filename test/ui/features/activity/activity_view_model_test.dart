@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/data/services/dashboard_api.dart';
+import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/ui/features/activity/view_models/activity_view_model.dart';
 
@@ -39,6 +41,7 @@ DashboardActivity _activity({
   String? userLabel,
   String notes = '',
   String? clientLabel,
+  String? invoiceId,
   DateTime? at,
 }) => DashboardActivity.fromJson(<String, dynamic>{
   'id': id,
@@ -50,6 +53,7 @@ DashboardActivity _activity({
     'user': {'label': userLabel ?? 'User $userId', 'hashed_id': userId},
   if (clientLabel != null)
     'client': {'label': clientLabel, 'hashed_id': 'client_$id'},
+  if (invoiceId != null) 'invoice': {'label': '0001', 'hashed_id': invoiceId},
 });
 
 void main() {
@@ -274,6 +278,203 @@ void main() {
       vm.setUser('alice');
       expect(vm.entries.whereType<ActivityDayHeader>(), hasLength(1));
       expect(rowsOf(vm).map((a) => a.id), ['today']);
+    });
+  });
+
+  group('date range', () {
+    test('keeps [from, until) and nothing either side', () async {
+      await emit([
+        _activity(id: 'today', at: _at(0)),
+        _activity(id: 'two', at: _at(2)),
+        _activity(id: 'five', at: _at(5)),
+      ]);
+      final d = _at(2);
+      vm.setRange(
+        DateTime(d.year, d.month, d.day),
+        DateTime(d.year, d.month, d.day + 1),
+      );
+      expect(rowsOf(vm).map((a) => a.id), ['two']);
+      expect(vm.matchCount, 1);
+      expect(vm.filters.activeCount, 1);
+
+      vm.setRange(null, null);
+      expect(rowsOf(vm), hasLength(3));
+      expect(vm.filters.isActive, isFalse);
+    });
+
+    test('the timeline ignores the range, so its bars keep context', () async {
+      await emit([
+        _activity(id: 'today', at: _at(0)),
+        _activity(id: 'two', at: _at(2)),
+      ]);
+      final d = _at(2);
+      vm.setRange(
+        DateTime(d.year, d.month, d.day),
+        DateTime(d.year, d.month, d.day + 1),
+      );
+      final total = vm.timeline.buckets.fold<int>(0, (s, b) => s + b.count);
+      expect(total, 2);
+      expect(vm.oldestAt, _at(2));
+    });
+
+    test('but follows every other filter', () async {
+      await emit([
+        _activity(id: 'a', userId: 'alice', at: _at(0)),
+        _activity(id: 'b', userId: 'bob', at: _at(2)),
+      ]);
+      vm.setUser('alice');
+      final total = vm.timeline.buckets.fold<int>(0, (s, b) => s + b.count);
+      expect(total, 1);
+    });
+  });
+
+  group('categories', () {
+    test('keep only the picked meanings', () async {
+      await emit([
+        _activity(id: 'sent', type: 6),
+        _activity(id: 'paid', type: 10),
+        _activity(id: 'note', type: kCommentActivityTypeId, notes: 'hi'),
+      ]);
+      vm.toggleCategory(ActivityCategory.sent);
+      vm.toggleCategory(ActivityCategory.comment);
+      expect(rowsOf(vm).map((a) => a.id).toSet(), {'sent', 'note'});
+
+      vm.toggleCategory(ActivityCategory.sent);
+      expect(rowsOf(vm).map((a) => a.id), ['note']);
+
+      vm.clearCategories();
+      expect(rowsOf(vm), hasLength(3));
+    });
+
+    test('counts leave out their own filter but honour the rest', () async {
+      await emit([
+        _activity(id: 'sent', type: 6, at: _at(0)),
+        _activity(id: 'paid', type: 10, at: _at(0)),
+        _activity(id: 'old', type: 10, at: _at(4)),
+      ]);
+      vm.toggleCategory(ActivityCategory.sent);
+      // Ticking Sent doesn't zero the Paid chip — it says what Paid would add.
+      expect(vm.categoryCounts[ActivityCategory.paid], 2);
+
+      final d = _at(0);
+      vm.setRange(
+        DateTime(d.year, d.month, d.day),
+        DateTime(d.year, d.month, d.day + 1),
+      );
+      expect(vm.categoryCounts[ActivityCategory.paid], 1);
+      expect(vm.categoryCounts[ActivityCategory.sent], 1);
+    });
+  });
+
+  group('range and category persistence', () {
+    test('round-trip through the nav_state blob', () {
+      final f = ActivityFilters(
+        from: DateTime(2026, 6, 7),
+        until: DateTime(2026, 6, 8, 15),
+        categories: const {ActivityCategory.paid, ActivityCategory.sent},
+      );
+      final back = ActivityFilters.fromJson(f.toJson());
+      expect(back.from, DateTime(2026, 6, 7));
+      expect(back.until, DateTime(2026, 6, 8, 15));
+      expect(back.categories, {ActivityCategory.paid, ActivityCategory.sent});
+    });
+
+    test('a blob from before them decodes to no range, no categories', () {
+      final f = ActivityFilters.fromJson(const {'user': 'alice'});
+      expect(f.hasRange, isFalse);
+      expect(f.categories, isEmpty);
+    });
+
+    test('an unknown category name is dropped, not fatal', () {
+      final f = ActivityFilters.fromJson(const {
+        'cats': ['paid', 'teleported'],
+      });
+      expect(f.categories, {ActivityCategory.paid});
+    });
+  });
+
+  group('runs', () {
+    test('fold behind a toggle and open on demand', () async {
+      await emit([
+        _activity(id: 'a', userId: 'u', invoiceId: 'i', at: _at(0, hour: 13)),
+        _activity(id: 'b', userId: 'u', invoiceId: 'i', at: _at(0)),
+        _activity(id: 'c', userId: 'u', invoiceId: 'i', at: _at(0, hour: 11)),
+      ]);
+
+      expect(rowsOf(vm).map((a) => a.id), ['a']);
+      final toggle = vm.entries.whereType<ActivityRunToggle>().single;
+      expect(toggle.hidden, 2);
+      expect(toggle.expanded, isFalse);
+      // The header still counts every row in the run.
+      expect(vm.entries.whereType<ActivityDayHeader>().single.count, 3);
+      expect(vm.matchCount, 3);
+
+      vm.toggleRun(toggle.runId);
+      expect(rowsOf(vm).map((a) => a.id), ['a', 'b', 'c']);
+      expect(vm.entries.last, isA<ActivityRunToggle>());
+      expect((vm.entries.last as ActivityRunToggle).expanded, isTrue);
+
+      vm.toggleRun(toggle.runId);
+      expect(rowsOf(vm).map((a) => a.id), ['a']);
+    });
+  });
+
+  group('load more', () {
+    List<DashboardActivity> window(int n) => [
+      for (var i = 0; i < n; i++)
+        _activity(
+          id: 'w$i',
+          at: _at(0).subtract(Duration(minutes: i)),
+        ),
+    ];
+
+    test('a full window asks for 250 more', () async {
+      await emit(window(kActivityFeedRows));
+      expect(vm.canLoadMore, isTrue);
+
+      await vm.loadMore();
+      expect(repo.refreshActivitiesRows.last, kActivityFeedRows * 2);
+      expect(vm.canLoadMore, isTrue);
+      expect(vm.isLoadingMore, isFalse);
+    });
+
+    test('a short answer means there is nothing older', () async {
+      await emit(window(kActivityFeedRows));
+      repo.refreshActivitiesReturns = 300;
+      await vm.loadMore();
+      expect(vm.canLoadMore, isFalse);
+      expect(vm.atWindowMax, isFalse);
+    });
+
+    test('a window that is not full has nothing to load', () async {
+      await emit(window(10));
+      expect(vm.canLoadMore, isFalse);
+      final before = repo.refreshActivitiesCalls;
+      await vm.loadMore();
+      expect(repo.refreshActivitiesCalls, before);
+    });
+
+    test('the window stops growing at the max', () async {
+      await emit(window(kActivityWindowMax - 100));
+      await vm.loadMore();
+      // Asks for the remainder, not past the cap.
+      expect(repo.refreshActivitiesRows.last, kActivityWindowMax);
+
+      await emit(window(kActivityWindowMax));
+      expect(vm.canLoadMore, isFalse);
+      expect(vm.atWindowMax, isTrue);
+    });
+
+    test('a failure is reported, and a retry clears it', () async {
+      await emit(window(kActivityFeedRows));
+      repo.refreshActivitiesError = StateError('offline');
+      await vm.loadMore();
+      expect(vm.loadMoreFailed, isTrue);
+      expect(vm.canLoadMore, isTrue);
+
+      repo.refreshActivitiesError = null;
+      await vm.loadMore();
+      expect(vm.loadMoreFailed, isFalse);
     });
   });
 

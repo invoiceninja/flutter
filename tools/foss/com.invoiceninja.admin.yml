@@ -19,9 +19,9 @@ RepoType: git
 Repo: https://github.com/invoiceninja/flutter.git
 
 Builds:
-  - versionName: 5.1.16
-    versionCode: 1019
-    commit: v5.1.16
+  - versionName: 5.1.17
+    versionCode: 1020
+    commit: v5.1.17
     sudo:
       - apt-get update
       - apt-get install -y openjdk-21-jdk-headless
@@ -72,9 +72,9 @@ Builds:
       - mv $repo com.invoiceninja.admin
     ndk: 28.2.13676358
 
-  - versionName: 5.1.16
-    versionCode: 2019
-    commit: v5.1.16
+  - versionName: 5.1.17
+    versionCode: 2020
+    commit: v5.1.17
     sudo:
       - apt-get update
       - apt-get install -y openjdk-21-jdk-headless
@@ -125,9 +125,9 @@ Builds:
       - mv $repo com.invoiceninja.admin
     ndk: 28.2.13676358
 
-  - versionName: 5.1.16
-    versionCode: 4019
-    commit: v5.1.16
+  - versionName: 5.1.17
+    versionCode: 4020
+    commit: v5.1.17
     sudo:
       - apt-get update
       - apt-get install -y openjdk-21-jdk-headless
@@ -207,5 +207,5 @@ VercodeOperation:
   - '%c + 2000'
   - '%c + 4000'
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 5.1.16
-CurrentVersionCode: 4019
+CurrentVersion: 5.1.17
+CurrentVersionCode: 4020

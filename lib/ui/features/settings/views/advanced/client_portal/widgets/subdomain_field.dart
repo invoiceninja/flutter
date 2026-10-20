@@ -13,12 +13,10 @@ import 'package:admin/ui/features/settings/view_models/settings_draft_view_model
 /// top-level `Company.subdomain` field through `host.updateCompany`.
 ///
 /// As the user types, the field debounces 500 ms and probes the server
-/// (`POST /api/v1/check_subdomain`) for availability. The inline helper text
-/// flips between three states:
-///   * not yet checked / typing — shows the projected URL preview
-///     (`<subdomain>.invoicing.co/client/login`)
-///   * available — checkmark icon + "available"
-///   * taken — error icon + `subdomain_is_not_available`
+/// (`POST /api/v1/check_subdomain`) for availability, shown as the suffix
+/// icon (spinner / checkmark / error). Only a taken subdomain adds a line
+/// under the field (`subdomain_is_not_available`); the URL it projects is
+/// the Login URL row directly below, which a preview here only repeated.
 ///
 /// **Save is never blocked on a failing check.** The server is authoritative
 /// — if the user saves a taken subdomain, the PUT returns 422 and the
@@ -151,7 +149,6 @@ class _SubdomainFieldState extends State<SubdomainField> {
     final errorText = (errors != null && errors.isNotEmpty)
         ? errors.first
         : null;
-    final tokens = context.inTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -174,33 +171,20 @@ class _SubdomainFieldState extends State<SubdomainField> {
           onChanged: _onChanged,
           onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
         ),
-        if (_controller.text.isNotEmpty) ...[
+        if (_state == _AvailabilityState.taken) ...[
           SizedBox(height: InSpacing.xs),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: InSpacing.md(context)),
             child: Text(
-              _helperText(context, _controller.text),
+              context.tr('subdomain_is_not_available'),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: _state == _AvailabilityState.taken
-                    ? Theme.of(context).colorScheme.error
-                    : tokens.ink3,
+                color: Theme.of(context).colorScheme.error,
               ),
             ),
           ),
         ],
       ],
     );
-  }
-
-  String _helperText(BuildContext context, String value) {
-    switch (_state) {
-      case _AvailabilityState.taken:
-        return context.tr('subdomain_is_not_available');
-      case _AvailabilityState.available:
-      case _AvailabilityState.checking:
-      case _AvailabilityState.unknown:
-        return '$value.invoicing.co/client/login';
-    }
   }
 }
 

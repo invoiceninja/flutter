@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
+import 'package:admin/domain/client_portal_urls.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -44,7 +45,11 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
     final portalDomain = draft?.portalDomain ?? '';
     final subdomain = draft?.subdomain ?? '';
     final registrationHelp = context.trIfDefined('client_registration_help');
-    final registrationUrl = _registrationUrl(
+    final portalEnabled = host.settings.enableClientPortal ?? true;
+    final registrationUrls = clientPortalUrls(
+      page: ClientPortalPage.register,
+      isHosted: context.read<Services>().auth.session.value?.isHosted ?? false,
+      portalMode: draft?.portalMode ?? '',
       subdomain: subdomain,
       portalDomain: portalDomain,
       companyKey: companyKey,
@@ -65,13 +70,22 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
                   host.updateCompany((c) => c.copyWith(clientCanRegister: v)),
               contentPadding: EdgeInsets.zero,
             ),
-            if (canRegister && registrationUrl.isNotEmpty) ...[
-              SizedBox(height: InSpacing.md(context)),
+            if (canRegister && registrationUrls.primary.isNotEmpty) ...[
+              if (!portalEnabled) const PortalDisabledNotice(),
               PortalUrlDisplay(
                 label: context.tr('registration_url'),
-                url: registrationUrl,
+                url: registrationUrls.primary,
+                showQrCode: true,
               ),
             ],
+            if (canRegister && registrationUrls.withCompanyKey.isNotEmpty)
+              PortalUrlDisplay(
+                label: context.tr('registration_url_with_company_key'),
+                url: registrationUrls.withCompanyKey,
+                description: context.tr('portal_url_company_key_help'),
+                secondary: true,
+                showQrCode: true,
+              ),
           ],
         ),
         FormSection(
@@ -80,22 +94,5 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _registrationUrl({
-    required String subdomain,
-    required String portalDomain,
-    required String companyKey,
-  }) {
-    if (portalDomain.isNotEmpty && companyKey.isNotEmpty) {
-      final trimmed = portalDomain.endsWith('/')
-          ? portalDomain.substring(0, portalDomain.length - 1)
-          : portalDomain;
-      return '$trimmed/client/register/$companyKey';
-    }
-    if (subdomain.isNotEmpty) {
-      return 'https://$subdomain.invoicing.co/client/register';
-    }
-    return '';
   }
 }

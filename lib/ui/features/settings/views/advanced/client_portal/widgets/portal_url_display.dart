@@ -1,19 +1,36 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/qr_code_image.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// Read-only computed URL row. Used by the Client Portal Settings tab to
 /// surface the Login URL and by the Registration tab for the Registration
-/// URL. Renders the URL as selectable text with two trailing icon buttons:
-/// copy-to-clipboard and open-in-new-tab.
+/// URL. Renders the URL as selectable text with trailing icon buttons:
+/// copy-to-clipboard, open-in-new-tab, and (opt-in) a QR code.
 ///
 /// The URL is computed by the caller — this widget is purely presentation.
+/// Below this pane width the action buttons move under the URL.
+const double _kStackedBelow = 480;
+
 class PortalUrlDisplay extends StatelessWidget {
-  const PortalUrlDisplay({super.key, required this.label, required this.url});
+  const PortalUrlDisplay({
+    super.key,
+    required this.label,
+    required this.url,
+    this.description,
+    this.secondary = false,
+    this.showQrCode = false,
+  });
 
   /// Localized label shown above the URL (e.g. `t('login_url')`).
   final String label;
@@ -22,39 +39,101 @@ class PortalUrlDisplay extends StatelessWidget {
   /// vs self-hosted shape.
   final String url;
 
+  /// Optional localized sentence between the label and the URL — above it,
+  /// so it is read before the URL is copied.
+  final String? description;
+
+  /// A variant of the row above it (the self-hosted keyed URL): a smaller
+  /// label and a muted URL, so two rows don't read as a choice of equals.
+  final bool secondary;
+
+  /// Adds a button that shows the URL as a scannable, downloadable QR code —
+  /// what a user prints on a business card or a flyer.
+  final bool showQrCode;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
+    final description = this.description;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: theme.textTheme.labelLarge?.copyWith(color: tokens.ink2),
+          style:
+              (secondary
+                      ? theme.textTheme.labelMedium
+                      : theme.textTheme.labelLarge)
+                  ?.copyWith(color: tokens.ink2),
         ),
+        if (description != null) ...[
+          SizedBox(height: InSpacing.xs),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
+          ),
+        ],
         SizedBox(height: InSpacing.xs),
-        Row(
-          children: [
-            Icon(Icons.link, color: tokens.ink2),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(
-              child: SelectableText(
-                url,
-                style: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink),
+        // Three buttons beside a long URL leave a phone a column a few
+        // characters wide, so a narrow pane puts them under it instead.
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final link = Row(
+              children: [
+                Icon(Icons.link, color: secondary ? tokens.ink3 : tokens.ink2),
+                SizedBox(width: InSpacing.md(context)),
+                Expanded(
+                  child: SelectableText(
+                    url,
+                    style: secondary
+                        ? theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.ink2,
+                          )
+                        : theme.textTheme.bodyMedium?.copyWith(
+                            color: tokens.ink,
+                          ),
+                  ),
+                ),
+              ],
+            );
+            final actions = [
+              IconButton(
+                icon: const Icon(Icons.content_copy),
+                tooltip: context.tr('copy'),
+                onPressed: () => _copy(context),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.content_copy),
-              tooltip: context.tr('copy'),
-              onPressed: () => _copy(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.open_in_new),
-              tooltip: context.tr('open'),
-              onPressed: () => _open(context),
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.open_in_new),
+                tooltip: context.tr('open'),
+                onPressed: () => _open(context),
+              ),
+              if (showQrCode)
+                IconButton(
+                  icon: const Icon(Icons.qr_code),
+                  tooltip: context.tr('qr_code'),
+                  onPressed: () => _showQrCode(context),
+                ),
+            ];
+            if (constraints.maxWidth < _kStackedBelow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  link,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: actions,
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: link),
+                ...actions,
+              ],
+            );
+          },
         ),
       ],
     );
@@ -71,5 +150,138 @@ class PortalUrlDisplay extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     await openExternalUrl(context, url);
+  }
+
+  Future<void> _showQrCode(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (_) => PortalUrlQrDialog(label: label, url: url),
+  );
+}
+
+/// The QR code of a portal URL, with the URL under it and a Download that
+/// saves it as a PNG.
+class PortalUrlQrDialog extends StatelessWidget {
+  const PortalUrlQrDialog({super.key, required this.label, required this.url});
+
+  static const double _qrSize = 220;
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(label),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // AlertDialog measures its content's intrinsic size, and
+          // QrImageView lays out through a LayoutBuilder, which can't report
+          // one. A tight box answers for it: the code plus QrCodeImage's 8 px
+          // padding and 1 px border on each side.
+          SizedBox.square(
+            dimension: _qrSize + 2 * (InSpacing.sm + 1),
+            child: QrCodeImage(data: url, size: _qrSize),
+          ),
+          SizedBox(height: InSpacing.md(context)),
+          SelectableText(
+            url,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.inTheme.ink2,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          icon: const Icon(Icons.download),
+          label: Text(context.tr('download')),
+          onPressed: () => _download(context),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('close'),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _download(BuildContext context) async {
+    final save = bytesSaver(context);
+    final bytes = await portalQrPng(url);
+    await save(
+      fileName: '${sanitizeFileName('$label QR', fallback: 'qr_code')}.png',
+      bytes: bytes,
+    );
+  }
+}
+
+/// [url] as a print-ready PNG: black modules on an opaque white square with
+/// a four-module quiet zone. `QrPainter.toImageData` alone paints on
+/// transparency with no margin, which most scanners refuse once it sits on a
+/// dark or busy background.
+Future<Uint8List> portalQrPng(String url, {double size = 1024}) async {
+  final painter = QrPainter(
+    data: url,
+    version: QrVersions.auto,
+    gapless: true,
+    eyeStyle: const QrEyeStyle(
+      eyeShape: QrEyeShape.square,
+      color: Colors.black,
+    ),
+    dataModuleStyle: const QrDataModuleStyle(
+      dataModuleShape: QrDataModuleShape.square,
+      color: Colors.black,
+    ),
+  );
+  final quiet = size / 10;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder)
+    ..drawRect(
+      Rect.fromLTWH(0, 0, size + quiet * 2, size + quiet * 2),
+      Paint()..color = Colors.white,
+    )
+    ..translate(quiet, quiet);
+  painter.paint(canvas, Size.square(size));
+  final side = (size + quiet * 2).round();
+  final image = await recorder.endRecording().toImage(side, side);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return data!.buffer.asUint8List();
+}
+
+/// Says the portal is switched off, above the URLs that would otherwise look
+/// live: the server still lets a client log in, then shows every page as
+/// "disabled by the administrator".
+class PortalDisabledNotice extends StatelessWidget {
+  const PortalDisabledNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Container(
+      padding: EdgeInsets.all(InSpacing.md(context)),
+      decoration: BoxDecoration(
+        color: tokens.warningSoft,
+        borderRadius: BorderRadius.circular(InRadii.r2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: tokens.warning),
+          SizedBox(width: InSpacing.md(context)),
+          Expanded(
+            child: Text(
+              context.tr('client_portal_disabled_links'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.ink),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

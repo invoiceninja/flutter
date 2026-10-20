@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/portal_constants.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
+import 'package:admin/domain/client_portal_urls.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -89,7 +89,7 @@ class ClientPortalScreen extends StatelessWidget {
         OverridableSwitchField(
           label: context.tr('client_portal'),
           apiKey: 'enable_client_portal',
-          subtitle: context.trIfDefined('client_portal_help'),
+          subtitle: context.trIfDefined('enable_client_portal_help'),
         ),
         OverridableSwitchField(
           label: context.tr('dashboard'),
@@ -146,7 +146,6 @@ class ClientPortalScreen extends StatelessWidget {
           apiKey: 'client_portal_terms',
           maxLines: 6,
         ),
-        SizedBox(height: InSpacing.md(context)),
         OverridableTextField(
           label: context.tr('privacy_policy'),
           apiKey: 'client_portal_privacy_policy',
@@ -170,6 +169,7 @@ class ClientPortalScreen extends StatelessWidget {
             isHosted: isHosted,
             isEnterprisePlan: isEnterprisePlan,
             isFreePlan: isFreePlan,
+            portalEnabled: portalEnabled,
           ),
         // Master section is never dimmed — the user must always be able to
         // flip the portal back on.
@@ -187,12 +187,17 @@ class _PortalConfigurationSection extends StatefulWidget {
     required this.isHosted,
     required this.isEnterprisePlan,
     required this.isFreePlan,
+    required this.portalEnabled,
   });
 
   final Company? draft;
   final bool isHosted;
   final bool isEnterprisePlan;
   final bool isFreePlan;
+
+  /// `enable_client_portal` — off, the URLs below lead to a portal that
+  /// shows every page as disabled, so they carry a notice.
+  final bool portalEnabled;
 
   @override
   State<_PortalConfigurationSection> createState() =>
@@ -241,7 +246,8 @@ class _PortalConfigurationSectionState
         widget.isHosted &&
         portalMode == kClientPortalModeDomain &&
         widget.isEnterprisePlan;
-    final loginUrl = _loginUrl(
+    final loginUrls = clientPortalUrls(
+      page: ClientPortalPage.login,
       isHosted: widget.isHosted,
       portalMode: portalMode,
       subdomain: subdomain,
@@ -277,12 +283,8 @@ class _PortalConfigurationSectionState
                       host.updateCompany((c) => c.copyWith(portalMode: v ?? ''))
                 : null,
           ),
-          SizedBox(height: InSpacing.md(context)),
         ],
-        if (showSubdomain) ...[
-          SubdomainField(enabled: !widget.isFreePlan),
-          SizedBox(height: InSpacing.md(context)),
-        ],
+        if (showSubdomain) SubdomainField(enabled: !widget.isFreePlan),
         if (showDomain)
           TextField(
             controller: _domainController,
@@ -290,13 +292,16 @@ class _PortalConfigurationSectionState
             keyboardType: TextInputType.url,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: InputDecoration(labelText: context.tr('domain_url')),
+            decoration: InputDecoration(
+              labelText: context.tr('domain_url'),
+              helperText: context.tr('portal_domain_help'),
+              helperMaxLines: 2,
+            ),
             onChanged: (v) =>
                 host.updateCompany((c) => c.copyWith(portalDomain: v)),
             onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
           ),
-        if (showViewDocs) ...[
-          SizedBox(height: InSpacing.md(context)),
+        if (showViewDocs)
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
@@ -305,37 +310,24 @@ class _PortalConfigurationSectionState
               onPressed: () => _openDocs(context),
             ),
           ),
+        if (loginUrls.primary.isNotEmpty) ...[
+          if (!widget.portalEnabled) const PortalDisabledNotice(),
+          PortalUrlDisplay(
+            label: context.tr('login_url'),
+            url: loginUrls.primary,
+            showQrCode: true,
+          ),
         ],
-        if (loginUrl.isNotEmpty) ...[
-          SizedBox(height: InSpacing.lg(context)),
-          PortalUrlDisplay(label: context.tr('login_url'), url: loginUrl),
-        ],
+        if (loginUrls.withCompanyKey.isNotEmpty)
+          PortalUrlDisplay(
+            label: context.tr('login_url_with_company_key'),
+            url: loginUrls.withCompanyKey,
+            description: context.tr('portal_url_company_key_help'),
+            secondary: true,
+            showQrCode: true,
+          ),
       ],
     );
-  }
-
-  String _loginUrl({
-    required bool isHosted,
-    required String portalMode,
-    required String subdomain,
-    required String portalDomain,
-    required String companyKey,
-  }) {
-    if (!isHosted) {
-      if (portalDomain.isEmpty || companyKey.isEmpty) return '';
-      return '${_trimTrailingSlash(portalDomain)}/client/login/$companyKey';
-    }
-    if (portalMode == kClientPortalModeDomain) {
-      if (portalDomain.isEmpty) return '';
-      return '${_trimTrailingSlash(portalDomain)}/client/login';
-    }
-    if (subdomain.isEmpty) return '';
-    return 'https://$subdomain.invoicing.co/client/login';
-  }
-
-  String _trimTrailingSlash(String url) {
-    if (url.endsWith('/')) return url.substring(0, url.length - 1);
-    return url;
   }
 }
 

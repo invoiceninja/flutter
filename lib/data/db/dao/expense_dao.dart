@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
@@ -219,29 +220,28 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
         (e) =>
-            e.number.lower().like(needle) |
-            e.transactionReferenceLikePayload(needle) |
-            e.customValue1.lower().like(needle) |
-            e.customValue2.lower().like(needle) |
-            e.customValue3.lower().like(needle) |
-            e.customValue4.lower().like(needle) |
+            searchLike(e.number, search) |
+            e.transactionReferenceLikePayload(search) |
+            searchLike(e.customValue1, search) |
+            searchLike(e.customValue2, search) |
+            searchLike(e.customValue3, search) |
+            searchLike(e.customValue4, search) |
             clientNameMatchesFilter(
               clientId: e.clientId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ) |
             vendorNameMatchesFilter(
               vendorId: e.vendorId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ) |
             categoryNameMatchesFilter(
               categoryId: e.categoryId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ),
       );
     }
@@ -425,8 +425,8 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
 /// to denormalize all of them. Mirrors the technique used in
 /// `task_dao.dart` for description search.
 extension on Expenses {
-  Expression<bool> transactionReferenceLikePayload(String needle) =>
-      payloadJsonLike(needle, const [
+  Expression<bool> transactionReferenceLikePayload(String search) =>
+      payloadJsonLike(search, const [
         'transaction_reference',
         'public_notes',
         'private_notes',

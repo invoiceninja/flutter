@@ -148,6 +148,23 @@ import 'package:admin/utils/perf_trace.dart';
 
 final Logger _servicesLog = Logger('Services');
 
+/// Fill `contact_search` on the company's clients and vendors stored before
+/// v16 (`fillContactSearchColumn`). Until it has, the list search reads those
+/// rows' payloads instead — correct, only slower — so a failure here just
+/// waits for the next activation.
+Future<void> _fillContactSearch(AppDatabase db, String companyId) async {
+  try {
+    await db.clientDao.fillContactSearch(companyId: companyId);
+    await db.vendorDao.fillContactSearch(companyId: companyId);
+  } catch (e, s) {
+    _servicesLog.fine(
+      'contact search fill failed (non-fatal; retried on next activate)',
+      e,
+      s,
+    );
+  }
+}
+
 /// Top-level helper so the prefetch can fire from the
 /// `auth.onActiveCompanyChanged` wrap inside `Services.build` (where the
 /// `Services` instance doesn't exist yet) AND from the instance method
@@ -2176,6 +2193,8 @@ class Services implements SidebarBadgeContext {
       // detail header down. Memoized layers + non-blocking; the company row is
       // already loaded by the time this hook fires.
       unawaited(services.settings.resolved(companyId: companyId));
+      // Rows stored before v16 have no `contact_search` yet.
+      unawaited(_fillContactSearch(db, companyId));
       // Tags aren't bundled into the login envelope, so refresh them per
       // company here (both entity types). Fire-and-forget; the picker +
       // Settings → Tags read from the resulting `tags` Drift table. The

@@ -25,6 +25,7 @@ import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Source of truth for Vendor data. The UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -539,6 +540,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
       documents: a.documents == null
           ? const Value.absent()
           : Value(jsonEncode(a.documents!.map((d) => d.toJson()).toList())),
+      contactSearch: Value(
+        foldedSearchLines([
+          for (final c in a.contacts) ...[c.firstName, c.lastName, c.email],
+        ]),
+      ),
       payload: jsonEncode(a.toJson()),
     );
   }
@@ -573,6 +579,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
       isDeleted: Value(v.isDeleted),
       documents: Value(
         jsonEncode(v.documents.map((d) => d.toApi().toJson()).toList()),
+      ),
+      contactSearch: Value(
+        foldedSearchLines([
+          for (final c in v.contacts) ...[c.firstName, c.lastName, c.email],
+        ]),
       ),
       payload: jsonEncode(v.toApiJson(preserveTempId: true)),
     );

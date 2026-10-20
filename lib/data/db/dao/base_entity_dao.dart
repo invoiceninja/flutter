@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show protected, visibleForTesting;
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
@@ -289,26 +290,40 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     return clientId.equals('') | clientId.isNotInQuery(inactiveClientIds);
   }
 
-  /// Predicate matching rows whose client's name matches the free-text search
-  /// [needle] (already lowercased and `%`-wrapped). Mirrors the server's
-  /// `orWhereHas('client', name LIKE)` so the local search view surfaces the
-  /// same client-name hits the API returns — without this the UI (which reads
-  /// from Drift, not the API response) filters the server's client-name
-  /// matches back out, so e.g. searching invoices by client name shows nothing.
+  /// Predicate matching rows whose client's name matches the free-text
+  /// [search]. Mirrors the server's `orWhereHas('client', name LIKE)` so the
+  /// local search view surfaces the same client-name hits the API returns —
+  /// without this the UI (which reads from Drift, not the API response)
+  /// filters the server's client-name matches back out, so e.g. searching
+  /// invoices by client name shows nothing.
+  ///
+  /// [includeContacts] adds the server's `orWhereHas('client.contacts')`
+  /// (first name, last name, email; the client's `contact_search` adds the
+  /// phone) — set it exactly where that entity's `*Filters::filter` has it.
   ///
   /// OR this into `watchPage`'s search predicate on client-bearing DAOs. The
   /// `clients` subquery keeps the watch reactive to client renames.
   Expression<bool> clientNameMatchesFilter({
     required GeneratedColumn<String> clientId,
     required String companyId,
-    required String needle,
+    required String search,
+    bool includeContacts = false,
   }) {
     final clients = attachedDatabase.clients;
+    var match = searchLike(clients.name, search);
+    if (includeContacts) {
+      match =
+          match |
+          contactSearchMatches(
+            column: clients.contactSearch,
+            payload: clients.payload,
+            keys: kClientContactSearchKeys,
+            search: search,
+          );
+    }
     final matchingClientIds = selectOnly(clients)
       ..addColumns([clients.id])
-      ..where(
-        clients.companyId.equals(companyId) & clients.name.lower().like(needle),
-      );
+      ..where(clients.companyId.equals(companyId) & match);
     return clientId.isInQuery(matchingClientIds);
   }
 
@@ -318,13 +333,13 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   Expression<bool> vendorNameMatchesFilter({
     required GeneratedColumn<String> vendorId,
     required String companyId,
-    required String needle,
+    required String search,
   }) {
     final vendors = attachedDatabase.vendors;
     final matchingVendorIds = selectOnly(vendors)
       ..addColumns([vendors.id])
       ..where(
-        vendors.companyId.equals(companyId) & vendors.name.lower().like(needle),
+        vendors.companyId.equals(companyId) & searchLike(vendors.name, search),
       );
     return vendorId.isInQuery(matchingVendorIds);
   }
@@ -337,14 +352,14 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   Expression<bool> projectNameMatchesFilter({
     required GeneratedColumn<String> projectId,
     required String companyId,
-    required String needle,
+    required String search,
   }) {
     final projects = attachedDatabase.projects;
     final matchingProjectIds = selectOnly(projects)
       ..addColumns([projects.id])
       ..where(
         projects.companyId.equals(companyId) &
-            projects.name.lower().like(needle),
+            searchLike(projects.name, search),
       );
     return projectId.isInQuery(matchingProjectIds);
   }
@@ -358,14 +373,14 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   Expression<bool> categoryNameMatchesFilter({
     required GeneratedColumn<String> categoryId,
     required String companyId,
-    required String needle,
+    required String search,
   }) {
     final categories = attachedDatabase.expenseCategories;
     final matchingCategoryIds = selectOnly(categories)
       ..addColumns([categories.id])
       ..where(
         categories.companyId.equals(companyId) &
-            categories.name.lower().like(needle),
+            searchLike(categories.name, search),
       );
     return categoryId.isInQuery(matchingCategoryIds);
   }

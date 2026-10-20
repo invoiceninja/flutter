@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -48,9 +49,8 @@ class BankAccountDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
-        (b) => b.name.lower().like(needle) | b.provider.lower().like(needle),
+        (b) => searchLike(b.name, search) | searchLike(b.provider, search),
       );
     }
 

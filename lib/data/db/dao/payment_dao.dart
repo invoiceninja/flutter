@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
@@ -237,20 +238,20 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
         (p) =>
-            p.number.lower().like(needle) |
-            p.transactionReference.lower().like(needle) |
-            p.privateNotesLikePayload(needle) |
-            p.customValue1.lower().like(needle) |
-            p.customValue2.lower().like(needle) |
-            p.customValue3.lower().like(needle) |
-            p.customValue4.lower().like(needle) |
+            searchLike(p.number, search) |
+            searchLike(p.transactionReference, search) |
+            p.privateNotesLikePayload(search) |
+            searchLike(p.customValue1, search) |
+            searchLike(p.customValue2, search) |
+            searchLike(p.customValue3, search) |
+            searchLike(p.customValue4, search) |
             clientNameMatchesFilter(
               clientId: p.clientId,
               companyId: companyId,
-              needle: needle,
+              search: search,
+              includeContacts: true,
             ),
       );
     }
@@ -411,8 +412,8 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
 /// `EXISTS (SELECT 1 FROM json_each(paymentables) ...)` scans the
 /// allocations list without normalizing.
 extension on Payments {
-  Expression<bool> privateNotesLikePayload(String needle) =>
-      payloadJsonLike(needle, const ['private_notes']);
+  Expression<bool> privateNotesLikePayload(String search) =>
+      payloadJsonLike(search, const ['private_notes']);
 
   Expression<bool> paymentablesContainsInvoice(String invoiceId) {
     final escaped = invoiceId.replaceAll("'", "''");

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/models/value/date.dart';
@@ -174,19 +175,18 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
         (p) =>
-            p.name.lower().like(needle) |
-            p.number.lower().like(needle) |
-            p.customValue1.lower().like(needle) |
-            p.customValue2.lower().like(needle) |
-            p.customValue3.lower().like(needle) |
-            p.customValue4.lower().like(needle) |
+            searchLike(p.name, search) |
+            searchLike(p.number, search) |
+            searchLike(p.customValue1, search) |
+            searchLike(p.customValue2, search) |
+            searchLike(p.customValue3, search) |
+            searchLike(p.customValue4, search) |
             clientNameMatchesFilter(
               clientId: p.clientId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ),
       );
     }

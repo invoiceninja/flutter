@@ -208,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -321,6 +321,14 @@ class AppDatabase extends _$AppDatabase {
     // Nullable with no backfill: null means "not checked yet", and the
     // reconcile settles it the first time it acts on the row
     // (`ownsDeviceContact`, docs/contacts-sync.md).
+    //
+    // v15 → v16: add `clients.contact_search` and `vendors.contact_search` —
+    // every contact's searchable fields, already folded, so the list search
+    // matches a contact with an `instr` instead of parsing every payload
+    // (docs/local-search-matching.md). Nullable with no backfill here:
+    // folding is Dart work over every payload, too slow to hold the open for,
+    // so `fillContactSearch` fills the old rows after a company activates and
+    // the search reads a NULL row's payload until then.
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -399,6 +407,10 @@ class AppDatabase extends _$AppDatabase {
               deviceContactLinks,
               deviceContactLinks.rawContactId,
             );
+          }
+          if (from < 16) {
+            await _addColumnIfMissing(m, clients, clients.contactSearch);
+            await _addColumnIfMissing(m, vendors, vendors.contactSearch);
           }
           // Create any declared table this database is missing, before the
           // index pass below touches it.

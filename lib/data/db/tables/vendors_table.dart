@@ -37,6 +37,14 @@ class Vendors extends Table
   /// to walk the contacts array per render.
   TextColumn get displayName => text().named('display_name')();
 
+  /// Every contact's first name, last name and email run through `foldSearchText`, one value per
+  /// line — what the list search matches a contact against, with an `instr`
+  /// (`contactSearchMatches`). Written by both companion mappers; NULL on a
+  /// row stored before v16 until `fillContactSearch` reaches it, and the
+  /// search reads the payload's contacts for such a row instead
+  /// (docs/local-search-matching.md).
+  TextColumn get contactSearch => text().named('contact_search').nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 

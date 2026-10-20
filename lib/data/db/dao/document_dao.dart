@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/tables/document_records_table.dart';
@@ -110,8 +111,7 @@ class DocumentDao
     final q = select(documentRecords)
       ..where((d) => d.companyId.equals(companyId) & d.isDeleted.equals(false));
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
-      q.where((d) => d.name.lower().like(needle));
+      q.where((d) => searchLike(d.name, search));
     }
     q.orderBy([
       (d) => OrderingTerm(

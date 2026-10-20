@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -50,8 +51,7 @@ class CompanyGatewayDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
-      q.where((g) => g.label.lower().like(needle));
+      q.where((g) => searchLike(g.label, search));
     }
 
     q.orderBy([

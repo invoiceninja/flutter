@@ -398,6 +398,55 @@ void main() {
         expect(byId['v_named'], 'Acme Co');
       },
     );
+
+    // The list search matches a contact through `contact_search` — first
+    // name, last name and email (`VendorFilters`), folded, one per line.
+    test('a server copy and a local save write contact_search', () async {
+      final repo = VendorRepository(db: db, api: _FakeVendorsApi());
+      Future<String?> contactSearch() async =>
+          (await db.vendorDao.watchById(companyId: 'co', id: 'v1').first)!
+              .contactSearch;
+      Future<List<String>> found(String search) async => [
+        for (final r
+            in await db.vendorDao
+                .watchPage(
+                  companyId: 'co',
+                  offset: 0,
+                  limit: 50,
+                  search: search,
+                )
+                .first)
+          r.id,
+      ];
+
+      final api = VendorApi.fromJson({
+        'id': 'v1',
+        'name': 'Globex',
+        'updated_at': 1700000000,
+        'contacts': [
+          {
+            'id': 'vc_1',
+            'first_name': 'Jörg',
+            'last_name': 'Öztürk',
+            'email': 'J@x.de',
+            'phone': '+49 30',
+          },
+        ],
+      });
+      await repo.applyUpdateResponse(companyId: 'co', serverResponse: api);
+      expect(await contactSearch(), 'jorg\nozturk\nj@x.de');
+      expect(await found('OZTURK'), ['v1']);
+
+      final v = Vendor.fromApi(api);
+      await repo.save(
+        companyId: 'co',
+        vendor: v.copyWith(
+          contacts: [v.contacts.single.copyWith(lastName: 'Müller')],
+        ),
+      );
+      expect(await contactSearch(), 'jorg\nmuller\nj@x.de');
+      expect(await found('mü'), ['v1']);
+    });
   });
 
   // `ensureLoaded` is the lazy single-id hydrate that backs the

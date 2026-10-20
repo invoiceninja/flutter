@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -48,9 +49,8 @@ class ScheduleDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
-        (t) => t.name.lower().like(needle) | t.template.lower().like(needle),
+        (t) => searchLike(t.name, search) | searchLike(t.template, search),
       );
     }
 

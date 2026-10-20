@@ -17,6 +17,7 @@ import '../../generated/schema_v8.dart' as v8;
 import '../../generated/schema_v11.dart' as v11;
 import '../../generated/schema_v13.dart' as v13;
 import '../../generated/schema_v14.dart' as v14;
+import '../../generated/schema_v15.dart' as v15;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -61,6 +62,7 @@ void main() {
     13: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
     14: 'a97b89f9b596bee6c58211ad778d68913e8fb933579484795fd61c653242821d',
     15: 'a9e25a73d3eeb9b00cc83e412a95a8d20f1069609eccfbdd2e25ea2015e63269',
+    16: '9db7061812c29fe2531ca892746b82dd7f1171e87704c1cab2c08fd94054b66d',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -427,6 +429,57 @@ void main() {
       // Null is "not checked yet" — the reconcile settles it on its first
       // update or delete of the row (`ownsDeviceContact`).
       expect(link.rawContactId, isNull);
+      await db.close();
+    });
+
+    test('v15 → v16 adds contact_search as null, and a client found by a '
+        'contact before and after the fill', () async {
+      final schema = await verifier.schemaAt(15);
+      final old = v15.DatabaseAtV15(schema.newConnection());
+      final payload = jsonEncode({
+        'contacts': [
+          {'first_name': 'Jürgen', 'last_name': 'Öz', 'email': 'j@x.de'},
+        ],
+      });
+      await old.customStatement(
+        'INSERT INTO clients (id, company_id, updated_at, payload, name, '
+        "number, email, display_name, balance) VALUES ('c1', 'co', 1, ?, "
+        "'Acme', '', '', 'Acme', '0')",
+        [payload],
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      // A direct read: the fill notifies no watcher, by design.
+      Future<String?> contactSearch() async =>
+          (await db
+                      .customSelect(
+                        "SELECT contact_search AS v FROM clients WHERE id = 'c1'",
+                      )
+                      .getSingle())
+                  .data['v']
+              as String?;
+      Future<List<String>> found(String search) async => [
+        for (final r
+            in await db.clientDao
+                .watchPage(
+                  companyId: 'co',
+                  offset: 0,
+                  limit: 50,
+                  search: search,
+                )
+                .first)
+          r.id,
+      ];
+      expect(await contactSearch(), isNull);
+      // Read through the payload until the fill reaches the row.
+      expect(await found('jurgen'), ['c1']);
+
+      expect(await db.clientDao.fillContactSearch(companyId: 'co'), 1);
+      expect(await contactSearch(), 'jurgen\noz\nj@x.de');
+      expect(await found('jurgen'), ['c1']);
+      expect(await db.clientDao.fillContactSearch(companyId: 'co'), 0);
       await db.close();
     });
 

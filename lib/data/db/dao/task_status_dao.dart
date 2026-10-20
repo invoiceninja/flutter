@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -43,8 +44,7 @@ class TaskStatusDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
-      q.where((s) => s.name.lower().like(needle));
+      q.where((s) => searchLike(s.name, search));
     }
 
     q.orderBy([

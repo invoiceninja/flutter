@@ -406,6 +406,20 @@ void main() {
     }),
   );
 
+  // An unaccented word finding an accented name (`García`): the fold's slow
+  // path, on every row whose name or contact holds a non-ASCII letter.
+  benchmark(
+    'clients.list_search_folded',
+    title: 'Clients list — accent-folded search across 2,000',
+    batch: 2,
+    run: () => _query(() async {
+      final rows = await clients
+          .watchPage(companyId: _co, search: 'garcia')
+          .first;
+      return _expectSome(rows);
+    }),
+  );
+
   // Every list's first page on the sort the app opens it with — the class
   // of cost `invoices.list_first_page` was: a default order no index serves
   // makes SQLite sort the whole table to return fifty rows.

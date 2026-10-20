@@ -20,6 +20,9 @@
     "clients.list_search": {
       "budgetMs": 3.8
     },
+    "clients.list_search_folded": {
+      "budgetMs": 7.1
+    },
     "expenses.list_first_page": {
       "budgetMs": 5.9
     },

@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
@@ -93,12 +95,11 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
       }
     }
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
         (t) =>
-            t.description.lower().like(needle) |
-            t.participantName.lower().like(needle) |
-            t.participant.lower().like(needle),
+            searchLike(t.description, search) |
+            searchLike(t.participantName, search) |
+            searchLike(t.participant, search),
       );
     }
 

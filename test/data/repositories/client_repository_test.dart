@@ -214,6 +214,65 @@ void main() {
     int updatedAt = 1700000000,
   }) => ClientApi(id: id, name: name.isEmpty ? id : name, updatedAt: updatedAt);
 
+  // The list search matches a contact through `contact_search` (folded, one
+  // value per line); a mapper that wrote the wrong fields would break it for
+  // every synced row while the DAO tests, which leave it NULL, stay green.
+  group('contact_search', () {
+    Future<String?> contactSearchOf(String id) async =>
+        (await db.clientDao.watchById(companyId: 'co', id: id).first)!
+            .contactSearch;
+
+    Future<List<String>> found(String search) async => [
+      for (final r
+          in await db.clientDao
+              .watchPage(companyId: 'co', offset: 0, limit: 50, search: search)
+              .first)
+        r.id,
+    ];
+
+    const jurgen = ContactApi(
+      id: 'ct1',
+      firstName: 'Jürgen',
+      lastName: 'Schmidt',
+      email: 'JS@x.de',
+      phone: '+49 30',
+    );
+
+    test('a page load writes it from the contacts, folded', () async {
+      final (:repo, api: _) = makeRepo(
+        pages: {
+          1: [
+            apiClient('c1', name: 'Acme').copyWith(
+              contacts: const [
+                jurgen,
+                ContactApi(id: 'ct2', firstName: 'Ö'),
+              ],
+            ),
+          ],
+        },
+      );
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+
+      expect(
+        await contactSearchOf('c1'),
+        'jurgen\nschmidt\njs@x.de\n+49 30\no',
+      );
+      expect(await found('JÜRGEN'), ['c1']);
+      expect(await found('30'), ['c1']);
+    });
+
+    test('a local save writes it from the edited contacts', () async {
+      final (:repo, api: _) = makeRepo();
+      final c = Client.fromApi(
+        apiClient('c1', name: 'Acme').copyWith(contacts: const [jurgen]),
+      );
+      await repo.save(companyId: 'co', client: c);
+
+      expect(await contactSearchOf('c1'), 'jurgen\nschmidt\njs@x.de\n+49 30');
+      expect(await found('schmidt'), ['c1']);
+    });
+  });
+
   group('save', () {
     test(
       'writes locally with is_dirty=true and enqueues an update outbox row',

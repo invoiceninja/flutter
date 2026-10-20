@@ -7,6 +7,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/escape_observer.dart';
 import 'package:admin/ui/core/widgets/picker_dismissal.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Generic text-filter dropdown for long lists (countries, currencies,
 /// industries, …). Replaces `DropdownButtonFormField` where scrolling through
@@ -281,10 +282,10 @@ class _SearchableDropdownFieldState<T extends Object>
     // typed nothing, so there is no query — offer the whole list rather than
     // the one item they already have (invoiceninja/flutter#34).
     if (_isPristine(text)) return _idleOptions();
-    final q = text.trim().toLowerCase();
+    final q = foldSearchText(text.trim());
     if (q.isEmpty) return _idleOptions();
     return widget.items
-        .where((it) => widget.displayString(it).toLowerCase().contains(q))
+        .where((it) => foldSearchText(widget.displayString(it)).contains(q))
         .take(widget.maxResults)
         .toList(growable: false);
   }

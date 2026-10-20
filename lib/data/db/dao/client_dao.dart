@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/models/value/date.dart';
@@ -70,6 +71,16 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
       );
   }
 
+  /// Fill `contact_search` on this company's rows stored before v16 — see
+  /// [fillContactSearchColumn].
+  Future<int> fillContactSearch({required String companyId}) =>
+      fillContactSearchColumn(
+        this,
+        clients,
+        companyId: companyId,
+        keys: kClientContactSearchKeys,
+      );
+
   Stream<List<ClientRow>> watchPage({
     required String companyId,
     required int offset,
@@ -122,19 +133,30 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
       );
     }
 
+    // Mirrors `ClientFilters::filter`: the text is split on spaces and every
+    // word must match one of the client's fields or one of its contacts'.
+    // Anything narrower hides a row the server found ("Hans Müller", or a
+    // contact's name) once the page is re-read from Drift.
     if (search != null && search.isNotEmpty) {
-      final pattern = '%$search%';
-      q.where(
-        (c) =>
-            c.name.like(pattern) |
-            c.number.like(pattern) |
-            c.email.like(pattern) |
-            c.idNumber.like(pattern) |
-            c.customValue1.like(pattern) |
-            c.customValue2.like(pattern) |
-            c.customValue3.like(pattern) |
-            c.customValue4.like(pattern),
-      );
+      for (final word in search.split(' ').where((w) => w.isNotEmpty)) {
+        q.where(
+          (c) =>
+              searchLike(c.name, word) |
+              searchLike(c.number, word) |
+              searchLike(c.email, word) |
+              searchLike(c.idNumber, word) |
+              searchLike(c.customValue1, word) |
+              searchLike(c.customValue2, word) |
+              searchLike(c.customValue3, word) |
+              searchLike(c.customValue4, word) |
+              contactSearchMatches(
+                column: c.contactSearch,
+                payload: c.payload,
+                keys: kClientContactSearchKeys,
+                search: word,
+              ),
+        );
+      }
     }
 
     // Mirrors the server's `name=value` filter (SQL LIKE %value%) so the
@@ -142,7 +164,7 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
     // this, the locally cached clients from prior fetches bleed through
     // even when the chip is applied.
     if (nameContains != null && nameContains.isNotEmpty) {
-      q.where((c) => c.name.like('%$nameContains%'));
+      q.where((c) => searchLike(c.name, nameContains));
     }
 
     // Numeric balance comparison, mirroring the server's
@@ -208,7 +230,7 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
     // Server `vat_number` is substring LIKE — mirror with LIKE. `number` is
     // exact-match server-side, so mirror with an exact predicate (no LIKE).
     if (vatNumberContains != null && vatNumberContains.isNotEmpty) {
-      q.where((c) => c.vatNumber.like('%$vatNumberContains%'));
+      q.where((c) => searchLike(c.vatNumber, vatNumberContains));
     }
     if (numberExact != null && numberExact.isNotEmpty) {
       q.where((c) => c.number.equals(numberExact));

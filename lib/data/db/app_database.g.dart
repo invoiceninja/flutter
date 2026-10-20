@@ -317,6 +317,17 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, ClientRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _contactSearchMeta = const VerificationMeta(
+    'contactSearch',
+  );
+  @override
+  late final GeneratedColumn<String> contactSearch = GeneratedColumn<String>(
+    'contact_search',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -347,6 +358,7 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, ClientRow> {
     idNumber,
     assignedUserId,
     locations,
+    contactSearch,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -567,6 +579,15 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, ClientRow> {
         locations.isAcceptableOrUnknown(data['locations']!, _locationsMeta),
       );
     }
+    if (data.containsKey('contact_search')) {
+      context.handle(
+        _contactSearchMeta,
+        contactSearch.isAcceptableOrUnknown(
+          data['contact_search']!,
+          _contactSearchMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -688,6 +709,10 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, ClientRow> {
         DriftSqlType.string,
         data['${effectivePrefix}locations'],
       ),
+      contactSearch: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact_search'],
+      ),
     );
   }
 
@@ -747,6 +772,14 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
   /// `documents`) they need their own column to survive a local
   /// `repo.save` round-trip.
   final String? locations;
+
+  /// Every contact's first name, last name, email and phone run through `foldSearchText`, one value per
+  /// line — what the list search matches a contact against, with an `instr`
+  /// (`contactSearchMatches`). Written by both companion mappers; NULL on a
+  /// row stored before v16 until `fillContactSearch` reaches it, and the
+  /// search reads the payload's contacts for such a row instead
+  /// (docs/local-search-matching.md).
+  final String? contactSearch;
   const ClientRow({
     required this.id,
     required this.companyId,
@@ -776,6 +809,7 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
     this.idNumber,
     this.assignedUserId,
     this.locations,
+    this.contactSearch,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -831,6 +865,9 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
     }
     if (!nullToAbsent || locations != null) {
       map['locations'] = Variable<String>(locations);
+    }
+    if (!nullToAbsent || contactSearch != null) {
+      map['contact_search'] = Variable<String>(contactSearch);
     }
     return map;
   }
@@ -889,6 +926,9 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
       locations: locations == null && nullToAbsent
           ? const Value.absent()
           : Value(locations),
+      contactSearch: contactSearch == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contactSearch),
     );
   }
 
@@ -926,6 +966,7 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
       idNumber: serializer.fromJson<String?>(json['idNumber']),
       assignedUserId: serializer.fromJson<String?>(json['assignedUserId']),
       locations: serializer.fromJson<String?>(json['locations']),
+      contactSearch: serializer.fromJson<String?>(json['contactSearch']),
     );
   }
   @override
@@ -960,6 +1001,7 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
       'idNumber': serializer.toJson<String?>(idNumber),
       'assignedUserId': serializer.toJson<String?>(assignedUserId),
       'locations': serializer.toJson<String?>(locations),
+      'contactSearch': serializer.toJson<String?>(contactSearch),
     };
   }
 
@@ -992,6 +1034,7 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
     Value<String?> idNumber = const Value.absent(),
     Value<String?> assignedUserId = const Value.absent(),
     Value<String?> locations = const Value.absent(),
+    Value<String?> contactSearch = const Value.absent(),
   }) => ClientRow(
     id: id ?? this.id,
     companyId: companyId ?? this.companyId,
@@ -1027,6 +1070,9 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
         ? assignedUserId.value
         : this.assignedUserId,
     locations: locations.present ? locations.value : this.locations,
+    contactSearch: contactSearch.present
+        ? contactSearch.value
+        : this.contactSearch,
   );
   ClientRow copyWithCompanion(ClientsCompanion data) {
     return ClientRow(
@@ -1078,6 +1124,9 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
           ? data.assignedUserId.value
           : this.assignedUserId,
       locations: data.locations.present ? data.locations.value : this.locations,
+      contactSearch: data.contactSearch.present
+          ? data.contactSearch.value
+          : this.contactSearch,
     );
   }
 
@@ -1111,7 +1160,8 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
           ..write('groupSettingsId: $groupSettingsId, ')
           ..write('idNumber: $idNumber, ')
           ..write('assignedUserId: $assignedUserId, ')
-          ..write('locations: $locations')
+          ..write('locations: $locations, ')
+          ..write('contactSearch: $contactSearch')
           ..write(')'))
         .toString();
   }
@@ -1146,6 +1196,7 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
     idNumber,
     assignedUserId,
     locations,
+    contactSearch,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -1178,7 +1229,8 @@ class ClientRow extends DataClass implements Insertable<ClientRow> {
           other.groupSettingsId == this.groupSettingsId &&
           other.idNumber == this.idNumber &&
           other.assignedUserId == this.assignedUserId &&
-          other.locations == this.locations);
+          other.locations == this.locations &&
+          other.contactSearch == this.contactSearch);
 }
 
 class ClientsCompanion extends UpdateCompanion<ClientRow> {
@@ -1210,6 +1262,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
   final Value<String?> idNumber;
   final Value<String?> assignedUserId;
   final Value<String?> locations;
+  final Value<String?> contactSearch;
   final Value<int> rowid;
   const ClientsCompanion({
     this.id = const Value.absent(),
@@ -1240,6 +1293,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
     this.idNumber = const Value.absent(),
     this.assignedUserId = const Value.absent(),
     this.locations = const Value.absent(),
+    this.contactSearch = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ClientsCompanion.insert({
@@ -1271,6 +1325,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
     this.idNumber = const Value.absent(),
     this.assignedUserId = const Value.absent(),
     this.locations = const Value.absent(),
+    this.contactSearch = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        companyId = Value(companyId),
@@ -1310,6 +1365,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
     Expression<String>? idNumber,
     Expression<String>? assignedUserId,
     Expression<String>? locations,
+    Expression<String>? contactSearch,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1341,6 +1397,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
       if (idNumber != null) 'id_number': idNumber,
       if (assignedUserId != null) 'assigned_user_id': assignedUserId,
       if (locations != null) 'locations': locations,
+      if (contactSearch != null) 'contact_search': contactSearch,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1374,6 +1431,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
     Value<String?>? idNumber,
     Value<String?>? assignedUserId,
     Value<String?>? locations,
+    Value<String?>? contactSearch,
     Value<int>? rowid,
   }) {
     return ClientsCompanion(
@@ -1405,6 +1463,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
       idNumber: idNumber ?? this.idNumber,
       assignedUserId: assignedUserId ?? this.assignedUserId,
       locations: locations ?? this.locations,
+      contactSearch: contactSearch ?? this.contactSearch,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1496,6 +1555,9 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
     if (locations.present) {
       map['locations'] = Variable<String>(locations.value);
     }
+    if (contactSearch.present) {
+      map['contact_search'] = Variable<String>(contactSearch.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1533,6 +1595,7 @@ class ClientsCompanion extends UpdateCompanion<ClientRow> {
           ..write('idNumber: $idNumber, ')
           ..write('assignedUserId: $assignedUserId, ')
           ..write('locations: $locations, ')
+          ..write('contactSearch: $contactSearch, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -23389,6 +23452,17 @@ class $VendorsTable extends Vendors with TableInfo<$VendorsTable, VendorRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _contactSearchMeta = const VerificationMeta(
+    'contactSearch',
+  );
+  @override
+  late final GeneratedColumn<String> contactSearch = GeneratedColumn<String>(
+    'contact_search',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -23414,6 +23488,7 @@ class $VendorsTable extends Vendors with TableInfo<$VendorsTable, VendorRow> {
     currencyId,
     phone,
     displayName,
+    contactSearch,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -23603,6 +23678,15 @@ class $VendorsTable extends Vendors with TableInfo<$VendorsTable, VendorRow> {
     } else if (isInserting) {
       context.missing(_displayNameMeta);
     }
+    if (data.containsKey('contact_search')) {
+      context.handle(
+        _contactSearchMeta,
+        contactSearch.isAcceptableOrUnknown(
+          data['contact_search']!,
+          _contactSearchMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -23704,6 +23788,10 @@ class $VendorsTable extends Vendors with TableInfo<$VendorsTable, VendorRow> {
         DriftSqlType.string,
         data['${effectivePrefix}display_name'],
       )!,
+      contactSearch: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact_search'],
+      ),
     );
   }
 
@@ -23742,6 +23830,14 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
   /// in `_apiToCompanion` / `_domainToCompanion` so list rows don't have
   /// to walk the contacts array per render.
   final String displayName;
+
+  /// Every contact's first name, last name and email run through `foldSearchText`, one value per
+  /// line — what the list search matches a contact against, with an `instr`
+  /// (`contactSearchMatches`). Written by both companion mappers; NULL on a
+  /// row stored before v16 until `fillContactSearch` reaches it, and the
+  /// search reads the payload's contacts for such a row instead
+  /// (docs/local-search-matching.md).
+  final String? contactSearch;
   const VendorRow({
     required this.id,
     required this.companyId,
@@ -23766,6 +23862,7 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
     required this.currencyId,
     required this.phone,
     required this.displayName,
+    this.contactSearch,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -23799,6 +23896,9 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
     map['currency_id'] = Variable<String>(currencyId);
     map['phone'] = Variable<String>(phone);
     map['display_name'] = Variable<String>(displayName);
+    if (!nullToAbsent || contactSearch != null) {
+      map['contact_search'] = Variable<String>(contactSearch);
+    }
     return map;
   }
 
@@ -23833,6 +23933,9 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
       currencyId: Value(currencyId),
       phone: Value(phone),
       displayName: Value(displayName),
+      contactSearch: contactSearch == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contactSearch),
     );
   }
 
@@ -23865,6 +23968,7 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
       currencyId: serializer.fromJson<String>(json['currencyId']),
       phone: serializer.fromJson<String>(json['phone']),
       displayName: serializer.fromJson<String>(json['displayName']),
+      contactSearch: serializer.fromJson<String?>(json['contactSearch']),
     );
   }
   @override
@@ -23894,6 +23998,7 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
       'currencyId': serializer.toJson<String>(currencyId),
       'phone': serializer.toJson<String>(phone),
       'displayName': serializer.toJson<String>(displayName),
+      'contactSearch': serializer.toJson<String?>(contactSearch),
     };
   }
 
@@ -23921,6 +24026,7 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
     String? currencyId,
     String? phone,
     String? displayName,
+    Value<String?> contactSearch = const Value.absent(),
   }) => VendorRow(
     id: id ?? this.id,
     companyId: companyId ?? this.companyId,
@@ -23945,6 +24051,9 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
     currencyId: currencyId ?? this.currencyId,
     phone: phone ?? this.phone,
     displayName: displayName ?? this.displayName,
+    contactSearch: contactSearch.present
+        ? contactSearch.value
+        : this.contactSearch,
   );
   VendorRow copyWithCompanion(VendorsCompanion data) {
     return VendorRow(
@@ -23985,6 +24094,9 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
       displayName: data.displayName.present
           ? data.displayName.value
           : this.displayName,
+      contactSearch: data.contactSearch.present
+          ? data.contactSearch.value
+          : this.contactSearch,
     );
   }
 
@@ -24013,7 +24125,8 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
           ..write('countryId: $countryId, ')
           ..write('currencyId: $currencyId, ')
           ..write('phone: $phone, ')
-          ..write('displayName: $displayName')
+          ..write('displayName: $displayName, ')
+          ..write('contactSearch: $contactSearch')
           ..write(')'))
         .toString();
   }
@@ -24043,6 +24156,7 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
     currencyId,
     phone,
     displayName,
+    contactSearch,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -24070,7 +24184,8 @@ class VendorRow extends DataClass implements Insertable<VendorRow> {
           other.countryId == this.countryId &&
           other.currencyId == this.currencyId &&
           other.phone == this.phone &&
-          other.displayName == this.displayName);
+          other.displayName == this.displayName &&
+          other.contactSearch == this.contactSearch);
 }
 
 class VendorsCompanion extends UpdateCompanion<VendorRow> {
@@ -24097,6 +24212,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
   final Value<String> currencyId;
   final Value<String> phone;
   final Value<String> displayName;
+  final Value<String?> contactSearch;
   final Value<int> rowid;
   const VendorsCompanion({
     this.id = const Value.absent(),
@@ -24122,6 +24238,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
     this.currencyId = const Value.absent(),
     this.phone = const Value.absent(),
     this.displayName = const Value.absent(),
+    this.contactSearch = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   VendorsCompanion.insert({
@@ -24148,6 +24265,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
     required String currencyId,
     required String phone,
     required String displayName,
+    this.contactSearch = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        companyId = Value(companyId),
@@ -24186,6 +24304,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
     Expression<String>? currencyId,
     Expression<String>? phone,
     Expression<String>? displayName,
+    Expression<String>? contactSearch,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -24212,6 +24331,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
       if (currencyId != null) 'currency_id': currencyId,
       if (phone != null) 'phone': phone,
       if (displayName != null) 'display_name': displayName,
+      if (contactSearch != null) 'contact_search': contactSearch,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -24240,6 +24360,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
     Value<String>? currencyId,
     Value<String>? phone,
     Value<String>? displayName,
+    Value<String?>? contactSearch,
     Value<int>? rowid,
   }) {
     return VendorsCompanion(
@@ -24266,6 +24387,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
       currencyId: currencyId ?? this.currencyId,
       phone: phone ?? this.phone,
       displayName: displayName ?? this.displayName,
+      contactSearch: contactSearch ?? this.contactSearch,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -24342,6 +24464,9 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
     if (displayName.present) {
       map['display_name'] = Variable<String>(displayName.value);
     }
+    if (contactSearch.present) {
+      map['contact_search'] = Variable<String>(contactSearch.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -24374,6 +24499,7 @@ class VendorsCompanion extends UpdateCompanion<VendorRow> {
           ..write('currencyId: $currencyId, ')
           ..write('phone: $phone, ')
           ..write('displayName: $displayName, ')
+          ..write('contactSearch: $contactSearch, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -46673,6 +46799,7 @@ typedef $$ClientsTableCreateCompanionBuilder =
       Value<String?> idNumber,
       Value<String?> assignedUserId,
       Value<String?> locations,
+      Value<String?> contactSearch,
       Value<int> rowid,
     });
 typedef $$ClientsTableUpdateCompanionBuilder =
@@ -46705,6 +46832,7 @@ typedef $$ClientsTableUpdateCompanionBuilder =
       Value<String?> idNumber,
       Value<String?> assignedUserId,
       Value<String?> locations,
+      Value<String?> contactSearch,
       Value<int> rowid,
     });
 
@@ -46854,6 +46982,11 @@ class $$ClientsTableFilterComposer
 
   ColumnFilters<String> get locations => $composableBuilder(
     column: $table.locations,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -47006,6 +47139,11 @@ class $$ClientsTableOrderingComposer
     column: $table.locations,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ClientsTableAnnotationComposer
@@ -47120,6 +47258,11 @@ class $$ClientsTableAnnotationComposer
 
   GeneratedColumn<String> get locations =>
       $composableBuilder(column: $table.locations, builder: (column) => column);
+
+  GeneratedColumn<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
+    builder: (column) => column,
+  );
 }
 
 class $$ClientsTableTableManager
@@ -47178,6 +47321,7 @@ class $$ClientsTableTableManager
                 Value<String?> idNumber = const Value.absent(),
                 Value<String?> assignedUserId = const Value.absent(),
                 Value<String?> locations = const Value.absent(),
+                Value<String?> contactSearch = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClientsCompanion(
                 id: id,
@@ -47208,6 +47352,7 @@ class $$ClientsTableTableManager
                 idNumber: idNumber,
                 assignedUserId: assignedUserId,
                 locations: locations,
+                contactSearch: contactSearch,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -47240,6 +47385,7 @@ class $$ClientsTableTableManager
                 Value<String?> idNumber = const Value.absent(),
                 Value<String?> assignedUserId = const Value.absent(),
                 Value<String?> locations = const Value.absent(),
+                Value<String?> contactSearch = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClientsCompanion.insert(
                 id: id,
@@ -47270,6 +47416,7 @@ class $$ClientsTableTableManager
                 idNumber: idNumber,
                 assignedUserId: assignedUserId,
                 locations: locations,
+                contactSearch: contactSearch,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -57016,6 +57163,7 @@ typedef $$VendorsTableCreateCompanionBuilder =
       required String currencyId,
       required String phone,
       required String displayName,
+      Value<String?> contactSearch,
       Value<int> rowid,
     });
 typedef $$VendorsTableUpdateCompanionBuilder =
@@ -57043,6 +57191,7 @@ typedef $$VendorsTableUpdateCompanionBuilder =
       Value<String> currencyId,
       Value<String> phone,
       Value<String> displayName,
+      Value<String?> contactSearch,
       Value<int> rowid,
     });
 
@@ -57167,6 +57316,11 @@ class $$VendorsTableFilterComposer
 
   ColumnFilters<String> get displayName => $composableBuilder(
     column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -57294,6 +57448,11 @@ class $$VendorsTableOrderingComposer
     column: $table.displayName,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$VendorsTableAnnotationComposer
@@ -57387,6 +57546,11 @@ class $$VendorsTableAnnotationComposer
     column: $table.displayName,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get contactSearch => $composableBuilder(
+    column: $table.contactSearch,
+    builder: (column) => column,
+  );
 }
 
 class $$VendorsTableTableManager
@@ -57440,6 +57604,7 @@ class $$VendorsTableTableManager
                 Value<String> currencyId = const Value.absent(),
                 Value<String> phone = const Value.absent(),
                 Value<String> displayName = const Value.absent(),
+                Value<String?> contactSearch = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => VendorsCompanion(
                 id: id,
@@ -57465,6 +57630,7 @@ class $$VendorsTableTableManager
                 currencyId: currencyId,
                 phone: phone,
                 displayName: displayName,
+                contactSearch: contactSearch,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -57492,6 +57658,7 @@ class $$VendorsTableTableManager
                 required String currencyId,
                 required String phone,
                 required String displayName,
+                Value<String?> contactSearch = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => VendorsCompanion.insert(
                 id: id,
@@ -57517,6 +57684,7 @@ class $$VendorsTableTableManager
                 currencyId: currencyId,
                 phone: phone,
                 displayName: displayName,
+                contactSearch: contactSearch,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

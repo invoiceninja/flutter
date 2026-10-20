@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -58,8 +59,7 @@ class GroupSettingDao
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
-      q.where((g) => g.name.lower().like(needle));
+      q.where((g) => searchLike(g.name, search));
     }
 
     q.orderBy([

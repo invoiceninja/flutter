@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/db/app_database.dart';
@@ -100,12 +101,11 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
     }
 
     if (search != null && search.isNotEmpty) {
-      final pattern = '%$search%';
       q.where(
         (u) =>
-            u.firstName.like(pattern) |
-            u.lastName.like(pattern) |
-            u.email.like(pattern),
+            searchLike(u.firstName, search) |
+            searchLike(u.lastName, search) |
+            searchLike(u.email, search),
       );
     }
 

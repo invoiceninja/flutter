@@ -18,6 +18,7 @@ import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/number_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 // `IsFilterKey` is re-exported via `filter_keys_common.dart` (above) so
 // every entity list (clients, products, …) can register the same instance
@@ -250,14 +251,14 @@ class CountryFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     final all = statics.countries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
-                c.name.toLowerCase().contains(q) ||
+                foldSearchText(c.name).contains(q) ||
                 c.iso2.toLowerCase() == q ||
                 c.iso3.toLowerCase() == q,
           );
@@ -385,11 +386,11 @@ class GroupFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     return groups.watchAll(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((g) => g.name.toLowerCase().contains(q));
+          : all.where((g) => foldSearchText(g.name).contains(q));
       return [
         for (final g in filtered)
           FilterValueSuggestion(
@@ -440,12 +441,12 @@ class IndustryFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     final all = statics.industries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((i) => i.name.toLowerCase().contains(q));
+        : all.where((i) => foldSearchText(i.name).contains(q));
     return Stream.value([
       for (final i in filtered)
         FilterValueSuggestion(rawValue: i.id, displayLabel: i.name),
@@ -508,12 +509,12 @@ class SizeFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     final all = statics.sizes.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((s) => s.name.toLowerCase().contains(q));
+        : all.where((s) => foldSearchText(s.name).contains(q));
     return Stream.value([
       for (final s in filtered)
         FilterValueSuggestion(rawValue: s.id, displayLabel: s.name),
@@ -597,11 +598,11 @@ class AssignedFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     return users.watchAllForPicker(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((u) => u.displayName.toLowerCase().contains(q));
+          : all.where((u) => foldSearchText(u.displayName).contains(q));
       return [
         for (final u in filtered)
           FilterValueSuggestion(
@@ -962,15 +963,15 @@ class CurrencyFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     final all = statics.currencies.values.toList()
       ..sort((a, b) => a.code.compareTo(b.code));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
-                c.code.toLowerCase().contains(q) ||
-                c.name.toLowerCase().contains(q),
+                foldSearchText(c.code).contains(q) ||
+                foldSearchText(c.name).contains(q),
           );
     return Stream.value([
       for (final c in filtered)
@@ -1045,12 +1046,12 @@ class LanguageFilterKey extends MembershipFilterKey {
     BuildContext context,
     String query,
   ) {
-    final q = query.trim().toLowerCase();
+    final q = foldSearchText(query.trim());
     final all = statics.languages.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((l) => l.name.toLowerCase().contains(q));
+        : all.where((l) => foldSearchText(l.name).contains(q));
     return Stream.value([
       for (final l in filtered)
         FilterValueSuggestion(rawValue: l.id, displayLabel: l.name),

@@ -28,6 +28,7 @@ import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/clients/vat_check.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Source of truth for Client data. The UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -834,6 +835,16 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       // not `?include=`-gated like documents), so always write the
       // authoritative array — no missing-key guard needed.
       locations: Value(jsonEncode(a.locations.map((l) => l.toJson()).toList())),
+      contactSearch: Value(
+        foldedSearchLines([
+          for (final c in a.contacts) ...[
+            c.firstName,
+            c.lastName,
+            c.email,
+            c.phone,
+          ],
+        ]),
+      ),
       payload: jsonEncode(a.toJson()),
     );
   }
@@ -880,6 +891,16 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       // deliberately omits locations from the outbound wire.
       locations: Value(
         jsonEncode(c.locations.map((l) => l.toApiJson()).toList()),
+      ),
+      contactSearch: Value(
+        foldedSearchLines([
+          for (final ct in c.contacts) ...[
+            ct.firstName,
+            ct.lastName,
+            ct.email,
+            ct.phone,
+          ],
+        ]),
       ),
       // `gateway_tokens` are read-only and deliberately omitted from
       // `toApiJson` (kept off the outbound wire). Inject them into the stored

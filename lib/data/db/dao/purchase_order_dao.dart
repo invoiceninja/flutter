@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
@@ -187,20 +188,19 @@ class PurchaseOrderDao
       );
     }
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
         (e) =>
-            e.number.lower().like(needle) |
-            e.poNumber.lower().like(needle) |
-            e.notesLikePayload(needle) |
-            e.customValue1.lower().like(needle) |
-            e.customValue2.lower().like(needle) |
-            e.customValue3.lower().like(needle) |
-            e.customValue4.lower().like(needle) |
+            searchLike(e.number, search) |
+            searchLike(e.poNumber, search) |
+            e.notesLikePayload(search) |
+            searchLike(e.customValue1, search) |
+            searchLike(e.customValue2, search) |
+            searchLike(e.customValue3, search) |
+            searchLike(e.customValue4, search) |
             vendorNameMatchesFilter(
               vendorId: e.vendorId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ),
       );
     }
@@ -293,6 +293,6 @@ class PurchaseOrderDao
 }
 
 extension on PurchaseOrders {
-  Expression<bool> notesLikePayload(String needle) =>
-      payloadJsonLike(needle, const ['public_notes', 'private_notes']);
+  Expression<bool> notesLikePayload(String search) =>
+      payloadJsonLike(search, const ['public_notes', 'private_notes']);
 }

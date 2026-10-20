@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -45,10 +46,8 @@ class WebhookDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       q.where(
-        (w) =>
-            w.targetUrl.lower().like(needle) | w.eventId.lower().like(needle),
+        (w) => searchLike(w.targetUrl, search) | searchLike(w.eventId, search),
       );
     }
 

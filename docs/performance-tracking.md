@@ -45,7 +45,7 @@ Four files, by layer. Every id is `<area>.<what>`; the title is what a person re
 | | `invoices.list_first_page_cold` | Page 1 with nothing decoded yet — the query plus fifty payload decodes (`jsonDecode` → `fromJson` → `fromApi`), what a first look at a page costs |
 | | `invoices.page_write` | Storing a page of 50 from the server — DTO to companion to dirty-preserving upsert |
 | | `invoices.save_edit` | An offline save: the row and its outbox entry, in one transaction |
-| | `invoices.badge_counts`, `clients.list_first_page` / `_search` | The sidebar counts; the client list over 2,000 rows |
+| | `invoices.badge_counts`, `clients.list_first_page` / `_search` / `_search_folded` | The sidebar counts; the client list over 2,000 rows — page 1, a search, and an unaccented search finding accented names (`garcia` → `García`, docs/local-search-matching.md) |
 | | `expenses.` / `payments.` / `products.` / `transactions.list_first_page` | Each list's first page of 5,000, on the sort the app opens it with (see § Every list's default sort, measured) |
 | | `sync.refresh_delta_apply` | Storing a `/refresh` delta of 200 changed invoices, upsert-only |
 | | `sync.outbox_drain` | Back online with 25 offline edits: the real sync engine sends them to a server that answers each, and applies the replies. Each batch is checked landed — no edit dead, no invoice left dirty — before the next |

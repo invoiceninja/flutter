@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +24,7 @@ void main() {
     required String name,
     String idNumber = '',
     String customValue1 = '',
+    String payload = '{}',
   }) => ClientsCompanion.insert(
     id: id,
     companyId: 'co',
@@ -31,7 +34,7 @@ void main() {
     displayName: name,
     balance: '0',
     updatedAt: 1,
-    payload: '{}',
+    payload: payload,
     idNumber: Value(idNumber),
     customValue1: Value(customValue1),
   );
@@ -41,6 +44,7 @@ void main() {
     required String name,
     String idNumber = '',
     String customValue1 = '',
+    String payload = '{}',
   }) => VendorsCompanion.insert(
     id: id,
     companyId: 'co',
@@ -54,7 +58,7 @@ void main() {
     phone: '',
     displayName: name,
     updatedAt: 1,
-    payload: '{}',
+    payload: payload,
     customValue1: Value(customValue1),
   );
 
@@ -395,5 +399,151 @@ void main() {
     test('non-matching term returns nothing', () async {
       expect(await search('nobody'), isEmpty);
     });
+  });
+
+  // SQLite folds case for ASCII only, so these all failed before
+  // `searchLike` — the reported "searching for Müller doesn't always work".
+  group('umlauts and contacts match like the server', () {
+    String contacts(List<Map<String, String>> list) =>
+        jsonEncode({'contacts': list});
+
+    setUp(() async {
+      await db.clientDao.upsert(client(id: 'c-ue', name: 'Überseehandel'));
+      await db.clientDao.upsert(client(id: 'c-mu', name: 'Hans Müller'));
+      await db.clientDao.upsert(
+        client(
+          id: 'c-contact',
+          name: 'Acme Corp',
+          payload: contacts([
+            {
+              'first_name': 'Jürgen',
+              'last_name': 'Schmidt',
+              'email': 'js@example.com',
+              'phone': '+49 30 1234',
+            },
+          ]),
+        ),
+      );
+      await db.clientDao.upsert(
+        client(id: 'c-bad', name: 'Broken', payload: 'not json'),
+      );
+      await db.vendorDao.upsert(
+        vendor(
+          id: 'v-contact',
+          name: 'Globex',
+          payload: contacts([
+            {'first_name': 'Jörg', 'last_name': 'Öztürk', 'email': ''},
+          ]),
+        ),
+      );
+      await db.clientDao.upsert(client(id: 'c-oe', name: 'Österreich AG'));
+      await db.invoiceDao.upsert(
+        InvoicesCompanion.insert(
+          id: 'inv-oe',
+          companyId: 'co',
+          updatedAt: 1,
+          payload: '{}',
+          number: const Value('INV-1'),
+          clientId: const Value('c-oe'),
+        ),
+      );
+      await db.invoiceDao.upsert(
+        InvoicesCompanion.insert(
+          id: 'inv-contact',
+          companyId: 'co',
+          updatedAt: 2,
+          payload: '{}',
+          number: const Value('INV-2'),
+          clientId: const Value('c-contact'),
+        ),
+      );
+      await db.expenseDao.upsert(
+        ExpensesCompanion.insert(
+          id: 'exp-contact',
+          companyId: 'co',
+          updatedAt: 1,
+          payload: '{}',
+          clientId: const Value('c-contact'),
+        ),
+      );
+    });
+
+    Future<List<String>> clientsFor(String term) => ids(
+      db.clientDao.watchPage(
+        companyId: 'co',
+        offset: 0,
+        limit: 50,
+        search: term,
+      ),
+    );
+
+    test('a capital umlaut matches either case', () async {
+      expect(await clientsFor('über'), ['c-ue']);
+      expect(await clientsFor('ÜBER'), ['c-ue']);
+      expect(await clientsFor('uber'), ['c-ue']);
+    });
+
+    test('mü, MÜ and mu all find Müller', () async {
+      expect(await clientsFor('mü'), ['c-mu']);
+      expect(await clientsFor('MÜ'), ['c-mu']);
+      expect(await clientsFor('mull'), ['c-mu']);
+    });
+
+    test('every word must match, in any order', () async {
+      expect(await clientsFor('müller hans'), ['c-mu']);
+      expect(await clientsFor('müller acme'), isEmpty);
+    });
+
+    test('a client is found through a contact', () async {
+      expect(await clientsFor('jurgen'), ['c-contact']);
+      expect(await clientsFor('schmidt'), ['c-contact']);
+      expect(await clientsFor('js@example'), ['c-contact']);
+      expect(await clientsFor('30 1234'), ['c-contact']);
+    });
+
+    test('a payload that is not JSON does not break the search', () async {
+      expect(await clientsFor('broken'), ['c-bad']);
+    });
+
+    test('a vendor is found through a contact', () async {
+      final found = await ids(
+        db.vendorDao.watchPage(
+          companyId: 'co',
+          offset: 0,
+          limit: 50,
+          search: 'ozturk',
+        ),
+      );
+      expect(found, ['v-contact']);
+    });
+
+    test('an invoice is found through its client name and contacts', () async {
+      Future<List<String>> invoicesFor(String term) => ids(
+        db.invoiceDao.watchPage(
+          companyId: 'co',
+          offset: 0,
+          limit: 50,
+          search: term,
+        ),
+      );
+      expect(await invoicesFor('österreich'), ['inv-oe']);
+      expect(await invoicesFor('OSTERREICH'), ['inv-oe']);
+      expect(await invoicesFor('jürgen'), ['inv-contact']);
+    });
+
+    test(
+      'an expense does not match client contacts (server: name only)',
+      () async {
+        final found = await ids(
+          db.expenseDao.watchPage(
+            companyId: 'co',
+            offset: 0,
+            limit: 50,
+            search: 'jürgen',
+          ),
+        );
+        expect(found, isEmpty);
+      },
+    );
   });
 }

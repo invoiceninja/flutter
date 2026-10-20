@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:admin/utils/search_fold.dart';
+
 /// One `(id, name)` row of an entity's active-names stream
 /// (`ClientRepository.watchActiveNames` and its vendor / project twins).
 typedef NameRow = ({String id, String name});
@@ -44,7 +46,7 @@ Stream<List<NameRow>> namesWithServerSearch({
   Duration debounce = const Duration(milliseconds: 280),
 }) {
   final typed = query.trim();
-  final q = typed.toLowerCase();
+  final q = foldSearchText(typed);
   if (q.isEmpty) return names;
 
   late final StreamController<List<NameRow>> out;
@@ -61,7 +63,8 @@ Stream<List<NameRow>> namesWithServerSearch({
     final ids = serverIds;
     final hits = [
       for (final r in rows)
-        if (r.name.toLowerCase().contains(q) || (ids?.contains(r.id) ?? false))
+        if (foldSearchText(r.name).contains(q) ||
+            (ids?.contains(r.id) ?? false))
           r,
     ];
     // Nothing yet, and the server still to answer: wait for it.

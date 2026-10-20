@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
@@ -95,6 +96,16 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
       );
   }
 
+  /// Fill `contact_search` on this company's rows stored before v16 — see
+  /// [fillContactSearchColumn].
+  Future<int> fillContactSearch({required String companyId}) =>
+      fillContactSearchColumn(
+        this,
+        vendors,
+        companyId: companyId,
+        keys: kVendorContactSearchKeys,
+      );
+
   Stream<List<VendorRow>> watchPage({
     required String companyId,
     required int offset,
@@ -152,17 +163,22 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
     }
 
     if (search != null && search.isNotEmpty) {
-      final pattern = '%$search%';
       q.where(
         (v) =>
-            v.name.like(pattern) |
-            v.number.like(pattern) |
-            v.displayName.like(pattern) |
-            v.idNumber.like(pattern) |
-            v.customValue1.like(pattern) |
-            v.customValue2.like(pattern) |
-            v.customValue3.like(pattern) |
-            v.customValue4.like(pattern),
+            searchLike(v.name, search) |
+            searchLike(v.number, search) |
+            searchLike(v.displayName, search) |
+            searchLike(v.idNumber, search) |
+            searchLike(v.customValue1, search) |
+            searchLike(v.customValue2, search) |
+            searchLike(v.customValue3, search) |
+            searchLike(v.customValue4, search) |
+            contactSearchMatches(
+              column: v.contactSearch,
+              payload: v.payload,
+              keys: kVendorContactSearchKeys,
+              search: search,
+            ),
       );
     }
 

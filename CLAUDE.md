@@ -400,6 +400,7 @@ Every surface calls `guardedOnTap(context, item)`, never `item.onTap`; surfaces 
 - **`hasMore` is not the gate for widening the Drift window.** → `docs/sync.md`
 - **A bulk re-download re-arms mounted lists.** → `docs/sync.md`
 - **Lists sort newest-first where the sort key is monotonic.** → `docs/sync.md`
+- **Every local search predicate goes through `searchLike` (a contact through `contactSearchMatches`) — SQLite folds case for ASCII only, so a raw `.like()` or `.lower()` hides every capital umlaut the server matched.** → `docs/local-search-matching.md`
 - **A `tmp_` id is a *display* problem too, not just a wire problem.** → `docs/sync.md`
 - **Offline never dead-letters.** → `docs/sync.md`
 - **A page or a mutation is bound to the company whose token fetched it, and the binding is a `throw`.** → `docs/sync.md`

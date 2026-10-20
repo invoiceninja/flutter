@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:admin/data/db/dao/_search_fold.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -293,28 +294,28 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     }
 
     if (search != null && search.isNotEmpty) {
-      final needle = '%${search.toLowerCase()}%';
       // Mirror the server's `TaskFilters::filter` field set so API matches
       // aren't filtered back out by the local watch (number, description,
-      // custom_value1-4, client name, project name). `time_log` and client
-      // contacts stay server-only.
+      // custom_value1-4, client name and contacts, project name). `time_log`
+      // stays server-only.
       q.where(
         (t) =>
-            t.taskNumber.lower().like(needle) |
-            t.description.lower().like(needle) |
-            t.customValue1.lower().like(needle) |
-            t.customValue2.lower().like(needle) |
-            t.customValue3.lower().like(needle) |
-            t.customValue4.lower().like(needle) |
+            searchLike(t.taskNumber, search) |
+            searchLike(t.description, search) |
+            searchLike(t.customValue1, search) |
+            searchLike(t.customValue2, search) |
+            searchLike(t.customValue3, search) |
+            searchLike(t.customValue4, search) |
             clientNameMatchesFilter(
               clientId: t.clientId,
               companyId: companyId,
-              needle: needle,
+              search: search,
+              includeContacts: true,
             ) |
             projectNameMatchesFilter(
               projectId: t.projectId,
               companyId: companyId,
-              needle: needle,
+              search: search,
             ),
       );
     }

@@ -59,6 +59,7 @@ class ClientPortalScreen extends StatelessWidget {
     final services = context.read<Services>();
     final session = services.auth.session.value;
     final isHosted = session?.isHosted ?? false;
+    final hasMultipleCompanies = (session?.companies.length ?? 0) > 1;
     final isEnterprisePlan = session?.hasEnterpriseAccess ?? false;
     // BUG FIX: the Free plan slug is the empty string, never the literal
     // `'free'`, so the old `== 'free'` check was always false and the
@@ -167,6 +168,7 @@ class ClientPortalScreen extends StatelessWidget {
           _PortalConfigurationSection(
             draft: draft,
             isHosted: isHosted,
+            hasMultipleCompanies: hasMultipleCompanies,
             isEnterprisePlan: isEnterprisePlan,
             isFreePlan: isFreePlan,
             portalEnabled: portalEnabled,
@@ -185,6 +187,7 @@ class _PortalConfigurationSection extends StatefulWidget {
   const _PortalConfigurationSection({
     required this.draft,
     required this.isHosted,
+    required this.hasMultipleCompanies,
     required this.isEnterprisePlan,
     required this.isFreePlan,
     required this.portalEnabled,
@@ -192,6 +195,7 @@ class _PortalConfigurationSection extends StatefulWidget {
 
   final Company? draft;
   final bool isHosted;
+  final bool hasMultipleCompanies;
   final bool isEnterprisePlan;
   final bool isFreePlan;
 
@@ -246,9 +250,10 @@ class _PortalConfigurationSectionState
         widget.isHosted &&
         portalMode == kClientPortalModeDomain &&
         widget.isEnterprisePlan;
-    final loginUrls = clientPortalUrls(
+    final loginUrl = clientPortalUrl(
       page: ClientPortalPage.login,
       isHosted: widget.isHosted,
+      hasMultipleCompanies: widget.hasMultipleCompanies,
       portalMode: portalMode,
       subdomain: subdomain,
       portalDomain: portalDomain,
@@ -310,22 +315,14 @@ class _PortalConfigurationSectionState
               onPressed: () => _openDocs(context),
             ),
           ),
-        if (loginUrls.primary.isNotEmpty) ...[
+        if (loginUrl.isNotEmpty) ...[
           if (!widget.portalEnabled) const PortalDisabledNotice(),
           PortalUrlDisplay(
             label: context.tr('login_url'),
-            url: loginUrls.primary,
+            url: loginUrl,
             showQrCode: true,
           ),
         ],
-        if (loginUrls.withCompanyKey.isNotEmpty)
-          PortalUrlDisplay(
-            label: context.tr('login_url_with_company_key'),
-            url: loginUrls.withCompanyKey,
-            description: context.tr('portal_url_company_key_help'),
-            secondary: true,
-            showQrCode: true,
-          ),
       ],
     );
   }

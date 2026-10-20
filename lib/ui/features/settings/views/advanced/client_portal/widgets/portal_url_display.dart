@@ -13,22 +13,20 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/qr_code_image.dart';
 import 'package:admin/utils/file_names.dart';
 
+/// Below this pane width the action buttons move under the URL.
+const double _kStackedBelow = 480;
+
 /// Read-only computed URL row. Used by the Client Portal Settings tab to
 /// surface the Login URL and by the Registration tab for the Registration
 /// URL. Renders the URL as selectable text with trailing icon buttons:
 /// copy-to-clipboard, open-in-new-tab, and (opt-in) a QR code.
 ///
 /// The URL is computed by the caller — this widget is purely presentation.
-/// Below this pane width the action buttons move under the URL.
-const double _kStackedBelow = 480;
-
 class PortalUrlDisplay extends StatelessWidget {
   const PortalUrlDisplay({
     super.key,
     required this.label,
     required this.url,
-    this.description,
-    this.secondary = false,
     this.showQrCode = false,
   });
 
@@ -39,14 +37,6 @@ class PortalUrlDisplay extends StatelessWidget {
   /// vs self-hosted shape.
   final String url;
 
-  /// Optional localized sentence between the label and the URL — above it,
-  /// so it is read before the URL is copied.
-  final String? description;
-
-  /// A variant of the row above it (the self-hosted keyed URL): a smaller
-  /// label and a muted URL, so two rows don't read as a choice of equals.
-  final bool secondary;
-
   /// Adds a button that shows the URL as a scannable, downloadable QR code —
   /// what a user prints on a business card or a flyer.
   final bool showQrCode;
@@ -55,25 +45,13 @@ class PortalUrlDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
-    final description = this.description;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style:
-              (secondary
-                      ? theme.textTheme.labelMedium
-                      : theme.textTheme.labelLarge)
-                  ?.copyWith(color: tokens.ink2),
+          style: theme.textTheme.labelLarge?.copyWith(color: tokens.ink2),
         ),
-        if (description != null) ...[
-          SizedBox(height: InSpacing.xs),
-          Text(
-            description,
-            style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
-          ),
-        ],
         SizedBox(height: InSpacing.xs),
         // Three buttons beside a long URL leave a phone a column a few
         // characters wide, so a narrow pane puts them under it instead.
@@ -81,18 +59,14 @@ class PortalUrlDisplay extends StatelessWidget {
           builder: (context, constraints) {
             final link = Row(
               children: [
-                Icon(Icons.link, color: secondary ? tokens.ink3 : tokens.ink2),
+                Icon(Icons.link, color: tokens.ink2),
                 SizedBox(width: InSpacing.md(context)),
                 Expanded(
                   child: SelectableText(
                     url,
-                    style: secondary
-                        ? theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.ink2,
-                          )
-                        : theme.textTheme.bodyMedium?.copyWith(
-                            color: tokens.ink,
-                          ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: tokens.ink,
+                    ),
                   ),
                 ),
               ],

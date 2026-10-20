@@ -4,16 +4,18 @@ import 'package:admin/app/portal_constants.dart';
 import 'package:admin/domain/client_portal_urls.dart';
 
 void main() {
-  ClientPortalUrls urls({
+  String url({
     ClientPortalPage page = ClientPortalPage.login,
     bool isHosted = false,
+    bool hasMultipleCompanies = false,
     String portalMode = kClientPortalModeDomain,
     String subdomain = '',
     String portalDomain = 'https://billing.example.com',
     String companyKey = 'KEY123',
-  }) => clientPortalUrls(
+  }) => clientPortalUrl(
     page: page,
     isHosted: isHosted,
+    hasMultipleCompanies: hasMultipleCompanies,
     portalMode: portalMode,
     subdomain: subdomain,
     portalDomain: portalDomain,
@@ -21,68 +23,77 @@ void main() {
   );
 
   group('self-hosted', () {
-    test('leads with the short address and offers the keyed one', () {
+    test('one company: the short address, no key', () {
       for (final page in ClientPortalPage.values) {
-        final u = urls(page: page);
-        expect(u.primary, 'https://billing.example.com/client/${page.path}');
         expect(
-          u.withCompanyKey,
+          url(page: page),
+          'https://billing.example.com/client/${page.path}',
+        );
+      }
+    });
+
+    test('several companies: the key pins this one', () {
+      for (final page in ClientPortalPage.values) {
+        expect(
+          url(page: page, hasMultipleCompanies: true),
           'https://billing.example.com/client/${page.path}/KEY123',
         );
       }
     });
 
-    test('ignores the portal mode and subdomain', () {
-      final u = urls(portalMode: kClientPortalModeSubdomain, subdomain: 'acme');
-      expect(u.primary, 'https://billing.example.com/client/login');
-    });
-
-    test('trims a trailing slash from the domain', () {
-      final u = urls(portalDomain: 'https://billing.example.com/');
-      expect(u.primary, 'https://billing.example.com/client/login');
+    test('several companies but no key yet: the short address', () {
       expect(
-        u.withCompanyKey,
-        'https://billing.example.com/client/login/KEY123',
+        url(hasMultipleCompanies: true, companyKey: ''),
+        'https://billing.example.com/client/login',
       );
     });
 
-    test('drops the keyed address when there is no key', () {
-      final u = urls(companyKey: '');
-      expect(u.primary, 'https://billing.example.com/client/login');
-      expect(u.withCompanyKey, isEmpty);
+    test('ignores the portal mode and subdomain', () {
+      expect(
+        url(portalMode: kClientPortalModeSubdomain, subdomain: 'acme'),
+        'https://billing.example.com/client/login',
+      );
+    });
+
+    test('trims a trailing slash from the domain', () {
+      expect(
+        url(portalDomain: 'https://billing.example.com/'),
+        'https://billing.example.com/client/login',
+      );
     });
 
     test('shows nothing without a domain', () {
-      final u = urls(portalDomain: '');
-      expect(u.primary, isEmpty);
-      expect(u.withCompanyKey, isEmpty);
+      expect(url(portalDomain: ''), isEmpty);
     });
   });
 
   group('hosted', () {
-    test('custom domain resolves by host, so no keyed address', () {
+    test('custom domain resolves by host, so never a key', () {
       for (final page in ClientPortalPage.values) {
-        final u = urls(page: page, isHosted: true);
-        expect(u.primary, 'https://billing.example.com/client/${page.path}');
-        expect(u.withCompanyKey, isEmpty);
+        expect(
+          url(page: page, isHosted: true, hasMultipleCompanies: true),
+          'https://billing.example.com/client/${page.path}',
+        );
       }
     });
 
     test('subdomain mode uses invoicing.co, even with a domain set', () {
-      final u = urls(
-        page: ClientPortalPage.register,
-        isHosted: true,
-        portalMode: kClientPortalModeSubdomain,
-        subdomain: 'acme',
+      expect(
+        url(
+          page: ClientPortalPage.register,
+          isHosted: true,
+          hasMultipleCompanies: true,
+          portalMode: kClientPortalModeSubdomain,
+          subdomain: 'acme',
+        ),
+        'https://acme.invoicing.co/client/register',
       );
-      expect(u.primary, 'https://acme.invoicing.co/client/register');
-      expect(u.withCompanyKey, isEmpty);
     });
 
     test('shows nothing without the field the mode needs', () {
-      expect(urls(isHosted: true, portalDomain: '').primary, isEmpty);
+      expect(url(isHosted: true, portalDomain: ''), isEmpty);
       expect(
-        urls(isHosted: true, portalMode: kClientPortalModeSubdomain).primary,
+        url(isHosted: true, portalMode: kClientPortalModeSubdomain),
         isEmpty,
       );
     });

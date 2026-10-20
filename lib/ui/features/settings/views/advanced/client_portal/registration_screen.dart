@@ -46,9 +46,11 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
     final subdomain = draft?.subdomain ?? '';
     final registrationHelp = context.trIfDefined('client_registration_help');
     final portalEnabled = host.settings.enableClientPortal ?? true;
-    final registrationUrls = clientPortalUrls(
+    final session = context.read<Services>().auth.session.value;
+    final registrationUrl = clientPortalUrl(
       page: ClientPortalPage.register,
-      isHosted: context.read<Services>().auth.session.value?.isHosted ?? false,
+      isHosted: session?.isHosted ?? false,
+      hasMultipleCompanies: (session?.companies.length ?? 0) > 1,
       portalMode: draft?.portalMode ?? '',
       subdomain: subdomain,
       portalDomain: portalDomain,
@@ -70,22 +72,14 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
                   host.updateCompany((c) => c.copyWith(clientCanRegister: v)),
               contentPadding: EdgeInsets.zero,
             ),
-            if (canRegister && registrationUrls.primary.isNotEmpty) ...[
+            if (canRegister && registrationUrl.isNotEmpty) ...[
               if (!portalEnabled) const PortalDisabledNotice(),
               PortalUrlDisplay(
                 label: context.tr('registration_url'),
-                url: registrationUrls.primary,
+                url: registrationUrl,
                 showQrCode: true,
               ),
             ],
-            if (canRegister && registrationUrls.withCompanyKey.isNotEmpty)
-              PortalUrlDisplay(
-                label: context.tr('registration_url_with_company_key'),
-                url: registrationUrls.withCompanyKey,
-                description: context.tr('portal_url_company_key_help'),
-                secondary: true,
-                showQrCode: true,
-              ),
           ],
         ),
         FormSection(

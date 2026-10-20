@@ -44,23 +44,6 @@ void main() {
     expect(find.byType(PortalUrlQrDialog), findsNothing);
   });
 
-  testWidgets('a description reads before the URL', (tester) async {
-    await _pump(
-      tester,
-      const PortalUrlDisplay(
-        label: 'Login URL with company key',
-        url: '$_url/KEY',
-        description: 'Only needed with several companies.',
-        secondary: true,
-      ),
-    );
-    final description = tester.getTopLeft(
-      find.text('Only needed with several companies.'),
-    );
-    final url = tester.getTopLeft(find.text('$_url/KEY'));
-    expect(description.dy, lessThan(url.dy));
-  });
-
   testWidgets('the downloaded PNG is opaque white around the code', (
     tester,
   ) async {

@@ -1,0 +1,5 @@
+- Client Portal settings show a QR code for the login and registration links
+- List search ignores case and accents, so "mu" finds "Müller"
+- Recurring invoices no longer offer Send Email, which always failed
+- Custom invoice designs and tax rates save again
+- Dragging on an invoice's notes scrolls the page on a phone

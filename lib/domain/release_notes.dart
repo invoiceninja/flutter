@@ -186,6 +186,49 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.19',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.search,
+        title: 'Search that ignores accents',
+        body: 'Case and accents are ignored, so "mu" finds "Müller".',
+      ),
+      ReleaseHighlight(
+        icon: Icons.web_outlined,
+        title: 'Client portal QR codes',
+        body: 'Print a QR code for the portal login and registration links.',
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Client Portal settings show a QR code for the login and '
+        'registration links, with a print-ready PNG download, and a notice '
+        'when the client portal is turned off.',
+      ),
+      ReleaseNoteItem(
+        'Updated: List search ignores case and accents in every language, so '
+        '"mu" or "MÜ" finds "Müller".',
+      ),
+      ReleaseNoteItem(
+        'Updated: Recurring invoices no longer offer Send Email, which always '
+        'failed. Send Now on a draft sends its first invoice '
+        '[#13368](https://github.com/invoiceninja/invoiceninja/issues/13368)',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Self-hosted Client Portal settings lead with the short portal '
+        'address again, and a hosted account on a subdomain no longer gets a '
+        'registration link that 404s.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Custom invoice designs and tax rates save again.',
+      ),
+      ReleaseNoteItem(
+        "Fixed: On a phone, dragging on an invoice's notes scrolls the page, "
+        'and the invoice QuickBooks tab shows its content again.',
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.18',
     items: [
       ReleaseNoteItem(

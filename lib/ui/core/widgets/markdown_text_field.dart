@@ -1746,8 +1746,14 @@ class _EditorHostState extends State<_EditorHost> {
       // `ExcludeFocus` can never take the selection that raises it.
       content = SliverIgnorePointer(sliver: content);
     }
+    // `primary: false` on both hosts. A vertical `ScrollView` with no
+    // controller defaults to primary, and primary means
+    // `AlwaysScrollableScrollPhysics`: every field claimed every vertical drag
+    // that started on it, content short or not, so on a phone the enclosing
+    // form scrolled only from its labels and gaps. Non-primary takes the
+    // platform physics, which bid for a drag only when the content overflows.
     Widget host = expand
-        ? CustomScrollView(slivers: [content])
+        ? CustomScrollView(primary: false, slivers: [content])
         : ConstrainedBox(
             // [height] is the floor, not the size: the field grows with its
             // content and only starts scrolling internally past [maxHeight].
@@ -1764,7 +1770,11 @@ class _EditorHostState extends State<_EditorHost> {
             // `shrinkWrap` is cheap here despite its reputation: super_editor
             // hands us a single `SliverToBoxAdapter` that lays the whole
             // document out either way, so no lazy build is being defeated.
-            child: CustomScrollView(shrinkWrap: true, slivers: [content]),
+            child: CustomScrollView(
+              primary: false,
+              shrinkWrap: true,
+              slivers: [content],
+            ),
           );
     if (excludeFocus) {
       // Keep the reader's deep (possibly-unlaid) render objects out of the

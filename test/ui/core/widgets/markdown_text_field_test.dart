@@ -458,6 +458,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'a drag on a field whose content fits scrolls the form around it',
+    (tester) async {
+      // The field's own CustomScrollView defaulted to primary, and so to
+      // `AlwaysScrollableScrollPhysics`: it claimed every vertical drag that
+      // started on it and, with nothing to scroll, went nowhere. On the
+      // phone's invoice Notes tab four such boxes left only the labels and
+      // gaps to scroll the page by.
+      final outer = ScrollController();
+      addTearDown(outer.dispose);
+      await tester.pumpWidget(
+        wrap(
+          ListView(
+            controller: outer,
+            children: [
+              for (var i = 0; i < 4; i++) ...[
+                MarkdownTextField(
+                  label: 'F$i',
+                  initialValue: 'body $i',
+                  onChanged: (_) {},
+                ),
+                const SizedBox(height: 16),
+              ],
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final field = find.byType(MarkdownTextField).first;
+      await tester.drag(field, const Offset(0, -120));
+      await tester.pumpAndSettle();
+      expect(outer.offset, greaterThan(0), reason: 'reader');
+
+      // Same with the field promoted to the live editor: away from the caret,
+      // super_editor's touch interactor leaves the drag to the scrollables.
+      outer.jumpTo(0);
+      await tester.pump();
+      await tester.tap(field);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(SuperEditor), findsOneWidget);
+      await tester.dragFrom(
+        tester.getTopLeft(field) + const Offset(200, 150),
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+      expect(outer.offset, greaterThan(0), reason: 'editor');
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
   testWidgets('expand mode fills a bounded parent and scrolls', (tester) async {
     // The desktop notes pane: `expand: true` takes the parent's height instead
     // of growing, and the same sliver-level pointer block applies there.

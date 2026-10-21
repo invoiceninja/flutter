@@ -161,6 +161,10 @@ class EInvoiceFieldsTab<T> extends StatelessWidget {
     final tokens = context.inTheme;
     final docType = documentType;
     return ListView(
+      // On a wide editor this sits in the fixed-height notes card on a page
+      // that scrolls; a primary list would claim every drag even when the
+      // form fits (docs/rich-text-editing.md, the `primary: false` heading).
+      primary: false,
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
         if (docType != null && docType.isNotEmpty)

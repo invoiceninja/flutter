@@ -173,134 +173,145 @@ class _InvoiceQuickbooksTabState extends State<InvoiceQuickbooksTab> {
               : '');
     final gap = SizedBox(height: InSpacing.md(context));
 
-    return ListView(
+    // A `Column`, never a `ListView`: a detail tab body is laid out at its
+    // intrinsic height inside the record page's own scroll view, where a
+    // viewport has no height to fill and the tab failed layout entirely.
+    return Padding(
       padding: EdgeInsets.all(InSpacing.lg(context)),
-      children: [
-        DetailInfoRow(
-          label: context.tr('qb_record_id'),
-          value: sync.isLinked ? sync.qbId : context.tr('qb_not_linked'),
-          copyable: sync.isLinked,
-        ),
-        _LabelledRow(
-          label: context.tr('status'),
-          child: _pill(context, sync.status),
-        ),
-        if (message.isNotEmpty)
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           DetailInfoRow(
-            label: context.tr('message'),
-            value: message,
-            copyable: false,
+            label: context.tr('qb_record_id'),
+            value: sync.isLinked ? sync.qbId : context.tr('qb_not_linked'),
+            copyable: sync.isLinked,
           ),
-        gap,
-        if (unsaved)
-          Text(
-            context.tr('qb_save_first'),
-            style: TextStyle(color: tokens.ink3),
-          )
-        else
-          Wrap(
-            spacing: InSpacing.sm,
-            runSpacing: InSpacing.sm,
-            children: [
-              for (final a in actions)
-                OutlinedButton.icon(
-                  key: ValueKey('qb_action_${a.wire}'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                  ),
-                  onPressed: _running == null ? () => _run(a) : null,
-                  icon: _running == a
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(
-                          a == QuickbooksInvoiceAction.checkRecord
-                              ? Icons.fact_check_outlined
-                              : Icons.sync_outlined,
-                          size: 18,
-                        ),
-                  label: Text(context.tr(_actionKey(a))),
-                ),
-            ],
-          ),
-        if (check != null) ...[
-          gap,
-          const Divider(height: 1),
-          gap,
-          Text(
-            context.tr('qb_check_result'),
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          gap,
           _LabelledRow(
             label: context.tr('status'),
-            child: _pill(context, check.outcome),
+            child: _pill(context, sync.status),
           ),
-          if (check.quickbooksId.isNotEmpty)
-            DetailInfoRow(
-              label: context.tr('qb_record_id'),
-              value: check.quickbooksId,
-            ),
-          if (check.number case final n?)
-            _ComparisonRow(
-              label: context.tr('number'),
-              comparison: n,
-              format: (v) => v,
-            ),
-          if (check.total case final t?)
-            // The client's currency, watched like every other money surface
-            // on this screen.
-            WatchBuilder<Client?>(
-              cacheKey: (widget.companyId, invoice.clientId),
-              initialData: widget.services.clients.peek(
-                companyId: widget.companyId,
-                id: invoice.clientId,
-              ),
-              create: () => widget.services.clients.watch(
-                companyId: widget.companyId,
-                id: invoice.clientId,
-              ),
-              builder: (context, clientSnap) => _ComparisonRow(
-                label: context.tr('total'),
-                comparison: t,
-                format: (v) {
-                  final f = widget.services.formatterIfReady(widget.companyId);
-                  final d = Decimal.tryParse(v);
-                  if (f == null || d == null) return v;
-                  return f.money(
-                    d,
-                    clientCurrencyId: clientSnap.data?.currencyId,
-                  );
-                },
-              ),
-            ),
-          if (check.message.isNotEmpty)
+          if (message.isNotEmpty)
             DetailInfoRow(
               label: context.tr('message'),
-              value: check.message,
+              value: message,
               copyable: false,
             ),
-          if (check.recommendedActions.isNotEmpty) ...[
-            gap,
+          gap,
+          if (unsaved)
+            Text(
+              context.tr('qb_save_first'),
+              style: TextStyle(color: tokens.ink3),
+            )
+          else
             Wrap(
               spacing: InSpacing.sm,
               runSpacing: InSpacing.sm,
               children: [
-                for (final r in check.recommendedActions)
-                  FilledButton.tonal(
-                    key: ValueKey('qb_recommended_$r'),
-                    style: FilledButton.styleFrom(
+                for (final a in actions)
+                  OutlinedButton.icon(
+                    key: ValueKey('qb_action_${a.wire}'),
+                    style: OutlinedButton.styleFrom(
                       minimumSize: const Size(64, 40),
                     ),
-                    onPressed: _running == null ? () => _recommended(r) : null,
-                    child: Text(_recommendedLabel(context, r)),
+                    onPressed: _running == null ? () => _run(a) : null,
+                    icon: _running == a
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            a == QuickbooksInvoiceAction.checkRecord
+                                ? Icons.fact_check_outlined
+                                : Icons.sync_outlined,
+                            size: 18,
+                          ),
+                    label: Text(context.tr(_actionKey(a))),
                   ),
               ],
             ),
+          if (check != null) ...[
+            gap,
+            const Divider(height: 1),
+            gap,
+            Text(
+              context.tr('qb_check_result'),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            gap,
+            _LabelledRow(
+              label: context.tr('status'),
+              child: _pill(context, check.outcome),
+            ),
+            if (check.quickbooksId.isNotEmpty)
+              DetailInfoRow(
+                label: context.tr('qb_record_id'),
+                value: check.quickbooksId,
+              ),
+            if (check.number case final n?)
+              _ComparisonRow(
+                label: context.tr('number'),
+                comparison: n,
+                format: (v) => v,
+              ),
+            if (check.total case final t?)
+              // The client's currency, watched like every other money surface
+              // on this screen.
+              WatchBuilder<Client?>(
+                cacheKey: (widget.companyId, invoice.clientId),
+                initialData: widget.services.clients.peek(
+                  companyId: widget.companyId,
+                  id: invoice.clientId,
+                ),
+                create: () => widget.services.clients.watch(
+                  companyId: widget.companyId,
+                  id: invoice.clientId,
+                ),
+                builder: (context, clientSnap) => _ComparisonRow(
+                  label: context.tr('total'),
+                  comparison: t,
+                  format: (v) {
+                    final f = widget.services.formatterIfReady(
+                      widget.companyId,
+                    );
+                    final d = Decimal.tryParse(v);
+                    if (f == null || d == null) return v;
+                    return f.money(
+                      d,
+                      clientCurrencyId: clientSnap.data?.currencyId,
+                    );
+                  },
+                ),
+              ),
+            if (check.message.isNotEmpty)
+              DetailInfoRow(
+                label: context.tr('message'),
+                value: check.message,
+                copyable: false,
+              ),
+            if (check.recommendedActions.isNotEmpty) ...[
+              gap,
+              Wrap(
+                spacing: InSpacing.sm,
+                runSpacing: InSpacing.sm,
+                children: [
+                  for (final r in check.recommendedActions)
+                    FilledButton.tonal(
+                      key: ValueKey('qb_recommended_$r'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(64, 40),
+                      ),
+                      onPressed: _running == null
+                          ? () => _recommended(r)
+                          : null,
+                      child: Text(_recommendedLabel(context, r)),
+                    ),
+                ],
+              ),
+            ],
           ],
         ],
-      ],
+      ),
     );
   }
 }

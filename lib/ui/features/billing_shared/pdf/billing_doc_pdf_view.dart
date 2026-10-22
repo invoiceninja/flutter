@@ -37,7 +37,13 @@ class BillingDocPdfView extends StatefulWidget {
     this.deliveryNoteAvailable = true,
     this.revision,
     this.autoRefreshDebounce = const Duration(milliseconds: 600),
+    this.onOpenFullSize,
   });
+
+  /// Adds a Maximize button to the toolbar, beside print and share. The wide
+  /// detail screen's pane passes it: there the PDF gets only part of the
+  /// window, and the toolbar is where a user looks for a bigger one.
+  final VoidCallback? onOpenFullSize;
 
   /// When non-null and it changes by `==`, the preview re-fetches after
   /// [autoRefreshDebounce]. Edit screens pass the freezed draft (value
@@ -204,6 +210,14 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
             canDebug: false,
             maxPageWidth: 800,
             pdfFileName: fileName,
+            actions: [
+              if (widget.onOpenFullSize case final open?)
+                IconButton(
+                  icon: const Icon(Icons.open_in_full),
+                  tooltip: context.tr('maximize'),
+                  onPressed: open,
+                ),
+            ],
           ),
         ),
         if (widget.entity.supportsDeliveryNote && widget.deliveryNoteAvailable)

@@ -333,6 +333,7 @@
   "default_taxable_code": "Código gravable por defecto",
   "default_template_caption": "Mostrando la plantilla por defecto. Su primera edición guarda una copia personalizada.",
   "default_template_caption_send": "Esto es lo que se enviará. Edítelo para cambiar solo este correo.",
+  "default_value_caption": "Se muestra el valor predeterminado. Edítelo para cambiarlo solo en este documento.",
   "delete_row": "Eliminar fila",
   "delete_view": "Eliminar vista",
   "deleted_bank_transaction": "Transacción bancaria eliminada con éxito",

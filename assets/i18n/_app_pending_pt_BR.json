@@ -333,6 +333,7 @@
   "default_taxable_code": "Código tributável padrão",
   "default_template_caption": "Exibindo o modelo padrão. Sua primeira edição salva uma cópia personalizada.",
   "default_template_caption_send": "Isto é o que será enviado. Edite para alterar apenas este e-mail.",
+  "default_value_caption": "Mostrando o padrão. Edite-o para alterá-lo somente neste documento.",
   "delete_row": "Excluir linha",
   "delete_view": "Excluir visualização",
   "deleted_bank_transaction": "Transação bancária excluída com sucesso",

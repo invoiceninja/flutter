@@ -333,6 +333,7 @@
   "default_taxable_code": "デフォルトの課税コード",
   "default_template_caption": "デフォルトのテンプレートを表示しています。最初に編集した時点でカスタムコピーが保存されます。",
   "default_template_caption_send": "この内容が送信されます。編集すると、このメールのみが変更されます。",
+  "default_value_caption": "デフォルトを表示しています。このドキュメントだけを変更するには編集してください。",
   "delete_row": "行を削除",
   "delete_view": "ビューを削除",
   "deleted_bank_transaction": "銀行取引を削除しました",

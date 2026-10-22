@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:printing/printing.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
@@ -92,5 +93,41 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     expect(calls, 1);
+  });
+
+  testWidgets('a Maximize button sits in the toolbar only when asked for', (
+    tester,
+  ) async {
+    // Real bytes this time: the toolbar belongs to `PdfPreview`, which only
+    // mounts once a renderable PDF has arrived. Its page raster never lands
+    // in a widget test, so a bounded pump, not `pumpAndSettle`.
+    final pdf = Uint8List.fromList('%PDF-1.4\n%%EOF\n'.codeUnits);
+    var opened = 0;
+    Future<void> mount({VoidCallback? onOpenFullSize}) => tester.pumpWidget(
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: BillingDocPdfView(
+            entity: BillingDocType.quote,
+            entityNumber: 'Q-1',
+            fetcher: ({String? designId, required bool deliveryNote}) async =>
+                pdf,
+            onOpenFullSize: onOpenFullSize,
+          ),
+        ),
+      ),
+    );
+
+    await mount();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(PdfPreview), findsOneWidget);
+    expect(find.byTooltip('Maximize'), findsNothing);
+
+    await mount(onOpenFullSize: () => opened++);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byTooltip('Maximize'));
+    expect(opened, 1);
   });
 }

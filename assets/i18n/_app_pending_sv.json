@@ -332,6 +332,7 @@
   "default_taxable_code": "Standardkod för skattepliktiga poster",
   "default_template_caption": "Visar standardmallen. Din första ändring sparar en anpassad kopia.",
   "default_template_caption_send": "Detta är vad som skickas. Ändra det för att ändra endast det här e-postmeddelandet.",
+  "default_value_caption": "Standardvärdet visas. Redigera det för att ändra det endast för det här dokumentet.",
   "delete_row": "Ta bort rad",
   "delete_view": "Ta bort vy",
   "deleted_bank_transaction": "Banktransaktionen har tagits bort",

@@ -320,6 +320,7 @@
   "default_taxable_code": "Codi imposable per defecte",
   "default_template_caption": "Es mostra la plantilla per defecte. La primera edició desa una còpia personalitzada.",
   "default_template_caption_send": "Això és el que s'enviarà. Editeu-ho per canviar només aquest correu.",
+  "default_value_caption": "Es mostra el valor per defecte. Editeu-lo per canviar-lo només per a aquest document.",
   "delete_row": "Elimina la fila",
   "delete_view": "Elimina la vista",
   "deleted_bank_transaction": "La transacció bancària s'ha eliminat correctament",

@@ -332,6 +332,7 @@
   "default_taxable_code": "Cod implicit taxabil",
   "default_template_caption": "Se afișează șablonul implicit. Prima modificare salvează o copie personalizată.",
   "default_template_caption_send": "Acesta este conținutul care va fi trimis. Modificați-l pentru a schimba doar acest e-mail.",
+  "default_value_caption": "Se afișează valoarea implicită. Editați-o pentru a o modifica doar pentru acest document.",
   "delete_row": "Ștergeți rândul",
   "delete_view": "Ștergeți vizualizarea",
   "deleted_bank_transaction": "Tranzacția bancară a fost ștearsă cu succes",

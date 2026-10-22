@@ -224,6 +224,8 @@ the honest default.
 | Billing-doc detail — call the client/vendor from the header: one tap for a single number, a contact picker when there are several — invoice / quote / credit / recurring / PO | ❌ | ❌ | ✅ | | |
 | Billing-doc detail — who viewed it and when: a `Viewed <date>` line in the header on every status, and a `Viewed` pill that opens the Activity tab and flashes the entry — invoice / quote / credit / PO | ❌ | ❌ | ✅ | | |
 | Billing-doc edit — document-level tax rates (1–3) + custom surcharges (1–4) + inclusive-taxes toggle, gated on company `enabled_tax_rates` / surcharge custom-fields — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | | |
+| Billing-doc edit — a new document shows the defaults the server fills in for a blank field: terms and footer muted in their fields, payment terms (`Net 30` / Due on Receipt) or quote validity under the due date — invoice / quote / credit / recurring / PO | 🟡 | ✅ | ✅ | | React shows only a payment-terms tooltip |
+| Billing-doc detail — Maximize in the side PDF pane's toolbar opens the document (or the version it shows) full size | — | — | ✅ | | |
 | Invoice — create | ✅ | ✅ | ✅ | ✅ | |
 | Edit/create screen action bar (Save & mark sent/paid/cancel/auto-bill via save query-param; email/clone/etc. after-save) — all entities | ✅ | ✅ | ✅ | | |
 | Invoice — clone to new invoice | ✅ | ✅ | ✅ | ✅ | |

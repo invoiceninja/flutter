@@ -333,6 +333,7 @@
   "default_taxable_code": "Codice imponibile predefinito",
   "default_template_caption": "Viene mostrato il modello predefinito. La prima modifica salva una copia personalizzata.",
   "default_template_caption_send": "Questo è ciò che verrà inviato. Modificalo per cambiare solo questa email.",
+  "default_value_caption": "Viene mostrato il valore predefinito. Modificalo per cambiarlo solo per questo documento.",
   "delete_row": "Elimina riga",
   "delete_view": "Elimina vista",
   "deleted_bank_transaction": "Transazione bancaria eliminata con successo",

@@ -320,6 +320,7 @@
   "default_taxable_code": "Zadani oporezivi kod",
   "default_template_caption": "Prikazuje se zadani predložak. Vaša prva izmjena sprema prilagođenu kopiju.",
   "default_template_caption_send": "Ovo će biti poslano. Uredite kako biste promijenili samo ovu e-poruku.",
+  "default_value_caption": "Prikazuje se zadana vrijednost. Uredite je kako biste je promijenili samo za ovaj dokument.",
   "delete_row": "Obriši redak",
   "delete_view": "Obriši prikaz",
   "deleted_bank_transaction": "Bankovna transakcija je uspješno obrisana",

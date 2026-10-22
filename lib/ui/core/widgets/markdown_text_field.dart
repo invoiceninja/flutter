@@ -217,7 +217,8 @@ class MarkdownTextField extends StatefulWidget {
   State<MarkdownTextField> createState() => _MarkdownTextFieldState();
 }
 
-class _MarkdownTextFieldState extends State<MarkdownTextField> {
+class _MarkdownTextFieldState extends State<MarkdownTextField>
+    with WidgetsBindingObserver {
   late MutableDocument _document;
   late MutableDocumentComposer _composer;
   late Editor _editor;
@@ -315,6 +316,12 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// swap).
   final _readerLayoutKey = GlobalKey();
 
+  /// The editor's document layout, for [_revealCaret].
+  final _editorLayoutKey = GlobalKey();
+
+  /// One reveal per frame, however many triggers land in it.
+  bool _caretRevealScheduled = false;
+
   /// Built once per `Editor`: SuperEditor builds its tap delegates inside
   /// `_createEditContext`, i.e. when its `Editor` changes (disposing the old
   /// ones), so the list only has to stay stable across the builds that share
@@ -387,6 +394,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _seedDocument(widget.initialValue ?? '');
     widget.controller?._attach(_flushNow);
     widget.values?.addListener(_onValuesChanged);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   /// The probe answered. Chips are built by the stylesheet's inline-widget
@@ -630,6 +638,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
         }
       }
     }
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller?._detach(_flushNow);
     widget.values?.removeListener(_onValuesChanged);
     _document.removeListener(_onDocumentChange);
@@ -677,6 +686,8 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     if (scope != null) document = tokenizeTemplateVariables(document, scope);
     _document = document;
     _composer = MutableDocumentComposer();
+    // Disposed with the composer on the next reseed, listener and all.
+    _composer.selectionNotifier.addListener(_scheduleCaretReveal);
     _editor = createDefaultDocumentEditor(
       document: _document,
       composer: _composer,
@@ -1094,7 +1105,79 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     );
   }
 
+  @override
+  void didChangeMetrics() {
+    // The soft keyboard opening (or growing) shrinks the form under a caret
+    // that was visible a frame ago. Only then, as `EditableText` does: a
+    // window resize or a rotation must not pull a form the user scrolled away
+    // back to the caret on every frame.
+    if (!mounted) return;
+    final inset = View.of(context).viewInsets.bottom;
+    final grew = inset > _lastBottomInset;
+    _lastBottomInset = inset;
+    if (grew && _editing) _scheduleCaretReveal();
+  }
+
+  double _lastBottomInset = 0;
+
+  /// Scroll the *enclosing* form so the caret clears the soft keyboard.
+  ///
+  /// `EditableText` does this for every `TextField`; super_editor does not.
+  /// Its own reveal (`_ensureSelectionExtentIsVisible`) scrolls only the
+  /// field's private `CustomScrollView`, so a field low in a form opened its
+  /// keyboard over itself and the user typed blind — the narrow Notes tab's
+  /// Private Notes field, under the sticky totals. Run after layout, once per
+  /// frame, on the editor gaining focus, the caret moving (typing included,
+  /// which is also what grows the field) and the keyboard changing size.
+  void _scheduleCaretReveal() {
+    if (_caretRevealScheduled) return;
+    _caretRevealScheduled = true;
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) {
+        _caretRevealScheduled = false;
+        _revealCaret();
+      })
+      // A post-frame callback waits for a frame; an idle engine has none
+      // coming.
+      ..ensureVisualUpdate();
+  }
+
+  void _revealCaret() {
+    if (!mounted || !_editing || _htmlMode || !_focusNode.hasFocus) return;
+    final extent = _composer.selection?.extent;
+    final Object? layout = _editorLayoutKey.currentState;
+    final box = context.findRenderObject();
+    if (extent == null || layout is! DocumentLayout) return;
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    final caret = layout.getRectForPosition(extent);
+    if (caret == null) return;
+    // Into this widget's own box, which sits *outside* the field's scroll
+    // view: super_editor already reveals the caret inside it, and starting
+    // from out here leaves that scroll offset alone. Each edge is clamped into
+    // the box, so a caret the inner view has not scrolled to yet still brings
+    // the field's nearest edge into view, and never drags the form past it.
+    final topLeft = layout.getAncestorOffsetFromDocumentOffset(
+      caret.topLeft,
+      box,
+    );
+    final rect = topLeft & caret.size;
+    final size = box.size;
+    final clamped = Rect.fromLTRB(
+      rect.left.clamp(0, size.width),
+      rect.top.clamp(0, size.height),
+      rect.right.clamp(0, size.width),
+      rect.bottom.clamp(0, size.height),
+    );
+    box.showOnScreen(
+      // `EditableText`'s default `scrollPadding`, and its animation.
+      rect: clamped.inflate(20),
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.fastOutSlowIn,
+    );
+  }
+
   void _onFocusChanged() {
+    if (_focusNode.hasFocus && _editing) _scheduleCaretReveal();
     // Flush any pending edits the moment focus leaves the editor so that
     // blur-then-save races don't drop the last keystroke.
     if (!_focusNode.hasFocus && _debounce != null) {
@@ -1327,6 +1410,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
                 ? SuperEditor(
                     editor: _editor,
                     focusNode: _focusNode,
+                    documentLayoutKey: _editorLayoutKey,
                     // The reader had no editing focus to hand over, so grab focus on
                     // mount. Caret lands at the document edge rather than the exact
                     // tap offset — an accepted tradeoff for never colliding IME
@@ -1464,11 +1548,14 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       // comes and goes. Wrapping on `showingDefault` itself re-parented the
       // frame at the first keystroke into the default, remounting the live
       // editor under the user's caret.
+      //
+      // In `expand` mode the frame fills what the caption leaves: an
+      // unflexed frame here would hand its own `Expanded` an unbounded height.
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          body,
+          if (widget.expand) Expanded(child: body) else body,
           if (showingDefault)
             Padding(
               padding: const EdgeInsetsDirectional.only(

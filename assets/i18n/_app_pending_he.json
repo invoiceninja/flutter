@@ -320,6 +320,7 @@
   "default_taxable_code": "קוד חייב במס כברירת מחדל",
   "default_template_caption": "מוצגת תבנית ברירת המחדל. העריכה הראשונה שלך שומרת עותק מותאם.",
   "default_template_caption_send": "זה מה שיישלח. ערוך כדי לשנות את הודעת הדוא\"ל הזו בלבד.",
+  "default_value_caption": "מוצגת ברירת המחדל. ערכו אותה כדי לשנות אותה עבור מסמך זה בלבד.",
   "delete_row": "מחק שורה",
   "delete_view": "מחק תצוגה",
   "deleted_bank_transaction": "העסקה הבנקאית נמחקה בהצלחה",

@@ -320,6 +320,7 @@
   "default_taxable_code": "Predvolený zdaniteľný kód",
   "default_template_caption": "Zobrazuje sa predvolená šablóna. Prvou úpravou sa uloží vlastná kópia.",
   "default_template_caption_send": "Toto sa odošle. Úpravou zmeníte len tento e-mail.",
+  "default_value_caption": "Zobrazuje sa predvolená hodnota. Upravte ju, ak ju chcete zmeniť len pre tento dokument.",
   "delete_row": "Odstrániť riadok",
   "delete_view": "Odstrániť zobrazenie",
   "deleted_bank_transaction": "Transakcia bola úspešne odstránená",

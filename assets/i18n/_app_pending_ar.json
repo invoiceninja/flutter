@@ -320,6 +320,7 @@
   "default_taxable_code": "الرمز الخاضع للضريبة الافتراضي",
   "default_template_caption": "يتم عرض القالب الافتراضي. أول تعديل لك يحفظ نسخة مخصصة.",
   "default_template_caption_send": "هذا ما سيتم إرساله. عدّله لتغيير هذه الرسالة فقط.",
+  "default_value_caption": "يتم عرض القيمة الافتراضية. عدّلها لتغييرها لهذا المستند فقط.",
   "delete_row": "حذف الصف",
   "delete_view": "حذف العرض",
   "deleted_bank_transaction": "تم حذف المعاملة المصرفية بنجاح",

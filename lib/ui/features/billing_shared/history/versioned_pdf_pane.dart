@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/document_version.dart';
 import 'package:admin/data/services/document_versions_api.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/utils/formatting.dart';
@@ -143,6 +144,15 @@ class _VersionedPdfPaneState extends State<VersionedPdfPane> {
                 // handles the race.
                 revision: activityId,
                 autoRefreshDebounce: Duration.zero,
+                // The pane is part of the window; the `/pdf` route is all of
+                // it, on the version the pane is showing.
+                onOpenFullSize: () => billingDocVersionOpener(
+                  context,
+                  type: widget.entity,
+                  docId: widget.entityId,
+                  hasPdfPane: false,
+                  selection: widget.selection,
+                )(activityId),
                 fetcher: activityId == null
                     ? widget.liveFetcher
                     : ({String? designId, required bool deliveryNote}) =>

@@ -316,6 +316,7 @@
   "default_taxable_code": "Mã chịu thuế mặc định",
   "default_template_caption": "Đang hiển thị mẫu mặc định. Lần chỉnh sửa đầu tiên sẽ lưu một bản tùy chỉnh.",
   "default_template_caption_send": "Đây là nội dung sẽ được gửi. Chỉnh sửa để chỉ thay đổi email này.",
+  "default_value_caption": "Đang hiển thị giá trị mặc định. Chỉnh sửa để chỉ thay đổi cho tài liệu này.",
   "delete_view": "Xóa chế độ xem",
   "deleted_bank_transaction": "Đã xóa giao dịch ngân hàng thành công",
   "deleted_purchase_orders": "Đã xóa :count đơn đặt hàng thành công",

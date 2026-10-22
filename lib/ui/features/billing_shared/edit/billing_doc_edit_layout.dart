@@ -653,6 +653,7 @@ class _DatesCardDesktopState<T extends BillingDocFields>
           labelText: context.tr(type.dueDateLabelKey ?? 'due_date'),
           clearable: true,
           errorText: vm.fieldErrorFor('due_date'),
+          helperText: _dueDaysHint(context, type, vm),
         ),
         SizedBox(height: InSpacing.md(context)),
         if (partialVm != null) ...[
@@ -676,6 +677,7 @@ class _DatesCardDesktopState<T extends BillingDocFields>
               onChanged: _onDate(partialVm.setPartialDueDate),
               labelText: context.tr('partial_due_date'),
               clearable: true,
+              helperText: _dueDaysHint(context, type, vm, partial: true),
             ),
           ],
           SizedBox(height: InSpacing.md(context)),
@@ -906,6 +908,45 @@ class _VendorItemsEditorState<T extends BillingDocFields>
   }
 }
 
+/// The payment terms (an invoice: "Net 30", as admin-portal showed it) or
+/// validity (a quote: "14 Days" under Valid Until — "Net" is payment wording)
+/// a new document's blank due date is dated from when it is sent. Null once a
+/// date is set, on an edit, and with no such setting.
+///
+/// The server's `setDueDate` dates the **partial** due date instead when a
+/// partial is set without one, so the hint moves there with it: [partial]
+/// asks for the partial due date field's hint.
+String? _dueDaysHint(
+  BuildContext context,
+  BillingDocType type,
+  BillingDocEditViewModel<BillingDocFields> vm, {
+  bool partial = false,
+}) {
+  final key = type.dueDaysCascadeKey;
+  final draft = vm.draft;
+  if (key == null || draft.dueDate != null) return null;
+  final datesPartial =
+      type == BillingDocType.invoice &&
+      _partialOf(type, draft) > Decimal.zero &&
+      _partialDueDateOf(draft) == null;
+  if (partial != datesPartial) return null;
+  final days = int.tryParse('${vm.createCascade?[key] ?? ''}'.trim());
+  if (days == null || days < 0) return null;
+  // `MarkSent` dates a quote from `valid_until` '0' too: its own date.
+  if (type != BillingDocType.invoice) return '$days ${context.tr('days')}';
+  return days == 0
+      ? context.tr('due_on_receipt')
+      : '${context.tr('net')} $days';
+}
+
+/// A new document's settings-cascade value for [key] (`invoice_terms`, …):
+/// what the server fills in if the field is saved blank. Null on an edit, and
+/// for a blank setting.
+String? _cascadeText(BillingDocEditViewModel<BillingDocFields> vm, String key) {
+  final value = vm.createCascade?[key];
+  return value is String && value.trim().isNotEmpty ? value : null;
+}
+
 /// A "Save as default" for the terms / footer, where the document has a
 /// company default of its own — the recurring invoice inherits the
 /// invoice's, so it offers none.
@@ -1054,6 +1095,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   expand: true,
                   value: vm.draft.terms,
                   onChanged: vm.setTerms,
+                  defaultValue: _cascadeText(vm, type.termsCascadeKey),
                   onSaveAsDefault: _saveAsDefault(
                     context,
                     type,
@@ -1068,6 +1110,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   expand: true,
                   value: vm.draft.footer,
                   onChanged: vm.setFooter,
+                  defaultValue: _cascadeText(vm, type.footerCascadeKey),
                   onSaveAsDefault: _saveAsDefault(
                     context,
                     type,
@@ -1273,6 +1316,7 @@ class _DetailsTabState<T extends BillingDocFields>
       onChanged: _onDate(partialVm!.setPartialDueDate),
       labelText: context.tr('partial_due_date'),
       clearable: true,
+      helperText: _dueDaysHint(context, type, vm, partial: true),
     );
     // The partial field and — once a partial is set — its due date, stacked.
     List<Widget> stackedPartial() => [
@@ -1344,6 +1388,7 @@ class _DetailsTabState<T extends BillingDocFields>
                     labelText: context.tr(type.dueDateLabelKey!),
                     clearable: true,
                     errorText: vm.fieldErrorFor('due_date'),
+                    helperText: _dueDaysHint(context, type, vm),
                   ),
                 ),
               ],
@@ -1358,6 +1403,8 @@ class _DetailsTabState<T extends BillingDocFields>
           if (partialVm != null &&
               placement == BillingDocPartialPlacement.afterDatesRow) ...[
             Row(
+              // Top-aligned: a hint under the due date grows it downward.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: partialField()),
                 SizedBox(width: InSpacing.md(context)),
@@ -1459,6 +1506,7 @@ class _NotesTab<T extends BillingDocFields> extends StatelessWidget {
             label: context.tr('terms'),
             value: vm.draft.terms,
             onChanged: vm.setTerms,
+            defaultValue: _cascadeText(vm, type.termsCascadeKey),
             onSaveAsDefault: _saveAsDefault(context, type, vm, terms: true),
           ),
           SizedBox(height: InSpacing.lg(context)),
@@ -1467,6 +1515,7 @@ class _NotesTab<T extends BillingDocFields> extends StatelessWidget {
             label: context.tr('footer'),
             value: vm.draft.footer,
             onChanged: vm.setFooter,
+            defaultValue: _cascadeText(vm, type.footerCascadeKey),
             onSaveAsDefault: _saveAsDefault(context, type, vm, terms: false),
           ),
         ],

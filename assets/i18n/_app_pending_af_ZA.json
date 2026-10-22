@@ -320,6 +320,7 @@
   "default_taxable_code": "Verstekkode (belasbaar)",
   "default_template_caption": "Wys die versteksjabloon. Jou eerste wysiging stoor 'n pasgemaakte kopie.",
   "default_template_caption_send": "Dit is wat gestuur sal word. Wysig dit om slegs hierdie e-pos te verander.",
+  "default_value_caption": "Die verstek word gewys. Wysig dit om dit slegs vir hierdie dokument te verander.",
   "delete_row": "Vee ry uit",
   "delete_view": "Vee aansig uit",
   "deleted_bank_transaction": "Banktransaksie suksesvol uitgevee",

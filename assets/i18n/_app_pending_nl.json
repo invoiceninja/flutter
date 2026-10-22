@@ -333,6 +333,7 @@
   "default_taxable_code": "Standaard belastbare code",
   "default_template_caption": "Het standaardsjabloon wordt getoond. Uw eerste wijziging slaat een aangepaste kopie op.",
   "default_template_caption_send": "Dit wordt verzonden. Bewerk het om alleen deze e-mail te wijzigen.",
+  "default_value_caption": "De standaardwaarde wordt getoond. Bewerk deze om hem alleen voor dit document te wijzigen.",
   "delete_row": "Rij verwijderen",
   "delete_view": "Weergave verwijderen",
   "deleted_bank_transaction": "Banktransactie succesvol verwijderd",

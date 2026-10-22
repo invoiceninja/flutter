@@ -324,6 +324,7 @@
   "default_taxable_code": "Numatytasis apmokestinimo kodas",
   "default_template_caption": "Rodomas numatytasis šablonas. Pirmas pakeitimas išsaugos pasirinktinę kopiją.",
   "default_template_caption_send": "Bus išsiųsta būtent tai. Redaguokite, kad pakeistumėte tik šį el. laišką.",
+  "default_value_caption": "Rodoma numatytoji reikšmė. Redaguokite ją, kad pakeistumėte tik šiam dokumentui.",
   "delete_row": "Ištrinti eilutę",
   "delete_view": "Ištrinti rodinį",
   "deleted_bank_transaction": "Banko operacija sėkmingai ištrinta",

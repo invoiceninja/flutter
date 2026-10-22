@@ -45,12 +45,19 @@ Future<bool> resolveCreateInclusiveTaxes(
 /// fixed mode, and a producer that builds lines stages the mode itself
 /// ([resolveCreateInclusiveTaxes]).
 ///
+/// Every create form, priced lines or not, also gets the resolved settings as
+/// [BillingDocEditViewModel.createCascade], so it can show the terms, footer
+/// and payment terms the server will fill in for a blank field.
+///
 /// The synchronous [SettingsRepository.resolvedIfReady] answer seeds the
 /// first frame; the awaited `resolved()` — always run — then corrects it.
 /// Both go through [BillingDocEditViewModel.seedUsesInclusiveTaxes], so
 /// neither lands on an edit form, mid-save, after a save or a discard, once
 /// the user flipped the switch, or once a line was priced; and neither makes
-/// an untouched form dirty.
+/// an untouched form dirty. Those guards are the inclusive-tax mode's only:
+/// the cascade itself ([BillingDocEditViewModel.setCreateCascade]) is set on
+/// every create, clone and priced form included, discard or not, and cleared
+/// while a new party's answer is still out.
 ///
 /// A client document re-resolves when its client changes (picked, seeded from
 /// a project, cleared), under the same guards. A request token drops a late
@@ -63,7 +70,11 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
   required BillingDocType type,
   required BillingDocEditViewModel<T> vm,
 }) {
-  if (!vm.canSeedInclusiveTaxes) return;
+  if (!vm.isCreate) return;
+  // A clone or a produced draft keeps the mode it arrived with for good —
+  // even once its lines are deleted — so only a form that opened seedable
+  // ever seeds. The cascade itself is shown on every create.
+  final seedsTaxes = vm.canSeedInclusiveTaxes;
   final byClient = type.party == BillingDocParty.client;
   var token = 0;
 
@@ -75,7 +86,10 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
       companyId: companyId,
       clientId: clientId,
     );
-    if (guess != null) {
+    // No guess drops the previous party's cascade rather than leaving it on
+    // screen as this one's until — or, on a failed fetch, for good.
+    vm.setCreateCascade(guess);
+    if (guess != null && seedsTaxes) {
       vm.seedUsesInclusiveTaxes(
         inclusiveTaxesSetting(guess),
         companyLevel: companyLevel,
@@ -86,6 +100,8 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
           .resolved(companyId: companyId, clientId: clientId)
           .then((resolved) {
             if (request != token || vm.isDisposed) return;
+            vm.setCreateCascade(resolved);
+            if (!seedsTaxes) return;
             vm.seedUsesInclusiveTaxes(
               inclusiveTaxesSetting(resolved),
               companyLevel: companyLevel,
@@ -105,7 +121,9 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
     // Whatever was asked for the previous client is stale now, even when
     // nothing is asked for this one.
     token++;
-    if (vm.isDisposed || !vm.canSeedInclusiveTaxes) return;
+    // `seedUsesInclusiveTaxes` guards itself (behind [seedsTaxes]); the
+    // cascade follows the client for as long as the form is a create.
+    if (vm.isDisposed || !vm.isCreate) return;
     resolve();
   });
 }

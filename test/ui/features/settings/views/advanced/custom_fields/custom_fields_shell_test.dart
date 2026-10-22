@@ -481,6 +481,36 @@ void main() {
     },
   );
 
+  testWidgets('an admin-portal surcharge label shows without its type suffix', (
+    tester,
+  ) async {
+    // admin-portal saved `Label|single_line_text` for a surcharge, and the
+    // label box showed the whole string. Same tab dance as above.
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final services = makeServices(
+      company: Company(
+        id: 'co-A',
+        enabledModules: EnabledModule.invoices.bitmask,
+        customFields: const {'surcharge1': 'Shipping|single_line_text'},
+      ),
+    );
+    await tester.pumpWidget(_host(services: services));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(of: find.byType(Tab), matching: find.text('Invoices')),
+    );
+    await settle(tester);
+
+    final labelField = find.descendant(
+      of: find.byKey(const ValueKey('co-A:surcharge1')),
+      matching: find.byType(TextField),
+    );
+    expect(tester.widget<TextField>(labelField).controller!.text, 'Shipping');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // A `<label>|single_line_text` slot (the encoding React + admin-portal
   // write for "Single-line text") must render AS single-line text — not as a
   // dropdown whose options are the literal string `single_line_text`. The

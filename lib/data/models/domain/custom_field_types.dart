@@ -86,6 +86,20 @@ class ParsedCustomField {
       Object.hash(label, type, const ListEquality<String>().hash(options));
 }
 
+/// The label of a surcharge slot (`custom_fields['surcharge1'..'4']`).
+///
+/// This app and React store the bare label, but admin-portal saved
+/// `"Label|single_line_text"` — its type dropdown is hidden for surcharges,
+/// not skipped — so a label read raw showed the type keyword after it. The
+/// label is everything before the first pipe, which is also how the server's
+/// `Helpers::makeCustomField` reads it for the PDF. Not [parseCustomField]:
+/// a surcharge has no type, and a bare label must not mean multi-line text.
+String surchargeLabel(String? raw) {
+  if (raw == null) return '';
+  final idx = raw.indexOf('|');
+  return idx < 0 ? raw : raw.substring(0, idx);
+}
+
 /// Parse a raw `custom_fields` slot value into label + type + options.
 ///
 /// Rules (identical to the legacy `_parsedType` / `_parsedOptions` in

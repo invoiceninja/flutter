@@ -320,6 +320,7 @@
   "default_taxable_code": "Standardkode for momspligtig",
   "default_template_caption": "Viser standardskabelonen. Din første redigering gemmer en tilpasset kopi.",
   "default_template_caption_send": "Det er dette, der bliver sendt. Rediger det for kun at ændre denne e-mail.",
+  "default_value_caption": "Standarden vises. Rediger den for kun at ændre den for dette dokument.",
   "delete_row": "Slet række",
   "delete_view": "Slet visning",
   "deleted_bank_transaction": "Banktransaktion slettet",

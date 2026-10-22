@@ -320,6 +320,7 @@
   "default_taxable_code": "Podrazumevani kod za oporezivanje",
   "default_template_caption": "Prikazuje se podrazumevani šablon. Vaša prva izmena čuva prilagođenu kopiju.",
   "default_template_caption_send": "Ovo će biti poslato. Izmenite da biste promenili samo ovu e-poruku.",
+  "default_value_caption": "Prikazuje se podrazumevana vrednost. Izmenite je da biste je promenili samo za ovaj dokument.",
   "delete_row": "Obriši red",
   "delete_view": "Obriši prikaz",
   "deleted_bank_transaction": "Bankovna transakcija je uspešno obrisana",

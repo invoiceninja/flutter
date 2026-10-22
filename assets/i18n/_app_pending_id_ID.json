@@ -320,6 +320,7 @@
   "default_taxable_code": "Kode kena pajak bawaan",
   "default_template_caption": "Menampilkan templat bawaan. Suntingan pertama Anda menyimpan salinan kustom.",
   "default_template_caption_send": "Inilah yang akan dikirim. Edit untuk mengubah email ini saja.",
+  "default_value_caption": "Menampilkan nilai bawaan. Edit untuk mengubahnya hanya untuk dokumen ini.",
   "delete_row": "Hapus baris",
   "delete_view": "Hapus tampilan",
   "deleted_bank_transaction": "Berhasil menghapus transaksi bank",

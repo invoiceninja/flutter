@@ -566,6 +566,17 @@ void main() {
       expect(rows.last.amount, d('20'));
     });
 
+    test('an admin-portal label shows without its type suffix', () {
+      // admin-portal saved surcharge labels as `Label|single_line_text`, and
+      // the row read "Shipping|single_line_text".
+      final rows = buildSurchargeRows(
+        customFields: const {'surcharge1': 'Shipping|single_line_text'},
+        amounts: [d('50'), Decimal.zero, Decimal.zero, Decimal.zero],
+      );
+      expect(rows.single.label, 'Shipping');
+      expect(rows.single.labelIsKey, isFalse);
+    });
+
     test('zero-amount slots are skipped even when labelled', () {
       final rows = buildSurchargeRows(
         customFields: const {'surcharge1': 'Shipping'},

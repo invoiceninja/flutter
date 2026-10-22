@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/custom_field_types.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -134,7 +135,9 @@ class _BillingTaxSurchargeSectionState
 
         final surchargeLabels = <int, String>{};
         for (var i = 0; i < 4; i++) {
-          final label = company?.customFields['surcharge${i + 1}'] ?? '';
+          final label = surchargeLabel(
+            company?.customFields['surcharge${i + 1}'],
+          );
           if (label.isNotEmpty) surchargeLabels[i] = label;
         }
 

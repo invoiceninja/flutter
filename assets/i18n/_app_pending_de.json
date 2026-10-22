@@ -333,6 +333,7 @@
   "default_taxable_code": "Standard-Steuercode",
   "default_template_caption": "Die Standardvorlage wird angezeigt. Ihre erste Änderung speichert eine eigene Kopie.",
   "default_template_caption_send": "Dies wird gesendet. Bearbeiten Sie den Text, um nur diese E-Mail zu ändern.",
+  "default_value_caption": "Der Standardwert wird angezeigt. Bearbeiten Sie ihn, um ihn nur für dieses Dokument zu ändern.",
   "delete_row": "Zeile löschen",
   "delete_view": "Ansicht löschen",
   "deleted_bank_transaction": "Transaktion erfolgreich gelöscht",

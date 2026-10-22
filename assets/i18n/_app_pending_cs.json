@@ -333,6 +333,7 @@
   "default_taxable_code": "Výchozí kód zdanitelného plnění",
   "default_template_caption": "Zobrazena výchozí šablona. Vaše první úprava uloží vlastní kopii.",
   "default_template_caption_send": "Toto bude odesláno. Úpravou změníte jen tento e-mail.",
+  "default_value_caption": "Zobrazuje se výchozí hodnota. Upravte ji, chcete-li ji změnit pouze pro tento dokument.",
   "delete_row": "Smazat řádek",
   "delete_view": "Smazat zobrazení",
   "deleted_bank_transaction": "Bankovní transakce úspěšně smazána",

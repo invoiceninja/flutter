@@ -320,6 +320,7 @@
   "default_taxable_code": "預設應稅代碼",
   "default_template_caption": "目前顯示預設範本。您的第一次編輯會儲存一份自訂副本。",
   "default_template_caption_send": "這就是將要寄出的內容。編輯後只會變更這封電子郵件。",
+  "default_value_caption": "正在顯示預設值。編輯它以僅變更此文件。",
   "delete_row": "刪除列",
   "delete_view": "刪除檢視",
   "deleted_bank_transaction": "已成功刪除銀行交易",

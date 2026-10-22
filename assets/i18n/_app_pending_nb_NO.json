@@ -333,6 +333,7 @@
   "default_taxable_code": "Standard avgiftskode",
   "default_template_caption": "Viser standardmalen. Din første endring lagrer en egendefinert kopi.",
   "default_template_caption_send": "Dette er det som blir sendt. Endre det for å endre bare denne e-posten.",
+  "default_value_caption": "Standarden vises. Rediger den for å endre den bare for dette dokumentet.",
   "delete_row": "Slett rad",
   "delete_view": "Slett visning",
   "deleted_bank_transaction": "Banktransaksjonen ble slettet",

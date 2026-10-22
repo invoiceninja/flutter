@@ -316,6 +316,7 @@
   "default_taxable_code": "Code taxable par défaut",
   "default_template_caption": "Affichage du modèle par défaut. Votre première modification sauvegarde une copie personnalisée.",
   "default_template_caption_send": "Voici ce qui sera envoyé. Modifiez-le pour changer ce courriel seulement.",
+  "default_value_caption": "La valeur par défaut est affichée. Modifiez-la pour la changer pour ce document seulement.",
   "delete_view": "Supprimer la vue",
   "deleted_bank_transaction": "La transaction bancaire a été supprimée",
   "deleted_purchase_orders": ":count bons de commande ont été supprimés",

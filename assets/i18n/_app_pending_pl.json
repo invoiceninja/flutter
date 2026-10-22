@@ -320,6 +320,7 @@
   "default_taxable_code": "Domyślny kod opodatkowania",
   "default_template_caption": "Wyświetlany jest szablon domyślny. Pierwsza zmiana zapisze własną kopię.",
   "default_template_caption_send": "Tak będzie wyglądać wysłana wiadomość. Edytuj ją, aby zmienić tylko ten e-mail.",
+  "default_value_caption": "Wyświetlana jest wartość domyślna. Edytuj ją, aby zmienić ją tylko dla tego dokumentu.",
   "delete_row": "Usuń wiersz",
   "delete_view": "Usuń widok",
   "deleted_bank_transaction": "Pomyślnie usunięto transakcję bankową",

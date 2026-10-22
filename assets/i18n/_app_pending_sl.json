@@ -333,6 +333,7 @@
   "default_taxable_code": "Privzeta obdavčljiva koda",
   "default_template_caption": "Prikazana je privzeta predloga. Vaše prvo urejanje shrani kopijo po meri.",
   "default_template_caption_send": "To bo poslano. Če želite spremeniti samo to e-pošto, jo uredite.",
+  "default_value_caption": "Prikazana je privzeta vrednost. Uredite jo, da jo spremenite samo za ta dokument.",
   "delete_row": "Izbriši vrstico",
   "delete_view": "Izbriši pogled",
   "deleted_bank_transaction": "Transakcija uspešno izbrisana",

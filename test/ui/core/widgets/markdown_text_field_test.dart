@@ -511,6 +511,58 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
+  testWidgets(
+    'the soft keyboard scrolls the form to the caret, not just the field',
+    (tester) async {
+      // An iPhone report: Private Notes, low on the invoice Notes tab, opened
+      // its keyboard over itself. super_editor reveals its caret inside the
+      // field's own scroll view only, so the form never moved.
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final outer = ScrollController();
+      addTearDown(outer.dispose);
+      await tester.pumpWidget(
+        wrap(
+          ListView(
+            controller: outer,
+            children: [
+              const SizedBox(height: 420),
+              MarkdownTextField(
+                label: 'Private notes',
+                showLabel: false,
+                height: 150,
+                initialValue: '',
+                onChanged: (_) {},
+              ),
+              const SizedBox(height: 400),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // The field's top edge is on screen, as in the report; tap it.
+      await tester.tapAt(const Offset(200, 440));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.byType(SuperEditor), findsOneWidget);
+      final before = outer.offset;
+
+      // The keyboard opens: the Scaffold gives the body 300 px.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+
+      expect(outer.offset, greaterThan(before));
+      // The editor's first line, under the toolbar, sits above the keyboard.
+      final field = tester.getRect(find.byType(MarkdownTextField));
+      expect(field.top, lessThan(300 - 80));
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   testWidgets('expand mode fills a bounded parent and scrolls', (tester) async {
     // The desktop notes pane: `expand: true` takes the parent's height instead
     // of growing, and the same sliver-level pointer block applies there.

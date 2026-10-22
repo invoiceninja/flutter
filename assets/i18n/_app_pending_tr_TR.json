@@ -333,6 +333,7 @@
   "default_taxable_code": "Varsayılan vergilendirilebilir kod",
   "default_template_caption": "Varsayılan şablon gösteriliyor. İlk düzenlemeniz özel bir kopya kaydeder.",
   "default_template_caption_send": "Gönderilecek olan budur. Yalnızca bu e-postayı değiştirmek için düzenleyin.",
+  "default_value_caption": "Varsayılan gösteriliyor. Yalnızca bu belge için değiştirmek üzere düzenleyin.",
   "delete_row": "Satırı sil",
   "delete_view": "Görünümü sil",
   "deleted_bank_transaction": "Banka işlemi başarıyla silindi",

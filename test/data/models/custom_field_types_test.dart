@@ -93,4 +93,20 @@ void main() {
       expect(isSwitchTruthy('0'), isFalse);
     });
   });
+
+  group('surchargeLabel', () {
+    test('a bare label is the label — never a multi-line field', () {
+      expect(surchargeLabel('Shipping'), 'Shipping');
+    });
+
+    test("admin-portal's type suffix is dropped", () {
+      expect(surchargeLabel('Shipping|single_line_text'), 'Shipping');
+      expect(surchargeLabel('Shipping|'), 'Shipping');
+    });
+
+    test('null / empty → empty', () {
+      expect(surchargeLabel(null), '');
+      expect(surchargeLabel(''), '');
+    });
+  });
 }

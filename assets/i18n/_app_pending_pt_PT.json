@@ -320,6 +320,7 @@
   "default_taxable_code": "Código tributável predefinido",
   "default_template_caption": "A mostrar o modelo predefinido. A primeira edição guarda uma cópia personalizada.",
   "default_template_caption_send": "Isto é o que será enviado. Edite-o para alterar apenas este e-mail.",
+  "default_value_caption": "A mostrar o valor predefinido. Edite-o para o alterar apenas neste documento.",
   "delete_row": "Apagar linha",
   "delete_view": "Apagar vista",
   "deleted_bank_transaction": "Transação bancária apagada com sucesso",

@@ -333,6 +333,7 @@
   "default_taxable_code": "Noklusējuma apliekamais kods",
   "default_template_caption": "Tiek rādīta noklusējuma veidne. Pirmais labojums saglabās pielāgotu kopiju.",
   "default_template_caption_send": "Tas tiks nosūtīts. Rediģējiet, lai mainītu tikai šo e-pastu.",
+  "default_value_caption": "Tiek rādīta noklusējuma vērtība. Rediģējiet to, lai mainītu tikai šim dokumentam.",
   "delete_row": "Dzēst rindu",
   "delete_view": "Dzēst skatu",
   "deleted_bank_transaction": "Bankas darījums veiksmīgi dzēsts",

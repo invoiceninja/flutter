@@ -324,6 +324,7 @@
   "default_taxable_code": "Alapértelmezett adóköteles kód",
   "default_template_caption": "Az alapértelmezett sablon látható. Az első szerkesztés egyéni másolatot ment.",
   "default_template_caption_send": "Ez lesz elküldve. Szerkessze, ha csak ezt az e-mailt szeretné módosítani.",
+  "default_value_caption": "Az alapértelmezett érték látható. Szerkessze, ha csak ennél a dokumentumnál szeretné módosítani.",
   "delete_row": "Sor törlése",
   "delete_view": "Nézet törlése",
   "deleted_bank_transaction": "A banki tranzakció sikeresen törölve",

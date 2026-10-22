@@ -114,12 +114,13 @@ class _CustomFieldRowState<V extends SettingsDraftHost>
   String _normalizeOptions(String raw) =>
       raw.split(',').map((p) => p.trim()).join(',');
 
-  /// Label portion of the stored value. Surcharge slots store the raw label
-  /// with no pipe; everything else takes the first pipe segment via the shared
+  /// Label portion of the stored value. Surcharge slots store the bare label
+  /// (an admin-portal one may carry a type suffix — see [surchargeLabel]);
+  /// everything else takes the first pipe segment via the shared
   /// [parseCustomField].
   String _parsedLabel(V vm) {
     final raw = _rawValue(vm);
-    if (_isSurcharge) return raw;
+    if (_isSurcharge) return surchargeLabel(raw);
     return parseCustomField(raw).label;
   }
 

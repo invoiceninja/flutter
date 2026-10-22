@@ -611,6 +611,7 @@ The block designer (`invoice_design/wysiwyg/`) is a picture of what the server p
 - **A marker construct that closes with no text in it must release the break hold, or it swallows the rest of the document.** → `docs/rich-text-editing.md`
 - **A read-only editor blocks pointers at the *sliver*, never around the scroll host.** → `docs/rich-text-editing.md`
 - **The editor's own scroll host is `primary: false`, or the form around it cannot be dragged.** → `docs/rich-text-editing.md`
+- **The editor reveals its caret in the enclosing form itself (`_revealCaret`) — super_editor scrolls only the field's own scroll view, so a field low in a form opened the keyboard over itself.** → `docs/rich-text-editing.md`
 - **The mobile caret is themed through `Theme.of(context).primaryColor`, and the `DefaultCaretOverlayBuilder` sitting right next to it is desktop-only.** → `docs/rich-text-editing.md`
 - **`height` is a floor, not a size** — the field grows to `maxHeight`, then scrolls; `expand: true` opts out. → `docs/rich-text-editing.md`
 - **Template variables are inline placeholders the markdown never sees.** → `docs/template-variables.md`

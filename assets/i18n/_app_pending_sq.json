@@ -333,6 +333,7 @@
   "default_taxable_code": "Kodi i parazgjedhur i tatueshëm",
   "default_template_caption": "Po shfaqet shablloni i parazgjedhur. Editimi juaj i parë ruan një kopje të personalizuar.",
   "default_template_caption_send": "Kjo është ajo që do të dërgohet. Editojeni për të ndryshuar vetëm këtë email.",
+  "default_value_caption": "Po shfaqet vlera e parazgjedhur. Ndryshojeni për ta ndryshuar vetëm për këtë dokument.",
   "delete_row": "Fshi rreshtin",
   "delete_view": "Fshi pamjen",
   "deleted_bank_transaction": "Transaksioni bankar u fshi me sukses",

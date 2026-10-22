@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 
@@ -867,6 +868,23 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
       (d) => writer.usesInclusiveTaxes(d, value),
       rememberForReset: companyLevel,
     );
+  }
+
+  /// The merged settings (client → group → company; the company's alone for
+  /// a vendor document) a new document's blank fields fall back to — null on
+  /// an edit, and until `seedBillingCreateDefaults` resolves it. Read by the
+  /// form to *show* those defaults (the terms and footer muted in their
+  /// fields, the payment terms beside the due date), never written into the
+  /// draft: the server fills a blank terms / footer on create itself
+  /// (`fillDefaults`), and a due date when the document is sent.
+  Map<String, dynamic>? get createCascade => _createCascade;
+  Map<String, dynamic>? _createCascade;
+
+  void setCreateCascade(Map<String, dynamic>? settings) {
+    if (isDisposed || !isCreate) return;
+    if (const DeepCollectionEquality().equals(settings, _createCascade)) return;
+    _createCascade = settings;
+    notifyListeners();
   }
 
   /// The company the document belongs to.

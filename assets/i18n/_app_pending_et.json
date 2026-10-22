@@ -320,6 +320,7 @@
   "default_taxable_code": "Vaikimisi maksustatav kood",
   "default_template_caption": "Kuvatakse vaikemalli. Teie esimene muudatus salvestab kohandatud koopia.",
   "default_template_caption_send": "Just see saadetakse. Seda muutes muudate ainult seda e-kirja.",
+  "default_value_caption": "Kuvatakse vaikeväärtus. Muutke seda, et muuta seda ainult selle dokumendi jaoks.",
   "delete_row": "Kustuta rida",
   "delete_view": "Kustuta vaade",
   "deleted_bank_transaction": "Pangatehing edukalt kustutatud",

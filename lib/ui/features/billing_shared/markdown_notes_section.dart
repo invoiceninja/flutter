@@ -24,7 +24,15 @@ class MarkdownNotesField extends StatefulWidget {
     this.height = 180,
     this.maxHeight,
     this.expand = false,
+    this.defaultValue,
   });
+
+  /// What the server fills in when this field is saved blank — a new
+  /// document's terms / footer from the settings cascade. Shown muted in the
+  /// empty field, with a caption; nothing is emitted until the user edits it,
+  /// so an untouched default still saves blank and the server applies the
+  /// default it resolves then. See [MarkdownTextField.defaultValue].
+  final String? defaultValue;
 
   /// Localized label shown above the editor.
   final String label;
@@ -116,11 +124,18 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
 
   @override
   Widget build(BuildContext context) {
+    // "Save as default" is off over the default itself: the empty value would
+    // clear the company setting the user is looking at, and the default on
+    // screen may be a client's or a group's, which the button would copy to
+    // the company. Disabled rather than removed, so the row does not appear
+    // under an `expand` editor — shrinking it — as the first edit lands.
+    final showingDefault =
+        widget.value.isEmpty && (widget.defaultValue ?? '').isNotEmpty;
     final saveButton = widget.onSaveAsDefault == null
         ? null
         : TextButton(
             style: TextButton.styleFrom(minimumSize: const Size(64, 32)),
-            onPressed: _handleSaveAsDefault,
+            onPressed: showingDefault ? null : _handleSaveAsDefault,
             child: Text(context.tr('save_as_default')),
           );
 
@@ -155,6 +170,8 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
       expand: widget.expand,
       externalValueKey: widget.externalValueKey,
       controller: _controller,
+      defaultValue: widget.defaultValue,
+      defaultCaption: context.tr('default_value_caption'),
     );
 
     return Column(

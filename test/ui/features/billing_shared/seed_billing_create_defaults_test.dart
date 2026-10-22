@@ -75,12 +75,17 @@ class _Settings extends SettingsRepository {
   _Settings(AppDatabase db) : super(db: db);
 
   final answers = <String?, bool>{};
+
+  /// Clients whose `resolved()` fails.
+  final failing = <String?>{};
   Map<String?, bool>? ready;
   bool hold = false;
   final pending = <({String? clientId, Completer<Map<String, dynamic>> c})>[];
 
   Map<String, dynamic> _layer(String? clientId) => {
     'inclusive_taxes': answers[clientId] ?? answers[null] ?? false,
+    // Which layer answered, for the create-cascade tests.
+    'layer': clientId ?? 'company',
   };
 
   void answer(String? clientId) {
@@ -93,6 +98,9 @@ class _Settings extends SettingsRepository {
     required String companyId,
     String? clientId,
   }) {
+    if (failing.contains(clientId)) {
+      return Future.error(StateError('offline'));
+    }
     if (!hold) return Future.value(_layer(clientId));
     final c = Completer<Map<String, dynamic>>();
     pending.add((clientId: clientId, c: c));
@@ -244,6 +252,23 @@ void main() {
         expect(vm.draft.usesInclusiveTaxes, isFalse);
       });
 
+      test('the create form gets the cascade, a clone with lines too, and '
+          'stays clean', () async {
+        final dynamic vm = open();
+        await pumpEventQueue();
+        expect(vm.createCascade?['layer'], 'company');
+        expect(vm.isDirty, isFalse);
+
+        final probe = make(db);
+        addTearDown(() => probe.dispose());
+        final clone = probe.writer.lineItems(probe.writer.empty(), [
+          _pricedLine,
+        ]);
+        final dynamic cloned = open(cloneFrom: clone);
+        await pumpEventQueue();
+        expect(cloned.createCascade?['layer'], 'company');
+      });
+
       test('a staged draft is dirty from the start, even unchanged', () {
         final probe = make(db);
         addTearDown(() => probe.dispose());
@@ -304,6 +329,47 @@ void main() {
           await pumpEventQueue();
           expect(vm.draft.usesInclusiveTaxes, isFalse);
         });
+
+        test(
+          'a failed lookup for the new client leaves no stale cascade',
+          () async {
+            settings.failing.add('c2');
+            final dynamic vm = open();
+            vm.setClientId('c1');
+            await pumpEventQueue();
+            expect(vm.createCascade?['layer'], 'c1');
+            vm.setClientId('c2');
+            await pumpEventQueue();
+            expect(vm.createCascade, isNull);
+          },
+        );
+
+        test('a clone keeps its mode after its lines go and the client '
+            'changes', () async {
+          settings.answers['c1'] = true;
+          final probe = make(db);
+          addTearDown(() => probe.dispose());
+          final clone = probe.writer.lineItems(probe.writer.empty(), [
+            _pricedLine,
+          ]);
+          final dynamic vm = open(cloneFrom: clone);
+          vm.replaceLineItems(const <LineItem>[]);
+          vm.setClientId('c1');
+          await pumpEventQueue();
+          expect(vm.draft.usesInclusiveTaxes, isFalse);
+          expect(vm.createCascade?['layer'], 'c1');
+        });
+
+        test(
+          'the cascade follows the client, even once lines are priced',
+          () async {
+            final dynamic vm = open();
+            vm.addLineItem(_pricedLine);
+            vm.setClientId('c1');
+            await pumpEventQueue();
+            expect(vm.createCascade?['layer'], 'c1');
+          },
+        );
 
         test('a prefilled client is resolved on open', () async {
           settings

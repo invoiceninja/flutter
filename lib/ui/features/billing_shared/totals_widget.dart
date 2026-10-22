@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/data/models/domain/custom_field_types.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
@@ -309,7 +310,7 @@ List<TotalsSurcharge> buildSurchargeRows({
     // this function exists to prevent — an invoice created by API/import, or
     // one billed before the label was cleared, still carries the amount.
     if (amounts[i] == Decimal.zero) continue;
-    final label = customFields?['surcharge${i + 1}'] ?? '';
+    final label = surchargeLabel(customFields?['surcharge${i + 1}']);
     // Fall back to the generic slot label key (`surcharge1`…`surcharge4` are
     // real localization keys) so an unlabelled row still reads sensibly.
     rows.add(

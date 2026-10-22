@@ -35,6 +35,7 @@ class InDateField extends StatefulWidget {
     this.dense = false,
     this.semanticLabel,
     this.errorText,
+    this.helperText,
   });
 
   /// The currently-set date (calendar date — any time-of-day is ignored
@@ -105,6 +106,10 @@ class InDateField extends StatefulWidget {
   /// Inline error under the field — a server 422 or a form's own validation,
   /// keyed by the field's API name (`vm.fieldErrorFor('due_date')`).
   final String? errorText;
+
+  /// A line under the field — what a blank value will become (the billing
+  /// due date's "Net 30"). An [errorText] takes its place.
+  final String? helperText;
 
   @override
   State<InDateField> createState() => _InDateFieldState();
@@ -293,6 +298,7 @@ class _InDateFieldState extends State<InDateField> {
         labelText: widget.labelText,
         hintText: _hint(),
         errorText: widget.errorText,
+        helperText: widget.helperText,
         contentPadding: dense
             ? const EdgeInsets.all(8)
             : EdgeInsets.symmetric(

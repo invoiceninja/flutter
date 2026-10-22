@@ -221,6 +221,21 @@ enum BillingDocType {
   String? get footerDefaultKey =>
       this == BillingDocType.recurringInvoice ? null : '${wireName}_footer';
 
+  /// The settings the server copies into a blank terms / footer when this
+  /// document is created (`fillDefaults`). The recurring invoice's own create
+  /// fills nothing, but every invoice it generates takes the invoice's.
+  String get termsCascadeKey => termsDefaultKey ?? 'invoice_terms';
+
+  String get footerCascadeKey => footerDefaultKey ?? 'invoice_footer';
+
+  /// The setting, in days, the server dates a blank due date from when the
+  /// document is sent (`MarkSent`); null where nothing does.
+  String? get dueDaysCascadeKey => switch (this) {
+    BillingDocType.invoice => 'payment_terms',
+    BillingDocType.quote => 'valid_until',
+    _ => null,
+  };
+
   /// [settings] with [value] as this document's default terms / footer.
   CompanySettings withDefaultTerms(CompanySettings settings, String? value) =>
       switch (this) {

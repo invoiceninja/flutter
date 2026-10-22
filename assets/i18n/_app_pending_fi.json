@@ -320,6 +320,7 @@
   "default_taxable_code": "Oletusarvoinen verollinen koodi",
   "default_template_caption": "Näytetään oletuspohja. Ensimmäinen muokkauksesi tallentaa mukautetun kopion.",
   "default_template_caption_send": "Tämä lähetetään. Muokkaa sitä muuttaaksesi vain tätä sähköpostia.",
+  "default_value_caption": "Näytetään oletusarvo. Muokkaa sitä muuttaaksesi sen vain tähän asiakirjaan.",
   "delete_row": "Poista rivi",
   "delete_view": "Poista näkymä",
   "deleted_bank_transaction": "Pankkitapahtuma poistettiin onnistuneesti",

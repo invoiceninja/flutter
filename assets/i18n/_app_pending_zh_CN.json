@@ -333,6 +333,7 @@
   "default_taxable_code": "默认应税代码",
   "default_template_caption": "正在显示默认模板。您的首次编辑将保存为自定义副本。",
   "default_template_caption_send": "这是将要发送的内容。编辑它仅会更改此封邮件。",
+  "default_value_caption": "正在显示默认值。编辑它以仅更改此文档。",
   "delete_row": "删除行",
   "delete_view": "删除视图",
   "deleted_bank_transaction": "已成功删除银行交易",

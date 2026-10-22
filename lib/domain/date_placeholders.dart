@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:intl/intl.dart';
 
 import 'package:admin/data/models/value/date.dart';
@@ -33,6 +35,15 @@ import 'package:admin/utils/formatting.dart';
 /// *number* rather than an offset. Upstream's pinned expectations are in
 /// `tests/Unit/HelpersTest.php`.
 ///
+/// **The server's two caps are mirrored** (`ac46351c0b`, Sep 9 2026): a value
+/// over 16,384 *bytes* is left whole, and each pass looks at only the first 32
+/// candidates — `[…]` groups for the ranges, `:token`s for the rest, counted
+/// whether or not they are keywords, so a terms block full of times (`10:30`)
+/// or links (`https://`) leaves its later keywords raw on the PDF. Most
+/// callers pass the plain text of an HTML field, which is shorter and has
+/// fewer `:` than the stored value the server counts; so a cap here can only
+/// leave raw what the server leaves raw too, never the other way around.
+///
 /// [separator] matches the server's untranslated `-`, which it now uses for the
 /// bracket ranges and the literal windows alike. Deliberately *not* `tr('to')`:
 /// that key is the email recipient label ("An" in German, "宛先" in Japanese),
@@ -48,6 +59,7 @@ String expandDatePlaceholders(
   // Cheap bail-out before any regex work — the overwhelming majority of
   // descriptions carry no keyword at all. Mirrors the server's own early exit.
   if (!text.contains(':') && !text.contains('[')) return text;
+  if (_exceedsLengthCap(text)) return text;
 
   final at = now ?? DateTime.now();
   // `CompanyFormatSettings.locale` is a non-nullable String that is `''` both in
@@ -72,16 +84,23 @@ String expandDatePlaceholders(
       '${formatter?.date(from.toIso()) ?? from.toIso()} $separator '
       '${formatter?.date(to.toIso()) ?? to.toIso()}';
 
-  var out = text;
-
   // Ranges first, so a `[MONTHYEAR|…]` isn't half-eaten by the passes below
-  // (the server orders it the same way, for the same reason).
-  out = out.replaceAllMapped(
-    _rangePattern,
-    (m) =>
-        '${monthYear(monthsFromNow(0))} $separator '
-        '${monthYear(monthsFromNow(_signed(m.group(1), m.group(2))))}',
-  );
+  // (the server orders it the same way, for the same reason). A range is one
+  // `[…]` group, so it falls wholly on one side of the cut.
+  final (rangeHead, rangeTail) = _splitAtMatchCap(text, _bracketPattern);
+  final ranged =
+      rangeHead.replaceAllMapped(
+        _rangePattern,
+        (m) =>
+            '${monthYear(monthsFromNow(0))} $separator '
+            '${monthYear(monthsFromNow(_signed(m.group(1), m.group(2))))}',
+      ) +
+      rangeTail;
+
+  // Counted after the ranges, as upstream does. A keyword never contains a
+  // `:` past its first character, so it too sits wholly on one side.
+  final (head, tail) = _splitAtMatchCap(ranged, _colonTokenPattern);
+  var out = head;
 
   out = out.replaceAllMapped(_arithmeticPattern, (m) {
     final n = _signed(m.group(2), m.group(3));
@@ -131,8 +150,37 @@ String expandDatePlaceholders(
     }
   });
 
-  return out;
+  return out + tail;
 }
+
+/// Upstream's `RESERVED_KEYWORD_MAX_LENGTH`, measured as PHP's `strlen` does:
+/// in UTF-8 bytes.
+const int _maxKeywordTextBytes = 16384;
+
+/// Upstream's `RESERVED_KEYWORD_MAX_MATCHES`, per pass.
+const int _maxKeywordMatches = 32;
+
+/// Whether [text] is over [_maxKeywordTextBytes]. A UTF-16 unit is at least
+/// one UTF-8 byte and at most three, so only the band between needs encoding.
+bool _exceedsLengthCap(String text) {
+  if (text.length > _maxKeywordTextBytes) return true;
+  if (text.length * 3 <= _maxKeywordTextBytes) return false;
+  return utf8.encode(text).length > _maxKeywordTextBytes;
+}
+
+/// [text] cut where upstream stops looking: before the start of the match of
+/// [pattern] that follows the first [_maxKeywordMatches]. The tail is `''`
+/// when there are no more than that.
+(String, String) _splitAtMatchCap(String text, RegExp pattern) {
+  final over = pattern.allMatches(text).elementAtOrNull(_maxKeywordMatches);
+  if (over == null) return (text, '');
+  return (text.substring(0, over.start), text.substring(over.start));
+}
+
+/// Upstream's candidate patterns: what each pass counts toward the cap,
+/// keyword or not (`preg_match_all('/\[(.*?)]/')`, `'/:([^:\s]+)/'`).
+final RegExp _bracketPattern = RegExp(r'\[(.*?)]');
+final RegExp _colonTokenPattern = RegExp(r':([^:\s]+)');
 
 /// The `Company.customFields` prefixes whose stored values the server expands
 /// these keywords in when it renders a document — every value it prints

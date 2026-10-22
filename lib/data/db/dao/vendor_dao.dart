@@ -291,13 +291,28 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
   /// selects only the two columns needed and orders by display name.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: true);
+
+  /// [watchActiveNames] over every cached vendor, archived and deleted
+  /// included — the names a `vendor:` filter CHIP resolves through, so a saved
+  /// view naming one archived since still reads as a name. Suggestions stay
+  /// active-only.
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: false);
+
+  Stream<List<({String id, String name})>> _watchNames({
+    required String companyId,
+    required bool activeOnly,
   }) {
     final q = selectOnly(vendors)
       ..addColumns([vendors.id, vendors.displayName])
       ..where(
-        vendors.companyId.equals(companyId) &
-            vendors.isDeleted.equals(false) &
-            vendors.archivedAt.isNull(),
+        activeOnly
+            ? vendors.companyId.equals(companyId) &
+                  vendors.isDeleted.equals(false) &
+                  vendors.archivedAt.isNull()
+            : vendors.companyId.equals(companyId),
       )
       ..orderBy([OrderingTerm(expression: vendors.displayName.lower())]);
     return q

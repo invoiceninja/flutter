@@ -259,13 +259,28 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
   /// resolution — selects only the two columns needed and orders by name.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: true);
+
+  /// [watchActiveNames] over every cached project, archived and deleted
+  /// included — the names a `project:` filter CHIP resolves through, so a saved
+  /// view naming one archived since still reads as a name. Suggestions stay
+  /// active-only.
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: false);
+
+  Stream<List<({String id, String name})>> _watchNames({
+    required String companyId,
+    required bool activeOnly,
   }) {
     final q = selectOnly(projects)
       ..addColumns([projects.id, projects.name])
       ..where(
-        projects.companyId.equals(companyId) &
-            projects.isDeleted.equals(false) &
-            projects.archivedAt.isNull(),
+        activeOnly
+            ? projects.companyId.equals(companyId) &
+                  projects.isDeleted.equals(false) &
+                  projects.archivedAt.isNull()
+            : projects.companyId.equals(companyId),
       )
       ..orderBy([OrderingTerm(expression: projects.name.lower())]);
     return q

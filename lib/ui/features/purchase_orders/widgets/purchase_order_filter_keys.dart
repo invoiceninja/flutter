@@ -15,6 +15,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
@@ -194,11 +195,15 @@ class PurchaseOrderVendorFilterKey extends MembershipFilterKey {
   @override
   String displayLabel(BuildContext context) => context.tr('vendor');
 
+  /// A chip naming a vendor the cache has never held fetches that one
+  /// vendor — see [RecordChipNameHydrator].
+  late final RecordChipNameHydrator _names = RecordChipNameHydrator(
+    (id) => vendors.ensureLoaded(companyId: companyId, id: id),
+  );
+
   @override
-  String displayValueFor(String rawValue) {
-    final resolved = nameForVendorId?.call(rawValue);
-    return (resolved != null && resolved.isNotEmpty) ? resolved : rawValue;
-  }
+  String displayValueFor(String rawValue) =>
+      _names.resolve(rawValue, nameForVendorId);
 
   /// One vendor at a time: a pick replaces the one applied.
   @override

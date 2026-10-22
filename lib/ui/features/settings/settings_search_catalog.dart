@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 export 'package:admin/domain/plan_gate.dart'
     show kProGatedSettings, kEnterpriseGatedSettings;
 
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
@@ -67,7 +68,10 @@ import 'package:admin/ui/features/settings/views/advanced/group_settings_screen.
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/templates_reminders_body.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_edit_screen.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.dart';
+import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
+import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
+import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
 
 // Single source of truth for the settings sidebar layout and the in-app
 // settings search. `SettingsListSidebar` reads `kSettingsSections` to render
@@ -480,9 +484,11 @@ class SettingsSearchTab {
 
   /// The [keys] whose field renders only where its predicate holds — the same
   /// predicate the screen gates the field on (Spell check: only where the
-  /// platform has a checker). A gated key is not offered elsewhere, so a hit
-  /// never opens a page without the field it names.
-  final Map<String, bool Function()> keyGates;
+  /// platform has a checker; Hide Peppol Sent Status: only for a company that
+  /// sends by PEPPOL). A gated key is not offered elsewhere, so a hit never
+  /// opens a page without the field it names. The scope is null when the
+  /// caller passed none; a predicate that needs it then fails open.
+  final Map<String, bool Function(SettingsSearchScope? scope)> keyGates;
 
   bool isVisibleFor(int enabledModules) {
     final gates = enabledBy;
@@ -506,6 +512,36 @@ const _kGeneratedNumbersEntityKeys = <String>[
 /// **Keep this in sync** when you add or rename fields on a settings screen —
 /// it's the only way search will surface them. A key listed on more than one
 /// tab of a section is shown once and opens the first visible tab.
+/// The [kDeviceSettingsSearchKeys] whose card renders only somewhere, each
+/// with the card's own condition, so a hit never opens Device Settings on a
+/// card that isn't there. `settings_search_catalog_test` checks that every key
+/// of a gated card is listed.
+const _kDeviceSettingsKeyGates = <String, bool Function(SettingsSearchScope?)>{
+  'spell_check': _spellCheckShown,
+  // kContactsSyncSearchKeys
+  'contacts': _contactsSyncShown,
+  'sync_contacts_to_device': _contactsSyncShown,
+  'sync_contacts_to_device_help': _contactsSyncShown,
+  'all_clients': _contactsSyncShown,
+  'assigned_to_me': _contactsSyncShown,
+  'remove_synced_contacts': _contactsSyncShown,
+  // kMobileAppSearchKeys
+  'mobile_app_promo_section': _mobileAppShown,
+  'mobile_app_promo_settings_body': _mobileAppShown,
+  'mobile_app_promo_entry': _mobileAppShown,
+  'hide_peppol_sent_status': _peppolStatusShown,
+};
+
+bool _spellCheckShown(SettingsSearchScope? _) => platformSupportsSpellCheck;
+
+bool _contactsSyncShown(SettingsSearchScope? _) => contactsSyncSectionShown();
+
+bool _mobileAppShown(SettingsSearchScope? scope) =>
+    scope?.showsMobileApp ?? true;
+
+bool _peppolStatusShown(SettingsSearchScope? scope) =>
+    scope?.sendsPeppol ?? true;
+
 const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
   'company_details': [
     SettingsSearchTab(
@@ -681,7 +717,7 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
     SettingsSearchTab(
       '',
       kDeviceSettingsSearchKeys,
-      keyGates: kDeviceSettingsSearchKeyGates,
+      keyGates: _kDeviceSettingsKeyGates,
     ),
   ],
   'keyboard_shortcuts': [SettingsSearchTab('', kKeyboardShortcutsSearchKeys)],
@@ -1100,21 +1136,27 @@ class SettingsSearchScope {
     required this.isAdminOrOwner,
     required this.isCascade,
     required this.isHosted,
+    this.showsMobileApp = true,
+    this.sendsPeppol = true,
   });
 
   /// [session] null (not loaded yet) fails open on hosted, matching
-  /// `AccountManagementShell`.
+  /// `AccountManagementShell`. [company] is the active company's full record,
+  /// which only the PEPPOL gate reads; null (not loaded yet) fails open.
   factory SettingsSearchScope.from(
     AuthSession? session,
-    SettingsLevelController level,
-  ) {
-    final company = session?.currentCompany;
+    SettingsLevelController level, {
+    Company? company,
+  }) {
+    final me = session?.currentCompany;
     return SettingsSearchScope(
-      enabledModules: company?.enabledModules ?? 0,
-      isAdminOrOwner: company?.isAdmin == true || company?.isOwner == true,
+      enabledModules: me?.enabledModules ?? 0,
+      isAdminOrOwner: me?.isAdmin == true || me?.isOwner == true,
       // Group and client are both non-company cascade levels.
       isCascade: level.isClient || level.isGroup,
       isHosted: session?.isHosted ?? true,
+      showsMobileApp: mobileAppSectionShown(session),
+      sendsPeppol: company == null || peppolStatusSectionShown(company),
     );
   }
 
@@ -1127,6 +1169,14 @@ class SettingsSearchScope {
   /// silently change the company-wide default.
   final bool isCascade;
   final bool isHosted;
+
+  /// Whether Device Settings shows its Mobile App card here
+  /// (`mobileAppSectionShown`).
+  final bool showsMobileApp;
+
+  /// Whether the active company sends by PEPPOL, the one case Device Settings
+  /// shows Hide Peppol Sent Status (`peppolStatusSectionShown`).
+  final bool sendsPeppol;
 
   bool allowsSection(SettingsSectionDef section) =>
       (!isCascade || section.clientEditable) &&
@@ -1295,7 +1345,7 @@ List<SettingsSearchHit> searchSettings(
       // (Password on the Password tab) the field wins the tie and the user
       // gets the scroll-and-flash.
       for (final key in tab.keys) {
-        if (tab.keyGates[key]?.call() == false) continue;
+        if (tab.keyGates[key]?.call(scope) == false) continue;
         final label = l10n.lookup(key);
         final tier = _rank(
           [label, ?l10n.englishOf(key)],

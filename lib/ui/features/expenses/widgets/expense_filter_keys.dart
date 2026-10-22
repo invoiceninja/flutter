@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
@@ -19,6 +20,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
@@ -39,6 +41,8 @@ List<FilterKey> buildExpenseFilterKeys({
   required String companyId,
   Company? company,
   String? Function(String id)? nameForClientId,
+  String? Function(String id)? nameForProjectId,
+  String? Function(String id)? nameForVendorId,
 }) => <FilterKey>[
   const IsFilterKey(),
   TagFilterKey(tags: tags, companyId: companyId, entityType: 'expense'),
@@ -56,8 +60,16 @@ List<FilterKey> buildExpenseFilterKeys({
     isPrimary: true,
   ),
   ExpenseCategoryFilterKey(categories: categories, companyId: companyId),
-  ExpenseProjectFilterKey(projects: projects, companyId: companyId),
-  ExpenseVendorFilterKey(vendors: vendors, companyId: companyId),
+  ExpenseProjectFilterKey(
+    projects: projects,
+    companyId: companyId,
+    nameFor: nameForProjectId,
+  ),
+  ExpenseVendorFilterKey(
+    vendors: vendors,
+    companyId: companyId,
+    nameFor: nameForVendorId,
+  ),
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(
       columnIndex: i,
@@ -151,10 +163,10 @@ class ExpenseStatusFilterKey extends MembershipFilterKey {
 /// repository. `serverKey` is `categories` (`ExpenseFilters::categories` —
 /// CSV of category ids → `whereIn('category_id', …)`).
 ///
-/// Mirrors the Tasks `ProjectFilterKey` pattern: the suggestion menu
-/// streams `(id, name)` from `ExpenseCategoryRepository.watchActive`, and
+/// The suggestion menu streams `ExpenseCategoryRepository.watchActive`, and
 /// the same stream populates an in-memory `id → name` cache so chips show
-/// the category name instead of the raw id.
+/// the category name instead of the raw id. Categories ride the company
+/// bundle, so unlike a `vendor:` or `project:` chip none needs fetching.
 class ExpenseCategoryFilterKey extends MembershipFilterKey {
   ExpenseCategoryFilterKey({
     required this.categories,
@@ -219,7 +231,7 @@ class ExpenseCategoryFilterKey extends MembershipFilterKey {
 
   /// Release the names-cache subscription when the key is replaced (e.g.
   /// company switch). `FilterKey` has no lifecycle hook today, so this
-  /// lives until GC otherwise — same trade-off as Tasks `ProjectFilterKey`.
+  /// lives until GC otherwise — same trade-off as Tasks `StatusFilterKey`.
   @override
   void dispose() {
     _namesSub?.cancel();
@@ -227,24 +239,30 @@ class ExpenseCategoryFilterKey extends MembershipFilterKey {
   }
 }
 
-/// Shared base for the expense Project / Vendor filters: multi-valued,
-/// repo-backed via an `(id, name)` record stream, with an in-memory
-/// id→name cache so chips render names. Server params are the v5
-/// `ExpenseFilters::project_ids` / `vendor_ids` (CSV hashids).
+/// Shared base for the expense Project / Vendor filters: multi-valued and
+/// repo-backed. A chip names its record through [nameFor] — the search
+/// field's live name map, archived and deleted included — and a record the
+/// cache has never held is fetched once ([RecordChipNameHydrator]). Server
+/// params are the v5 `ExpenseFilters::project_ids` / `vendor_ids` (CSV
+/// hashids).
 abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
-  _RecordMembershipFilterKey({required this.companyId}) {
-    _namesSub = nameStream().listen((rows) {
-      _names
-        ..clear()
-        ..addEntries(rows.map((r) => MapEntry(r.id, r.name)));
-    });
-  }
+  _RecordMembershipFilterKey({required this.companyId, this.nameFor});
 
   final String companyId;
-  final Map<String, String> _names = <String, String>{};
-  StreamSubscription<List<({String id, String name})>>? _namesSub;
 
+  /// Synchronous `id → name` lookup from the search field's name streams —
+  /// see `ClientFilterKey.nameForClientId`.
+  final String? Function(String id)? nameFor;
+
+  late final RecordChipNameHydrator _names = RecordChipNameHydrator(
+    ensureLoaded,
+  );
+
+  /// The cheap `(id, name)` rows the suggestions list (active only).
   Stream<List<({String id, String name})>> nameStream();
+
+  /// Fetch one record the cache does not hold, so its chip can name it.
+  Future<EnsureLoadedOutcome> ensureLoaded(String id);
 
   /// Fetch the server's first page of matches for [query] into the cache.
   Future<void> fetchMatches(String query);
@@ -263,10 +281,7 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
   int? get idleSuggestionCap => 50;
 
   @override
-  String displayValueFor(String rawValue) {
-    final cached = _names[rawValue];
-    return (cached != null && cached.isNotEmpty) ? cached : rawValue;
-  }
+  String displayValueFor(String rawValue) => _names.resolve(rawValue, nameFor);
 
   @override
   Stream<List<FilterValueSuggestion>> watchValueSuggestions(
@@ -290,17 +305,15 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
       ],
     );
   }
-
-  @override
-  void dispose() {
-    _namesSub?.cancel();
-    _namesSub = null;
-  }
 }
 
 /// `project:foo` — multi-valued; server `project_ids` (CSV hashids).
 class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
-  ExpenseProjectFilterKey({required this.projects, required super.companyId});
+  ExpenseProjectFilterKey({
+    required this.projects,
+    required super.companyId,
+    super.nameFor,
+  });
 
   final ProjectRepository projects;
 
@@ -318,6 +331,10 @@ class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
       projects.watchActiveNames(companyId: companyId);
 
   @override
+  Future<EnsureLoadedOutcome> ensureLoaded(String id) =>
+      projects.ensureLoaded(companyId: companyId, id: id);
+
+  @override
   Future<void> fetchMatches(String query) =>
       projects.ensurePageLoaded(companyId: companyId, page: 1, search: query);
 
@@ -329,7 +346,11 @@ class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
 
 /// `vendor:foo` — multi-valued; server `vendor_ids` (CSV hashids).
 class ExpenseVendorFilterKey extends _RecordMembershipFilterKey {
-  ExpenseVendorFilterKey({required this.vendors, required super.companyId});
+  ExpenseVendorFilterKey({
+    required this.vendors,
+    required super.companyId,
+    super.nameFor,
+  });
 
   final VendorRepository vendors;
 
@@ -345,6 +366,10 @@ class ExpenseVendorFilterKey extends _RecordMembershipFilterKey {
   @override
   Stream<List<({String id, String name})>> nameStream() =>
       vendors.watchActiveNames(companyId: companyId);
+
+  @override
+  Future<EnsureLoadedOutcome> ensureLoaded(String id) =>
+      vendors.ensureLoaded(companyId: companyId, id: id);
 
   @override
   Future<void> fetchMatches(String query) =>

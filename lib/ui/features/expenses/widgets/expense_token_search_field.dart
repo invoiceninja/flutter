@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
+import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_filter_keys.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_list_view_model.dart';
 
@@ -23,7 +24,7 @@ class ExpenseTokenSearchField extends StatelessWidget {
     hintKey: 'search_expenses_or_filter_hint',
     // The custom-field filters read the company's `expense1..4` labels.
     customFieldPrefix: 'expense',
-    nameSources: [ClientFilterKey.chipNames],
+    nameSources: [ClientFilterKey.chipNames, projectChipNames, vendorChipNames],
     keysBuilder: (services, companyId, company, names) =>
         buildExpenseFilterKeys(
           clients: services.clients,
@@ -34,6 +35,8 @@ class ExpenseTokenSearchField extends StatelessWidget {
           companyId: companyId,
           company: company,
           nameForClientId: (id) => names.lookup(0, id),
+          nameForProjectId: (id) => names.lookup(1, id),
+          nameForVendorId: (id) => names.lookup(2, id),
         ),
   );
 }

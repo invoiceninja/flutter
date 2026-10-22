@@ -11,6 +11,7 @@ import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/recent_record.dart';
 import 'package:admin/data/models/domain/search_result.dart';
 import 'package:admin/domain/entity_registry.dart';
@@ -272,8 +273,27 @@ class _CommandPaletteState extends State<_CommandPalette> {
       _controller.text.trim().isEmpty &&
       _recents.isNotEmpty;
 
+  /// The active company's record, for the one settings gate the session
+  /// can't answer (Hide Peppol Sent Status). Null until it loads, which the
+  /// search scope reads as "fail open".
+  Company? _company;
+  StreamSubscription<Company?>? _companySub;
+
+  @override
+  void initState() {
+    super.initState();
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId != null && companyId.isNotEmpty) {
+      _companySub = services.company
+          .watchCompany(companyId)
+          .listen((c) => _company = c);
+    }
+  }
+
   @override
   void dispose() {
+    unawaited(_companySub?.cancel());
     _debounce?.cancel();
     _controller.dispose();
     _scrollController.dispose();
@@ -449,6 +469,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       scope: SettingsSearchScope.from(
         services.auth.session.value,
         services.settingsLevel,
+        company: _company,
       ),
     ).take(_kMaxSettingsHits);
     return [for (final hit in hits) _settingsRowFor(hit, l10n)];

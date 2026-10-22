@@ -18,6 +18,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
@@ -32,6 +33,7 @@ List<FilterKey> buildTaskFilterKeys({
   required String companyId,
   Company? company,
   String? Function(String id)? nameForClientId,
+  String? Function(String id)? nameForProjectId,
 }) => <FilterKey>[
   const IsFilterKey(),
   // `client:` — the shared multi-value key every `client_id`-honouring list
@@ -43,7 +45,11 @@ List<FilterKey> buildTaskFilterKeys({
     companyId: companyId,
     nameForClientId: nameForClientId,
   ),
-  ProjectFilterKey(projects: projects, companyId: companyId),
+  ProjectFilterKey(
+    projects: projects,
+    companyId: companyId,
+    nameForProjectId: nameForProjectId,
+  ),
   StatusFilterKey(statuses: statuses, companyId: companyId),
   TagFilterKey(tags: tags, companyId: companyId, entityType: 'task'),
   // Window only: the task API filters due dates by `due_date_range` alone
@@ -72,9 +78,9 @@ List<FilterKey> buildTaskFilterKeys({
 class StatusFilterKey extends MembershipFilterKey {
   StatusFilterKey({required this.statuses, required this.companyId}) {
     // Populate an `id → name` cache so chips render the status name instead
-    // of the raw hashid (mirrors [ProjectFilterKey]). Reuses the same stream
-    // that backs the suggestion dropdown — task statuses are few, so watching
-    // the full list is cheap.
+    // of the raw hashid. Reuses the same stream that backs the suggestion
+    // dropdown — task statuses are bundled and few, so watching the full list
+    // is cheap and none is ever missing from it.
     _namesSub = statuses.watchAll(companyId: companyId).listen((rows) {
       _names
         ..clear()
@@ -154,28 +160,29 @@ class StatusFilterKey extends MembershipFilterKey {
 /// takes exactly one project id (`where('project_id', decode($v))`), so
 /// picking a project replaces any prior selection rather than unioning.
 /// Raw value is the server project id; the suggestion menu streams the
-/// cheap `(id, name)` projection from
-/// `ProjectRepository.watchActiveNames` (no full row materialization).
-/// The same stream populates an in-memory `id → name` cache so chip
-/// text shows the project name instead of the raw id.
+/// cheap `(id, name)` projection from `ProjectRepository.watchActiveNames`.
 ///
-/// Caveat: chips render synchronously; the very first paint after picking
-/// a project may show the raw id until the names stream produces its next
-/// event. Reactive chip updates would require the chip widget itself to
-/// subscribe — out of scope.
+/// The chip names its project through [nameForProjectId] — the search
+/// field's live `projectChipNames` map, archived and deleted included — and
+/// a project the cache has never held is fetched once
+/// ([RecordChipNameHydrator]), as a `client:` chip's client is.
 class ProjectFilterKey extends MembershipFilterKey {
-  ProjectFilterKey({required this.projects, required this.companyId}) {
-    _namesSub = projects.watchActiveNames(companyId: companyId).listen((rows) {
-      _names
-        ..clear()
-        ..addEntries(rows.map((r) => MapEntry(r.id, r.name)));
-    });
-  }
+  ProjectFilterKey({
+    required this.projects,
+    required this.companyId,
+    this.nameForProjectId,
+  });
 
   final ProjectRepository projects;
   final String companyId;
-  final Map<String, String> _names = <String, String>{};
-  StreamSubscription<List<({String id, String name})>>? _namesSub;
+
+  /// Synchronous `project_id → name` lookup from the search field's name
+  /// streams — see `ClientFilterKey.nameForClientId`.
+  final String? Function(String id)? nameForProjectId;
+
+  late final RecordChipNameHydrator _names = RecordChipNameHydrator(
+    (id) => projects.ensureLoaded(companyId: companyId, id: id),
+  );
 
   @override
   String get id => 'project';
@@ -205,11 +212,8 @@ class ProjectFilterKey extends MembershipFilterKey {
   String displayLabel(BuildContext context) => context.tr('project');
 
   @override
-  String displayValueFor(String rawValue) {
-    final cached = _names[rawValue];
-    if (cached != null && cached.isNotEmpty) return cached;
-    return rawValue;
-  }
+  String displayValueFor(String rawValue) =>
+      _names.resolve(rawValue, nameForProjectId);
 
   @override
   Stream<List<FilterValueSuggestion>> watchValueSuggestions(
@@ -235,13 +239,5 @@ class ProjectFilterKey extends MembershipFilterKey {
           ),
       ],
     );
-  }
-
-  /// Release the names-cache subscription when the filter key is replaced
-  /// (e.g. on company switch) or its hosting field unmounts.
-  @override
-  void dispose() {
-    _namesSub?.cancel();
-    _namesSub = null;
   }
 }

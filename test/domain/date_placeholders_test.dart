@@ -323,4 +323,46 @@ void main() {
       );
     });
   });
+
+  // Upstream `ac46351c0b`, pinned in its `tests/Unit/HelpersTest.php`.
+  group('the server\'s caps', () {
+    test('a value over 16,384 bytes is left whole', () {
+      final over = '${'a' * 16379}:MONTH';
+      expect(expand(over), over);
+      expect(expand('${'a' * 16378}:MONTH'), '${'a' * 16378}August');
+    });
+
+    test('the length is counted in UTF-8 bytes, not characters', () {
+      // `€` is three bytes, so 5,460 of them plus `:MONTH` is 16,386 bytes
+      // in only 5,466 characters.
+      final euros = '${'€' * 5460}:MONTH';
+      expect(expand(euros), euros, reason: '16,386 bytes');
+      expect(expand('${'€' * 5459}:MONTH'), '${'€' * 5459}August');
+    });
+
+    test('only the first 32 `:` tokens are looked at, keyword or not', () {
+      final times = List.filled(31, '10:30').join(' ');
+      expect(
+        expand('$times :MONTH :YEAR'),
+        '$times August :YEAR',
+        reason: ':MONTH is the 32nd token, :YEAR the 33rd',
+      );
+    });
+
+    test('only the first 32 `[…]` groups are looked at, range or not', () {
+      final groups = List.filled(32, '[x]').join(' ');
+      expect(
+        expand('[MONTHYEAR|MONTHYEAR+1] $groups [MONTHYEAR|MONTHYEAR]'),
+        'August 2026 - September 2026 $groups [MONTHYEAR|MONTHYEAR]',
+      );
+    });
+
+    test('a bracket range does not use up the `:` token budget', () {
+      final times = List.filled(31, '10:30').join(' ');
+      expect(
+        expand('[MONTHYEAR|MONTHYEAR] $times :MONTH'),
+        'August 2026 - August 2026 $times August',
+      );
+    });
+  });
 }

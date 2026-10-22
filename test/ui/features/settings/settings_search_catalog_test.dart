@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
+import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
+import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
 
 import '../../../_localization_helper.dart';
 
@@ -290,6 +292,77 @@ void main() {
   });
 
   group('SettingsSearchScope', () {
+    group('Device Settings cards that render only somewhere', () {
+      final l10n = bundledLocalization();
+      // Every label of [keys] that reaches Device Settings under [scope].
+      Set<String> offered(List<String> keys, SettingsSearchScope scope) => {
+        for (final key in keys)
+          for (final h in searchSettings(l10n.lookup(key), l10n, scope: scope))
+            if (h.section.slug == 'device_settings' && h.fieldKey == key) key,
+      };
+      tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+      test('Contacts sync only on a phone, where it can write contacts', () {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        expect(
+          offered(kContactsSyncSearchKeys, _scope()),
+          kContactsSyncSearchKeys.toSet(),
+        );
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        expect(offered(kContactsSyncSearchKeys, _scope()), isEmpty);
+      });
+
+      test('Mobile App only where the card shows', () {
+        expect(
+          offered(kMobileAppSearchKeys, _scope()),
+          kMobileAppSearchKeys.toSet(),
+        );
+        expect(
+          offered(
+            kMobileAppSearchKeys,
+            const SettingsSearchScope(
+              enabledModules: 0,
+              isAdminOrOwner: true,
+              isCascade: false,
+              isHosted: true,
+              showsMobileApp: false,
+            ),
+          ),
+          isEmpty,
+        );
+      });
+
+      test('Hide Peppol Sent Status only for a company that sends by '
+          'PEPPOL', () {
+        const keys = ['hide_peppol_sent_status'];
+        expect(offered(keys, _scope()), keys.toSet());
+        expect(
+          offered(
+            keys,
+            const SettingsSearchScope(
+              enabledModules: 0,
+              isAdminOrOwner: true,
+              isCascade: false,
+              isHosted: true,
+              sendsPeppol: false,
+            ),
+          ),
+          isEmpty,
+        );
+      });
+
+      test('with no scope the session- and company-bound gates fail open', () {
+        final hits = searchSettings(
+          l10n.lookup('hide_peppol_sent_status'),
+          l10n,
+        );
+        expect(
+          hits.any((h) => h.fieldKey == 'hide_peppol_sent_status'),
+          isTrue,
+        );
+      });
+    });
+
     test('Spell check is offered only where its section renders', () {
       // `_SpellCheckSection` renders nothing without a platform checker (web,
       // Linux), so a hit there would open Device Settings on nothing.

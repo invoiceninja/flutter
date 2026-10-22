@@ -168,14 +168,21 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
   /// case and reads `(no name)` — see `ClientNameLabel`.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.vendorDao
-      .watchActiveNames(companyId: companyId)
-      .map(
-        (rows) => [
-          for (final r in rows)
-            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
-        ],
-      );
+  }) => db.vendorDao.watchActiveNames(companyId: companyId).map(_namesOrIds);
+
+  /// [watchActiveNames] over every cached vendor, archived and deleted
+  /// included — what a `vendor:` chip resolves its id through (see
+  /// `RecordChipNames`). Suggestions stay on [watchActiveNames].
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => db.vendorDao.watchAllNames(companyId: companyId).map(_namesOrIds);
+
+  static List<({String id, String name})> _namesOrIds(
+    List<({String id, String name})> rows,
+  ) => [
+    for (final r in rows)
+      (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+  ];
 
   @override
   Stream<Vendor?> watchByRealId({

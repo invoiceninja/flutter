@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/services.dart';
@@ -8,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 
 /// `client:foo` — multi-valued client filter shared by every list whose
@@ -80,45 +79,15 @@ class ClientFilterKey extends MembershipFilterKey {
         },
       );
 
+  /// A chip naming a client the cache has never held fetches that one
+  /// client — see [RecordChipNameHydrator].
+  late final RecordChipNameHydrator _names = RecordChipNameHydrator(
+    (id) => clients.ensureLoaded(companyId: companyId, id: id),
+  );
+
   @override
-  String displayValueFor(String rawValue) {
-    final resolved = nameForClientId?.call(rawValue);
-    if (resolved != null && resolved.isNotEmpty) return resolved;
-    // With no map to resolve through, a fetched name could never show.
-    if (nameForClientId != null) _hydrate(rawValue);
-    return rawValue;
-  }
-
-  /// Ids [_hydrate] has an answer for — fetched, cached, gone or refused —
-  /// and so never asks about again.
-  final Set<String> _settled = {};
-
-  /// When [_hydrate] last asked about an id it got no answer for (offline).
-  final Map<String, DateTime> _lastAsked = {};
-
-  static const Duration _retryAfter = Duration(seconds: 30);
-
-  /// A chip naming a client the cache has never held — a saved view, a deep
-  /// link, a filter restored on another device — fetches that one client
-  /// (`ClientRepository.ensureLoaded`, which writes it to Drift). The chip
-  /// then resolves through [chipNames] like any other: the name reaches the
-  /// UI from Drift, never from the response.
-  ///
-  /// Called from [displayValueFor], i.e. while chips build, so it is cheap
-  /// to repeat: an id is asked about once, and one that got no answer
-  /// (offline) at most every [_retryAfter] — offline, the chip keeps its id.
-  void _hydrate(String id) {
-    if (id.isEmpty || id.startsWith('tmp_') || _settled.contains(id)) return;
-    final now = DateTime.now();
-    final last = _lastAsked[id];
-    if (last != null && now.difference(last) < _retryAfter) return;
-    _lastAsked[id] = now;
-    unawaited(
-      clients.ensureLoaded(companyId: companyId, id: id).then((outcome) {
-        if (!outcome.isRetryable) _settled.add(id);
-      }, onError: (Object _) {}),
-    );
-  }
+  String displayValueFor(String rawValue) =>
+      _names.resolve(rawValue, nameForClientId);
 
   @override
   Stream<List<FilterValueSuggestion>> watchValueSuggestions(

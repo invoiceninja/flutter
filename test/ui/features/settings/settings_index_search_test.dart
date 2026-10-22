@@ -10,6 +10,8 @@
 // `actions:`, field in a 56 px `bottom:`); on the wide 280 px pane, which has
 // no AppBar, it's a group header lifted out of the scroll area.
 
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
@@ -53,6 +55,20 @@ class _FakeServices implements Services {
   // The index claims `/` for its search.
   @override
   final SearchFocusRegistry searchFocus = SearchFocusRegistry();
+
+  // The search watches the active company for its PEPPOL gate.
+  @override
+  final CompanyRepository company = _FakeCompanyRepo();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+/// No company record: the search's PEPPOL gate then fails open.
+class _FakeCompanyRepo implements CompanyRepository {
+  @override
+  Stream<Company?> watchCompany(String companyId) => Stream.value(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

@@ -71,13 +71,10 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kTrustedCertificatesSearchKeys,
 ];
 
-/// The [kDeviceSettingsSearchKeys] whose section renders only on some
-/// platforms (`SettingsSearchTab.keyGates`), each with the section's own gate.
-const kDeviceSettingsSearchKeyGates = <String, bool Function()>{
-  'spell_check': _spellCheckShown,
-};
-
-bool _spellCheckShown() => platformSupportsSpellCheck;
+/// Whether [company] sends by PEPPOL — the one case the Hide Peppol Sent
+/// Status card renders, and so the one case settings search offers it.
+bool peppolStatusSectionShown(Company? company) =>
+    company?.settings.eInvoiceType == kEInvoiceTypePEPPOL;
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
 /// theme (mode + palette), the per-preset colour overrides, the action-confirm
@@ -259,7 +256,7 @@ class _PeppolStatusSection extends StatelessWidget {
       cacheKey: companyId,
       create: () => services.company.watchCompany(companyId),
       builder: (context, snapshot) {
-        if (snapshot.data?.settings.eInvoiceType != kEInvoiceTypePEPPOL) {
+        if (!peppolStatusSectionShown(snapshot.data)) {
           return const SizedBox.shrink();
         }
         final controller = services.hidePeppolStatus;

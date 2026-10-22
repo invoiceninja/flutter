@@ -8,10 +8,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/plan_gate.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/state/settings_search_controller.dart';
@@ -208,16 +210,27 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
   Widget _buildSearch(BuildContext context) {
     // Rebuild results on company switch so a now-disabled section drops
     // out of an open search without the user having to retype.
+    final services = context.read<Services>();
     final results = ValueListenableBuilder<AuthSession?>(
-      valueListenable: context.read<Services>().auth.session,
-      builder: (context, _, _) => ListenableBuilder(
-        // The query is its own `Listenable`, so a keystroke rebuilds the hit
-        // list and nothing else. The old `onChanged: setState` rebuilt this
-        // whole pane — host-side it would have rebuilt the AppBar per
-        // character.
-        listenable: _search.query,
-        builder: (context, _) =>
-            _buildResults(context, Localization.of(context)),
+      valueListenable: services.auth.session,
+      // The active company's record, for the one gate the session can't
+      // answer (Hide Peppol Sent Status) — see [_company].
+      builder: (context, session, _) => WatchBuilder<Company?>(
+        cacheKey: session?.currentCompanyId,
+        create: () =>
+            services.company.watchCompany(session?.currentCompanyId ?? ''),
+        builder: (context, companySnap) {
+          _company = companySnap.data;
+          return ListenableBuilder(
+            // The query is its own `Listenable`, so a keystroke rebuilds the
+            // hit list and nothing else. The old `onChanged: setState`
+            // rebuilt this whole pane — host-side it would have rebuilt the
+            // AppBar per character.
+            listenable: _search.query,
+            builder: (context, _) =>
+                _buildResults(context, Localization.of(context)),
+          );
+        },
       ),
     );
     // The host renders the field (pinned in its AppBar), so results are all
@@ -251,8 +264,14 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
     scope: SettingsSearchScope.from(
       context.read<Services>().auth.session.value,
       context.read<SettingsLevelController>(),
+      company: _company,
     ),
   );
+
+  /// The active company's latest record, kept by [_buildSearch] so Enter
+  /// ([_openSelected]) ranks the same rows the list shows. Null until it
+  /// loads, which the scope reads as "fail open".
+  Company? _company;
 
   Widget _buildResults(BuildContext context, Localization? l10n) {
     if (l10n == null) return const SizedBox.shrink();

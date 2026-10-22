@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
@@ -19,6 +20,11 @@ const kMobileAppSearchKeys = <String>[
   'mobile_app_promo_entry',
 ];
 
+/// Whether [MobileAppSection] renders for [session] on this platform — and so
+/// whether settings search offers its keys.
+bool mobileAppSectionShown(AuthSession? session) =>
+    currentMobilePromoTargets().isNotEmpty && mobilePromoEligible(session);
+
 /// Device Settings card for the phone app — the mobile-app promo's permanent
 /// home (docs/mobile-app-promo.md), where "Don't show again" can't reach.
 ///
@@ -31,8 +37,7 @@ class MobileAppSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (currentMobilePromoTargets().isEmpty ||
-        !mobilePromoEligible(context.read<Services>().auth.session.value)) {
+    if (!mobileAppSectionShown(context.read<Services>().auth.session.value)) {
       return const SizedBox.shrink();
     }
     return FormSection(

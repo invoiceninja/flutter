@@ -160,14 +160,21 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
   /// guards, which are now redundant rather than load-bearing.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.projectDao
-      .watchActiveNames(companyId: companyId)
-      .map(
-        (rows) => [
-          for (final r in rows)
-            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
-        ],
-      );
+  }) => db.projectDao.watchActiveNames(companyId: companyId).map(_namesOrIds);
+
+  /// [watchActiveNames] over every cached project, archived and deleted
+  /// included — what a `project:` chip resolves its id through (see
+  /// `RecordChipNames`). Suggestions stay on [watchActiveNames].
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => db.projectDao.watchAllNames(companyId: companyId).map(_namesOrIds);
+
+  static List<({String id, String name})> _namesOrIds(
+    List<({String id, String name})> rows,
+  ) => [
+    for (final r in rows)
+      (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+  ];
 
   /// Active, non-deleted projects for one client. Used by the Task edit
   /// Project picker so changing client narrows the project list.

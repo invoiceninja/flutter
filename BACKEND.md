@@ -2506,6 +2506,8 @@ Details → Documents):
 
 ## Reserved date keywords in descriptions / terms — six defects in `processReservedKeywords` — **five shipped; defect 4 open**
 
+**2026-10-22 — upstream added two caps, mirrored.** `ac46351c0b` (Sep 9) leaves a value over 16,384 bytes whole and looks at only the first 32 `[…]` groups and the first 32 `:` tokens per pass. `expandDatePlaceholders` now does the same. Defect 4 and the bare-number `:WEEK±n` / `:*_BEFORE/_AFTER±n` are still open on `origin/v5-develop` (`c6b2d781d9`), so those stay raw.
+
 **2026-10-19 — defect 4 is a crash, not just a float.** `month()` throws on a
 float, so `Rent :MONTH/2026` 500s the save of a new invoice's line items
 (`BaseRepository.php:222`) and `Rent :MONTH/:YEAR` loses its slash. `intdiv`

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
@@ -28,6 +29,12 @@ const kContactsSyncSearchKeys = <String>[
   'assigned_to_me',
   'remove_synced_contacts',
 ];
+
+/// Whether [ContactsSyncSection] renders on this platform — and so whether
+/// settings search offers its keys. `DeviceContactsService.canSync` without a
+/// `Services`: the native service answers `Env.isMobile`, the web one false,
+/// and `Env.isMobile` is false on web.
+bool contactsSyncSectionShown() => Env.isMobile;
 
 /// Device Settings card for pushing client contacts into this device's address
 /// book (invoiceninja/flutter#54 — "know who was calling at any given moment").

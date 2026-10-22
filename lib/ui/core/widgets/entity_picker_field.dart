@@ -213,8 +213,21 @@ class _EntityPickerFieldState<T extends Object>
         if (widget.idOf(it) == resolvedId) return (items, it);
       }
     }
-    return ([resolved, ...items], resolved);
+    // Reuse the spliced list while neither input changed: the host rebuilds per
+    // keystroke, and `SearchableDropdownField` caches its folded names by list
+    // identity — a fresh list each build would refold every name each time.
+    if (!identical(_splicedItems, items) ||
+        !identical(_splicedHead, resolved)) {
+      _splicedItems = items;
+      _splicedHead = resolved;
+      _spliced = [resolved, ...items];
+    }
+    return (_spliced, resolved);
   }
+
+  List<T>? _splicedItems;
+  T? _splicedHead;
+  List<T> _spliced = const [];
 
   /// Wraps the caller's create so the new record becomes [_resolved] BEFORE
   /// `onChanged` reaches the host. A just-created record carries a `tmp_` id

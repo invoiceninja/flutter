@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Ask for the name of a record about to be created inline — the empty-query
@@ -65,15 +66,19 @@ class _EntityNameDialogState extends State<_EntityNameDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(context.tr(widget.titleKey)),
-      // Enter submits straight from the field, like the saved-view rename
-      // dialog; `_submit` itself refuses a blank name.
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        textCapitalization: TextCapitalization.words,
-        decoration: InputDecoration(labelText: context.tr('name')),
-        onSubmitted: (_) => _submit(),
+      // Scoped like `TypeToConfirmDialog`: the field fires `_submit` itself,
+      // which refuses a blank name, and the scope carries the same gate.
+      content: FormSaveScope(
+        onSubmit: _submit,
+        enabled: _canSave,
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(labelText: context.tr('name')),
+          onSubmitted: (_) => _submit(),
+        ),
       ),
       actions: [
         TextButton(

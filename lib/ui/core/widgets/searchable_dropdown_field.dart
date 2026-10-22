@@ -562,17 +562,11 @@ class _SearchableDropdownFieldState<T extends Object>
         text: restore,
         selection: TextSelection.collapsed(offset: restore.length),
       );
-      // A typed name is handed back for editing — after a cancelled dialog, a
-      // refused name or a failed save alike, since the callback's null can't
-      // tell them apart, and a typo is the likeliest fix in each. The plain
-      // "New …" row has nothing to edit, so it refocuses nothing: that would
-      // just reopen the popover over the form. Post-frame: the field is still
-      // focus-excluded until the rebuild that clears `_creating` lands.
-      if (query.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focusNode.requestFocus();
-        });
-      }
+      // No refocus. A null after a typed name means the create was refused
+      // (a name an archived record holds) or failed, and both handlers toast
+      // why — refocusing would reopen the popover over that toast, offering
+      // the very create just refused. After the plain "New …" row there is
+      // nothing to edit either. The restored text is one tap away.
       return;
     }
     final committed = created;

@@ -17,6 +17,11 @@ import 'package:admin/utils/search_fold.dart';
 /// the full request timeout.
 const Duration kVendorDuplicateSearchTimeout = Duration(seconds: 4);
 
+/// Server pages the duplicate search may read. The server's vendor search is
+/// broad — a LIKE over name, id number, contacts and custom values — so a
+/// short name's exact match can sit past page 1.
+const int _kDuplicateSearchPages = 3;
+
 /// Rows the local exact-name check reads. Generous on purpose: a common word
 /// can match many vendors that sort before the exact one.
 const int _kDuplicateScanPages = 20;
@@ -97,14 +102,20 @@ Future<Vendor?> _findExactVendor(
   const allStates = {...EntityState.values};
   try {
     if (await services.connectivity.isOnline) {
-      await services.vendors
-          .ensurePageLoaded(
+      Future<void> search() async {
+        for (var page = 1; page <= _kDuplicateSearchPages; page++) {
+          final more = await services.vendors.ensurePageLoaded(
             companyId: companyId,
-            page: 1,
+            page: page,
             search: name,
             states: allStates,
-          )
-          .timeout(kVendorDuplicateSearchTimeout);
+          );
+          if (!more) break;
+        }
+      }
+
+      // One budget for every page, not one per page.
+      await search().timeout(kVendorDuplicateSearchTimeout);
     }
   } catch (_) {
     // Offline, slow, or a server hiccup — the local cache is all there is.

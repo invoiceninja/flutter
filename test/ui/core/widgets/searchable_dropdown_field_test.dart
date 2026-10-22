@@ -1274,12 +1274,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, 1);
 
-      // Cancel restored the query and refocused, so the row is back — and
-      // must not be dead (the `_select` latch `docs/pickers.md` warns about).
+      // Cancel restored the query (without reopening anything). One tap brings
+      // the row back — and it must not be dead (the `_select` latch
+      // `docs/pickers.md` warns about).
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         'Dragonfruit',
       );
+      expect(createRow('Dragonfruit'), findsNothing);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
       expect(createRow('Dragonfruit'), findsOneWidget);
       await tester.tap(createRow('Dragonfruit'));
       await tester.pumpAndSettle();
@@ -1436,6 +1440,24 @@ void main() {
           .requestFocus();
       await tester.pumpAndSettle();
       expect(createRow('Dragonfruit'), findsNothing);
+    });
+
+    testWidgets('a refused typed create does not reopen over its toast', (
+      tester,
+    ) async {
+      // The handler toasts why (an archived record holds the name) and returns
+      // null; reopening would cover that toast and re-offer the refused row.
+      await pumpCreate(tester, onCreate: (_) async => null);
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.tap(createRow('Dragonfruit'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isFalse,
+      );
     });
 
     testWidgets('no callback, no create row', (tester) async {

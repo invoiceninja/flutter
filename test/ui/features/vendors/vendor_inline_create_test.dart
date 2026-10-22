@@ -34,6 +34,10 @@ class _FakeVendors implements VendorRepository {
   bool failing = false;
   bool stalled = false;
   int fetches = 0;
+
+  /// The page [server] lands on, and how many pages the search has in all.
+  int serverPage = 1;
+  int lastPage = 1;
   final created = <Vendor>[];
 
   @override
@@ -48,8 +52,8 @@ class _FakeVendors implements VendorRepository {
     fetches++;
     if (failing) throw Exception('offline');
     if (stalled) return Completer<bool>().future;
-    local = [...local, ...server];
-    return true;
+    if (page == serverPage) local = [...local, ...server];
+    return page < lastPage;
   }
 
   @override
@@ -168,6 +172,21 @@ void main() {
     final vendors = _FakeVendors(server: [_vendor('v9', 'ACME Supply')]);
     await host(tester, vendors);
     final v = await run(tester, 'acme supply');
+    expect(vendors.created, isEmpty);
+    expect(v?.id, 'v9');
+  });
+
+  testWidgets('an exact match on a later search page is still found', (
+    tester,
+  ) async {
+    // The server's vendor search is broad, so a short name's exact match can
+    // sit past page 1.
+    final vendors = _FakeVendors(server: [_vendor('v9', 'Co')])
+      ..serverPage = 3
+      ..lastPage = 5;
+    await host(tester, vendors);
+    final v = await run(tester, 'co');
+    expect(vendors.fetches, 3);
     expect(vendors.created, isEmpty);
     expect(v?.id, 'v9');
   });

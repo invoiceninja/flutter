@@ -100,10 +100,11 @@ class AppLocaleResolver extends ValueNotifier<Locale?> {
   /// Map a statics locale code (`en`, `de`, `pt_BR`, `fr_CA`, …) to the closest
   /// locale we actually ship strings for, falling back to English.
   ///
-  /// Crucially this resolves country variants to the shipped asset: `fr_CA`
+  /// Crucially this resolves country variants to the shipped asset: `fr_BE`
   /// would pass the delegate's `isSupported` (it matches `fr`) but then
-  /// `load('fr_CA')` finds no asset and falls back to *English* — so we map it
-  /// to `fr` here instead.
+  /// `load('fr_BE')` finds no asset and falls back to *English* — so we map it
+  /// to `fr` here instead. Every locale the server's languages table offers
+  /// ships as itself today, so this guards a locale the server adds later.
   @visibleForTesting
   static Locale bestSupportedLocale(String code) {
     if (code.isEmpty) return const Locale('en');
@@ -115,8 +116,8 @@ class AppLocaleResolver extends ValueNotifier<Locale?> {
     for (final l in kSupportedLocales) {
       if (l.languageCode == lang && l.countryCode == country) return l;
     }
-    // Same language: prefer the country-less shipped entry (fr_CA → fr),
-    // otherwise any same-language entry (zh_TW → zh_CN).
+    // Same language: prefer the country-less shipped entry (fr_BE → fr),
+    // otherwise any same-language entry (nb_SJ → nb_NO).
     Locale? countryless;
     Locale? sameLang;
     for (final l in kSupportedLocales) {

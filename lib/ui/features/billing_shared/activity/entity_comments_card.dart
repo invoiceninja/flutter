@@ -164,8 +164,9 @@ class EntityCommentsCard extends StatelessWidget {
       // `n > 0` at all five of its sites; `view_all` is a header link meaning
       // "this card is an index, the real surface is elsewhere", and carries no
       // N at any of its four. Moving the count in here would also swap a
-      // Transifex-translated string for an app-local English-only one on twelve
-      // detail screens, and the N would be silently bounded by the feed window.
+      // Transifex-translated string for an app-local machine-translated one on
+      // twelve detail screens, and the N would be silently bounded by the feed
+      // window.
       trailing: onViewAllTap == null
           ? null
           : DashboardCardFooterLink(

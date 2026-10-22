@@ -81,7 +81,7 @@ class SidebarMenuSection extends StatelessWidget {
             // means "sequence" either — `sort_order` is "Sortierreihenfolge",
             // which promises sorting rules rather than a manual arrangement —
             // so this is the third rung of CLAUDE.md's localization ladder: an
-            // app-local key, English-only until Transifex carries it.
+            // app-local key, machine-translated until Transifex carries it.
             title: Text(context.tr('menu_order')),
             trailing: TextButton(
               onPressed: () => openCustomizeMenu(context),

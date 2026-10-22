@@ -34,8 +34,8 @@ const int _kQuickValueLimitPerKey = 3;
 /// Transifex `entity_state`): in de / es / it / ja both `entity_state` and
 /// `status` translate to the same word, so the default lifecycle chip read
 /// identically to the per-entity Status chip. `entity_state_filter` lives in
-/// `_app_pending.json` and stays distinct until native translations land in
-/// Transifex.
+/// `_app_pending.json`, and each locale's translation of it must differ from
+/// that locale's `status` too (`app_pending_translations_test`).
 class IsFilterKey extends FilterKey {
   const IsFilterKey();
 

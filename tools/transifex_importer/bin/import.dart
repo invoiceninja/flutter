@@ -30,6 +30,42 @@ const Map<String, String> _kTransifexFileNames = {
   'pt_BR': 'textsphp-pt_br.php',
   'ja': 'textsphp-ja.php',
   'zh_CN': 'textsphp-zh_cn.php',
+  'af_ZA': 'textsphp-af_za.php',
+  'ar': 'textsphp-ar.php',
+  'bg': 'textsphp-bg.php',
+  'ca': 'textsphp-ca.php',
+  'cs': 'textsphp-cs.php',
+  'da': 'textsphp-da.php',
+  'el': 'textsphp-el.php',
+  'es_ES': 'textsphp-es_es.php',
+  'et': 'textsphp-et.php',
+  'fa': 'textsphp-fa.php',
+  'fi': 'textsphp-fi.php',
+  'fr_CA': 'textsphp-fr_ca.php',
+  'fr_CH': 'textsphp-fr_ch.php',
+  'he': 'textsphp-he.php',
+  'hr': 'textsphp-hr.php',
+  'hu': 'textsphp-hu.php',
+  'id_ID': 'textsphp-id_id.php',
+  'km_KH': 'textsphp-km_kh.php',
+  'lo_LA': 'textsphp-lo_la.php',
+  'lt': 'textsphp-lt.php',
+  'lv_LV': 'textsphp-lv_lv.php',
+  'mk_MK': 'textsphp-mk_mk.php',
+  'nb_NO': 'textsphp-nb_no.php',
+  'pl': 'textsphp-pl.php',
+  'pt_PT': 'textsphp-pt_pt.php',
+  'ro': 'textsphp-ro.php',
+  'ru_RU': 'textsphp-ru_ru.php',
+  'sk': 'textsphp-sk.php',
+  'sl': 'textsphp-sl.php',
+  'sq': 'textsphp-sq.php',
+  'sr': 'textsphp-sr.php',
+  'sv': 'textsphp-sv.php',
+  'th': 'textsphp-th.php',
+  'tr_TR': 'textsphp-tr_tr.php',
+  'vi': 'textsphp-vi.php',
+  'zh_TW': 'textsphp-zh_tw.php',
 };
 
 Future<int> main(List<String> args) async {
@@ -73,6 +109,28 @@ Future<int> main(List<String> args) async {
     final missing = <String>[];
     var ok = 0;
 
+    // Transifex exports a key nobody has translated as its English source
+    // text. Kept, that copy outranks the app's own per-locale translations
+    // of the same string (`_app_pending_<locale>.json`) whenever the zip is
+    // newer than `en.json`; dropped, the lookup falls through to the same
+    // English anyway. So every value identical to this zip's English goes.
+    //
+    // So does a translation carrying a `:placeholder` its English lacks —
+    // translators rename them (`:arvo` for `:value`, `:day s` for `:days`),
+    // and the app, filling the English name, would render the raw token.
+    // Dropped, the key reads English with its value in it.
+    final enName = _kTransifexFileNames['en']!;
+    final enFile = File('${tempDir.path}/$enName');
+    Map<String, String>? english;
+    if (await enFile.exists()) {
+      try {
+        english = _parsePhp(await enFile.readAsString());
+      } on FormatException catch (e) {
+        stderr.writeln('Parse error in $enName: ${e.message}');
+        return 1;
+      }
+    }
+
     for (final entry in _kTransifexFileNames.entries) {
       final localeKey = entry.key;
       final phpName = entry.value;
@@ -88,6 +146,13 @@ Future<int> main(List<String> args) async {
       } on FormatException catch (e) {
         stderr.writeln('Parse error in $phpName: ${e.message}');
         return 1;
+      }
+      if (english != null && localeKey != 'en') {
+        map.removeWhere(
+          (k, v) =>
+              v == english![k] ||
+              !_placeholders(english[k] ?? '').containsAll(_placeholders(v)),
+        );
       }
       final sorted = SplayTreeMap<String, String>.from(map);
       final jsonOut = const JsonEncoder.withIndent('  ').convert(sorted);
@@ -106,6 +171,16 @@ Future<int> main(List<String> args) async {
     await tempDir.delete(recursive: true);
   }
 }
+
+/// The `:name` placeholders in [s] — the same shape as the app's
+/// `kLocalePlaceholderPattern` (not glued to a word, a `/` or another `:`, so
+/// `https://` and `9:00` are not tokens).
+Set<String> _placeholders(String s) => {
+      for (final m in RegExp(
+        r'(?<![A-Za-z0-9_/:]):([a-z][a-z0-9_]*)',
+      ).allMatches(s))
+        m.group(1)!,
+    };
 
 /// PHP `$lang = array('k' => 'v', ...)` parser. Kept in sync with
 /// `lib/l10n/transifex_php_parser.dart` (which is unit-tested).

@@ -363,11 +363,12 @@ class _SendsRowShell extends StatelessWidget {
 /// Shaped after [PendingCommentRow], the app's other queued-mutation row:
 /// mail vocabulary on the body line, sync vocabulary as the grey sub-line.
 /// The two are deliberately NOT joined into one string — `in_flight`
-/// ("Syncing…") lives in `_app_pending.json` and so is missing from all eight
-/// non-English bundles, so a concatenation would read half-translated on the
-/// one row that exists to reassure. `email_queued` is translated everywhere
-/// and is the exact string the composer's own toast shows, so the tab echoes
-/// it word for word rather than minting a third name for one action.
+/// ("Syncing…") lives in `_app_pending.json`, so its only translations are
+/// the app's own (`_app_pending_<locale>.json`) and a locale missing one
+/// would read half-translated on the one row that exists to reassure.
+/// `email_queued` is translated everywhere and is the exact string the
+/// composer's own toast shows, so the tab echoes it word for word rather than
+/// minting a third name for one action.
 ///
 /// A **dead** send row is excluded by `watchPendingForEntity`, so the tab
 /// reverts to the (truthful) empty state; the failure surfaces through the

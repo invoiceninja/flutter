@@ -16,6 +16,48 @@ void main() {
       expect(loc.lookup('sync_now'), 'Sync now');
     });
 
+    group('a locale\'s translation of an app-local string', () {
+      final loc = Localization.forTesting(
+        strings: const {
+          'save': 'Speichern',
+          // Transifex exports an untranslated key as its English source.
+          'outbox_label': 'Outbox',
+          'blank_label': '  ',
+        },
+        localePending: const {
+          'save': 'Sichern',
+          'sync_now': 'Jetzt synchronisieren',
+          'outbox_label': 'Postausgang',
+          'blank_label': 'Leer',
+        },
+        fallback: const {
+          'save': 'Save',
+          'outbox_label': 'Outbox',
+          'blank_label': 'Blank',
+        },
+        pending: const {'sync_now': 'Sync now'},
+      );
+
+      test('loses to a real Transifex translation', () {
+        expect(loc.lookup('save'), 'Speichern');
+      });
+
+      test('beats the English it translates', () {
+        expect(loc.lookup('sync_now'), 'Jetzt synchronisieren');
+        expect(loc.englishOf('sync_now'), 'Sync now');
+      });
+
+      test('beats the English copy Transifex ships before translating', () {
+        expect(loc.lookup('outbox_label'), 'Postausgang');
+        expect(loc.lookup('blank_label'), 'Leer');
+      });
+
+      test('survives a Custom Labels overlay', () {
+        final withLabels = loc.withOverrides(const {'quote': 'Angebot'});
+        expect(withLabels.lookup('sync_now'), 'Jetzt synchronisieren');
+      });
+    });
+
     test('a missing key renders as the raw key', () {
       final loc = Localization.forTesting(strings: const {});
       expect(loc.lookup('no_such_key'), 'no_such_key');

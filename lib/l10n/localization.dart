@@ -24,6 +24,8 @@ class Localization {
        _pending = pending ?? const {},
        _overrides = overrides ?? const {};
 
+  // The active locale's bundle, with its translations of the app-local
+  // strings already laid in — see [_withLocalePending].
   final Map<String, String> _strings;
   final Map<String, String> _fallback;
   // App-local strings not yet submitted to Transifex. Loaded from
@@ -246,6 +248,33 @@ class Localization {
     return fut;
   }
 
+  /// [strings] — the locale's Transifex bundle — with [localePending], its
+  /// translations of the app-local strings
+  /// (`assets/i18n/_app_pending_<locale>.json`), laid over every entry the
+  /// bundle has not really translated: absent, blank, or the [english] text
+  /// itself. That last case is the common one, not an edge: Transifex exports
+  /// an untranslated key as its source string, so once an app-local key
+  /// reaches Transifex in English every bundle carries that English until a
+  /// translator gets to it — and a plain "locale bundle first" lookup would
+  /// put the user back on English. A real Transifex translation still wins.
+  ///
+  /// Merged once per load rather than consulted per lookup, so [_bundled]
+  /// keeps its short chain.
+  static Map<String, String> _withLocalePending(
+    Map<String, String> strings,
+    Map<String, String>? localePending,
+    Map<String, String>? english,
+  ) {
+    if (localePending == null || localePending.isEmpty) return strings;
+    final merged = Map.of(strings);
+    localePending.forEach((key, value) {
+      if (_nonBlank(value) == null) return;
+      final own = _nonBlank(strings[key]);
+      if (own == null || own == english?[key]) merged[key] = value;
+    });
+    return merged;
+  }
+
   static Future<Map<String, String>> _loadAsset(
     AssetBundle bundle,
     String localeKey,
@@ -260,11 +289,12 @@ class Localization {
   @visibleForTesting
   static Localization forTesting({
     required Map<String, String> strings,
+    Map<String, String>? localePending,
     Map<String, String>? fallback,
     Map<String, String>? pending,
     Map<String, String>? overrides,
   }) => Localization._(
-    strings,
+    _withLocalePending(strings, localePending, fallback),
     fallback: fallback,
     pending: pending,
     overrides: overrides,
@@ -299,9 +329,9 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
   @override
   Future<Localization> load(Locale locale) async {
     final key = localeKey(locale);
-    // All three started before any is awaited. Each is a file read plus an
+    // All four started before any is awaited. Each is a file read plus an
     // isolate hop, and Flutter holds the first frame until this resolves — one
-    // after another they cost three round trips where one will do. The first
+    // after another they cost four round trips where one will do. The first
     // two are usually done already (`Localization.prewarm`).
     final fallbackLoad = Localization._loadEnglishOnce(rootBundle);
     final pendingLoad = Localization._loadPendingOnce(rootBundle);
@@ -316,11 +346,32 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
             rootBundle,
             key,
           ).then<Map<String, String>?>((m) => m, onError: (Object _) => null);
+    // English needs no translation of the app-local strings, and a locale
+    // nobody has translated them into yet has no file — both read English.
+    final localePendingLoad = locale.languageCode == 'en'
+        ? null
+        : Localization._loadAsset(
+            rootBundle,
+            '_app_pending_$key',
+          ).then<Map<String, String>?>((m) => m, onError: (Object _) => null);
     final fallback = await fallbackLoad;
     final pending = await pendingLoad;
     final strings = stringsLoad == null ? null : await stringsLoad;
-    if (strings == null) return Localization._(fallback, pending: pending);
-    return Localization._(strings, fallback: fallback, pending: pending);
+    final localePending = localePendingLoad == null
+        ? null
+        : await localePendingLoad;
+    if (strings == null && localePending == null) {
+      return Localization._(fallback, pending: pending);
+    }
+    return Localization._(
+      Localization._withLocalePending(
+        strings ?? const {},
+        localePending,
+        fallback,
+      ),
+      fallback: fallback,
+      pending: pending,
+    );
   }
 
   @override

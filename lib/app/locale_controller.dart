@@ -28,8 +28,15 @@ class LocaleController extends ValueNotifier<Locale?> {
   }
 
   /// An empty string is what builds before v12 stored for "follow the device".
+  ///
+  /// A shipped locale is returned as declared, so it keeps the script code a
+  /// key cannot carry (`sr` is Latin, `zh_TW` Traditional) — rebuilt from its
+  /// parts, Material would draw Serbian in Cyrillic beside Latin app strings.
   static Locale? _parse(String? raw) {
     if (raw == null || raw.isEmpty) return null;
+    for (final l in kSupportedLocales) {
+      if (localeKey(l) == raw) return l;
+    }
     final parts = raw.split('_');
     if (parts.length == 1) return Locale(parts[0]);
     return Locale(parts[0], parts[1]);

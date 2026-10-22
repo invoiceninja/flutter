@@ -1615,7 +1615,9 @@ class _ExpensesTab extends StatelessWidget {
 /// Force `TextDirection.ltr` inside the Row so the amount stays on the
 /// right edge in RTL locales (Arabic, Hebrew). Tabular numeric columns
 /// are read LTR universally even in RTL UIs — matches how iOS / Material
-/// money cells behave in their own list patterns.
+/// money cells behave in their own list patterns. The name keeps the ambient
+/// direction, or a Hebrew product name is laid out left-to-right with its
+/// punctuation on the wrong side.
 class _RowTitle extends StatelessWidget {
   const _RowTitle({
     required this.left,
@@ -1634,6 +1636,7 @@ class _RowTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final ambient = Directionality.of(context);
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Row(
@@ -1644,6 +1647,7 @@ class _RowTitle extends StatelessWidget {
                 Flexible(
                   child: Text(
                     left,
+                    textDirection: ambient,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

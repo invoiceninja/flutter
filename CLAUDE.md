@@ -579,11 +579,13 @@ The block designer (`invoice_design/wysiwyg/`) is a picture of what the server p
 
 - Source of truth: **Transifex** (`explore.transifex.com/invoice-ninja/invoice-ninja`).
 - Files in the zip are PHP arrays (`textsphp-<locale>.php`).
-- `tools/import_transifex_zip.dart <zip>` parses those PHP files for locales in `kSupportedLocales` and writes `assets/i18n/<locale>.json`.
+- `tools/transifex_importer` (`dart run bin/import.dart <zip>`) parses those PHP files for locales in `kSupportedLocales`, drops every value identical to the zip's English (Transifex's copy of an untranslated key) or carrying a `:placeholder` the English lacks (a translator's rename, which renders raw), and writes `assets/i18n/<locale>.json`.
 - Workflow per release: download zip → run the importer → commit the changed JSONs.
 - Runtime: `Localization` loads the active locale's JSON from `rootBundle`. English is always loaded as a fallback. There is **no** server fetch; the one override is the company's Custom Labels (`CompanyLabelsScope`) → `docs/translated-string-rendering.md`.
-- Adding a locale = (a) add it to `kSupportedLocales`, (b) re-run the importer.
+- Adding a locale = the four steps on `kSupportedLocales` (`lib/l10n/supported_locales.dart`); `supported_locales_test` checks them. The app ships every language the server's `LanguageSeeder` offers, plus en_AU and zh_CN.
+- **Arabic, Persian and Hebrew lay out right-to-left, so new layout code says start / end (`EdgeInsetsDirectional`, `AlignmentDirectional`, `PositionedDirectional`), never left / right.** → `docs/right-to-left-layout.md`
 - **The upstream PHP is HTML-escaped — the importer decodes entities (`decodeHtmlEntities`: a single pass, and the app's one entity decoder), don't bypass it.** → `docs/translated-string-rendering.md`
+- **App-local strings are translated per locale in `_app_pending_<locale>.json`, laid over the locale's bundle wherever it has no real translation (blank, or Transifex's English copy) — so an entry outlives its `_app_pending.json` line and goes only when a real translation lands.** → `docs/translated-string-rendering.md`
 - **`_app_pending.json` can only *add* a key, never override one — an entry whose key has a non-blank `en.json` value is dead, so a deliberate rewording takes a distinct name (`*_label` / `*_short` / `*_detailed`).** → `docs/translated-string-rendering.md`
 - **A placeholder name that prefixes another needs no care — `Localization.lookup` substitutes longest-first.** → `docs/translated-string-rendering.md`
 - **Never render a string carrying a `:placeholder` without filling it — pass the params; else point at a placeholder-free Transifex sibling; only last add a distinctly-named app-local key, and never blank the token and `.trim()`.** → `docs/translated-string-rendering.md`

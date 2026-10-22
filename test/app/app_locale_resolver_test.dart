@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/app_locale_resolver.dart';
+import 'package:admin/l10n/supported_locales.dart';
 
 /// Pure mapping tests for the statics-locale → shipped-locale resolution that
 /// drives the app UI language (React-parity company-language behaviour).
@@ -21,23 +22,37 @@ void main() {
     });
 
     test('country variant we do not ship falls back to the base language '
-        '(fr_CA → fr) so the right asset loads, not English', () {
-      // The bug guarded against: Locale("fr","CA") passes the delegate's
-      // isSupported (matches "fr") but load("fr_CA") finds no asset and falls
+        '(fr_BE → fr) so the right asset loads, not English', () {
+      // The bug guarded against: Locale("fr","BE") passes the delegate's
+      // isSupported (matches "fr") but load("fr_BE") finds no asset and falls
       // back to English. Mapping to "fr" loads French.
-      expect(map('fr_CA'), const Locale('fr'));
-      expect(map('fr_CH'), const Locale('fr'));
+      expect(map('fr_BE'), const Locale('fr'));
+      expect(map('es_MX'), const Locale('es'));
     });
 
-    test('a different country of the same language maps to the shipped variant '
-        '(zh_TW → zh_CN)', () {
-      expect(map('zh_TW'), const Locale('zh', 'CN'));
+    test('a different country of the same language maps to a shipped variant '
+        'when there is no country-less one (nb_SJ → nb_NO)', () {
+      expect(map('nb_SJ'), const Locale('nb', 'NO'));
+    });
+
+    test('every language the server offers ships as itself', () {
+      // `LanguageSeeder` on the server: the codes a company's
+      // `settings.language_id` can resolve to through the statics.
+      const serverLocales = [
+        'en', 'it', 'de', 'fr', 'pt_BR', 'nl', 'es', 'nb_NO', 'da', 'ja', //
+        'sv', 'es_ES', 'fr_CA', 'lt', 'pl', 'cs', 'hr', 'sq', 'el', 'en_GB',
+        'pt_PT', 'sl', 'fi', 'ro', 'tr_TR', 'th', 'mk_MK', 'zh_TW', 'ru_RU',
+        'ar', 'fa', 'lv_LV', 'sr', 'sk', 'et', 'bg', 'he', 'km_KH', 'hu',
+        'fr_CH', 'lo_LA', 'vi', 'ca', 'af_ZA', 'id_ID',
+      ];
+      for (final code in serverLocales) {
+        expect(localeKey(map(code)), code, reason: code);
+      }
     });
 
     test('an unshipped language falls back to English', () {
-      expect(map('af_ZA'), const Locale('en'));
-      expect(map('sq'), const Locale('en'));
-      expect(map('ar'), const Locale('en'));
+      expect(map('ko'), const Locale('en'));
+      expect(map('xx_YY'), const Locale('en'));
     });
 
     test('empty code falls back to English', () {

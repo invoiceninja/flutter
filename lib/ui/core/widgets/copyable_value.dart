@@ -17,8 +17,9 @@ import 'package:admin/ui/core/widgets/notify.dart';
 /// [value] is a blob (a log dump, a design JSON, a cURL command) that reads as
 /// noise inside "Copied … to the clipboard". Every caller should still route
 /// through here rather than reaching for a placeholder-free key: the bundled
-/// `copied_to_clipboard` string is translated in every locale, whereas an
-/// app-local replacement would be English-only.
+/// `copied_to_clipboard` string is translated in every locale by Transifex,
+/// whereas an app-local replacement would carry only the app's own machine
+/// translations (`_app_pending_<locale>.json`).
 ///
 /// [messenger] is for a caller whose context may be popped before the toast
 /// lands (see `outbox_screen`); it's threaded straight to [Notify.success].

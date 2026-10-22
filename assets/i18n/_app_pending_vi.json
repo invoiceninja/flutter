@@ -445,6 +445,7 @@
   "financial": "Tài chính",
   "focus_search": "Chuyển đến ô tìm kiếm",
   "force_full_sync": "Buộc đồng bộ toàn bộ",
+  "force_right_to_left": "Buộc bố cục từ phải sang trái",
   "forecast_needs_budget": "Đặt số giờ ngân sách của dự án để xem khi nào hoàn thành.",
   "forecast_needs_time": "Ghi thời gian cho dự án này để xem khi nào hoàn thành.",
   "foreign_amount": "Số tiền ngoại tệ",
@@ -1534,5 +1535,13 @@
   "release_change_count_one": "1 thay đổi",
   "load_more": "Tải thêm",
   "spell_check": "Kiểm tra chính tả",
-  "spell_check_help": "Gạch chân lỗi chính tả trong tên và mô tả mục hàng"
+  "spell_check_help": "Gạch chân lỗi chính tả trong tên và mô tả mục hàng",
+  "day_count_singular": ":count ngày",
+  "day_count_plural": ":count ngày",
+  "in_days_count_plural": "trong :count ngày nữa",
+  "days_ago_count_plural": ":count ngày trước",
+  "client_count_singular": ":count khách hàng",
+  "client_count_plural": ":count khách hàng",
+  "row_count_singular": ":count hàng",
+  "row_count_plural": ":count hàng"
 }

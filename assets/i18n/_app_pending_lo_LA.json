@@ -469,6 +469,7 @@
   "financial": "ການເງິນ",
   "focus_search": "ໂຟກັສຊ່ອງຄົ້ນຫາ",
   "force_full_sync": "ບັງຄັບຊິງຄ໌ທັງໝົດ",
+  "force_right_to_left": "ບັງຄັບຈາກຂວາຫາຊ້າຍ",
   "forecast": "ການຄາດຄະເນ",
   "forecast_finish": "ຄາດວ່າຈະແລ້ວ",
   "forecast_needs_budget": "ຕັ້ງຊົ່ວໂມງງົບປະມານຂອງໂຄງການເພື່ອເບິ່ງວ່າມັນຈະແລ້ວເມື່ອໃດ.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 ການປ່ຽນແປງ",
   "load_more": "ໂຫຼດເພີ່ມ",
   "spell_check": "ກວດການສະກົດຄຳ",
-  "spell_check_help": "ຂີດກ້ອງຄຳທີ່ສະກົດຜິດໃນຊື່ ແລະ ລາຍລະອຽດຂອງລາຍການແຖວ"
+  "spell_check_help": "ຂີດກ້ອງຄຳທີ່ສະກົດຜິດໃນຊື່ ແລະ ລາຍລະອຽດຂອງລາຍການແຖວ",
+  "day_count_singular": ":count ມື້",
+  "day_count_plural": ":count ມື້",
+  "in_days_count_plural": "ໃນອີກ :count ມື້",
+  "days_ago_count_plural": ":count ມື້ກ່ອນ",
+  "client_count_singular": "ລູກຄ້າ :count ຄົນ",
+  "client_count_plural": "ລູກຄ້າ :count ຄົນ",
+  "row_count_singular": ":count ແຖວ",
+  "row_count_plural": ":count ແຖວ"
 }

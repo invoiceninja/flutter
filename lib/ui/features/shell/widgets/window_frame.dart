@@ -244,12 +244,14 @@ class _TitleBar extends StatelessWidget {
                   ),
                 ),
                 if (leading > 0)
-                  // Physical `left`, not `PositionedDirectional`: the shell pins
-                  // its rail with a physical `Positioned(left: 0)` and does not
-                  // flip in Arabic or Hebrew, so this must not either.
-                  Positioned(
+                  // Directional, unlike the rest of the bar: the segment is the
+                  // rail's own top, and the shell pins the rail at the start
+                  // side (`PositionedDirectional(start: 0)`), so in Arabic or
+                  // Hebrew both sit at the right. The mark and the window
+                  // buttons are window chrome and stay where they are.
+                  PositionedDirectional(
                     key: const ValueKey('windowFrame.leadingSegment'),
-                    left: 0,
+                    start: 0,
                     top: 0,
                     bottom: 0,
                     width: leading,
@@ -262,13 +264,13 @@ class _TitleBar extends StatelessWidget {
                     // middle of the band never notices.
                     child: IgnorePointer(
                       // Carries only the divider now that the band is one
-                      // colour — it continues the rail's own right edge up
+                      // colour — it continues the rail's own end edge up
                       // through the band, 1 px inside the box exactly as
                       // `InSidebar` draws it, so the two line up to the pixel.
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(color: tokens.border),
+                          border: BorderDirectional(
+                            end: BorderSide(color: tokens.border),
                           ),
                         ),
                       ),
@@ -278,6 +280,10 @@ class _TitleBar extends StatelessWidget {
                 // the segment in paint order but absorbs no pointers (an Image
                 // and a Text both decline the hit test), so the whole mark stays
                 // draggable like any other empty stretch of a title bar.
+                //
+                // Physical, like the window buttons it is bounded by: in a
+                // right-to-left locale the rail and its segment move to the
+                // right, under the buttons, and the mark stays at the left.
                 Positioned(
                   left: _kBarLeadingInset,
                   top: 0,
@@ -298,14 +304,16 @@ class _TitleBar extends StatelessWidget {
                 if (arrows)
                   // Past the segment's divider rather than inside it: the mark
                   // has the segment now, and squeezing both into 232 px overflows
-                  // once the wordmark grows at a large text scale.
-                  Positioned(
+                  // once the wordmark grows at a large text scale. Directional,
+                  // like the segment it is measured from — and the arrows are
+                  // the content toolbar's neighbours, which flips too.
+                  PositionedDirectional(
                     // Backed off by the glyph inset so the ARROW lines up
                     // with the content toolbar's primary action ("New Client"),
                     // which sits `InSpacing.xl` past the rail
                     // (`entity_list_app_bar.dart`, the same 24 the table card
                     // below uses).
-                    left: leading + InSpacing.xl - _kNavGlyphInset,
+                    start: leading + InSpacing.xl - _kNavGlyphInset,
                     top: 0,
                     bottom: 0,
                     child: const Center(
@@ -318,6 +326,7 @@ class _TitleBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                // rtl: physical — window chrome; the buttons keep the OS's side.
                 Positioned(
                   right: 0,
                   top: 0,
@@ -353,8 +362,9 @@ class _TitleBarIdentity extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     return Row(
-      // Physical order, like the rail below it — the mark does not swap sides
-      // in Arabic or Hebrew, because the segment it sits on does not either.
+      // Physical order, like the window buttons opposite it — window chrome
+      // does not swap sides in Arabic or Hebrew (the rail below does, and the
+      // segment with it, so there the mark sits over the content instead).
       textDirection: TextDirection.ltr,
       mainAxisSize: MainAxisSize.min,
       children: [

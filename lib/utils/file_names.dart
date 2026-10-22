@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:admin/utils/bidi.dart';
+
 /// Characters no platform this app shares files to will accept in a **file
 /// name**, plus the ASCII control range.
 ///
@@ -68,7 +70,11 @@ const _kMaxBytes = 96;
 /// written. So an illegal name is not an error the user sees; it is a Share
 /// button that does nothing at all.
 String sanitizeFileName(String name, {String fallback = 'document'}) {
-  var out = name.replaceAll(_kIllegal, '-').replaceAll(_kRuns, '-');
+  // A label from `tr()` carries invisible bidi isolates in a right-to-left
+  // locale; in a file name they are noise at best.
+  var out = stripBidiControls(
+    name,
+  ).replaceAll(_kIllegal, '-').replaceAll(_kRuns, '-');
   // Windows also refuses a trailing dot or space, and a leading dot would make
   // the file hidden on POSIX.
   out = out.replaceAll(RegExp(r'^[.\s-]+|[.\s-]+$'), '');

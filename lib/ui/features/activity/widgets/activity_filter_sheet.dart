@@ -223,7 +223,7 @@ class _ActivityFilterPanelState extends State<ActivityFilterPanel> {
                       // and `segmented_setting_row.dart` both do for their own
                       // three-segment controls.
                       Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: SegmentedButton<ActivityLens>(
@@ -292,7 +292,7 @@ class _ActivityFilterPanelState extends State<ActivityFilterPanel> {
               ),
               SizedBox(height: InSpacing.md(context)),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: TextButton.icon(
                   onPressed: f.isActive ? vm.clearFilters : null,
                   icon: const Icon(Icons.restart_alt, size: 16),

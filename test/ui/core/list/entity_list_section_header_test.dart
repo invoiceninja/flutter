@@ -58,7 +58,7 @@ void main() {
     expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
 
     await _pump(tester, collapsed: true, onToggle: () {});
-    expect(find.byIcon(Icons.keyboard_arrow_right), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
   });
 
   testWidgets('the whole row is the tap target', (tester) async {

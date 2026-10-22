@@ -53,7 +53,11 @@ void main() {
   late List<List<LineItem>> emitted;
   late ShellFixture fixture;
 
-  Future<void> pump(WidgetTester tester, List<LineItem> items) async {
+  Future<void> pump(
+    WidgetTester tester,
+    List<LineItem> items, {
+    TextDirection? textDirection,
+  }) async {
     emitted = <List<LineItem>>[];
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -62,10 +66,13 @@ void main() {
       companies: [const FakeCompany(id: 'co1', name: 'Co')],
     );
     addTearDown(fixture.dispose);
+    final Widget host = _Host(initial: items, onChanged: emitted.add);
     await tester.pumpWidget(
       wrapWithShell(
         fixture.services,
-        _Host(initial: items, onChanged: emitted.add),
+        textDirection == null
+            ? host
+            : Directionality(textDirection: textDirection, child: host),
       ),
     );
     await tester.pump(const Duration(milliseconds: 50));
@@ -147,6 +154,33 @@ void main() {
     await tester.enterText(ghostNotes, 'Hello\n');
     await tester.pump(const Duration(milliseconds: 300));
     expect(emitted.last.single.notes, 'Hello\n');
+    await teardown(tester);
+  });
+
+  testWidgets('right-to-left: an amount cell reads LTR, flush to the left', (
+    tester,
+  ) async {
+    // Not a description case, but the same harness. An amount is LTR in every
+    // language (`-12.5`, never `12.5-`), while the column's end — where the
+    // figures line up — is the LEFT edge in RTL. Before the conversion the
+    // cell was `textAlign: right` with the ambient (RTL) direction: digits
+    // pinned to the wrong edge, and a typed minus could render at the end.
+    await pump(tester, [_line('Line 1')], textDirection: TextDirection.rtl);
+
+    final amounts = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          w.keyboardType ==
+              const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: true,
+              ),
+    );
+    expect(amounts, findsWidgets);
+    for (final field in tester.widgetList<TextField>(amounts)) {
+      expect(field.textDirection, TextDirection.ltr);
+      expect(field.textAlign, TextAlign.left);
+    }
     await teardown(tester);
   });
 }

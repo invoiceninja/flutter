@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/payments/widgets/payment_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Sub-screen at `/payments/:id/refund`. Two modes:
 ///   * Full — auto-allocate the full refundable amount across paymentables
@@ -170,7 +171,7 @@ class _PaymentRefundScreenState extends State<PaymentRefundScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                LtrText(
                   _money(_remaining),
                   style: moneyTextStyle(
                     color: _remaining < Decimal.zero ? Colors.red : tokens.ink,
@@ -246,7 +247,7 @@ class _PaymentRefundScreenState extends State<PaymentRefundScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              LtrText(
                 _money(p.refundable),
                 style: moneyTextStyle(
                   color: tokens.ink,

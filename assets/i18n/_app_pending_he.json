@@ -450,6 +450,7 @@
   "financial": "פיננסי",
   "focus_search": "התמקד בשדה החיפוש",
   "force_full_sync": "כפה סנכרון מלא",
+  "force_right_to_left": "אילוץ כיוון מימין לשמאל",
   "forecast_needs_budget": "הגדר את שעות התקציב של הפרויקט כדי לראות מתי הוא יסתיים.",
   "forecast_needs_time": "רשום זמן בפרויקט זה כדי לראות מתי הוא יסתיים.",
   "foreign_amount": "סכום במטבע זר",
@@ -1566,5 +1567,13 @@
   "release_change_count_one": "שינוי אחד",
   "load_more": "טען עוד",
   "spell_check": "בדיקת איות",
-  "spell_check_help": "סמן בקו תחתון שגיאות כתיב בשמות ובתיאורים של פריטים"
+  "spell_check_help": "סמן בקו תחתון שגיאות כתיב בשמות ובתיאורים של פריטים",
+  "day_count_singular": "יום :count",
+  "day_count_plural": ":count ימים",
+  "in_days_count_plural": "בעוד :count ימים",
+  "days_ago_count_plural": "לפני :count ימים",
+  "client_count_singular": "לקוח :count",
+  "client_count_plural": ":count לקוחות",
+  "row_count_singular": "שורה :count",
+  "row_count_plural": ":count שורות"
 }

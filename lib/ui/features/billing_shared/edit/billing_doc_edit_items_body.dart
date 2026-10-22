@@ -104,9 +104,9 @@ class BillingDocEditItemsBody extends StatelessWidget {
                 ),
               ),
               if (wideTable)
-                Positioned(
+                PositionedDirectional(
                   bottom: 16,
-                  right: 16,
+                  end: 16,
                   child: BillingDocEditFab(
                     heroTag: heroTag,
                     onPressed: onPickItems,

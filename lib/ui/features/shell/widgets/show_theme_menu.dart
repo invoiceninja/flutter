@@ -41,16 +41,19 @@ Future<void> showThemeMenu(BuildContext context, {GlobalKey? anchorKey}) {
   }
 
   Offset? topLeft;
+  Size? anchorSize;
   if (anchorKey?.currentContext != null) {
     final box = anchorKey!.currentContext!.findRenderObject() as RenderBox?;
     if (box != null && box.hasSize) {
       topLeft = box.localToGlobal(Offset.zero);
+      anchorSize = box.size;
     }
   }
 
   return Navigator.of(context).push(
     _ThemeMenuRoute(
       topLeft: topLeft,
+      anchorSize: anchorSize,
       // Snapshot the localized "Dismiss" string — PopupRoute's barrierLabel
       // getter has no BuildContext.
       barrierLabelText: context.tr('dismiss'),
@@ -59,9 +62,14 @@ Future<void> showThemeMenu(BuildContext context, {GlobalKey? anchorKey}) {
 }
 
 class _ThemeMenuRoute extends PopupRoute<void> {
-  _ThemeMenuRoute({this.topLeft, required this.barrierLabelText});
+  _ThemeMenuRoute({
+    this.topLeft,
+    this.anchorSize,
+    required this.barrierLabelText,
+  });
 
   final Offset? topLeft;
+  final Size? anchorSize;
   final String barrierLabelText;
 
   @override
@@ -82,7 +90,7 @@ class _ThemeMenuRoute extends PopupRoute<void> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
-    return _PositionedThemeMenu(topLeft: topLeft);
+    return _PositionedThemeMenu(topLeft: topLeft, anchorSize: anchorSize);
   }
 
   @override
@@ -100,9 +108,10 @@ class _ThemeMenuRoute extends PopupRoute<void> {
 }
 
 class _PositionedThemeMenu extends StatelessWidget {
-  const _PositionedThemeMenu({required this.topLeft});
+  const _PositionedThemeMenu({required this.topLeft, this.anchorSize});
 
   final Offset? topLeft;
+  final Size? anchorSize;
 
   @override
   Widget build(BuildContext context) {
@@ -113,10 +122,14 @@ class _PositionedThemeMenu extends StatelessWidget {
     double bottom;
     double maxHeight;
     if (topLeft != null) {
-      // Left-align with the icon and open upward: the menu's bottom edge sits
-      // just above the anchor's top. Clamp maxHeight at 0 so a very short
+      // Start-align with the icon and open upward: the menu's bottom edge sits
+      // just above the anchor's top. In a right-to-left locale the menu's
+      // right edge follows the icon's, so it grows leftwards, off the rail
+      // (which sits at the right there). Clamp maxHeight at 0 so a very short
       // window can't hand ConstrainedBox a negative constraint.
-      left = topLeft!.dx;
+      left = Directionality.of(context) == TextDirection.rtl
+          ? topLeft!.dx + (anchorSize?.width ?? 0) - menuWidth
+          : topLeft!.dx;
       bottom = screen.height - topLeft!.dy + margin;
       maxHeight = (topLeft!.dy - margin).clamp(0.0, double.infinity);
     } else {
@@ -127,6 +140,7 @@ class _PositionedThemeMenu extends StatelessWidget {
     left = left.clamp(margin, screen.width - menuWidth - margin);
     return Stack(
       children: [
+        // rtl: physical — `left` is global-coordinate maths, already mirrored.
         Positioned(
           left: left,
           bottom: bottom,

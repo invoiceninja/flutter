@@ -5,6 +5,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Narrow-mode tappable card representing a single paymentable. Mirrors the
 /// shape of `line_item_card_list_mobile.dart`'s `_ItemCard` — identity on
@@ -95,7 +96,7 @@ class PaymentAllocationCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              LtrText(
                 formatter == null
                     ? row.amount.toString()
                     : formatter!.money(

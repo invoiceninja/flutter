@@ -193,7 +193,7 @@ class _IntegrationsAnalyticsScreenState
                             // persisted values.
                             if (_dirty || _saving)
                               Align(
-                                alignment: Alignment.centerLeft,
+                                alignment: AlignmentDirectional.centerStart,
                                 child: FilledButton.tonal(
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size(120, 44),

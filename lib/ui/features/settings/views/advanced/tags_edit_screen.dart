@@ -98,7 +98,7 @@ class _ColorField extends StatelessWidget {
           ),
           SizedBox(height: InSpacing.md(context)),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TagPill(
               name: vm.draft.name.trim().isEmpty
                   ? context.tr('untitled')

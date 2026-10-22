@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -264,6 +265,8 @@ class _PasswordField extends StatelessWidget {
       controller: controller,
       obscureText: obscure,
       keyboardType: TextInputType.visiblePassword,
+      textDirection: TextDirection.ltr,
+      textAlign: ltrValueAlign(context, ltr: true),
       autocorrect: false,
       enableSuggestions: false,
       autofocus: true,

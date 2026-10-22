@@ -43,7 +43,7 @@ class ExpenseEditBankingSection extends StatelessWidget {
               bottom: InSpacing.sm,
             ),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: LinkText(
                 label: context.tr('view'),
                 style: const TextStyle(fontWeight: FontWeight.w500),

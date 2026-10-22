@@ -668,7 +668,7 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                                   }
                                 : () => onSelected(opt),
                             child: Align(
-                              alignment: Alignment.centerLeft,
+                              alignment: AlignmentDirectional.centerStart,
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: InSpacing.md(context),
@@ -787,7 +787,7 @@ class _CreateRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: InSpacing.md(context)),
             child: Row(

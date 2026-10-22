@@ -7,6 +7,7 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_text_field.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_edit_view_model.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 const _kRefundOrTrialSeconds = <int>[
   0,
@@ -268,10 +269,8 @@ class _DurationDropdown extends StatelessWidget {
     );
   }
 
-  String _formatDays(BuildContext context, int days) {
-    if (days <= 1) return '$days ${context.tr('day')}';
-    return '$days ${context.tr('days')}';
-  }
+  String _formatDays(BuildContext context, int days) =>
+      dayCountLabel(context, days);
 }
 
 class _PromoDiscountRow extends StatelessWidget {

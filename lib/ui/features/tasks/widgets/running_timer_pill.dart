@@ -41,7 +41,7 @@ class RunningTimerPill extends StatefulWidget {
 /// How far above the bottom of the content pane the shell pins the pill.
 ///
 /// The shell paints the pill above every screen. So it has to stay out of the
-/// bottom-right corner whenever the screen underneath may have a create FAB
+/// bottom-end corner whenever the screen underneath may have a create FAB
 /// there. It then sits at 112: the button's 16 px margin, its 56 px height,
 /// and a 40 px gap.
 ///

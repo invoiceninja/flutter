@@ -35,69 +35,78 @@ class DesignPageThumbnail extends StatelessWidget {
         explicitRow(row, (_) => 'thumb-gap-$i'),
     ].where((r) => r.isNotEmpty).toList();
 
-    return AspectRatio(
-      aspectRatio: metrics.size.aspectRatio,
-      child: FittedBox(
-        fit: BoxFit.fitWidth,
-        alignment: Alignment.topCenter,
-        clipBehavior: Clip.hardEdge,
-        child: ExcludeSemantics(
-          child: IgnorePointer(
-            child: Container(
-              width: metrics.size.width,
-              height: metrics.size.height,
-              color: Colors.white, // paper
-              padding: EdgeInsets.fromLTRB(
-                metrics.insetLeft,
-                metrics.insetTop,
-                metrics.insetRight,
-                metrics.insetBottom,
-              ),
-              alignment: Alignment.topLeft,
-              child: ClipRect(
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  minHeight: 0,
-                  maxHeight: double.infinity,
-                  child: SizedBox(
-                    width: metrics.contentWidth,
-                    child: FittedBox(
-                      fit: BoxFit.fitWidth,
-                      alignment: Alignment.topLeft,
-                      child: SizedBox(
-                        width: metrics.layoutWidth,
-                        child: Theme(
-                          data: _paperTheme,
-                          child: MediaQuery.withNoTextScaling(
-                            child: DesignerRenderScope(
-                              formatter: null,
-                              child: DefaultTextStyle(
-                                style: TextStyle(
-                                  // At this size the letters are texture;
-                                  // the app's own face keeps it the same
-                                  // texture on every platform.
-                                  fontFamily: kSansFontFamily,
-                                  fontSize: settings.globalFontSize.toDouble(),
-                                  color: const Color(0xFF374151),
-                                  height: 1.5,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    for (final row in rows)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: kDesignerRowGapPx,
+    // The page is a physical document — a picture of the PDF, which the
+    // server lays out left to right in every locale — so it stays LTR under
+    // an RTL app, as the canvas does (`docs/right-to-left-layout.md`).
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: AspectRatio(
+        aspectRatio: metrics.size.aspectRatio,
+        child: FittedBox(
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          child: ExcludeSemantics(
+            child: IgnorePointer(
+              child: Container(
+                width: metrics.size.width,
+                height: metrics.size.height,
+                color: Colors.white, // paper
+                // rtl: physical page is a PDF — the document's own margins.
+                padding: EdgeInsets.fromLTRB(
+                  metrics.insetLeft,
+                  metrics.insetTop,
+                  metrics.insetRight,
+                  metrics.insetBottom,
+                ),
+                alignment: Alignment.topLeft, // rtl: physical page is a PDF
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft, // rtl: physical page is a PDF
+                    minHeight: 0,
+                    maxHeight: double.infinity,
+                    child: SizedBox(
+                      width: metrics.contentWidth,
+                      child: FittedBox(
+                        fit: BoxFit.fitWidth,
+                        // rtl: physical page is a PDF
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: metrics.layoutWidth,
+                          child: Theme(
+                            data: _paperTheme,
+                            child: MediaQuery.withNoTextScaling(
+                              child: DesignerRenderScope(
+                                formatter: null,
+                                child: DefaultTextStyle(
+                                  style: TextStyle(
+                                    // At this size the letters are texture;
+                                    // the app's own face keeps it the same
+                                    // texture on every platform.
+                                    fontFamily: kSansFontFamily,
+                                    fontSize: settings.globalFontSize
+                                        .toDouble(),
+                                    color: const Color(0xFF374151),
+                                    height: 1.5,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      for (final row in rows)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: kDesignerRowGapPx,
+                                          ),
+                                          child: _row(
+                                            row,
+                                            metrics.layoutWidth,
+                                            data,
+                                          ),
                                         ),
-                                        child: _row(
-                                          row,
-                                          metrics.layoutWidth,
-                                          data,
-                                        ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

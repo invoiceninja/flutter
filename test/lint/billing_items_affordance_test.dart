@@ -76,6 +76,7 @@ void main() {
         'Stack(',
         'SingleChildScrollView(',
         'Positioned(',
+        'PositionedDirectional(',
       ]) {
         expect(
           tab,

@@ -87,7 +87,7 @@ class SidebarNavItem extends StatefulWidget {
 
   /// Icon-only variant for the collapsed wide-layout sidebar. The label
   /// surfaces in a hover tooltip; the optional `count` becomes a small accent
-  /// dot at the icon's top-right (numbers don't fit in 64 px).
+  /// dot at the icon's top-end (numbers don't fit in 64 px).
   final bool compact;
 
   /// Grid variant for the "pills" menu layout (invoiceninja/flutter#125): a
@@ -111,7 +111,7 @@ class SidebarNavItem extends StatefulWidget {
   /// only the hit area grows. See issue #11.
   final bool touch;
 
-  /// Secondary action revealed at the row's right edge when the mouse
+  /// Secondary action revealed at the row's end edge when the mouse
   /// hovers over this row. Ignored in [compact] mode (no horizontal room)
   /// and on [disabled] rows (no real action to invoke).
   ///
@@ -120,7 +120,7 @@ class SidebarNavItem extends StatefulWidget {
   /// hover — pass a `SidebarRowIconButton` (invoiceninja/flutter#171).
   final Widget? trailingHover;
 
-  /// Always-visible secondary action at the row's right edge (no hover
+  /// Always-visible secondary action at the row's end edge (no hover
   /// gate), used by saved-view rows so their context menu is discoverable
   /// and keyboard-reachable. Ignored in [compact] mode (no room). Replaces
   /// both [trailingHover] and the [count] badge. Invariant: a row never sets
@@ -248,15 +248,16 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: widget.count != null && widget.count! > 0
                   ? Stack(
                       clipBehavior: Clip.none,
                       children: [
                         iconWidget,
-                        Positioned(
+                        // Top-end, where Material's `Badge` puts its dot.
+                        PositionedDirectional(
                           top: -2,
-                          right: -2,
+                          end: -2,
                           child: Container(
                             key: const Key('clients-badge-dot'),
                             width: 8,

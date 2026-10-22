@@ -450,6 +450,7 @@
   "financial": "Talous",
   "focus_search": "Siirry hakukenttään",
   "force_full_sync": "Pakota täysi synkronointi",
+  "force_right_to_left": "Pakota oikealta vasemmalle",
   "forecast_needs_budget": "Aseta projektin budjetoidut tunnit nähdäksesi, milloin se valmistuu.",
   "forecast_needs_time": "Kirjaa aikaa tälle projektille nähdäksesi, milloin se valmistuu.",
   "foreign_amount": "Ulkomaanvaluutan summa",
@@ -1568,5 +1569,13 @@
   "release_change_count_one": "1 muutos",
   "load_more": "Lataa lisää",
   "spell_check": "Oikeinkirjoituksen tarkistus",
-  "spell_check_help": "Alleviivaa kirjoitusvirheet laskurivien nimissä ja kuvauksissa"
+  "spell_check_help": "Alleviivaa kirjoitusvirheet laskurivien nimissä ja kuvauksissa",
+  "day_count_singular": ":count päivä",
+  "day_count_plural": ":count päivää",
+  "in_days_count_plural": ":count päivän päästä",
+  "days_ago_count_plural": ":count päivää sitten",
+  "client_count_singular": ":count asiakas",
+  "client_count_plural": ":count asiakasta",
+  "row_count_singular": ":count rivi",
+  "row_count_plural": ":count riviä"
 }

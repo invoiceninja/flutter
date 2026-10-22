@@ -19,6 +19,7 @@ import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 // Legacy column widths consumed by the screen's `_ColumnHeaders` strip
 // while the columns refactor is in flight. Safe to remove once the header
@@ -418,7 +419,7 @@ class _ClientListTileState extends State<ClientListTile> {
     double fontSize = 13,
   }) {
     if (text.isEmpty) return null;
-    return Text(
+    return LtrText(
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

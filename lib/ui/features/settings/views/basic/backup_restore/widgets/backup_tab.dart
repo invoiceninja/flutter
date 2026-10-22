@@ -131,7 +131,7 @@ class _BackupTabBodyState extends State<BackupTabBody> {
                   ),
                 SizedBox(height: InSpacing.lg(context)),
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: FilledButton.icon(
                     // Fixed 18×18 leading slot so the button width is stable
                     // across idle/busy states.

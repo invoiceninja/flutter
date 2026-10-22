@@ -33,9 +33,8 @@ import 'package:flutter/material.dart';
 /// phase either.
 ///
 /// The fades are `PositionedDirectional` + `AlignmentDirectional` so they land
-/// on the right physical edge in Arabic / Hebrew. That is copied from
-/// `EntityListStatusTabs._edgeFade` rather than `EntityDetailTabs._edgeFade`,
-/// which is plain `Positioned` + `Alignment` and is not RTL-correct.
+/// on the correct physical edge in Arabic / Hebrew, the same recipe as
+/// `EntityListStatusTabs._edgeFade` and `EntityDetailTabs._leadingFade`.
 class ScrollEdgeFades extends StatefulWidget {
   const ScrollEdgeFades({
     super.key,

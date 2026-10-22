@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One line of a [BarList], ready to draw.
 class BarListItem {
@@ -167,7 +168,7 @@ class _Line extends StatelessWidget {
             const SizedBox(width: InSpacing.sm),
             // Text wears text colours, never the series colour: a yellow
             // figure on a white card is not a figure anyone can read.
-            Text(
+            LtrText(
               item.valueText,
               maxLines: 1,
               softWrap: false,

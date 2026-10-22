@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 /// Search keys exported for the settings sidebar search. Colocated with the
 /// screen so adding / renaming a field updates both ends in one place.
@@ -373,9 +374,7 @@ String _summaryFor(BuildContext context, Schedule s) {
       final clients = s.statementClients;
       final clientPart = clients.isEmpty
           ? context.tr('all_clients')
-          : (clients.length == 1
-                ? '1 ${context.tr('client').toLowerCase()}'
-                : '${clients.length} ${context.tr('clients').toLowerCase()}');
+          : clientCountLabel(context, clients.length);
       return '${context.tr('email_statement')}: $clientPart';
     case kScheduleTemplateEmailRecord:
       final entityLabel = context.tr(s.recordEntityType);
@@ -386,7 +385,7 @@ String _summaryFor(BuildContext context, Schedule s) {
       final clients = s.outstandingTasksClients;
       final clientPart = clients.isEmpty
           ? context.tr('all_clients')
-          : '${clients.length} ${context.tr('clients').toLowerCase()}';
+          : clientCountLabel(context, clients.length);
       return '${context.tr('invoice_outstanding_tasks')} · $clientPart';
     case kScheduleTemplatePaymentSchedule:
       return context.tr('payment_schedule');
@@ -424,10 +423,10 @@ String? _relativeNextRun(BuildContext context, Schedule s) {
   if (days == 1) return context.tr('tomorrow');
   if (days == -1) return context.tr('yesterday');
   if (days > 1 && days < 30) {
-    return '${context.tr('in')} $days ${context.tr('days').toLowerCase()}';
+    return context.tr('in_days_count_plural', {'count': '$days'});
   }
   if (days <= -2 && days > -30) {
-    return '${-days} ${context.tr('days').toLowerCase()} ${context.tr('ago')}';
+    return context.tr('days_ago_count_plural', {'count': '${-days}'});
   }
   // Far future / far past — let the absolute date in the subtitle carry it.
   return null;

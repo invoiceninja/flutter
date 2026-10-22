@@ -69,12 +69,12 @@ TextAlign parseTextAlign(String? value) {
     case 'center':
       return TextAlign.center;
     case 'right':
-      return TextAlign.right;
+      return TextAlign.right; // rtl: physical page is a PDF
     case 'justify':
       return TextAlign.justify;
     case 'left':
     default:
-      return TextAlign.left;
+      return TextAlign.left; // rtl: physical page is a PDF
   }
 }
 
@@ -85,10 +85,10 @@ Alignment parseAlignment(String? value) {
     case 'center':
       return Alignment.center;
     case 'right':
-      return Alignment.centerRight;
+      return Alignment.centerRight; // rtl: physical page is a PDF
     case 'left':
     default:
-      return Alignment.centerLeft;
+      return Alignment.centerLeft; // rtl: physical page is a PDF
   }
 }
 

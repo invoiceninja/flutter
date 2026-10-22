@@ -215,12 +215,12 @@ class EntityListAppBar<T> extends StatelessWidget
           // Bulk actions have no primary Edit, so they keep the
           // spread-inline-then-collapse-into-"More" overflow bar — the
           // detail header now uses a dedicated Edit + ⋮ cluster instead.
-          // Right-aligned within the Expanded, matching the old layout.
+          // End-aligned within the Expanded, matching the old layout.
           Expanded(
             child: SizedBox(
               width: double.infinity,
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment: AlignmentDirectional.centerEnd,
                 child: EntityOverflowActionBar<String>(items: selectionItems),
               ),
             ),

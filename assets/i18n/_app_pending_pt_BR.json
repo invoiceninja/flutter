@@ -469,6 +469,7 @@
   "financial": "Financeiro",
   "focus_search": "Focar no campo de pesquisa",
   "force_full_sync": "Forçar sincronização completa",
+  "force_right_to_left": "Forçar da direita para a esquerda",
   "forecast": "Previsão",
   "forecast_finish": "Conclusão Prevista",
   "forecast_needs_budget": "Defina as horas orçadas do projeto para ver quando ele será concluído.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 alteração",
   "load_more": "Carregar mais",
   "spell_check": "Verificação Ortográfica",
-  "spell_check_help": "Sublinhar erros de ortografia nos nomes e descrições dos itens de linha"
+  "spell_check_help": "Sublinhar erros de ortografia nos nomes e descrições dos itens de linha",
+  "day_count_singular": ":count dia",
+  "day_count_plural": ":count dias",
+  "in_days_count_plural": "em :count dias",
+  "days_ago_count_plural": "há :count dias",
+  "client_count_singular": ":count cliente",
+  "client_count_plural": ":count clientes",
+  "row_count_singular": ":count linha",
+  "row_count_plural": ":count linhas"
 }

@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 import 'package:admin/ui/features/products/widgets/product_actions.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One row in the products list.
 ///
@@ -183,7 +184,7 @@ class _ProductListTileState extends State<ProductListTile> {
                 : tokens.warning,
           ),
           const SizedBox(width: 4),
-          Text(
+          LtrText(
             w.product.inStockQuantity.toString(),
             style: moneyTextStyle(
               fontSize: 13,
@@ -194,7 +195,7 @@ class _ProductListTileState extends State<ProductListTile> {
           ),
           const SizedBox(width: 10),
         ],
-        Text(priceText, style: moneyTextStyle(color: tokens.ink)),
+        LtrText(priceText, style: moneyTextStyle(color: tokens.ink)),
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<ProductAction>(

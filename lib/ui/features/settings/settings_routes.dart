@@ -90,9 +90,11 @@ class _SettingsLevelKeyed extends StatelessWidget {
 
 /// Drop-in replacement for `GoRoute(builder: ...)` that swaps the default
 /// `MaterialPage` slide for a viewport-aware transition:
-///   * **wide** (≥ `Breakpoints.wide`): no transition — the persistent left
-///     sidebar makes navigation feel like content replacement, not a push.
-///   * **narrow**: standard right-to-left slide so the stack-style narrow nav
+///   * **wide** (≥ `Breakpoints.wide`): no transition — the persistent
+///     settings sidebar makes navigation feel like content replacement, not a
+///     push.
+///   * **narrow**: the standard push slide, in from the end edge (the right,
+///     or the left in a right-to-left locale), so the stack-style narrow nav
 ///     still feels right.
 /// `MediaQuery` can't be read in `pageBuilder` (no `BuildContext` is mounted
 /// yet), so the size check happens inside `transitionsBuilder`.
@@ -131,6 +133,8 @@ GoRoute _settingsRoute({
             begin: const Offset(1, 0),
             end: Offset.zero,
           ).chain(CurveTween(curve: Curves.easeOut)).animate(animation),
+          // Mirrors the offset in a right-to-left locale: in from the end edge.
+          textDirection: Directionality.of(context),
           child: child,
         );
       },
@@ -223,6 +227,8 @@ List<RouteBase> tabbedSettingsRoutePair({
             begin: const Offset(1, 0),
             end: Offset.zero,
           ).chain(CurveTween(curve: Curves.easeOut)).animate(animation),
+          // Mirrors the offset in a right-to-left locale: in from the end edge.
+          textDirection: Directionality.of(context),
           child: child,
         );
       },

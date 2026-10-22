@@ -469,6 +469,7 @@
   "financial": "مالی",
   "focus_search": "تمرکز روی فیلد جستجو",
   "force_full_sync": "اجبار همگام‌سازی کامل",
+  "force_right_to_left": "اجبار راست به چپ",
   "forecast": "پیش‌بینی",
   "forecast_finish": "پایان پیش‌بینی‌شده",
   "forecast_needs_budget": "برای دیدن زمان پایان پروژه، ساعات بودجه‌شده آن را تنظیم کنید.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "۱ تغییر",
   "load_more": "بارگذاری بیشتر",
   "spell_check": "بررسی املا",
-  "spell_check_help": "زیر غلط‌های املایی در نام و توضیحات اقلام خط کشیده شود"
+  "spell_check_help": "زیر غلط‌های املایی در نام و توضیحات اقلام خط کشیده شود",
+  "day_count_singular": ":count روز",
+  "day_count_plural": ":count روز",
+  "in_days_count_plural": "تا :count روز دیگر",
+  "days_ago_count_plural": ":count روز پیش",
+  "client_count_singular": ":count مشتری",
+  "client_count_plural": ":count مشتری",
+  "row_count_singular": ":count ردیف",
+  "row_count_plural": ":count ردیف"
 }

@@ -503,7 +503,7 @@ class ProjectBudgetBar extends StatelessWidget {
             // Outside the clip so it stands a little proud of the track.
             if (mark != null)
               Align(
-                alignment: Alignment(mark * 2 - 1, 0),
+                alignment: AlignmentDirectional(mark * 2 - 1, 0),
                 child: Container(width: 2, color: tokens.ink2),
               ),
           ],

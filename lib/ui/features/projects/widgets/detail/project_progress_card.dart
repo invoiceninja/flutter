@@ -298,7 +298,9 @@ class _ChartPart extends StatelessWidget {
                       // topLeft keeps the label inside the plot area; topRight
                       // would push the text into the 36 px reserved by the
                       // right-axis tick labels.
+                      // rtl: physical chart axis (fl_chart never mirrors)
                       alignment: Alignment.topLeft,
+                      // rtl: physical chart axis (fl_chart never mirrors)
                       padding: const EdgeInsets.only(right: 4, bottom: 2),
                       style: TextStyle(fontSize: 10, color: tokens.ink3),
                       labelResolver: (_) => context.tr('today'),
@@ -383,6 +385,9 @@ class _ChartPart extends StatelessWidget {
                       return LineTooltipItem(
                         label,
                         TextStyle(color: tokens.surface, fontSize: 11.5),
+                        // fl_chart lays tooltip text out LTR unless told
+                        // otherwise.
+                        textDirection: Directionality.of(context),
                       );
                     }).toList();
                   },

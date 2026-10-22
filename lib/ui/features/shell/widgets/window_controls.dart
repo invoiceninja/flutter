@@ -69,8 +69,9 @@ class WindowControls extends StatelessWidget {
         // Tab order rather than sitting in front of the first real control.
         return ExcludeFocus(
           child: Row(
-            // Physical order, like the shell's own rail: the window buttons do
-            // not swap sides in Arabic or Hebrew.
+            // Physical order — window chrome, not app layout: the window
+            // buttons do not swap sides in Arabic or Hebrew, though the shell's
+            // rail does.
             textDirection: TextDirection.ltr,
             mainAxisSize: MainAxisSize.min,
             children: [

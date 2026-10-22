@@ -131,7 +131,10 @@ class OverridableMarkdownField extends StatelessWidget {
     final error = errorText == null
         ? null
         : Padding(
-            padding: const EdgeInsets.only(top: InSpacing.xs, left: 2),
+            padding: const EdgeInsetsDirectional.only(
+              top: InSpacing.xs,
+              start: 2,
+            ),
             child: Text(
               errorText,
               style: TextStyle(

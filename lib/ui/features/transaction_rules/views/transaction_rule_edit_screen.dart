@@ -280,7 +280,7 @@ class _CriteriaList extends StatelessWidget {
             ),
         const SizedBox(height: 8),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: () async {
               final added = await showRuleCriterionSheet(

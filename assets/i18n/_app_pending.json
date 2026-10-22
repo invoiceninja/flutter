@@ -1621,5 +1621,13 @@
   "release_change_count_one": "1 change",
   "load_more": "Load more",
   "spell_check": "Spell Check",
-  "spell_check_help": "Underline spelling mistakes in line item names and descriptions"
+  "spell_check_help": "Underline spelling mistakes in line item names and descriptions",
+  "day_count_singular": ":count Day",
+  "day_count_plural": ":count Days",
+  "in_days_count_plural": "in :count days",
+  "days_ago_count_plural": ":count days ago",
+  "client_count_singular": ":count client",
+  "client_count_plural": ":count clients",
+  "row_count_singular": ":count row",
+  "row_count_plural": ":count rows"
 }

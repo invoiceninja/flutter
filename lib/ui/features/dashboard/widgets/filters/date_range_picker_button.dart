@@ -443,7 +443,9 @@ class _DashboardDateRangePopoverState extends State<DashboardDateRangePopover> {
                   Expanded(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        border: Border(left: BorderSide(color: tokens.border)),
+                        border: BorderDirectional(
+                          start: BorderSide(color: tokens.border),
+                        ),
                       ),
                       child: Padding(
                         padding: EdgeInsets.all(InSpacing.md(context)),
@@ -817,10 +819,16 @@ class _CalendarPane extends StatelessWidget {
       // header chevrons remain the discoverable (and accessible) control.
       return GestureDetector(
         onHorizontalDragEnd: (details) {
+          // A swipe toward the start edge pages forward: leftward in LTR,
+          // rightward in RTL, where the months (and the chevrons) mirror.
           final velocity = details.primaryVelocity ?? 0;
-          if (velocity < 0 && canShiftRight) {
+          final forward = Directionality.of(context) == TextDirection.rtl
+              ? velocity > 0
+              : velocity < 0;
+          final back = velocity != 0 && !forward;
+          if (forward && canShiftRight) {
             onShiftMonth(1);
-          } else if (velocity > 0 && canShiftLeft) {
+          } else if (back && canShiftLeft) {
             onShiftMonth(-1);
           }
         },
@@ -1198,16 +1206,17 @@ const double _kMinPopoverWidth = 280;
 /// horizontal padding, and hands the ~28 px it gives up to the calendar.
 double _railWidth(bool compact) => compact ? 132 : 160;
 
-/// Left edge the popover must stay clear of. The persistent rail
-/// (`InSidebar`) sits to the left of the navigation shell on wide layouts, and
-/// the route's Overlay spans the full viewport (sidebar included), so the
-/// strip has to be reserved here — otherwise the popover slides under the
-/// sidebar and its preset-rail labels render half-clipped.
+/// Inset from the start edge the popover must stay clear of. The persistent
+/// rail (`InSidebar`) sits on the start side of the navigation shell on wide
+/// layouts (the left in LTR, the right in RTL), and the route's Overlay spans
+/// the full viewport (sidebar included), so the strip has to be reserved here
+/// — otherwise the popover slides under the sidebar and its preset-rail labels
+/// render half-clipped.
 ///
 /// Shared by [_resolvePopoverWidth] and the route's horizontal placement:
 /// those two have to agree, and derived the same expression independently
 /// before this existed.
-double _safeLeftFor(double screenWidth) => screenWidth >= Breakpoints.wide
+double _safeStartFor(double screenWidth) => screenWidth >= Breakpoints.wide
     ? kInSidebarWidth + _kPopoverMargin
     : _kPopoverMargin;
 
@@ -1215,7 +1224,7 @@ double _safeLeftFor(double screenWidth) => screenWidth >= Breakpoints.wide
 /// route can decide `barrierColor` (a `BuildContext`-free getter) with the
 /// same arithmetic `buildPage` uses for the layout itself.
 double _resolvePopoverWidth(double screenWidth) {
-  final available = screenWidth - _safeLeftFor(screenWidth) - _kPopoverMargin;
+  final available = screenWidth - _safeStartFor(screenWidth) - _kPopoverMargin;
   return math.max(
     _kMinPopoverWidth,
     math.min(_responsivePopoverWidth(screenWidth), available),
@@ -1276,18 +1285,22 @@ class _DateRangePickerRoute extends PopupRoute<DashboardDateRange?> {
     final media = MediaQuery.sizeOf(context);
     final tokens = context.inTheme;
     const margin = _kPopoverMargin;
-    final safeLeft = _safeLeftFor(media.width);
+    final safeStart = _safeStartFor(media.width);
     // Not `clamp`: `num.clamp` throws when the upper limit falls below the
     // lower one, which every viewport under ~352 px did (320 px-class devices,
     // Android split-screen, a pinched desktop window).
     final popoverWidth = _resolvePopoverWidth(media.width);
-    // Right-anchor to the button's right edge. The dashboard's date-filter
-    // button is always near the right of the top bar, so opening the popover
-    // *toward the left* keeps it on-screen without after-the-fact clamping.
-    double right = media.width - anchor.right;
-    if (right < margin) right = margin;
-    if (media.width - right - popoverWidth < safeLeft) {
-      right = media.width - popoverWidth - safeLeft;
+    // End-anchor to the button's end edge. The dashboard's date-filter
+    // button is always near the end of the top bar, so opening the popover
+    // *toward the start* keeps it on-screen without after-the-fact clamping.
+    // `end` is the gap between the popover and the screen's end edge — the
+    // right in LTR, the left in RTL, where the button and the rail swap
+    // sides — and `PositionedDirectional` resolves it the same way.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    double end = rtl ? anchor.left : media.width - anchor.right;
+    if (end < margin) end = margin;
+    if (media.width - end - popoverWidth < safeStart) {
+      end = media.width - popoverWidth - safeStart;
     }
 
     // Vertical fit. Two things make "just pin it below the anchor" wrong:
@@ -1330,8 +1343,8 @@ class _DateRangePickerRoute extends PopupRoute<DashboardDateRange?> {
         children: [
           // Exactly one of `top` / `bottom` — setting both would stretch the
           // popover to fill the gap instead of letting it size to its content.
-          Positioned(
-            right: right,
+          PositionedDirectional(
+            end: end,
             top: openUpward ? null : anchor.bottom + 4,
             bottom: openUpward ? media.height - anchor.top + 4 : null,
             child: popover,

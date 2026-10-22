@@ -167,7 +167,7 @@ class WeeklyGrid extends StatelessWidget {
               child: Text(
                 context.tr('total'),
                 style: hStyle,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.end,
               ),
             ),
           ),
@@ -224,7 +224,7 @@ class WeeklyGrid extends StatelessWidget {
             SizedBox(
               width: _kTotalCol,
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment: AlignmentDirectional.centerEnd,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Text(
@@ -361,7 +361,7 @@ class WeeklyGrid extends StatelessWidget {
           SizedBox(
             width: _kTotalCol,
             child: Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(

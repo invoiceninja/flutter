@@ -377,9 +377,9 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
       child: Stack(
         children: [
           shell,
-          Positioned(
+          PositionedDirectional(
             bottom: 72,
-            right: 24,
+            end: 24,
             child: BillingDocEditFab(
               heroTag: _type.pickerFabHeroTag,
               onPressed: () => _openPicker(context),

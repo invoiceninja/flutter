@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One thing a dashboard row can do. A `Future`, so the button can show that
 /// it is working — the actions here fetch the record before they act on it.
@@ -251,7 +252,7 @@ class _DashboardRecordRowState extends State<DashboardRecordRow> {
       ),
     );
 
-    final money = Text(
+    final money = LtrText(
       w.amount,
       maxLines: 1,
       softWrap: false,

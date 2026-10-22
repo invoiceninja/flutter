@@ -469,6 +469,7 @@
   "financial": "Finansal",
   "focus_search": "Arama alanına odaklan",
   "force_full_sync": "Tam senkronizasyonu zorla",
+  "force_right_to_left": "Sağdan sola zorla",
   "forecast": "Tahmin",
   "forecast_finish": "Tahmini Bitiş",
   "forecast_needs_budget": "Ne zaman biteceğini görmek için projenin bütçelenen saatlerini ayarlayın.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 değişiklik",
   "load_more": "Daha fazla yükle",
   "spell_check": "Yazım Denetimi",
-  "spell_check_help": "Satır kalemi adlarındaki ve açıklamalarındaki yazım hatalarının altını çiz"
+  "spell_check_help": "Satır kalemi adlarındaki ve açıklamalarındaki yazım hatalarının altını çiz",
+  "day_count_singular": ":count gün",
+  "day_count_plural": ":count gün",
+  "in_days_count_plural": ":count gün içinde",
+  "days_ago_count_plural": ":count gün önce",
+  "client_count_singular": ":count müşteri",
+  "client_count_plural": ":count müşteri",
+  "row_count_singular": ":count satır",
+  "row_count_plural": ":count satır"
 }

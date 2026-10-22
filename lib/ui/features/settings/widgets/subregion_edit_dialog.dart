@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/api/tax_config_api_model.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
@@ -146,6 +147,8 @@ class _SubregionEditDialogState extends State<SubregionEditDialog> {
               SizedBox(height: InSpacing.md(context)),
               TextField(
                 controller: _rate,
+                textDirection: TextDirection.ltr,
+                textAlign: ltrValueAlign(context, ltr: true),
                 decoration: InputDecoration(
                   labelText: context.tr('tax_rate'),
                   errorText: _errorFor('tax_rate'),
@@ -158,6 +161,8 @@ class _SubregionEditDialogState extends State<SubregionEditDialog> {
               SizedBox(height: InSpacing.md(context)),
               TextField(
                 controller: _reducedRate,
+                textDirection: TextDirection.ltr,
+                textAlign: ltrValueAlign(context, ltr: true),
                 decoration: InputDecoration(
                   labelText: context.tr('reduced_rate'),
                   errorText: _errorFor('reduced_tax_rate'),

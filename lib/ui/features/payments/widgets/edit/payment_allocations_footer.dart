@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Running-totals row under the allocations editor.
 ///
@@ -123,7 +124,7 @@ class _Cell extends StatelessWidget {
       children: [
         if (leading != null) ...[leading!, const SizedBox(width: 4)],
         Text('$label ', style: TextStyle(color: tokens.ink3, fontSize: 12)),
-        Text(
+        LtrText(
           value,
           style: moneyTextStyle(color: valueColor, fontWeight: FontWeight.w600),
         ),

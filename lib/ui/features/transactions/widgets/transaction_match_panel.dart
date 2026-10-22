@@ -28,6 +28,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/transactions/widgets/multi_pick_sheet.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Match panel for an unmatched/matched bank transaction. Two tabs:
 ///   * **Create** — turn the transaction into a new payment (CREDIT) /
@@ -372,7 +373,7 @@ class _CreditCreateTabState extends State<_CreditCreateTab> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              LtrText(
                 _money(_selectedTotal),
                 style: moneyTextStyle(
                   color: tokens.ink,

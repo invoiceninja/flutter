@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/notify_async.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Invoice detail → Payment Schedule tab. Mirrors React: the schedule is a
 /// read-only projection embedded on the invoice (`invoice.schedule[]`,
@@ -94,7 +95,7 @@ class InvoicePaymentScheduleTab extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(child: Text(r.date)),
-                  Text(r.amount, style: moneyTextStyle()),
+                  LtrText(r.amount, style: moneyTextStyle()),
                   SizedBox(width: InSpacing.md(context)),
                   Icon(
                     r.autoBill ? Icons.bolt : Icons.bolt_outlined,
@@ -435,7 +436,7 @@ class _CreatePaymentScheduleDialogState
                 for (var i = 0; i < _rows.length; i++)
                   _customRowTile(context, i),
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: TextButton.icon(
                     onPressed: _busy
                         ? null

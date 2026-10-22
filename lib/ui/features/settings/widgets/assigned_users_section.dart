@@ -168,7 +168,7 @@ class _HiddenCount extends StatelessWidget {
                 // Not a `ListTile` trailing: a trailing widget is laid out in
                 // the row's leftover width, which is what turned a 72 px
                 // `_UserRow` into a 410 px one in User Management. `Wrap` keeps
-                // the button on its own line and right-aligned at any width.
+                // the button on its own line and end-aligned at any width.
                 //
                 // The destination is load-bearing rather than a signpost: User
                 // Management's paged `GET /users` is the only path in `lib/`
@@ -177,7 +177,7 @@ class _HiddenCount extends StatelessWidget {
                 // `/refresh` doesn't carry `company.users`, and users are not
                 // in the Sync pass).
                 Align(
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerEnd,
                   child: TextButton(
                     style: TextButton.styleFrom(
                       minimumSize: const Size(64, 44),

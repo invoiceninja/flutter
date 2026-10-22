@@ -137,7 +137,7 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 4, 4),
           child: Row(
             children: [
               Expanded(
@@ -227,7 +227,7 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 4, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 4),
           child: Row(
             children: [
               Expanded(child: SettingsSearchField(controller: _search)),

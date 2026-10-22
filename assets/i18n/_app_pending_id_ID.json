@@ -451,6 +451,7 @@
   "financial": "Keuangan",
   "focus_search": "Fokus ke kolom pencarian",
   "force_full_sync": "Paksa sinkronisasi penuh",
+  "force_right_to_left": "Paksa kanan-ke-kiri",
   "forecast_needs_budget": "Atur jam anggaran proyek untuk melihat kapan proyek akan selesai.",
   "forecast_needs_time": "Catat waktu pada proyek ini untuk melihat kapan proyek akan selesai.",
   "foreign_amount": "Jumlah valuta asing",
@@ -1568,5 +1569,13 @@
   "release_change_count_one": "1 perubahan",
   "load_more": "Muat lebih banyak",
   "spell_check": "Periksa Ejaan",
-  "spell_check_help": "Garis bawahi kesalahan ejaan pada nama dan deskripsi item baris"
+  "spell_check_help": "Garis bawahi kesalahan ejaan pada nama dan deskripsi item baris",
+  "day_count_singular": ":count hari",
+  "day_count_plural": ":count hari",
+  "in_days_count_plural": "dalam :count hari",
+  "days_ago_count_plural": ":count hari yang lalu",
+  "client_count_singular": ":count klien",
+  "client_count_plural": ":count klien",
+  "row_count_singular": ":count baris",
+  "row_count_plural": ":count baris"
 }

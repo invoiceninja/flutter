@@ -11,6 +11,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One thing a payment was put against: an invoice it paid, or a credit that
 /// was used alongside it.
@@ -208,7 +209,7 @@ class _AllocationRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                LtrText(
                   amount,
                   style: theme.textTheme.bodyMedium
                       ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)

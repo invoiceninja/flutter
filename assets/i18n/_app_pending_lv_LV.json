@@ -469,6 +469,7 @@
   "financial": "Finanses",
   "focus_search": "Fokusēt meklēšanas lauku",
   "force_full_sync": "Piespiedu pilna sinhronizācija",
+  "force_right_to_left": "Piespiest no labās uz kreiso",
   "forecast": "Prognoze",
   "forecast_finish": "Prognozētās beigas",
   "forecast_needs_budget": "Iestatiet projekta budžeta stundas, lai redzētu, kad tas tiks pabeigts.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 izmaiņa",
   "load_more": "Ielādēt vairāk",
   "spell_check": "Pareizrakstības pārbaude",
-  "spell_check_help": "Pasvītrot pareizrakstības kļūdas pozīciju nosaukumos un aprakstos"
+  "spell_check_help": "Pasvītrot pareizrakstības kļūdas pozīciju nosaukumos un aprakstos",
+  "day_count_singular": ":count diena",
+  "day_count_plural": ":count dienas",
+  "in_days_count_plural": "pēc :count dienām",
+  "days_ago_count_plural": "pirms :count dienām",
+  "client_count_singular": ":count klients",
+  "client_count_plural": ":count klienti",
+  "row_count_singular": ":count rinda",
+  "row_count_plural": ":count rindas"
 }

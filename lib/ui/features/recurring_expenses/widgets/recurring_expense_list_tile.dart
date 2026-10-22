@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_status_pill.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_actions.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree. Mirrors `ExpenseListTile`.
@@ -153,7 +154,7 @@ class _RecurringExpenseListTileState extends State<RecurringExpenseListTile> {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(amountText, style: moneyTextStyle(color: tokens.ink)),
+            LtrText(amountText, style: moneyTextStyle(color: tokens.ink)),
             const SizedBox(height: 4),
             RecurringExpenseStatusPill(
               statusId: w.recurringExpense.calculatedStatusId,

@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_actions.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_status_pill.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (never allocate `NumberFormat` per build).
@@ -147,7 +148,7 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
                 final amountText = (formatted != null && formatted.isNotEmpty)
                     ? formatted
                     : _recurringInvoiceAmountFallback.format(amount.toDouble());
-                return Text(
+                return LtrText(
                   amountText,
                   style: moneyTextStyle(color: tokens.ink),
                 );

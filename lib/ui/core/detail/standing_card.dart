@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/detail/kpi_strip_layout.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One figure on a [StandingCard].
 @immutable
@@ -194,7 +195,7 @@ class _SecondaryFigure extends StatelessWidget {
             ),
           ),
           const SizedBox(width: InSpacing.sm),
-          Text(
+          LtrText(
             figure.value.isEmpty ? ' ' : figure.value,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/activity.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/utils/bidi.dart';
 
 /// The rendered sentence for an [Activity] plus the tap recognizers it
 /// created. The host widget must [dispose] the recognizers (a `TextSpan`
@@ -89,6 +90,13 @@ ActivitySpans buildActivitySpans(
     raw = raw.replaceAll(':user', ':contact');
   }
 
+  // In a right-to-left sentence each substituted value is isolated, as
+  // `Localization.lookup` does for its params: an `#INV-0042`, a `-$5.00` or
+  // an English client name would otherwise be pulled apart by the Arabic or
+  // Hebrew around it.
+  final rtl = Directionality.of(context) == TextDirection.rtl;
+  String value(String s) => rtl ? firstStrongIsolate(s) : s;
+
   final spans = <InlineSpan>[];
   final recs = <TapGestureRecognizer>[];
   final tokens = <String>{};
@@ -100,7 +108,7 @@ ActivitySpans buildActivitySpans(
     }
     final token = m.group(1)!;
     if (token == 'notes') {
-      spans.add(TextSpan(text: a.notes, style: strong));
+      spans.add(TextSpan(text: value(a.notes), style: strong));
     } else {
       final ref = a.refs[token];
       if (ref == null) {
@@ -112,10 +120,12 @@ ActivitySpans buildActivitySpans(
         final rec = TapGestureRecognizer()
           ..onTap = () => goEntityRecord(context, ref.type!, ref.id);
         recs.add(rec);
-        spans.add(TextSpan(text: ref.label, style: link, recognizer: rec));
+        spans.add(
+          TextSpan(text: value(ref.label), style: link, recognizer: rec),
+        );
       } else {
         tokens.add(token);
-        spans.add(TextSpan(text: ref.label, style: strong));
+        spans.add(TextSpan(text: value(ref.label), style: strong));
       }
     }
     last = m.end;

@@ -9,6 +9,7 @@ import 'package:admin/ui/core/detail/standing_card.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Where a product stands: what it sells for, what it costs, and — for a
 /// company that keeps stock — how much of it there is.
@@ -140,7 +141,7 @@ class _StockLine extends StatelessWidget {
                 style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink2),
               ),
               const SizedBox(width: InSpacing.sm),
-              Text(
+              LtrText(
                 '$quantity',
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)

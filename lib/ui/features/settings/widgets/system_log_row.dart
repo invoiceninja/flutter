@@ -87,7 +87,10 @@ class _SystemLogRowState extends State<SystemLogRow> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Align(alignment: Alignment.centerLeft, child: pill),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: pill,
+                    ),
                     const SizedBox(height: 8),
                     logBlock,
                   ],
@@ -122,7 +125,7 @@ class _SystemLogRowState extends State<SystemLogRow> {
         widget.log.tone == SystemLogTone.failure ||
         widget.log.tone == SystemLogTone.warning;
     final padded = Padding(
-      padding: EdgeInsets.fromLTRB(alarm ? 12 : 0, 12, 0, 12),
+      padding: EdgeInsetsDirectional.fromSTEB(alarm ? 12 : 0, 12, 0, 12),
       child: body,
     );
     if (!alarm) return padded;
@@ -183,6 +186,9 @@ class _LogBlock extends StatelessWidget {
               Expanded(
                 child: Text(
                   preview,
+                  // A raw log line reads LTR in every language; the JSON
+                  // count is a translated sentence and follows the locale.
+                  textDirection: decoded == null ? TextDirection.ltr : null,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -209,7 +215,7 @@ class _LogBlock extends StatelessWidget {
         color: tokens.accentSoft,
         borderRadius: BorderRadius.circular(InRadii.r2),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -231,16 +237,20 @@ class _LogBlock extends StatelessWidget {
           ),
           // Horizontal scroll so deep JSON indentation survives on narrow
           // screens — without it the monospace text char-wraps and the
-          // structure is lost on mobile.
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SelectableText(
-              pretty,
-              style: TextStyle(
-                fontFamily: kMonoFontFamily,
-                fontSize: 12,
-                color: tokens.ink,
-                height: 1.4,
+          // structure is lost on mobile. LTR in every language — the block is
+          // code, and an RTL scroll view would open on the lines' far end.
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SelectableText(
+                pretty,
+                style: TextStyle(
+                  fontFamily: kMonoFontFamily,
+                  fontSize: 12,
+                  color: tokens.ink,
+                  height: 1.4,
+                ),
               ),
             ),
           ),

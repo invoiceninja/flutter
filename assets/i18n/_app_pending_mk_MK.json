@@ -469,6 +469,7 @@
   "financial": "Финансиско",
   "focus_search": "Фокусирај го полето за пребарување",
   "force_full_sync": "Принудна целосна синхронизација",
+  "force_right_to_left": "Принудно од десно кон лево",
   "forecast": "Прогноза",
   "forecast_finish": "Прогнозиран крај",
   "forecast_needs_budget": "Поставете ги буџетираните часови на проектот за да видите кога ќе заврши.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 промена",
   "load_more": "Вчитај повеќе",
   "spell_check": "Проверка на правопис",
-  "spell_check_help": "Подвлечи правописни грешки во имињата и описите на ставките"
+  "spell_check_help": "Подвлечи правописни грешки во имињата и описите на ставките",
+  "day_count_singular": ":count ден",
+  "day_count_plural": ":count дена",
+  "in_days_count_plural": "за :count дена",
+  "days_ago_count_plural": "пред :count дена",
+  "client_count_singular": ":count клиент",
+  "client_count_plural": ":count клиенти",
+  "row_count_singular": ":count ред",
+  "row_count_plural": ":count редови"
 }

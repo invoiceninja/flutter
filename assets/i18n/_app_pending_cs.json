@@ -469,6 +469,7 @@
   "financial": "Finance",
   "focus_search": "Přejít do pole hledání",
   "force_full_sync": "Vynutit úplnou synchronizaci",
+  "force_right_to_left": "Vynutit zprava doleva",
   "forecast": "Prognóza",
   "forecast_finish": "Předpokládané dokončení",
   "forecast_needs_budget": "Nastavte rozpočtované hodiny projektu, abyste viděli, kdy bude dokončen.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 změna",
   "load_more": "Načíst další",
   "spell_check": "Kontrola pravopisu",
-  "spell_check_help": "Podtrhávat pravopisné chyby v názvech a popisech položek"
+  "spell_check_help": "Podtrhávat pravopisné chyby v názvech a popisech položek",
+  "day_count_singular": ":count den",
+  "day_count_plural": ":count dní",
+  "in_days_count_plural": "za :count dní",
+  "days_ago_count_plural": "před :count dny",
+  "client_count_singular": ":count klient",
+  "client_count_plural": ":count klientů",
+  "row_count_singular": ":count řádek",
+  "row_count_plural": ":count řádků"
 }

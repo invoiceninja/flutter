@@ -416,7 +416,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           title: Text(context.tr('import_settings')),
         ),
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
             onPressed: (_migrationSource == null || _migrationBusy)
@@ -569,7 +569,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           title: Text(context.tr('include_deleted')),
         ),
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
             onPressed: (_exporting || customIncomplete) ? null : _runExport,
@@ -641,7 +641,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         ],
         SizedBox(height: InSpacing.md(context)),
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
             onPressed: (!ready || _thirdPartyBusy) ? null : _runThirdParty,
@@ -818,7 +818,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           ),
         ],
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
             onPressed:
@@ -880,7 +880,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
                 if (i < preview.sample.length && preview.sample[i].isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 4),
+                    padding: const EdgeInsetsDirectional.only(top: 4, start: 4),
                     child: Text(
                       preview.sample[i],
                       maxLines: 1,
@@ -933,7 +933,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           ],
         ),
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
             onPressed: _reset,

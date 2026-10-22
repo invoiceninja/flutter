@@ -22,6 +22,8 @@ const double _kCaptionTrailingInset = 14.0;
 /// - **macOS**: a 28-px draggable strip; the real traffic-light buttons float
 ///   over it (top-left, native — so this strip only catches drags in the empty
 ///   space around them, and the buttons keep their own clicks + inactive-graying).
+///   They stay at the physical left in a right-to-left locale too, where the
+///   rail does not; see `clearButtons` below.
 ///   [trailingBuilder] fills the dead space to their right — the sidebar's
 ///   back/forward arrows, which would otherwise cost a whole row of their own
 ///   below. Every measurement comes from [NativeWindow.chrome]; nothing about
@@ -107,6 +109,14 @@ class WindowCaptionStrip extends StatelessWidget {
         final topPad = reserve
             ? chrome.buttonsCenterY - contentHeight / 2
             : 0.0;
+        // The traffic lights float at the window's physical left, which is this
+        // strip's start edge only left-to-right. In a right-to-left locale the
+        // rail — the one host that hands this strip content — sits at the
+        // window's right, clear of them, so its row keeps its full width; the
+        // content column, which the lights do sit over there, mounts a strip
+        // of its own (`scaffold_with_nav.dart`).
+        final clearButtons =
+            reserve && Directionality.of(context) == TextDirection.ltr;
         final row = SizedBox(
           // The host `Column` sets no `crossAxisAlignment`, so it hands children
           // *loose* width — without this the row would shrink-wrap and trailing
@@ -125,7 +135,7 @@ class WindowCaptionStrip extends StatelessWidget {
                   ? null
                   : Padding(
                       padding: EdgeInsetsDirectional.only(
-                        start: reserve
+                        start: clearButtons
                             ? chrome.buttonsTrailingX + _kButtonsClearance
                             : 0,
                         top: topPad,

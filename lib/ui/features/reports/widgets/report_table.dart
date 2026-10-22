@@ -19,6 +19,7 @@ import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/ui/features/reports/widgets/report_status_tone.dart';
 import 'package:admin/ui/features/reports/widgets/report_table_layout.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Height of one table line. Fixed, so a result of fifty thousand rows is
 /// laid out by arithmetic rather than by measuring each one — and grown with
@@ -387,8 +388,10 @@ class _SummaryLine extends StatelessWidget {
             Expanded(child: label),
             if (text != null) ...[
               const SizedBox(width: InSpacing.sm),
-              Text(
+              LtrText(
                 text,
+                // A cell may hold a name as well as a number.
+                keepRtlScript: true,
                 maxLines: 1,
                 softWrap: false,
                 style: column?.type == ReportColumnType.money
@@ -469,8 +472,10 @@ class _TotalCell extends StatelessWidget {
     final color = figure.foreign ? tokens.ink2 : tokens.ink;
     return _CellBox(
       alignEnd: true,
-      child: Text(
+      child: LtrText(
         text,
+        // A cell may hold a name as well as a number.
+        keepRtlScript: true,
         maxLines: 1,
         softWrap: false,
         overflow: TextOverflow.ellipsis,
@@ -921,7 +926,11 @@ class _GroupRow extends StatelessWidget {
     final tokens = context.inTheme;
     final columns = ReportTableScrollScope.of(context).layout.columns;
     final label = _label(context);
-    final count = context.tr(line.count == 1 ? 'row' : 'rows');
+    // `row` is in no bundle, so a one-row group read the raw key.
+    final count = context.tr(
+      line.count == 1 ? 'row_count_singular' : 'row_count_plural',
+      {'count': '${line.count}'},
+    );
     final summary = this.summary;
     final indent = line.depth * _kIndent - 4;
     final name = Row(
@@ -950,7 +959,7 @@ class _GroupRow extends StatelessWidget {
     return _RowSurface(
       onTap: () => vm.toggleGroupExpanded(line.id),
       semanticsLabel:
-          '$label, ${line.count} $count, '
+          '$label, $count, '
           '${context.tr(line.expanded ? 'collapse' : 'expand')}',
       child: summary != null
           ? _SummaryLine(

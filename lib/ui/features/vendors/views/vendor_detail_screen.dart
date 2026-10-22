@@ -37,6 +37,7 @@ import 'package:admin/ui/features/vendors/widgets/detail/vendor_detail_profile.d
 import 'package:admin/ui/features/vendors/widgets/detail/vendor_detail_standing.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The vendor record screen, on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions, standing,
@@ -498,7 +499,7 @@ class _CompactTitle extends StatelessWidget {
                   : spend.valueFor(currencyId: currencyId);
               // Blank while the total is not known — the same rule as the
               // standing card, so the bar never says less than it does.
-              return Text(
+              return LtrText(
                 value == null || f == null
                     ? ''
                     : f.money(value.total, clientCurrencyId: currencyId),

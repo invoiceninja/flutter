@@ -85,7 +85,7 @@ class EntityListSectionHeader extends StatelessWidget {
                   children: [
                     Icon(
                       collapsed
-                          ? Icons.keyboard_arrow_right
+                          ? Icons.chevron_right
                           : Icons.keyboard_arrow_down,
                       size: 18,
                       color: tokens.ink3,

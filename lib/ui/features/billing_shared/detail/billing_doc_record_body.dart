@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_header.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The width from which a billing document shows its PDF beside the record.
 /// Below it the PDF is a screen of its own (`/<documents>/:id/pdf`).
@@ -171,7 +172,7 @@ class BillingDocCompactTitle extends StatelessWidget {
         PartyCurrencyBuilder(
           clientId: vendorParty ? null : doc.clientId,
           vendorId: vendorParty ? doc.vendorId : null,
-          builder: (context, currencyId) => Text(
+          builder: (context, currencyId) => LtrText(
             formatter?.money(figure, clientCurrencyId: currencyId) ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

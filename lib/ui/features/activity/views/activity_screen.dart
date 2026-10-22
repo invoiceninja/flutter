@@ -522,8 +522,8 @@ class _Spine extends StatelessWidget {
     final color = context.inTheme.border;
     return Stack(
       children: [
-        Positioned(
-          left: _kSpineX - 1,
+        PositionedDirectional(
+          start: _kSpineX - 1,
           width: 2,
           top: spine == ActivityFeedSpine.start ? nodeY : 0,
           bottom: spine == ActivityFeedSpine.end ? null : 0,

@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_sparkline.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Height floor of a metric tile — see [KpiCard].
 const double kKpiCardMinHeight = 104;
@@ -113,7 +114,7 @@ class KpiCard extends StatelessWidget {
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: AlignmentDirectional.centerStart,
-              child: Text(
+              child: LtrText(
                 value,
                 maxLines: 1,
                 softWrap: false,

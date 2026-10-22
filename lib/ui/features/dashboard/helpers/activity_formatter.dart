@@ -8,6 +8,7 @@ import 'package:admin/domain/activity/activity_tones.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/bidi.dart';
 
 // The tone map moved to a domain leaf so the `/activity` timeline can bucket
 // by it without importing a widget file; re-exported for existing callers.
@@ -96,17 +97,22 @@ class ActivityFormatter {
           }
         }
       }
+      // Each value isolated in a right-to-left sentence, as
+      // `buildActivitySpans` does — see there.
+      final rtl = Directionality.of(context) == TextDirection.rtl;
+      String value(String s) => rtl ? firstStrongIsolate(s) : s;
       resolved = raw.replaceAllMapped(RegExp(r':([a-z_]+)'), (m) {
         final token = m.group(1)!;
         // The marker is stripped because the row already renders a phone icon
         // for it (below) — leaving it in prints the glyph twice. That is
         // exactly what `stripCallNoteMarker`'s doc says it exists for, and it
         // is a no-op on every note that has no marker.
-        if (token == 'notes') return stripCallNoteMarker(a.notes);
+        if (token == 'notes') return value(stripCallNoteMarker(a.notes));
         // The server's denormalized label (real client / user name, invoice
         // number, …); falls back to the localized noun when the row doesn't
         // name the object, so a bare `:token` never leaks.
-        return a.labels[token] ?? context.tr(token);
+        final label = a.labels[token];
+        return label == null ? context.tr(token) : value(label);
       });
     } else {
       resolved = context.tr('activity_unknown', {

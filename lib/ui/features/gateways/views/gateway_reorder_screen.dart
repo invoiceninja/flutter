@@ -224,7 +224,7 @@ class _GatewayReorderScreenState extends State<GatewayReorderScreen> {
             ),
           if (_saving)
             Padding(
-              padding: EdgeInsets.only(right: InSpacing.md(context)),
+              padding: EdgeInsetsDirectional.only(end: InSpacing.md(context)),
               child: const Center(
                 child: SizedBox(
                   width: 16,

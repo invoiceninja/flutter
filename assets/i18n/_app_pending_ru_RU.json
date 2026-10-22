@@ -469,6 +469,7 @@
   "financial": "Финансы",
   "focus_search": "Перейти к полю поиска",
   "force_full_sync": "Принудительная полная синхронизация",
+  "force_right_to_left": "Принудительно справа налево",
   "forecast": "Прогноз",
   "forecast_finish": "Прогноз завершения",
   "forecast_needs_budget": "Укажите бюджет часов проекта, чтобы увидеть, когда он завершится.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 изменение",
   "load_more": "Загрузить ещё",
   "spell_check": "Проверка орфографии",
-  "spell_check_help": "Подчёркивать орфографические ошибки в названиях и описаниях позиций"
+  "spell_check_help": "Подчёркивать орфографические ошибки в названиях и описаниях позиций",
+  "day_count_singular": ":count день",
+  "day_count_plural": ":count дней",
+  "in_days_count_plural": "через :count дней",
+  "days_ago_count_plural": ":count дней назад",
+  "client_count_singular": ":count клиент",
+  "client_count_plural": ":count клиентов",
+  "row_count_singular": ":count строка",
+  "row_count_plural": ":count строк"
 }

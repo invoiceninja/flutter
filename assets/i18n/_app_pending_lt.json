@@ -457,6 +457,7 @@
   "financial": "Finansai",
   "focus_search": "Pereiti į paieškos lauką",
   "force_full_sync": "Priverstinai sinchronizuoti viską",
+  "force_right_to_left": "Priverstinai iš dešinės į kairę",
   "forecast_needs_budget": "Nustatykite projekto biudžetines valandas, kad matytumėte, kada jis bus baigtas.",
   "forecast_needs_time": "Registruokite laiką šiame projekte, kad matytumėte, kada jis bus baigtas.",
   "foreign_amount": "Suma užsienio valiuta",
@@ -1586,5 +1587,13 @@
   "release_change_count_one": "1 pakeitimas",
   "load_more": "Įkelti daugiau",
   "spell_check": "Rašybos tikrinimas",
-  "spell_check_help": "Pabraukti rašybos klaidas prekių eilučių pavadinimuose ir aprašymuose"
+  "spell_check_help": "Pabraukti rašybos klaidas prekių eilučių pavadinimuose ir aprašymuose",
+  "day_count_singular": ":count diena",
+  "day_count_plural": ":count dienos",
+  "in_days_count_plural": "po :count dienų",
+  "days_ago_count_plural": "prieš :count dienas",
+  "client_count_singular": ":count klientas",
+  "client_count_plural": ":count klientai",
+  "row_count_singular": ":count eilutė",
+  "row_count_plural": ":count eilutės"
 }

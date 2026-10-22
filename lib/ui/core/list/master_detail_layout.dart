@@ -20,7 +20,8 @@ export 'package:admin/ui/core/list/master_detail_nav_scope.dart'
 /// Slide-over master-detail used by every entity route block on wide
 /// desktop windows. The list **always** renders at full width; the
 /// detail / edit / create floats above it as a pane pinned to the
-/// right edge — Notion / Slack-thread / iOS-Files style.
+/// end edge (the right, or the left in a right-to-left locale) —
+/// Notion / Slack-thread / iOS-Files style.
 ///
 ///   * `/<entity>`               → bare URL, no pane, list full width.
 ///   * `/<entity>/:id`           → list full width + detail pane on top.
@@ -153,14 +154,14 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
   String? _lastRedirectKey;
 
   /// Drives the slide-over's IN / OUT translate. `0` = pane fully
-  /// off-screen to the right (or unmounted); `1` = docked. Created in
+  /// off-screen past the end edge (or unmounted); `1` = docked. Created in
   /// [initState] (not a lazy field) so the Ticker is never built during
   /// dispose.
   late final AnimationController _slide;
   late final Animation<Offset> _slideOffset;
 
   /// Drives the slide-over ⇄ full-screen geometry. `0` = slide-over
-  /// rect pinned to the right edge; `1` = the pane fills the layout
+  /// rect pinned to the end edge; `1` = the pane fills the layout
   /// area. The expand / collapse toggle animates this; row-to-row and
   /// fresh opens snap it.
   late final AnimationController _expand;
@@ -214,6 +215,8 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
+    // Mirrored under a right-to-left `textDirection` by the SlideTransition
+    // that plays it, so the pane always enters from the end edge.
     _slideOffset = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
         .animate(
           CurvedAnimation(
@@ -516,7 +519,7 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
 
     // Wide viewport. The list always renders full-width; a single
     // pane floats on top via a Stack and animates its geometry between
-    // the slide-over rect (pinned to the right edge) and the
+    // the slide-over rect (pinned to the end edge) and the
     // full-screen rect (fills the layout area) via [_expand]. Only ONE
     // `_PaneRoot` (it carries the Navigator's GlobalKey) is ever
     // mounted, so the edit-form State survives the grow / shrink and
@@ -548,8 +551,8 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
                 // to sizing from its children and collapse the layout.
                 if (!_hasPane) Positioned.fill(child: _hiddenPaneHost()),
                 if (_hasPane)
-                  Positioned(
-                    left: _lerp(
+                  PositionedDirectional(
+                    start: _lerp(
                       constraints.maxWidth - _paneWidth(context),
                       0,
                       t,
@@ -562,6 +565,7 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
                     bottom: 0,
                     child: SlideTransition(
                       position: _slideOffset,
+                      textDirection: Directionality.of(context),
                       child: Material(
                         elevation: _lerp(8, 0, t),
                         color: context.inTheme.bg,
@@ -912,7 +916,7 @@ double _paneWidth(BuildContext context) {
 /// icons. When the scope is present:
 ///   * Scaffolds suppress their outer `Scaffold` + `AppBar` (see
 ///     [isInPane]).
-///   * Scaffolds append [paneActions] to the right end of their inline
+///   * Scaffolds append [paneActions] to the end of their inline
 ///     header row so the icons live in the same strip as Save / Edit
 ///     and don't float on top of the screen's content (see
 ///     [paneActionsOf]).

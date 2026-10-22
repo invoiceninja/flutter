@@ -450,6 +450,7 @@
   "financial": "Økonomi",
   "focus_search": "Fokusér søgefeltet",
   "force_full_sync": "Gennemtving fuld synkronisering",
+  "force_right_to_left": "Gennemtving højre-til-venstre",
   "forecast_needs_budget": "Angiv projektets budgetterede timer for at se, hvornår det bliver færdigt.",
   "forecast_needs_time": "Registrer tid på dette projekt for at se, hvornår det bliver færdigt.",
   "foreign_amount": "Udenlandsk beløb",
@@ -1571,5 +1572,13 @@
   "release_change_count_one": "1 ændring",
   "load_more": "Indlæs flere",
   "spell_check": "Stavekontrol",
-  "spell_check_help": "Understreg stavefejl i navne og beskrivelser på linjeposter"
+  "spell_check_help": "Understreg stavefejl i navne og beskrivelser på linjeposter",
+  "day_count_singular": ":count dag",
+  "day_count_plural": ":count dage",
+  "in_days_count_plural": "om :count dage",
+  "days_ago_count_plural": "for :count dage siden",
+  "client_count_singular": ":count kunde",
+  "client_count_plural": ":count kunder",
+  "row_count_singular": ":count række",
+  "row_count_plural": ":count rækker"
 }

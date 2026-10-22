@@ -105,7 +105,7 @@ class _EntityTypeToggle extends StatelessWidget {
         0,
       ),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: SearchableDropdownField<String>(

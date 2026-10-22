@@ -176,8 +176,8 @@ class ActivityFeedRow extends StatelessWidget {
         ? padded
         : Stack(
             children: [
-              Positioned(
-                left: avatarSize / 2 - 1,
+              PositionedDirectional(
+                start: avatarSize / 2 - 1,
                 width: 2,
                 top: spine == ActivityFeedSpine.start
                     ? InSpacing.sm + avatarSize / 2

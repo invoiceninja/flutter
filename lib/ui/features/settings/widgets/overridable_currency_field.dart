@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
@@ -112,6 +113,8 @@ class _OverridableCurrencyFieldState extends State<OverridableCurrencyField> {
       focusNode: _focusNode,
       enabled: widget.enabled,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textDirection: TextDirection.ltr,
+      textAlign: ltrValueAlign(context, ltr: true),
       textInputAction: TextInputAction.done,
       decoration: InputDecoration(
         labelText: widget.label,

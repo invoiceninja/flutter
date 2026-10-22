@@ -119,7 +119,7 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
     final dot = name.lastIndexOf('.');
     final ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
     return Container(
-      padding: EdgeInsets.only(left: InSpacing.md(context)),
+      padding: EdgeInsetsDirectional.only(start: InSpacing.md(context)),
       decoration: BoxDecoration(
         border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r2),
@@ -147,7 +147,7 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
               final size = snapshot.data ?? 0;
               if (size <= 0) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.only(left: InSpacing.sm),
+                padding: const EdgeInsetsDirectional.only(start: InSpacing.sm),
                 child: Text(
                   formatSize(size),
                   style: TextStyle(color: tokens.ink3),

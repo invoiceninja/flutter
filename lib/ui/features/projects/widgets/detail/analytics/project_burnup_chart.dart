@@ -202,6 +202,8 @@ class _ProjectBurnupSectionState extends State<ProjectBurnupSection> {
                 _dateText(spots[i].x.round()),
                 plain.copyWith(fontWeight: FontWeight.w600),
                 textAlign: TextAlign.start,
+                // fl_chart lays tooltip text out LTR unless told otherwise.
+                textDirection: Directionality.of(context),
                 children: [
                   for (final line in shown)
                     TextSpan(

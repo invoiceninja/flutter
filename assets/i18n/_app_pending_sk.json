@@ -450,6 +450,7 @@
   "financial": "Financie",
   "focus_search": "Prejsť do poľa vyhľadávania",
   "force_full_sync": "Vynútiť úplnú synchronizáciu",
+  "force_right_to_left": "Vynútiť sprava doľava",
   "forecast_needs_budget": "Ak chcete vidieť, kedy bude projekt dokončený, nastavte jeho rozpočtované hodiny.",
   "forecast_needs_time": "Ak chcete vidieť, kedy bude projekt dokončený, zaznamenajte k nemu čas.",
   "foreign_amount": "Čiastka v cudzej mene",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 zmena",
   "load_more": "Načítať ďalšie",
   "spell_check": "Kontrola pravopisu",
-  "spell_check_help": "Podčiarkovať pravopisné chyby v názvoch a popisoch položiek"
+  "spell_check_help": "Podčiarkovať pravopisné chyby v názvoch a popisoch položiek",
+  "day_count_singular": ":count deň",
+  "day_count_plural": ":count dní",
+  "in_days_count_plural": "o :count dní",
+  "days_ago_count_plural": "pred :count dňami",
+  "client_count_singular": ":count zákazník",
+  "client_count_plural": ":count zákazníkov",
+  "row_count_singular": ":count riadok",
+  "row_count_plural": ":count riadkov"
 }

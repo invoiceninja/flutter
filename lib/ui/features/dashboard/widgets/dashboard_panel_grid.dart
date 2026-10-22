@@ -136,7 +136,7 @@ class _DashboardPanelGridState extends State<DashboardPanelGrid> {
       );
       if (!userHidden) return const SizedBox.shrink();
       return Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: LinkText(
           label: context.tr('show_panels'),
           onTap: widget.onShowPanels,

@@ -12,6 +12,7 @@ import 'package:admin/ui/features/dashboard/widgets/entity_table.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Wide renderer for the consolidated Invoices & Quotes panel.
 ///
@@ -61,7 +62,7 @@ class BillingPipelineTable extends StatelessWidget {
         (showType ? 4 : 3): const IntrinsicColumnWidth(),
         (showType ? 5 : 4): const IntrinsicColumnWidth(),
       },
-      cellAlignments: {(showType ? 5 : 4): Alignment.centerRight},
+      cellAlignments: {(showType ? 5 : 4): AlignmentDirectional.centerEnd},
       headers: [
         // Not `document`: in this app that word means *attachment* (the tab on
         // every billing doc), so it would be misread.
@@ -139,7 +140,7 @@ class BillingPipelineTable extends StatelessWidget {
       ),
       PartyCurrencyBuilder(
         clientId: row.clientId,
-        builder: (context, currencyId) => Text(
+        builder: (context, currencyId) => LtrText(
           formatter.money(row.amount as Decimal, clientCurrencyId: currencyId),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

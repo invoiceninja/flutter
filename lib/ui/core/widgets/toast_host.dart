@@ -14,7 +14,8 @@ import 'package:admin/ui/core/widgets/toast_controller.dart';
 /// through to whatever is behind (including a dialog barrier).
 ///
 /// Responsive:
-/// * **Wide (≥ [Breakpoints.wide])** — top-right, newest nearest the corner,
+/// * **Wide (≥ [Breakpoints.wide])** — top-end (top-right, or top-left in a
+///   right-to-left locale), newest nearest the corner,
 ///   older stacking downward; each card carries a close button (mouse users
 ///   can't swipe) and pauses its auto-dismiss timer while hovered.
 /// * **Narrow** — a single bottom toast, swipe-to-dismiss.
@@ -139,11 +140,19 @@ class _ToastHostState extends State<ToastHost> {
     // On the frameless desktop runners the app paints its own title bar, and
     // this host is a LATER sibling of it in the root `Stack` — so a top-right
     // toast would sit on top of the drawn minimize/maximize/close cluster and,
-    // being opaque, swallow their clicks. Clear the band. Zero everywhere else.
-    final captionBand = paintsAppTitleBar() ? kAppTitleBarHeight : 0.0;
+    // being opaque, swallow their clicks. Clear the band. macOS's traffic
+    // lights stay at the physical top-left, which is the toast corner in a
+    // right-to-left locale, so clear their caption there too. Zero everywhere
+    // else.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final captionBand = paintsAppTitleBar()
+        ? kAppTitleBarHeight
+        : rtl && hostsMacCaptionRow()
+        ? NativeWindow.instance.chrome.value.captionHeight
+        : 0.0;
 
     if (isWide) {
-      // Top-right, newest at the top. Cap how many we actually paint to the
+      // Top-end, newest at the top. Cap how many we actually paint to the
       // available height so a tall stack can't run off-screen (the controller
       // bounds its own list too).
       final maxCards = ((MediaQuery.sizeOf(context).height - 120) / 76)
@@ -154,9 +163,9 @@ class _ToastHostState extends State<ToastHost> {
       return Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(
+          PositionedDirectional(
             top: 16 + padding.top + captionBand,
-            right: 16,
+            end: 16,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Column(
@@ -327,6 +336,8 @@ class _ToastEntryState extends State<_ToastEntry>
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _anim.duration = reduceMotion ? Duration.zero : _kEnterExit;
+    // The wide slide comes in from the end edge: `SlideTransition` mirrors a
+    // horizontal offset under a right-to-left `textDirection` (below).
     final slide = widget.isWide
         ? Tween<Offset>(begin: const Offset(0.12, 0), end: Offset.zero)
         : Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero);
@@ -356,7 +367,11 @@ class _ToastEntryState extends State<_ToastEntry>
       alignment: Alignment.topCenter,
       child: FadeTransition(
         opacity: _curved,
-        child: SlideTransition(position: slide.animate(_curved), child: card),
+        child: SlideTransition(
+          position: slide.animate(_curved),
+          textDirection: Directionality.of(context),
+          child: card,
+        ),
       ),
     );
   }
@@ -486,7 +501,9 @@ class _NotifyCard extends StatelessWidget {
                 ),
                 if (action != null)
                   Padding(
-                    padding: const EdgeInsets.only(left: InSpacing.xs),
+                    padding: const EdgeInsetsDirectional.only(
+                      start: InSpacing.xs,
+                    ),
                     child: TextButton(
                       onPressed: onAction,
                       style: TextButton.styleFrom(

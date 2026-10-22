@@ -388,7 +388,7 @@ class _ExpandedFieldEditor extends StatelessWidget {
     // Absent is on, as on the server (`$config['hideIfEmpty'] ?? true`).
     final hideIfEmpty = (field['hideIfEmpty'] as bool?) ?? true;
     return Container(
-      margin: EdgeInsets.only(top: InSpacing.sm, left: 24),
+      margin: EdgeInsetsDirectional.only(top: InSpacing.sm, start: 24),
       padding: EdgeInsets.all(InSpacing.md(context)),
       decoration: BoxDecoration(
         color: tokens.surfaceAlt,

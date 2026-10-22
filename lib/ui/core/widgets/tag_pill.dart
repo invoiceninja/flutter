@@ -55,7 +55,12 @@ class TagPill extends StatelessWidget {
     return Semantics(
       label: semanticsLabel ?? name,
       child: Container(
-        padding: EdgeInsets.fromLTRB(8, 3, onRemove == null ? 8 : 4, 3),
+        padding: EdgeInsetsDirectional.fromSTEB(
+          8,
+          3,
+          onRemove == null ? 8 : 4,
+          3,
+        ),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(InRadii.r2),

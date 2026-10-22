@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/in_time_field.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
@@ -408,6 +409,8 @@ class _LogCallFormState extends State<_LogCallForm> {
                         Expanded(
                           child: TextField(
                             controller: _duration,
+                            textDirection: TextDirection.ltr,
+                            textAlign: ltrValueAlign(context, ltr: true),
                             keyboardType: TextInputType.number,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,

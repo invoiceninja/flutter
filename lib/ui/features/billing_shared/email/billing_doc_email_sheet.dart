@@ -210,7 +210,7 @@ class _EmailSheetState extends State<_EmailSheet> {
               child: Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.fromLTRB(
+                    padding: EdgeInsetsDirectional.fromSTEB(
                       InSpacing.lg(context),
                       InSpacing.md(context),
                       InSpacing.md(context),

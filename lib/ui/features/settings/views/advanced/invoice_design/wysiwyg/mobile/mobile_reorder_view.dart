@@ -60,8 +60,8 @@ class MobileReorderView extends StatelessWidget {
               cells: rows[i].cells,
             ),
           ),
-        Positioned(
-          right: InSpacing.lg(context),
+        PositionedDirectional(
+          end: InSpacing.lg(context),
           bottom: InSpacing.lg(context) + bottomInset,
           child: FloatingActionButton(
             onPressed: () => showDesignerPaletteSheet(context, vm),
@@ -216,7 +216,7 @@ class _BlockCell extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: EdgeInsets.only(left: InSpacing.md(context)),
+          padding: EdgeInsetsDirectional.only(start: InSpacing.md(context)),
           child: Row(
             children: [
               Icon(

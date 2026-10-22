@@ -738,7 +738,7 @@ class _NarrowEditor extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(64, 40),

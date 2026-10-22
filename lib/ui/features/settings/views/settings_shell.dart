@@ -83,15 +83,14 @@ class SettingsShell extends StatelessWidget {
             body: ValueListenableBuilder<bool>(
               valueListenable: hideSettingsListSidebar,
               builder: (context, hidden, _) {
-                // Phase 13: slide the sidebar off the left edge instead
+                // Phase 13: slide the sidebar off the start edge instead
                 // of popping it out — mirrors MaterialPageRoute's
-                // 300 ms slide-in on the right pane so both halves of
+                // 300 ms slide-in on the end pane so both halves of
                 // the transition feel coordinated. Mirrors the same
                 // AnimatedContainer + ClipRect + OverflowBox recipe
                 // `in_sidebar.dart` uses for its rail collapse, but
-                // pins to `centerRight` so contents drift LEFT as the
-                // box shrinks (vs the rail's `centerLeft` accordion
-                // close).
+                // pins to `centerEnd` so contents drift toward the start
+                // as the box shrinks (vs the rail's accordion close).
                 return Row(
                   children: [
                     RepaintBoundary(
@@ -102,7 +101,7 @@ class SettingsShell extends StatelessWidget {
                         color: Theme.of(context).colorScheme.surface,
                         child: ClipRect(
                           child: OverflowBox(
-                            alignment: Alignment.centerRight,
+                            alignment: AlignmentDirectional.centerEnd,
                             minWidth: 280,
                             maxWidth: 280,
                             child: Material(

@@ -10,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_searchable_dropdown_field.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 /// Online Payments — Defaults tab. Field labels surfaced by the in-app search.
 const kOnlinePaymentsDefaultsSearchKeys = <String>[
@@ -51,7 +52,7 @@ class OnlinePaymentsDefaultsBody extends StatelessWidget {
         // — redundant — for the typical case.
         String termDisplay(PaymentTerm t) {
           final name = t.name.trim();
-          return name.isEmpty ? '${t.numDays} ${context.tr('days')}' : name;
+          return name.isEmpty ? dayCountLabel(context, t.numDays) : name;
         }
 
         return FormSection(

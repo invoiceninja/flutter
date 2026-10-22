@@ -131,6 +131,7 @@ class SignatureBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: align == Alignment.center
             ? CrossAxisAlignment.center
+            // rtl: physical page is a PDF
             : align == Alignment.centerRight
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,

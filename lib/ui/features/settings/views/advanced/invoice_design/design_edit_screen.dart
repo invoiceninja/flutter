@@ -272,7 +272,7 @@ class _DesignWorkspaceState extends State<_DesignWorkspace> {
                   Padding(
                     padding: EdgeInsets.all(InSpacing.md(context)),
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(64, 40),
@@ -429,7 +429,7 @@ class _SectionTabs extends StatelessWidget {
         children: [
           for (final s in _Section.values)
             Padding(
-              padding: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsetsDirectional.only(end: 6),
               child: ChoiceChip(
                 label: Row(
                   mainAxisSize: MainAxisSize.min,

@@ -368,7 +368,7 @@ class EntityDetailActionsRow<A> extends StatelessWidget {
     // The AppBar's title slot (and the embedded pane's Expanded) pass loose
     // constraints (minWidth: 0), so the row hugs its content by default.
     // SizedBox(width: infinity) forces it to fill the slot; Align then pushes
-    // the cluster to the right edge, matching the body's right padding via the
+    // the cluster to the end edge, matching the body's end padding via the
     // scaffold's titleSpacing: InSpacing.lg(context). The LayoutBuilder's
     // constraints reflect that same allocated width — wide ⇒ the spread overflow
     // bar, narrow ⇒ the compact `⋮` (mobile + master-detail/slide-over pane).
@@ -414,7 +414,10 @@ class EntityDetailActionsRow<A> extends StatelessWidget {
         if (!bounded || scopeWide == false) return cluster;
         return SizedBox(
           width: double.infinity,
-          child: Align(alignment: Alignment.centerRight, child: cluster),
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: cluster,
+          ),
         );
       },
     );

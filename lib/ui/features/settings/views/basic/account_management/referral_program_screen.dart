@@ -79,7 +79,7 @@ class _ReferralBody extends StatelessWidget {
             ),
             PortalUrlDisplay(label: context.tr('referral_code'), url: url),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: FilledButton.tonal(
                 style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
                 onPressed: () => _openUrl(context, _kReferralLearnMoreUrl),

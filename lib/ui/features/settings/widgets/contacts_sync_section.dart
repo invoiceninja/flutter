@@ -451,7 +451,7 @@ class _PermissionNotice extends StatelessWidget {
         ),
         SizedBox(height: InSpacing.md(context)),
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: FilledButton(
             // Content-sized: the theme's `Size.fromHeight(44)` default means
             // infinite min-width, which would stretch this edge to edge and

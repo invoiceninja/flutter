@@ -609,7 +609,7 @@ class _ChartHeader extends StatelessWidget {
     final style = _effectiveStyle(vm, model);
     final extent = Env.isTouchPrimary ? InSizes.touchTarget : 28.0;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         InSpacing.lg(context),
         InSpacing.md(context),
         InSpacing.sm,

@@ -17,7 +17,7 @@ const String _kDocsBaseUrl = 'https://invoiceninja.github.io/en';
 
 /// Bottom row pinned to the sidebar: Contact Us, Support Forum, User Guide,
 /// About, a theme switcher — and, on the wide layout, the collapse toggle
-/// pinned right with a vertical divider between the two groups. When the wide
+/// pinned to the end with a vertical divider between the two groups. When the wide
 /// sidebar is collapsed to a 64-px rail (`compact: true`), only the toggle
 /// remains; the action icons hide entirely.
 ///
@@ -28,7 +28,7 @@ const String _kDocsBaseUrl = 'https://invoiceninja.github.io/en';
 ///
 /// Six `Expanded` actions land on **43.83 px** in the 280-px drawer, a rounding
 /// error under the 44-px touch floor. The drawer's *content* box is 279, not
-/// 280: `InSidebar`'s `AnimatedContainer` carries a `Border(right:)` whose 1 px
+/// 280: `InSidebar`'s `AnimatedContainer` carries a `BorderDirectional(end:)` whose 1 px
 /// folds into the container's own padding, inside the width constraint. (The
 /// rail escapes that — its `OverflowBox` re-pins the content to exactly 232 —
 /// which is why only the drawer figures move.) So 263 / 6 = 43.83. Note the
@@ -131,11 +131,14 @@ class SidebarFooterActions extends StatelessWidget {
 
     final Widget body;
     if (showCollapseToggle && compact) {
-      // Collapsed wide rail: only the expand toggle, pinned right so it
-      // slides smoothly from its expanded-state position (rightmost child
-      // of the footer Row) rather than jumping inward at toggle-time.
+      // Collapsed wide rail: only the expand toggle, pinned to the end so it
+      // slides smoothly from its expanded-state position (the last child of
+      // the footer Row, which is the end in either direction) rather than
+      // jumping inward at toggle-time. Both states are directional: in a
+      // right-to-left locale the rail sits at the right, and the toggle at its
+      // left edge, against the content.
       body = Align(
-        alignment: Alignment.centerRight,
+        alignment: AlignmentDirectional.centerEnd,
         child: _CollapseToggleButton(collapsed: true, touch: touch),
       );
     } else if (showCollapseToggle) {
@@ -197,6 +200,9 @@ class _CollapseToggleButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
+        // Both chevrons mirror (`matchTextDirection`), so collapse points at
+        // the rail's own edge — the start side — and expand at the content,
+        // whichever side the rail is on.
         icon: Icon(
           collapsed ? Icons.chevron_right : Icons.chevron_left,
           size: 18,
@@ -274,7 +280,7 @@ class _FooterAction extends StatelessWidget {
 ///
 /// On touch the slot's width is tight (the caller wraps each action in an
 /// `Expanded`), so the icon has to be explicitly centred — a bare `Padding`
-/// would pin it to the left edge of its share of the row. `SizedBox` is safe
+/// would pin it to the start edge of its share of the row. `SizedBox` is safe
 /// for the height here because it wraps an `Icon`, not text: there is no line
 /// box to clamp, unlike `SidebarNavItem`, which must use a minimum.
 Widget _footerActionBody({required Widget glyph, required bool touch}) {

@@ -469,6 +469,7 @@
   "financial": "财务",
   "focus_search": "聚焦搜索框",
   "force_full_sync": "强制完全同步",
+  "force_right_to_left": "强制从右到左",
   "forecast": "预测",
   "forecast_finish": "预计完成",
   "forecast_needs_budget": "设置项目的预算小时数以查看完成时间。",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 项更改",
   "load_more": "加载更多",
   "spell_check": "拼写检查",
-  "spell_check_help": "为明细项名称和描述中的拼写错误添加下划线"
+  "spell_check_help": "为明细项名称和描述中的拼写错误添加下划线",
+  "day_count_singular": ":count 天",
+  "day_count_plural": ":count 天",
+  "in_days_count_plural": ":count 天后",
+  "days_ago_count_plural": ":count 天前",
+  "client_count_singular": ":count 个客户",
+  "client_count_plural": ":count 个客户",
+  "row_count_singular": ":count 行",
+  "row_count_plural": ":count 行"
 }

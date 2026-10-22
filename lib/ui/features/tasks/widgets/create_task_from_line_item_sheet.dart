@@ -691,7 +691,7 @@ class _DaySchedule extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  '+$hidden ${context.tr('more')}',
+                  context.tr('plus_n_more', {'count': '$hidden'}),
                   style: TextStyle(color: tokens.ink3, fontSize: 12),
                 ),
               ),

@@ -294,7 +294,7 @@ class _ManageBodyState extends State<_ManageBody> {
       children: [
         Expanded(
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: SegmentedButton<ManagePane>(
               showSelectedIcon: false,
               style: SegmentedButton.styleFrom(
@@ -551,7 +551,7 @@ class _ManageBodyState extends State<_ManageBody> {
     String Function(T) labelOf,
   ) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: AlignmentDirectional.centerStart,
       child: SegmentedButton<T>(
         showSelectedIcon: false,
         style: SegmentedButton.styleFrom(

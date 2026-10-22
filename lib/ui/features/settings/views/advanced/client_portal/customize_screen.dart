@@ -23,7 +23,7 @@ const _kMonospace = TextStyle(fontFamily: kMonoFontFamily, fontSize: 13);
 
 /// Customize tab — Header / Footer (HTML), plus Custom CSS / Custom JS
 /// (self-hosted only). Only rendered at company scope; per-client custom
-/// code is a UX anti-pattern.
+/// code is a UX anti-pattern. All four are code, so LTR in every language.
 class ClientPortalCustomizeScreen extends StatelessWidget {
   const ClientPortalCustomizeScreen({super.key});
 
@@ -49,6 +49,7 @@ class ClientPortalCustomizeScreen extends StatelessWidget {
               apiKey: 'portal_custom_head',
               maxLines: 8,
               style: _kMonospace,
+              textDirection: TextDirection.ltr,
               hintText: '<!-- HTML allowed -->',
             ),
             SizedBox(height: InSpacing.md(context)),
@@ -57,6 +58,7 @@ class ClientPortalCustomizeScreen extends StatelessWidget {
               apiKey: 'portal_custom_footer',
               maxLines: 8,
               style: _kMonospace,
+              textDirection: TextDirection.ltr,
               hintText: '<!-- HTML allowed -->',
             ),
           ],
@@ -70,6 +72,7 @@ class ClientPortalCustomizeScreen extends StatelessWidget {
                 apiKey: 'portal_custom_css',
                 maxLines: 8,
                 style: _kMonospace,
+                textDirection: TextDirection.ltr,
                 hintText: '/* CSS */',
               ),
               SizedBox(height: InSpacing.md(context)),
@@ -78,6 +81,7 @@ class ClientPortalCustomizeScreen extends StatelessWidget {
                 apiKey: 'portal_custom_js',
                 maxLines: 8,
                 style: _kMonospace,
+                textDirection: TextDirection.ltr,
                 hintText: '// JavaScript',
               ),
             ],

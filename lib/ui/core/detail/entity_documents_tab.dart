@@ -378,7 +378,7 @@ class _WideLayout extends StatelessWidget {
           width: 80,
           child: Text(
             sizeLabel,
-            textAlign: TextAlign.right,
+            textAlign: TextAlign.end,
             style: TextStyle(color: tokens.ink3),
           ),
         ),

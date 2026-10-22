@@ -145,10 +145,10 @@ class DebugPanelSection extends StatelessWidget {
   }
 }
 
-/// Compact controls at the top of the panel: capture label + Switch on the
-/// left, then (desktop only) the screenshot tools, then Clear / Copy / Close
-/// icon buttons on the right. On narrow bands (<600 px) it stacks into two
-/// rows — label + Switch + Close up top, the action cluster right-aligned
+/// Compact controls at the top of the panel: capture label + Switch at the
+/// start, then (desktop only) the screenshot tools, then Clear / Copy / Close
+/// icon buttons at the end. On narrow bands (<600 px) it stacks into two
+/// rows — label + Switch + Close up top, the action cluster end-aligned
 /// below — so nothing overflows at phone widths.
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
@@ -252,7 +252,7 @@ class _Toolbar extends StatelessWidget {
               children: [
                 Expanded(
                   child: Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: captureCluster,
                   ),
                 ),
@@ -272,7 +272,7 @@ class _Toolbar extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: captureCluster,
                     ),
                   ),
@@ -479,6 +479,9 @@ class _NetworkTabState extends State<_NetworkTab>
           child: TextField(
             controller: _filter,
             enabled: widget.entries.isNotEmpty,
+            // Paths and methods read LTR in every language. The hint is not
+            // affected: the decorator draws it in the ambient direction.
+            textDirection: TextDirection.ltr,
             decoration: InputDecoration(
               isDense: true,
               prefixIcon: const Icon(Icons.search, size: 18),
@@ -581,7 +584,7 @@ class _ErrorsTabState extends State<_ErrorsTab>
             vertical: InSpacing.sm,
           ),
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             // Horizontal scroll keeps the three segments usable on a 320 px
             // band instead of overflowing.
             child: SingleChildScrollView(
@@ -651,7 +654,7 @@ class _FilteredCount extends StatelessWidget {
         InSpacing.sm,
       ),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: Text(
           '$shown / $total',
           style: TextStyle(color: context.inTheme.ink3, fontSize: 12),
@@ -751,6 +754,7 @@ class _NetworkRow extends StatelessWidget {
                 children: [
                   Text(
                     '${entry.method}  $pathPreview',
+                    textDirection: TextDirection.ltr,
                     style: TextStyle(
                       color: tokens.ink,
                       fontSize: 13,
@@ -882,6 +886,7 @@ class _DetailDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(
         title,
+        textDirection: TextDirection.ltr,
         style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 14),
       ),
       content: SizedBox(
@@ -1084,6 +1089,7 @@ class _NetworkDetail extends StatelessWidget {
                 Expanded(
                   child: SelectableText(
                     row.$2,
+                    textDirection: TextDirection.ltr,
                     style: TextStyle(
                       color: tokens.ink,
                       fontSize: 12,
@@ -1117,6 +1123,7 @@ class _ErrorDetail extends StatelessWidget {
         const SizedBox(height: 8),
         SelectableText(
           entry.message,
+          textDirection: TextDirection.ltr,
           style: TextStyle(
             color: tokens.ink,
             fontSize: 13,
@@ -1156,8 +1163,10 @@ class _MonoBlock extends StatelessWidget {
             borderRadius: BorderRadius.circular(InRadii.r2),
           ),
           padding: const EdgeInsets.all(8),
+          // Code and stack traces read LTR in every language.
           child: SelectableText(
             text,
+            textDirection: TextDirection.ltr,
             style: TextStyle(
               color: tokens.ink,
               fontSize: 12,

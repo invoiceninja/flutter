@@ -178,7 +178,7 @@ class TaxSettingsBody extends StatelessWidget {
           title: context.tr('tax_rates'),
           children: [
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(64, 44),
@@ -551,7 +551,9 @@ class _RegionCardState extends State<_RegionCard> {
               ),
               if (!region.taxAllSubregions && total > 0)
                 Padding(
-                  padding: EdgeInsets.only(right: InSpacing.md(context)),
+                  padding: EdgeInsetsDirectional.only(
+                    end: InSpacing.md(context),
+                  ),
                   child: Text(
                     context
                         .tr('selected_of')
@@ -732,7 +734,11 @@ class _SubregionRow extends StatelessWidget {
           ),
           if (firstError != null)
             Padding(
-              padding: EdgeInsets.only(left: 80, top: 2, bottom: InSpacing.xs),
+              padding: EdgeInsetsDirectional.only(
+                start: 80,
+                top: 2,
+                bottom: InSpacing.xs,
+              ),
               child: Text(
                 firstError,
                 style: Theme.of(

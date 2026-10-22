@@ -450,6 +450,7 @@
   "financial": "Finansije",
   "focus_search": "Fokusiraj polje za pretragu",
   "force_full_sync": "Prinudna potpuna sinhronizacija",
+  "force_right_to_left": "Prinudno zdesna nalevo",
   "forecast_needs_budget": "Podesite budžetirane sate projekta da biste videli kada će biti završen.",
   "forecast_needs_time": "Zabeležite vreme na ovom projektu da biste videli kada će biti završen.",
   "foreign_amount": "Iznos u stranoj valuti",
@@ -1566,5 +1567,13 @@
   "release_change_count_one": "1 izmena",
   "load_more": "Učitaj još",
   "spell_check": "Provera pravopisa",
-  "spell_check_help": "Podvuci pravopisne greške u nazivima i opisima stavki"
+  "spell_check_help": "Podvuci pravopisne greške u nazivima i opisima stavki",
+  "day_count_singular": ":count dan",
+  "day_count_plural": ":count dana",
+  "in_days_count_plural": "za :count dana",
+  "days_ago_count_plural": "pre :count dana",
+  "client_count_singular": ":count klijent",
+  "client_count_plural": ":count klijenata",
+  "row_count_singular": ":count red",
+  "row_count_plural": ":count redova"
 }

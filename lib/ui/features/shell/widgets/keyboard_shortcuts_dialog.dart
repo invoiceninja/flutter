@@ -8,6 +8,7 @@ import 'package:admin/domain/leader_shortcuts.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
+import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 
 /// Opens the Keyboard Shortcuts helper dialog. Lists every non-obvious
 /// shortcut wired into the shell, master-detail pane, token search, and
@@ -30,6 +31,9 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
     // reads as a combination, so the label's '+' must not land inside a cap.
     // Shared with `nav_history_buttons.dart`, which renders the same chord.
     final navMod = platformHistoryModifierGlyphs();
+    // Back is ⌘/Alt+→ in a right-to-left locale — the arrow its mirrored icon
+    // points — and the shell binds it the same way (`historyArrowGoesBack`).
+    final direction = Directionality.of(context);
 
     // Global + create rows come from the resolved bindings (override → default)
     // so the dialog matches the live `Shortcuts` map + the hint bar. Cleared
@@ -99,13 +103,13 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
           ),
           _Row(
             chords: [
-              [...navMod, '←'],
+              [...navMod, historyArrowGlyph(back: true, direction: direction)],
             ],
             description: context.tr('go_back'),
           ),
           _Row(
             chords: [
-              [...navMod, '→'],
+              [...navMod, historyArrowGlyph(back: false, direction: direction)],
             ],
             description: context.tr('go_forward'),
           ),
@@ -283,19 +287,19 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
   Widget _twoColumnBody(BuildContext context, List<_Section> sections) {
     // Section order from `build`: 0 Global, 1 Records, 2 Navigation,
     // 3 Search, 4 Forms, 5 Reports. The split puts "anywhere" + "record
-    // actions" on the left and "moving within a screen" on the right —
+    // actions" at the start and "moving within a screen" at the end —
     // close enough in row count that neither column dwarfs the other.
     // Picked by position, so a section added to `build` has to be placed
     // here too or it is on no column at all.
-    final left = [sections[0], sections[1], sections[4]];
-    final right = [sections[2], sections[3], sections[5]];
+    final start = [sections[0], sections[1], sections[4]];
+    final end = [sections[2], sections[3], sections[5]];
     final tokens = context.inTheme;
     return SingleChildScrollView(
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: _columnOfSections(context, left)),
+            Expanded(child: _columnOfSections(context, start)),
             // Thin vertical rule between columns. The horizontal margin
             // is the breathing room each column gets from the divider;
             // combined it roughly equals the previous 24-px gap.
@@ -304,7 +308,7 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
               width: 1,
               color: tokens.border,
             ),
-            Expanded(child: _columnOfSections(context, right)),
+            Expanded(child: _columnOfSections(context, end)),
           ],
         ),
       ),

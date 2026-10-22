@@ -10,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
 import 'package:admin/ui/core/charts/bar_list.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Rows of one table drawn before the rest are left to the download. The
 /// tables are not lazily built — they scroll sideways as one piece, which a
@@ -237,7 +238,7 @@ class _FactsCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: InSpacing.sm),
-                  Text(
+                  LtrText(
                     facts.entries[i].value,
                     style: moneyTextStyle(
                       fontSize: single ? 15 : 13,
@@ -331,7 +332,7 @@ class _AgingCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Text(
+                LtrText(
                   _money(formatter, total, currencyCode),
                   style: moneyTextStyle(
                     fontSize: 15,
@@ -388,7 +389,7 @@ class _AgingCard extends StatelessWidget {
                         style: TextStyle(fontSize: 12, color: tokens.ink2),
                       ),
                       const SizedBox(width: 6),
-                      Text(
+                      LtrText(
                         _money(formatter, amounts[i], currencyCode),
                         style: moneyTextStyle(
                           fontSize: 12,

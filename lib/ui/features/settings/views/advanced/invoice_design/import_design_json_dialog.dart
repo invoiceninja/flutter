@@ -43,6 +43,8 @@ class _ImportDesignJsonDialogState extends State<_ImportDesignJsonDialog> {
       content: TextField(
         controller: _controller,
         maxLines: 8,
+        // JSON reads left to right in every locale.
+        textDirection: TextDirection.ltr,
         decoration: InputDecoration(
           hintText: context.tr('paste_design_json'),
           border: const OutlineInputBorder(),

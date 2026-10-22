@@ -150,7 +150,7 @@ class _PaletteTile extends StatelessWidget {
         children: [
           if (onPage)
             Padding(
-              padding: EdgeInsets.only(right: InSpacing.sm),
+              padding: EdgeInsetsDirectional.only(end: InSpacing.sm),
               child: Tooltip(
                 message: context.tr('on_page'),
                 child: Icon(Icons.check, size: 16, color: tokens.ink3),

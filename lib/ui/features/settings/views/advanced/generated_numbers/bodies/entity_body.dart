@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -206,7 +207,7 @@ class _GeneratedNumbersEntityBodyState
               ),
             ),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: LinkText(
                 label: context.tr('view_date_formats'),
                 color: context.inTheme.accent,
@@ -453,6 +454,8 @@ class _PreviewRow extends StatelessWidget {
           ),
           child: SelectableText(
             value,
+            textDirection: TextDirection.ltr,
+            textAlign: ltrValueAlign(context, ltr: true),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: t.ink2,
               fontFamily: kMonoFontFamily,

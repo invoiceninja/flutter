@@ -84,7 +84,7 @@ class InfoBlock extends StatelessWidget {
 
   CrossAxisAlignment _crossFor(TextAlign a) => switch (a) {
     TextAlign.center => CrossAxisAlignment.center,
-    TextAlign.right => CrossAxisAlignment.end,
+    TextAlign.right => CrossAxisAlignment.end, // rtl: physical page is a PDF
     _ => CrossAxisAlignment.start,
   };
 }
@@ -243,6 +243,7 @@ class InvoiceDetailsBlock extends StatelessWidget {
                 // server (`padding-right: labelValueGap`). It used to be a
                 // third column pinned to zero width, so the longest value
                 // printed hard against its label.
+                // rtl: physical page is a PDF
                 padding: pad + EdgeInsets.only(left: labelPad, right: gap),
                 child: Text(
                   label,

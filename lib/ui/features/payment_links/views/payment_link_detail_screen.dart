@@ -21,6 +21,7 @@ import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_deta
 import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_detail_standing.dart';
 import 'package:admin/ui/features/payment_links/widgets/payment_link_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The Payment Link record screen, on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions (copy or open the
@@ -187,7 +188,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           PaymentLinkDetailStanding.priceText(paymentLink, formatter),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

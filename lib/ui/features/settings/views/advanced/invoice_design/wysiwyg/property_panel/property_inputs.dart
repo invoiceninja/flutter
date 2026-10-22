@@ -66,7 +66,7 @@ class PropertyRow extends StatelessWidget {
               SizedBox(
                 width: _kLabelWidth,
                 child: Padding(
-                  padding: EdgeInsets.only(right: InSpacing.sm),
+                  padding: EdgeInsetsDirectional.only(end: InSpacing.sm),
                   child: name,
                 ),
               ),
@@ -342,7 +342,7 @@ class _ToggleIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     return Padding(
-      padding: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsetsDirectional.only(end: 4),
       child: Tooltip(
         message: tooltip,
         child: Material(
@@ -889,8 +889,8 @@ class _StepButton extends StatelessWidget {
       shape: RoundedRectangleBorder(
         side: BorderSide(color: tokens.border),
         borderRadius: trailing
-            ? const BorderRadius.horizontal(right: r)
-            : const BorderRadius.horizontal(left: r),
+            ? const BorderRadiusDirectional.horizontal(end: r)
+            : const BorderRadiusDirectional.horizontal(start: r),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

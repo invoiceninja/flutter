@@ -123,7 +123,7 @@ class _ProjectQuickAddTaskState extends State<ProjectQuickAddTask> {
                   child: Center(
                     widthFactor: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 12),
+                      padding: const EdgeInsetsDirectional.only(end: 12),
                       child: Opacity(
                         opacity: 0.5,
                         child: Text('↵', style: TextStyle(color: tokens.ink3)),

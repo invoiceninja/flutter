@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (never allocate `NumberFormat` per build).
@@ -144,7 +145,7 @@ class _QuoteListTileState extends State<QuoteListTile> {
                 final amountText = (formatted != null && formatted.isNotEmpty)
                     ? formatted
                     : _quoteAmountFallback.format(amount.toDouble());
-                return Text(
+                return LtrText(
                   amountText,
                   style: moneyTextStyle(
                     color: w.quote.isExpired ? tokens.overdue : tokens.ink,

@@ -207,9 +207,9 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
           ),
         ),
         if (widget.entity.supportsDeliveryNote && widget.deliveryNoteAvailable)
-          Positioned(
+          PositionedDirectional(
             top: InSpacing.md(context),
-            right: InSpacing.md(context),
+            end: InSpacing.md(context),
             child: _DeliveryNoteToggle(
               value: _deliveryNote,
               onChanged: (v) {

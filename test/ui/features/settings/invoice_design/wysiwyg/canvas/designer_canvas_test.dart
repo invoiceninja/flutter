@@ -68,6 +68,7 @@ void main() {
     WysiwygDesignViewModel vm, {
     Size size = const Size(1200, 700),
     bool palette = false,
+    TextDirection? textDirection,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -79,6 +80,10 @@ void main() {
         supportedLocales: kTestSupportedLocales,
         locale: const Locale('en'),
         theme: buildInTheme(InTheme.light),
+        builder: textDirection == null
+            ? null
+            : (context, child) =>
+                  Directionality(textDirection: textDirection, child: child!),
         home: Scaffold(
           body: ListenableBuilder(
             listenable: vm,
@@ -406,6 +411,58 @@ void main() {
       vm.addBlock(blockSpecFor('divider')!);
       vm.undo();
       expect([for (final b in vm.blocks) b.type], ['text', 'text']);
+    });
+  });
+
+  group('right-to-left', () {
+    // The page is a picture of the PDF, which the server lays out left to
+    // right in every locale, so the canvas pins it LTR. Unpinned, the row's
+    // cells (a `Row`) mirrored while the grips and gap overlays — physical
+    // `slot.left` offsets — did not, so the handles drew on the wrong block.
+    DesignBlock text(String id, int x, int w) => blockSpecFor('text')!
+        .newInstance(idPrefix: id, x: x, y: 0)
+        .copyWith(
+          gridPosition: GridPosition(x: x, y: 0, w: w, h: 2),
+          properties: {'content': 'Block $id'},
+        );
+
+    testWidgets("a row's first block is still drawn at the left", (
+      tester,
+    ) async {
+      final vm = vmWith([text('a', 0, 6), text('b', 6, 6)]);
+      await pump(tester, vm, textDirection: TextDirection.rtl);
+
+      final first = tester.getRect(cell(vm.blocks.first));
+      final second = tester.getRect(cell(vm.blocks.last));
+      expect(first.right, lessThanOrEqualTo(second.left));
+    });
+
+    testWidgets('a block renders under an LTR direction', (tester) async {
+      final vm = vmWith([text('a', 0, 12)]);
+      await pump(tester, vm, textDirection: TextDirection.rtl);
+
+      expect(
+        Directionality.of(tester.element(cell(vm.blocks.single))),
+        TextDirection.ltr,
+      );
+    });
+
+    testWidgets('the width grips sit on the selected block\'s own edges', (
+      tester,
+    ) async {
+      final vm = vmWith([text('a', 0, 6), text('b', 6, 6)]);
+      vm.selectBlock(vm.blocks.first.id);
+      await pump(tester, vm, textDirection: TextDirection.rtl);
+
+      final rect = tester.getRect(cell(vm.blocks.first));
+      final grips = find.byWidgetPredicate(
+        (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
+      );
+      expect(grips, findsNWidgets(2));
+      final xs = [for (var i = 0; i < 2; i++) tester.getCenter(grips.at(i)).dx]
+        ..sort();
+      expect(xs.first, closeTo(rect.left, 12));
+      expect(xs.last, closeTo(rect.right, 12));
     });
   });
 

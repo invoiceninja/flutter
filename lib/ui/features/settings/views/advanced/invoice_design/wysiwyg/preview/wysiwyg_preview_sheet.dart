@@ -337,7 +337,7 @@ class _Header extends StatelessWidget {
           if (embedded && serverPicksDocument)
             Flexible(
               child: Padding(
-                padding: EdgeInsets.only(left: InSpacing.sm),
+                padding: EdgeInsetsDirectional.only(start: InSpacing.sm),
                 child: Text(
                   context.tr('preview_server_sample'),
                   overflow: TextOverflow.ellipsis,

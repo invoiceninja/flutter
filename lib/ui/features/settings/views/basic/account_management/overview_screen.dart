@@ -332,7 +332,7 @@ class NewCompanySection extends StatelessWidget {
       title: context.tr('new_company'),
       children: [
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: FilledButton.tonal(
             style: FilledButton.styleFrom(minimumSize: const Size(160, 44)),
             onPressed: !enabled
@@ -368,7 +368,7 @@ class _DefaultCompanySection extends StatelessWidget {
       title: context.tr('set_default_company'),
       children: [
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: FilledButton.tonal(
             style: FilledButton.styleFrom(minimumSize: const Size(160, 44)),
             onPressed: busy ? null : onPressed,

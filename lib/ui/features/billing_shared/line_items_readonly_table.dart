@@ -8,6 +8,7 @@ import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 // Column widths for the wide (table) layout. Item / Description flex; the
 // numeric columns are fixed so they line up down the table.
@@ -238,7 +239,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
+              LtrText(
                 _money(it.gross),
                 style: moneyTextStyle(
                   fontSize: 13.5,
@@ -299,7 +300,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
     return Expanded(
       flex: 4,
       child: Padding(
-        padding: const EdgeInsets.only(right: _kGap),
+        padding: const EdgeInsetsDirectional.only(end: _kGap),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -336,7 +337,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
   Widget _flexHead(int flex, String text, InTheme tokens) => Expanded(
     flex: flex,
     child: Padding(
-      padding: const EdgeInsets.only(right: _kGap),
+      padding: const EdgeInsetsDirectional.only(end: _kGap),
       child: Text(
         text,
         maxLines: 1,
@@ -355,7 +356,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
     width: w,
     child: Text(
       text,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.end,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -376,7 +377,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
   }) => Expanded(
     flex: flex,
     child: Padding(
-      padding: const EdgeInsets.only(right: _kGap),
+      padding: const EdgeInsetsDirectional.only(end: _kGap),
       child: Text(
         text,
         maxLines: 3,
@@ -397,9 +398,9 @@ class LineItemsReadonlyTable extends StatelessWidget {
     bool strong = false,
   }) => SizedBox(
     width: w,
-    child: Text(
+    child: LtrText(
       text,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.end,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: moneyTextStyle(

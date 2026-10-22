@@ -131,7 +131,7 @@ class _ExportDataSectionState extends State<_ExportDataSection> {
         ),
         SizedBox(height: InSpacing.lg(context)),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton.icon(
             icon: _busy
                 ? const SizedBox.square(
@@ -164,7 +164,7 @@ class _PurgeSection extends StatelessWidget {
         ),
         SizedBox(height: InSpacing.lg(context)),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton.icon(
             icon: Icon(Icons.delete_sweep_outlined, color: tokens.overdue),
             label: Text(
@@ -207,7 +207,7 @@ class _DeleteSection extends StatelessWidget {
             Text(message, style: TextStyle(color: tokens.ink2)),
             SizedBox(height: InSpacing.lg(context)),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 icon: Icon(
                   Icons.delete_forever_outlined,

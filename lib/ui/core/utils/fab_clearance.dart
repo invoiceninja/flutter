@@ -5,7 +5,7 @@
 /// ## Why a list needs this at all
 ///
 /// `Scaffold` does not inset its body for the FAB. The button floats over the
-/// body's bottom-right corner, so a `ListView` that ends flush with the
+/// body's bottom-end corner (bottom-right; bottom-left in RTL), so a `ListView` that ends flush with the
 /// viewport leaves its last row permanently underneath — and on a list row
 /// that is exactly where the `⋮` overflow menu lives, so the row's whole
 /// action menu becomes unreachable at any scroll offset

@@ -13,6 +13,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Applies [payment]'s unapplied funds to the client's oldest unpaid invoice.
 ///
@@ -282,7 +283,7 @@ class _Line extends StatelessWidget {
             ),
           ),
           const SizedBox(width: InSpacing.sm),
-          Text(
+          LtrText(
             value,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(

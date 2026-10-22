@@ -469,6 +469,7 @@
   "financial": "財務",
   "focus_search": "検索欄にフォーカス",
   "force_full_sync": "完全同期を強制",
+  "force_right_to_left": "右から左へのレイアウトを強制",
   "forecast": "予測",
   "forecast_finish": "完了予測",
   "forecast_needs_budget": "完了時期を確認するには、プロジェクトの予算時間を設定してください。",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 件の変更",
   "load_more": "さらに読み込む",
   "spell_check": "スペルチェック",
-  "spell_check_help": "明細項目の名前と説明のスペルミスに下線を引きます"
+  "spell_check_help": "明細項目の名前と説明のスペルミスに下線を引きます",
+  "day_count_singular": ":count 日",
+  "day_count_plural": ":count 日",
+  "in_days_count_plural": ":count 日後",
+  "days_ago_count_plural": ":count 日前",
+  "client_count_singular": "顧客 :count 件",
+  "client_count_plural": "顧客 :count 件",
+  "row_count_singular": ":count 行",
+  "row_count_plural": ":count 行"
 }

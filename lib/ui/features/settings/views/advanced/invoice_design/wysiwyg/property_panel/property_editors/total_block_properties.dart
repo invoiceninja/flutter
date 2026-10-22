@@ -409,7 +409,7 @@ class _ExpandedTotalEditor extends StatelessWidget {
     final isTotal = (item['isTotal'] as bool?) ?? false;
     final isBalance = (item['isBalance'] as bool?) ?? false;
     return Container(
-      margin: EdgeInsets.only(top: InSpacing.sm, left: 24),
+      margin: EdgeInsetsDirectional.only(top: InSpacing.sm, start: 24),
       padding: EdgeInsets.all(InSpacing.md(context)),
       decoration: BoxDecoration(
         color: tokens.surfaceAlt,

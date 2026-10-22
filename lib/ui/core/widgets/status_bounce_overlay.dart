@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 
-/// Overlays a small red alert badge on the top-right of [child] when
+/// Overlays a small red alert badge on the top-end corner of [child] when
 /// [hasBounce] is true. Shared by every billing-doc status pill
 /// (invoice / quote / credit / purchase order / recurring invoice) so a
 /// bounced/errored send is visible in list rows without opening the doc —
@@ -29,9 +29,9 @@ class StatusBounceOverlay extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         child,
-        Positioned(
+        PositionedDirectional(
           top: -3,
-          right: -3,
+          end: -3,
           child: Tooltip(
             message: context.tr('email_bounced'),
             child: Container(

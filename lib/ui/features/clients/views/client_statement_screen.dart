@@ -281,7 +281,10 @@ class _FilterControls extends StatelessWidget {
           for (final w in children)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
-              child: Align(alignment: Alignment.centerLeft, child: w),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: w,
+              ),
             ),
         ],
       );

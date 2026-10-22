@@ -295,7 +295,10 @@ class _RestoreTabBodyState extends State<RestoreTabBody> {
                   if (narrow) {
                     return SizedBox(width: double.infinity, child: button);
                   }
-                  return Align(alignment: Alignment.centerLeft, child: button);
+                  return Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: button,
+                  );
                 },
               ),
             ],
@@ -467,7 +470,7 @@ class _QueuedBanner extends StatelessWidget {
     final tokens = context.inTheme;
     // Narrow widths: stack action under the message. Otherwise the long
     // localised `import_started` ellipsises and the action button hugs the
-    // right edge regardless of message length.
+    // end edge regardless of message length.
     return Container(
       padding: EdgeInsets.all(InSpacing.md(context)),
       decoration: BoxDecoration(
@@ -504,7 +507,10 @@ class _QueuedBanner extends StatelessWidget {
               children: [
                 iconAndMessage,
                 SizedBox(height: InSpacing.md(context)),
-                Align(alignment: Alignment.centerLeft, child: action),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: action,
+                ),
               ],
             );
           }

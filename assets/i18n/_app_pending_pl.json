@@ -450,6 +450,7 @@
   "financial": "Finanse",
   "focus_search": "Przejdź do pola wyszukiwania",
   "force_full_sync": "Wymuś pełną synchronizację",
+  "force_right_to_left": "Wymuś układ od prawej do lewej",
   "forecast_needs_budget": "Ustaw budżet godzin projektu, aby zobaczyć, kiedy się zakończy.",
   "forecast_needs_time": "Zarejestruj czas w tym projekcie, aby zobaczyć, kiedy się zakończy.",
   "foreign_amount": "Kwota w walucie obcej",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 zmiana",
   "load_more": "Wczytaj więcej",
   "spell_check": "Sprawdzanie pisowni",
-  "spell_check_help": "Podkreślaj błędy pisowni w nazwach i opisach pozycji"
+  "spell_check_help": "Podkreślaj błędy pisowni w nazwach i opisach pozycji",
+  "day_count_singular": ":count dzień",
+  "day_count_plural": ":count dni",
+  "in_days_count_plural": "za :count dni",
+  "days_ago_count_plural": ":count dni temu",
+  "client_count_singular": ":count klient",
+  "client_count_plural": ":count klientów",
+  "row_count_singular": ":count wiersz",
+  "row_count_plural": ":count wierszy"
 }

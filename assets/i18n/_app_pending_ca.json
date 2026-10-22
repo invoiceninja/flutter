@@ -450,6 +450,7 @@
   "financial": "Financer",
   "focus_search": "Enfoca el camp de cerca",
   "force_full_sync": "Força una sincronització completa",
+  "force_right_to_left": "Força de dreta a esquerra",
   "forecast_needs_budget": "Definiu les hores pressupostades del projecte per veure quan acabarà.",
   "forecast_needs_time": "Registreu temps en aquest projecte per veure quan acabarà.",
   "foreign_amount": "Import en moneda estrangera",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 canvi",
   "load_more": "Carrega'n més",
   "spell_check": "Correcció ortogràfica",
-  "spell_check_help": "Subratlla els errors ortogràfics als noms i les descripcions de les línies"
+  "spell_check_help": "Subratlla els errors ortogràfics als noms i les descripcions de les línies",
+  "day_count_singular": ":count dia",
+  "day_count_plural": ":count dies",
+  "in_days_count_plural": "d'aquí a :count dies",
+  "days_ago_count_plural": "fa :count dies",
+  "client_count_singular": ":count client",
+  "client_count_plural": ":count clients",
+  "row_count_singular": ":count fila",
+  "row_count_plural": ":count files"
 }

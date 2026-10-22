@@ -10,6 +10,8 @@
 /// again by the local re-read. See docs/local-search-matching.md.
 library;
 
+import 'package:admin/utils/bidi.dart';
+
 /// Folded form → the characters that fold to it. Latin-1 Supplement and Latin
 /// Extended-A letters, both cases, plus the combining marks a decomposed (NFD)
 /// `u` + `¨` carries — removed, so it reads as the precomposed `ü` does.
@@ -67,8 +69,11 @@ String foldSearchChars(String s) {
 }
 
 /// [s] folded and lowercased, for matching one Dart string against another:
-/// `foldSearchText(haystack).contains(foldSearchText(needle))`.
-String foldSearchText(String s) => foldSearchChars(s).toLowerCase();
+/// `foldSearchText(haystack).contains(foldSearchText(needle))`. Bidi controls
+/// go too — a `tr()` label carries isolates in a right-to-left locale, and a
+/// prefix match must not trip over one.
+String foldSearchText(String s) =>
+    foldSearchChars(stripBidiControls(s)).toLowerCase();
 
 /// [values] folded, blank ones dropped, one per line — a stored text that a
 /// folded search matches with a plain substring test, and that no search can

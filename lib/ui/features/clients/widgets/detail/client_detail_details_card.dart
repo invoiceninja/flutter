@@ -19,6 +19,7 @@ import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 /// "Details" card on the client detail screen — website, phone, vat / id
 /// numbers, per-client settings, custom fields. Blank rows are omitted
@@ -81,9 +82,13 @@ class ClientDetailDetailsCard extends StatelessWidget {
         : rawRate as Object;
     final validUntil = settings['valid_until']?.toString() ?? '';
     final sendReminders = settings['send_reminders'];
-    // "30 Days": the bare unit word, which every bundle has as a noun.
-    // `count_days` reads ":count les jours" in French.
-    String days(String n) => '$n ${context.tr('days')}';
+    // "30 days" from its own template (`count_days` reads ":count les jours"
+    // in French); a value that isn't a whole number is shown as stored.
+    String days(String n) {
+      final count = int.tryParse(n);
+      return count == null ? n : dayCountLabel(context, count);
+    }
+
     // Resolve currency / language names lazily — only touch `Services` when a
     // value is actually set, so the card still renders in tests (and the first
     // post-login frame) without a Services provider, exactly like the address

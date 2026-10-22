@@ -32,6 +32,7 @@ import 'package:admin/ui/features/recurring_expenses/widgets/detail/recurring_ex
 import 'package:admin/ui/features/recurring_expenses/widgets/detail/recurring_expense_schedule_tab.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The recurring expense record screen, on the record layout
 /// (`docs/detail-screen-layout.md`) — the same shape as `ExpenseDetailScreen`,
@@ -346,7 +347,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           formatter?.money(e.amount, clientCurrencyId: e.currencyId) ?? '',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

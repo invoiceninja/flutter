@@ -229,7 +229,7 @@ class _SignOutSectionState extends State<_SignOutSection> {
       title: context.tr('sign_out'),
       children: [
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: OutlinedButton.icon(
             onPressed: _busy ? null : _onSignOutPressed,
             style: OutlinedButton.styleFrom(

@@ -420,6 +420,9 @@ class _VariableRow extends StatelessWidget {
                       ),
                       Text(
                         token,
+                        // Code, so LTR in every language — see
+                        // `TemplateVariableChip`.
+                        textDirection: TextDirection.ltr,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

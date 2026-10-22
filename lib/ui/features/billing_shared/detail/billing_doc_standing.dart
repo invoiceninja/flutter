@@ -11,6 +11,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_due_note.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 /// Where a billing document stands: the one or two figures that answer the
 /// question the document raises, and a line under them that says how its
@@ -175,7 +176,7 @@ class BillingDocDueLine extends StatelessWidget {
     BillingDocDueNote note,
     ({String upcoming, String late}) labelKeys,
   ) {
-    String days(int n) => '$n ${context.tr(n == 1 ? 'day' : 'days')}';
+    String days(int n) => dayCountLabel(context, n);
     return switch (note.state) {
       BillingDocDueState.late =>
         '${context.tr(labelKeys.late)}: ${days(note.days)}',

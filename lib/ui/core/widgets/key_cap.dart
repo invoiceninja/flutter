@@ -126,10 +126,18 @@ class KeyCapRow extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < keys.length; i++) ...[
-            if (i > 0) const SizedBox(width: 3),
-            KeyCap(label: keys[i], dense: dense, color: keyColor),
-          ],
+          // A chord reads left to right in every language (`⌘ K`, never
+          // `K ⌘`); only the caps are pinned — the label follows the locale.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            textDirection: TextDirection.ltr,
+            children: [
+              for (var i = 0; i < keys.length; i++) ...[
+                if (i > 0) const SizedBox(width: 3),
+                KeyCap(label: keys[i], dense: dense, color: keyColor),
+              ],
+            ],
+          ),
           if (text != null) ...[
             const SizedBox(width: 8),
             Text(

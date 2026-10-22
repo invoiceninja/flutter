@@ -401,7 +401,7 @@ class _ArchivedDesignsState extends State<_ArchivedDesigns> {
                   ),
                   if (_fetching)
                     const Padding(
-                      padding: EdgeInsets.only(right: 12),
+                      padding: EdgeInsetsDirectional.only(end: 12),
                       child: SizedBox(
                         width: 16,
                         height: 16,
@@ -709,7 +709,7 @@ class _Pill extends StatelessWidget {
     final fg = tone == _PillTone.accent ? tokens.accent : tokens.ink2;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      margin: const EdgeInsets.only(left: 4),
+      margin: const EdgeInsetsDirectional.only(start: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(InRadii.r2),

@@ -500,39 +500,50 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
                 controller: _scroll,
                 child: SingleChildScrollView(
                   controller: _scroll,
-                  child: Stack(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          _kPanePadding,
-                          _kPanePadding,
-                          _kPanePadding,
-                          _kPanePadding + widget.bottomInset,
-                        ),
-                        child: Center(
-                          child: SizedBox(
-                            width: metrics.size.width * fit,
-                            child: FittedBox(
-                              fit: BoxFit.fitWidth,
-                              alignment: Alignment.topCenter,
-                              child: sheet,
+                  // The page is a physical document — a picture of the PDF,
+                  // which the server lays out left to right in every locale —
+                  // so it and everything pinned to it (the tab, the grip, the
+                  // width handles) stay LTR under an RTL app. The row's cells
+                  // are a Row while its gap overlays and the handles are
+                  // physical offsets; mirrored, the two disagree. Only the
+                  // chrome around the page mirrors
+                  // (`docs/right-to-left-layout.md`).
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Stack(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            _kPanePadding,
+                            _kPanePadding,
+                            _kPanePadding,
+                            _kPanePadding + widget.bottomInset,
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: metrics.size.width * fit,
+                              child: FittedBox(
+                                fit: BoxFit.fitWidth,
+                                alignment: Alignment.topCenter,
+                                child: sheet,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      if (selected != null)
-                        ..._selectionChrome(
-                          selected: selected,
-                          rowIndex: selectedAt!.row,
-                          cellIndex: selectedCell,
-                          atRowStart: atRowStart,
-                          showGrip: showGrip,
-                          // Room beside the page for the tab: the page's own
-                          // margin plus the pane's padding.
-                          gutter: metrics.insetLeft * fit + _kPanePadding,
-                          scale: scale,
-                        ),
-                    ],
+                        if (selected != null)
+                          ..._selectionChrome(
+                            selected: selected,
+                            rowIndex: selectedAt!.row,
+                            cellIndex: selectedCell,
+                            atRowStart: atRowStart,
+                            showGrip: showGrip,
+                            // Room beside the page for the tab: the page's own
+                            // margin plus the pane's padding.
+                            gutter: metrics.insetLeft * fit + _kPanePadding,
+                            scale: scale,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -569,8 +580,8 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
       required Alignment anchor,
       required Offset offset,
       required Widget child,
-    }) => Positioned(
-      left: 0,
+    }) => PositionedDirectional(
+      start: 0,
       top: 0,
       child: CompositedTransformFollower(
         link: link,
@@ -598,7 +609,9 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
         ? const <Widget>[]
         : [
             for (final (target, boundary, side) in [
+              // rtl: physical page is a PDF
               (Alignment.centerLeft, cellIndex, 'L'),
+              // rtl: physical page is a PDF
               (Alignment.centerRight, cellIndex + 1, 'R'),
             ])
               KeyedSubtree(
@@ -626,7 +639,7 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
         ...handles,
         follower(
           link: _blockLink,
-          target: Alignment.topLeft,
+          target: Alignment.topLeft, // rtl: physical page is a PDF
           anchor: Alignment.topRight,
           offset: Offset(-9 / scale, -3 / scale),
           child: showGrip
@@ -643,7 +656,7 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
       ...handles,
       follower(
         link: _blockLink,
-        target: Alignment.topLeft,
+        target: Alignment.topLeft, // rtl: physical page is a PDF
         anchor: Alignment.bottomLeft,
         offset: Offset(-4 / scale, -5 / scale),
         child: tab,
@@ -651,7 +664,7 @@ class _WysiwygCanvasState extends State<WysiwygCanvas> {
       if (showGrip)
         follower(
           link: _rowLink,
-          target: Alignment.centerLeft,
+          target: Alignment.centerLeft, // rtl: physical page is a PDF
           anchor: Alignment.centerRight,
           offset: Offset(-8 / scale, 0),
           child: grip,
@@ -702,6 +715,7 @@ class _Sheet extends StatelessWidget {
     return Container(
       width: metrics.size.width,
       constraints: BoxConstraints(minHeight: metrics.size.height),
+      // rtl: physical page is a PDF — the document's own margins.
       padding: EdgeInsets.fromLTRB(
         metrics.insetLeft,
         metrics.insetTop,
@@ -724,7 +738,7 @@ class _Sheet extends StatelessWidget {
         // The body's 80% zoom: laid out wider, painted smaller.
         child: FittedBox(
           fit: BoxFit.fitWidth,
-          alignment: Alignment.topLeft,
+          alignment: Alignment.topLeft, // rtl: physical page is a PDF
           child: SizedBox(
             width: metrics.layoutWidth,
             child: Theme(
@@ -820,6 +834,7 @@ class _RowView extends StatelessWidget {
       if (isGapBlock(block)) {
         inline.add(SizedBox(width: slot.width));
         overlays.add(
+          // rtl: physical page is a PDF — `slot.left`, as the Row lays out.
           Positioned(
             left: slot.left,
             width: slot.width,

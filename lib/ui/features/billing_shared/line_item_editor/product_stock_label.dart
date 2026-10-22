@@ -35,7 +35,7 @@ class ProductStockLabel extends StatelessWidget {
     final tokens = context.inTheme;
     final outOfStock = isOutOfStock(quantity);
     return Padding(
-      padding: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsetsDirectional.only(start: 6),
       child: Semantics(
         label: '$quantity ${context.tr('stock_quantity')}',
         child: Text(

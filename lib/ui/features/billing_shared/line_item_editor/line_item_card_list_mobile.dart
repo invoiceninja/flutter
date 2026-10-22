@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Mobile-friendly line-item list. Each row is a tap-to-edit card showing
 /// the identity (product key / first line of notes), qty × cost, and the
@@ -438,7 +439,7 @@ class _ItemCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
+              LtrText(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
               if (onCreateTask != null)
                 IconButton(
                   icon: const Icon(Icons.more_time, size: 20),

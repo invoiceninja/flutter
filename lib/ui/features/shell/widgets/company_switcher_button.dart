@@ -114,7 +114,10 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
               ? const BoxConstraints(minHeight: InSizes.touchTarget)
               : null,
           child: widget.compact
-              ? Align(alignment: Alignment.centerLeft, child: avatar)
+              ? Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: avatar,
+                )
               : Row(
                   children: [
                     avatar,

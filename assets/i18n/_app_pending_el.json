@@ -450,6 +450,7 @@
   "financial": "Οικονομικά",
   "focus_search": "Εστίαση στο πεδίο αναζήτησης",
   "force_full_sync": "Εξαναγκασμός πλήρους συγχρονισμού",
+  "force_right_to_left": "Επιβολή κατεύθυνσης από δεξιά προς αριστερά",
   "forecast_needs_budget": "Ορίστε τις προϋπολογισμένες ώρες του project για να δείτε πότε θα ολοκληρωθεί.",
   "forecast_needs_time": "Καταγράψτε χρόνο σε αυτό το project για να δείτε πότε θα ολοκληρωθεί.",
   "foreign_amount": "Ποσό σε ξένο νόμισμα",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 αλλαγή",
   "load_more": "Φόρτωση περισσότερων",
   "spell_check": "Ορθογραφικός Έλεγχος",
-  "spell_check_help": "Υπογράμμιση ορθογραφικών λαθών στα ονόματα και τις περιγραφές των ειδών"
+  "spell_check_help": "Υπογράμμιση ορθογραφικών λαθών στα ονόματα και τις περιγραφές των ειδών",
+  "day_count_singular": ":count ημέρα",
+  "day_count_plural": ":count ημέρες",
+  "in_days_count_plural": "σε :count ημέρες",
+  "days_ago_count_plural": "πριν από :count ημέρες",
+  "client_count_singular": ":count πελάτης",
+  "client_count_plural": ":count πελάτες",
+  "row_count_singular": ":count γραμμή",
+  "row_count_plural": ":count γραμμές"
 }

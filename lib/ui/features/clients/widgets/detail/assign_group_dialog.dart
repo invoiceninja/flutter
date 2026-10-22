@@ -119,7 +119,7 @@ class _AssignGroupDialogState extends State<_AssignGroupDialog> {
                     ),
                   const SizedBox(height: 4),
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: TextButton.icon(
                       icon: const Icon(Icons.add, size: 18),
                       label: Text(context.tr('new_group')),

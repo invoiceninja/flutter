@@ -310,7 +310,7 @@ class MobileDashboardBody extends StatelessWidget {
       // line that came and went would otherwise leave it hard against it.
       padding: EdgeInsets.only(bottom: InSpacing.lg(context)),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: DashboardCardFooterLink(
           label: context.tr(
             count == 1

@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Read-only totals breakdown card. Drives the sticky-bottom footer on
 /// every billing-doc edit screen (Invoice / Quote / Credit / PO /
@@ -235,7 +236,7 @@ class TotalsWidget extends StatelessWidget {
               fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
-          Text(
+          LtrText(
             amountText,
             style: moneyTextStyle(
               fontSize: size,

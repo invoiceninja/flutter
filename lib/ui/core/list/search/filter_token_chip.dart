@@ -281,14 +281,14 @@ class FilterTokenChip extends StatelessWidget {
   );
 
   Widget _caret(InTheme tokens) => Padding(
-    padding: const EdgeInsets.only(left: 1),
+    padding: const EdgeInsetsDirectional.only(start: 1),
     child: Icon(Icons.arrow_drop_down, size: 14, color: tokens.ink3),
   );
 
   Widget _closeButton(BuildContext context, InTheme tokens) {
     if (readOnly) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(left: 2),
+      padding: const EdgeInsetsDirectional.only(start: 2),
       child: compact && Env.isTouchPrimary
           ? IconButton(
               tooltip: context.tr('clear_filter'),

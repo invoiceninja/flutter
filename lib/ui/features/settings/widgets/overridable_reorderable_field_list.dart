@@ -240,7 +240,7 @@ class _AddVariableButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: AlignmentDirectional.centerStart,
       child: TextButton.icon(
         icon: const Icon(Icons.add),
         label: Text(context.tr('add_field')),

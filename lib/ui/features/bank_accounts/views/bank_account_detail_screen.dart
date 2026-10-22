@@ -28,6 +28,7 @@ import 'package:admin/ui/features/bank_accounts/widgets/detail/bank_account_deta
 import 'package:admin/ui/features/bank_accounts/widgets/reconnect_banner.dart';
 import 'package:admin/ui/features/transactions/views/transaction_list_screen.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// `/settings/bank_accounts/:id` — the bank-account record screen, on the
 /// record layout (`docs/detail-screen-layout.md`): identity, quick actions,
@@ -294,7 +295,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           bankAccountBalanceText(account, formatter),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

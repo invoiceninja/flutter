@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
@@ -132,6 +133,8 @@ class _OverridableNumberFieldState extends State<OverridableNumberField> {
       controller: _controller,
       focusNode: _focusNode,
       enabled: widget.enabled,
+      textDirection: TextDirection.ltr,
+      textAlign: ltrValueAlign(context, ltr: true),
       keyboardType: widget.integerOnly
           ? TextInputType.number
           : const TextInputType.numberWithOptions(decimal: true),

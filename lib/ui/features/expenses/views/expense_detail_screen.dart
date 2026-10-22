@@ -31,6 +31,7 @@ import 'package:admin/ui/features/expenses/widgets/detail/expense_detail_standin
 import 'package:admin/ui/features/expenses/widgets/detail/expense_linked_names.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The expense record screen, on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions, standing,
@@ -301,7 +302,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           formatter?.money(
                 expense.amount,
                 clientCurrencyId: expense.currencyId,

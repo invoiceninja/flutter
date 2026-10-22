@@ -8,6 +8,25 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
+/// Whether ⌘/Alt + the physical [arrow] (`AxisDirection.left` or `.right`)
+/// walks history back in [direction].
+///
+/// Back follows the `arrow_back` icon, which mirrors: ← in a left-to-right
+/// locale, → in a right-to-left one — as a right-to-left browser does it. The
+/// shell's shortcut map names the physical key and resolves it here, at invoke
+/// time, so the map can stay const and the left-to-right binding is unchanged.
+bool historyArrowGoesBack(AxisDirection arrow, TextDirection direction) =>
+    (arrow == AxisDirection.left) == (direction == TextDirection.ltr);
+
+/// The arrow cap of the history chord for Back ([back]) or Forward in
+/// [direction] — the glyph [historyArrowGoesBack] binds, for every surface
+/// that prints the chord (these buttons' tooltips, the hold-modifier hint bar,
+/// the `?` dialog).
+String historyArrowGlyph({
+  required bool back,
+  required TextDirection direction,
+}) => back == (direction == TextDirection.ltr) ? '←' : '→';
+
 /// Browser-style back/forward buttons at the top of the sidebar — the visible
 /// affordance for [NavHistoryController], the same history the Cmd/Alt+←/→
 /// shortcuts walk. Without it the history is keyboard-only and effectively
@@ -68,6 +87,7 @@ class NavHistoryButtons extends StatelessWidget {
     // One entry per key: '⌘' on Apple, 'Alt' elsewhere. The chip row already
     // reads as a combination, so the label's '+' must not land inside a cap.
     final mod = platformHistoryModifierGlyphs();
+    final direction = Directionality.of(context);
     return Row(
       mainAxisAlignment: compact
           ? MainAxisAlignment.center
@@ -76,7 +96,10 @@ class NavHistoryButtons extends StatelessWidget {
         _HistoryButton(
           icon: Icons.arrow_back,
           labelKey: 'go_back',
-          keys: [...mod, '←'],
+          keys: [
+            ...mod,
+            historyArrowGlyph(back: true, direction: direction),
+          ],
           enabled: history.canGoBack,
           touch: touch,
           compact: compact,
@@ -87,7 +110,10 @@ class NavHistoryButtons extends StatelessWidget {
         _HistoryButton(
           icon: Icons.arrow_forward,
           labelKey: 'go_forward',
-          keys: [...mod, '→'],
+          keys: [
+            ...mod,
+            historyArrowGlyph(back: false, direction: direction),
+          ],
           enabled: history.canGoForward,
           touch: touch,
           compact: compact,

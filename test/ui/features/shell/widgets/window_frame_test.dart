@@ -365,12 +365,12 @@ void main() {
         final decoration = segment.decoration as BoxDecoration;
         expect(decoration.color, isNull);
         // ...and it stays on the WEAKER token, unlike the band's own rule:
-        // this line continues the sidebar's right edge directly beneath it, so
+        // this line continues the sidebar's end edge directly beneath it, so
         // strengthening it here would step visibly at the band's bottom.
-        // `right` lives on Border, not the BoxBorder supertype — which only
-        // declares top/bottom, since BorderDirectional uses start/end.
+        // `end` lives on BorderDirectional, not the BoxBorder supertype — which
+        // only declares top/bottom, since Border uses left/right.
         expect(
-          (decoration.border! as Border).right.color,
+          (decoration.border! as BorderDirectional).end.color,
           InTheme.light.border,
         );
       });

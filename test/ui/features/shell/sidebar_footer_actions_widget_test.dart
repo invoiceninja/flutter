@@ -121,7 +121,7 @@ void main() {
     // Issue #104. This row has no slack at all. Here it is 280 - 8 - 8 = 264 of
     // content shared six ways = exactly 44.0, the touch target — but in the
     // real drawer it is 43.83, because `InSidebar`'s `AnimatedContainer` has a
-    // `Border(right:)` whose 1 px folds inside the width constraint and this
+    // `BorderDirectional(end:)` whose 1 px folds inside the width constraint and this
     // harness pumps into a bare `SizedBox(width: 280)` instead. So treat 44.0
     // here as the ceiling, not the truth: a seventh action (37.6) or a divider
     // ahead of the company slot (the rail's idiom, 9 px, 42.3) silently drops

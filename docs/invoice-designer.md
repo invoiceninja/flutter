@@ -312,6 +312,29 @@ sheet is white with dark ink in either theme.
   over megabytes of base64 per rebuild), and the panel's address field stays
   empty for an upload.
 
+### The page is a physical document: it is laid out left-to-right in every locale, and only the designer's chrome mirrors
+
+The server prints the PDF left to right whatever the app's language, so the
+sheet is a `Directionality(ltr)` island inside an RTL app: the canvas wraps
+the scroll view's `Stack` — the page *and* the tab, grip and width handles
+pinned to it — and `DesignPageThumbnail` and `BlockPreview` wrap their own
+roots. Mirrored, the canvas half-flipped and disagreed with itself: a row's
+cells are a `Row` (which flips) while its gap overlays sit at
+`Positioned(left: slot.left)` and the handles follow `centerLeft` /
+`centerRight` (which do not), and the renderers' `'right'` →
+`CrossAxisAlignment.end` turned into left. Under the island, `slot.left`,
+the handles' `globalPosition.dx` arithmetic, `resolveDrop`'s `point.dx` and
+the arrow keys (← is the previous cell, on the page as on the keyboard) all
+mean the same physical side. The physical sites inside it carry
+`// rtl: physical page is a PDF` for the lint. Everything around the page —
+palette, property panel, toolbars, the phone outline, the "Add block"
+button, the panel drawer — is ordinary directional chrome and mirrors. The
+server preview needs no island: it is a raster of the real PDF. The code
+editor (`design_code_field.dart`) and the JSON import field are LTR for a
+different reason — code is LTR — and the completion popover stays outside
+that wrap so its translated footer follows the app
+(`docs/right-to-left-layout.md`).
+
 ### The layout follows the pane
 
 The builder is laid out beside the app's sidebar (232px, 64 collapsed), so

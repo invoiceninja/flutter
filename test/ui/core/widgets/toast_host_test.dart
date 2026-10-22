@@ -17,6 +17,7 @@ Future<void> _pumpHost(
   ToastController c, {
   Size size = const Size(1200, 800),
   Widget? below,
+  TextDirection? textDirection,
 }) async {
   // Mount via MaterialApp.builder — a Stack SIBLING of the app child, exactly
   // like main.dart. That places the host ABOVE the root Navigator's Overlay,
@@ -26,16 +27,22 @@ Future<void> _pumpHost(
   await tester.pumpWidget(
     MaterialApp(
       theme: _theme,
-      builder: (context, child) => MediaQuery(
-        data: MediaQueryData(size: size),
-        child: Stack(
-          children: [
-            if (child != null) child,
-            if (below != null) Positioned.fill(child: below),
-            Positioned.fill(child: ToastHost(controller: c)),
-          ],
-        ),
-      ),
+      builder: (context, child) {
+        Widget host = MediaQuery(
+          data: MediaQueryData(size: size),
+          child: Stack(
+            children: [
+              if (child != null) child,
+              if (below != null) Positioned.fill(child: below),
+              Positioned.fill(child: ToastHost(controller: c)),
+            ],
+          ),
+        );
+        if (textDirection != null) {
+          host = Directionality(textDirection: textDirection, child: host);
+        }
+        return host;
+      },
       home: const SizedBox.shrink(),
     ),
   );
@@ -283,6 +290,64 @@ void main() {
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
       expect(find.text('On top'), findsNothing);
+    });
+  });
+
+  group('ToastHost — right-to-left', () {
+    /// The wide stack's 400-px column — the box `PositionedDirectional` pins.
+    Finder stack() => find.descendant(
+      of: find.byType(ToastHost),
+      matching: find.byWidgetPredicate(
+        (w) => w is ConstrainedBox && w.constraints.maxWidth == 400,
+      ),
+    );
+
+    testWidgets('a wide toast sits in the top-LEFT (top-end) corner', (
+      tester,
+    ) async {
+      // Before the conversion the host was `Positioned(right: 16)`, which pins
+      // the stack to the top-right under every reading direction — on top of
+      // the RTL content's leading edge and away from where the eye starts.
+      final c = ToastController();
+      await _pumpHost(tester, c, textDirection: TextDirection.rtl);
+
+      c.show(variant: NotifyVariant.info, message: 'Saved');
+      await tester.pumpAndSettle();
+
+      final surface = tester.getSize(find.byType(ToastHost));
+      final rect = tester.getRect(stack());
+      expect(rect.left, 16, reason: 'end: 16 is the LEFT edge in RTL');
+      expect(rect.center.dx, lessThan(surface.width / 2));
+      expect(rect.top, 16);
+
+      c.clearAll();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a wide toast slides in from the end (left) edge', (
+      tester,
+    ) async {
+      // `SlideTransition` mirrors its horizontal offset only when handed a
+      // `textDirection`; without it the card would enter from the right — the
+      // far side of the screen — and travel across the content to its corner.
+      final c = ToastController();
+      await _pumpHost(tester, c, textDirection: TextDirection.rtl);
+
+      c.show(variant: NotifyVariant.info, message: 'Saved');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      final midSlide = tester.getTopLeft(find.text('Saved')).dx;
+
+      await tester.pumpAndSettle();
+      final docked = tester.getTopLeft(find.text('Saved')).dx;
+      expect(
+        midSlide,
+        lessThan(docked),
+        reason: 'mid-entry the card is still offset past the end (left) edge',
+      );
+
+      c.clearAll();
+      await tester.pumpAndSettle();
     });
   });
 }

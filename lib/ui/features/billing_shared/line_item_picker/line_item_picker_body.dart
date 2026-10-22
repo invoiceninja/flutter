@@ -926,7 +926,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         InSpacing.lg(context),
         InSpacing.md(context),
         InSpacing.md(context),
@@ -1249,10 +1249,10 @@ class _ProductsTab extends StatelessWidget {
                   value: selected.contains(p.id),
                   onChanged: (_) => onToggle(p.id),
                   title: _RowTitle(
-                    left: p.productKey.trim().isNotEmpty
+                    title: p.productKey.trim().isNotEmpty
                         ? p.productKey
                         : context.tr('product'),
-                    right: f == null ? '' : f.money(p.price),
+                    amount: f == null ? '' : f.money(p.price),
                     stockQuantity: p.inStockQuantity,
                     showStock: showStock,
                   ),
@@ -1332,7 +1332,7 @@ class _TasksTab extends StatelessWidget {
     return context.tr('task');
   }
 
-  /// Right-column amount: `total` when the task has a rate; bare hours
+  /// End-column amount: `total` when the task has a rate; bare hours
   /// (e.g., "2.5h") otherwise so the column stays populated for tasks
   /// that aren't billed by rate.
   String _right(Task t) {
@@ -1407,7 +1407,10 @@ class _TasksTab extends StatelessWidget {
                   dense: true,
                   value: selected.contains(t.id),
                   onChanged: (_) => onToggle(t.id),
-                  title: _RowTitle(left: _title(context, t), right: _right(t)),
+                  title: _RowTitle(
+                    title: _title(context, t),
+                    amount: _right(t),
+                  ),
                   subtitle: subtitle.isEmpty
                       ? null
                       : Text(
@@ -1586,8 +1589,8 @@ class _ExpensesTab extends StatelessWidget {
                   value: selected.contains(e.id),
                   onChanged: (_) => onToggle(e.id),
                   title: _RowTitle(
-                    left: _title(context, e),
-                    right: f == null ? '' : f.money(e.amount),
+                    title: _title(context, e),
+                    amount: f == null ? '' : f.money(e.amount),
                   ),
                   subtitle: subtitle.isEmpty
                       ? null
@@ -1606,27 +1609,26 @@ class _ExpensesTab extends StatelessWidget {
   }
 }
 
-/// Row title widget shared across all three tabs: identifier on the left
-/// (Expanded so it ellipsizes when narrow), monospaced amount on the
-/// right (tabular figures so amounts down the column align by decimal
-/// point — same numeric typography as the desktop edit table at
+/// Row title widget shared across all three tabs: identifier at the start
+/// (Expanded so it ellipsizes when narrow), monospaced amount at the end
+/// (tabular figures so amounts down the column align by decimal point — same
+/// numeric typography as the desktop edit table at
 /// `line_item_card_list_mobile.dart:223`).
 ///
-/// Force `TextDirection.ltr` inside the Row so the amount stays on the
-/// right edge in RTL locales (Arabic, Hebrew). Tabular numeric columns
-/// are read LTR universally even in RTL UIs — matches how iOS / Material
-/// money cells behave in their own list patterns. The name keeps the ambient
-/// direction, or a Hebrew product name is laid out left-to-right with its
-/// punctuation on the wrong side.
+/// The row mirrors with the `CheckboxListTile` around it, so in an RTL locale
+/// the name sits at the right and the amount at the left — the RTL table
+/// convention. Only the amount itself is laid out LTR, so a negative or
+/// symbol-led figure keeps its sign and symbol on the side it was formatted
+/// with.
 class _RowTitle extends StatelessWidget {
   const _RowTitle({
-    required this.left,
-    required this.right,
+    required this.title,
+    required this.amount,
     this.stockQuantity,
     this.showStock = false,
   });
-  final String left;
-  final String right;
+  final String title;
+  final String amount;
 
   /// In-stock count rendered as `[N]` between the title and the trailing
   /// price — products only; null / `showStock: false` on task & expense rows.
@@ -1636,37 +1638,30 @@ class _RowTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final ambient = Directionality.of(context);
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    left,
-                    textDirection: ambient,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (showStock && stockQuantity != null)
-                  ProductStockLabel(quantity: stockQuantity!, show: true),
-              ],
-            ),
+              ),
+              if (showStock && stockQuantity != null)
+                ProductStockLabel(quantity: stockQuantity!, show: true),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            right,
-            style: moneyTextStyle(
-              color: tokens.ink,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          amount,
+          textDirection: TextDirection.ltr,
+          style: moneyTextStyle(color: tokens.ink, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

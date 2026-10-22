@@ -91,6 +91,8 @@ class _ActivityTimelineChartState extends State<ActivityTimelineChart> {
         (until == null || b.start.isBefore(until));
   }
 
+  /// The bucket under [dx], counted from the left — the plot is pinned LTR
+  /// (see `build`), so this holds in every locale.
   int _indexAt(double dx, double width) {
     final n = _buckets.length;
     final i = (dx / (width / n)).floor();
@@ -210,14 +212,31 @@ class _ActivityTimelineChartState extends State<ActivityTimelineChart> {
             ],
           ),
         ),
-        SizedBox(
-          height: plotHeight,
-          child: LayoutBuilder(
-            builder: (context, c) => _plot(context, c.maxWidth, plotHeight),
+        // Time runs left → right in every locale, as on the fl_chart
+        // charts: the bars, the hit test (`_indexAt` reads `dx` from the
+        // left) and the tick labels all sit under one LTR wrap, so an RTL
+        // `Row` can't mirror the bars away from the index a tap resolves to.
+        // The readout above stays in the ambient direction.
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: plotHeight,
+                child: LayoutBuilder(
+                  builder: (context, c) =>
+                      _plot(context, c.maxWidth, plotHeight),
+                ),
+              ),
+              const SizedBox(height: InSpacing.xs),
+              LayoutBuilder(
+                builder: (context, c) => _axis(context, c.maxWidth),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: InSpacing.xs),
-        LayoutBuilder(builder: (context, c) => _axis(context, c.maxWidth)),
       ],
     );
   }
@@ -378,6 +397,7 @@ class _ActivityTimelineChartState extends State<ActivityTimelineChart> {
     final align = centred < 0
         ? TextAlign.start
         : (centred > maxLeft ? TextAlign.end : TextAlign.center);
+    // rtl: physical time axis (under the plot's LTR wrap)
     return Positioned(
       left: centred.clamp(0.0, maxLeft),
       width: labelWidth,

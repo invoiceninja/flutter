@@ -269,7 +269,7 @@ class _HostedActionsCard extends StatelessWidget {
           )
         else ...[
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Wrap(
               spacing: InSpacing.md(context),
               runSpacing: InSpacing.sm,
@@ -349,7 +349,7 @@ class _SelfHostedLicenseCardState extends State<_SelfHostedLicenseCard> {
             ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
           ),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: Wrap(
             spacing: InSpacing.md(context),
             runSpacing: InSpacing.sm,

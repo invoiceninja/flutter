@@ -124,9 +124,9 @@ class TaskCalendarDayCell extends StatelessWidget {
       GestureDetector(
         onTap: () => _openDay(context),
         child: Padding(
-          padding: const EdgeInsets.only(left: 4, top: 1),
+          padding: const EdgeInsetsDirectional.only(start: 4, top: 1),
           child: Text(
-            '+$count ${context.tr('more')}',
+            context.tr('plus_n_more', {'count': '$count'}),
             style: TextStyle(
               fontSize: 10,
               color: tokens.ink3,
@@ -140,7 +140,7 @@ class TaskCalendarDayCell extends StatelessWidget {
     final text = '${day.day}';
     if (isToday) {
       return Align(
-        alignment: Alignment.topLeft,
+        alignment: AlignmentDirectional.topStart,
         child: Container(
           width: _dayCircle,
           height: _dayCircle,
@@ -161,9 +161,9 @@ class TaskCalendarDayCell extends StatelessWidget {
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(left: 3, top: 3),
+      padding: const EdgeInsetsDirectional.only(start: 3, top: 3),
       child: Align(
-        alignment: Alignment.topLeft,
+        alignment: AlignmentDirectional.topStart,
         child: Text(text, style: TextStyle(fontSize: 11, color: tokens.ink)),
       ),
     );

@@ -29,6 +29,7 @@ import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 // Cell-level layout constants. These are sub-token (smaller than
 // `InSpacing.sm`) and apply only inside the items-table grid; outer
@@ -560,13 +561,13 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     Widget cell(
       String text, {
       int flex = 1,
-      Alignment align = Alignment.centerLeft,
+      AlignmentGeometry align = AlignmentDirectional.centerStart,
       int maxLines = 1,
     }) {
       return Expanded(
         flex: flex,
         child: Padding(
-          padding: const EdgeInsets.only(right: _kCellPadH),
+          padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
           child: Align(
             alignment: align,
             child: Text(
@@ -601,7 +602,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
               SizedBox(
                 width: _customColumnWidth(custom.field),
                 child: Padding(
-                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                   child: Text(
                     item == null
                         ? ''
@@ -620,27 +621,27 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
               ),
             cell(
               item == null ? '' : dec(item.cost),
-              align: Alignment.centerRight,
+              align: AlignmentDirectional.centerEnd,
             ),
             cell(
               item == null ? '' : dec(item.quantity),
-              align: Alignment.centerRight,
+              align: AlignmentDirectional.centerEnd,
             ),
             if (widget.config.showDiscount)
               cell(
                 item == null ? '' : dec(item.discount),
-                align: Alignment.centerRight,
+                align: AlignmentDirectional.centerEnd,
               ),
             if (widget.config.taxColumnCount >= 1)
-              cell(tax, align: Alignment.centerRight),
+              cell(tax, align: AlignmentDirectional.centerEnd),
             if (widget.config.taxColumnCount >= 2)
-              cell(tax2, align: Alignment.centerRight),
+              cell(tax2, align: AlignmentDirectional.centerEnd),
             if (widget.config.taxColumnCount >= 3)
-              cell(tax3, align: Alignment.centerRight),
+              cell(tax3, align: AlignmentDirectional.centerEnd),
             Expanded(
               child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
+                alignment: AlignmentDirectional.centerEnd,
+                child: LtrText(
                   total,
                   style: moneyTextStyle(color: tokens.ink, fontSize: 13),
                 ),
@@ -955,7 +956,7 @@ LineItem _mergeProductInto(
 /// list — would mean the cards/table gate (and the Items-tab button that
 /// follows it, `lineItemEditorShowsWideTable`) learning about the company's
 /// custom fields, and an iPad in landscape losing the table the moment one
-/// custom field exists. The fades say there is more to the right, which is
+/// custom field exists. The fades say there is more toward the end, which is
 /// where Line Total starts on a narrow pane.
 class _SidewaysScrollWhenNarrow extends StatefulWidget {
   const _SidewaysScrollWhenNarrow({
@@ -1035,20 +1036,20 @@ class _ColumnHeader extends StatelessWidget {
     Widget cell(
       String label, {
       int flex = 1,
-      AlignmentGeometry align = Alignment.centerLeft,
+      AlignmentGeometry align = AlignmentDirectional.centerStart,
     }) => Expanded(
       flex: flex,
       child: Align(
         alignment: align,
-        // Left-aligned data cells inset their text by the field's
+        // Start-aligned data cells inset their text by the field's
         // `contentPadding.horizontal` (`_kCellPadH`); match it so the
         // ITEM / DESCRIPTION headers sit directly over their columns.
-        // Right-aligned columns are left as-is (the prominent LINE
+        // End-aligned columns are left as-is (the prominent LINE
         // TOTAL already flushes with its data; nudging it would
-        // desync it from the other right-flushed labels).
+        // desync it from the other end-flushed labels).
         child: Padding(
           padding: EdgeInsetsDirectional.only(
-            start: align == Alignment.centerLeft ? _kCellPadH : 0,
+            start: align == AlignmentDirectional.centerStart ? _kCellPadH : 0,
           ),
           child: Text(label.toUpperCase(), style: style),
         ),
@@ -1091,10 +1092,10 @@ class _ColumnHeader extends StatelessWidget {
                 ),
               ),
             ),
-          cell(label('unit_cost'), align: Alignment.centerRight),
-          cell(label('quantity'), align: Alignment.centerRight),
+          cell(label('unit_cost'), align: AlignmentDirectional.centerEnd),
+          cell(label('quantity'), align: AlignmentDirectional.centerEnd),
           if (config.showDiscount)
-            cell(label('discount'), align: Alignment.centerRight),
+            cell(label('discount'), align: AlignmentDirectional.centerEnd),
           // Slots 2 and 3 exist whenever the company enables 2 or 3 item tax
           // rates (Settings → Tax Settings). The mobile edit dialog has always
           // honoured all three; the desktop table rendered only the first, so a
@@ -1105,9 +1106,9 @@ class _ColumnHeader extends StatelessWidget {
               config.taxColumnCount > 1
                   ? '${label('tax')} $slot'
                   : label('tax'),
-              align: Alignment.centerRight,
+              align: AlignmentDirectional.centerEnd,
             ),
-          cell(label('line_total'), align: Alignment.centerRight),
+          cell(label('line_total'), align: AlignmentDirectional.centerEnd),
           const SizedBox(width: _kTrailingColWidth),
         ],
       ),
@@ -1604,7 +1605,7 @@ class _RowStateW extends State<_Row> {
         key: ValueKey('custom_$slot'),
         width: _customColumnWidth(field),
         child: Padding(
-          padding: const EdgeInsets.only(right: _kCellPadH),
+          padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
           child: cell,
         ),
       );
@@ -1637,8 +1638,8 @@ class _RowStateW extends State<_Row> {
                 gross.toString());
       return Expanded(
         child: Align(
-          alignment: Alignment.centerRight,
-          child: Text(
+          alignment: AlignmentDirectional.centerEnd,
+          child: LtrText(
             display,
             style: moneyTextStyle(color: tokens.ink, fontSize: 13),
           ),
@@ -1685,7 +1686,7 @@ class _RowStateW extends State<_Row> {
               Expanded(
                 flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                   child: _ProductCell(
                     companyId: companyId,
                     formatter: formatter,
@@ -1708,7 +1709,7 @@ class _RowStateW extends State<_Row> {
               Expanded(
                 flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                   child: _TextCell(
                     controller: row.notes,
                     focusNode: row.notesFocus,
@@ -1723,7 +1724,7 @@ class _RowStateW extends State<_Row> {
               for (final custom in config.customFields) customCell(custom),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                   child: _NumericCell(
                     controller: row.cost,
                     focusNode: row.costFocus,
@@ -1734,7 +1735,7 @@ class _RowStateW extends State<_Row> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: _kCellPadH),
+                  padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                   child: _NumericCell(
                     controller: row.quantity,
                     focusNode: row.quantityFocus,
@@ -1751,7 +1752,7 @@ class _RowStateW extends State<_Row> {
               if (config.showDiscount)
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: _kCellPadH),
+                    padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                     child: _NumericCell(
                       controller: row.discount,
                       focusNode: row.discountFocus,
@@ -1774,7 +1775,7 @@ class _RowStateW extends State<_Row> {
                 Expanded(
                   key: ValueKey('tax_$slot'),
                   child: Padding(
-                    padding: const EdgeInsets.only(right: _kCellPadH),
+                    padding: const EdgeInsetsDirectional.only(end: _kCellPadH),
                     child: _TaxCell(
                       companyId: companyId,
                       services: services,
@@ -2055,7 +2056,10 @@ class _NumericCell extends StatelessWidget {
         decimal: true,
         signed: true,
       ),
-      textAlign: TextAlign.right,
+      // An amount reads left to right in every language (`-12.5`, never
+      // `12.5-`), and still sits at the column's end — the left edge in RTL.
+      textDirection: TextDirection.ltr,
+      textAlign: physicalTextAlign(TextAlign.end, Directionality.of(context)),
       textAlignVertical: TextAlignVertical.center,
       style: moneyTextStyle(color: tokens.ink, fontSize: 13),
       decoration: InputDecoration(
@@ -2705,7 +2709,7 @@ class _ProductCellState extends State<_ProductCell> {
                           child: InkWell(
                             onTap: () => onSelected(opt),
                             child: Align(
-                              alignment: Alignment.centerLeft,
+                              alignment: AlignmentDirectional.centerStart,
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: InSpacing.md(context),
@@ -3336,7 +3340,7 @@ class _TaxCellState extends State<_TaxCell> {
               // `picker_dismissal.dart`. On desktop this is the SDK default.
               onTapOutside: dismissPickerOnTapOutside(focusNode),
               onSubmitted: (_) => onFieldSubmitted(),
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.end,
               textAlignVertical: TextAlignVertical.center,
               readOnly: rates.isEmpty,
               style: const TextStyle(fontSize: 13),

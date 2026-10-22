@@ -193,29 +193,37 @@ class _DesignCodeFieldState extends State<DesignCodeField> {
           return _OverlayView(notifier: notifier, onSelected: onSelected);
         },
         promptsBuilder: _completions,
-        child: CodeEditor(
-          controller: _controller,
-          wordWrap: false,
-          onChanged: (_) {
-            if (_suppressOnChanged) return;
-            widget.onChanged(_controller.text);
-          },
-          padding: EdgeInsets.all(InSpacing.sm),
-          style: CodeEditorStyle(
-            fontSize: 12,
-            fontFamily: kMonoFontFamily,
-            codeTheme: CodeHighlightTheme(
-              languages: {'xml': CodeHighlightThemeMode(mode: langXml)},
-              theme: dark ? atomOneDarkTheme : atomOneLightTheme,
+        // Code reads left to right in every locale. `re_editor` lays its
+        // line-number gutter and the text out in a Row, which an RTL app
+        // would flip — numbers on the right, code hugging the wrong edge.
+        // The completion popover stays outside, so its translated footer
+        // follows the app (`docs/right-to-left-layout.md`).
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: CodeEditor(
+            controller: _controller,
+            wordWrap: false,
+            onChanged: (_) {
+              if (_suppressOnChanged) return;
+              widget.onChanged(_controller.text);
+            },
+            padding: EdgeInsets.all(InSpacing.sm),
+            style: CodeEditorStyle(
+              fontSize: 12,
+              fontFamily: kMonoFontFamily,
+              codeTheme: CodeHighlightTheme(
+                languages: {'xml': CodeHighlightThemeMode(mode: langXml)},
+                theme: dark ? atomOneDarkTheme : atomOneLightTheme,
+              ),
             ),
+            indicatorBuilder:
+                (context, editingController, chunkController, notifier) {
+                  return DefaultCodeLineNumber(
+                    controller: editingController,
+                    notifier: notifier,
+                  );
+                },
           ),
-          indicatorBuilder:
-              (context, editingController, chunkController, notifier) {
-                return DefaultCodeLineNumber(
-                  controller: editingController,
-                  notifier: notifier,
-                );
-              },
         ),
       ),
     );
@@ -711,7 +719,7 @@ class _OverlayView extends StatelessWidget implements PreferredSizeWidget {
                     horizontal: 8,
                     vertical: 4,
                   ),
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
                     // A literal, not `InSpacing.md(context)`: that token

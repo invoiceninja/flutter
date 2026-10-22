@@ -102,8 +102,8 @@ class OverridableRadioField<T> extends StatelessWidget {
           // `InputDecoration.errorText` (12pt, colorScheme.error), same as
           // `OverridableSwitchField`.
           Padding(
-            padding: EdgeInsets.only(
-              left: InSpacing.md(context),
+            padding: EdgeInsetsDirectional.only(
+              start: InSpacing.md(context),
               top: InSpacing.xs,
             ),
             child: Text(

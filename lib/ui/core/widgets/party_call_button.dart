@@ -644,7 +644,7 @@ class _PickerBody extends StatelessWidget {
         if (onViewParty != null) ...[
           const SizedBox(height: InSpacing.sm),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
               style: contactActionButtonStyle,
               icon: const Icon(Icons.open_in_new, size: 14),

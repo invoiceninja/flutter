@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/static/pdf_catalogs.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_field_bindings.dart';
@@ -113,6 +114,8 @@ class _OverridableLogoSizeFieldState extends State<OverridableLogoSizeField> {
         Expanded(
           child: TextField(
             controller: _controller,
+            textDirection: TextDirection.ltr,
+            textAlign: ltrValueAlign(context, ltr: true),
             keyboardType: const TextInputType.numberWithOptions(
               decimal: false,
               signed: false,

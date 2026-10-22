@@ -7,6 +7,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One series of a [ReportSeriesPlot]: a name, a colour, and a value for
 /// each position on the category axis.
@@ -156,7 +157,7 @@ class _ReportSeriesPlotState extends State<ReportSeriesPlot> {
     if (widget.wholeNumbers && value != value.roundToDouble()) {
       return const SizedBox.shrink();
     }
-    return Text(
+    return LtrText(
       widget.axisText(value),
       maxLines: 1,
       softWrap: false,
@@ -228,6 +229,8 @@ class _ReportSeriesPlotState extends State<ReportSeriesPlot> {
     '',
     const TextStyle(fontSize: 11.5),
     textAlign: TextAlign.start,
+    // fl_chart lays tooltip text out LTR unless told otherwise.
+    textDirection: Directionality.of(context),
     children: _tooltipLines(group.x),
   );
 
@@ -240,6 +243,7 @@ class _ReportSeriesPlotState extends State<ReportSeriesPlot> {
               '',
               const TextStyle(fontSize: 11.5),
               textAlign: TextAlign.start,
+              textDirection: Directionality.of(context),
               children: _tooltipLines(spots[i].x.round()),
             )
           : null,

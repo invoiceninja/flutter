@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -195,10 +196,18 @@ class _EntityEditFieldState extends State<EntityEditField> {
     // (notes, etc.) keep Enter for newlines.
     final isSingleLine = widget.maxLines == 1;
     final scope = isSingleLine ? FormSaveScope.maybeOf(context) : null;
+    // A number, phone, email, URL or secret reads LTR in every language —
+    // typed into an RTL field, `-12.5` would draw as `12.5-`.
+    final ltr =
+        widget.numeric ||
+        widget.obscureText ||
+        isLtrValueKeyboard(widget.keyboardType);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
       child: TextField(
         controller: _controller,
+        textDirection: ltrValueDirection(ltr: ltr),
+        textAlign: ltrValueAlign(context, ltr: ltr),
         decoration: InputDecoration(
           labelText: widget.label,
           hintText: widget.hintText,

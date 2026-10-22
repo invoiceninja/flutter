@@ -273,7 +273,7 @@ class _EventRow extends StatelessWidget {
         ),
         if (event.deliveryMessage.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(left: 20, top: 2),
+            padding: const EdgeInsetsDirectional.only(start: 20, top: 2),
             child: Text(
               event.deliveryMessage,
               style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
@@ -281,9 +281,9 @@ class _EventRow extends StatelessWidget {
           ),
         if (isBounce && isHosted)
           Padding(
-            padding: const EdgeInsets.only(left: 20, top: 8),
+            padding: const EdgeInsetsDirectional.only(start: 20, top: 8),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(64, 40),

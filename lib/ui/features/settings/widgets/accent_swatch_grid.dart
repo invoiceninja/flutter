@@ -344,6 +344,8 @@ class _HexPickerDialogState extends State<_HexPickerDialog> {
             TextField(
               controller: _hex,
               maxLines: 1,
+              // `#RRGGBB` reads LTR in every language.
+              textDirection: TextDirection.ltr,
               textInputAction: TextInputAction.done,
               style: const TextStyle(fontFamily: kMonoFontFamily),
               decoration: const InputDecoration(

@@ -470,7 +470,7 @@ class _DataSectionState extends State<_DataSection> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: ValueListenableBuilder<ResyncProgress>(
                 valueListenable: _resync,
                 builder: (context, p, _) {

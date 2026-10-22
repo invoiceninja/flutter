@@ -67,7 +67,7 @@ class _ClientSystemLogsTabState extends State<ClientSystemLogsTab> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: IconButton(
                 icon: _vm.isLoading
                     ? const SizedBox(

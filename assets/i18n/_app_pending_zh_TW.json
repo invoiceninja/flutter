@@ -450,6 +450,7 @@
   "financial": "財務",
   "focus_search": "聚焦搜尋欄位",
   "force_full_sync": "強制完整同步",
+  "force_right_to_left": "強制由右至左",
   "forecast_needs_budget": "設定專案的預算時數，即可查看預計完成時間。",
   "forecast_needs_time": "在此專案記錄時間，即可查看預計完成時間。",
   "foreign_amount": "外幣金額",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 項變更",
   "load_more": "載入更多",
   "spell_check": "拼字檢查",
-  "spell_check_help": "在明細項目名稱與描述中為拼字錯誤加上底線"
+  "spell_check_help": "在明細項目名稱與描述中為拼字錯誤加上底線",
+  "day_count_singular": ":count 天",
+  "day_count_plural": ":count 天",
+  "in_days_count_plural": ":count 天後",
+  "days_ago_count_plural": ":count 天前",
+  "client_count_singular": ":count 個客戶",
+  "client_count_plural": ":count 個客戶",
+  "row_count_singular": ":count 列",
+  "row_count_plural": ":count 列"
 }

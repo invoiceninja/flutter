@@ -528,7 +528,7 @@ class _ExpandedColumnEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     return Container(
-      margin: EdgeInsets.only(top: InSpacing.sm, left: 24),
+      margin: EdgeInsetsDirectional.only(top: InSpacing.sm, start: 24),
       padding: EdgeInsets.all(InSpacing.md(context)),
       decoration: BoxDecoration(
         color: tokens.surfaceAlt,

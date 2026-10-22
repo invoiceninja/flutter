@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_actions.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Shared 2-digit amount formatter for narrow-mode rows. `NumberFormat`
 /// is expensive to construct but stateless to format, so one cached
@@ -142,7 +143,7 @@ class _TransactionListTileState extends State<TransactionListTile> {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            LtrText(
               amountText,
               style: moneyTextStyle(
                 color: amountColor,

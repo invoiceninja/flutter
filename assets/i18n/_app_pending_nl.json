@@ -469,6 +469,7 @@
   "financial": "Financieel",
   "focus_search": "Focus op het zoekveld",
   "force_full_sync": "Volledige synchronisatie forceren",
+  "force_right_to_left": "Rechts-naar-links forceren",
   "forecast": "Prognose",
   "forecast_finish": "Verwachte afronding",
   "forecast_needs_budget": "Stel de gebudgetteerde uren van het project in om te zien wanneer het klaar is.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 wijziging",
   "load_more": "Meer laden",
   "spell_check": "Spellingcontrole",
-  "spell_check_help": "Spelfouten onderstrepen in namen en omschrijvingen van regelitems"
+  "spell_check_help": "Spelfouten onderstrepen in namen en omschrijvingen van regelitems",
+  "day_count_singular": ":count dag",
+  "day_count_plural": ":count dagen",
+  "in_days_count_plural": "over :count dagen",
+  "days_ago_count_plural": ":count dagen geleden",
+  "client_count_singular": ":count klant",
+  "client_count_plural": ":count klanten",
+  "row_count_singular": ":count rij",
+  "row_count_plural": ":count rijen"
 }

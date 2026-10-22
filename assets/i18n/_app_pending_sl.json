@@ -469,6 +469,7 @@
   "financial": "Finance",
   "focus_search": "Pojdi v iskalno polje",
   "force_full_sync": "Vsili popolno sinhronizacijo",
+  "force_right_to_left": "Vsili od desne proti levi",
   "forecast": "Napoved",
   "forecast_finish": "Napovedan zaključek",
   "forecast_needs_budget": "Nastavite predvidene ure projekta, da vidite, kdaj bo zaključen.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 sprememba",
   "load_more": "Naloži več",
   "spell_check": "Črkovalnik",
-  "spell_check_help": "Podčrtaj pravopisne napake v imenih in opisih postavk"
+  "spell_check_help": "Podčrtaj pravopisne napake v imenih in opisih postavk",
+  "day_count_singular": ":count dan",
+  "day_count_plural": ":count dni",
+  "in_days_count_plural": "čez :count dni",
+  "days_ago_count_plural": "pred :count dnevi",
+  "client_count_singular": ":count stranka",
+  "client_count_plural": ":count strank",
+  "row_count_singular": ":count vrstica",
+  "row_count_plural": ":count vrstic"
 }

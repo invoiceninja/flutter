@@ -19,6 +19,7 @@ import 'package:admin/ui/features/dashboard/widgets/dashboard_record_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/list_card_skeleton.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// One thing a band row can do — see [RecordRowCallback].
 typedef AttentionAction = RecordRowCallback;
@@ -913,7 +914,7 @@ class _ListHeader extends StatelessWidget {
                   if (sum != null) ...[
                     const SizedBox(width: InSpacing.sm),
                     Flexible(
-                      child: Text(
+                      child: LtrText(
                         sum!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

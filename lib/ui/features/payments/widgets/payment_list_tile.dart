@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/payments/widgets/payment_actions.dart';
 import 'package:admin/ui/features/payments/widgets/payment_status_pill.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (Phase-1.1 cached-formatter pattern).
@@ -144,7 +145,7 @@ class _PaymentListTileState extends State<PaymentListTile> {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(amountText, style: moneyTextStyle(color: tokens.ink)),
+            LtrText(amountText, style: moneyTextStyle(color: tokens.ink)),
             const SizedBox(height: 4),
             PaymentStatusPill(statusId: w.payment.calculatedStatusId),
           ],

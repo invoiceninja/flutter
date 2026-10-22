@@ -14,6 +14,7 @@ import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Floor of the plot's height when it fills its card rather than keeping an
 /// aspect ratio — what the card asks for when the row's other card is shorter.
@@ -501,7 +502,7 @@ class _RevenueLineChartState extends State<_RevenueLineChart> {
     // amount nothing on the chart is — and it sat a few pixels above the top
     // gridline's label, the two reading as one smudge.
     if (value == meta.max && value != meta.min) return const SizedBox.shrink();
-    return Text(
+    return LtrText(
       widget.formatter.money(
         Decimal.parse(value.toStringAsFixed(0)),
         currencyId: widget.currencyKey,
@@ -561,7 +562,9 @@ class _RevenueLineChartState extends State<_RevenueLineChart> {
             '',
             // The item's own colour is the series': the swatch inherits it.
             TextStyle(color: spot.bar.color ?? tokens.surface, fontSize: 11.5),
-            textAlign: TextAlign.left,
+            textAlign: TextAlign.start,
+            // fl_chart lays tooltip text out LTR unless told otherwise.
+            textDirection: Directionality.of(context),
             children: [
               if (i == 0 && at >= 0 && at < buckets.length)
                 TextSpan(

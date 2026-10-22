@@ -949,7 +949,7 @@ class _ValueHeader extends StatelessWidget {
               minHeight: Env.isTouchPrimary ? 44 : 32,
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 12, 4),
+              padding: const EdgeInsetsDirectional.fromSTEB(8, 6, 12, 4),
               child: Row(
                 children: [
                   Icon(Icons.chevron_left, size: 18, color: tokens.ink3),

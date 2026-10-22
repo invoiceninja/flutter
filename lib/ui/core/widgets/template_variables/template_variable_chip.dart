@@ -224,6 +224,9 @@ class TemplateVariableChip extends StatelessWidget {
           Flexible(
             child: Text(
               display.label,
+              // A raw token is code: `$invoice.number` must not render as
+              // `invoice.number$` in a right-to-left locale.
+              textDirection: display.monospace ? TextDirection.ltr : null,
               style: labelStyle,
               maxLines: 1,
               softWrap: false,

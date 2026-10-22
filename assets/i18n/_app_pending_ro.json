@@ -468,6 +468,7 @@
   "financial": "Financiar",
   "focus_search": "Focalizează câmpul de căutare",
   "force_full_sync": "Forțează sincronizarea completă",
+  "force_right_to_left": "Forțează de la dreapta la stânga",
   "forecast": "Prognoză",
   "forecast_finish": "Finalizare prognozată",
   "forecast_needs_budget": "Setează orele bugetate ale proiectului pentru a vedea când se va termina.",
@@ -1616,5 +1617,13 @@
   "release_change_count_one": "1 modificare",
   "load_more": "Încarcă mai multe",
   "spell_check": "Verificare ortografică",
-  "spell_check_help": "Subliniază greșelile de ortografie din numele și descrierile articolelor"
+  "spell_check_help": "Subliniază greșelile de ortografie din numele și descrierile articolelor",
+  "day_count_singular": ":count zi",
+  "day_count_plural": ":count zile",
+  "in_days_count_plural": "peste :count zile",
+  "days_ago_count_plural": "acum :count zile",
+  "client_count_singular": ":count client",
+  "client_count_plural": ":count clienți",
+  "row_count_singular": ":count rând",
+  "row_count_plural": ":count rânduri"
 }

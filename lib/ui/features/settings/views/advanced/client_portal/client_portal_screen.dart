@@ -308,7 +308,7 @@ class _PortalConfigurationSectionState
           ),
         if (showViewDocs)
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: OutlinedButton.icon(
               icon: const Icon(Icons.open_in_new),
               label: Text(context.tr('view_docs')),

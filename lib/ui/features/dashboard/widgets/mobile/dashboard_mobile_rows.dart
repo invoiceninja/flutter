@@ -11,6 +11,7 @@ import 'package:admin/ui/features/dashboard/view_models/billing_pipeline_view_mo
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The narrow layout's row for the Invoices & Quotes panel:
 ///
@@ -219,7 +220,7 @@ class _TrailingAmountDate extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        LtrText(
           amountText,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

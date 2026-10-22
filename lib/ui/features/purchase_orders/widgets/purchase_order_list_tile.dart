@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_status_pill.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Locale-only fallback when no [FormatterScope] is in the tree (mirrors the
 /// invoice/quote tiles — never allocate `NumberFormat` per build).
@@ -145,7 +146,7 @@ class _PurchaseOrderListTileState extends State<PurchaseOrderListTile> {
                 final amountText = (formatted != null && formatted.isNotEmpty)
                     ? formatted
                     : _poAmountFallback.format(amount.toDouble());
-                return Text(
+                return LtrText(
                   amountText,
                   style: moneyTextStyle(color: tokens.ink),
                 );

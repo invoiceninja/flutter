@@ -1471,7 +1471,10 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
           body,
           if (showingDefault)
             Padding(
-              padding: const EdgeInsets.only(top: InSpacing.xs, left: 2),
+              padding: const EdgeInsetsDirectional.only(
+                top: InSpacing.xs,
+                start: 2,
+              ),
               child: Text(
                 widget.defaultCaption ?? context.tr('default_template_caption'),
                 style: TextStyle(color: t.ink3, fontSize: 12),
@@ -1489,7 +1492,10 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: InSpacing.xs, left: 2),
+          padding: const EdgeInsetsDirectional.only(
+            bottom: InSpacing.xs,
+            start: 2,
+          ),
           child: Row(
             children: [
               if (widget.showLabel)
@@ -1567,6 +1573,9 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       maxLines: null,
       expands: widget.expand,
       textAlignVertical: TextAlignVertical.top,
+      // Markup is code: LTR in every language, or `<p>` lines start at the
+      // right edge and a closing tag lands at the wrong end of its line.
+      textDirection: TextDirection.ltr,
       autocorrect: false,
       enableSuggestions: false,
       smartDashesType: SmartDashesType.disabled,

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_field_shell.dart';
@@ -39,6 +40,7 @@ class OverridableTextField extends StatefulWidget {
     this.autocorrect = true,
     this.templateVariables,
     this.defaultValue,
+    this.textDirection,
   });
 
   final String label;
@@ -95,6 +97,13 @@ class OverridableTextField extends StatefulWidget {
   /// "Reset to default". Ignored at group/client scope, where the inherited
   /// value is what shows.
   final String? defaultValue;
+
+  /// Pins the text direction — `TextDirection.ltr` on a code field (Client
+  /// Portal → Customize's HTML / CSS / JavaScript), which reads LTR in every
+  /// language. Null derives it: a number, phone, email, URL or secret
+  /// keyboard, or [obscureToggle], is LTR (and sits at the ambient start, see
+  /// `ltrValueAlign`); anything else follows the locale.
+  final TextDirection? textDirection;
 
   @override
   State<OverridableTextField> createState() => _OverridableTextFieldState();
@@ -234,12 +243,17 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
             )
           : null,
     );
+    final ltrValue =
+        widget.textDirection == null &&
+        (widget.obscureToggle || isLtrValueKeyboard(widget.keyboardType));
     Widget buildField(
       InputDecoration decoration, {
       TapRegionCallback? onTapOutside,
     }) => TextField(
       controller: _controller,
       focusNode: _focusNode,
+      textDirection: widget.textDirection ?? ltrValueDirection(ltr: ltrValue),
+      textAlign: ltrValueAlign(context, ltr: ltrValue),
       onTapOutside: onTapOutside,
       enabled: widget.enabled,
       maxLines: _obscured ? 1 : widget.maxLines,

@@ -299,7 +299,10 @@ class _Header extends StatelessWidget {
             vertical: embedded ? InSpacing.sm : InSpacing.md(context),
           ),
           child: embedded
-              ? Align(alignment: Alignment.centerLeft, child: selector)
+              ? Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: selector,
+                )
               : Row(
                   children: [
                     Text(

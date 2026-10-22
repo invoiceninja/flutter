@@ -66,7 +66,7 @@ class UserDetailsPreferencesScreen extends StatelessWidget {
               SizedBox(height: InSpacing.md(context)),
               if (accentHex.isNotEmpty)
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: TextButton.icon(
                     icon: const Icon(Icons.refresh),
                     label: Text(context.tr('reset')),

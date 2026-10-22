@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_status_pill.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_actions.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree. Mirrors `PaymentListTile`.
@@ -148,7 +149,7 @@ class _ExpenseListTileState extends State<ExpenseListTile> {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(amountText, style: moneyTextStyle(color: tokens.ink)),
+            LtrText(amountText, style: moneyTextStyle(color: tokens.ink)),
             const SizedBox(height: 4),
             ExpenseStatusPill(statusId: w.expense.calculatedStatusId),
           ],

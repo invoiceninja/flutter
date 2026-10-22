@@ -590,7 +590,7 @@ class _ConnectedState extends State<_Connected> {
                 ),
               ),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(160, 44),
@@ -640,7 +640,7 @@ class _ConnectedState extends State<_Connected> {
                   ),
                   SizedBox(height: InSpacing.sm),
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: TextButton.icon(
                       icon: const Icon(Icons.refresh, size: 18),
                       label: Text(context.tr('import')),
@@ -678,7 +678,7 @@ class _ConnectedState extends State<_Connected> {
                   ),
                   SizedBox(height: InSpacing.sm),
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(160, 44),
@@ -798,7 +798,7 @@ class _ConnectedState extends State<_Connected> {
             ),
             SizedBox(height: InSpacing.md(context)),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: FilledButton(
                 style: FilledButton.styleFrom(minimumSize: const Size(160, 44)),
                 onPressed: (_saving || !_settingsDirty) ? null : _saveSettings,
@@ -866,7 +866,7 @@ class _ConnectedState extends State<_Connected> {
           title: context.tr('disconnect'),
           children: [
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 icon: Icon(Icons.link_off, color: tokens.overdue),
                 label: Text(

@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (mirrors the Phase-1.1 cached-formatter
@@ -153,7 +154,7 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
                 final amountText = (formatted != null && formatted.isNotEmpty)
                     ? formatted
                     : _invoiceAmountFallback.format(amount.toDouble());
-                return Text(
+                return LtrText(
                   amountText,
                   style: moneyTextStyle(
                     color: w.invoice.isPastDue ? tokens.overdue : tokens.ink,

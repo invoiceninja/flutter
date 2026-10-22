@@ -10,6 +10,9 @@
 // — invoiceninja/flutter#105, reported against payment Private Notes.
 //
 // The narrow pane now owns the Scaffold, which is what makes it shrink.
+//
+// The `right-to-left` group reuses this harness for the wide slide-over's
+// geometry: in RTL the pane docks at the end (left) edge and enters from it.
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -84,6 +87,7 @@ void main() {
     required Size size,
     double keyboardInset = 0,
     Widget detail = const _MetricsProbe(),
+    TextDirection? textDirection,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -129,6 +133,10 @@ void main() {
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
           routerConfig: router,
+          builder: textDirection == null
+              ? null
+              : (context, child) =>
+                    Directionality(textDirection: textDirection, child: child!),
         ),
       ),
     );
@@ -231,4 +239,59 @@ void main() {
       );
     },
   );
+
+  group('right-to-left', () {
+    /// The slide-over pane's surface — the `Material` the positioned slot
+    /// holds, found from the probe so the list's own Material can't match.
+    Finder pane() => find.ancestor(
+      of: find.byType(_MetricsProbe),
+      matching: find.byWidgetPredicate(
+        (w) => w is Material && w.elevation == 8,
+      ),
+    );
+
+    testWidgets('wide viewport: the slide-over pane is pinned to the LEFT '
+        '(end) edge', (tester) async {
+      // Before the conversion the slot was `Positioned(left: width - pane)`,
+      // which docks the pane on the right in every locale — over the RTL
+      // list's leading column instead of beside its trailing one.
+      final router = await pumpApp(
+        tester,
+        size: const Size(1600, 900),
+        textDirection: TextDirection.rtl,
+      );
+
+      router.go('/products/1');
+      await tester.pumpAndSettle();
+
+      final rect = tester.getRect(pane());
+      expect(rect.left, 0);
+      expect(rect.right, lessThan(800));
+    });
+
+    testWidgets('wide viewport: the pane slides in from the end (left) edge', (
+      tester,
+    ) async {
+      // The `Offset(1, 0)` entry tween is mirrored only because the
+      // `SlideTransition` is handed the ambient `textDirection`; without it a
+      // left-docked pane would fly in from the middle of the screen.
+      final router = await pumpApp(
+        tester,
+        size: const Size(1600, 900),
+        textDirection: TextDirection.rtl,
+      );
+
+      router.go('/products/1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(
+        tester.getRect(pane()).left,
+        lessThan(0),
+        reason: 'mid-entry the pane is still partly past the left edge',
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(pane()).left, 0);
+    });
+  });
 }

@@ -146,7 +146,7 @@ class _UnconfirmedEmailBannerState extends State<UnconfirmedEmailBanner> {
                 // separates it from the message, and adding one on top reads
                 // as a stray block of empty red.
                 Align(
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerEnd,
                   child: _action(context, tokens),
                 ),
               ],

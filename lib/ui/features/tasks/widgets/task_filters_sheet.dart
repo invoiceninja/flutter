@@ -153,7 +153,7 @@ class _TaskFilterBody extends StatelessWidget {
                 ),
                 SizedBox(height: InSpacing.md(context)),
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: TextButton.icon(
                     onPressed: filters.filtersActive
                         ? filters.clearFilters

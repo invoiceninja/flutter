@@ -450,6 +450,7 @@
   "financial": "ហិរញ្ញវត្ថុ",
   "focus_search": "ផ្តោតលើវាលស្វែងរក",
   "force_full_sync": "បង្ខំធ្វើសមកាលកម្មពេញលេញ",
+  "force_right_to_left": "បង្ខំពីស្ដាំទៅឆ្វេង",
   "forecast_needs_budget": "កំណត់ម៉ោងថវិការបស់គម្រោង ដើម្បីមើលថាពេលណាវានឹងបញ្ចប់។",
   "forecast_needs_time": "កត់ត្រាពេលវេលាលើគម្រោងនេះ ដើម្បីមើលថាពេលណាវានឹងបញ្ចប់។",
   "foreign_amount": "ចំនួនទឹកប្រាក់បរទេស",
@@ -1566,5 +1567,13 @@
   "release_change_count_one": "ការផ្លាស់ប្តូរ 1",
   "load_more": "ផ្ទុកបន្ថែម",
   "spell_check": "ពិនិត្យអក្ខរាវិរុទ្ធ",
-  "spell_check_help": "គូសបន្ទាត់ក្រោមកំហុសអក្ខរាវិរុទ្ធក្នុងឈ្មោះ និងការពិពណ៌នាធាតុបន្ទាត់"
+  "spell_check_help": "គូសបន្ទាត់ក្រោមកំហុសអក្ខរាវិរុទ្ធក្នុងឈ្មោះ និងការពិពណ៌នាធាតុបន្ទាត់",
+  "day_count_singular": ":count ថ្ងៃ",
+  "day_count_plural": ":count ថ្ងៃ",
+  "in_days_count_plural": "ក្នុងរយៈពេល :count ថ្ងៃទៀត",
+  "days_ago_count_plural": ":count ថ្ងៃមុន",
+  "client_count_singular": "អតិថិជន :count នាក់",
+  "client_count_plural": "អតិថិជន :count នាក់",
+  "row_count_singular": ":count ជួរ",
+  "row_count_plural": ":count ជួរ"
 }

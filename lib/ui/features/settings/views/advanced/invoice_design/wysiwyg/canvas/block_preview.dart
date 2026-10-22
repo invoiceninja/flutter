@@ -28,8 +28,17 @@ class BlockPreview extends StatelessWidget {
   final DesignBlock block;
   final DesignerSampleData sample;
 
+  // Left to right in every locale: a block is part of the page, a physical
+  // document that pictures the PDF, and the renderers' `'right'` →
+  // `CrossAxisAlignment.end` mappings are only right under LTR
+  // (`docs/right-to-left-layout.md`). Its hosts — the canvas and
+  // `DesignPageThumbnail` — wrap the whole page too; this keeps a block
+  // right wherever it is drawn.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      Directionality(textDirection: TextDirection.ltr, child: _build(context));
+
+  Widget _build(BuildContext context) {
     final spec = blockSpecFor(block.type);
     if (spec == null) return _UnsupportedBlock(type: block.type);
     if (blockRendersNothing(block, sample)) {

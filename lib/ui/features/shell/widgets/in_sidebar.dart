@@ -504,7 +504,7 @@ class _InSidebarState extends State<InSidebar> {
                           : null,
                     ),
                   // Browser-style back/forward — the visible handle on the
-                  // Cmd/Alt+←/→ history. Top-left like a browser toolbar.
+                  // Cmd/Alt+←/→ history. Top-start like a browser toolbar.
                   // Its own row only where the caption row above didn't take
                   // them (everywhere but the expanded macOS rail).
                   //
@@ -518,12 +518,12 @@ class _InSidebarState extends State<InSidebar> {
                   if (!chromeHostsArrows &&
                       (showNavArrows || showSearch || hideHeader))
                     Padding(
-                      // left 10 is an alignment, not a leftover: with touch
+                      // start 10 is an alignment, not a leftover: with touch
                       // sizing the back arrow's 18-px glyph starts at
                       // 10 + (44 − 18) / 2 = 23 — exactly the company avatar's
-                      // left edge below it (14 outer + 1 border + 8 padding).
+                      // start edge below it (14 outer + 1 border + 8 padding).
                       //
-                      // The right inset has two answers because both of the
+                      // The end inset has two answers because both of the
                       // things it used to line up with move under `hideHeader`:
                       // 14 lines the search box's trailing edge up with the Sync
                       // button *in the header row below*, but with no header
@@ -535,7 +535,7 @@ class _InSidebarState extends State<InSidebar> {
                       // before the divider.
                       padding: collapsed
                           ? const EdgeInsets.only(top: 4)
-                          : EdgeInsets.fromLTRB(
+                          : EdgeInsetsDirectional.fromSTEB(
                               10,
                               4,
                               hideHeader ? 12 : 14,
@@ -589,10 +589,10 @@ class _InSidebarState extends State<InSidebar> {
                                   ),
                                 if (hideHeader) ...[
                                   SizedBox(width: InSpacing.xs),
-                                  // Left-aligned beside the arrows on a pointer
+                                  // Start-aligned beside the arrows on a pointer
                                   // drawer (no search box to push it out): three
                                   // controls in a row read as a toolbar, whereas
-                                  // a lone button pinned 150 px away at the right
+                                  // a lone button pinned 150 px away at the end
                                   // edge reads as a stray.
                                   SidebarSyncButton(
                                     progress: services.resync,
@@ -788,7 +788,11 @@ class _InSidebarState extends State<InSidebar> {
                 width: effectiveWidth,
                 decoration: BoxDecoration(
                   color: tokens.surface,
-                  border: Border(right: BorderSide(color: tokens.border)),
+                  // The edge facing the content: the rail sits at the start
+                  // side, so its seam is its end edge in either direction.
+                  border: BorderDirectional(
+                    end: BorderSide(color: tokens.border),
+                  ),
                 ),
                 // The AnimatedContainer box + ClipRect animate the visible
                 // reveal; OverflowBox pins the content to the *destination*
@@ -798,13 +802,13 @@ class _InSidebarState extends State<InSidebar> {
                 // intermediate width. Without this the `compact:false` rows
                 // re-layout every tween frame at a narrower width and the
                 // RenderFlex reports a (ClipRect-hidden but still logged)
-                // right overflow. `width == null` (AppDrawer) keeps the
+                // end-side overflow. `width == null` (AppDrawer) keeps the
                 // original fills-the-drawer behaviour untouched.
                 child: ClipRect(
                   child: effectiveWidth == null
                       ? content
                       : OverflowBox(
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           minWidth: effectiveWidth,
                           maxWidth: effectiveWidth,
                           child: content,
@@ -1325,7 +1329,7 @@ class _HoverAddButton extends StatelessWidget {
   }
 }
 
-/// Hover-revealed search affordance on the right of the Dashboard row
+/// Hover-revealed search affordance at the end of the Dashboard row
 /// (desktop, expanded rail only — mirrors the entity-row `+` button).
 /// Opens the command palette — the same target as the `⌘/` shortcut.
 class _DashboardRowSearchButton extends StatelessWidget {

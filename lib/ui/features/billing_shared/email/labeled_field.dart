@@ -53,7 +53,10 @@ class LabeledField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: InSpacing.xs, left: 2),
+          padding: const EdgeInsetsDirectional.only(
+            bottom: InSpacing.xs,
+            start: 2,
+          ),
           child: !hasRow
               ? text
               : Row(

@@ -10,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/utils/notes_html.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Shared rendering helpers for `ColumnDefinition<T>.cellBuilder`.
 ///
@@ -227,7 +228,9 @@ String? cellMoneyValue(Decimal v) => v == Decimal.zero ? null : v.toString();
 String? cellNonZeroString(String s) => s.isEmpty ? null : s;
 
 /// Plain text widget tuned for table cells: 13px / 1.2 line-height /
-/// elided, with muted-ink support for the em-dash placeholder.
+/// elided, with muted-ink support for the em-dash placeholder. Laid out
+/// left-to-right unless it holds Arabic or Hebrew — dates, numbers, phone
+/// numbers and document numbers read the same in every language ([LtrText]).
 class CellText extends StatelessWidget {
   const CellText({
     required this.value,
@@ -243,8 +246,9 @@ class CellText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return Text(
+    return LtrText(
       value,
+      keepRtlScript: true,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -258,7 +262,7 @@ class CellText extends StatelessWidget {
 }
 
 /// Money widget tuned for table cells: monospaced + tabular figures so
-/// digits align vertically across rows.
+/// digits align vertically across rows, left-to-right in every language.
 class MoneyCellText extends StatelessWidget {
   const MoneyCellText({required this.text, required this.isZero, super.key});
 
@@ -268,7 +272,7 @@ class MoneyCellText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return Text(
+    return LtrText(
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

@@ -96,14 +96,14 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// duplicated.
   final bool embedded;
 
-  /// Builds the right-aligned, overflow-aware header action cluster. The
+  /// Builds the end-aligned, overflow-aware header action cluster. The
   /// per-entity caller owns the action enum `A`; it returns an
   /// `EntityOverflowActionBar<A>` with the plain [saveButton] forwarded as
   /// its `leading:` child (Save is the first, never-collapsing item of the
   /// single `OverflowView`, mirroring detail screens' primary button) and
   /// wires each item's `onTap` to the type-erased sink. Null on screens
   /// that don't surface an action bar (Save then renders standalone, still
-  /// right-aligned via `actionsWidget ?? saveButton`).
+  /// end-aligned via `actionsWidget ?? saveButton`).
   final Widget Function(
     BuildContext context,
     void Function(Object action) onTap,
@@ -536,7 +536,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Align(
-                                  alignment: Alignment.centerRight,
+                                  alignment: AlignmentDirectional.centerEnd,
                                   child: actions,
                                 ),
                               ),
@@ -589,7 +589,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Align(
-                                  alignment: Alignment.centerRight,
+                                  alignment: AlignmentDirectional.centerEnd,
                                   child: actions,
                                 ),
                               ),

@@ -457,6 +457,7 @@
   "financial": "Pénzügyi",
   "focus_search": "Ugrás a keresőmezőre",
   "force_full_sync": "Teljes szinkronizálás kényszerítése",
+  "force_right_to_left": "Jobbról balra kényszerítése",
   "forecast_needs_budget": "Adja meg a projekt tervezett óráit, hogy lássa, mikor fejeződik be.",
   "forecast_needs_time": "Naplózzon időt ehhez a projekthez, hogy lássa, mikor fejeződik be.",
   "foreign_amount": "Devizaösszeg",
@@ -1587,5 +1588,13 @@
   "release_change_count_one": "1 változás",
   "load_more": "Továbbiak betöltése",
   "spell_check": "Helyesírás-ellenőrzés",
-  "spell_check_help": "A helyesírási hibák aláhúzása a tételek nevében és leírásában"
+  "spell_check_help": "A helyesírási hibák aláhúzása a tételek nevében és leírásában",
+  "day_count_singular": ":count nap",
+  "day_count_plural": ":count nap",
+  "in_days_count_plural": ":count nap múlva",
+  "days_ago_count_plural": ":count napja",
+  "client_count_singular": ":count ügyfél",
+  "client_count_plural": ":count ügyfél",
+  "row_count_singular": ":count sor",
+  "row_count_plural": ":count sor"
 }

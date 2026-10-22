@@ -276,9 +276,9 @@ class _ImageUploader extends StatelessWidget {
                     ),
                   ),
                 ),
-                Positioned(
+                PositionedDirectional(
                   top: -2,
-                  right: -2,
+                  end: -2,
                   child: Material(
                     color: tokens.overdue,
                     shape: const CircleBorder(),

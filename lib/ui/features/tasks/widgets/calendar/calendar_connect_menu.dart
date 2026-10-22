@@ -165,7 +165,12 @@ class CalendarConnectMenu extends StatelessWidget {
       );
     }
     return Container(
-      padding: const EdgeInsets.only(left: 12, right: 4, top: 4, bottom: 4),
+      padding: const EdgeInsetsDirectional.only(
+        start: 12,
+        end: 4,
+        top: 4,
+        bottom: 4,
+      ),
       decoration: BoxDecoration(
         border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r2),

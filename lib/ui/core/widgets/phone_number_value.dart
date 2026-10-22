@@ -345,7 +345,7 @@ class _ContactLocalTimeState extends State<ContactLocalTime> {
     final local = contactClock(zone).local;
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(left: InSpacing.sm),
+      padding: const EdgeInsetsDirectional.only(start: InSpacing.sm),
       child: Text(
         formatTimeOfDay(
           local.hour,

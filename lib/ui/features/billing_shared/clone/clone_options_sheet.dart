@@ -76,7 +76,7 @@ class _CloneOptionsSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(
+              padding: EdgeInsetsDirectional.fromSTEB(
                 InSpacing.lg(context),
                 InSpacing.md(context),
                 InSpacing.md(context),

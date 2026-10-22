@@ -35,9 +35,10 @@ class DashboardEntityTable extends StatelessWidget {
   /// FlexColumnWidth(2), 2..4: IntrinsicColumnWidth(), 5: FixedColumnWidth(32)}`.
   final Map<int, TableColumnWidth> columnWidths;
 
-  /// Per-column cell alignment override. Defaults to `Alignment.centerLeft`
-  /// when not set. The amount column typically wants `Alignment.centerRight`.
-  final Map<int, Alignment> cellAlignments;
+  /// Per-column cell alignment override. Defaults to
+  /// `AlignmentDirectional.centerStart` when not set. The amount column
+  /// typically wants `AlignmentDirectional.centerEnd`.
+  final Map<int, AlignmentGeometry> cellAlignments;
 
   final List<DashboardEntityTableRow> rows;
 
@@ -91,7 +92,7 @@ class DashboardEntityTable extends StatelessWidget {
         for (var i = 0; i < headers.length; i++)
           _HeaderCell(
             label: headers[i],
-            alignment: cellAlignments[i] ?? Alignment.centerLeft,
+            alignment: cellAlignments[i] ?? AlignmentDirectional.centerStart,
             tokens: tokens,
             horizontalPadding: h,
           ),
@@ -117,7 +118,7 @@ class DashboardEntityTable extends StatelessWidget {
           _bodyCell(
             child: row.cells[i],
             padding: padding,
-            alignment: cellAlignments[i] ?? Alignment.centerLeft,
+            alignment: cellAlignments[i] ?? AlignmentDirectional.centerStart,
             onTap: i < (row.cellTaps?.length ?? 0) ? row.cellTaps![i] : null,
             // The label rides cell 0 and the rest fall silent, so the row is a
             // single announced target rather than one per column.
@@ -131,7 +132,7 @@ class DashboardEntityTable extends StatelessWidget {
   Widget _bodyCell({
     required Widget child,
     required EdgeInsets padding,
-    required Alignment alignment,
+    required AlignmentGeometry alignment,
     VoidCallback? onTap,
     String? semanticsLabel,
     bool muteSemantics = false,
@@ -193,7 +194,7 @@ class _HeaderCell extends StatelessWidget {
   });
 
   final String label;
-  final Alignment alignment;
+  final AlignmentGeometry alignment;
   final InTheme tokens;
   final double horizontalPadding;
 

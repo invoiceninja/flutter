@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/payment_term.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
 
 /// Search keys exported for the settings sidebar search. Colocated with the
 /// screen so adding / renaming a field updates both ends in one place.
@@ -76,7 +77,7 @@ class _PaymentTermRow extends StatelessWidget {
       children: [
         ListTile(
           title: Text(displayName),
-          subtitle: Text('${term.numDays} ${context.tr('days')}'),
+          subtitle: Text(dayCountLabel(context, term.numDays)),
           trailing: _isArchived
               ? Container(
                   padding: const EdgeInsets.symmetric(

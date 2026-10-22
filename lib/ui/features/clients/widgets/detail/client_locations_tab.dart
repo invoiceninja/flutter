@@ -54,7 +54,7 @@ class ClientLocationsTab extends StatelessWidget {
       children: [
         if (!readOnly)
           Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerEnd,
             child: Padding(
               padding: EdgeInsets.all(InSpacing.md(context)),
               child: OutlinedButton.icon(

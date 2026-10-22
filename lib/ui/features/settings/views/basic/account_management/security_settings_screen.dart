@@ -299,7 +299,7 @@ class _AccountManagementSecuritySettingsScreenState
                 style: TextStyle(color: context.inTheme.ink2),
               ),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: OutlinedButton.icon(
                   icon: Icon(Icons.logout, color: context.inTheme.overdue),
                   label: Text(

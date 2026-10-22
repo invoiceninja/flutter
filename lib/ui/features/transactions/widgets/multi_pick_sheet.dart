@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Modal sheet with a search field + scrollable checkbox list. Returns
 /// the selected ids on Apply, `null` on Cancel. Used by the match panel
@@ -187,7 +188,7 @@ class _MultiPickSheetState<T> extends State<_MultiPickSheet<T>> {
             if (widget.addSelectAllButton) ...[
               const SizedBox(height: 8),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: TextButton.icon(
                   icon: const Icon(Icons.select_all, size: 16),
                   label: Text(
@@ -262,7 +263,7 @@ class _MultiPickSheetState<T> extends State<_MultiPickSheet<T>> {
                       style: TextStyle(color: tokens.ink2),
                     ),
                     const Spacer(),
-                    Text(
+                    LtrText(
                       '${context.tr('total')}: $_selectedTotalText',
                       style: moneyTextStyle(
                         color: tokens.ink,

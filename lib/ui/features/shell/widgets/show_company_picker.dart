@@ -7,7 +7,9 @@ import 'package:admin/ui/features/shell/widgets/company_picker.dart';
 /// Mounts a [CompanyPicker] in the right form factor for the current layout.
 ///
 /// On wide layouts, the picker pops up as a positioned overlay anchored to
-/// [anchorKey]'s render box (top-left aligned just under it). When no
+/// [anchorKey]'s render box, top-aligned with it and opening beside it on the
+/// content side — rightwards, or leftwards in a right-to-left locale, where
+/// the rail sits at the right. When no
 /// anchorKey is provided — e.g. for the ⌘K shortcut — the picker centres
 /// itself in the viewport.
 ///
@@ -115,10 +117,13 @@ class _PositionedPicker extends StatelessWidget {
     double left;
     double top;
     if (topLeft != null && anchorSize != null) {
-      // Align the picker's top-left with the anchor's top-left, shifted
-      // right by the anchor's width so the popup sits to the right of the
-      // sidebar header. Then clamp inside the viewport.
-      left = topLeft!.dx + anchorSize!.width + margin;
+      // Top-align the picker with the anchor and open it beside the sidebar
+      // header on the content side: past the anchor's end edge, which is its
+      // left edge in a right-to-left locale (the rail is at the right there).
+      // Then clamp inside the viewport.
+      left = Directionality.of(context) == TextDirection.rtl
+          ? topLeft!.dx - margin - pickerWidth
+          : topLeft!.dx + anchorSize!.width + margin;
       top = topLeft!.dy;
     } else {
       // ⌘K with no anchor — centre horizontally, offset a bit from the top.
@@ -129,6 +134,7 @@ class _PositionedPicker extends StatelessWidget {
     left = left.clamp(margin, screen.width - pickerWidth - margin);
     return Stack(
       children: [
+        // rtl: physical — `left` is global-coordinate maths, already mirrored.
         Positioned(
           left: left,
           top: top.clamp(margin, screen.height - 160),

@@ -177,3 +177,7 @@ present they are its only child. Hiding just the arrows would leave that
 Everything else is untouched: the history, the keyboard shortcuts,
 `NavHistoryMouseListener`'s thumb-button handling and Android's
 `SystemBackGate` all still walk the same stack.
+
+## The window chrome stays on the OS's side in a right-to-left layout
+
+**The window chrome stays on the OS's side in a right-to-left layout, while the rail flips to the start edge.** The drawn Windows / Linux buttons and the title-bar mark are physical; the title bar's leading segment and history arrows follow the rail. macOS traffic lights never mirror (no `CFBundleLocalizations` for ar / he), so in RTL a `WindowCaptionStrip` over the content column keeps the toolbar clear of them. See `docs/right-to-left-layout.md` § Some things are physical, and they say so.

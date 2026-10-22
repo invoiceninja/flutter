@@ -88,8 +88,8 @@ class OverridableDateField extends StatelessWidget {
             children: [
               dateField,
               Padding(
-                padding: EdgeInsets.only(
-                  left: InSpacing.md(context),
+                padding: EdgeInsetsDirectional.only(
+                  start: InSpacing.md(context),
                   top: InSpacing.xs,
                 ),
                 child: Text(

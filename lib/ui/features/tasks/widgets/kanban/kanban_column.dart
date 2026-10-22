@@ -193,16 +193,16 @@ class KanbanColumn extends StatelessWidget {
                         onAcceptTask(details.data, t.id);
                       },
                       builder: (context, candidate, rejected) {
-                        // Card with visible drag handle in the top-right.
+                        // Card with visible drag handle in the top-end corner.
                         // Tap anywhere else on the card → detail screen
                         // (KanbanCard's own InkWell). Hold the handle for
                         // ~200ms → drag begins.
                         final cardWithHandle = Stack(
                           children: [
                             cardBody,
-                            Positioned(
+                            PositionedDirectional(
                               top: 4,
-                              right: 4,
+                              end: 4,
                               child: _DragHandle<Task>(
                                 data: t,
                                 feedback: SizedBox(
@@ -353,7 +353,7 @@ class _ColumnHeader extends StatelessWidget {
   final Color dot;
   final InTheme tokens;
 
-  /// Optional drag handle rendered to the right of the count. Null for
+  /// Optional drag handle rendered after the count. Null for
   /// read-only users (the column isn't draggable).
   final Widget? dragHandle;
 

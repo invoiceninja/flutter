@@ -317,7 +317,7 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
             ),
             const SizedBox(height: 12),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.note_add_outlined),
                 label: Text(context.tr('append_outbox_snapshot')),
@@ -435,7 +435,7 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
           children: [
             if (lastFetchedLabel != null) ...[
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: Text(
                   '${context.tr('last_refreshed')}: $lastFetchedLabel',
                   maxLines: 1,

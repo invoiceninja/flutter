@@ -574,6 +574,7 @@ The block designer (`invoice_design/wysiwyg/`) is a picture of what the server p
 - **Every key the workspace binds is a `GuardedShortcutAction`, and a bare key (arrows, Enter, Delete, Esc) acts only while the workspace's own node has focus — else Backspace on a focused panel control deletes the block.** → `docs/invoice-designer.md`
 - **The designer's layout measures its pane (`DesignerPane`), never `MediaQuery` — the sidebar has 232px of the window — and every `showMenu` anchor goes through `menuAnchor`.** → `docs/invoice-designer.md`
 - **The page, the panel's example values and the preview are filled from one document (`DesignerDocumentController`, `DesignerRenderScope.sampleOf`).** → `docs/invoice-designer.md`
+- **The page is a physical document: it is laid out left-to-right in every locale, and only the designer's chrome mirrors.** → `docs/invoice-designer.md`
 
 ## Localization
 
@@ -583,7 +584,11 @@ The block designer (`invoice_design/wysiwyg/`) is a picture of what the server p
 - Workflow per release: download zip → run the importer → commit the changed JSONs.
 - Runtime: `Localization` loads the active locale's JSON from `rootBundle`. English is always loaded as a fallback. There is **no** server fetch; the one override is the company's Custom Labels (`CompanyLabelsScope`) → `docs/translated-string-rendering.md`.
 - Adding a locale = the four steps on `kSupportedLocales` (`lib/l10n/supported_locales.dart`); `supported_locales_test` checks them. The app ships every language the server's `LanguageSeeder` offers, plus en_AU and zh_CN.
-- **Arabic, Persian and Hebrew lay out right-to-left, so new layout code says start / end (`EdgeInsetsDirectional`, `AlignmentDirectional`, `PositionedDirectional`), never left / right.** → `docs/right-to-left-layout.md`
+- **Arabic, Persian and Hebrew lay out right-to-left, so new layout code says start / end (`EdgeInsetsDirectional`, `AlignmentDirectional`, `PositionedDirectional`), never left / right** (`no_physical_direction_test`; Debug Panel → Force right-to-left to look). → `docs/right-to-left-layout.md`
+- **The window chrome, the invoice designer's page, a chart's time axis and a menu placed in global coordinates stay physical, marked `// rtl: physical <reason>`.** → `docs/right-to-left-layout.md`
+- **The shell flips: the rail sits at the start edge and everything it pins follows, and Back is ⌘/Alt+→ in RTL.** → `docs/right-to-left-layout.md`
+- **A value (amount, number, date, document number, email, phone, code) renders through `LtrText` and a value field is LTR; `Localization.lookup` isolates params and English fallbacks in an RTL locale; `Formatter` output never carries direction marks.** → `docs/right-to-left-layout.md`
+- **Arabic, Hebrew, Thai, Lao and Khmer render from the bundled Noto fonts (`kScriptFallbackFonts`), never from the platform or fonts.gstatic.com.** → `docs/right-to-left-layout.md`
 - **The upstream PHP is HTML-escaped — the importer decodes entities (`decodeHtmlEntities`: a single pass, and the app's one entity decoder), don't bypass it.** → `docs/translated-string-rendering.md`
 - **App-local strings are translated per locale in `_app_pending_<locale>.json`, laid over the locale's bundle wherever it has no real translation (blank, or Transifex's English copy) — so an entry outlives its `_app_pending.json` line and goes only when a real translation lands.** → `docs/translated-string-rendering.md`
 - **`_app_pending.json` can only *add* a key, never override one — an entry whose key has a non-blank `en.json` value is dead, so a deliberate rewording takes a distinct name (`*_label` / `*_short` / `*_detailed`).** → `docs/translated-string-rendering.md`

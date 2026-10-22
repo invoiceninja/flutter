@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 
 /// Canonical single-line text input for any settings screen — covers both
@@ -162,6 +163,14 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
         errorText: widget.errorText,
       ),
       keyboardType: widget.keyboardType,
+      // A number, phone, email or URL reads LTR in every language.
+      textDirection: ltrValueDirection(
+        ltr: isLtrValueKeyboard(widget.keyboardType),
+      ),
+      textAlign: ltrValueAlign(
+        context,
+        ltr: isLtrValueKeyboard(widget.keyboardType),
+      ),
       textCapitalization: widget.textCapitalization,
       autofillHints: widget.autofillHints,
       // One knob, not two — the pairing `AuthField` already uses.

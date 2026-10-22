@@ -10,6 +10,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Read-only list of the payments applied to this invoice — each with the
 /// amount it allocated (the matching `paymentables` entry) and its date.
@@ -154,7 +155,7 @@ class _AppliedRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
+            LtrText(
               appliedText,
               style: moneyTextStyle(
                 color: tokens.ink,

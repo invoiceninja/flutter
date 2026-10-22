@@ -136,10 +136,27 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     // ABOVE the router and has already been built this frame.
     _shellMounted = context.read<Services>().shellMounted;
     _shellMounted.value = true;
-    _shortcutHints.register(_globalHintToken, _globalShortcutHints());
+    // The first registration is [didChangeDependencies]' — the history arrows'
+    // glyphs need the reading direction, which `initState` may not depend on.
     // Re-register when a binding changes so the hold-modifier bar always shows
     // the user's current chords (unified with the live Shortcuts map + dialog).
     _keyboardShortcuts.addListener(_refreshGlobalHints);
+  }
+
+  /// The reading direction [_globalShortcutHints] last drew the history arrows
+  /// for. Null until [didChangeDependencies] first runs.
+  TextDirection? _hintDirection;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Back is ⌘/Alt+→ in a right-to-left locale (see [historyArrowGoesBack]),
+    // so a direction change — a language switch, or the debug Force RTL
+    // switch — redraws the hint bar's arrows.
+    final direction = Directionality.of(context);
+    if (direction == _hintDirection) return;
+    _hintDirection = direction;
+    _shortcutHints.register(_globalHintToken, _globalShortcutHints());
   }
 
   void _refreshGlobalHints() {
@@ -168,8 +185,25 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     // ⌘/Ctrl bar when it matches the platform modifier (macOS/iOS). Fixed +
     // non-remappable, so it's appended directly rather than via the catalog.
     if (platformHistoryModifierLabel() == mod) {
-      hints.add(ShortcutHint(keys: [mod, '←'], labelKey: 'go_back'));
-      hints.add(ShortcutHint(keys: [mod, '→'], labelKey: 'go_forward'));
+      final direction = _hintDirection ?? TextDirection.ltr;
+      hints.add(
+        ShortcutHint(
+          keys: [
+            mod,
+            historyArrowGlyph(back: true, direction: direction),
+          ],
+          labelKey: 'go_back',
+        ),
+      );
+      hints.add(
+        ShortcutHint(
+          keys: [
+            mod,
+            historyArrowGlyph(back: false, direction: direction),
+          ],
+          labelKey: 'go_forward',
+        ),
+      );
     }
     return hints;
   }
@@ -396,15 +430,22 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   /// registering all four is harmless (a ⌘ combo won't fire on Windows and
   /// vice-versa). Kept out of the catalog because one binding can't express
   /// the per-OS modifier split.
-  static const Map<ShortcutActivator, Intent>
-  _fixedGlobalShortcuts = <ShortcutActivator, Intent>{
-    SingleActivator(LogicalKeyboardKey.arrowLeft, meta: true): _GoBackIntent(),
-    SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): _GoBackIntent(),
-    SingleActivator(LogicalKeyboardKey.arrowRight, meta: true):
-        _GoForwardIntent(),
-    SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
-        _GoForwardIntent(),
-  };
+  ///
+  /// The map names the physical arrow, not the direction through history: in
+  /// a right-to-left locale Back is ⌘/Alt+→, following the `arrow_back` icon,
+  /// which mirrors. The action resolves it against `Directionality` at
+  /// invoke time ([historyArrowGoesBack]), so this map stays const.
+  static const Map<ShortcutActivator, Intent> _fixedGlobalShortcuts =
+      <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.arrowLeft, meta: true):
+            _HistoryArrowIntent(AxisDirection.left),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true):
+            _HistoryArrowIntent(AxisDirection.left),
+        SingleActivator(LogicalKeyboardKey.arrowRight, meta: true):
+            _HistoryArrowIntent(AxisDirection.right),
+        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
+            _HistoryArrowIntent(AxisDirection.right),
+      };
 
   /// Navigate to an entity's create route (fired by a `create_<entity>`
   /// shortcut). No-op when the entity has no create route, its module is
@@ -576,20 +617,21 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               return null;
             },
           ),
-          _GoBackIntent: _TextFieldAwareAction<_GoBackIntent>(
-            onInvoke: (_) {
+          _HistoryArrowIntent: _TextFieldAwareAction<_HistoryArrowIntent>(
+            onInvoke: (intent) {
               // Cmd/Alt+Arrow are caret/word motions inside a text field —
               // the action doesn't consume the key there (see
               // _TextFieldAwareAction), so the field handles the motion.
               if (isTextInputFocused()) return null;
-              context.read<NavHistoryController>().back();
-              return null;
-            },
-          ),
-          _GoForwardIntent: _TextFieldAwareAction<_GoForwardIntent>(
-            onInvoke: (_) {
-              if (isTextInputFocused()) return null;
-              context.read<NavHistoryController>().forward();
+              final history = context.read<NavHistoryController>();
+              if (historyArrowGoesBack(
+                intent.arrow,
+                Directionality.of(context),
+              )) {
+                history.back();
+              } else {
+                history.forward();
+              }
               return null;
             },
           ),
@@ -639,6 +681,16 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                       final content = RepaintBoundary(
                         child: Column(
                           children: [
+                            // macOS's traffic lights stay at the window's
+                            // physical left. Left-to-right that is the rail's
+                            // top, whose own caption strip reserves them; in a
+                            // right-to-left locale the rail is at the right and
+                            // the lights sit over the content, which then needs
+                            // the band itself. Renders nothing off macOS.
+                            if (Directionality.of(context) == TextDirection.rtl)
+                              WindowCaptionStrip(
+                                controller: services.screenshotWindow,
+                              ),
                             const OfflineBanner(),
                             const CertificateBanner(),
                             const SessionExpiryBanner(),
@@ -646,7 +698,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                               child: Stack(
                                 children: [
                                   widget.navigationShell,
-                                  // Pinned bottom-right above the active route's
+                                  // Pinned bottom-end above the active route's
                                   // body. Hidden when no task is running — see
                                   // `RunningTimerPill`. Lifted clear of a FAB
                                   // whenever the pane may show one, which
@@ -672,8 +724,8 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                                         valueListenable: services.sidebar,
                                         child: pill,
                                         builder: (context, collapsed, inner) =>
-                                            Positioned(
-                                              right: 16,
+                                            PositionedDirectional(
+                                              end: 16,
                                               bottom: runningTimerPillBottom(
                                                 paneWidth:
                                                     constraints.maxWidth -
@@ -706,14 +758,14 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                             // 232 while the sidebar is still mid-grow, so this
                             // strip reads as sidebar chrome rather than blank
                             // page for the ≤150 ms tween.
-                            Positioned(
-                              left: 0,
+                            PositionedDirectional(
+                              start: 0,
                               top: 0,
                               bottom: 0,
                               width: kInSidebarWidth,
                               child: ColoredBox(color: context.inTheme.surface),
                             ),
-                            // Content layer — its left inset SNAPS to the
+                            // Content layer — its start inset SNAPS to the
                             // target rail width (one relayout per toggle, never
                             // per animation frame). The sidebar animates on top
                             // of it.
@@ -724,8 +776,11 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                                 final targetWidth = collapsed
                                     ? kInSidebarCollapsedWidth
                                     : kInSidebarWidth;
-                                return Positioned.fill(
-                                  left: targetWidth,
+                                return PositionedDirectional(
+                                  start: targetWidth,
+                                  top: 0,
+                                  end: 0,
+                                  bottom: 0,
                                   child: child!,
                                 );
                               },
@@ -734,7 +789,11 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                             // RepaintBoundary + AnimatedContainer run the
                             // 150 ms width tween in isolation.
                             //
-                            // Intentionally no `width`/`right` on this
+                            // The rail is at the start side — the right in a
+                            // right-to-left locale, the side the phone drawer
+                            // opens from.
+                            //
+                            // Intentionally no `width`/`end` on this
                             // Positioned: the child self-sizes to the
                             // *current* (animating) rail width via its
                             // non-null `AnimatedContainer.width`. A fixed
@@ -743,8 +802,8 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                             // as sidebar, swallowing content taps when
                             // collapsed. `InSidebar` here must keep a non-null
                             // `width` (defaults to `kInSidebarWidth`).
-                            Positioned(
-                              left: 0,
+                            PositionedDirectional(
+                              start: 0,
                               top: 0,
                               bottom: 0,
                               child: InSidebar(
@@ -783,8 +842,8 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                               // `runningTimerPillBottom`). The pill hides itself
                               // when no task is running, so it never obstructs
                               // empty space.
-                              Positioned(
-                                right: 12,
+                              PositionedDirectional(
+                                end: 12,
                                 // No `screenAlwaysHasFab` here: this branch is
                                 // only reached below `Breakpoints.wide`, and it
                                 // measures the whole window as the pane — so the
@@ -851,12 +910,12 @@ class _TextFieldAwareAction<T extends Intent> extends CallbackAction<T> {
   bool consumesKey(T intent) => !isTextInputFocused();
 }
 
-class _GoBackIntent extends Intent {
-  const _GoBackIntent();
-}
-
-class _GoForwardIntent extends Intent {
-  const _GoForwardIntent();
+/// ⌘/Alt + a horizontal arrow. Carries the physical [arrow] (left or right),
+/// because which way through history it walks depends on the reading
+/// direction — see [historyArrowGoesBack].
+class _HistoryArrowIntent extends Intent {
+  const _HistoryArrowIntent(this.arrow);
+  final AxisDirection arrow;
 }
 
 /// Fires the "create X" shortcut for [type]. One shared action resolves it to

@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 import 'package:admin/ui/features/billing_shared/peppol_status_icon.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// Cached locale-only fallback for the narrow-tile amount when no
 /// `FormatterScope` is in the tree (never allocate `NumberFormat` per build).
@@ -145,7 +146,7 @@ class _CreditListTileState extends State<CreditListTile> {
                 final amountText = (formatted != null && formatted.isNotEmpty)
                     ? formatted
                     : _creditAmountFallback.format(amount.toDouble());
-                return Text(
+                return LtrText(
                   amountText,
                   style: moneyTextStyle(color: tokens.ink),
                 );

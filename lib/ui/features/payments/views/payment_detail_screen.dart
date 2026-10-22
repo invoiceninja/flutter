@@ -31,6 +31,7 @@ import 'package:admin/ui/features/payments/widgets/detail/payment_detail_profile
 import 'package:admin/ui/features/payments/widgets/detail/payment_detail_standing.dart';
 import 'package:admin/ui/features/payments/widgets/payment_actions.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The payment record screen, on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions, standing,
@@ -302,7 +303,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           formatter?.money(
                 payment.amount,
                 clientCurrencyId: payment.currencyId,

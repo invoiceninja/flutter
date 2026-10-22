@@ -734,8 +734,8 @@ class _DesignerWorkspaceState extends State<DesignerWorkspace> {
             children: [
               Positioned.fill(child: page),
               if (showAdd)
-                Positioned(
-                  left: InSpacing.lg(context),
+                PositionedDirectional(
+                  start: InSpacing.lg(context),
                   bottom: InSpacing.lg(context) + safeBottom,
                   child: FloatingActionButton.extended(
                     onPressed: () => showDesignerPaletteSheet(context, vm),
@@ -744,10 +744,10 @@ class _DesignerWorkspaceState extends State<DesignerWorkspace> {
                   ),
                 ),
               if (panelOpen)
-                Positioned(
+                PositionedDirectional(
                   top: 0,
                   bottom: 0,
-                  right: 0,
+                  end: 0,
                   child: Material(
                     elevation: 8,
                     child: Column(
@@ -903,9 +903,9 @@ class _FreeGridNote extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: tokens.surfaceAlt,
-      padding: EdgeInsets.only(
-        left: InSpacing.lg(context),
-        right: InSpacing.sm,
+      padding: EdgeInsetsDirectional.only(
+        start: InSpacing.lg(context),
+        end: InSpacing.sm,
         top: 4,
         bottom: 4,
       ),

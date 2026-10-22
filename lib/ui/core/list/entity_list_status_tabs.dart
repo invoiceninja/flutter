@@ -399,9 +399,10 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
 
   /// A gradient hinting that more tabs lie beyond one edge.
   ///
-  /// `PositionedDirectional` + `AlignmentDirectional` so it lands on the right
-  /// physical edge in Arabic / Hebrew too — the reason this isn't shared with
-  /// `EntityDetailTabs._edgeFade`, which is `Positioned` + `Alignment`.
+  /// `PositionedDirectional` + `AlignmentDirectional` so it lands on the
+  /// correct physical edge in Arabic / Hebrew too. Not shared with
+  /// `EntityDetailTabs._leadingFade`: that strip fades its start edge only,
+  /// its end edge being the opaque all-tabs slot.
   Widget _edgeFade(InTheme tokens, {required bool leading}) =>
       PositionedDirectional(
         top: 0,

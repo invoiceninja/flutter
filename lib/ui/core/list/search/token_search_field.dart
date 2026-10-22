@@ -870,6 +870,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     );
     _latchedSide = placement.side;
 
+    // rtl: physical — placeFilterMenu already resolved the direction.
     return Positioned(
       left: placement.left,
       top: placement.top,
@@ -1457,6 +1458,7 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     );
     _segmentLatchedSide = placement.side;
 
+    // rtl: physical — placeFilterMenu already resolved the direction.
     return Positioned(
       left: placement.left,
       top: placement.top,

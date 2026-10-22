@@ -469,6 +469,7 @@
   "financial": "Financiare",
   "focus_search": "Fokuso fushën e kërkimit",
   "force_full_sync": "Detyro sinkronizimin e plotë",
+  "force_right_to_left": "Detyro nga e djathta në të majtë",
   "forecast": "Parashikimi",
   "forecast_finish": "Përfundimi i parashikuar",
   "forecast_needs_budget": "Vendosni orët e buxhetuara të projektit për të parë kur do të përfundojë.",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 ndryshim",
   "load_more": "Ngarko më shumë",
   "spell_check": "Kontrolli drejtshkrimor",
-  "spell_check_help": "Nënvizo gabimet drejtshkrimore në emrat dhe përshkrimet e artikujve"
+  "spell_check_help": "Nënvizo gabimet drejtshkrimore në emrat dhe përshkrimet e artikujve",
+  "day_count_singular": ":count ditë",
+  "day_count_plural": ":count ditë",
+  "in_days_count_plural": "pas :count ditësh",
+  "days_ago_count_plural": "para :count ditësh",
+  "client_count_singular": ":count klient",
+  "client_count_plural": ":count klientë",
+  "row_count_singular": ":count rresht",
+  "row_count_plural": ":count rreshta"
 }

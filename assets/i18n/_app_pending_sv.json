@@ -468,6 +468,7 @@
   "financial": "Ekonomi",
   "focus_search": "Fokusera sökfältet",
   "force_full_sync": "Tvinga fullständig synkning",
+  "force_right_to_left": "Tvinga höger-till-vänster",
   "forecast": "Prognos",
   "forecast_finish": "Beräknat slutförande",
   "forecast_needs_budget": "Ange projektets budgeterade timmar för att se när det blir klart.",
@@ -1615,5 +1616,13 @@
   "release_change_count_one": "1 ändring",
   "load_more": "Ladda fler",
   "spell_check": "Stavningskontroll",
-  "spell_check_help": "Stryk under stavfel i radernas namn och beskrivningar"
+  "spell_check_help": "Stryk under stavfel i radernas namn och beskrivningar",
+  "day_count_singular": ":count dag",
+  "day_count_plural": ":count dagar",
+  "in_days_count_plural": "om :count dagar",
+  "days_ago_count_plural": "för :count dagar sedan",
+  "client_count_singular": ":count kund",
+  "client_count_plural": ":count kunder",
+  "row_count_singular": ":count rad",
+  "row_count_plural": ":count rader"
 }

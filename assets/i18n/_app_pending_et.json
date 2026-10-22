@@ -450,6 +450,7 @@
   "financial": "Finants",
   "focus_search": "Fokusseeri otsinguväli",
   "force_full_sync": "Sunni täielik sünkroonimine",
+  "force_right_to_left": "Sunni paremalt vasakule",
   "forecast_needs_budget": "Määra projekti eelarvestatud tunnid, et näha, millal see valmib.",
   "forecast_needs_time": "Logi sellele projektile aega, et näha, millal see valmib.",
   "foreign_amount": "Välisvaluuta summa",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 muudatus",
   "load_more": "Laadi rohkem",
   "spell_check": "Õigekirjakontroll",
-  "spell_check_help": "Joonib arveridade nimetustes ja kirjeldustes alla õigekirjavead"
+  "spell_check_help": "Joonib arveridade nimetustes ja kirjeldustes alla õigekirjavead",
+  "day_count_singular": ":count päev",
+  "day_count_plural": ":count päeva",
+  "in_days_count_plural": ":count päeva pärast",
+  "days_ago_count_plural": ":count päeva tagasi",
+  "client_count_singular": ":count klient",
+  "client_count_plural": ":count klienti",
+  "row_count_singular": ":count rida",
+  "row_count_plural": ":count rida"
 }

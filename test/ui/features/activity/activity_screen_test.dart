@@ -17,6 +17,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/services/dashboard_api.dart';
+import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
@@ -446,6 +447,67 @@ void main() {
       await tester.pump();
       expect(find.byType(ActivityFeedRow), findsNWidgets(2));
       expect(find.byType(InputChip), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('right-to-left: time still runs left to right, and a tap '
+        'selects the bar drawn under it', (tester) async {
+      // The bars are a `Row` while the tap resolves its bucket from `dx`
+      // measured from the left (`_indexAt`). Unpinned, an RTL `Row` drew the
+      // oldest bar at the RIGHT, so the bar a user tapped and the period the
+      // feed narrowed to were opposite ends of the window.
+      final semantics = tester.ensureSemantics();
+      await tester.binding.setSurfaceSize(const Size(500, 300));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final buckets = [
+        for (var d = 1; d <= 3; d++)
+          TimelineBucket(
+            start: DateTime(2026, 10, d),
+            end: DateTime(2026, 10, d + 1),
+            count: d,
+          ),
+      ];
+      DateTime? selectedFrom;
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          theme: buildInTheme(InTheme.light),
+          builder: (context, child) =>
+              Directionality(textDirection: TextDirection.rtl, child: child!),
+          home: Scaffold(
+            body: ActivityTimelineChart(
+              timeline: ActivityTimeline(
+                size: TimelineBucketSize.day,
+                buckets: buckets,
+              ),
+              from: null,
+              until: null,
+              oldestAt: null,
+              selectionCount: 0,
+              formatter: null,
+              onSelect: (from, _) => selectedFrom = from,
+              onClear: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      Finder bar(int day) => find.bySemanticsLabel(
+        RegExp('^${RegExp.escape(Date(2026, 10, day).toIso())}: '),
+      );
+      final oldest = tester.getRect(bar(1));
+      final newest = tester.getRect(bar(3));
+      expect(
+        oldest.left,
+        lessThan(newest.left),
+        reason: 'the oldest period is drawn at the left in every locale',
+      );
+
+      await tester.tapAt(oldest.center);
+      await tester.pump();
+      expect(selectedFrom, DateTime(2026, 10, 1));
       semantics.dispose();
     });
   });

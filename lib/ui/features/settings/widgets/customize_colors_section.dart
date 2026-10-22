@@ -127,7 +127,7 @@ class _CustomizeColorsSectionState extends State<CustomizeColorsSection> {
                       ),
                     if (overrides.isNotEmpty)
                       Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: TextButton.icon(
                           icon: const Icon(Icons.refresh),
                           label: Text(

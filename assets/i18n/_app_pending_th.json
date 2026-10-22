@@ -469,6 +469,7 @@
   "financial": "การเงิน",
   "focus_search": "ไปที่ช่องค้นหา",
   "force_full_sync": "บังคับซิงค์ทั้งหมด",
+  "force_right_to_left": "บังคับจากขวาไปซ้าย",
   "forecast": "การคาดการณ์",
   "forecast_finish": "คาดว่าจะเสร็จ",
   "forecast_needs_budget": "ตั้งชั่วโมงงบประมาณของโครงการเพื่อดูว่าจะเสร็จเมื่อใด",
@@ -1619,5 +1620,13 @@
   "release_change_count_one": "1 การเปลี่ยนแปลง",
   "load_more": "โหลดเพิ่ม",
   "spell_check": "ตรวจตัวสะกด",
-  "spell_check_help": "ขีดเส้นใต้คำที่สะกดผิดในชื่อและคำอธิบายรายการ"
+  "spell_check_help": "ขีดเส้นใต้คำที่สะกดผิดในชื่อและคำอธิบายรายการ",
+  "day_count_singular": ":count วัน",
+  "day_count_plural": ":count วัน",
+  "in_days_count_plural": "ในอีก :count วัน",
+  "days_ago_count_plural": ":count วันที่แล้ว",
+  "client_count_singular": "ลูกค้า :count ราย",
+  "client_count_plural": "ลูกค้า :count ราย",
+  "row_count_singular": ":count แถว",
+  "row_count_plural": ":count แถว"
 }

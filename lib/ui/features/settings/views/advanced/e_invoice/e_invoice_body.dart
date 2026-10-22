@@ -300,7 +300,7 @@ class _VerifactuInfoCard extends StatelessWidget {
           style: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink),
         ),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: LinkText(
             label: context.tr('verifactu_learn_more'),
             color: tokens.accent,

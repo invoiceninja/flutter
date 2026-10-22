@@ -21,6 +21,8 @@ import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_deta
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/utils/url_safety.dart';
+import 'package:admin/ui/core/utils/count_labels.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// A payment link's reference fields, and the documents it has produced:
 /// Details, then Invoices and Recurring Invoices when there are any.
@@ -134,11 +136,7 @@ abstract final class PaymentLinkDetailsCard {
   }) {
     final freqKey = kRecurringFrequencyLabelKey[link.frequencyId];
     final url = link.purchasePage;
-    // "30 Days": the bare unit word, which every bundle has as a noun.
-    String days(int seconds) {
-      final n = seconds ~/ 86400;
-      return '$n ${context.tr(n == 1 ? 'day' : 'days')}';
-    }
+    String days(int seconds) => dayCountLabel(context, seconds ~/ 86400);
 
     String promoDiscount() => link.isAmountDiscount
         ? PaymentLinkDetailStanding.formatMoney(
@@ -327,7 +325,7 @@ class _RelatedRow extends StatelessWidget {
           const SizedBox(width: InSpacing.sm),
           pill,
           const SizedBox(width: InSpacing.sm),
-          Text(
+          LtrText(
             amount,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)

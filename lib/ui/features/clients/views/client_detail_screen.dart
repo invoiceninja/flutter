@@ -37,6 +37,7 @@ import 'package:admin/ui/features/clients/widgets/detail/client_detail_standing.
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_tabs.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_past_due_line.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The client record screen, and the first on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions, standing,
@@ -383,7 +384,7 @@ class _CompactTitle extends StatelessWidget {
         ),
         PartyCurrencyBuilder(
           clientId: client.id,
-          builder: (context, currencyId) => Text(
+          builder: (context, currencyId) => LtrText(
             formatter?.money(
                   client.balance,
                   clientCurrencyId: currencyId ?? client.currencyId,

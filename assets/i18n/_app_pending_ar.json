@@ -450,6 +450,7 @@
   "financial": "مالي",
   "focus_search": "الانتقال إلى حقل البحث",
   "force_full_sync": "فرض مزامنة كاملة",
+  "force_right_to_left": "فرض الاتجاه من اليمين إلى اليسار",
   "forecast_needs_budget": "حدد الساعات المدرجة في ميزانية المشروع لمعرفة موعد انتهائه.",
   "forecast_needs_time": "سجّل وقتًا على هذا المشروع لمعرفة موعد انتهائه.",
   "foreign_amount": "المبلغ بالعملة الأجنبية",
@@ -1566,5 +1567,13 @@
   "release_change_count_one": "تغيير واحد",
   "load_more": "تحميل المزيد",
   "spell_check": "التدقيق الإملائي",
-  "spell_check_help": "وضع خط تحت الأخطاء الإملائية في أسماء البنود وأوصافها"
+  "spell_check_help": "وضع خط تحت الأخطاء الإملائية في أسماء البنود وأوصافها",
+  "day_count_singular": ":count يوم",
+  "day_count_plural": ":count أيام",
+  "in_days_count_plural": "خلال :count أيام",
+  "days_ago_count_plural": "منذ :count أيام",
+  "client_count_singular": ":count عميل",
+  "client_count_plural": ":count عملاء",
+  "row_count_singular": ":count صف",
+  "row_count_plural": ":count صفوف"
 }

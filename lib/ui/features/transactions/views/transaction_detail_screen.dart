@@ -27,6 +27,7 @@ import 'package:admin/ui/features/transactions/widgets/detail/transaction_detail
 import 'package:admin/ui/features/transactions/widgets/transaction_actions.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_match_panel.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 
 /// The bank-transaction record screen, on the record layout
 /// (`docs/detail-screen-layout.md`): identity, quick actions (Convert /
@@ -292,7 +293,7 @@ class _CompactTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
+        LtrText(
           transactionAmountText(transaction, formatter),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

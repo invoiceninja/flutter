@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/qr_code_image.dart';
@@ -598,6 +599,8 @@ class _SecretRow extends StatelessWidget {
         Expanded(
           child: SelectableText(
             secret,
+            textDirection: TextDirection.ltr,
+            textAlign: ltrValueAlign(context, ltr: true),
             style: const TextStyle(
               fontFamily: kMonoFontFamily,
               fontSize: 14,

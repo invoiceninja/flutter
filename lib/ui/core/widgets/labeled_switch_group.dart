@@ -45,7 +45,7 @@ class LabeledSwitchGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: AlignmentDirectional.centerStart,
       child: IntrinsicWidth(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -450,6 +450,7 @@
   "financial": "Finansieel",
   "focus_search": "Fokus op die soekveld",
   "force_full_sync": "Dwing volledige sinkronisasie",
+  "force_right_to_left": "Dwing regs-na-links af",
   "forecast_needs_budget": "Stel die projek se begrote ure om te sien wanneer dit klaar sal wees.",
   "forecast_needs_time": "Teken tyd op hierdie projek aan om te sien wanneer dit klaar sal wees.",
   "foreign_amount": "Buitelandse bedrag",
@@ -1567,5 +1568,13 @@
   "release_change_count_one": "1 verandering",
   "load_more": "Laai meer",
   "spell_check": "Speltoets",
-  "spell_check_help": "Onderstreep spelfoute in lynitemname en -beskrywings"
+  "spell_check_help": "Onderstreep spelfoute in lynitemname en -beskrywings",
+  "day_count_singular": ":count dag",
+  "day_count_plural": ":count dae",
+  "in_days_count_plural": "oor :count dae",
+  "days_ago_count_plural": ":count dae gelede",
+  "client_count_singular": ":count kliënt",
+  "client_count_plural": ":count kliënte",
+  "row_count_singular": ":count ry",
+  "row_count_plural": ":count rye"
 }

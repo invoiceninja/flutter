@@ -102,7 +102,10 @@ class ProjectDetailDetailsCard extends StatelessWidget {
           trailing: Padding(
             // 2 down: the row is top-aligned and the swatch is shorter than
             // the line of text it sits beside.
-            padding: const EdgeInsets.only(left: InSpacing.sm, top: 2),
+            padding: const EdgeInsetsDirectional.only(
+              start: InSpacing.sm,
+              top: 2,
+            ),
             child: _ColorSwatch(hex: p.color),
           ),
         ),

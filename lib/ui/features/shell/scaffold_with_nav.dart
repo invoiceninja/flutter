@@ -895,6 +895,7 @@ class _DebugPanelBand extends StatelessWidget {
               store: services.debugCaptureStore,
               windowController: services.screenshotWindow,
               onHide: () => services.debugPanelRevealed.value = false,
+              forceRtl: services.forceRtl,
             ),
           ),
           // While a screenshot is being taken the band goes Offstage: it leaves

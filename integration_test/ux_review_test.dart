@@ -41,6 +41,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 
+import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -289,7 +290,13 @@ Future<void> _sweep(
   if (kTextScaleX100 != 100) {
     await services.textScale.set(kTextScaleX100 / 100);
   }
-  if (kLocale != 'en') await services.locale.set(Locale(kLocale));
+  // The shipped `Locale` itself, not one rebuilt from the key — `km_KH` has a
+  // country and `sr` / `zh_TW` carry a script code the key cannot.
+  if (kLocale != 'en') {
+    await services.locale.set(
+      kSupportedLocales.firstWhere((l) => localeKey(l) == kLocale),
+    );
+  }
 
   await tester.pumpWidget(
     InvoiceNinjaApp(

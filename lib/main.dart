@@ -835,6 +835,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
           theme,
           widget.services.accentColor,
           widget.services.textScale,
+          widget.services.forceRtl,
         ]),
         builder: (context, _) => ValueListenableBuilder<Locale?>(
           // Resolved locale: device override → active company's
@@ -901,7 +902,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
               // router, the toast host and the shortcut-hint bar alike. Below
               // `Localizations` (which `MaterialApp` puts above this builder)
               // and above every route. See `CompanyLabelsScope`.
-              return CompanyLabelsScope(
+              final app = CompanyLabelsScope(
                 labels: widget.services.companyLabels,
                 child: MediaQuery(
                   data: mq.copyWith(
@@ -1031,6 +1032,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                   ),
                 ),
               );
+              // Debug Panel → Force right-to-left: overrides the direction
+              // `Localizations` derived from the locale, for every route.
+              return widget.services.forceRtl.value
+                  ? Directionality(textDirection: TextDirection.rtl, child: app)
+                  : app;
             },
           ),
         ),

@@ -149,6 +149,26 @@ flutter:
     - family: JetBrains Mono
       fonts:
         - asset: assets/fonts/JetBrainsMono.ttf
+    # Script fallbacks (Noto, OFL, variable) for the scripts Inter Tight and
+    # JetBrains Mono lack: without them the web engine fetches these from
+    # fonts.gstatic.com at runtime (tofu offline or behind a CSP) and
+    # `flutter test` draws boxes. `kScriptFallbackFonts` lists them; CJK is
+    # left to the system / engine fallback (several MB each).
+    - family: Noto Sans Arabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic.ttf
+    - family: Noto Sans Hebrew
+      fonts:
+        - asset: assets/fonts/NotoSansHebrew.ttf
+    - family: Noto Sans Thai
+      fonts:
+        - asset: assets/fonts/NotoSansThai.ttf
+    - family: Noto Sans Lao
+      fonts:
+        - asset: assets/fonts/NotoSansLao.ttf
+    - family: Noto Sans Khmer
+      fonts:
+        - asset: assets/fonts/NotoSansKhmer.ttf
     # Satisfies the Flutter web engine's hardcoded default-font check
     # (canvaskit + skwasm both look for a family literally named "Roboto") so it
     # never downloads Roboto from fonts.gstatic.com at boot. Aliased to the

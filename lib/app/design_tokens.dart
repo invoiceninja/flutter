@@ -13,6 +13,18 @@ import 'package:admin/app/color_hex.dart';
 const String kSansFontFamily = 'Inter Tight';
 const String kMonoFontFamily = 'JetBrains Mono';
 
+/// Bundled fallbacks for the scripts neither face covers — Arabic (and
+/// Persian), Hebrew, Thai, Lao, Khmer — so they render from our own origin on
+/// web and in tests rather than via the engine's runtime download. Chinese
+/// and Japanese are left to the system / engine fallback.
+const List<String> kScriptFallbackFonts = [
+  'Noto Sans Arabic',
+  'Noto Sans Hebrew',
+  'Noto Sans Thai',
+  'Noto Sans Lao',
+  'Noto Sans Khmer',
+];
+
 /// Canonical text style for any standalone currency/amount display: the
 /// bundled [kMonoFontFamily] (JetBrains Mono) plus tabular figures so digits
 /// align across rows. Every money `Text` goes through this — pass the per-site
@@ -27,6 +39,9 @@ TextStyle moneyTextStyle({
   double? letterSpacing,
 }) => TextStyle(
   fontFamily: kMonoFontFamily,
+  // JetBrains Mono lacks ₪ ₹ ₺ ₩ ₱ ₦ and every non-Latin digit set; the sans
+  // face has the currency signs, the script fonts the digits.
+  fontFamilyFallback: const [kSansFontFamily, ...kScriptFallbackFonts],
   fontFeatures: const [FontFeature.tabularFigures()],
   fontSize: fontSize,
   fontWeight: fontWeight,

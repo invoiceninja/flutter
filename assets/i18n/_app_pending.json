@@ -470,6 +470,7 @@
   "financial": "Financial",
   "focus_search": "Focus the search field",
   "force_full_sync": "Force full sync",
+  "force_right_to_left": "Force right-to-left",
   "forecast": "Forecast",
   "forecast_finish": "Forecast Finish",
   "forecast_needs_budget": "Set the project's budgeted hours to see when it will finish.",

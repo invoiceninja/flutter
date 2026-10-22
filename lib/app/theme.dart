@@ -84,6 +84,7 @@ ThemeData buildInTheme(InTheme baseTokens, {Color? accentOverride}) {
   // font's `wght` axis is driven by each text style's `fontWeight`.
   final textTheme = base.textTheme.apply(
     fontFamily: kSansFontFamily,
+    fontFamilyFallback: kScriptFallbackFonts,
     bodyColor: tokens.ink,
     displayColor: tokens.ink,
   );

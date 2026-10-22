@@ -943,6 +943,11 @@ class Services implements SidebarBadgeContext {
   final ScreenshotWindowController screenshotWindow =
       ScreenshotWindowController();
 
+  /// Debug Panel "Force right-to-left": lays the whole app out RTL while
+  /// keeping the active language's strings, so a layout can be checked in
+  /// RTL without reading Arabic. In-memory, resets every launch.
+  final ValueNotifier<bool> forceRtl = ValueNotifier<bool>(false);
+
   /// Whether `ScaffoldWithNav` is on screen. Written only by the shell's
   /// initState/dispose; read by `WindowFrame`, which paints the frameless
   /// Windows/Linux title bar from ABOVE the router and so cannot see the shell

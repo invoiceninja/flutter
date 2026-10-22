@@ -41,9 +41,13 @@ class DebugPanelSection extends StatelessWidget {
     required this.store,
     required this.windowController,
     required this.onHide,
+    this.forceRtl,
   });
 
   final DebugCaptureStore store;
+
+  /// `Services.forceRtl` — the Force right-to-left toggle. Null hides it.
+  final ValueNotifier<bool>? forceRtl;
 
   /// Screenshot tools state (window size presets + hidden traffic lights).
   /// Lives on `Services` so it survives hiding the panel for the capture.
@@ -93,6 +97,7 @@ class DebugPanelSection extends StatelessWidget {
                           windowController: windowController,
                           onHide: onHide,
                           isNarrow: isNarrow,
+                          forceRtl: forceRtl,
                         ),
                         Divider(height: 1, thickness: 1, color: tokens.border),
                         TabBar(
@@ -151,12 +156,14 @@ class _Toolbar extends StatelessWidget {
     required this.windowController,
     required this.onHide,
     required this.isNarrow,
+    this.forceRtl,
   });
 
   final DebugCaptureStore store;
   final ScreenshotWindowController windowController;
   final VoidCallback onHide;
   final bool isNarrow;
+  final ValueNotifier<bool>? forceRtl;
 
   @override
   Widget build(BuildContext context) {
@@ -211,6 +218,18 @@ class _Toolbar extends StatelessWidget {
       tooltip: context.tr('take_screenshot'),
       onPressed: () => _captureAndSave(context, windowController),
     );
+    final rtl = forceRtl;
+    final rtlButton = rtl == null
+        ? null
+        : ValueListenableBuilder<bool>(
+            valueListenable: rtl,
+            builder: (context, on, _) => IconButton(
+              icon: const Icon(Icons.format_textdirection_r_to_l),
+              tooltip: context.tr('force_right_to_left'),
+              isSelected: on,
+              onPressed: () => rtl.value = !on,
+            ),
+          );
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -238,6 +257,7 @@ class _Toolbar extends StatelessWidget {
                   ),
                 ),
                 ...screenshotControls,
+                ?rtlButton,
                 cameraButton,
                 clearButton,
                 copyButton,
@@ -263,6 +283,7 @@ class _Toolbar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ...screenshotControls,
+                  ?rtlButton,
                   cameraButton,
                   clearButton,
                   copyButton,

@@ -149,6 +149,7 @@ class LineItemTableDesktop extends StatefulWidget {
     required this.config,
     this.currencyId,
     this.productConversionRate,
+    this.partyTaxExempt = false,
     this.controller,
     this.rowErrors,
     this.showStockQuantity = false,
@@ -172,6 +173,10 @@ class LineItemTableDesktop extends StatefulWidget {
   /// (null = no conversion). Computed by [LineItemEditor]; consumed via
   /// `lineItemFromProduct`.
   final Decimal? productConversionRate;
+
+  /// The document's client or vendor is tax exempt: a picked product's blank
+  /// tax slots stay blank ([lineItemFromProduct]).
+  final bool partyTaxExempt;
   final LineItemTableDesktopController? controller;
 
   /// Per-row server validation errors keyed by line-item index. Each
@@ -820,6 +825,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                                     company: company,
                                     conversionRate:
                                         widget.productConversionRate,
+                                    partyTaxExempt: widget.partyTaxExempt,
                                   )
                                 : base.copyWith(productKey: product.productKey);
                             _applyRow(index, merged);
@@ -853,6 +859,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                                         company: company,
                                         conversionRate:
                                             widget.productConversionRate,
+                                        partyTaxExempt: widget.partyTaxExempt,
                                       )
                                     : base.copyWith(
                                         productKey: created.productKey,
@@ -942,12 +949,15 @@ LineItem _mergeProductInto(
   Product product, {
   required Company? company,
   required Decimal? conversionRate,
+  required bool partyTaxExempt,
 }) => lineItemFromProduct(
   product,
   base: base,
   enableProductQuantity: company?.enableProductQuantity ?? false,
   defaultQuantity: company?.defaultQuantity ?? false,
   conversionRate: conversionRate,
+  company: company,
+  partyTaxExempt: partyTaxExempt,
 );
 
 /// Lays [child] out at [minWidth] and scrolls it sideways when the pane is

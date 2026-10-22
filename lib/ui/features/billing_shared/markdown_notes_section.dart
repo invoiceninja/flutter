@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// One named markdown section (terms / footer / public notes / private
 /// notes). The host (typically the Invoice edit screen's Notes tab)
@@ -122,6 +123,9 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
     widget.onSaveAsDefault!(current);
   }
 
+  /// Markup with no text in it (`<p><br></p>`) is as empty as `''`.
+  static bool _isBlank(String html) => plainTextFromHtml(html).trim().isEmpty;
+
   @override
   Widget build(BuildContext context) {
     // "Save as default" is off over the default itself: the empty value would
@@ -130,7 +134,7 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
     // the company. Disabled rather than removed, so the row does not appear
     // under an `expand` editor — shrinking it — as the first edit lands.
     final showingDefault =
-        widget.value.isEmpty && (widget.defaultValue ?? '').isNotEmpty;
+        _isBlank(widget.value) && !_isBlank(widget.defaultValue ?? '');
     final saveButton = widget.onSaveAsDefault == null
         ? null
         : TextButton(

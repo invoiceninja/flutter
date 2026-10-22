@@ -1115,9 +1115,15 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
     final inset = View.of(context).viewInsets.bottom;
     final grew = inset > _lastBottomInset;
     _lastBottomInset = inset;
-    if (grew && _editing) _scheduleCaretReveal();
+    // Jump, as `EditableText` does here (`withAnimation: false`): this fires
+    // on every frame of the keyboard's slide, and an animated reveal would be
+    // restarted on each one and trail the caret.
+    if (grew && _editing) _scheduleCaretReveal(animate: false);
   }
 
+  /// The keyboard inset [didChangeMetrics] last saw, re-read when the editor
+  /// takes focus ([_onFocusChanged]) so a field focused under a keyboard that
+  /// is already open does not take its next resize for the keyboard opening.
   double _lastBottomInset = 0;
 
   /// Scroll the *enclosing* form so the caret clears the soft keyboard.
@@ -1129,20 +1135,26 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
   /// Private Notes field, under the sticky totals. Run after layout, once per
   /// frame, on the editor gaining focus, the caret moving (typing included,
   /// which is also what grows the field) and the keyboard changing size.
-  void _scheduleCaretReveal() {
+  void _scheduleCaretReveal({bool animate = true}) {
+    // One reveal per frame; a jump asked for in the same frame wins.
+    _caretRevealAnimates = _caretRevealScheduled
+        ? _caretRevealAnimates && animate
+        : animate;
     if (_caretRevealScheduled) return;
     _caretRevealScheduled = true;
     WidgetsBinding.instance
       ..addPostFrameCallback((_) {
         _caretRevealScheduled = false;
-        _revealCaret();
+        _revealCaret(animate: _caretRevealAnimates);
       })
       // A post-frame callback waits for a frame; an idle engine has none
       // coming.
       ..ensureVisualUpdate();
   }
 
-  void _revealCaret() {
+  bool _caretRevealAnimates = true;
+
+  void _revealCaret({required bool animate}) {
     if (!mounted || !_editing || _htmlMode || !_focusNode.hasFocus) return;
     final extent = _composer.selection?.extent;
     final Object? layout = _editorLayoutKey.currentState;
@@ -1171,12 +1183,15 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
     box.showOnScreen(
       // `EditableText`'s default `scrollPadding`, and its animation.
       rect: clamped.inflate(20),
-      duration: const Duration(milliseconds: 100),
+      duration: animate ? const Duration(milliseconds: 100) : Duration.zero,
       curve: Curves.fastOutSlowIn,
     );
   }
 
   void _onFocusChanged() {
+    if (_focusNode.hasFocus && mounted) {
+      _lastBottomInset = View.of(context).viewInsets.bottom;
+    }
     if (_focusNode.hasFocus && _editing) _scheduleCaretReveal();
     // Flush any pending edits the moment focus leaves the editor so that
     // blur-then-save races don't drop the last keystroke.

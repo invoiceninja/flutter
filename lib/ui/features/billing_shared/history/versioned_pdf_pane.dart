@@ -146,13 +146,13 @@ class _VersionedPdfPaneState extends State<VersionedPdfPane> {
                 autoRefreshDebounce: Duration.zero,
                 // The pane is part of the window; the `/pdf` route is all of
                 // it, on the version the pane is showing.
-                onOpenFullSize: () => billingDocVersionOpener(
+                onOpenFullSize: (deliveryNote) => openBillingDocPdf(
                   context,
                   type: widget.entity,
                   docId: widget.entityId,
-                  hasPdfPane: false,
-                  selection: widget.selection,
-                )(activityId),
+                  activityId: activityId,
+                  deliveryNote: deliveryNote,
+                ),
                 fetcher: activityId == null
                     ? widget.liveFetcher
                     : ({String? designId, required bool deliveryNote}) =>

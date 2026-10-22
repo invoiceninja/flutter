@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/expense.dart';
@@ -76,6 +77,10 @@ class _Settings extends SettingsRepository {
 
   final answers = <String?, bool>{};
 
+  /// Extra cascade keys per layer (`null` = the company), laid over the
+  /// company's for a client — the default tax tiers.
+  final layers = <String?, Map<String, dynamic>>{};
+
   /// Clients whose `resolved()` fails.
   final failing = <String?>{};
   Map<String?, bool>? ready;
@@ -83,6 +88,8 @@ class _Settings extends SettingsRepository {
   final pending = <({String? clientId, Completer<Map<String, dynamic>> c})>[];
 
   Map<String, dynamic> _layer(String? clientId) => {
+    ...?layers[null],
+    if (clientId != null) ...?layers[clientId],
     'inclusive_taxes': answers[clientId] ?? answers[null] ?? false,
     // Which layer answered, for the create-cascade tests.
     'layer': clientId ?? 'company',
@@ -209,7 +216,9 @@ void main() {
 
   for (final MapEntry(key: type, value: make) in _docs.entries) {
     group(type.name, () {
-      dynamic open({Object? cloneFrom}) {
+      var enabledTaxRates = 0;
+      final exempt = <String>{};
+      dynamic open({Object? cloneFrom, bool isClone = false}) {
         final dynamic vm = make(db, cloneFrom: cloneFrom);
         addTearDown(() => vm.dispose());
         seedBillingCreateDefaults(
@@ -217,9 +226,170 @@ void main() {
           companyId: 'co',
           type: type,
           vm: vm as BillingDocEditViewModel,
+          isClone: isClone,
+          taxFacts: BillingTaxFacts(
+            enabledTaxRates: () async => enabledTaxRates,
+            partyTaxExempt: ({clientId = '', vendorId = ''}) async =>
+                exempt.contains(clientId) || exempt.contains(vendorId),
+          ),
         );
         return vm;
       }
+
+      String tiers(dynamic vm) {
+        final d = vm.draft as BillingDocFields;
+        return '${d.taxName1}:${d.taxRate1} ${d.taxName2}:${d.taxRate2} '
+            '${d.taxName3}:${d.taxRate3}';
+      }
+
+      group('default tax rates', () {
+        setUp(() {
+          enabledTaxRates = 2;
+          exempt.clear();
+          settings.layers[null] = {
+            'tax_name1': 'GST',
+            'tax_rate1': 5,
+            'tax_name2': 'PST',
+            'tax_rate2': '7.5',
+            'tax_name3': 'HST',
+            'tax_rate3': 13,
+          };
+        });
+
+        test('a new document opens on the company defaults, for the enabled '
+            'tiers only, and clean', () async {
+          final dynamic vm = open();
+          await pumpEventQueue();
+          expect(tiers(vm), 'GST:5 PST:7.5 :0');
+          expect(vm.isDirty, isFalse);
+        });
+
+        test('no enabled tiers seeds nothing', () async {
+          enabledTaxRates = 0;
+          final dynamic vm = open();
+          await pumpEventQueue();
+          expect(tiers(vm), ':0 :0 :0');
+        });
+
+        test('a tier with no name is no tax', () async {
+          settings.layers[null] = {'tax_name1': '', 'tax_rate1': 5};
+          final dynamic vm = open();
+          await pumpEventQueue();
+          expect(tiers(vm), ':0 :0 :0');
+        });
+
+        test('a typed tier is the user\'s', () async {
+          settings.hold = true;
+          final dynamic vm = open();
+          vm.setTaxRate1('3');
+          settings.answer(null);
+          await pumpEventQueue();
+          expect(tiers(vm), ':3 :0 :0');
+        });
+
+        test('a clone keeps its source\'s taxes', () async {
+          final probe = make(db);
+          addTearDown(() => probe.dispose());
+          final source = probe.writer.taxRate1(
+            probe.writer.taxName1(probe.writer.empty(), 'VAT'),
+            Decimal.parse('20'),
+          );
+          final dynamic vm = open(cloneFrom: source, isClone: true);
+          await pumpEventQueue();
+          expect(tiers(vm), 'VAT:20 :0 :0');
+        });
+
+        test('an untaxed clone stays untaxed', () async {
+          final probe = make(db);
+          addTearDown(() => probe.dispose());
+          final dynamic vm = open(
+            cloneFrom: probe.writer.lineItems(probe.writer.empty(), [
+              _pricedLine,
+            ]),
+            isClone: true,
+          );
+          await pumpEventQueue();
+          expect(tiers(vm), ':0 :0 :0');
+        });
+
+        // Product / task / expense / project → invoice: a new document that
+        // happens to open with lines, as admin-portal and React treat it.
+        test('a draft built with priced lines still takes the defaults, '
+            'though not the inclusive-tax mode', () async {
+          settings.answers[null] = true;
+          final probe = make(db);
+          addTearDown(() => probe.dispose());
+          final dynamic vm = open(
+            cloneFrom: probe.writer.lineItems(probe.writer.empty(), [
+              _pricedLine,
+            ]),
+          );
+          await pumpEventQueue();
+          expect(tiers(vm), 'GST:5 PST:7.5 :0');
+          expect(vm.draft.usesInclusiveTaxes, isFalse);
+        });
+
+        test('discard → clean, on the company defaults', () async {
+          final dynamic vm = open();
+          await pumpEventQueue();
+          vm.setTaxName1('Other');
+          vm.resetToEmpty();
+          await pumpEventQueue();
+          expect(tiers(vm), 'GST:5 PST:7.5 :0');
+          expect(vm.isDirty, isFalse);
+        });
+
+        if (type.party == BillingDocParty.client) {
+          test('the client\'s override follows a client change, even once '
+              'lines are priced', () async {
+            settings.layers['c1'] = {'tax_name1': 'QST', 'tax_rate1': 9.975};
+            final dynamic vm = open();
+            await pumpEventQueue();
+            vm.addLineItem(_pricedLine);
+            vm.setClientId('c1');
+            await pumpEventQueue();
+            expect(tiers(vm), 'QST:9.975 PST:7.5 :0');
+            vm.setClientId('');
+            await pumpEventQueue();
+            expect(tiers(vm), 'GST:5 PST:7.5 :0');
+          });
+
+          test('a tax-exempt client clears every tier', () async {
+            exempt.add('c1');
+            final dynamic vm = open();
+            await pumpEventQueue();
+            vm.setClientId('c1');
+            await pumpEventQueue();
+            expect(tiers(vm), ':0 :0 :0');
+          });
+
+          test('a prefilled client is resolved on open', () async {
+            settings.layers['c1'] = {'tax_name1': 'QST', 'tax_rate1': 9.975};
+            final probe = make(db);
+            addTearDown(() => probe.dispose());
+            final dynamic vm = open(
+              cloneFrom: probe.writer.clientId(probe.writer.empty(), 'c1'),
+            );
+            await pumpEventQueue();
+            expect(tiers(vm), 'QST:9.975 PST:7.5 :0');
+          });
+        } else {
+          // The server totals a purchase order against its vendor, and zeroes
+          // every tax of an exempt one.
+          test('a tax-exempt vendor clears every tier, and another vendor '
+              'gets the company defaults back', () async {
+            exempt.add('v1');
+            final dynamic vm = open();
+            await pumpEventQueue();
+            vm.setVendorId('v1');
+            await pumpEventQueue();
+            expect(tiers(vm), ':0 :0 :0');
+            vm.setVendorId('v2');
+            await pumpEventQueue();
+            expect(tiers(vm), 'GST:5 PST:7.5 :0');
+          });
+        }
+      });
 
       test('an inclusive company opens it inclusive, and clean', () async {
         settings.answers[null] = true;

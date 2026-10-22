@@ -47,5 +47,10 @@ Future<void> openConvertedPurchaseOrder(
       context.tr('po_lines_without_cost', {'count': '$uncosted'}),
     );
   }
-  goEntityCreateFullWidth(context, '/purchase_orders', extra: po);
+  goEntityCreateFullWidth(
+    context,
+    '/purchase_orders',
+    extra: po,
+    isClone: true,
+  );
 }

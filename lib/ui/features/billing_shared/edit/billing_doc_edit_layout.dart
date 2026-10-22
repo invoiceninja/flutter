@@ -41,6 +41,7 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Enter in a single-line field saves the document (§ Forms — Enter to
 /// save), through the `FormSaveScope` the edit scaffold wraps the form in.
@@ -266,6 +267,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
                 vm.registerSourceClientIds(tasks: tasks, expenses: expenses)
           : (_, _) {},
       showStockQuantity: _type.showsProductStock,
+      vendorId: client ? '' : vm.draft.vendorId,
     );
   }
 
@@ -944,7 +946,11 @@ String? _dueDaysHint(
 /// for a blank setting.
 String? _cascadeText(BillingDocEditViewModel<BillingDocFields> vm, String key) {
   final value = vm.createCascade?[key];
-  return value is String && value.trim().isNotEmpty ? value : null;
+  // An emptied WYSIWYG field is stored as markup (`<p><br></p>`), which is
+  // no default at all.
+  return value is String && plainTextFromHtml(value).trim().isNotEmpty
+      ? value
+      : null;
 }
 
 /// A "Save as default" for the terms / footer, where the document has a

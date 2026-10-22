@@ -53,11 +53,12 @@ class PurchaseOrderEditScreen extends StatelessWidget {
         // screen on each stage so buildVm re-reads it. `cloneFrom` is the
         // edit-mode override (parallels InvoiceEditScreen). Product → New PO
         // bakes the line item into the staged draft.
-        final clone =
-            cloneFrom ??
-            (existing == null
-                ? services.takeCreateDraft<PurchaseOrder>('/purchase_orders')
-                : null);
+        // `isClone`: the draft copies an existing record (a clone, a
+        // cross-clone), which keeps its source's taxes.
+        final seed = cloneFrom == null && existing == null
+            ? services.takeCreateSeed<PurchaseOrder>('/purchase_orders')
+            : null;
+        final clone = cloneFrom ?? seed?.draft;
         final vm = PurchaseOrderEditViewModel(
           repo: services.purchaseOrders,
           companyId: companyId,
@@ -73,13 +74,15 @@ class PurchaseOrderEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
-        // The inclusive-tax mode the server would give it — the company's.
+        // The inclusive-tax mode and default tax rates — the company's.
         if (existing == null) {
           seedBillingCreateDefaults(
             settings: services.settings,
             companyId: companyId,
             type: BillingDocType.purchaseOrder,
             vm: vm,
+            taxFacts: BillingTaxFacts.of(services, companyId),
+            isClone: seed?.isClone ?? false,
           );
         }
         return vm;

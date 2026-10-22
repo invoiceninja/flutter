@@ -11,8 +11,10 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 
 void main() {
@@ -223,6 +225,67 @@ void main() {
       expect(li.cost, Decimal.parse('100'));
       expect(li.notes, 'A widget');
       expect(li.quantity, Decimal.one);
+    });
+  });
+
+  // invoiceninja/flutter#178. With no document-level tiers the Tax Settings
+  // "Default Tax Rate" picker is the line default, and the server never
+  // applies it — so a product saved without a tax must pick it up here.
+  group('default item taxes', () {
+    const settings = CompanySettings(
+      taxName1: 'GST',
+      taxRate1: 5,
+      taxName2: 'PST',
+      taxRate2: 7,
+    );
+    const lineOnly = Company(enabledItemTaxRates: 2, settings: settings);
+
+    test('a blank product slot takes the company default', () {
+      final p = makeProduct().copyWith(taxName1: '', taxRate1: Decimal.zero);
+      final li = lineItemFromProduct(p, company: lineOnly);
+      expect((li.taxName1, li.taxRate1), ('GST', Decimal.fromInt(5)));
+      expect(
+        (li.taxName2, li.taxRate2),
+        ('City', Decimal.parse('1.5')),
+        reason: 'the product\'s own tax wins',
+      );
+    });
+
+    test('only the enabled item slots', () {
+      final p = makeProduct().copyWith(taxName2: '', taxRate2: Decimal.zero);
+      final li = lineItemFromProduct(
+        p,
+        company: lineOnly.copyWith(enabledItemTaxRates: 1),
+      );
+      expect((li.taxName2, li.taxRate2), ('', Decimal.zero));
+    });
+
+    test('not for a tax-exempt party, whose taxes the server zeroes', () {
+      final p = makeProduct().copyWith(taxName1: '', taxRate1: Decimal.zero);
+      final li = lineItemFromProduct(
+        p,
+        company: lineOnly,
+        partyTaxExempt: true,
+      );
+      expect((li.taxName1, li.taxRate1), ('', Decimal.zero));
+    });
+
+    test('a rate with no name is the product\'s tax, and is kept', () {
+      final p = makeProduct().copyWith(
+        taxName1: '',
+        taxRate1: Decimal.parse('8'),
+      );
+      final li = lineItemFromProduct(p, company: lineOnly);
+      expect((li.taxName1, li.taxRate1), ('', Decimal.parse('8')));
+    });
+
+    test('not when the company taxes the document', () {
+      final p = makeProduct().copyWith(taxName1: '', taxRate1: Decimal.zero);
+      final li = lineItemFromProduct(
+        p,
+        company: lineOnly.copyWith(enabledTaxRates: 1),
+      );
+      expect((li.taxName1, li.taxRate1), ('', Decimal.zero));
     });
   });
 }

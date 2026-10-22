@@ -509,7 +509,12 @@ class CreditActions {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         );
-        goEntityCreateFullWidth(context, '/credits', extra: draft);
+        goEntityCreateFullWidth(
+          context,
+          '/credits',
+          extra: draft,
+          isClone: true,
+        );
 
       // Cross-type clone is client-side (the server's bulk performAction only
       // clones credit→credit): invoice/quote/PO are built here and opened in
@@ -521,6 +526,7 @@ class CreditActions {
           context,
           '/invoices',
           extra: cloneToInvoice(billingCloneFromCredit(credit)),
+          isClone: true,
         );
 
       case CreditAction.cloneToQuote:
@@ -528,6 +534,7 @@ class CreditActions {
           context,
           '/quotes',
           extra: cloneToQuote(billingCloneFromCredit(credit)),
+          isClone: true,
         );
 
       case CreditAction.cloneToPurchaseOrder:
@@ -535,6 +542,7 @@ class CreditActions {
           context,
           '/purchase_orders',
           extra: cloneToPurchaseOrder(billingCloneFromCredit(credit)),
+          isClone: true,
         );
 
       case CreditAction.logCall:

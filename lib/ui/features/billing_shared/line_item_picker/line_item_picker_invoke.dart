@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_sheet.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 
 /// Shared "open the picker and append the result" pipeline that every
 /// billing-doc edit screen calls. Centralizes the five invariants:
@@ -52,6 +53,7 @@ Future<void> openLineItemPicker(
   )
   registerSourceClientIds,
   bool showStockQuantity = false,
+  String vendorId = '',
 }) async {
   final services = context.read<Services>();
   // What to exclude is decided now; what to append to is read again once the
@@ -77,6 +79,14 @@ Future<void> openLineItemPicker(
     ))
       if (t.projectId.isNotEmpty) t.projectId,
   };
+  // A picked product's blank tax slots stay blank for an exempt party. A
+  // failed lookup must not keep the picker from opening.
+  final partyTaxExempt = await billingPartyTaxExempt(
+    services,
+    companyId: companyId,
+    clientId: clientId,
+    vendorId: vendorId,
+  ).catchError((Object _) => false);
   if (!context.mounted) return;
 
   final result = await showLineItemPickerSheet(
@@ -90,6 +100,7 @@ Future<void> openLineItemPicker(
     headedProjectIds: headedProjectIds,
     formatter: services.formatterIfReady(companyId),
     showStockQuantity: showStockQuantity,
+    partyTaxExempt: partyTaxExempt,
   );
   if (result == null || result.lineItems.isEmpty) return;
 

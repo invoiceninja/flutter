@@ -53,11 +53,12 @@ class CreditEditScreen extends StatelessWidget {
         // cross-branch + on screen reuse); the keyed `/new` route recreates the
         // screen on each stage so buildVm re-reads it. `cloneFrom` is the
         // edit-mode override (parallels InvoiceEditScreen).
-        final clone =
-            cloneFrom ??
-            (existing == null
-                ? services.takeCreateDraft<Credit>('/credits')
-                : null);
+        // `isClone`: the draft copies an existing record (a clone, a
+        // cross-clone), which keeps its source's taxes.
+        final seed = cloneFrom == null && existing == null
+            ? services.takeCreateSeed<Credit>('/credits')
+            : null;
+        final clone = cloneFrom ?? seed?.draft;
         final vm = CreditEditViewModel(
           repo: services.credits,
           companyId: companyId,
@@ -84,12 +85,14 @@ class CreditEditScreen extends StatelessWidget {
             companyId: companyId,
             vm: vm,
           );
-          // The inclusive-tax mode the server would give it.
+          // The inclusive-tax mode and default tax rates.
           seedBillingCreateDefaults(
             settings: services.settings,
             companyId: companyId,
             type: BillingDocType.credit,
             vm: vm,
+            taxFacts: BillingTaxFacts.of(services, companyId),
+            isClone: seed?.isClone ?? false,
           );
         }
         return vm;

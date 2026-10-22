@@ -120,13 +120,38 @@ void Function(String? activityId) billingDocVersionOpener(
 }) => (String? activityId) {
   if (hasPdfPane) {
     selection.value = activityId;
-  } else if (requireSynced(context, docId)) {
-    context.go(
-      '${type.routePath}/$docId/pdf'
-      '${activityId == null ? '' : '?activity_id=$activityId'}',
+  } else {
+    openBillingDocPdf(
+      context,
+      type: type,
+      docId: docId,
+      activityId: activityId,
     );
   }
 };
+
+/// Open the document's `/pdf` screen on [activityId]'s version (null: the
+/// live document), as its delivery note when [deliveryNote] — which only the
+/// live document has. Guarded like [billingDocVersionOpener].
+void openBillingDocPdf(
+  BuildContext context, {
+  required BillingDocType type,
+  required String docId,
+  String? activityId,
+  bool deliveryNote = false,
+}) {
+  if (!requireSynced(context, docId)) return;
+  final query = <String, String>{
+    if (activityId != null) 'activity_id': activityId,
+    if (activityId == null && deliveryNote) 'delivery_note': 'true',
+  };
+  context.go(
+    Uri(
+      path: '${type.routePath}/$docId/pdf',
+      queryParameters: query.isEmpty ? null : query,
+    ).toString(),
+  );
+}
 
 /// A billing document's number and the one figure that matters, for the fixed
 /// bar once the header has scrolled away — so the Activity feed of a long-

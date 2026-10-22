@@ -52,6 +52,7 @@ class LineItemPickerBody extends StatefulWidget {
     required this.formatter,
     this.headedProjectIds = const {},
     this.showStockQuantity = false,
+    this.partyTaxExempt = false,
     this.maxHeight,
   });
 
@@ -74,6 +75,10 @@ class LineItemPickerBody extends StatefulWidget {
   /// `docTypeIsInvoice` — gates the bracketed in-stock count (`[N]`) on each
   /// product row. ANDed with the live company's `trackInventory` below.
   final bool showStockQuantity;
+
+  /// The document's client or vendor is tax exempt: a picked product's blank
+  /// tax slots stay blank ([lineItemFromProduct]).
+  final bool partyTaxExempt;
 
   /// Caps the body's overall height — non-null inside a bottom sheet so the
   /// modal honors the standard 0.85·screen cap; null inside a Dialog whose
@@ -490,6 +495,8 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
           enableProductQuantity: company?.enableProductQuantity ?? false,
           defaultQuantity: company?.defaultQuantity ?? false,
           conversionRate: productRate,
+          company: company,
+          partyTaxExempt: widget.partyTaxExempt,
         ),
       );
     }

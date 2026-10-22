@@ -110,11 +110,12 @@ class InvoiceEditScreen extends StatelessWidget {
         // dropped on the cross-branch jump and on create-screen reuse). The
         // generation-keyed `/new` route recreates this screen on each stage, so
         // `buildVm` re-reads the staged draft here.
-        final clone =
-            cloneFrom ??
-            (existing == null
-                ? services.takeCreateDraft<Invoice>('/invoices')
-                : null);
+        // `isClone`: the draft copies an existing record (a clone, a
+        // cross-clone), which keeps its source's taxes.
+        final seed = cloneFrom == null && existing == null
+            ? services.takeCreateSeed<Invoice>('/invoices')
+            : null;
+        final clone = cloneFrom ?? seed?.draft;
         final vm = InvoiceEditViewModel(
           repo: services.invoices,
           companyId: companyId,
@@ -174,12 +175,14 @@ class InvoiceEditScreen extends StatelessWidget {
             companyId: companyId,
             vm: vm,
           );
-          // The inclusive-tax mode the server would give it.
+          // The inclusive-tax mode and default tax rates.
           seedBillingCreateDefaults(
             settings: services.settings,
             companyId: companyId,
             type: BillingDocType.invoice,
             vm: vm,
+            taxFacts: BillingTaxFacts.of(services, companyId),
+            isClone: seed?.isClone ?? false,
           );
         }
         return vm;

@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:decimal/decimal.dart';
+
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
+import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
@@ -31,8 +35,93 @@ Future<bool> resolveCreateInclusiveTaxes(
   ),
 );
 
-/// Seed a new billing document's inclusive-tax mode from the settings
-/// cascade, the way the server does on create.
+/// The document-level tax tiers a new document gets: slot `1..enabled`
+/// takes the cascade's `tax_name<N>` / `tax_rate<N>` (the Tax Settings →
+/// Default Tax Rate pickers, overridable per group and client), and a
+/// tax-exempt client clears all three. A tier with no name is no tax, whatever
+/// rate it carries. Slots past [enabledTaxRates] are left out, so the draft
+/// keeps them.
+///
+/// The server does none of this: `InvoiceFactory` blanks every tier and the
+/// store path never reads the default, so a client app that leaves the tiers
+/// blank saves an untaxed document.
+Map<int, ({String name, Decimal rate})> defaultTaxTiers(
+  Map<String, dynamic> settings, {
+  required int enabledTaxRates,
+  required bool clientTaxExempt,
+}) {
+  // [billingPartyTaxExempt] — a vendor counts as the client here.
+  if (clientTaxExempt) {
+    return {for (var n = 1; n <= 3; n++) n: (name: '', rate: Decimal.zero)};
+  }
+  final tiers = <int, ({String name, Decimal rate})>{};
+  for (var n = 1; n <= enabledTaxRates.clamp(0, 3); n++) {
+    final name = (settings['tax_name$n'] ?? '').toString().trim();
+    tiers[n] = name.isEmpty
+        ? (name: '', rate: Decimal.zero)
+        : (name: name, rate: parseMoney(settings['tax_rate$n']));
+  }
+  return tiers;
+}
+
+/// Whether a billing document's party — its client, or a purchase order's
+/// vendor — is tax exempt. The server zeroes every document and line tax of
+/// an exempt party when it totals the document (`InvoiceSum` /
+/// `InvoiceItemSum`, `$invoice->client ?? $invoice->vendor`), so a default
+/// tax the app puts on one would show in the totals and vanish on save. False
+/// with no party, or one not in Drift.
+Future<bool> billingPartyTaxExempt(
+  Services services, {
+  required String companyId,
+  String clientId = '',
+  String vendorId = '',
+}) async {
+  if (clientId.isNotEmpty) {
+    final client = await services.clients
+        .watch(companyId: companyId, id: clientId)
+        .first;
+    return client?.isTaxExempt ?? false;
+  }
+  if (vendorId.isNotEmpty) {
+    final vendor = await services.vendors
+        .watch(companyId: companyId, id: vendorId)
+        .first;
+    return vendor?.isTaxExempt ?? false;
+  }
+  return false;
+}
+
+/// The two facts [defaultTaxTiers] needs that the settings cascade does not
+/// carry. [BillingTaxFacts.of] reads them from Drift.
+class BillingTaxFacts {
+  const BillingTaxFacts({
+    required this.enabledTaxRates,
+    required this.partyTaxExempt,
+  });
+
+  factory BillingTaxFacts.of(Services services, String companyId) =>
+      BillingTaxFacts(
+        enabledTaxRates: () async =>
+            (await services.company.get(companyId))?.enabledTaxRates ?? 0,
+        partyTaxExempt: ({clientId = '', vendorId = ''}) =>
+            billingPartyTaxExempt(
+              services,
+              companyId: companyId,
+              clientId: clientId,
+              vendorId: vendorId,
+            ),
+      );
+
+  /// The company's `enabled_tax_rates`: how many document-level tiers it uses.
+  final Future<int> Function() enabledTaxRates;
+
+  /// [billingPartyTaxExempt].
+  final Future<bool> Function({String clientId, String vendorId})
+  partyTaxExempt;
+}
+
+/// Seed a new billing document's inclusive-tax mode and default tax tiers
+/// from the settings cascade.
 ///
 /// `empty*()` hard-code `usesInclusiveTaxes: false` and the app always sends
 /// the field, so it overrode the server's `$client->getSetting(
@@ -59,8 +148,18 @@ Future<bool> resolveCreateInclusiveTaxes(
 /// every create, clone and priced form included, discard or not, and cleared
 /// while a new party's answer is still out.
 ///
+/// The tax tiers ([defaultTaxTiers]) are seeded from the awaited answer only,
+/// through [BillingDocEditViewModel.seedTaxRates]: on any create form that
+/// opened with every tier blank — a draft built with priced lines (from a
+/// product, a task, an expense, a project) included, as in admin-portal and
+/// React — except an [isClone] one, which copies its source's taxes, blank or
+/// not (`Services.stageCreateDraft`'s `isClone`). Until the user types in a
+/// tier. They need [taxFacts], and are skipped
+/// without it. The exempt party is the client, or a purchase order's vendor.
+///
 /// A client document re-resolves when its client changes (picked, seeded from
-/// a project, cleared), under the same guards. A request token drops a late
+/// a project, cleared), and a purchase order when its vendor does, under the
+/// same guards. A request token drops a late
 /// answer for a client the user has already moved away from. A purchase
 /// order reads the company layer only: the server cascades
 /// `inclusive_taxes` through a client, and a vendor document has none.
@@ -69,18 +168,34 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
   required String companyId,
   required BillingDocType type,
   required BillingDocEditViewModel<T> vm,
+  BillingTaxFacts? taxFacts,
+  bool isClone = false,
 }) {
   if (!vm.isCreate) return;
   // A clone or a produced draft keeps the mode it arrived with for good —
   // even once its lines are deleted — so only a form that opened seedable
   // ever seeds. The cascade itself is shown on every create.
   final seedsTaxes = vm.canSeedInclusiveTaxes;
+  final d = vm.draft;
+  final seedsTiers =
+      !isClone &&
+      taxFacts != null &&
+      d.taxName1.isEmpty &&
+      d.taxName2.isEmpty &&
+      d.taxName3.isEmpty &&
+      d.taxRate1 == Decimal.zero &&
+      d.taxRate2 == Decimal.zero &&
+      d.taxRate3 == Decimal.zero;
   final byClient = type.party == BillingDocParty.client;
   var token = 0;
+
+  // The client, or a purchase order's vendor.
+  String partyId() => byClient ? vm.clientId : vm.draft.vendorId;
 
   void resolve() {
     final clientId = byClient && vm.clientId.isNotEmpty ? vm.clientId : null;
     final companyLevel = clientId == null;
+    final party = partyId();
     final request = ++token;
     final guess = settings.resolvedIfReady(
       companyId: companyId,
@@ -98,13 +213,33 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
     unawaited(
       settings
           .resolved(companyId: companyId, clientId: clientId)
-          .then((resolved) {
+          .then((resolved) async {
             if (request != token || vm.isDisposed) return;
             vm.setCreateCascade(resolved);
-            if (!seedsTaxes) return;
-            vm.seedUsesInclusiveTaxes(
-              inclusiveTaxesSetting(resolved),
-              companyLevel: companyLevel,
+            if (seedsTaxes) {
+              vm.seedUsesInclusiveTaxes(
+                inclusiveTaxesSetting(resolved),
+                companyLevel: companyLevel,
+              );
+            }
+            final facts = taxFacts;
+            if (!seedsTiers || facts == null) return;
+            final enabled = await facts.enabledTaxRates();
+            final exempt =
+                party.isNotEmpty &&
+                await (byClient
+                    ? facts.partyTaxExempt(clientId: party)
+                    : facts.partyTaxExempt(vendorId: party));
+            if (request != token || vm.isDisposed) return;
+            vm.seedTaxRates(
+              defaultTaxTiers(
+                resolved,
+                enabledTaxRates: enabled,
+                clientTaxExempt: exempt,
+              ),
+              // A Discard clears the party, so only a party-free answer is
+              // the blank form's.
+              companyLevel: party.isEmpty,
             );
           })
           .catchError((Object _) {}),
@@ -112,13 +247,15 @@ void seedBillingCreateDefaults<T extends BillingDocFields>({
   }
 
   resolve();
-  if (!byClient) return;
-  var lastClientId = vm.clientId;
+  // A purchase order's cascade is the company's whatever the vendor, but the
+  // vendor decides whether its tax tiers stay blank.
+  if (!byClient && !seedsTiers) return;
+  var lastPartyId = partyId();
   vm.addListener(() {
-    final clientId = vm.clientId;
-    if (clientId == lastClientId) return;
-    lastClientId = clientId;
-    // Whatever was asked for the previous client is stale now, even when
+    final party = partyId();
+    if (party == lastPartyId) return;
+    lastPartyId = party;
+    // Whatever was asked for the previous party is stale now, even when
     // nothing is asked for this one.
     token++;
     // `seedUsesInclusiveTaxes` guards itself (behind [seedsTaxes]); the

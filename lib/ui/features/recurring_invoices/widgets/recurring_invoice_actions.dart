@@ -485,7 +485,12 @@ class RecurringInvoiceActions {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         );
-        goEntityCreateFullWidth(context, '/recurring_invoices', extra: draft);
+        goEntityCreateFullWidth(
+          context,
+          '/recurring_invoices',
+          extra: draft,
+          isClone: true,
+        );
 
       // Cross-type clone is client-side (the server's bulk performAction has no
       // recurring-invoice clone targets): all targets are built here and opened
@@ -497,6 +502,7 @@ class RecurringInvoiceActions {
           context,
           '/invoices',
           extra: cloneToInvoice(billingCloneFromRecurringInvoice(ri)),
+          isClone: true,
         );
 
       case RecurringInvoiceAction.cloneToQuote:
@@ -504,6 +510,7 @@ class RecurringInvoiceActions {
           context,
           '/quotes',
           extra: cloneToQuote(billingCloneFromRecurringInvoice(ri)),
+          isClone: true,
         );
 
       case RecurringInvoiceAction.cloneToCredit:
@@ -511,6 +518,7 @@ class RecurringInvoiceActions {
           context,
           '/credits',
           extra: cloneToCredit(billingCloneFromRecurringInvoice(ri)),
+          isClone: true,
         );
 
       case RecurringInvoiceAction.cloneToPurchaseOrder:
@@ -518,6 +526,7 @@ class RecurringInvoiceActions {
           context,
           '/purchase_orders',
           extra: cloneToPurchaseOrder(billingCloneFromRecurringInvoice(ri)),
+          isClone: true,
         );
 
       case RecurringInvoiceAction.logCall:

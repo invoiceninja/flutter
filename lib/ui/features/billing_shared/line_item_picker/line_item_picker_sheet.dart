@@ -27,6 +27,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
   Set<String> headedProjectIds = const {},
   Formatter? formatter,
   bool showStockQuantity = false,
+  bool partyTaxExempt = false,
 }) {
   final size = MediaQuery.of(context).size;
   final wide = size.width >= 720;
@@ -59,6 +60,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
             headedProjectIds: headedProjectIds,
             formatter: formatter,
             showStockQuantity: showStockQuantity,
+            partyTaxExempt: partyTaxExempt,
             maxHeight: maxDialogHeight,
           ),
         ),
@@ -106,6 +108,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
               headedProjectIds: headedProjectIds,
               formatter: formatter,
               showStockQuantity: showStockQuantity,
+              partyTaxExempt: partyTaxExempt,
               maxHeight: maxHeight,
             ),
           ),

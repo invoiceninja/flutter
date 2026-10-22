@@ -787,7 +787,12 @@ class InvoiceActions {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         );
-        goEntityCreateFullWidth(context, '/invoices', extra: draft);
+        goEntityCreateFullWidth(
+          context,
+          '/invoices',
+          extra: draft,
+          isClone: true,
+        );
 
       case InvoiceAction.rectify:
         if (tmpGate()) return;
@@ -797,6 +802,7 @@ class InvoiceActions {
           context,
           '/invoices',
           extra: rectifiedDraft(invoice, reason),
+          isClone: true,
         );
 
       case InvoiceAction.sendEInvoice:
@@ -894,6 +900,7 @@ class InvoiceActions {
           context,
           '/quotes',
           extra: cloneToQuote(billingCloneFromInvoice(invoice)),
+          isClone: true,
         );
 
       case InvoiceAction.cloneToCredit:
@@ -912,7 +919,12 @@ class InvoiceActions {
             ),
           );
         }
-        goEntityCreateFullWidth(context, '/credits', extra: credit);
+        goEntityCreateFullWidth(
+          context,
+          '/credits',
+          extra: credit,
+          isClone: true,
+        );
 
       case InvoiceAction.convertToPurchaseOrder:
         if (tmpGate()) return;
@@ -929,6 +941,7 @@ class InvoiceActions {
           context,
           '/recurring_invoices',
           extra: cloneToRecurringInvoice(billingCloneFromInvoice(invoice)),
+          isClone: true,
         );
 
       case InvoiceAction.cloneToPurchaseOrder:
@@ -936,6 +949,7 @@ class InvoiceActions {
           context,
           '/purchase_orders',
           extra: cloneToPurchaseOrder(billingCloneFromInvoice(invoice)),
+          isClone: true,
         );
 
       case InvoiceAction.runTemplate:

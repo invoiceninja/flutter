@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/line_item_api_model.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/value/money.dart';
 
@@ -152,7 +153,11 @@ LineItem emptyLineItem() => LineItem(
 ///     product resets the line to the product's defaults, matching React's
 ///     `useHandleProductChange`. An hourly row keeps its hours (below).
 ///   * notes, taxes, tax category and custom values are copied from the
-///     product — except an hourly row's non-blank notes (below).
+///     product — except an hourly row's non-blank notes (below). A tax slot
+///     the product leaves blank (no name, no rate) takes [company]'s default
+///     for it when the company taxes per line only ([defaultItemTaxes]) —
+///     unless the document's party is [partyTaxExempt], whose taxes the
+///     server zeroes.
 ///
 /// When [base] is supplied the product-derived fields overwrite it while the
 /// row's own discount / task / expense links are preserved; otherwise the row
@@ -177,8 +182,22 @@ LineItem lineItemFromProduct(
   bool enableProductQuantity = false,
   bool defaultQuantity = false,
   Decimal? conversionRate,
+  Company? company,
+  bool partyTaxExempt = false,
 }) {
   final rate = conversionRate ?? Decimal.one;
+  final defaults = partyTaxExempt
+      ? const <int, ({String name, Decimal rate})>{}
+      : defaultItemTaxes(company);
+  // A rate with no name is still charged (`InvoiceItemSum` taxes the rate
+  // alone), so only a slot with neither is the product's "no tax".
+  ({String name, Decimal rate}) tax(int slot, String name, Decimal rate) =>
+      name.trim().isEmpty && rate == Decimal.zero
+      ? (defaults[slot] ?? (name: name, rate: rate))
+      : (name: name, rate: rate);
+  final tax1 = tax(1, product.taxName1, product.taxRate1);
+  final tax2 = tax(2, product.taxName2, product.taxRate2);
+  final tax3 = tax(3, product.taxName3, product.taxRate3);
   final unitPrice = rate == Decimal.one ? product.price : product.price * rate;
   final Decimal quantity;
   if (!enableProductQuantity || defaultQuantity) {
@@ -194,12 +213,12 @@ LineItem lineItemFromProduct(
     cost: billedTask && base.cost != Decimal.zero ? base.cost : unitPrice,
     productCost: product.cost,
     quantity: hourly ? base.quantity : quantity,
-    taxName1: product.taxName1,
-    taxRate1: product.taxRate1,
-    taxName2: product.taxName2,
-    taxRate2: product.taxRate2,
-    taxName3: product.taxName3,
-    taxRate3: product.taxRate3,
+    taxName1: tax1.name,
+    taxRate1: tax1.rate,
+    taxName2: tax2.name,
+    taxRate2: tax2.rate,
+    taxName3: tax3.name,
+    taxRate3: tax3.rate,
     taxCategoryId: product.taxId,
     customValue1: product.customValue1,
     customValue2: product.customValue2,
@@ -208,12 +227,37 @@ LineItem lineItemFromProduct(
   );
 }
 
+/// The default tax a picked product's blank tax slot takes, by slot: the
+/// company's Tax Settings → Default Tax Rate (`settings.tax_name<N>` /
+/// `tax_rate<N>`) for slots `1..enabled_item_tax_rates` — but only when the
+/// company has no document-level tiers (`enabled_tax_rates == 0`), the one
+/// configuration where that picker sets the line default rather than the
+/// document's (`tax_settings_body.dart`). The company's alone, as React's
+/// `useResolveInputField` fills it — a client's override of the picker is
+/// not read. Empty without a [company].
+Map<int, ({String name, Decimal rate})> defaultItemTaxes(Company? company) {
+  if (company == null || company.enabledTaxRates > 0) return const {};
+  final s = company.settings;
+  final slots = <int, ({String? name, double? rate})>{
+    1: (name: s.taxName1, rate: s.taxRate1),
+    2: (name: s.taxName2, rate: s.taxRate2),
+    3: (name: s.taxName3, rate: s.taxRate3),
+  };
+  return {
+    for (final MapEntry(key: n, value: v) in slots.entries)
+      if (n <= company.enabledItemTaxRates && (v.name ?? '').trim().isNotEmpty)
+        n: (name: v.name!.trim(), rate: parseMoney(v.rate)),
+  };
+}
+
 /// Cross-entity "New Invoice / Quote / Purchase Order from a product" flow
 /// (`?product=<id>` on the create route — see `entity_modules.dart` and the
-/// three edit screens). A brand-new doc with no client/company context yet, so
-/// the sale price is used verbatim at quantity 1; [lineItemFromProduct] does
-/// the work (and now also copies the product's cost / tax category / customs).
-LineItem lineItemForProduct(Product product) => lineItemFromProduct(product);
+/// three edit screens). A brand-new doc with no client yet, so the sale price
+/// is used verbatim at quantity 1; [company] supplies only the default item
+/// tax. [lineItemFromProduct] does the work (and also copies the product's
+/// cost / tax category / customs).
+LineItem lineItemForProduct(Product product, {Company? company}) =>
+    lineItemFromProduct(product, company: company);
 
 /// Tolerant `Decimal` parser for the `quantity` wire field. Same shape as
 /// `parseMoney` but returns null for unparseable/empty input so the domain

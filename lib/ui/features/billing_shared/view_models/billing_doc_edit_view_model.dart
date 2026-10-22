@@ -843,6 +843,7 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
   @override
   void reset({required T emptyDraft}) {
     _userTouchedInclusive = false;
+    _userTouchedTaxRates = false;
     super.reset(emptyDraft: emptyDraft);
   }
 
@@ -868,6 +869,43 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
       (d) => writer.usesInclusiveTaxes(d, value),
       rememberForReset: companyLevel,
     );
+  }
+
+  bool _userTouchedTaxRates = false;
+
+  /// Whether the document-level tax tiers may still follow the settings
+  /// cascade: a create form whose tax names and rates the user never typed
+  /// in. Unlike the inclusive-tax mode, a priced line does not end it — a
+  /// tier's rate means the same thing whatever the lines hold, so picking a
+  /// client after adding lines still applies that client's default, as it
+  /// does in admin-portal (`applyClient`) and React (`Create.tsx`).
+  bool get canSeedTaxRates => isCreate && !_userTouchedTaxRates;
+
+  /// Seed the document-level tax tiers from the settings cascade
+  /// (`tax_name<N>` / `tax_rate<N>`) under [canSeedTaxRates] — see
+  /// `seedBillingCreateDefaults`. [tiers] maps a slot (1-3) to its value; a
+  /// slot it leaves out keeps what the draft holds. [companyLevel]: as for
+  /// [seedUsesInclusiveTaxes].
+  void seedTaxRates(
+    Map<int, ({String name, Decimal rate})> tiers, {
+    required bool companyLevel,
+  }) {
+    if (!canSeedTaxRates || tiers.isEmpty) return;
+    T apply(T d) {
+      var next = d;
+      for (final MapEntry(key: slot, value: tier) in tiers.entries) {
+        next = switch (slot) {
+          1 => writer.taxRate1(writer.taxName1(next, tier.name), tier.rate),
+          2 => writer.taxRate2(writer.taxName2(next, tier.name), tier.rate),
+          3 => writer.taxRate3(writer.taxName3(next, tier.name), tier.rate),
+          _ => next,
+        };
+      }
+      return next;
+    }
+
+    if (apply(draft) == draft) return;
+    seedCreateDefault(apply, rememberForReset: companyLevel);
   }
 
   /// The merged settings (client → group → company; the company's alone for
@@ -996,12 +1034,21 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
     setBool(writer.usesInclusiveTaxes, v);
   }
 
-  void setTaxName1(String v) => setStr(writer.taxName1, v);
-  void setTaxName2(String v) => setStr(writer.taxName2, v);
-  void setTaxName3(String v) => setStr(writer.taxName3, v);
-  void setTaxRate1(String input) => setDec(writer.taxRate1, input);
-  void setTaxRate2(String input) => setDec(writer.taxRate2, input);
-  void setTaxRate3(String input) => setDec(writer.taxRate3, input);
+  // A typed tax tier is the user's: the cascade stops seeding the tiers.
+  void setTaxName1(String v) => _touchTax(() => setStr(writer.taxName1, v));
+  void setTaxName2(String v) => _touchTax(() => setStr(writer.taxName2, v));
+  void setTaxName3(String v) => _touchTax(() => setStr(writer.taxName3, v));
+  void setTaxRate1(String input) =>
+      _touchTax(() => setDec(writer.taxRate1, input));
+  void setTaxRate2(String input) =>
+      _touchTax(() => setDec(writer.taxRate2, input));
+  void setTaxRate3(String input) =>
+      _touchTax(() => setDec(writer.taxRate3, input));
+
+  void _touchTax(void Function() set) {
+    _userTouchedTaxRates = true;
+    set();
+  }
 
   void setCustomSurcharge1(String input) =>
       setDec(writer.customSurcharge1, input);

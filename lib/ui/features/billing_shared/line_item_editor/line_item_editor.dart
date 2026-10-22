@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_card_list_mobile.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 
 /// Content width at or above which [LineItemEditor] renders the desktop
 /// inline table instead of the mobile card list.
@@ -158,6 +159,19 @@ class _LineItemEditorState extends State<LineItemEditor> {
   Stream<Company?> _watchCompany() =>
       context.read<Services>().company.watchCompany(widget.companyId);
 
+  /// Whether the client or vendor is tax exempt, for a picked product's
+  /// default item tax. Cached like [_companyStream], keyed on the party.
+  late Stream<bool> _partyTaxExempt = _watchPartyTaxExempt();
+
+  Stream<bool> _watchPartyTaxExempt() => Stream.fromFuture(
+    billingPartyTaxExempt(
+      context.read<Services>(),
+      companyId: widget.companyId,
+      clientId: widget.clientId ?? '',
+      vendorId: widget.vendorId ?? '',
+    ),
+  );
+
   @override
   void didUpdateWidget(LineItemEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -165,6 +179,11 @@ class _LineItemEditorState extends State<LineItemEditor> {
     // churn this exists to avoid.
     if (oldWidget.companyId != widget.companyId) {
       _companyStream = _watchCompany();
+    }
+    if (oldWidget.companyId != widget.companyId ||
+        oldWidget.clientId != widget.clientId ||
+        oldWidget.vendorId != widget.vendorId) {
+      _partyTaxExempt = _watchPartyTaxExempt();
     }
   }
 
@@ -234,8 +253,15 @@ class _LineItemEditorState extends State<LineItemEditor> {
             return PartyCurrencyBuilder(
               clientId: widget.clientId,
               vendorId: widget.vendorId,
-              builder: (context, currencyId) =>
-                  _buildLayout(effectiveConfig, rate, currencyId),
+              builder: (context, currencyId) => StreamBuilder<bool>(
+                stream: _partyTaxExempt,
+                builder: (context, exemptSnap) => _buildLayout(
+                  effectiveConfig,
+                  rate,
+                  currencyId,
+                  partyTaxExempt: exemptSnap.data ?? false,
+                ),
+              ),
             );
           },
         );
@@ -246,8 +272,9 @@ class _LineItemEditorState extends State<LineItemEditor> {
   Widget _buildLayout(
     LineItemColumnConfig effectiveConfig,
     Decimal? productConversionRate,
-    String? currencyId,
-  ) {
+    String? currencyId, {
+    required bool partyTaxExempt,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = lineItemEditorShowsWideTable(constraints.maxWidth);
@@ -260,6 +287,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
             config: effectiveConfig,
             currencyId: currencyId,
             productConversionRate: productConversionRate,
+            partyTaxExempt: partyTaxExempt,
             controller: widget.controller,
             rowErrors: widget.rowErrors,
             showStockQuantity: widget.showStockQuantity,

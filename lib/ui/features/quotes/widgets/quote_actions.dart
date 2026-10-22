@@ -615,7 +615,12 @@ class QuoteActions {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         );
-        goEntityCreateFullWidth(context, '/quotes', extra: draft);
+        goEntityCreateFullWidth(
+          context,
+          '/quotes',
+          extra: draft,
+          isClone: true,
+        );
 
       // Cross-type clone is client-side: the local builder produces the same
       // draft, so the target is built here and opened in its create form.
@@ -629,6 +634,7 @@ class QuoteActions {
           context,
           '/invoices',
           extra: cloneToInvoice(billingCloneFromQuote(quote)),
+          isClone: true,
         );
 
       case QuoteAction.cloneToCredit:
@@ -636,6 +642,7 @@ class QuoteActions {
           context,
           '/credits',
           extra: cloneToCredit(billingCloneFromQuote(quote)),
+          isClone: true,
         );
 
       case QuoteAction.cloneToRecurring:
@@ -643,6 +650,7 @@ class QuoteActions {
           context,
           '/recurring_invoices',
           extra: cloneToRecurringInvoice(billingCloneFromQuote(quote)),
+          isClone: true,
         );
 
       case QuoteAction.cloneToPurchaseOrder:
@@ -650,6 +658,7 @@ class QuoteActions {
           context,
           '/purchase_orders',
           extra: cloneToPurchaseOrder(billingCloneFromQuote(quote)),
+          isClone: true,
         );
 
       case QuoteAction.logCall:

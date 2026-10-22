@@ -896,6 +896,7 @@
   "plus_n_more": "+ još :count",
   "portal_domain_help": "Adresa koju vaši klijenti koriste za pristup portalu, počinje s https://",
   "portal_features": "Značajke portala",
+  "portal_qr_code_after_sync": "QR kod pojavit će se kada vaše promjene budu spremljene i sinkronizirane.",
   "portal_settings": "Postavke portala",
   "position_in_row": "Položaj u retku",
   "post": "POST",

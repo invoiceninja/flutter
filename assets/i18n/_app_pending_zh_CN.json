@@ -927,6 +927,7 @@
   "plus_n_more": "+:count 个",
   "portal_domain_help": "客户访问门户所用的地址，以 https:// 开头",
   "portal_features": "门户功能",
+  "portal_qr_code_after_sync": "保存并同步您的更改后，将显示二维码。",
   "portal_settings": "门户设置",
   "position_in_row": "行中位置",
   "post": "POST",

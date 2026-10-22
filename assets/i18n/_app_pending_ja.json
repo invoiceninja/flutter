@@ -927,6 +927,7 @@
   "plus_n_more": "他 :count 件",
   "portal_domain_help": "顧客がポータルにアクセスする際のアドレス（https:// で始まるもの）",
   "portal_features": "ポータル機能",
+  "portal_qr_code_after_sync": "変更が保存され同期されると、QRコードが表示されます。",
   "portal_settings": "ポータル設定",
   "position_in_row": "行内の位置",
   "post": "POST",

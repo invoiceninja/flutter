@@ -5,12 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/dao/project_dao.dart';
+import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/project_api_model.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
+import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/project_columns.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
@@ -57,6 +60,36 @@ Future<String> _cell(
     Company(customFields: {'project1': definition}),
   );
   final column = decorated.firstWhere((c) => c.id == ProjectFieldIds.custom1);
+  return _pumpCell(
+    tester,
+    (context) => column.cellBuilder(_project(value: value), context),
+    withScope: withScope,
+  );
+}
+
+/// [_cell] for a client's slot 1 — a prefix the server expands reserved date
+/// keywords in, where `project` is one it never does.
+Future<String> _clientCell(
+  WidgetTester tester,
+  String definition,
+  String value,
+) async {
+  final decorated = decorateCustomFieldColumns(
+    kAllClientColumns,
+    Company(customFields: {'client1': definition}),
+  );
+  final column = decorated.firstWhere((c) => c.id == ClientFieldIds.custom1);
+  final client = Client.fromApi(
+    ClientApi(id: 'c1', name: 'C', customValue1: value),
+  );
+  return _pumpCell(tester, (context) => column.cellBuilder(client, context));
+}
+
+Future<String> _pumpCell(
+  WidgetTester tester,
+  Widget Function(BuildContext context) cell, {
+  bool withScope = true,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('en'),
@@ -66,10 +99,7 @@ Future<String> _cell(
       home: Scaffold(
         body: Builder(
           builder: (context) {
-            final child = Builder(
-              builder: (context) =>
-                  column.cellBuilder(_project(value: value), context),
-            );
+            final child = Builder(builder: cell);
             return withScope
                 ? FormatterScope(formatter: _formatter, child: child)
                 : child;
@@ -129,4 +159,25 @@ void main() {
     expect(await _cell(tester, 'Kickoff|date', ''), '—');
     expect(await _cell(tester, 'Region|North,South', ''), '—');
   });
+
+  testWidgets(
+    'a text or dropdown value shows its reserved date keywords as dates where '
+    'the server expands them, and stays raw where it does not',
+    (tester) async {
+      final year = '${DateTime.now().year}';
+      expect(
+        await _clientCell(tester, 'Term|single_line_text', 'FY :YEAR'),
+        'FY $year',
+      );
+      expect(await _clientCell(tester, 'Term|:YEAR,other', ':YEAR'), year);
+      // A switch / date slot is the server's other two branches — never
+      // expanded.
+      expect(await _clientCell(tester, 'Signed|switch', 'yes'), 'Yes');
+      // `project1..4` are never printed through `formatCustomFieldValue`.
+      expect(
+        await _cell(tester, 'Term|single_line_text', 'FY :YEAR'),
+        'FY :YEAR',
+      );
+    },
+  );
 }

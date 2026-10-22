@@ -216,6 +216,37 @@ void main() {
       expect(find.text('Clear Filters'), findsOneWidget);
     });
 
+    testWidgets('once archived is shown, Include deleted takes its place and '
+        'keeps the search', (tester) async {
+      final vm = _FakeVm(
+        states: const {EntityState.active, EntityState.archived},
+        search: 'acme',
+      );
+      await pump(tester, vm);
+      await tester.tap(find.text('Include Deleted'));
+      expect(vm.statesSet, {
+        EntityState.active,
+        EntityState.archived,
+        EntityState.deleted,
+      });
+      expect(vm.cleared, isFalse);
+    });
+
+    testWidgets('Include deleted waits for archived, and goes once deleted '
+        'is shown', (tester) async {
+      await pump(tester, _FakeVm(search: 'acme'));
+      expect(find.text('Show archived'), findsOneWidget);
+      expect(find.text('Include Deleted'), findsNothing);
+
+      await pump(
+        tester,
+        _FakeVm(states: const {...EntityState.values}, search: 'acme'),
+      );
+      expect(find.text('Show archived'), findsNothing);
+      expect(find.text('Include Deleted'), findsNothing);
+      expect(find.text('Clear Filters'), findsOneWidget);
+    });
+
     testWidgets('Show archived is not offered on a list with no lifecycle', (
       tester,
     ) async {
@@ -223,6 +254,7 @@ void main() {
       // the State filter, so the button would change nothing.
       await pump(tester, _FakeVm(search: 'acme', hasEntityStates: false));
       expect(find.text('Show archived'), findsNothing);
+      expect(find.text('Include Deleted'), findsNothing);
       expect(find.text('Clear Filters'), findsOneWidget);
     });
 

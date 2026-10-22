@@ -44,6 +44,10 @@ const String kGatewayCbaPowerboard = 'b67581d804dbad1743b61c57285142ad';
 // below. Neither has a logo asset yet, so both fall back to the wallet icon.
 const String kGatewayHelcim = 'ca3b3f7e4be811c96a8a1f4cafe2a97f';
 const String kGatewayChip = 'c7a8e2f1b4d90635a3f8e1c9b2d4a6e0';
+// LawPay (gateway id 66) and Payware (id 67), `PaymentLibrariesSeeder.php`.
+// Like the two above, they exist only for `kGatewaySystemLogTypeIds`.
+const String kGatewayLawPay = 'f4lafbnygsmkflagbqp7zqnfpgeoekdn';
+const String kGatewayPayware = 'b0a6294fca4488c2bab58f3e11e3c623';
 
 /// Gateway types that require an OAuth-driven setup flow (external redirect,
 /// per-type custom UI). The Credentials tab on the edit screen substitutes a
@@ -242,4 +246,8 @@ const Map<String, Set<int>> kGatewaySystemLogTypeIds = <String, Set<int>>{
   // `SystemLog::TYPE_CHIPINASIA` / `TYPE_HELCIM`.
   kGatewayChip: {330},
   kGatewayHelcim: {331},
+  // `SystemLog::TYPE_LAWPAY` / `TYPE_PAYWARE` — named by `typeDisplay` but
+  // missing here, so both gateways' detail screens showed no logs at all.
+  kGatewayLawPay: {328},
+  kGatewayPayware: {329},
 };

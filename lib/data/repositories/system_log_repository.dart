@@ -130,6 +130,48 @@ class SystemLogRepository {
     }
   }
 
+  /// The newest [limit] logs whose `type_id` is one of [typeIds], fetched
+  /// server-side (`SystemLogFilters::type_id`, one request per id) and merged
+  /// newest first — read-only, like [fetchForClient], never touching the
+  /// company-wide Drift cache. This is the per-gateway feed: the server's own
+  /// `CompanyGateway::system_logs()` (what admin-portal read through
+  /// `?include=system_logs`) is the company's logs of the provider's type id,
+  /// newest 50. Filtering the company cache instead only ever sees the newest
+  /// 200 logs of *every* kind, so a busy account's gateway history vanished
+  /// behind its email and webhook rows. Any failed request fails the whole
+  /// fetch — a half-merged feed would read as complete.
+  Future<(SystemLogRefreshResult, List<SystemLog>)> fetchForTypes(
+    Set<int> typeIds, {
+    int limit = 50,
+  }) async {
+    if (typeIds.isEmpty) {
+      return (SystemLogRefreshResult.ok, const <SystemLog>[]);
+    }
+    try {
+      final pages = await Future.wait([
+        for (final id in typeIds) _api.fetchPage(perPage: limit, typeId: id),
+      ]);
+      final seen = <String>{};
+      final logs = [
+        for (final page in pages)
+          for (final a in page.data)
+            if (seen.add(a.id)) SystemLog.fromApi(a),
+      ];
+      logs.sort((a, b) {
+        final byTime = b.createdAt.compareTo(a.createdAt);
+        return byTime != 0 ? byTime : b.id.compareTo(a.id);
+      });
+      return (
+        SystemLogRefreshResult.ok,
+        List<SystemLog>.unmodifiable(logs.take(limit)),
+      );
+    } catch (e) {
+      final result = _classifyError(e, 'type_id ${typeIds.join(',')}');
+      if (result == null) rethrow;
+      return (result, const <SystemLog>[]);
+    }
+  }
+
   /// Maps a read-path exception to a [SystemLogRefreshResult], or null for an
   /// exception we don't recognize (the caller rethrows — only known API
   /// failures are swallowed). [scope] is a company or client id, for logging.

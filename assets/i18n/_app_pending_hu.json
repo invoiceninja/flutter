@@ -904,6 +904,7 @@
   "plus_n_more": "+:count további",
   "portal_domain_help": "Az a cím, amelyen az ügyfelei elérik a portált, https:// előtaggal",
   "portal_features": "Portál funkciók",
+  "portal_qr_code_after_sync": "A QR-kód akkor jelenik meg, amikor a módosításait mentette és szinkronizálta a rendszer.",
   "portal_settings": "Portál beállítások",
   "position_in_row": "Pozíció a sorban",
   "post": "POST",

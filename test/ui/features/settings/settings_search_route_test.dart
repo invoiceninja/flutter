@@ -18,6 +18,10 @@ import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 /// dead end. Resolved through the real router rather than by scanning
 /// `settings_routes.dart`, because the tab patterns are assembled at runtime.
 void main() {
+  // A key gate can ask the platform (`platformSupportsSpellCheck` reads the
+  // binding's dispatcher), so searchSettings needs a binding.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   EntityHandlers nonSpecHandlers(EntityType type, String routePath) =>
       EntityHandlers(
         type: type,

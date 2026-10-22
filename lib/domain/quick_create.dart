@@ -96,15 +96,52 @@ List<EntityType> quickCreateEntities({
 
 /// Whether a user may start a new [type] from one of the app's other create
 /// surfaces — a list's New button, its `+` FAB and `N`, an embedded list's
-/// New, the global create shortcuts, the sidebar's hover `+`.
+/// New, the global create shortcuts, the sidebar's hover `+` — or open its
+/// `/new` route at all (the router bounces a typed one).
 ///
 /// [createPermissionFor] for every entity the create menu can offer: those
 /// surfaces used to ask nothing, so a view-only user was handed a create form
-/// whose save the server then refused. Any other entity — a settings-type
-/// list such as bank accounts or tax rates — is not gated here (the server
-/// still refuses it). Callers hide the surface rather than greying it:
-/// greyed is how a plan gate explains itself, and this is not one.
+/// whose save the server then refused. A settings-type list follows its
+/// server `Store*Request::authorize` instead ([_maySettingsCreate]). Callers
+/// hide the surface rather than greying it: greyed is how a plan gate explains
+/// itself, and this is not one.
+///
+/// [isAdmin] is the company user's admin *or* owner flag — the server's
+/// `isAdmin()`, which no permission token confers (`create_all` included).
 bool mayCreateEntity(
   EntityType type, {
   required bool Function(String permission) can,
-}) => !kQuickCreateEntities.contains(type) || can(createPermissionFor(type));
+  required bool isAdmin,
+}) => kQuickCreateEntities.contains(type)
+    ? can(createPermissionFor(type))
+    : _maySettingsCreate(type, can: can, isAdmin: isAdmin);
+
+/// The settings-type entities, each as its server store request authorizes
+/// it (`app/Http/Requests/<Entity>/Store*Request.php`). Most are admin-only,
+/// policy notwithstanding: `StoreTaskStatusRequest` asks `isAdmin()` though
+/// `TaskStatusPolicy::create` would also take `create_all`.
+bool _maySettingsCreate(
+  EntityType type, {
+  required bool Function(String permission) can,
+  required bool isAdmin,
+}) => switch (type) {
+  // `can('create', ExpenseCategory) || can('create', Expense)`.
+  EntityType.expenseCategory =>
+    can('create_expense_categories') || can('create_expense'),
+  // Payment links are the server's subscriptions.
+  EntityType.paymentLink => can('create_subscription'),
+  EntityType.taxRate ||
+  EntityType.paymentTerm ||
+  EntityType.taskStatus ||
+  EntityType.tag ||
+  EntityType.companyGateway ||
+  EntityType.schedule ||
+  EntityType.webhook ||
+  EntityType.token ||
+  EntityType.user ||
+  EntityType.design ||
+  EntityType.group ||
+  EntityType.bankAccount ||
+  EntityType.transactionRule => isAdmin,
+  _ => true,
+};

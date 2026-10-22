@@ -927,6 +927,7 @@
   "plus_n_more": "+:count dalších",
   "portal_domain_help": "Adresa, přes kterou klienti přistupují k portálu, začínající https://",
   "portal_features": "Funkce portálu",
+  "portal_qr_code_after_sync": "QR kód se zobrazí, jakmile budou vaše změny uloženy a synchronizovány.",
   "portal_settings": "Nastavení portálu",
   "position_in_row": "Pozice v řádku",
   "post": "POST",

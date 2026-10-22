@@ -11,6 +11,7 @@ import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
+import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/confirmed_portal_url_display.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/portal_url_display.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/subdomain_field.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -59,7 +60,6 @@ class ClientPortalScreen extends StatelessWidget {
     final services = context.read<Services>();
     final session = services.auth.session.value;
     final isHosted = session?.isHosted ?? false;
-    final hasMultipleCompanies = (session?.companies.length ?? 0) > 1;
     final isEnterprisePlan = session?.hasEnterpriseAccess ?? false;
     // BUG FIX: the Free plan slug is the empty string, never the literal
     // `'free'`, so the old `== 'free'` check was always false and the
@@ -168,7 +168,6 @@ class ClientPortalScreen extends StatelessWidget {
           _PortalConfigurationSection(
             draft: draft,
             isHosted: isHosted,
-            hasMultipleCompanies: hasMultipleCompanies,
             isEnterprisePlan: isEnterprisePlan,
             isFreePlan: isFreePlan,
             portalEnabled: portalEnabled,
@@ -187,7 +186,6 @@ class _PortalConfigurationSection extends StatefulWidget {
   const _PortalConfigurationSection({
     required this.draft,
     required this.isHosted,
-    required this.hasMultipleCompanies,
     required this.isEnterprisePlan,
     required this.isFreePlan,
     required this.portalEnabled,
@@ -195,7 +193,6 @@ class _PortalConfigurationSection extends StatefulWidget {
 
   final Company? draft;
   final bool isHosted;
-  final bool hasMultipleCompanies;
   final bool isEnterprisePlan;
   final bool isFreePlan;
 
@@ -253,12 +250,22 @@ class _PortalConfigurationSectionState
     final loginUrl = clientPortalUrl(
       page: ClientPortalPage.login,
       isHosted: widget.isHosted,
-      hasMultipleCompanies: widget.hasMultipleCompanies,
       portalMode: portalMode,
       subdomain: subdomain,
       portalDomain: portalDomain,
       companyKey: companyKey,
     );
+    final saved = host.initialCompany;
+    final savedLoginUrl = saved == null
+        ? ''
+        : clientPortalUrl(
+            page: ClientPortalPage.login,
+            isHosted: widget.isHosted,
+            portalMode: saved.portalMode,
+            subdomain: saved.subdomain,
+            portalDomain: saved.portalDomain,
+            companyKey: saved.companyKey,
+          );
     final scope = FormSaveScope.maybeOf(context);
 
     return FormSection(
@@ -317,10 +324,11 @@ class _PortalConfigurationSectionState
           ),
         if (loginUrl.isNotEmpty) ...[
           if (!widget.portalEnabled) const PortalDisabledNotice(),
-          PortalUrlDisplay(
+          ConfirmedPortalUrlDisplay(
+            companyId: draft?.id ?? '',
             label: context.tr('login_url'),
             url: loginUrl,
-            showQrCode: true,
+            savedUrl: savedLoginUrl,
           ),
         ],
       ],

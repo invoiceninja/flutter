@@ -189,6 +189,8 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
 
   static final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
+  static final _digits = RegExp(r'^\d+$');
+
   /// The date the user TYPED after `<key>:`, with any operator they typed in
   /// front of it (`>=5/14`). Null when [typed] is not an unambiguous date —
   /// the menu then keeps offering the comparator → preset picker.
@@ -248,11 +250,16 @@ class DateColumnFilterKey extends FilterKey with ComparableFilterKey {
     final t = _normalLabel(typed);
     if (t.isEmpty) return const [];
     final english = Localization.of(context);
+    // A number matches a whole word only: `7` is Last 7 days, but `3` is the
+    // start of `3/14`, and offering Last 30 days under it would give Enter a
+    // window to commit halfway through typing a date.
+    final numeric = _digits.hasMatch(t);
     bool matches(String label) {
       final l = _normalLabel(label);
       if (l.isEmpty) return false;
-      if (l.startsWith(t)) return true;
-      return !t.contains(' ') && l.split(' ').any((w) => w.startsWith(t));
+      if (!numeric && l.startsWith(t)) return true;
+      return !t.contains(' ') &&
+          l.split(' ').any((w) => numeric ? w == t : w.startsWith(t));
     }
 
     return [

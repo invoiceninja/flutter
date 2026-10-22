@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart' show selectedIdFromRoute;
 import 'package:admin/app/services.dart';
@@ -53,6 +54,7 @@ class BankAccountListScreen extends StatelessWidget {
           sectionTitleKey: 'bank_accounts',
           newRoute: '/settings/bank_accounts/new',
           newLabelKey: 'new_bank_account',
+          createEntityType: EntityType.bankAccount,
           emptyIcon: Icons.account_balance_outlined,
           emptyTitleKey: 'no_bank_accounts',
           emptyHintKey: 'no_bank_accounts_hint',

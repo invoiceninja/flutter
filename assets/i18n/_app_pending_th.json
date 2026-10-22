@@ -927,6 +927,7 @@
   "plus_n_more": "+อีก :count",
   "portal_domain_help": "ที่อยู่ที่ลูกค้าใช้เข้าถึงพอร์ทัล โดยขึ้นต้นด้วย https://",
   "portal_features": "ฟีเจอร์ของพอร์ทัล",
+  "portal_qr_code_after_sync": "รหัส QR จะปรากฏเมื่อบันทึกและซิงค์การเปลี่ยนแปลงของคุณแล้ว",
   "portal_settings": "การตั้งค่าพอร์ทัล",
   "position_in_row": "ตำแหน่งในแถว",
   "post": "POST",

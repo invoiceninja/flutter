@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_filter_keys.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_list_view_model.dart';
@@ -21,16 +22,7 @@ class InvoiceTokenSearchField extends StatelessWidget {
     wide: wide,
     hintKey: 'search_invoices_or_filter_hint',
     customFieldPrefix: 'invoice',
-    nameSources: [
-      (services, companyId) => services.clients
-          .watchActiveNames(companyId: companyId)
-          .map(
-            (rows) => {
-              for (final r in rows)
-                if (r.name.isNotEmpty) r.id: r.name,
-            },
-          ),
-    ],
+    nameSources: [ClientFilterKey.chipNames],
     keysBuilder: (services, companyId, company, names) =>
         buildInvoiceFilterKeys(
           clients: services.clients,

@@ -190,6 +190,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
       isReadOnly: (invoice) =>
           invoice.isDeleted ||
           !mayEditInvoice(_services.auth.session.value, invoice),
+      // Through the Edit action, so a locked invoice gets its dialog
+      // instead of an editor that mounts only to back out.
+      onEdit: (invoice) => _dispatch(invoice, InvoiceAction.edit),
       onRefresh: _record.refresh,
       bannerForItem: (context, invoice) => recordStateBanner<InvoiceAction>(
         context,

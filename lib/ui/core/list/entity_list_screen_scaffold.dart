@@ -457,7 +457,11 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   /// switch re-resolves it.
   bool get _mayCreate {
     final me = _services.auth.session.value?.currentCompany;
-    return mayCreateEntity(_vm.entityType, can: (p) => me?.can(p) ?? false);
+    return mayCreateEntity(
+      _vm.entityType,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
   }
 
   /// [_mayCreate] as of the last session this State built against, so a

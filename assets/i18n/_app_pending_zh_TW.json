@@ -896,6 +896,7 @@
   "plus_n_more": "還有 :count 個",
   "portal_domain_help": "客戶用來存取客戶端頁面的網址，以 https:// 開頭",
   "portal_features": "客戶端頁面功能",
+  "portal_qr_code_after_sync": "儲存並同步您的變更後，將顯示 QR 碼。",
   "portal_settings": "客戶端頁面設定",
   "position_in_row": "在列中的位置",
   "post": "POST",

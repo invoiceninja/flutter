@@ -51,7 +51,11 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
   /// Read live, so a company switch re-resolves it.
   bool get _mayCreateTask {
     final me = _services.auth.session.value?.currentCompany;
-    return mayCreateEntity(EntityType.task, can: (p) => me?.can(p) ?? false);
+    return mayCreateEntity(
+      EntityType.task,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
   }
 
   @override

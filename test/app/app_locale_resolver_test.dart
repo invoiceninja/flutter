@@ -16,6 +16,13 @@ void main() {
       expect(map('en'), const Locale('en'));
     });
 
+    test('an opt-in-only language is never the company default', () {
+      expect(kOptInOnlyLanguages, contains('fa'));
+      expect(kSupportedLocales, contains(const Locale('fa')));
+      expect(map('fa'), const Locale('en'));
+      expect(map('fa_IR'), const Locale('en'));
+    });
+
     test('exact language+country match passes through', () {
       expect(map('pt_BR'), const Locale('pt', 'BR'));
       expect(map('en_GB'), const Locale('en', 'GB'));
@@ -46,6 +53,8 @@ void main() {
         'fr_CH', 'lo_LA', 'vi', 'ca', 'af_ZA', 'id_ID',
       ];
       for (final code in serverLocales) {
+        // Shipped, but only as an explicit App Language choice.
+        if (kOptInOnlyLanguages.contains(code.split('_').first)) continue;
         expect(localeKey(map(code)), code, reason: code);
       }
     });
@@ -57,6 +66,49 @@ void main() {
 
     test('empty code falls back to English', () {
       expect(map(''), const Locale('en'));
+    });
+  });
+
+  group('resolveAppLocaleList', () {
+    test('a device locale skips an opt-in-only language', () {
+      expect(
+        resolveAppLocaleList(
+          const [Locale('fa', 'IR'), Locale('de')],
+          kSupportedLocales,
+          explicit: false,
+        ),
+        const Locale('de'),
+      );
+      expect(
+        resolveAppLocaleList(
+          const [Locale('fa')],
+          kSupportedLocales,
+          explicit: false,
+        ),
+        const Locale('en'),
+      );
+    });
+
+    test('an explicit choice of it goes through', () {
+      expect(
+        resolveAppLocaleList(
+          const [Locale('fa')],
+          kSupportedLocales,
+          explicit: true,
+        ),
+        const Locale('fa'),
+      );
+    });
+
+    test('everything else resolves as Flutter would', () {
+      expect(
+        resolveAppLocaleList(
+          const [Locale('ar', 'EG')],
+          kSupportedLocales,
+          explicit: false,
+        ),
+        const Locale('ar'),
+      );
     });
   });
 }

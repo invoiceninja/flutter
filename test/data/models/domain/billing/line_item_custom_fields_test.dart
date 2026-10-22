@@ -144,5 +144,29 @@ void main() {
       );
       expect(out.single.value, 'Steel 10 mm Black');
     });
+
+    test('reserved date keywords expand only when asked (read-only)', () {
+      final keywordFields = lineItemCustomFields(const {
+        'product1': 'Period|single_line_text',
+        'product2': 'Plan|:MONTH,other',
+      }, task: false);
+      final item = emptyLineItem().copyWith(
+        customValue1: '[MONTHYEAR|MONTHYEAR+1]',
+        customValue2: ':MONTH',
+      );
+      List<String> values({required bool expand}) => lineItemCustomValueRows(
+        item,
+        keywordFields,
+        yes: 'Yes',
+        no: 'No',
+        expandDateKeywords: expand,
+        now: DateTime(2026, 8, 15, 12),
+      ).map((r) => r.value).toList();
+
+      // The printed line: the server expands every product1..4 text value.
+      expect(values(expand: true), ['August 2026 - September 2026', 'August']);
+      // The editor's summary keeps the token it will save.
+      expect(values(expand: false), ['[MONTHYEAR|MONTHYEAR+1]', ':MONTH']);
+    });
   });
 }

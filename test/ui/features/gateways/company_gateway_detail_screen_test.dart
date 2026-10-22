@@ -19,6 +19,7 @@ import 'package:admin/ui/features/gateways/widgets/company_gateway_actions.dart'
 import 'package:admin/ui/features/gateways/widgets/detail/company_gateway_detail_header.dart';
 import 'package:admin/ui/features/gateways/widgets/detail/company_gateway_detail_profile.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
 import '../../../_support/record_screen_harness.dart';
 import '../shell/_shell_test_helpers.dart';
@@ -72,6 +73,44 @@ class _Server {
   });
 }
 
+const _systemLogs = '/api/v1/system_logs';
+
+/// Answers the System Logs endpoint with one Stripe log per request, or with
+/// a server error when [fail] is set.
+class _LogServer {
+  _LogServer({this.fail = false});
+
+  final bool fail;
+  final List<Uri> logAsks = [];
+
+  http.Client get client => MockClient((request) async {
+    if (request.url.path == _systemLogs) {
+      logAsks.add(request.url);
+      if (fail) return http.Response('{"message":"boom"}', 500);
+      return jsonOk({
+        'data': [
+          {
+            'id': 'log1',
+            'company_id': 'co1',
+            'user_id': '',
+            'client_id': '',
+            'event_id': 10,
+            'category_id': 1,
+            'type_id': 301,
+            'log': '{"charge":"ch_1"}',
+            'created_at': 1710000000,
+            'updated_at': 1710000000,
+          },
+        ],
+      });
+    }
+    if (request.method == 'GET' && request.url.path == _gateways) {
+      return jsonOk({'data': <Object>[]});
+    }
+    throw http.ClientException('offline (test fixture)');
+  });
+}
+
 Future<void> _seed(Services services, CompanyGatewayApi gateway) async {
   // The provider names come from the statics catalog.
   await services.statics.applyStatic(<String, dynamic>{
@@ -106,6 +145,7 @@ void _screenTest(
   CompanyGatewayApi gateway,
   Future<void> Function(WidgetTester tester, RecordScreen screen) body, {
   _Server? server,
+  http.Client? httpClient,
   FakeCompany company = const FakeCompany(id: 'co1', name: 'Co'),
 }) => recordScreenTest(
   description,
@@ -113,7 +153,7 @@ void _screenTest(
   screen: () => CompanyGatewayDetailScreen(id: gateway.id),
   ready: () => find.byType(CompanyGatewayDetailProfile),
   body: body,
-  httpClient: server?.client,
+  httpClient: httpClient ?? server?.client,
   company: company,
 );
 
@@ -264,5 +304,55 @@ void main() {
       await screen.until(() => server.listAsks.isNotEmpty, 'the refresh');
     },
     server: server,
+  );
+
+  final logs = _LogServer();
+  _screenTest(
+    'System Logs are the provider\'s own, asked of the server by type',
+    _gateway(),
+    (tester, screen) async {
+      await screen.untilFound(find.byType(SystemLogRow), 'the log row');
+      // Scoped server-side — not picked out of the company-wide feed, whose
+      // newest 200 rows can be all email and webhooks.
+      expect(logs.logAsks, hasLength(1));
+      expect(logs.logAsks.single.queryParameters['type_id'], '301');
+      expect(logs.logAsks.single.queryParameters['per_page'], '50');
+    },
+    httpClient: logs.client,
+  );
+
+  final failing = _LogServer(fail: true);
+  _screenTest(
+    'a System Logs fetch that fails says so and offers Retry',
+    _gateway(),
+    (tester, screen) async {
+      await screen.untilFound(
+        find.text("Couldn't load system logs"),
+        'the error',
+      );
+      await tester.ensureVisible(find.widgetWithText(TextButton, 'Retry'));
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await screen.until(() => failing.logAsks.length == 2, 'the retry');
+    },
+    httpClient: failing.client,
+  );
+
+  final notAdmin = _LogServer();
+  _screenTest(
+    'no System Logs card, and no request, for a user who may not read them',
+    _gateway(),
+    (tester, screen) async {
+      await screen.quiet();
+      expect(find.text('System Logs'), findsNothing);
+      expect(notAdmin.logAsks, isEmpty);
+    },
+    httpClient: notAdmin.client,
+    company: const FakeCompany(
+      id: 'co1',
+      name: 'Co',
+      isAdmin: false,
+      isOwner: false,
+      permissions: 'edit_all,view_all',
+    ),
   );
 }

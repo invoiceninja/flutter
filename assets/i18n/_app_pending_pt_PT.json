@@ -896,6 +896,7 @@
   "plus_n_more": "+:count mais",
   "portal_domain_help": "O endereço que os seus clientes usam para aceder ao portal, a começar por https://",
   "portal_features": "Funcionalidades do Portal",
+  "portal_qr_code_after_sync": "O código QR aparecerá quando as suas alterações forem guardadas e sincronizadas.",
   "portal_settings": "Definições do Portal",
   "position_in_row": "Posição na linha",
   "post": "POST",

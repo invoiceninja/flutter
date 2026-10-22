@@ -86,12 +86,19 @@ LineItem withLineItemCustomValue(LineItem item, int slot, String value) =>
 /// Newlines in a multi-line value collapse to a space: these rows are joined
 /// into one summary line, where a newline would push every field after it out
 /// of a one- or two-line `Text`.
+///
+/// [expandDateKeywords] renders reserved date keywords as the dates the
+/// server prints on the line (it expands every `product1..4` / `task1..4`
+/// text value, `PdfBuilder` → `formatCustomFieldValue`). Read-only surfaces
+/// only — the editor's summary card keeps the token it will save.
 List<({String label, String value})> lineItemCustomValueRows(
   LineItem item,
   List<LineItemCustomField> fields, {
   required String yes,
   required String no,
   Formatter? formatter,
+  bool expandDateKeywords = false,
+  DateTime? now,
 }) {
   final rows = <({String label, String value})>[];
   for (final f in fields) {
@@ -106,6 +113,8 @@ List<({String label, String value})> lineItemCustomValueRows(
       formatter: formatter,
       yes: yes,
       no: no,
+      expandDateKeywords: expandDateKeywords,
+      now: now,
     ).replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
     if (display.isEmpty) continue;
     rows.add((label: f.field.label, value: display));

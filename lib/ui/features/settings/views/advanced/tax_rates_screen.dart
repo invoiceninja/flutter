@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
 import 'package:admin/l10n/localization.dart';
@@ -36,6 +37,7 @@ class TaxRatesScreen extends StatelessWidget {
       sectionTitleKey: 'tax_rates',
       newRoute: '/settings/tax_rates/new',
       newLabelKey: 'new_tax_rate',
+      createEntityType: EntityType.taxRate,
       emptyIcon: Icons.percent_outlined,
       emptyTitleKey: 'no_tax_rates',
       emptyHintKey: 'no_tax_rates_hint',

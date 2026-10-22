@@ -134,6 +134,43 @@ String expandDatePlaceholders(
   return out;
 }
 
+/// The `Company.customFields` prefixes whose stored values the server expands
+/// these keywords in when it renders a document — every value it prints
+/// through `Helpers::formatCustomFieldValue` (`app/Utils/Helpers.php`), whose
+/// `default:` branch (any type but `date` and `switch`) calls
+/// `processReservedKeywords`. The callers (`HtmlEngine`, `VendorHtmlEngine`,
+/// `PaymentHtmlEngine`, `PdfBuilder` / `MakesInvoiceValues` for line items):
+///
+///  * `client`, `vendor`, `company`, `location`, `payment`
+///  * `invoice` — also what quotes, credits, recurring invoices and purchase
+///    orders read in this app; `quote` / `credit` for a server that has them
+///  * `product` / `task` — a line item's custom values, which are the
+///    product's or the task's own, copied onto the line when it is added
+///    (`lineItemFromProduct`, `unbilled_line_items.dart`)
+///
+/// **Not** `contact` (`$contact.custom1` prints the raw value), `expense`,
+/// `project` or `user`, which the server never expands — so neither does any
+/// surface here.
+const Set<String> kDateKeywordCustomFieldPrefixes = <String>{
+  'client',
+  'vendor',
+  'company',
+  'location',
+  'payment',
+  'invoice',
+  'quote',
+  'credit',
+  'product',
+  'task',
+};
+
+/// Whether a value in a `<prefix>1..4` custom field gets
+/// [expandDatePlaceholders] on a read-only surface (see
+/// [kDateKeywordCustomFieldPrefixes]). Date and switch slots never do — that
+/// gate is the field *type*, applied by `displayCustomFieldValue`.
+bool customFieldExpandsDateKeywords(String prefix) =>
+    kDateKeywordCustomFieldPrefixes.contains(prefix);
+
 /// `+` / `-` and a digit run as a signed offset; no operator is zero.
 int _signed(String? operator, String? digits) {
   final n = int.tryParse(digits ?? '') ?? 0;

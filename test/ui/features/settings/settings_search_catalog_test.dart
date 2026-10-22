@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/enabled_modules.dart';
@@ -34,6 +35,10 @@ Iterable<String> _allKeys() sync* {
 }
 
 void main() {
+  // A key gate can ask the platform (`platformSupportsSpellCheck` reads the
+  // binding's dispatcher), so searchSettings needs a binding.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('settings search catalog', () {
     test('every catalog section has a matching SettingsSectionDef', () {
       for (final slug in kSettingsSearchCatalog.keys) {
@@ -285,6 +290,23 @@ void main() {
   });
 
   group('SettingsSearchScope', () {
+    test('Spell check is offered only where its section renders', () {
+      // `_SpellCheckSection` renders nothing without a platform checker (web,
+      // Linux), so a hit there would open Device Settings on nothing.
+      final l10n = bundledLocalization();
+      bool offersSpellCheck() => searchSettings(
+        'spell',
+        l10n,
+        scope: _scope(),
+      ).any((h) => h.fieldKey == 'spell_check');
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      expect(offersSpellCheck(), isTrue);
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      expect(offersSpellCheck(), isFalse);
+    });
+
     test('a self-hosted session never sees the Referral Program tab', () {
       // `AccountManagementShell` hides it there (issue #27).
       final l10n = bundledLocalization();

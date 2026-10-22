@@ -400,13 +400,28 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
   /// resolution — selects only the two columns needed and orders by name.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: true);
+
+  /// [watchActiveNames] over every cached client, archived and deleted
+  /// included — the names a `client:` CHIP resolves through. A saved view or
+  /// a deep link can name a client archived since, and its chip used to read
+  /// as the raw id; the suggestions stay active-only.
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => _watchNames(companyId: companyId, activeOnly: false);
+
+  Stream<List<({String id, String name})>> _watchNames({
+    required String companyId,
+    required bool activeOnly,
   }) {
     final q = selectOnly(clients)
       ..addColumns([clients.id, clients.displayName, clients.name])
       ..where(
-        clients.companyId.equals(companyId) &
-            clients.isDeleted.equals(false) &
-            clients.archivedAt.isNull(),
+        activeOnly
+            ? clients.companyId.equals(companyId) &
+                  clients.isDeleted.equals(false) &
+                  clients.archivedAt.isNull()
+            : clients.companyId.equals(companyId),
       )
       ..orderBy([OrderingTerm(expression: clients.displayName.lower())]);
     return q

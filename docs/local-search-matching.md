@@ -69,6 +69,8 @@ Pinned by `client_vendor_name_search_test.dart` (the fallback path: rows inserte
 
 The suggestion lists inside the search field filter in Dart: the `client:` / `vendor:` / `project:` names (`server_name_suggestions.dart`), the country, group, industry, size, user, currency and language keys (`client_filter_keys.dart`), and the searchable dropdowns (`searchable_dropdown_field.dart`). They use `foldSearchText` on both sides, so `oster` offers `Österreich` and the offline suggestions agree with the list.
 
+The `/activity` search does too (`ActivityViewModel._matchesBase`: the rendered title, the notes and every label). It used plain `toLowerCase().contains`, and in a right-to-left locale `ActivityFormatter` wraps each substituted value in U+2068 … U+2069, so a search spanning a value and the words around it (`العميل Globex`) matched nothing. `foldSearchText` strips bidi controls; the title memo holds the folded string, since the search is its only reader. `activity_view_model_test` › search matches across the bidi isolates of an RTL title.
+
 ## Known limits
 
 - The accent table covers Latin-1 Supplement and Latin Extended-A. A letter outside it (Vietnamese `ạ`, Latin Extended-B) matches only itself, in either case. Extending it is a data change to `_kFoldGroups`, and the parity test then covers the new entries.

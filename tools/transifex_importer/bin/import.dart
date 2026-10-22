@@ -18,6 +18,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:transifex_importer/serbian_latin.dart';
+
 const Map<String, String> _kTransifexFileNames = {
   'en': 'textsphp-en.php',
   'en_AU': 'textsphp-en_au.php',
@@ -148,6 +150,20 @@ Future<int> main(List<String> args) async {
       } on FormatException catch (e) {
         stderr.writeln('Parse error in $phpName: ${e.message}');
         return 1;
+      }
+      // The app ships Serbian as Latin script (`sr-Latn`, so Material's own
+      // strings match), and Transifex's `sr` file mixes Cyrillic into it.
+      // Transliterated before the English filter below, so a value that turns
+      // out to read exactly as the English is dropped like any other copy.
+      if (localeKey == 'sr') {
+        map.updateAll((_, v) => serbianToLatin(v));
+        final left = map.entries.where((e) => containsCyrillic(e.value));
+        if (left.isNotEmpty) {
+          stderr.writeln(
+            'sr: ${left.length} values still hold non-Serbian Cyrillic, '
+            'e.g. ${left.first.key}: ${left.first.value}',
+          );
+        }
       }
       if (english != null && localeKey != 'en') {
         map.removeWhere(

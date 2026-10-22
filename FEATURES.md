@@ -653,7 +653,7 @@ the honest default.
 | Product — stock shown when selecting products (invoice line items) | ✅ | ✅ | ✅ | | |
 | Reserved date keywords (`[MONTHYEAR\|MONTHYEAR+12]`, `:MONTH`, `:QUARTER`, `:WEEK`, `:MONTH_BEFORE`/`_AFTER`, `:YEAR_BEFORE`/`_AFTER`, `:WEEK_BEFORE`/`_AHEAD`) rendered as dates on read-only surfaces — product list / detail / pickers, billing-doc line items, terms + public notes | ❌ | ❌ | ✅ | ✅ | |
 | Reserved date keyword **arithmetic** (`:MONTH+2`, `:QUARTER-1`) rendered rather than left raw — `±n` on `:MONTHYEAR` / `:MONTH` / `:YEAR` / `:QUARTER`; `:WEEK±n`, `:*_BEFORE/_AFTER±n` and `*` / `/` stay raw (still wrong upstream) | ❌ | ❌ | 🟡 | | |
-| Reserved date keywords expanded in **custom field values** (server does this at PDF render for every non-date/switch custom field) | ❌ | ❌ | ❌ | | |
+| Reserved date keywords expanded in **custom field values** (server does this at PDF render for every non-date/switch custom field) — read-only only: detail rows, list columns, read-only line items; for the prefixes the server expands (client / vendor / payment / invoice-family / product / task line values, not contact / expense / project); same arithmetic limits as above | ❌ | ❌ | ✅ | | |
 | Product — low-stock / out-of-stock list filter + row highlight | — | — | ✅ | | |
 | Product — stock value (qty × price) column + detail row | — | — | ✅ | | |
 | Product — custom fields | ✅ | ✅ | ✅ | ✅ | |
@@ -1661,7 +1661,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Authorize.Net | ✅ | ✅ | ✅ | ✅ | |
 | Multi-gateway priority ordering | ✅ | ✅ | ✅ | ✅ | |
 | Gateway webhook supported-events list (detail) | ✅ | ✅ | ✅ | ✅ | |
-| Gateway system logs (detail) | ✅ | ✅ | 🟡 | ✅ | |
+| Gateway system logs (detail) — newest 50 of the provider's `type_id`, fetched server-side | ✅ | ✅ | ✅ | ✅ | |
 | Gateway clone | ✅ | ❌ | ✅ | ✅ | |
 
 ---
@@ -1744,10 +1744,10 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | List search field — a typed search survives adding a filter, as a removable `Search for "…"` chip (text that only found the filter is dropped); the filter being built shows as a chip under its own name, never `client:`; ←/→ walk the chips (Delete removes, Enter edits) | — | — | ✅ | | Focus never leaves the text field — the highlight is the controller's (`docs/list-search-field.md`) |
 | List search field — ⌘/Ctrl+V and the context menu's Paste read a query: filters become chips, the rest lands at the caret; quoted values keep their spaces | — | — | ✅ | | Desktop; on the web the browser owns the paste. Right-click Paste only, before |
 | List filter — rolling date windows (Today, This week / month / quarter / year, the last of each; This / Next week and month on due dates) that keep meaning "this month" in a saved view; the range picker's presets roll too, and All time clears | — | — | ✅ | | One token per window bound (`rel:m0s,rel:m0e`); the company's week start and fiscal year are captured when picked |
-| List filter — a period typed after a date key (`date:this month`, `date:last quarter`), matched as you type with the dates each covers | — | — | ✅ | | Active language and English; a paste needs quotes (`date:"this month"`) |
+| List filter — a period typed after a date key (`date:this month`, `date:last quarter`, `date:last 7 days`), matched as you type with the dates each covers | — | — | ✅ | | Active language and English; a paste needs quotes (`date:"this month"`); Last 7 / 30 / 365 days are the range picker's presets |
 | List search field — `acme status:` keeps `acme` as the search and opens Status | — | — | ✅ | | The longest trailing key name wins (`due date:` is Due Date) |
-| List filter — client / vendor / project values found on the server too, not only among those already loaded | — | — | ✅ | | First page of `?filter=`, so a client found by contact email shows too |
-| List empty state — a search that finds nothing offers All statuses and Show archived beside Clear filters, each widening only its own filter | — | — | ✅ | | |
+| List filter — client / vendor / project values found on the server too, not only among those already loaded | — | — | ✅ | | First page of `?filter=`, so a client found by contact email shows too; a client chip naming an uncached or archived client fetches it and shows its name (vendor / project chips not yet) |
+| List empty state — a search that finds nothing offers All statuses and Show archived beside Clear filters, each widening only its own filter | — | — | ✅ | | Once archived is shown, Include deleted takes Show archived's place |
 | List end — a searched or filtered list that hides archived records says so under its last row, with Show archived | — | — | ✅ | | Closes the gap when a search matches some active rows; not on Documents (no lifecycle) |
 | List filter — payment and bank-transaction date sent to the server as a window | — | — | ✅ | | Neither server has a `date()` filter; it was filtered locally only, chaining pages to find older rows |
 | List filter — purchase order status / vendor / client / date / due date | 🟡 | ❌ | ✅ | | React has a status filter only. Sent is sent to the server only from 5.13.44 (exact there); a date comparator travels as the window that means the same |

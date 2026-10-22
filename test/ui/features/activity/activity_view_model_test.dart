@@ -223,6 +223,21 @@ void main() {
       expect(rowsOf(vm).map((a) => a.id), ['1']);
     });
 
+    test('search matches across the bidi isolates of an RTL title', () {
+      // `ActivityFormatter` wraps each substituted value in U+2068 … U+2069 in
+      // a right-to-left locale, so a search spanning a value and the words
+      // around it found nothing until the isolates were folded away.
+      vm.setTitleResolver(
+        (a) => a.id == '2'
+            ? 'قام \u2068bob\u2069 بتحديث العميل \u2068Globex Corp\u2069'
+            : 'قام \u2068alice\u2069',
+      );
+      vm.setSearch('العميل Globex');
+      expect(rowsOf(vm).map((a) => a.id), ['2']);
+      vm.setSearch('globex corp');
+      expect(rowsOf(vm).map((a) => a.id), ['2']);
+    });
+
     test('filters compose', () {
       vm.setUser('alice');
       vm.setSearch('renewal');

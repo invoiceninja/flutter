@@ -927,6 +927,7 @@
   "plus_n_more": "+:count ອີກ",
   "portal_domain_help": "ທີ່ຢູ່ທີ່ລູກຄ້າຂອງທ່ານໃຊ້ເຂົ້າປະຕູລູກຄ້າ, ເລີ່ມດ້ວຍ https://",
   "portal_features": "ຄຸນສົມບັດປະຕູລູກຄ້າ",
+  "portal_qr_code_after_sync": "ລະຫັດ QR ຈະປາກົດເມື່ອການປ່ຽນແປງຂອງທ່ານຖືກບັນທຶກ ແລະ ຊິງຄ໌ແລ້ວ.",
   "portal_settings": "ການຕັ້ງຄ່າປະຕູລູກຄ້າ",
   "position_in_row": "ຕຳແໜ່ງໃນແຖວ",
   "post": "POST",

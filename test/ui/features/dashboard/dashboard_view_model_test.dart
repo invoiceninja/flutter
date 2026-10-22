@@ -1515,6 +1515,63 @@ void main() {
     });
   });
 
+  group('a dashboard left open past midnight', () {
+    const tick = Duration(milliseconds: 30);
+
+    Future<void> settle([Duration d = const Duration(milliseconds: 20)]) =>
+        Future<void>.delayed(d);
+
+    DashboardViewModel open(Date Function() today, {bool tearDown = true}) {
+      final vm = DashboardViewModel(
+        repo: repo,
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        statics: StaticsRepository(
+          db: db,
+          service: StaticsService(dummyDashboardClient),
+        ),
+        dayCheckInterval: tick,
+        today: today,
+      );
+      if (tearDown) addTearDown(vm.dispose);
+      return vm;
+    }
+
+    test('refetches once the day moves on, and only then', () async {
+      var day = Date(2026, 10, 14);
+      final vm = open(() => day);
+      await settle();
+      repo.refreshAllCalls = 0;
+      var notified = 0;
+      vm.addListener(() => notified++);
+
+      await settle(tick * 3);
+      expect(repo.refreshAllCalls, 0, reason: 'the same day: nothing to do');
+
+      // Mid-month: "This month" keeps its hash, so nothing re-keys — the
+      // figures were fetched through the 14th and now read as the 15th.
+      day = Date(2026, 10, 15);
+      await settle(tick * 2);
+      expect(repo.refreshAllCalls, 1);
+      expect(notified, greaterThan(0), reason: 'the captions read today');
+
+      await settle(tick * 3);
+      expect(repo.refreshAllCalls, 1, reason: 'once per day');
+    });
+
+    test('dispose stops the check', () async {
+      var day = Date(2026, 10, 14);
+      final vm = open(() => day, tearDown: false);
+      await settle();
+      repo.refreshAllCalls = 0;
+      vm.dispose();
+
+      day = Date(2026, 10, 15);
+      await settle(tick * 3);
+      expect(repo.refreshAllCalls, 0);
+    });
+  });
+
   group('a pushed server change (hosted real-time)', () {
     const gap = Duration(milliseconds: 150);
     late ValueNotifier<RealtimeRefresh?> pushes;

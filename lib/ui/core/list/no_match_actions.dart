@@ -24,6 +24,12 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 ///   be removed. Every list on `EntityListScreenScaffold` declares that key
 ///   except Documents, which has no lifecycle (`hasEntityStates` is false)
 ///   and so is never offered it.
+/// * **Include deleted** takes Show archived's place once archived is
+///   already in the State filter and the list is still empty: the search
+///   widens one lifecycle step at a time, archived first because that is
+///   where an old record usually is, deleted only if it is not there either.
+///   One button, not two side by side: the record is rarely deleted, and a
+///   third outlined button pushed the row to two lines on a phone.
 ///
 /// A `Wrap`, not a `Row`: three German labels do not fit at 360 px.
 class NoMatchActions extends StatelessWidget {
@@ -70,6 +76,13 @@ class NoMatchActions extends StatelessWidget {
             onPressed: () => vm.setStates({...vm.states, EntityState.archived}),
             icon: const Icon(Icons.archive_outlined),
             label: Text(context.tr('show_archived')),
+          )
+        else if (vm.hasEntityStates && !vm.states.contains(EntityState.deleted))
+          OutlinedButton.icon(
+            style: style,
+            onPressed: () => vm.setStates({...vm.states, EntityState.deleted}),
+            icon: const Icon(Icons.delete_outline),
+            label: Text(context.tr('include_deleted')),
           ),
         OutlinedButton.icon(
           style: style,

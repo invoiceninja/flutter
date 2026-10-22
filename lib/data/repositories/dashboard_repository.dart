@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/activity_window.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart'
     show CompanySwitchedException;
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/utils/perf_trace.dart';
 
@@ -503,10 +504,22 @@ class DashboardRepository {
 
     if (_activityCursor[companyId] != false && before is String) {
       _ensureStillActive(companyId, kind);
-      final raw = await api.fetchActivities(
-        rows: kActivityFeedRows,
-        before: before,
-      );
+      Object? raw;
+      try {
+        raw = await api.fetchActivities(
+          rows: kActivityFeedRows,
+          before: before,
+        );
+      } on ValidationException catch (e) {
+        // `before: record_not_found` — the boundary row is gone server-side
+        // (purging a client force-deletes its activities), so this cursor can
+        // never be answered and every Load more would fail on it for good.
+        // The server does page with `before`, so the company stays
+        // cursor-capable; this one time, re-ask for the newest window below,
+        // whose merge drops the vanished row from the cache.
+        if (!e.fieldErrors.containsKey('before')) rethrow;
+        _log.info('Activity cursor row gone; re-fetching the window');
+      }
       _ensureStillActive(companyId, kind);
       if (raw is List) {
         if (pageHonouredCursor(raw, boundary)) {

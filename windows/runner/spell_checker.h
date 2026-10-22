@@ -21,7 +21,8 @@
 // `check {text, language}` replies `[{start, end, suggestions}]`, offsets in
 // UTF-16 code units — what both ISpellChecker and a Dart string index in. A
 // machine with no checker at all replies the error code `unavailable`, which
-// the Dart side latches for the session.
+// the Dart side latches for the session; one with no dictionary for the
+// language replies `no_dictionary`, latched for that language only.
 //
 // Everything runs on the platform thread: the factory is a COM object of the
 // thread that made it (main.cpp initialises COM apartment-threaded), and line
@@ -36,6 +37,7 @@ class SpellChecker {
                                               const std::wstring& language);
 
   // The checker for |language|, else its base language (`de-AT` -> `de`),
+  // else the first installed dictionary of that language (`fr` -> `fr-FR`),
   // else en-US; null when none is installed.
   ISpellChecker* CheckerFor(const std::wstring& language);
 

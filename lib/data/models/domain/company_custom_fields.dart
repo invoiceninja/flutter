@@ -1,5 +1,6 @@
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/custom_field_types.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Convenience accessors for the company's per-entity custom-field
@@ -33,19 +34,24 @@ extension CompanyCustomFields on Company {
 
   /// Format a stored custom [value] for read-only display on detail screens.
   /// Switch values surface as the localized [yes] / [no]; dates run through
-  /// [formatter] (ISO fallback when null); everything else shows verbatim.
+  /// [formatter] (ISO fallback when null); everything else shows verbatim, or
+  /// with its reserved date keywords expanded when [expandDateKeywords].
   String customFieldDisplay(
     String key,
     String value, {
     Formatter? formatter,
     required String yes,
     required String no,
+    bool expandDateKeywords = false,
+    DateTime? now,
   }) => displayCustomFieldValue(
     type: customFieldType(key),
     value: value,
     formatter: formatter,
     yes: yes,
     no: no,
+    expandDateKeywords: expandDateKeywords,
+    now: now,
   );
 }
 
@@ -57,12 +63,21 @@ extension CompanyCustomFields on Company {
 /// custom-field cells resolve it once per company emission and would otherwise
 /// re-parse once per cell per frame. Both paths share this body so a new field
 /// type can't reach one surface and miss the other.
+///
+/// [expandDateKeywords] renders a text / dropdown value's reserved date
+/// keywords (`:MONTH`, `[MONTHYEAR|MONTHYEAR+12]`, …) as the dates the server
+/// prints — exactly its `formatCustomFieldValue`, whose `default:` branch is
+/// the only one that expands. **Display only**: pass it from a read-only
+/// surface whose slot prefix passes `customFieldExpandsDateKeywords`, never
+/// from an editor, where the token is the value. [now] pins the clock (tests).
 String displayCustomFieldValue({
   required String type,
   required String value,
   required String yes,
   required String no,
   Formatter? formatter,
+  bool expandDateKeywords = false,
+  DateTime? now,
 }) {
   switch (type) {
     case kFieldTypeSwitch:
@@ -70,6 +85,8 @@ String displayCustomFieldValue({
     case kFieldTypeDate:
       return value.isEmpty ? '' : (formatter?.date(value) ?? value);
     default:
-      return value;
+      return expandDateKeywords
+          ? expandDatePlaceholders(value, formatter: formatter, now: now)
+          : value;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/credits/widgets/credit_filter_keys.dart';
 import 'package:admin/ui/features/credits/view_models/credit_list_view_model.dart';
@@ -22,16 +23,7 @@ class CreditTokenSearchField extends StatelessWidget {
     hintKey: 'search_credits_or_filter_hint',
     // Credits share Invoice Ninja's `invoice1..4` custom-field slots.
     customFieldPrefix: 'invoice',
-    nameSources: [
-      (services, companyId) => services.clients
-          .watchActiveNames(companyId: companyId)
-          .map(
-            (rows) => {
-              for (final r in rows)
-                if (r.name.isNotEmpty) r.id: r.name,
-            },
-          ),
-    ],
+    nameSources: [ClientFilterKey.chipNames],
     keysBuilder: (services, companyId, company, names) => buildCreditFilterKeys(
       clients: services.clients,
       tags: services.tags,

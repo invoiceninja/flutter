@@ -41,6 +41,7 @@ class EntityDetailScaffold<T> extends StatefulWidget {
     this.compactTitleForItem,
     this.bannerForItem,
     this.isReadOnly,
+    this.onEdit,
     this.onRefresh,
     this.embedded = false,
   });
@@ -95,6 +96,14 @@ class EntityDetailScaffold<T> extends StatefulWidget {
   /// session read inside it is current. Drives no banner and no embedded-list
   /// lock.
   final bool Function(T item)? isReadOnly;
+
+  /// Opens [item]'s editor for `E`, in place of going straight to the sibling
+  /// `/edit` route — for an entity whose Edit action checks something first,
+  /// so the key runs the same check. An invoice's lock: the edit screen also
+  /// refuses a locked invoice, but only after it has mounted, so `E` flashed
+  /// an empty editor before the dialog the Edit action shows up front.
+  /// [isReadOnly] still gates the key before this is called.
+  final void Function(T item)? onEdit;
 
   /// Re-fetches the record. Bound to `R` here; the body wires the same
   /// callback to its pull-to-refresh.
@@ -315,6 +324,11 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
               // A record the user cannot save — deleted, or one whose Edit
               // action is hidden from them — gets no form.
               if (widget.isReadOnly?.call(item) ?? false) return null;
+              final onEdit = widget.onEdit;
+              if (onEdit != null) {
+                onEdit(item);
+                return null;
+              }
               // Universal: detail routes follow `/<entity>/:id`, edit is
               // the sibling `/<entity>/:id/edit`. Appending `/edit` to
               // the current URL is correct for every entity that goes

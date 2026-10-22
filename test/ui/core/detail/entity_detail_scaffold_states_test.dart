@@ -31,6 +31,7 @@ Future<_Harness> _pump(
   String? record,
   Widget? Function(BuildContext, String)? banner,
   bool Function(String)? isReadOnly,
+  void Function(String)? onEdit,
   Future<void> Function()? onRefresh,
   Widget? emptyAction,
 }) async {
@@ -53,6 +54,7 @@ Future<_Harness> _pump(
         emptyAction: emptyAction,
         bannerForItem: banner,
         isReadOnly: isReadOnly,
+        onEdit: onEdit,
         onRefresh: onRefresh,
         // Nothing in the body takes focus by itself — as in the app.
         bodyBuilder: (context, item) => _Body(item: item),
@@ -379,6 +381,30 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
       await tester.pump();
       expect(tester.takeException(), isNotNull);
+    });
+
+    testWidgets('E runs onEdit instead of the route, and not when read-only', (
+      tester,
+    ) async {
+      // An invoice's lock check lives in its Edit action, so `E` must reach
+      // that rather than the bare `/edit` route (which this harness can't
+      // resolve — reaching it would throw).
+      final edited = <String>[];
+      await _pump(tester, record: 'rec', onEdit: edited.add);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(edited, ['rec']);
+
+      await _pump(
+        tester,
+        record: 'rec',
+        isReadOnly: (_) => true,
+        onEdit: edited.add,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.pump();
+      expect(edited, ['rec'], reason: 'read-only wins over onEdit');
     });
   });
 }

@@ -436,6 +436,56 @@ void main() {
     });
   });
 
+  group('createForbiddenEntityRoots', () {
+    test('a view-only user may open no create route it is gated on', () {
+      final roots = createForbiddenEntityRoots(
+        _registry(),
+        can: _company(permissions: 'view_client,view_invoice').can,
+        isAdmin: _company(permissions: 'view_client,view_invoice').isAdmin,
+      ).toSet();
+      expect(roots, containsAll(['/clients', '/invoices', '/tasks']));
+      // Admin-only on the server (`StoreCompanyGatewayRequest`).
+      expect(roots, contains('/settings/company_gateways'));
+    });
+
+    test('create_<entity> opens that root alone', () {
+      final roots = createForbiddenEntityRoots(
+        _registry(),
+        can: _company(permissions: 'create_invoice').can,
+        isAdmin: _company(permissions: 'create_invoice').isAdmin,
+      ).toSet();
+      expect(roots, isNot(contains('/invoices')));
+      expect(roots, containsAll(['/clients', '/tasks']));
+    });
+
+    test('an admin is gated nowhere', () {
+      final roots = createForbiddenEntityRoots(
+        _registry(),
+        can: _company(permissions: '', isAdmin: true).can,
+        isAdmin: _company(permissions: '', isAdmin: true).isAdmin,
+      );
+      expect(roots, isEmpty);
+    });
+  });
+
+  group('createForbiddenRedirect', () {
+    const forbidden = {'/invoices'};
+
+    test('bounces a forbidden /new to its list', () {
+      expect(createForbiddenRedirect('/invoices/new', forbidden), '/invoices');
+    });
+
+    test('leaves the list, a record and its edit route alone', () {
+      expect(createForbiddenRedirect('/invoices', forbidden), isNull);
+      expect(createForbiddenRedirect('/invoices/abc', forbidden), isNull);
+      expect(createForbiddenRedirect('/invoices/abc/edit', forbidden), isNull);
+    });
+
+    test('leaves an allowed /new alone', () {
+      expect(createForbiddenRedirect('/clients/new', forbidden), isNull);
+    });
+  });
+
   group('settingsIndexRedirect', () {
     // The redirect threshold splits the *shell* width (window minus the global
     // InSidebar: 232 px expanded / 64 px collapsed) against

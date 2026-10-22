@@ -896,6 +896,7 @@
   "plus_n_more": "+:count muuta",
   "portal_domain_help": "Osoite, jonka kautta asiakkaasi avaavat portaalin (alkaa https://)",
   "portal_features": "Portaalin ominaisuudet",
+  "portal_qr_code_after_sync": "QR-koodi tulee näkyviin, kun muutoksesi on tallennettu ja synkronoitu.",
   "portal_settings": "Portaalin asetukset",
   "position_in_row": "Sijainti rivillä",
   "post": "POST",

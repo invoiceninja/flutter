@@ -3,6 +3,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include <cstdint>
+#include <cwctype>
 
 namespace {
 
@@ -34,6 +35,13 @@ std::string Utf8FromUtf16(const std::wstring& utf16) {
   return utf8;
 }
 
+// The language part of a BCP-47 tag, lower-cased: `fr-FR` -> `fr`.
+std::wstring BaseLanguage(const std::wstring& tag) {
+  std::wstring base = tag.substr(0, tag.find(L'-'));
+  for (auto& c : base) c = static_cast<wchar_t>(std::towlower(c));
+  return base;
+}
+
 const std::string* StringArg(const flutter::EncodableMap& args,
                              const char* key) {
   const auto it = args.find(flutter::EncodableValue(key));
@@ -62,7 +70,14 @@ SpellChecker::SpellChecker(flutter::BinaryMessenger* messenger) {
     auto spans = Check(Utf16FromUtf8(*text),
                        language ? Utf16FromUtf8(*language) : std::wstring());
     if (!spans) {
-      result->Error("unavailable", "no spell checker on this machine");
+      // Two different answers, latched differently on the Dart side: no
+      // checker at all is the whole session; no dictionary is this language
+      // only — switching the app's language can still find one.
+      if (factory_failed_) {
+        result->Error("unavailable", "no spell checker on this machine");
+      } else {
+        result->Error("no_dictionary", "no dictionary for this language");
+      }
       return;
     }
     result->Success(flutter::EncodableValue(std::move(*spans)));
@@ -83,9 +98,22 @@ ISpellChecker* SpellChecker::CheckerFor(const std::wstring& language) {
   const auto cached = checkers_.find(language);
   if (cached != checkers_.end()) return cached->second.Get();
 
-  std::wstring candidates[3] = {language,
-                                language.substr(0, language.find(L'-')),
-                                L"en-US"};
+  // The app's locales are mostly bare languages (`fr`), while Windows
+  // registers dictionaries by region (`fr-FR`), so `IsSupported(L"fr")` is
+  // FALSE on a French-only machine. After the tag and its base language, take
+  // the first installed dictionary of that language, and only then en-US.
+  const std::wstring base = BaseLanguage(language);
+  std::wstring regional;
+  Microsoft::WRL::ComPtr<IEnumString> installed;
+  if (!base.empty() &&
+      SUCCEEDED(factory_->get_SupportedLanguages(&installed)) && installed) {
+    LPOLESTR tag = nullptr;
+    while (regional.empty() && installed->Next(1, &tag, nullptr) == S_OK) {
+      if (BaseLanguage(tag) == base) regional = tag;
+      ::CoTaskMemFree(tag);
+    }
+  }
+  std::wstring candidates[4] = {language, base, regional, L"en-US"};
   Microsoft::WRL::ComPtr<ISpellChecker> checker;
   for (const auto& tag : candidates) {
     if (tag.empty()) continue;

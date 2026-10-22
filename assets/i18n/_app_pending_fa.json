@@ -927,6 +927,7 @@
   "plus_n_more": "+:count مورد دیگر",
   "portal_domain_help": "آدرسی که مشتریان برای دسترسی به پورتال استفاده می‌کنند، با https://‎ شروع می‌شود",
   "portal_features": "ویژگی‌های پورتال",
+  "portal_qr_code_after_sync": "کد QR پس از ذخیره و همگام‌سازی تغییرات شما نمایش داده می‌شود.",
   "portal_settings": "تنظیمات پورتال",
   "position_in_row": "موقعیت در ردیف",
   "post": "POST",

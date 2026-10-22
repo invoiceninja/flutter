@@ -111,6 +111,8 @@ class AppLocaleResolver extends ValueNotifier<Locale?> {
     final parts = code.split('_');
     final lang = parts[0];
     final country = parts.length > 1 ? parts[1] : null;
+    // Shipped, but only as an explicit App Language choice.
+    if (kOptInOnlyLanguages.contains(lang)) return const Locale('en');
 
     // Exact language+country match (e.g. pt_BR, en_GB).
     for (final l in kSupportedLocales) {

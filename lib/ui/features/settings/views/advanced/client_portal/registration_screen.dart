@@ -7,6 +7,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
+import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/confirmed_portal_url_display.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/portal_url_display.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/registration_fields_configurator.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -47,15 +48,28 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
     final registrationHelp = context.trIfDefined('client_registration_help');
     final portalEnabled = host.settings.enableClientPortal ?? true;
     final session = context.read<Services>().auth.session.value;
+    final isHosted = session?.isHosted ?? false;
     final registrationUrl = clientPortalUrl(
       page: ClientPortalPage.register,
-      isHosted: session?.isHosted ?? false,
-      hasMultipleCompanies: (session?.companies.length ?? 0) > 1,
+      isHosted: isHosted,
       portalMode: draft?.portalMode ?? '',
       subdomain: subdomain,
       portalDomain: portalDomain,
       companyKey: companyKey,
     );
+    // Until registration is saved on, the server answers this address with
+    // "Registration disabled" — so a printed code waits for that too.
+    final saved = host.initialCompany;
+    final savedRegistrationUrl = saved == null || !saved.clientCanRegister
+        ? ''
+        : clientPortalUrl(
+            page: ClientPortalPage.register,
+            isHosted: isHosted,
+            portalMode: saved.portalMode,
+            subdomain: saved.subdomain,
+            portalDomain: saved.portalDomain,
+            companyKey: saved.companyKey,
+          );
 
     return SettingsFormShell(
       sections: [
@@ -74,10 +88,11 @@ class ClientPortalRegistrationScreen extends StatelessWidget {
             ),
             if (canRegister && registrationUrl.isNotEmpty) ...[
               if (!portalEnabled) const PortalDisabledNotice(),
-              PortalUrlDisplay(
+              ConfirmedPortalUrlDisplay(
+                companyId: draft?.id ?? '',
                 label: context.tr('registration_url'),
                 url: registrationUrl,
-                showQrCode: true,
+                savedUrl: savedRegistrationUrl,
               ),
             ],
           ],

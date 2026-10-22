@@ -199,11 +199,11 @@ Future<DateWindowPick?> pickDateRangeWindow(
   RollingDatePreset? rolling;
   switch (p) {
     case DashboardDatePreset.last7:
-      return ('rel:d6', 'rel:d0');
+      rolling = RollingDatePreset.last7Days;
     case DashboardDatePreset.last30:
-      return ('rel:d29', 'rel:d0');
+      rolling = RollingDatePreset.last30Days;
     case DashboardDatePreset.last365:
-      return ('rel:d364', 'rel:d0');
+      rolling = RollingDatePreset.last365Days;
     case DashboardDatePreset.allTime:
       return null;
     case DashboardDatePreset.thisMonth:

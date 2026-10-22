@@ -927,6 +927,7 @@
   "plus_n_more": "+vēl :count",
   "portal_domain_help": "Adrese, ko jūsu klienti izmanto, lai piekļūtu portālam, sākot ar https://",
   "portal_features": "Portāla funkcijas",
+  "portal_qr_code_after_sync": "QR kods parādīsies, tiklīdz jūsu izmaiņas būs saglabātas un sinhronizētas.",
   "portal_settings": "Portāla iestatījumi",
   "position_in_row": "Pozīcija rindā",
   "post": "POST",

@@ -883,6 +883,7 @@
   "plus_n_more": "+:count nữa",
   "portal_domain_help": "Địa chỉ khách hàng dùng để truy cập cổng thông tin, bắt đầu bằng https://",
   "portal_features": "Tính năng cổng thông tin",
+  "portal_qr_code_after_sync": "Mã QR sẽ xuất hiện khi các thay đổi của bạn đã được lưu và đồng bộ.",
   "portal_settings": "Cài đặt cổng thông tin",
   "position_in_row": "Vị trí trong hàng",
   "post": "POST",

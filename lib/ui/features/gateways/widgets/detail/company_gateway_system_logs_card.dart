@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,19 +7,22 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
-import 'package:admin/data/models/domain/system_log.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/data/repositories/system_log_repository.dart';
 import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
-import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/features/settings/view_models/system_log_feed_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
-/// Per-gateway System Logs section on the gateway detail screen. Reuses the
-/// shared company-wide system-logs cache (admin/owner only) and filters it to
-/// the provider's log type ids. Triggers a refresh on first mount when the
-/// cache is stale, mirroring the global System Logs screen.
+/// Per-gateway System Logs section on the gateway detail screen — the newest
+/// 50 logs of the provider's `type_id`(s), fetched server-side
+/// ([SystemLogRepository.fetchForTypes]) exactly as the server's own
+/// `CompanyGateway::system_logs()` scopes them (admin-portal read that through
+/// `?include=system_logs`). It used to filter the company-wide System Logs
+/// cache, which holds only the newest 200 logs of every kind — on a busy
+/// account the gateway's history was hidden behind email and webhook rows.
 ///
 /// Scoping is by *provider*, not gateway instance: system_log rows carry no
 /// `company_gateway_id`, so two gateways of the same provider share logs.
@@ -45,37 +50,46 @@ class CompanyGatewaySystemLogsCard extends StatefulWidget {
 
 class _CompanyGatewaySystemLogsCardState
     extends State<CompanyGatewaySystemLogsCard> {
-  bool _refreshing = false;
+  /// Null when this card draws nothing: not an admin/owner, or a provider
+  /// that writes no logs.
+  SystemLogFeedViewModel? _vm;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRefresh());
+    _attach();
   }
 
-  /// Fetch on first mount when the cache is empty / > 1 h old — the cache is
-  /// only otherwise warmed by visiting the global System Logs screen.
-  Future<void> _maybeRefresh() async {
-    if (!mounted) return;
-    final services = context.read<Services>();
-    if (widget.companyId.isEmpty) return;
-    if (!_canView(services.auth.session.value)) return;
-    if (kGatewaySystemLogTypeIds[widget.gateway.gatewayKey] == null) return;
-    final last = await services.systemLogs.lastFetchedAt(widget.companyId);
-    if (!mounted) return;
-    final stale =
-        last == null ||
-        DateTime.now().toUtc().difference(last) > const Duration(hours: 1);
-    if (stale) await _refresh();
+  @override
+  void didUpdateWidget(CompanyGatewaySystemLogsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.gateway.gatewayKey != widget.gateway.gatewayKey ||
+        oldWidget.companyId != widget.companyId) {
+      _vm?.dispose();
+      _vm = null;
+      _attach();
+    }
   }
 
-  Future<void> _refresh() async {
-    if (_refreshing || widget.companyId.isEmpty) return;
+  void _attach() {
     final services = context.read<Services>();
-    setState(() => _refreshing = true);
-    await services.systemLogs.refresh(widget.companyId);
-    if (!mounted) return;
-    setState(() => _refreshing = false);
+    final typeIds = kGatewaySystemLogTypeIds[widget.gateway.gatewayKey];
+    if (widget.companyId.isEmpty ||
+        typeIds == null ||
+        typeIds.isEmpty ||
+        !_canView(services.auth.session.value)) {
+      return;
+    }
+    final repo = services.systemLogs;
+    final vm = SystemLogFeedViewModel(fetch: () => repo.fetchForTypes(typeIds));
+    _vm = vm;
+    unawaited(vm.ensureLoaded());
+  }
+
+  @override
+  void dispose() {
+    _vm?.dispose();
+    super.dispose();
   }
 
   bool _canView(AuthSession? session) {
@@ -85,62 +99,75 @@ class _CompanyGatewaySystemLogsCardState
 
   @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    if (!_canView(services.auth.session.value)) return const SizedBox.shrink();
-    final typeIds = kGatewaySystemLogTypeIds[widget.gateway.gatewayKey];
-    if (typeIds == null || typeIds.isEmpty) return const SizedBox.shrink();
-    final tokens = context.inTheme;
+    final vm = _vm;
+    if (vm == null) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.only(top: InSpacing.md(context)),
-      child: DashboardCardShell(
-        title: context.tr('system_logs'),
-        trailing: IconButton(
-          icon: _refreshing
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh, size: 18),
-          tooltip: context.tr('refresh'),
-          visualDensity: Env.isTouchPrimary ? null : VisualDensity.compact,
-          onPressed: _refreshing ? null : _refresh,
-        ),
-        child: WatchBuilder<List<SystemLog>>(
-          cacheKey: widget.companyId,
-          create: () => services.systemLogs.watch(widget.companyId),
-          builder: (context, snap) {
-            final rows = (snap.data ?? const <SystemLog>[])
-                .where((l) => l.categoryId == 1 && typeIds.contains(l.typeId))
-                .toList(growable: false);
-            if (rows.isEmpty) {
-              return Padding(
-                padding: EdgeInsets.symmetric(vertical: InSpacing.sm),
-                child: Text(
-                  context.tr('no_system_logs'),
-                  style: TextStyle(color: tokens.ink3),
-                ),
-              );
-            }
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = Breakpoints.isWide(constraints);
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < rows.length; i++) ...[
-                      if (i > 0)
-                        Divider(height: 1, thickness: 1, color: tokens.border),
-                      SystemLogRow(log: rows[i], isWide: isWide),
-                    ],
-                  ],
-                );
-              },
-            );
-          },
+      child: ListenableBuilder(
+        listenable: vm,
+        builder: (context, _) => DashboardCardShell(
+          title: context.tr('system_logs'),
+          trailing: IconButton(
+            icon: vm.isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh, size: 18),
+            tooltip: context.tr('refresh'),
+            visualDensity: Env.isTouchPrimary ? null : VisualDensity.compact,
+            onPressed: vm.isLoading ? null : vm.refresh,
+          ),
+          child: _body(context, vm),
         ),
       ),
+    );
+  }
+
+  Widget _body(BuildContext context, SystemLogFeedViewModel vm) {
+    final tokens = context.inTheme;
+    final rows = vm.logs;
+    if (rows.isEmpty) {
+      Widget note(String key) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
+        child: Text(context.tr(key), style: TextStyle(color: tokens.ink3)),
+      );
+      // A first load: the empty sentence would be a claim nobody has made.
+      if (vm.isLoading) return const SizedBox(height: InSpacing.sm);
+      switch (vm.result) {
+        case SystemLogRefreshResult.forbidden:
+        case SystemLogRefreshResult.notFound:
+          return note('system_logs_unavailable');
+        case SystemLogRefreshResult.networkError:
+          return Row(
+            children: [
+              Expanded(child: note('system_logs_load_failed')),
+              const SizedBox(width: InSpacing.sm),
+              TextButton(
+                onPressed: vm.refresh,
+                child: Text(context.tr('retry')),
+              ),
+            ],
+          );
+        case SystemLogRefreshResult.ok:
+          return note('no_system_logs');
+      }
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = Breakpoints.isWide(constraints);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) Divider(height: 1, thickness: 1, color: tokens.border),
+              SystemLogRow(log: rows[i], isWide: isWide),
+            ],
+          ],
+        );
+      },
     );
   }
 }

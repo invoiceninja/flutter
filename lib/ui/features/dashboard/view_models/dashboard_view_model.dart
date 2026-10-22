@@ -47,6 +47,7 @@ class DashboardViewModel extends ChangeNotifier {
     bool Function(String kind)? panelEnabled,
     Duration appliedChangeDelay = kAppliedChangeDelay,
     Duration realtimeRefetchGap = kRealtimeRefetchGap,
+    Duration dayCheckInterval = kDayCheckInterval,
     int firstMonthOfYear = 1,
     Duration persistDebounce = const Duration(milliseconds: 500),
     DateTime Function()? now,
@@ -56,6 +57,7 @@ class DashboardViewModel extends ChangeNotifier {
        _appliedChangeDelay = appliedChangeDelay,
        _panelEnabled = panelEnabled,
        _realtimeRefetchGap = realtimeRefetchGap,
+       _dayCheckInterval = dayCheckInterval,
        _fiscalYearStart = firstMonthOfYear,
        _persistDebounce = persistDebounce,
        _now = now ?? DateTime.now,
@@ -66,6 +68,15 @@ class DashboardViewModel extends ChangeNotifier {
     _outboxActiveSub = outboxActive?.listen(_onOutboxActive);
     unawaited(_init());
   }
+
+  /// How often [_checkDayRollover] looks at the calendar.
+  static const Duration kDayCheckInterval = Duration(minutes: 10);
+  final Duration _dayCheckInterval;
+  Timer? _dayCheckTimer;
+
+  /// The day the figures on screen were last asked for — see
+  /// [_checkDayRollover]. Null until the boot refresh has returned.
+  Date? _figuresDay;
 
   /// Floor between two refetches a pushed server change sets off. A full
   /// refetch is about seven requests, and a busy account can announce a change
@@ -681,6 +692,25 @@ class DashboardViewModel extends ChangeNotifier {
     _realtimeRefetchTimer = Timer(wait, _runRealtimeRefetch);
   }
 
+  /// Refetches once the calendar day has moved on under an open dashboard.
+  ///
+  /// A period in progress is fetched to *today* (`DashboardComparison`), but
+  /// cached under a key that names the whole period — keyed by day, the
+  /// dashboard would open blank every morning offline. So a dashboard left
+  /// open overnight went on showing figures through yesterday under a caption
+  /// naming today, until something unrelated refetched. Polled rather than a
+  /// timer aimed at midnight: a suspended app's timers stop with it, and a
+  /// periodic one simply fires on the next tick after it wakes.
+  void _checkDayRollover() {
+    if (_disposed) return;
+    final today = _today();
+    if (today == _figuresDay) return;
+    _figuresDay = today;
+    // The captions, the band's "N days late" and the comparison read today.
+    notifyListeners();
+    _scheduleQuietRefetch();
+  }
+
   void _runRealtimeRefetch() {
     _realtimeRefetchTimer = null;
     if (_disposed) return;
@@ -825,6 +855,13 @@ class DashboardViewModel extends ChangeNotifier {
     _subscribeAll();
     await refresh();
     _bootRefreshDone = true;
+    if (!_disposed) {
+      _figuresDay = _today();
+      _dayCheckTimer = Timer.periodic(
+        _dayCheckInterval,
+        (_) => _checkDayRollover(),
+      );
+    }
     if (_refetchAfterBoot && !_disposed) {
       final rearmPanels = _refetchAfterBootRearms;
       _refetchAfterBoot = false;
@@ -1272,6 +1309,7 @@ class DashboardViewModel extends ChangeNotifier {
     _realtimeRefreshes?.removeListener(_onRealtimeRefresh);
     unawaited(_outboxActiveSub?.cancel());
     _realtimeRefetchTimer?.cancel();
+    _dayCheckTimer?.cancel();
     _disposed = true;
     _persistTimer?.cancel();
     for (final sub in _subs.values) {

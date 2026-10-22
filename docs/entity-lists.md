@@ -179,10 +179,11 @@ The server's timestamp windows have the opposite gap: `created_between` / `updat
 
 ## A list that finds nothing offers the narrowing it can undo
 
-**The no-match empty state offers All statuses, then Show archived, then Clear filters — each shown only when it applies** (`NoMatchActions`, `lib/ui/core/list/no_match_actions.dart`, shared by `EntityListEmptyState` and the scaffold's own fallback). Clear filters alone threw the typed search away with everything else, so someone who searched `acme` on the Overdue tab, or for a client archived last year, had to type it again on a wider list.
+**The no-match empty state offers All statuses, then Show archived (or, once archived is shown, Include deleted), then Clear filters — each shown only when it applies** (`NoMatchActions`, `lib/ui/core/list/no_match_actions.dart`, shared by `EntityListEmptyState` and the scaffold's own fallback). Clear filters alone threw the typed search away with everything else, so someone who searched `acme` on the Overdue tab, or for a client archived last year, had to type it again on a wider list.
 
 - **All statuses** drops only the status tab (`setBadgeMode(null)`). It is hidden when the tab is the only narrowing, because Clear filters does exactly the same then.
 - **Show archived** adds archived to the State filter through `setStates`, the seam the `is:` key's picker uses. It lands as a chip that can be removed: every list on `EntityListScreenScaffold` declares that key — except Documents, which has no lifecycle, so `GenericListViewModel.hasEntityStates` is false there and the button is not offered. It was, until the footer below was built: the Documents watch ignores `states` and its repo sends none, so the click did nothing.
+- **Include deleted takes Show archived's place once archived is in the State filter** — the same `setStates`, adding `deleted`. The search widens one lifecycle step per click, archived first because that is where an old record usually is, deleted only when it is not there either. One slot, not a fourth button: a deleted record is the rare case, and the row already wraps on a phone. The label is the Transifex `include_deleted` ("Include Deleted"), translated in every bundle; no app-local key was added for it. On the Archived tab alone with a search, the slot reads Include deleted at once, since archived is already shown.
 - **A `Wrap`, not a `Row`.** Three German labels do not fit at 360 px.
 
 Pinned by `test/ui/core/list/entity_list_empty_state_test.dart`.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/api/tag_api_model.dart';
@@ -45,6 +46,7 @@ class _TagsScreenState extends State<TagsScreen> {
       sectionTitleKey: 'tags',
       newRoute: '/settings/tags/new?entityType=$_entityType',
       newLabelKey: 'new_tag',
+      createEntityType: EntityType.tag,
       emptyIcon: Icons.local_offer_outlined,
       emptyTitleKey: 'no_tags',
       emptyHintKey: 'no_tags_hint',

@@ -15,6 +15,7 @@ import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
+import 'package:admin/utils/search_fold.dart';
 
 // `kCommentActivityTypeId` is re-exported for the screen + tests that already
 // import it off this file. The constant itself lives beside the DTO that reads
@@ -508,8 +509,12 @@ class ActivityViewModel extends ChangeNotifier {
     _recomputeSoon();
   }
 
+  /// The rendered title, folded for the search ([foldSearchText]) — memoised
+  /// folded, since the search is all it is read for. In a right-to-left
+  /// locale `ActivityFormatter` wraps each substituted value in bidi isolates
+  /// (U+2068 … U+2069), so a plain `contains` could never match across one.
   String _title(DashboardActivity a) =>
-      _titleCache[a.id] ??= _titleResolver?.call(a) ?? '';
+      _titleCache[a.id] ??= foldSearchText(_titleResolver?.call(a) ?? '');
 
   bool matches(DashboardActivity a) =>
       _matchesBase(a) && _inRange(a) && _inCategories(a);
@@ -547,12 +552,14 @@ class ActivityViewModel extends ChangeNotifier {
         !f.typeIds.contains(a.activityTypeId)) {
       return false;
     }
-    final needle = f.search.trim().toLowerCase();
+    // Folded on both sides, as every Dart-side matcher is
+    // (docs/local-search-matching.md): case, accents and bidi controls.
+    final needle = foldSearchText(f.search.trim());
     if (needle.isEmpty) return true;
-    if (_title(a).toLowerCase().contains(needle)) return true;
-    if (a.notes.toLowerCase().contains(needle)) return true;
+    if (_title(a).contains(needle)) return true;
+    if (foldSearchText(a.notes).contains(needle)) return true;
     for (final label in a.labels.values) {
-      if (label.toLowerCase().contains(needle)) return true;
+      if (foldSearchText(label).contains(needle)) return true;
     }
     return false;
   }

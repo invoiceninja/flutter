@@ -927,6 +927,7 @@
   "plus_n_more": "+:count të tjera",
   "portal_domain_help": "Adresa që klientët tuaj përdorin për të hyrë në portal, duke filluar me https://",
   "portal_features": "Veçoritë e portalit",
+  "portal_qr_code_after_sync": "Kodi QR shfaqet sapo ndryshimet tuaja të ruhen dhe të sinkronizohen.",
   "portal_settings": "Rregullimet e portalit",
   "position_in_row": "Pozicioni në rresht",
   "post": "POST",

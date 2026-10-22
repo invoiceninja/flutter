@@ -2,6 +2,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -177,6 +178,86 @@ void main() {
     });
   });
 
+  group('a chip naming a client the cache does not hold', () {
+    Future<void> settle() async {
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test('fetches that client into Drift, once', () async {
+      final api = _GetApi();
+      final getRepo = ClientRepository(db: db, api: api);
+      final key = ClientFilterKey(
+        clients: getRepo,
+        companyId: 'co',
+        nameForClientId: (_) => null,
+      );
+
+      expect(key.displayValueFor('c9'), 'c9', reason: 'the id until it lands');
+      await settle();
+      expect(api.gets, ['c9']);
+      // The name reaches the chip through Drift — the same map a list's
+      // `nameSources` builds with `ClientFilterKey.chipNames`.
+      final names = await getRepo.watchAllNames(companyId: 'co').first;
+      expect({for (final r in names) r.id: r.name}, {'c9': 'Zed Corp'});
+
+      // Later builds of the chip ask nothing more.
+      key.displayValueFor('c9');
+      key.displayValueFor('c9');
+      await settle();
+      expect(api.gets, ['c9']);
+    });
+
+    test('offline: the chip keeps its id, and a rebuild does not re-ask '
+        'at once', () async {
+      final api = _GetApi(offline: true);
+      final getRepo = ClientRepository(db: db, api: api);
+      final key = ClientFilterKey(
+        clients: getRepo,
+        companyId: 'co',
+        nameForClientId: (_) => null,
+      );
+
+      expect(key.displayValueFor('c9'), 'c9');
+      await settle();
+      expect(key.displayValueFor('c9'), 'c9');
+      await settle();
+      expect(api.gets, ['c9']);
+    });
+
+    test('an archived or deleted client still names its chip', () async {
+      await repo.applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: ClientApi.fromJson({
+          'id': 'c_arch',
+          'name': 'Archived Ltd',
+          'balance': '0',
+          'archived_at': 1700000000,
+          'updated_at': 1700000000,
+        }),
+      );
+      await repo.applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: ClientApi.fromJson({
+          'id': 'c_del',
+          'name': 'Deleted Inc',
+          'balance': '0',
+          'is_deleted': true,
+          'archived_at': 1700000000,
+          'updated_at': 1700000000,
+        }),
+      );
+      final active = await repo.watchActiveNames(companyId: 'co').first;
+      expect(active, isEmpty, reason: 'the suggestions stay active-only');
+      final all = await repo.watchAllNames(companyId: 'co').first;
+      expect(
+        {for (final r in all) r.id: r.name},
+        {'c_arch': 'Archived Ltd', 'c_del': 'Deleted Inc'},
+      );
+    });
+  });
+
   group('a client the cache does not hold is found on the server', () {
     late _SearchApi api;
     late ClientRepository searchRepo;
@@ -263,6 +344,28 @@ class _SearchApi implements ClientsApi {
       ),
       cursorUpdatedAt: null,
       cursorId: null,
+    );
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw StateError('Unexpected API call: ${invocation.memberName}');
+}
+
+/// Answers `GET /clients/{id}` with one client, or as a device with no
+/// network would.
+class _GetApi implements ClientsApi {
+  _GetApi({this.offline = false});
+
+  final bool offline;
+  final gets = <String>[];
+
+  @override
+  Future<ClientItemApi> get(String id) async {
+    gets.add(id);
+    if (offline) throw const NetworkException('offline');
+    return ClientItemApi(
+      data: ClientApi(id: id, name: 'Zed Corp', displayName: 'Zed Corp'),
     );
   }
 

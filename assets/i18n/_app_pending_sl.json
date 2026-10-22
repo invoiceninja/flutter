@@ -927,6 +927,7 @@
   "plus_n_more": "+ še :count",
   "portal_domain_help": "Naslov, ki ga stranke uporabljajo za dostop do portala, z začetkom https://",
   "portal_features": "Funkcije portala",
+  "portal_qr_code_after_sync": "Koda QR se prikaže, ko so vaše spremembe shranjene in sinhronizirane.",
   "portal_settings": "Nastavitve portala",
   "position_in_row": "Položaj v vrstici",
   "post": "POST",

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment_term.dart';
@@ -36,6 +37,7 @@ class PaymentTermsScreen extends StatelessWidget {
       sectionTitleKey: 'payment_terms',
       newRoute: '/settings/payment_terms/new',
       newLabelKey: 'new_payment_term',
+      createEntityType: EntityType.paymentTerm,
       emptyIcon: Icons.schedule_outlined,
       emptyTitleKey: 'no_payment_terms',
       emptyHintKey: 'no_payment_terms_hint',

@@ -84,4 +84,43 @@ void main() {
       isEmpty,
     );
   });
+
+  group('reserved date keywords', () {
+    final now = DateTime(2026, 8, 15, 12);
+    const company = Company(
+      customFields: {
+        'client1': 'Term|single_line_text',
+        'client2': 'Plan|:YEAR,other',
+        'client3': 'Signed|switch',
+        'contact1': 'Term|single_line_text',
+        'expense1': 'Term|single_line_text',
+      },
+    );
+    List<String> values(String prefix, List<String> raw) =>
+        customFieldDetailRows(
+          company: company,
+          prefix: prefix,
+          values: raw,
+          yes: 'Yes',
+          no: 'No',
+          now: now,
+        ).map((r) => r.value).toList();
+
+    test('a text or dropdown value under a server-expanded prefix shows the '
+        'dates it prints as', () {
+      expect(values('client', ['FY :YEAR', ':YEAR', ':YEAR', '']), [
+        'FY 2026',
+        '2026',
+        // A switch is the server's own branch — never expanded.
+        'No',
+      ]);
+    });
+
+    test('a prefix the server prints raw keeps the token', () {
+      // `$contact.custom1` prints the stored value; expense custom values are
+      // never rendered through `formatCustomFieldValue`.
+      expect(values('contact', ['FY :YEAR', '', '', '']), ['FY :YEAR']);
+      expect(values('expense', ['FY :YEAR', '', '', '']), ['FY :YEAR']);
+    });
+  });
 }

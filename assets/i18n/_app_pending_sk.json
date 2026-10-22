@@ -896,6 +896,7 @@
   "plus_n_more": "+:count",
   "portal_domain_help": "Adresa, cez ktorú sa vaši zákazníci dostanú na portál, začínajúca https://",
   "portal_features": "Funkcie portálu",
+  "portal_qr_code_after_sync": "QR kód sa zobrazí, keď budú vaše zmeny uložené a synchronizované.",
   "portal_settings": "Nastavenia portálu",
   "position_in_row": "Pozícia v riadku",
   "post": "POST",

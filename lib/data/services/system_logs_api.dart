@@ -15,10 +15,13 @@ class SystemLogsApi {
   /// server scopes the result to that client (`SystemLogFilters` inherits the
   /// base `client_id` filter, and the `system_logs` table has a `client_id`
   /// column) — used by the per-client logs tab on the client detail screen.
+  /// [typeId] narrows to one `system_logs.type_id` (`SystemLogFilters::type_id`)
+  /// — the per-gateway logs card, one provider type per request.
   Future<SystemLogListApi> fetchPage({
     int perPage = 200,
     String sort = 'created_at|DESC',
     String? clientId,
+    int? typeId,
   }) async {
     final raw = await _client.getOneWithQuery(
       '/api/v1/system_logs',
@@ -26,6 +29,7 @@ class SystemLogsApi {
         'per_page': '$perPage',
         'sort': sort,
         if (clientId != null && clientId.isNotEmpty) 'client_id': clientId,
+        if (typeId != null) 'type_id': '$typeId',
       },
     );
     return SystemLogListApi.fromJson(raw as Map<String, dynamic>);

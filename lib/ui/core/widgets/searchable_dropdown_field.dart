@@ -525,12 +525,10 @@ class _SearchableDropdownFieldState<T extends Object>
   /// Reached from the create row's `InkWell.onTap` and from the Enter
   /// interceptor — never via `onSelected` except as a backstop, because
   /// `RawAutocomplete._select` early-returns on an unchanged selection and the
-  /// row would go dead after one cancelled create. [restoreText] overrides what
-  /// a cancel puts back (the backstop path has already overwritten the field).
-  Future<void> _handleCreate(String query, {String? restoreText}) async {
+  /// row would go dead after one cancelled create.
+  Future<void> _handleCreate(String query) async {
     final onCreate = widget.onCreateRequested;
     if (_creating || onCreate == null) return;
-    final restore = restoreText ?? _controller.text;
     setState(() {
       _creating = true;
       _optionsVisible = false;
@@ -558,15 +556,22 @@ class _SearchableDropdownFieldState<T extends Object>
     }
     if (!mounted) return;
     if (created == null) {
-      _controller.value = TextEditingValue(
-        text: restore,
-        selection: TextSelection.collapsed(offset: restore.length),
-      );
       // No refocus. A null after a typed name means the create was refused
       // (a name an archived record holds) or failed, and both handlers toast
       // why — refocusing would reopen the popover over that toast, offering
       // the very create just refused. After the plain "New …" row there is
-      // nothing to edit either. The restored text is one tap away.
+      // nothing to edit either.
+      //
+      // So the field is left unfocused, and it shows what a blur shows: the
+      // committed value. Putting the typed name back read, in a field nobody
+      // was editing, as the value the form would save — while it still held
+      // the old one, or none, and saved that.
+      final committed = _committed;
+      final label = committed == null ? '' : widget.displayString(committed);
+      _controller.value = TextEditingValue(
+        text: label,
+        selection: TextSelection.collapsed(offset: label.length),
+      );
       return;
     }
     final committed = created;
@@ -766,17 +771,9 @@ class _SearchableDropdownFieldState<T extends Object>
                 case _CreateOpt<T>(:final query):
                   // Backstop only — the tap and Enter paths call
                   // `_handleCreate` directly. `_select` has already written the
-                  // row's label into the field, so a cancel restores the query
-                  // — or, for the empty-query row, the committed value's name.
-                  final committed = _committed;
-                  unawaited(
-                    _handleCreate(
-                      query,
-                      restoreText: query.isNotEmpty || committed == null
-                          ? query
-                          : widget.displayString(committed),
-                    ),
-                  );
+                  // row's label into the field; a cancel puts the committed
+                  // value's name back over it.
+                  unawaited(_handleCreate(query));
                   return;
                 case _ItemOpt<T>(item: final picked):
                   item = picked;

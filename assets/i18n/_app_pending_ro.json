@@ -925,6 +925,7 @@
   "plus_n_more": "+:count în plus",
   "portal_domain_help": "Adresa folosită de clienți pentru a accesa portalul, începând cu https://",
   "portal_features": "Funcții portal",
+  "portal_qr_code_after_sync": "Codul QR apare după ce modificările sunt salvate și sincronizate.",
   "portal_settings": "Setări portal",
   "position_in_row": "Poziția în rând",
   "post": "POST",

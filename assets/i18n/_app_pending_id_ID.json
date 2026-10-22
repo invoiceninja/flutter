@@ -897,6 +897,7 @@
   "plus_n_more": "+:count lainnya",
   "portal_domain_help": "Alamat yang digunakan klien untuk membuka portal, diawali dengan https://",
   "portal_features": "Fitur Portal",
+  "portal_qr_code_after_sync": "Kode QR akan muncul setelah perubahan Anda disimpan dan disinkronkan.",
   "portal_settings": "Pengaturan Portal",
   "position_in_row": "Posisi dalam baris",
   "post": "POST",

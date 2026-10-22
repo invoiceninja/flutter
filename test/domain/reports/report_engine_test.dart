@@ -551,12 +551,12 @@ void main() {
     // UTC instant counts a row in one month while its own cell displays a
     // date in another.
     //
-    // This is the rare invariant **CI cannot check**: under `TZ=UTC` the
-    // buggy and fixed code are behaviourally identical, because there is no
-    // conversion to get wrong. The test says so out loud and returns rather
-    // than asserting something vacuous — it bites on any developer machine
-    // with a non-zero offset (verified failing against the pre-fix code under
-    // `TZ=Asia/Jerusalem`).
+    // Under `TZ=UTC` the buggy and fixed code are behaviourally identical,
+    // because there is no conversion to get wrong, so the test returns there
+    // rather than asserting something vacuous. It bites at any non-zero offset
+    // (verified failing against the pre-fix code under `TZ=Asia/Jerusalem`),
+    // and CI's "Test (off UTC)" step in `_test.yaml` runs it under two — keep
+    // its name matching that step's `--plain-name`.
     test('a dateTime buckets on the local day, not the UTC one', () {
       final instant = DateTime.utc(2026, 3, 1, 23, 30);
       final local = instant.toLocal();
@@ -591,8 +591,8 @@ void main() {
     // the cell display do. It compared the UTC day, so a row could show and
     // group as Mar 2 yet be dropped by a "Mar 2" filter and kept by "Mar 1".
     //
-    // Same caveat as the test above: there is nothing to convert at UTC, so
-    // the test returns there. The instant is picked by the sign of the
+    // Same caveat, and the same CI step, as the test above: there is nothing
+    // to convert at UTC, so the test returns there. The instant is picked by the sign of the
     // device's offset so its local day differs from its UTC one both east of
     // UTC (23:30 UTC is already tomorrow) and west of it (00:30 UTC is still
     // yesterday) — verified failing against the pre-fix code under

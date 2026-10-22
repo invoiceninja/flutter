@@ -64,6 +64,13 @@ abstract class SettingsDraftHost extends ChangeNotifier {
   /// loaded company row. Never write through it — it's read-only context.
   Company? get companyContext => draft;
 
+  /// The company as last loaded or saved — the baseline [draft] started
+  /// from, so a field compared against it reads "unsaved" while the user is
+  /// still typing. Null at the cascade scopes and before [load] resolves.
+  /// A saved value has not necessarily reached the server: it waits in the
+  /// outbox until it syncs.
+  Company? get initialCompany => null;
+
   /// The baseline settings the draft started from. Email Settings's
   /// send-time sync prompt compares the draft's `entitySendTime`
   /// against this to decide whether to show the "Also apply to existing
@@ -204,6 +211,9 @@ class SettingsDraftViewModel extends DraftStreamHost<Company> {
   @override
   CompanySettings get initialSettings =>
       initialValue?.settings ?? const CompanySettings();
+
+  @override
+  Company? get initialCompany => initialValue;
 
   @override
   void updateSettings(CompanySettings Function(CompanySettings) edit) {

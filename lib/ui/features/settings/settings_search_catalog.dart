@@ -453,6 +453,7 @@ class SettingsSearchTab {
     this.enabledBy,
     this.clientEditable = true,
     this.hostedOnly = false,
+    this.keyGates = const {},
   });
 
   /// Route below the section; `''` for the section's own page.
@@ -476,6 +477,12 @@ class SettingsSearchTab {
 
   /// True for a tab the shell renders only on the hosted platform.
   final bool hostedOnly;
+
+  /// The [keys] whose field renders only where its predicate holds — the same
+  /// predicate the screen gates the field on (Spell check: only where the
+  /// platform has a checker). A gated key is not offered elsewhere, so a hit
+  /// never opens a page without the field it names.
+  final Map<String, bool Function()> keyGates;
 
   bool isVisibleFor(int enabledModules) {
     final gates = enabledBy;
@@ -670,7 +677,13 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
     SettingsSearchTab('restore', kRestoreTabSearchKeys, titleKey: 'restore'),
   ],
   'import_export': [SettingsSearchTab('', kImportExportSearchKeys)],
-  'device_settings': [SettingsSearchTab('', kDeviceSettingsSearchKeys)],
+  'device_settings': [
+    SettingsSearchTab(
+      '',
+      kDeviceSettingsSearchKeys,
+      keyGates: kDeviceSettingsSearchKeyGates,
+    ),
+  ],
   'keyboard_shortcuts': [SettingsSearchTab('', kKeyboardShortcutsSearchKeys)],
   // Every tab but General is company-scope only (`invoice_design_shell.dart`).
   'invoice_design': [
@@ -1282,6 +1295,7 @@ List<SettingsSearchHit> searchSettings(
       // (Password on the Password tab) the field wins the tie and the user
       // gets the scroll-and-flash.
       for (final key in tab.keys) {
+        if (tab.keyGates[key]?.call() == false) continue;
         final label = l10n.lookup(key);
         final tier = _rank(
           [label, ?l10n.englishOf(key)],

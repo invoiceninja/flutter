@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_filter_keys.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_list_view_model.dart';
@@ -22,16 +23,7 @@ class QuoteTokenSearchField extends StatelessWidget {
     hintKey: 'search_quotes_or_filter_hint',
     // Quotes share Invoice Ninja's `invoice1..4` custom-field slots.
     customFieldPrefix: 'invoice',
-    nameSources: [
-      (services, companyId) => services.clients
-          .watchActiveNames(companyId: companyId)
-          .map(
-            (rows) => {
-              for (final r in rows)
-                if (r.name.isNotEmpty) r.id: r.name,
-            },
-          ),
-    ],
+    nameSources: [ClientFilterKey.chipNames],
     keysBuilder: (services, companyId, company, names) => buildQuoteFilterKeys(
       clients: services.clients,
       tags: services.tags,

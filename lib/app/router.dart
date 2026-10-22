@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart' show mayCreateEntity;
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
@@ -188,6 +189,31 @@ Iterable<String> disabledEntityRoots(
       yield h.routePath;
     }
   }
+}
+
+/// Top-level route paths whose `/new` the active user may not open, because
+/// they may not create one (`mayCreateEntity`). Every create surface is
+/// already hidden from such a user; this catches what those can't — a typed
+/// URL, a shared `/app/<root>/new` link, an old history entry — which opened a
+/// create form whose save the server then refused.
+Iterable<String> createForbiddenEntityRoots(
+  EntityRegistry registry, {
+  required bool Function(String permission) can,
+  required bool isAdmin,
+}) sync* {
+  for (final h in registry.all) {
+    if (h.disabled || h.routePath.isEmpty) continue;
+    if (!mayCreateEntity(h.type, can: can, isAdmin: isAdmin)) yield h.routePath;
+  }
+}
+
+/// The list route to bounce [location] to when it is the `/new` route of one
+/// of [forbiddenRoots], else null.
+@visibleForTesting
+String? createForbiddenRedirect(String location, Set<String> forbiddenRoots) {
+  if (!location.endsWith('/new')) return null;
+  final root = location.substring(0, location.length - '/new'.length);
+  return forbiddenRoots.contains(root) ? root : null;
 }
 
 /// True when [location] is the list/detail/edit/create route of a
@@ -578,6 +604,7 @@ GoRouter buildRouter({
   bool Function()? isBiometricLockRequired,
   bool Function()? isCompanySetupRequired,
   Set<String> Function()? disabledModuleRoots,
+  Set<String> Function()? createForbiddenRoots,
   String initialLocation = '/clients',
 }) {
   return GoRouter(
@@ -674,6 +701,14 @@ GoRouter buildRouter({
                   dest,
                 ).replace(queryParameters: {'module_off': label}).toString();
         }
+        // Permission gate — `/new` on an entity the user may not create goes
+        // to its list. Silent, unlike the module gate: no button ever led
+        // here, so there is nothing to explain.
+        final createBounce = createForbiddenRedirect(
+          state.matchedLocation,
+          createForbiddenRoots?.call() ?? const <String>{},
+        );
+        if (createBounce != null) return createBounce;
       }
       // Legacy Integrations URLs. Sits last so the auth / setup gates still win,
       // and works even though these paths no longer match any route: go_router

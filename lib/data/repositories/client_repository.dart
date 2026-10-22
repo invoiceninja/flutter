@@ -196,14 +196,21 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// case and reads `(no name)` — see `ClientNameLabel`.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.clientDao
-      .watchActiveNames(companyId: companyId)
-      .map(
-        (rows) => [
-          for (final r in rows)
-            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
-        ],
-      );
+  }) => db.clientDao.watchActiveNames(companyId: companyId).map(_namesOrIds);
+
+  /// [watchActiveNames] over every cached client, archived and deleted
+  /// included — what a `client:` chip resolves its id through (see
+  /// `ClientFilterKey.chipNames`). Suggestions stay on [watchActiveNames].
+  Stream<List<({String id, String name})>> watchAllNames({
+    required String companyId,
+  }) => db.clientDao.watchAllNames(companyId: companyId).map(_namesOrIds);
+
+  static List<({String id, String name})> _namesOrIds(
+    List<({String id, String name})> rows,
+  ) => [
+    for (final r in rows)
+      (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+  ];
 
   /// One page of clients for the contacts-sync reconcile, decoded to domain
   /// objects. See [ClientDao.pageForContactSync] for why this is paged and

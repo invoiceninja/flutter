@@ -137,6 +137,36 @@ void main() {
       await service.fetchSpellCheckSuggestions(const Locale('en'), 'teh');
       expect(service.isUnavailable, isTrue);
     });
+
+    // Windows: a French-only machine has no en-US dictionary, but the app in
+    // French must still get one — the latch is per language.
+    test('"no_dictionary" latches that language only', () async {
+      final asked = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        final language = (call.arguments as Map)['language'] as String;
+        asked.add(language);
+        if (language == 'en') throw PlatformException(code: 'no_dictionary');
+        return const [];
+      });
+      final service = NativeSpellCheckService(channel: channel);
+
+      expect(
+        await service.fetchSpellCheckSuggestions(const Locale('en'), 'teh'),
+        isNull,
+      );
+      expect(
+        await service.fetchSpellCheckSuggestions(const Locale('en'), 'teh'),
+        isNull,
+      );
+      expect(asked, ['en'], reason: 'not asked again for English');
+      expect(service.isUnavailable, isFalse);
+
+      expect(
+        await service.fetchSpellCheckSuggestions(const Locale('fr'), 'le'),
+        isEmpty,
+      );
+      expect(asked, ['en', 'fr']);
+    });
   });
 
   group('platformSpellCheckConfiguration', () {

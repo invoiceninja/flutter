@@ -28,6 +28,7 @@ class PortalUrlDisplay extends StatelessWidget {
     required this.label,
     required this.url,
     this.showQrCode = false,
+    this.qrCodeAfterSync = false,
   });
 
   /// Localized label shown above the URL (e.g. `t('login_url')`).
@@ -40,6 +41,11 @@ class PortalUrlDisplay extends StatelessWidget {
   /// Adds a button that shows the URL as a scannable, downloadable QR code —
   /// what a user prints on a business card or a flyer.
   final bool showQrCode;
+
+  /// Says, under the URL, that its QR code appears once the changes are
+  /// saved and synced. Set instead of [showQrCode] while the URL is a preview
+  /// of the draft — see [ConfirmedPortalUrlDisplay].
+  final bool qrCodeAfterSync;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +115,11 @@ class PortalUrlDisplay extends StatelessWidget {
             );
           },
         ),
+        if (qrCodeAfterSync)
+          Text(
+            context.tr('portal_qr_code_after_sync'),
+            style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink2),
+          ),
       ],
     );
   }

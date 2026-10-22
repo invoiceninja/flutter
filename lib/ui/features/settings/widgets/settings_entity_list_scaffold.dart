@@ -1,6 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
@@ -48,6 +54,7 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
     this.starters,
     this.banner,
     this.canCreate = true,
+    this.createEntityType,
   }) : assert(
          rowBuilder != null || reorderableRowBuilder != null,
          'Pass at least one of rowBuilder or reorderableRowBuilder',
@@ -151,6 +158,13 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
   /// can't create new ones.
   final bool canCreate;
 
+  /// The entity [newRoute] creates, so the "+ New" CTAs are *hidden* from a
+  /// user who may not create one (`mayCreateEntity` — most of these are
+  /// admin-only on the server). Hidden rather than greyed, unlike
+  /// [canCreate]: greyed is how a plan gate explains itself. Null leaves the
+  /// CTAs ungated.
+  final EntityType? createEntityType;
+
   @override
   State<SettingsEntityListScaffold<T>> createState() =>
       _SettingsEntityListScaffoldState<T>();
@@ -165,10 +179,46 @@ class _SettingsEntityListScaffoldState<T>
   /// `widget.onReorder` is non-null.
   List<T>? _optimistic;
 
+  /// The session [_mayCreate] reads, listened to so a permission that flips
+  /// in place — the background `/refresh` healing cached permissions —
+  /// shows or hides the CTAs without waiting for an unrelated rebuild.
+  ValueListenable<AuthSession?>? _session;
+  late bool _mayCreate;
+
   @override
   void initState() {
     super.initState();
     widget.refreshAll();
+    final type = widget.createEntityType;
+    if (type != null) {
+      // Nullable read: a test that mounts the scaffold bare has no Services.
+      _session = context.read<Services?>()?.auth.session;
+      _session?.addListener(_onSession);
+    }
+    _mayCreate = _resolveMayCreate();
+  }
+
+  @override
+  void dispose() {
+    _session?.removeListener(_onSession);
+    super.dispose();
+  }
+
+  bool _resolveMayCreate() {
+    final type = widget.createEntityType;
+    final session = _session;
+    if (type == null || session == null) return true;
+    final me = session.value?.currentCompany;
+    return mayCreateEntity(
+      type,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
+  }
+
+  void _onSession() {
+    final next = _resolveMayCreate();
+    if (next != _mayCreate) setState(() => _mayCreate = next);
   }
 
   Future<void> _handleReorder(
@@ -263,8 +313,15 @@ class _SettingsEntityListScaffoldState<T>
     required List<T> archived,
   }) {
     final canCreate = widget.canCreate;
+    final mayCreate = _mayCreate;
     VoidCallback? newAction() =>
         canCreate ? () => context.go(widget.newRoute) : null;
+    Widget newButton() => FilledButton.icon(
+      style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+      icon: const Icon(Icons.add),
+      label: Text(context.tr(widget.newLabelKey)),
+      onPressed: newAction(),
+    );
 
     // Emptiness is judged on what is *visible*, not what exists: with the
     // toggle off, a company whose only rows are archived still gets the
@@ -272,7 +329,7 @@ class _SettingsEntityListScaffoldState<T>
     if (active.isEmpty && (!_showArchived || archived.isEmpty)) {
       final starters = widget.starters;
       final Widget emptyBody;
-      if (starters != null && starters.isNotEmpty) {
+      if (starters != null && starters.isNotEmpty && mayCreate) {
         emptyBody = SettingsFormShell(
           sections: [
             FormSection(
@@ -282,14 +339,7 @@ class _SettingsEntityListScaffoldState<T>
                   icon: widget.emptyIcon,
                   title: context.tr(widget.emptyTitleKey),
                   subtitle: context.tr(widget.emptyHintKey),
-                  action: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
-                    icon: const Icon(Icons.add),
-                    label: Text(context.tr(widget.newLabelKey)),
-                    onPressed: newAction(),
-                  ),
+                  action: mayCreate ? newButton() : null,
                 ),
                 const SizedBox(height: 16),
                 _StarterCards(starters: starters),
@@ -302,12 +352,7 @@ class _SettingsEntityListScaffoldState<T>
           icon: widget.emptyIcon,
           title: context.tr(widget.emptyTitleKey),
           subtitle: context.tr(widget.emptyHintKey),
-          action: FilledButton.icon(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-            icon: const Icon(Icons.add),
-            label: Text(context.tr(widget.newLabelKey)),
-            onPressed: newAction(),
-          ),
+          action: mayCreate ? newButton() : null,
         );
       }
       return _withBanner(widget.banner, emptyBody);
@@ -334,13 +379,15 @@ class _SettingsEntityListScaffoldState<T>
             spacing: 0,
             children: [
               if (active.isNotEmpty) activeSection,
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.add),
-                title: Text(context.tr(widget.newLabelKey)),
-                enabled: canCreate,
-                onTap: canCreate ? () => context.go(widget.newRoute) : null,
-              ),
+              if (mayCreate) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: Text(context.tr(widget.newLabelKey)),
+                  enabled: canCreate,
+                  onTap: canCreate ? () => context.go(widget.newRoute) : null,
+                ),
+              ],
             ],
           ),
           if (_showArchived && archived.isNotEmpty)

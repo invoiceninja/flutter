@@ -146,7 +146,12 @@ void main() {
         RollingDatePreset.thisYear,
       );
       expect(RollingDatePreset.of('rel:d0', 'rel:d0'), RollingDatePreset.today);
-      expect(RollingDatePreset.of('rel:d6', 'rel:d0'), isNull);
+      // The rail's "Last 7 days" is a preset too, so its chip reads by name.
+      expect(
+        RollingDatePreset.of('rel:d6', 'rel:d0'),
+        RollingDatePreset.last7Days,
+      );
+      expect(RollingDatePreset.of('rel:d5', 'rel:d0'), isNull);
       expect(RollingDatePreset.of('2026-01-01', '2026-01-31'), isNull);
     });
 

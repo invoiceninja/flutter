@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task_status.dart';
@@ -27,6 +28,7 @@ class TaskStatusesScreen extends StatelessWidget {
       sectionTitleKey: 'task_statuses',
       newRoute: '/settings/task_statuses/new',
       newLabelKey: 'new_task_status',
+      createEntityType: EntityType.taskStatus,
       emptyIcon: Icons.label_outline,
       emptyTitleKey: 'no_task_statuses',
       emptyHintKey: 'no_task_statuses_hint',

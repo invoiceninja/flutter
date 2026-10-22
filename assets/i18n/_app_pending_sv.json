@@ -925,6 +925,7 @@
   "plus_n_more": "+:count till",
   "portal_domain_help": "Adressen som dina kunder använder för att nå portalen, med början på https://",
   "portal_features": "Portalfunktioner",
+  "portal_qr_code_after_sync": "QR-koden visas när dina ändringar har sparats och synkroniserats.",
   "portal_settings": "Portalinställningar",
   "position_in_row": "Position i raden",
   "post": "POST",

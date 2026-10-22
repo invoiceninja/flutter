@@ -903,6 +903,7 @@
   "plus_n_more": "+:count daugiau",
   "portal_domain_help": "Adresas, kuriuo klientai pasiekia portalą, prasidedantis https://",
   "portal_features": "Portalo funkcijos",
+  "portal_qr_code_after_sync": "QR kodas atsiras, kai jūsų pakeitimai bus išsaugoti ir sinchronizuoti.",
   "portal_settings": "Portalo nustatymai",
   "position_in_row": "Vieta eilutėje",
   "post": "POST",

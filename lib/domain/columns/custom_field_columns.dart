@@ -3,6 +3,7 @@ import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/custom_field_types.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 
@@ -11,8 +12,9 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 /// Two halves. [customFieldColumns] builds the four **raw** definitions an
 /// entity registers; [decorateCustomFieldColumns] is the pass the list
 /// ViewModel runs whenever the active company changes, which resolves each
-/// slot's configured label, formats switch / date values, and **drops** slots
-/// the company hasn't configured.
+/// slot's configured label, formats switch / date values, expands reserved
+/// date keywords where the server does (`customFieldExpandsDateKeywords`), and
+/// **drops** slots the company hasn't configured.
 ///
 /// Like `column_cells.dart` this lives under `lib/domain/` but is a UI helper
 /// (it builds Widgets and reads `FormatterScope`); the location is the same
@@ -138,10 +140,36 @@ List<ColumnDefinition<T>> decorateCustomFieldColumns<T>(
           ),
         );
       default:
-        // single_line_text / multi_line_text / dropdown all display verbatim,
-        // so the registry's own `cellText(raw)` builder is already right.
-        // Reusing it saves a `dependOnInheritedWidgetOfExactType` plus two
-        // `tr` lookups per cell per build in the common case.
+        if (customFieldExpandsDateKeywords(slot.prefix)) {
+          // A value the server prints with its reserved date keywords
+          // expanded (`Helpers::formatCustomFieldValue`) reads as those dates
+          // here too, like the Products description column. `valueBuilder`
+          // keeps the raw text — sort, copy and export want what is stored.
+          final valueOf = slot.valueOf;
+          out.add(
+            column.withResolvedLabel(
+              label: label,
+              cellBuilder: (entity, context) {
+                final raw = valueOf(entity);
+                // The keyword-free common case skips the formatter lookup.
+                if (!raw.contains(':') && !raw.contains('[')) {
+                  return cellText(raw);
+                }
+                return cellText(
+                  expandDatePlaceholders(
+                    raw,
+                    formatter: FormatterScope.maybeOf(context),
+                  ),
+                );
+              },
+            ),
+          );
+          continue;
+        }
+        // single_line_text / multi_line_text / dropdown display verbatim
+        // everywhere else (`expense`, `project`), so the registry's own
+        // `cellText(raw)` builder is already right. Reusing it saves a
+        // `dependOnInheritedWidgetOfExactType` per cell per build.
         out.add(column.withResolvedLabel(label: label));
     }
   }

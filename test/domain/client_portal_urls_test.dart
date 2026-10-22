@@ -7,7 +7,6 @@ void main() {
   String url({
     ClientPortalPage page = ClientPortalPage.login,
     bool isHosted = false,
-    bool hasMultipleCompanies = false,
     String portalMode = kClientPortalModeDomain,
     String subdomain = '',
     String portalDomain = 'https://billing.example.com',
@@ -15,7 +14,6 @@ void main() {
   }) => clientPortalUrl(
     page: page,
     isHosted: isHosted,
-    hasMultipleCompanies: hasMultipleCompanies,
     portalMode: portalMode,
     subdomain: subdomain,
     portalDomain: portalDomain,
@@ -23,42 +21,35 @@ void main() {
   );
 
   group('self-hosted', () {
-    test('one company: the short address, no key', () {
+    // Without the key the server picks a company itself (the first
+    // account's default company to register, `Company::first()` to log in),
+    // and the app cannot prove that is this one — so the key is always there.
+    test('the key pins this company on every page', () {
       for (final page in ClientPortalPage.values) {
         expect(
           url(page: page),
-          'https://billing.example.com/client/${page.path}',
-        );
-      }
-    });
-
-    test('several companies: the key pins this one', () {
-      for (final page in ClientPortalPage.values) {
-        expect(
-          url(page: page, hasMultipleCompanies: true),
           'https://billing.example.com/client/${page.path}/KEY123',
         );
       }
     });
 
-    test('several companies but no key yet: the short address', () {
-      expect(
-        url(hasMultipleCompanies: true, companyKey: ''),
-        'https://billing.example.com/client/login',
-      );
+    test('no key yet: no URL, never the short address', () {
+      for (final page in ClientPortalPage.values) {
+        expect(url(page: page, companyKey: ''), isEmpty);
+      }
     });
 
     test('ignores the portal mode and subdomain', () {
       expect(
         url(portalMode: kClientPortalModeSubdomain, subdomain: 'acme'),
-        'https://billing.example.com/client/login',
+        'https://billing.example.com/client/login/KEY123',
       );
     });
 
     test('trims a trailing slash from the domain', () {
       expect(
         url(portalDomain: 'https://billing.example.com/'),
-        'https://billing.example.com/client/login',
+        'https://billing.example.com/client/login/KEY123',
       );
     });
 
@@ -71,7 +62,7 @@ void main() {
     test('custom domain resolves by host, so never a key', () {
       for (final page in ClientPortalPage.values) {
         expect(
-          url(page: page, isHosted: true, hasMultipleCompanies: true),
+          url(page: page, isHosted: true),
           'https://billing.example.com/client/${page.path}',
         );
       }
@@ -82,7 +73,6 @@ void main() {
         url(
           page: ClientPortalPage.register,
           isHosted: true,
-          hasMultipleCompanies: true,
           portalMode: kClientPortalModeSubdomain,
           subdomain: 'acme',
         ),

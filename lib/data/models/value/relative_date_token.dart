@@ -207,7 +207,14 @@ enum RollingDatePreset {
   thisQuarter('this_quarter'),
   lastQuarter('last_quarter'),
   thisYear('this_year'),
-  lastYear('last_year');
+  lastYear('last_year'),
+
+  /// The rolling day windows, ending today — the date-range picker's "Last N
+  /// days" rail presets, so `date:last 7 days` and the rail are one window.
+  /// They take the rail's label keys.
+  last7Days('last7_days'),
+  last30Days('last_30_days'),
+  last365Days('last_365_days');
 
   const RollingDatePreset(this.labelKey);
 
@@ -260,6 +267,11 @@ enum RollingDatePreset {
         1,
         yearParam,
       ),
+      // Today and the N − 1 days before it, like the dashboard's
+      // `DashboardDatePreset.last7`.
+      RollingDatePreset.last7Days => ('rel:d6', 'rel:d0'),
+      RollingDatePreset.last30Days => ('rel:d29', 'rel:d0'),
+      RollingDatePreset.last365Days => ('rel:d364', 'rel:d0'),
     };
   }
 

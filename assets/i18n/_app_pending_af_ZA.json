@@ -896,6 +896,7 @@
   "plus_n_more": "+:count meer",
   "portal_domain_help": "Die adres wat jou kliënte gebruik om die portaal te bereik, beginnende met https://",
   "portal_features": "Portaalkenmerke",
+  "portal_qr_code_after_sync": "Die QR-kode verskyn sodra jou veranderinge gestoor en gesinkroniseer is.",
   "portal_settings": "Portaalinstellings",
   "position_in_row": "Posisie in ry",
   "post": "POST",

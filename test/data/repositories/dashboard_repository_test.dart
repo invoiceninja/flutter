@@ -1,3 +1,4 @@
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
@@ -123,6 +124,9 @@ class _FakeDashboardApi extends DashboardApi {
   /// server does.
   Object? activitiesBefore;
 
+  /// When set, a fetch carrying `before` fails with this instead.
+  Object? activitiesBeforeError;
+
   @override
   Future<Object?> fetchActivities({
     int rows = kActivityFeedRows,
@@ -130,6 +134,10 @@ class _FakeDashboardApi extends DashboardApi {
   }) {
     activityRows.add(rows);
     activityBefore.add(before);
+    final beforeError = activitiesBeforeError;
+    if (before != null && beforeError != null) {
+      return Future<Object?>.error(beforeError);
+    }
     final paged = activitiesBefore;
     return _maybe(
       'activities',
@@ -851,6 +859,61 @@ void main() {
           expect(api.activityBefore.skip(calls), [null]);
         },
       );
+
+      test(
+        'a cursor row deleted server-side re-fetches the window once',
+        () async {
+          api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
+          await repo.refreshActivities('co_a');
+
+          // Row 6 — the cursor — went with a purged client: the server 422s
+          // `before: record_not_found` for it, forever.
+          api.activitiesBeforeError = const ValidationException('invalid', {
+            'before': ['record_not_found'],
+          });
+          api.activities = [
+            for (var i = 10; i >= 7; i--) hashed(i),
+            for (var i = 5; i >= 1; i--) hashed(i),
+          ];
+          final page = await repo.loadOlderActivities('co_a');
+
+          expect(page, (asked: 5 + kActivityFeedRows, received: 9));
+          expect(await cachedIds(), [
+            '10',
+            '9',
+            '8',
+            '7',
+            '5',
+            '4',
+            '3',
+            '2',
+            '1',
+          ]);
+          expect(
+            repo.activityCursorSupported('co_a'),
+            isNot(isFalse),
+            reason: 'the server does page with `before`',
+          );
+
+          // The next Load more asks from a row that exists.
+          api.activitiesBeforeError = null;
+          api.activitiesBefore = <Object?>[];
+          await repo.loadOlderActivities('co_a');
+          expect(api.activityBefore.last, 'h1');
+        },
+      );
+
+      test('any other 422 still fails the Load more', () async {
+        api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
+        await repo.refreshActivities('co_a');
+        api.activitiesBeforeError = const ValidationException('invalid', {
+          'rows': ['too_many'],
+        });
+        await expectLater(
+          repo.loadOlderActivities('co_a'),
+          throwsA(isA<ValidationException>()),
+        );
+      });
     });
 
     test('a failed refresh does not wedge the next one', () async {

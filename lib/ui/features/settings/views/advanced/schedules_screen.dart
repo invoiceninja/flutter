@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/schedule.dart';
@@ -73,6 +74,7 @@ class _SchedulesScreenState extends State<SchedulesScreen>
       sectionTitleKey: 'schedules',
       newRoute: '/settings/schedules/new',
       newLabelKey: 'new_schedule',
+      createEntityType: EntityType.schedule,
       emptyIcon: Icons.schedule_outlined,
       emptyTitleKey: 'no_schedules',
       emptyHintKey: 'no_schedules_hint',

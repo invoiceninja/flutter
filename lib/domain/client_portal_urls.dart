@@ -16,17 +16,20 @@ enum ClientPortalPage {
 ///
 /// The server's `client/login/{company_key?}` and `client/register/{company_key?}`
 /// routes take the key as optional. Hosted resolves the company from the host
-/// (subdomain or custom domain) and never needs it. Self-hosted falls back to
-/// a company of its own choosing when the key is missing (`ContactRegister`:
-/// the account's default company; `ContactLoginController::resolveCompany`:
-/// `Company::first()`), so the key is added only when
-/// [hasMultipleCompanies] — the signed-in user's companies, which is as much
-/// of the server as the app can see. Always adding it made a single-company
-/// user think the portal address had changed.
+/// (subdomain or custom domain) and never needs it.
+///
+/// Self-hosted always carries the key. Without it the server picks a company
+/// of its own — `ContactRegister` the *first account's* default company,
+/// `ContactLoginController::resolveCompany` `Company::first()` — and nothing
+/// the app can see proves that is this one: the session lists the signed-in
+/// user's companies, not the server's, and a self-hosted server can hold a
+/// second account (an OAuth sign-in with no matching user creates one). A
+/// key-less URL shown to the wrong company registers its clients into
+/// another company, or shows them another company's login page. So with no
+/// key yet, there is no URL. → docs/client-portal-urls.md
 String clientPortalUrl({
   required ClientPortalPage page,
   required bool isHosted,
-  required bool hasMultipleCompanies,
   required String portalMode,
   required String subdomain,
   required String portalDomain,
@@ -37,11 +40,8 @@ String clientPortalUrl({
       : portalDomain;
   final path = '/client/${page.path}';
   if (!isHosted) {
-    if (domain.isEmpty) return '';
-    if (hasMultipleCompanies && companyKey.isNotEmpty) {
-      return '$domain$path/$companyKey';
-    }
-    return '$domain$path';
+    if (domain.isEmpty || companyKey.isEmpty) return '';
+    return '$domain$path/$companyKey';
   }
   if (portalMode == kClientPortalModeDomain) {
     return domain.isEmpty ? '' : '$domain$path';

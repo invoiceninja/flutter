@@ -75,6 +75,27 @@ class _ActivityTimelineChartState extends State<ActivityTimelineChart> {
 
   List<TimelineBucket> get _buckets => widget.timeline.buckets;
 
+  /// Drops a drag or hover whose indices belong to the old buckets. A refresh
+  /// can land mid-drag and re-bucket the window (52 weeks becoming ~21 days),
+  /// and every index below would then run past the end, or silently select
+  /// other periods. Same buckets — a rebuild with an equal timeline — keep it.
+  @override
+  void didUpdateWidget(ActivityTimelineChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final before = oldWidget.timeline.buckets;
+    final after = _buckets;
+    final same =
+        before.length == after.length &&
+        (after.isEmpty ||
+            (before.first.start == after.first.start &&
+                before.last.end == after.last.end));
+    if (!same) {
+      _hover = null;
+      _dragAnchor = null;
+      _dragEnd = null;
+    }
+  }
+
   bool get _hasRange => widget.from != null || widget.until != null;
 
   bool _inRange(int i) {

@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart' show Locale;
 import 'package:logging/logging.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/utils/perf_trace.dart';
 
 final _log = Logger('ScriptFonts');
 
@@ -32,48 +33,99 @@ List<String> scriptFontsForLanguage(String languageCode) =>
       _ => const [],
     };
 
-/// Registers the script fallback fonts with the engine, after the first
-/// frame so they never hold it up. Natively every family loads (a local file
-/// read), so an Arabic client name renders in an English UI too. On web only
-/// the families the shown language needs load, and again whenever it changes;
-/// other scripts there fall back to the engine's own (fonts.gstatic.com) as
-/// before. A family named in a `fontFamilyFallback` before it is registered
-/// is simply skipped, and registering one relays out the text that needs it.
+/// How long after the first frame a native build registers the families the
+/// UI language does not need (see [ScriptFonts.attach]).
+const Duration kDeferredScriptFontsDelay = Duration(seconds: 15);
+
+/// How long the localization delegate waits on the UI language's family
+/// before letting the first frame go without it (see
+/// [ScriptFonts.loadForLocale]).
+const Duration kScriptFontFirstFrameBudget = Duration(seconds: 2);
+
+/// Registers the script fallback fonts with the engine.
+///
+/// **The UI language's family** loads from the localization delegate's
+/// `load` ([loadForLocale]), which Flutter awaits before the first frame and
+/// runs again on every language change, keyed off the locale Flutter actually
+/// resolved. An Arabic, Hebrew, Thai, Lao or Khmer UI therefore paints its
+/// first frame in its bundled font — on web, without CanvasKit fetching its
+/// own fallback from fonts.gstatic.com first — and every other language pays
+/// nothing.
+///
+/// **The other families** load natively only, [kDeferredScriptFontsDelay]
+/// after the first frame ([attach]), so an Arabic client name in an English
+/// UI renders in the bundled font too. Every `FontLoader.load` sends a
+/// `fontsChange` that re-lays out every paragraph, so they are kept out of
+/// the launch window and loaded together; until then the platform's own
+/// font fallback draws those scripts (each OS ships fonts for them). On web
+/// they never load: other scripts fall back to the engine as before.
+///
+/// A family named in a `fontFamilyFallback` before it is registered is
+/// simply skipped, and registering one relays out the text that needs it.
+/// See `docs/right-to-left-layout.md`.
 class ScriptFonts {
   ScriptFonts._();
 
-  static final Set<String> _requested = {};
+  static final Map<String, Future<void>> _loads = {};
+  static Timer? _deferred;
+  static bool _attached = false;
 
-  /// Start loading for [appLocale] (null: the device's), and follow it on web.
-  static void attach(ValueListenable<Locale?> appLocale) {
-    void load() => unawaited(
-      ensureLoaded(
-        kIsWeb
-            ? scriptFontsForLanguage(
-                (appLocale.value ?? PlatformDispatcher.instance.locale)
-                    .languageCode,
-              )
-            : kScriptFallbackFonts,
-      ),
-    );
+  /// Loads the families text in [locale]'s language needs, waiting at most
+  /// [budget] — past it the load carries on and the text relays out when it
+  /// lands, so a stuck asset read can never hold the first frame. Completes
+  /// at once, with no work, for a language Inter Tight covers.
+  static Future<void> loadForLocale(
+    Locale locale, {
+    Duration budget = kScriptFontFirstFrameBudget,
+  }) {
+    final families = scriptFontsForLanguage(locale.languageCode);
+    if (families.isEmpty) return Future.value();
+    return ensureLoaded(families).timeout(budget, onTimeout: () {});
+  }
+
+  /// Natively, schedule the families the UI language did not need. Web: no-op.
+  static void attach() {
+    if (kIsWeb || _attached) return;
+    _attached = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      load();
-      if (kIsWeb) appLocale.addListener(load);
+      if (!_attached) return;
+      _deferred ??= Timer(
+        kDeferredScriptFontsDelay,
+        () => unawaited(ensureLoaded(kScriptFallbackFonts)),
+      );
     });
   }
 
-  /// Loads each of [families] once; a failure is logged, never thrown — the
-  /// text then falls back as it would with no bundled font at all.
-  static Future<void> ensureLoaded(Iterable<String> families) async {
-    for (final family in families) {
-      final asset = kScriptFallbackFontAssets[family];
-      if (asset == null || !_requested.add(family)) continue;
-      try {
-        await (FontLoader(family)..addFont(rootBundle.load(asset))).load();
-      } catch (e, st) {
-        _requested.remove(family);
-        _log.warning('Could not load $family from $asset', e, st);
-      }
-    }
+  /// Cancels a deferred load [attach] scheduled that has not run yet.
+  static void detach() {
+    _attached = false;
+    _deferred?.cancel();
+    _deferred = null;
   }
+
+  /// The families a load has started for (and not failed).
+  @visibleForTesting
+  static Set<String> get requested => _loads.keys.toSet();
+
+  /// Loads each of [families] once, side by side, so their `fontsChange`
+  /// notices land together; a failure is logged, never thrown — the text then
+  /// falls back as it would with no bundled font at all — and a later call
+  /// retries it.
+  static Future<void> ensureLoaded(Iterable<String> families) async {
+    await Future.wait([
+      for (final family in families)
+        if (kScriptFallbackFontAssets[family] case final asset?)
+          _loads[family] ??= _load(family, asset),
+    ]);
+  }
+
+  static Future<void> _load(String family, String asset) =>
+      traceAsync('scriptFonts.load', () async {
+        try {
+          await (FontLoader(family)..addFont(rootBundle.load(asset))).load();
+        } catch (e, st) {
+          _loads.remove(family)?.ignore();
+          _log.warning('Could not load $family from $asset', e, st);
+        }
+      }, args: {'family': family});
 }

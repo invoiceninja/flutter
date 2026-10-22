@@ -218,6 +218,16 @@ void main() {
       lookAhead: true,
     );
     expect(matches(due, 'last mo'), const [RollingDatePreset.lastMonth]);
+    // The range picker's rolling day windows, by name or by their number.
+    expect(matches(date, 'last 7'), const [RollingDatePreset.last7Days]);
+    expect(matches(date, 'days'), const [
+      RollingDatePreset.last7Days,
+      RollingDatePreset.last30Days,
+      RollingDatePreset.last365Days,
+    ]);
+    expect(matches(date, '30'), const [RollingDatePreset.last30Days]);
+    // A number matches a whole word only: `3` is the start of `3/14`.
+    expect(matches(date, '3'), isEmpty);
     // Nothing typed, a comparator, or a word no period has.
     expect(matches(date, ''), isEmpty);
     expect(matches(date, '>=th'), isEmpty);
@@ -231,6 +241,14 @@ void main() {
     expect(
       date.normalizeTypedValue(vm, context, 'Last Quarter'),
       'date,rel:q1s,rel:q1e',
+    );
+    expect(
+      date.normalizeTypedValue(vm, context, 'last 7 days'),
+      'date,rel:d6,rel:d0',
+    );
+    expect(
+      date.normalizeTypedValue(vm, context, 'Last 30 Days'),
+      'date,rel:d29,rel:d0',
     );
     // A part of a name is not a value.
     expect(date.normalizeTypedValue(vm, context, 'this mo'), isNull);

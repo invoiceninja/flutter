@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/tasks/task_filter_keys.dart';
 import 'package:admin/ui/features/tasks/view_models/task_list_view_model.dart';
@@ -17,16 +18,7 @@ class TaskTokenSearchField extends StatelessWidget {
     wide: wide,
     hintKey: 'search_tasks_or_filter_hint',
     customFieldPrefix: 'task',
-    nameSources: [
-      (services, companyId) => services.clients
-          .watchActiveNames(companyId: companyId)
-          .map(
-            (rows) => {
-              for (final r in rows)
-                if (r.name.isNotEmpty) r.id: r.name,
-            },
-          ),
-    ],
+    nameSources: [ClientFilterKey.chipNames],
     keysBuilder: (services, companyId, company, names) => buildTaskFilterKeys(
       clients: services.clients,
       projects: services.projects,

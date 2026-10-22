@@ -927,6 +927,7 @@
   "plus_n_more": "+:count weitere",
   "portal_domain_help": "Die Adresse, über die Ihre Kunden das Portal erreichen, beginnend mit https://",
   "portal_features": "Portalfunktionen",
+  "portal_qr_code_after_sync": "Der QR-Code erscheint, sobald Ihre Änderungen gespeichert und synchronisiert sind.",
   "portal_settings": "Portaleinstellungen",
   "position_in_row": "Position in der Zeile",
   "post": "POST",

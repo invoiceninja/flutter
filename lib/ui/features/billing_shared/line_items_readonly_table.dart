@@ -329,6 +329,8 @@ class LineItemsReadonlyTable extends StatelessWidget {
         yes: context.tr('yes'),
         no: context.tr('no'),
         formatter: formatter,
+        // The dates the line will print, like its description (`_notesText`).
+        expandDateKeywords: true,
       ).map((r) => '${r.label}: ${r.value}').join('   ·   ');
 
   TextStyle _customStyle(InTheme tokens) =>

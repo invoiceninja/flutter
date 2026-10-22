@@ -71,6 +71,14 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kTrustedCertificatesSearchKeys,
 ];
 
+/// The [kDeviceSettingsSearchKeys] whose section renders only on some
+/// platforms (`SettingsSearchTab.keyGates`), each with the section's own gate.
+const kDeviceSettingsSearchKeyGates = <String, bool Function()>{
+  'spell_check': _spellCheckShown,
+};
+
+bool _spellCheckShown() => platformSupportsSpellCheck;
+
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
 /// theme (mode + palette), the per-preset colour overrides, the action-confirm
 /// + biometric guards, and the Sync action. Unlike most settings screens this has no

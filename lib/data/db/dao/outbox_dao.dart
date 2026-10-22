@@ -733,6 +733,30 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return (await q.getSingleOrNull()) != null;
   }
 
+  /// Emits whether [entityId] still has a change of its fields the server has
+  /// not accepted: a row in ANY state, `dead` included — a rejected edit
+  /// leaves its value in the local row, so the local copy is not the server's
+  /// until the row is resolved. A document upload or a comment does not count
+  /// ([writesNoRecordField]). The Client Portal settings withhold the portal
+  /// URL's QR code on it: a printed code must not carry a subdomain the
+  /// server may still refuse.
+  Stream<bool> watchHasUnacceptedRecordEdit({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            _writesNoRecordField(o).not(),
+      )
+      ..limit(1);
+    return q.watch().map((rows) => rows.isNotEmpty).distinct();
+  }
+
   /// Ids of the documents some outbox row still speaks for, in any state: a
   /// Documents-list row (`entity_type = 'document'`), or a record tab's
   /// delete / visibility change, which is queued against the PARENT and

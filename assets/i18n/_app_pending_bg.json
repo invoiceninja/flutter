@@ -896,6 +896,7 @@
   "plus_n_more": "+:count още",
   "portal_domain_help": "Адресът, който клиентите ви използват за достъп до портала, започващ с https://",
   "portal_features": "Функции на портала",
+  "portal_qr_code_after_sync": "QR кодът ще се появи, след като промените ви бъдат запазени и синхронизирани.",
   "portal_settings": "Настройки на портала",
   "position_in_row": "Позиция в реда",
   "post": "POST",

@@ -147,17 +147,24 @@ class NativeSpellCheckService implements SpellCheckService {
   bool get isUnavailable => _unavailable;
   bool _unavailable = false;
 
+  /// Languages the runner has no dictionary for (Windows: `no_dictionary`).
+  /// Latched per language, not for the session: a French-only Windows that
+  /// can't check English can still check once the app is in French.
+  final Set<String> _noDictionary = {};
+
   @override
   Future<List<SuggestionSpan>?> fetchSpellCheckSuggestions(
     Locale locale,
     String text,
   ) async {
     if (_unavailable) return null;
+    final language = locale.toLanguageTag();
+    if (_noDictionary.contains(language)) return null;
     if (text.trim().isEmpty) return const [];
     try {
       final raw = await _channel.invokeListMethod<Object?>('check', {
         'text': text,
-        'language': locale.toLanguageTag(),
+        'language': language,
       });
       return parseSpellCheckSpans(raw ?? const [], text.length);
     } on MissingPluginException {
@@ -165,6 +172,7 @@ class NativeSpellCheckService implements SpellCheckService {
       return null;
     } on PlatformException catch (e) {
       if (e.code == 'unavailable') _unavailable = true;
+      if (e.code == 'no_dictionary') _noDictionary.add(language);
       // Null tells `EditableText` the request came to nothing, so it keeps
       // whatever it showed before.
       return null;

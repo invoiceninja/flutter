@@ -896,6 +896,7 @@
   "plus_n_more": "+:count més",
   "portal_domain_help": "L'adreça que fan servir els clients per accedir al portal, que comença per https://",
   "portal_features": "Funcions del portal",
+  "portal_qr_code_after_sync": "El codi QR apareix un cop els canvis s'han desat i sincronitzat.",
   "portal_settings": "Configuració del portal",
   "position_in_row": "Posició a la fila",
   "post": "POST",

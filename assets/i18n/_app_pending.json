@@ -928,6 +928,7 @@
   "plus_n_more": "+:count more",
   "portal_domain_help": "The address your clients use to reach the portal, starting with https://",
   "portal_features": "Portal Features",
+  "portal_qr_code_after_sync": "The QR code appears once your changes are saved and synced.",
   "portal_settings": "Portal Settings",
   "position_in_row": "Position in row",
   "post": "POST",

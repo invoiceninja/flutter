@@ -255,7 +255,7 @@ void main() {
   // `+` ask this; they asked nothing before.
   group('mayCreateEntity', () {
     bool may(AuthCompany me, EntityType type) =>
-        mayCreateEntity(type, can: me.can);
+        mayCreateEntity(type, can: me.can, isAdmin: me.isAdmin || me.isOwner);
 
     test('an entity the menu offers needs its create token', () {
       final viewOnly = company(permissions: 'view_invoice,edit_invoice');
@@ -274,9 +274,51 @@ void main() {
       expect(may(company(isAdmin: true), EntityType.invoice), isTrue);
     });
 
-    test('a settings-type entity outside the menu is not gated here', () {
+    // Each as its server `Store*Request::authorize` has it.
+    test('an admin-only settings entity needs admin, not create_all', () {
       expect(kQuickCreateEntities, isNot(contains(EntityType.taxRate)));
-      expect(may(company(), EntityType.taxRate), isTrue);
+      for (final type in const [
+        EntityType.taxRate,
+        EntityType.paymentTerm,
+        EntityType.taskStatus,
+        EntityType.companyGateway,
+        EntityType.bankAccount,
+        EntityType.transactionRule,
+        EntityType.webhook,
+        EntityType.token,
+        EntityType.group,
+        EntityType.schedule,
+      ]) {
+        expect(may(company(permissions: 'create_all'), type), isFalse);
+        expect(may(company(isAdmin: true), type), isTrue, reason: '$type');
+      }
+    });
+
+    test('an expense category takes create_expense too', () {
+      expect(may(company(), EntityType.expenseCategory), isFalse);
+      expect(
+        may(company(permissions: 'create_expense'), EntityType.expenseCategory),
+        isTrue,
+      );
+      expect(
+        may(company(permissions: 'create_all'), EntityType.expenseCategory),
+        isTrue,
+      );
+    });
+
+    test('a payment link is the server subscription', () {
+      expect(may(company(), EntityType.paymentLink), isFalse);
+      expect(
+        may(
+          company(permissions: 'create_subscription'),
+          EntityType.paymentLink,
+        ),
+        isTrue,
+      );
+    });
+
+    test('an entity nothing creates is not gated', () {
+      expect(may(company(), EntityType.document), isTrue);
     });
   });
 }

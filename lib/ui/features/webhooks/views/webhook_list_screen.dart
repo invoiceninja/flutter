@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/webhook.dart';
@@ -44,6 +45,7 @@ class WebhookListScreen extends StatelessWidget {
       sectionTitleKey: 'api_webhooks',
       newRoute: '/settings/account_management/integrations/api_webhooks/new',
       newLabelKey: 'new_webhook',
+      createEntityType: EntityType.webhook,
       emptyIcon: Icons.webhook_outlined,
       emptyTitleKey: 'no_webhooks',
       emptyHintKey: 'no_webhooks_hint',

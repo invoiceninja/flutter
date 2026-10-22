@@ -109,6 +109,32 @@ void main() {
     });
 
     test(
+      'adds type_id when scoped to a gateway type; omits it otherwise',
+      () async {
+        final captured = <Uri>[];
+        final fake = MockClient((req) async {
+          captured.add(req.url);
+          return http.Response(
+            jsonEncode({'data': <Object>[]}),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        });
+        final client = ApiClient(
+          credentials: _creds(),
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          httpClient: fake,
+        );
+        final api = SystemLogsApi(client);
+        await api.fetchPage(typeId: 301);
+        await api.fetchPage();
+        expect(captured[0].queryParameters['type_id'], '301');
+        expect(captured[1].queryParameters.containsKey('type_id'), isFalse);
+      },
+    );
+
+    test(
       'adds client_id when scoped to a client; omits it otherwise',
       () async {
         Uri? captured;

@@ -927,6 +927,7 @@
   "plus_n_more": "+ещё :count",
   "portal_domain_help": "Адрес, по которому клиенты заходят на портал, начиная с https://",
   "portal_features": "Возможности портала",
+  "portal_qr_code_after_sync": "QR-код появится, когда ваши изменения будут сохранены и синхронизированы.",
   "portal_settings": "Настройки портала",
   "position_in_row": "Положение в строке",
   "post": "POST",

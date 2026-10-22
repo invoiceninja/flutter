@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart' show highlightSelectedIdFromRoute;
 import 'package:admin/app/services.dart';
@@ -39,6 +40,7 @@ class TransactionRuleListScreen extends StatelessWidget {
       sectionTitleKey: 'transaction_rules',
       newRoute: '/settings/bank_accounts/transaction_rules/new',
       newLabelKey: 'new_transaction_rule',
+      createEntityType: EntityType.transactionRule,
       emptyIcon: Icons.rule_outlined,
       emptyTitleKey: 'no_transaction_rules',
       emptyHintKey: 'no_transaction_rules_hint',

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
@@ -60,11 +63,61 @@ class ClientFilterKey extends MembershipFilterKey {
   @override
   IconData get icon => Icons.account_circle_outlined;
 
+  /// The `client_id → name` map a list's `nameSources` hands this key's
+  /// [nameForClientId]: every cached client, archived and deleted included
+  /// (`ClientRepository.watchAllNames`). It used to be the active names, the
+  /// suggestions' list, so a saved view or a deep link naming a client
+  /// archived since showed its chip as a raw id.
+  static Stream<Map<String, String>> chipNames(
+    Services services,
+    String companyId,
+  ) => services.clients
+      .watchAllNames(companyId: companyId)
+      .map(
+        (rows) => {
+          for (final r in rows)
+            if (r.name.isNotEmpty) r.id: r.name,
+        },
+      );
+
   @override
   String displayValueFor(String rawValue) {
     final resolved = nameForClientId?.call(rawValue);
     if (resolved != null && resolved.isNotEmpty) return resolved;
+    // With no map to resolve through, a fetched name could never show.
+    if (nameForClientId != null) _hydrate(rawValue);
     return rawValue;
+  }
+
+  /// Ids [_hydrate] has an answer for — fetched, cached, gone or refused —
+  /// and so never asks about again.
+  final Set<String> _settled = {};
+
+  /// When [_hydrate] last asked about an id it got no answer for (offline).
+  final Map<String, DateTime> _lastAsked = {};
+
+  static const Duration _retryAfter = Duration(seconds: 30);
+
+  /// A chip naming a client the cache has never held — a saved view, a deep
+  /// link, a filter restored on another device — fetches that one client
+  /// (`ClientRepository.ensureLoaded`, which writes it to Drift). The chip
+  /// then resolves through [chipNames] like any other: the name reaches the
+  /// UI from Drift, never from the response.
+  ///
+  /// Called from [displayValueFor], i.e. while chips build, so it is cheap
+  /// to repeat: an id is asked about once, and one that got no answer
+  /// (offline) at most every [_retryAfter] — offline, the chip keeps its id.
+  void _hydrate(String id) {
+    if (id.isEmpty || id.startsWith('tmp_') || _settled.contains(id)) return;
+    final now = DateTime.now();
+    final last = _lastAsked[id];
+    if (last != null && now.difference(last) < _retryAfter) return;
+    _lastAsked[id] = now;
+    unawaited(
+      clients.ensureLoaded(companyId: companyId, id: id).then((outcome) {
+        if (!outcome.isRetryable) _settled.add(id);
+      }, onError: (Object _) {}),
+    );
   }
 
   @override

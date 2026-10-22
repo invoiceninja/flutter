@@ -1152,7 +1152,11 @@ class _InSidebarState extends State<InSidebar> {
         (!compact &&
             !tile &&
             handlers.newRoute != null &&
-            mayCreateEntity(handlers.type, can: (p) => me?.can(p) ?? false))
+            mayCreateEntity(
+              handlers.type,
+              can: (p) => me?.can(p) ?? false,
+              isAdmin: me?.isAdmin == true || me?.isOwner == true,
+            ))
         ? _HoverAddButton(route: handlers.newRoute!)
         : null;
     final onTap = handlers.disabled || branch == null

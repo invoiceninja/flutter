@@ -896,6 +896,7 @@
   "plus_n_more": "+:count veel",
   "portal_domain_help": "Aadress, mille kaudu kliendid portaali jõuavad; peab algama https://",
   "portal_features": "Portaali funktsioonid",
+  "portal_qr_code_after_sync": "QR-kood ilmub, kui teie muudatused on salvestatud ja sünkroonitud.",
   "portal_settings": "Portaali seaded",
   "position_in_row": "Asukoht reas",
   "post": "POST",

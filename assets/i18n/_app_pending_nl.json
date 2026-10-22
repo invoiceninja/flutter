@@ -927,6 +927,7 @@
   "plus_n_more": "+:count meer",
   "portal_domain_help": "Het adres waarmee uw klanten het portaal bereiken, beginnend met https://",
   "portal_features": "Portaalfuncties",
+  "portal_qr_code_after_sync": "De QR-code verschijnt zodra uw wijzigingen zijn opgeslagen en gesynchroniseerd.",
   "portal_settings": "Portaalinstellingen",
   "position_in_row": "Positie in rij",
   "post": "POST",

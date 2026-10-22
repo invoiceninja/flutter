@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/token.dart';
@@ -52,6 +53,7 @@ class TokenListScreen extends StatelessWidget {
       sectionTitleKey: 'api_tokens',
       newRoute: '/settings/account_management/integrations/api_tokens/new',
       newLabelKey: 'new_token',
+      createEntityType: EntityType.token,
       emptyIcon: Icons.key_outlined,
       emptyTitleKey: 'no_api_tokens',
       emptyHintKey: 'no_api_tokens_hint',

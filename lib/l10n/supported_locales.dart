@@ -70,6 +70,35 @@ const List<Locale> kSupportedLocales = [
   Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant', countryCode: 'TW'),
 ];
 
+/// Languages that are shipped but never picked *for* the user — not from the
+/// company's language, not from the device's — only chosen explicitly in the
+/// App Language picker.
+///
+/// For a bundle too thin to read as that language. Persian: 65 of ~5,900
+/// Transifex strings are translated, and the server's own `lang/fa` has the
+/// same gap, so a Persian company was switched to a right-to-left UI that was
+/// ~99% English, its punctuation at the wrong end. Take a language out of here
+/// once Transifex has a real translation of it.
+const Set<String> kOptInOnlyLanguages = {'fa'};
+
+/// `MaterialApp.localeListResolutionCallback`: Flutter's own resolution, minus
+/// [kOptInOnlyLanguages] when the locale is the device's rather than one the
+/// app chose ([explicit] — `MaterialApp.locale` is set, and Flutter hands it
+/// in as the list).
+Locale resolveAppLocaleList(
+  List<Locale>? locales,
+  Iterable<Locale> supported, {
+  required bool explicit,
+}) => basicLocaleListResolution(
+  explicit
+      ? locales
+      : [
+          for (final l in locales ?? const <Locale>[])
+            if (!kOptInOnlyLanguages.contains(l.languageCode)) l,
+        ],
+  supported,
+);
+
 /// Each shipped locale's name in its own language, for the App Language
 /// picker (keyed by [localeKey]).
 const Map<String, String> kLocaleNativeNames = {

@@ -48,3 +48,13 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # The report engine's local-day tests return early at UTC — where this
+      # runner sits, there is no conversion to get wrong — so the step above
+      # can't fail them. Run them east of UTC and west of it, where they bite.
+      - name: Test (off UTC)
+        run: |
+          for tz in Australia/Sydney America/New_York; do
+            TZ=$tz flutter test test/domain/reports/report_engine_test.dart \
+              --plain-name 'on the local day, not the UTC one'
+          done

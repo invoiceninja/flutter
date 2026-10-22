@@ -1274,20 +1274,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, 1);
 
-      // Cancel restored the query (without reopening anything). One tap brings
-      // the row back — and it must not be dead (the `_select` latch
-      // `docs/pickers.md` warns about).
+      // Cancel shows the committed value — here none — without reopening
+      // anything: a typed name left in an unfocused field read as the value
+      // the form would save. Retyping brings the row back, and it must not be
+      // dead (the `_select` latch `docs/pickers.md` warns about).
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        'Dragonfruit',
+        '',
       );
       expect(createRow('Dragonfruit'), findsNothing);
       await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
       await tester.pumpAndSettle();
       expect(createRow('Dragonfruit'), findsOneWidget);
       await tester.tap(createRow('Dragonfruit'));
       await tester.pumpAndSettle();
       expect(calls, 2);
+    });
+
+    // A refused typed create (an archived namesake) or a failed one: the form
+    // still holds Banana and saves Banana, so the field must read Banana —
+    // not the refused name.
+    testWidgets('a refused create shows the value the form still holds', (
+      tester,
+    ) async {
+      _Option? changed;
+      await pumpCreate(
+        tester,
+        initial: _items[2],
+        onChanged: (o) => changed = o,
+        onCreate: (_) async => null,
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Banana',
+      );
+      expect(changed, isNull, reason: 'nothing was committed');
+      expect(createRow('Dragonfruit'), findsNothing, reason: 'not reopened');
     });
 
     testWidgets('Enter on a highlighted create row creates', (tester) async {

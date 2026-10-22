@@ -15,15 +15,18 @@ class _FakeApi implements SystemLogsApi {
   final List<Object> _scripted;
   int calls = 0;
   String? lastClientId;
+  final List<int?> typeIds = [];
 
   @override
   Future<SystemLogListApi> fetchPage({
     int perPage = 200,
     String sort = 'created_at|DESC',
     String? clientId,
+    int? typeId,
   }) async {
     calls++;
     lastClientId = clientId;
+    typeIds.add(typeId);
     if (_scripted.isEmpty) {
       throw StateError('no scripted response');
     }
@@ -269,6 +272,55 @@ void main() {
       final api = _FakeApi([]);
       final repo = SystemLogRepository(db: db, api: api);
       final (result, logs) = await repo.fetchForClient('');
+      expect(result, SystemLogRefreshResult.ok);
+      expect(logs, isEmpty);
+      expect(api.calls, 0);
+    });
+  });
+
+  group('SystemLogRepository — fetchForTypes', () {
+    test('one type_id request per id, merged newest first, capped', () async {
+      final api = _FakeApi([
+        SystemLogListApi(
+          data: [
+            row('p1', createdAt: 3000, typeId: 300),
+            row('p2', createdAt: 1000, typeId: 300),
+          ],
+        ),
+        SystemLogListApi(
+          data: [
+            row('q1', createdAt: 2000, typeId: 323),
+            row('q2', createdAt: 500, typeId: 323),
+          ],
+        ),
+      ]);
+      final repo = SystemLogRepository(db: db, api: api);
+
+      final (result, logs) = await repo.fetchForTypes({300, 323}, limit: 3);
+
+      expect(result, SystemLogRefreshResult.ok);
+      // The server-side type_id filter scopes each request.
+      expect(api.typeIds, [300, 323]);
+      expect(logs.map((l) => l.id).toList(), ['p1', 'q1', 'p2']);
+      // Read-only: the company-wide cache is never written.
+      expect(await repo.watch('c1').first, isEmpty);
+    });
+
+    test('a failed request fails the feed rather than half-merging', () async {
+      final api = _FakeApi([
+        SystemLogListApi(data: [row('p1', typeId: 300)]),
+        const ServerException(403, 'no'),
+      ]);
+      final repo = SystemLogRepository(db: db, api: api);
+      final (result, logs) = await repo.fetchForTypes({300, 323});
+      expect(result, SystemLogRefreshResult.forbidden);
+      expect(logs, isEmpty);
+    });
+
+    test('no type ids is a no-op', () async {
+      final api = _FakeApi([]);
+      final repo = SystemLogRepository(db: db, api: api);
+      final (result, logs) = await repo.fetchForTypes(const {});
       expect(result, SystemLogRefreshResult.ok);
       expect(logs, isEmpty);
       expect(api.calls, 0);

@@ -626,6 +626,17 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
       widget.services.entityRegistry,
       widget.services.auth.session.value?.currentCompany?.enabledModules ?? 0,
     ).toSet(),
+    createForbiddenRoots: () {
+      // No company yet means no permissions to read, not none granted:
+      // gating on it would bounce a restored `/new` route for good.
+      final me = widget.services.auth.session.value?.currentCompany;
+      if (me == null) return const <String>{};
+      return createForbiddenEntityRoots(
+        widget.services.entityRegistry,
+        can: me.can,
+        isAdmin: me.isAdmin || me.isOwner,
+      ).toSet();
+    },
     initialLocation: widget.initialLocation,
   );
 
@@ -713,7 +724,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
       _localDataNotice.forgetKeptChanges();
       await prior?.call();
     };
-    ScriptFonts.attach(widget.services.appLocale);
+    ScriptFonts.attach();
     WidgetsBinding.instance.addObserver(_passwordCacheObserver);
     WidgetsBinding.instance.addObserver(_syncObserver);
     WidgetsBinding.instance.addObserver(_idleTimeout);
@@ -770,6 +781,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     widget.services.sharedFiles.dispose();
     widget.services.auth.onBeforeDataWipe = _priorBeforeDataWipe;
     _localDataNoticeHold.dispose();
+    ScriptFonts.detach();
     super.dispose();
   }
 
@@ -865,6 +877,14 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
               accentOverride: widget.services.accentColor.value,
             ),
             supportedLocales: kSupportedLocales,
+            // The device's locale skips an opt-in-only language; a locale the
+            // resolver or the App Language picker chose goes through as is.
+            localeListResolutionCallback: (locales, supported) =>
+                resolveAppLocaleList(
+                  locales,
+                  supported,
+                  explicit: locale != null,
+                ),
             localizationsDelegates: const [
               Localization.delegate,
               GlobalMaterialLocalizations.delegate,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_filter_keys.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_list_view_model.dart';
@@ -23,14 +24,7 @@ class PurchaseOrderTokenSearchField extends StatelessWidget {
     // Purchase orders share Invoice Ninja's `invoice1..4` slots.
     customFieldPrefix: 'invoice',
     nameSources: [
-      (services, companyId) => services.clients
-          .watchActiveNames(companyId: companyId)
-          .map(
-            (rows) => {
-              for (final r in rows)
-                if (r.name.isNotEmpty) r.id: r.name,
-            },
-          ),
+      ClientFilterKey.chipNames,
       (services, companyId) => services.vendors
           .watchActiveNames(companyId: companyId)
           .map(

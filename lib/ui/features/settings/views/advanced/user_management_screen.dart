@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/quick_create.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/user.dart';
@@ -140,6 +142,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final companyId = session?.currentCompanyId;
     final authUserId = session?.userId ?? '';
     final hasAccess = session?.hasEnterpriseAccess ?? false;
+    // Hidden, not greyed, from a non-admin: the server only lets an admin
+    // add a user (`StoreUserRequest`). Greyed is the plan gate above.
+    final me = session?.currentCompany;
+    final mayCreate = mayCreateEntity(
+      EntityType.user,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
 
     if (companyId == null || companyId.isEmpty) {
       return SettingsScreenScaffold(
@@ -256,16 +266,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     icon: Icons.supervised_user_circle_outlined,
                     title: context.tr('no_users'),
                     subtitle: context.tr('no_users_found_invite'),
-                    action: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(64, 44),
-                      ),
-                      icon: const Icon(Icons.add),
-                      label: Text(context.tr('new_user')),
-                      onPressed: hasAccess
-                          ? () => context.go('/settings/users/new')
-                          : null,
-                    ),
+                    action: !mayCreate
+                        ? null
+                        : FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(64, 44),
+                            ),
+                            icon: const Icon(Icons.add),
+                            label: Text(context.tr('new_user')),
+                            onPressed: hasAccess
+                                ? () => context.go('/settings/users/new')
+                                : null,
+                          ),
                   );
                 }
 
@@ -295,15 +307,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     ? () => _toggle(user, authUserId)
                                     : null,
                               ),
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: const Icon(Icons.add),
-                            title: Text(context.tr('new_user')),
-                            enabled: hasAccess,
-                            onTap: hasAccess
-                                ? () => context.go('/settings/users/new')
-                                : null,
-                          ),
+                          if (mayCreate) const Divider(height: 1),
+                          if (mayCreate)
+                            ListTile(
+                              leading: const Icon(Icons.add),
+                              title: Text(context.tr('new_user')),
+                              enabled: hasAccess,
+                              onTap: hasAccess
+                                  ? () => context.go('/settings/users/new')
+                                  : null,
+                            ),
                         ],
                       ),
                       if (_showArchived && archived.isNotEmpty)

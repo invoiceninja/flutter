@@ -927,6 +927,7 @@
   "plus_n_more": "+:count daha",
   "portal_domain_help": "Müşterilerinizin portala ulaşmak için kullandığı, https:// ile başlayan adres",
   "portal_features": "Portal Özellikleri",
+  "portal_qr_code_after_sync": "QR kodu, değişiklikleriniz kaydedilip eşitlendiğinde görünür.",
   "portal_settings": "Portal Ayarları",
   "position_in_row": "Satırdaki konum",
   "post": "POST",

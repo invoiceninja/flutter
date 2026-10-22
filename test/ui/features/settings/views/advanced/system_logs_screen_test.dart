@@ -37,6 +37,7 @@ class _FakeApi implements SystemLogsApi {
     int perPage = 200,
     String sort = 'created_at|DESC',
     String? clientId,
+    int? typeId,
   }) async {
     calls++;
     if (_scripted.isEmpty) throw StateError('no scripted response');

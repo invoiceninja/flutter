@@ -208,6 +208,8 @@ Why this signal and not the two obvious ones:
 
 It never fires on navigation or from the tap itself, and it never toasts. `dashboard_panel_wiring_test` asserts the screen passes `outboxActive:` — without it every test still passes and the band keeps showing an invoice the user just settled.
 
+**A new calendar day is the other trigger.** A period in progress is fetched to *today*, but its cache key (`filterHash`) names the whole period, so "This month" on the 15th reads the row fetched on the 14th. The key stays day-free on purpose — keyed by day, the dashboard would open blank every morning offline — and instead `_checkDayRollover` polls every `kDayCheckInterval` (10 min) once the boot refresh is in, and on a changed `_today()` notifies (captions, the band's "N days late") and runs the same quiet refetch. Polled, not a timer aimed at midnight: a suspended app's timers stop with it, and a periodic one fires on its first tick after waking. Pinned by "a dashboard left open past midnight" in `dashboard_view_model_test`.
+
 ## One row grammar for every list
 
 **Every list on the dashboard — the band and each panel, on both layouts — draws its rows with `DashboardRecordRow`: `number · client | when | amount | action`, one tap target that opens the record.** It replaced six-column `DashboardEntityTable`s in which every cell was its own target (about thirty tab stops a panel), whose intrinsic-width columns could not shrink into a half-width card, and whose last column was a `⋮` that opened no menu.

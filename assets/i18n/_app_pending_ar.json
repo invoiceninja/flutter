@@ -895,6 +895,7 @@
   "plus_n_more": "+:count أخرى",
   "portal_domain_help": "العنوان الذي يستخدمه عملاؤك للوصول إلى البوابة، ويبدأ بـ https://",
   "portal_features": "ميزات البوابة",
+  "portal_qr_code_after_sync": "يظهر رمز QR بعد حفظ تغييراتك ومزامنتها.",
   "portal_settings": "إعدادات البوابة",
   "position_in_row": "الموضع في الصف",
   "post": "POST",

@@ -25,6 +25,8 @@ platform does not have a supported spell check service") and disables checking.
 - iOS / Android, but the engine reports no service.
 - macOS / Windows, but the runner has said it can't check (`NativeSpellCheckService.isUnavailable`,
   latched for the session on a `MissingPluginException` or the error code `unavailable`).
+  A Windows `no_dictionary` is latched for that language only, so the field still checks once the
+  app's language has a dictionary.
 
 Fields don't call `lineItemSpellCheck` directly. They are built inside
 `LineItemSpellCheck(builder: (context, config) => TextField(spellCheckConfiguration: config, …))`,
@@ -63,8 +65,13 @@ a BCP-47 tag.
   passes it as the orthography. With no match it passes nothing, so the checker identifies the
   language itself. It uses the asynchronous `requestChecking`, the API built for off-main-thread
   checking, and does the rest (`guesses` included) back on the main queue.
-- **Windows:** tries the tag, then the base language, then `en-US`. It replies `unavailable` when
-  there is no factory or no dictionary at all. COM is apartment-threaded (`main.cpp`), so it checks
+- **Windows:** tries the tag, then the base language, then the first installed dictionary of that
+  language (`get_SupportedLanguages`), then `en-US`. The middle step matters: the app's locales are
+  mostly bare languages (`fr`) and Windows registers dictionaries by region (`fr-FR`), so on a
+  French-only machine `IsSupported(L"fr")` was FALSE, en-US was missing, and the session latched
+  off. It replies `unavailable` only when there is no factory, and `no_dictionary` when this
+  language has none (latched per language on the Dart side). The expansion was written on a Mac
+  and first compiled by CI's `build-windows` job; it has not been run on a non-English Windows. COM is apartment-threaded (`main.cpp`), so it checks
   synchronously on the platform thread.
 
 `NSString`, ISpellChecker and a Dart string all index in UTF-16 code units, so offsets pass through

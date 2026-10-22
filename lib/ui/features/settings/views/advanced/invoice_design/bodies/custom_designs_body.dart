@@ -54,8 +54,14 @@ class CustomDesignsNewDesignButton extends StatelessWidget {
     // For a free user the button becomes the upgrade CTA instead of opening
     // the create chooser — this gates all three create paths (visual / HTML /
     // import) at their single entry point.
-    final isPro =
-        context.read<Services>().auth.session.value?.hasProAccess ?? false;
+    final session = context.read<Services>().auth.session.value;
+    final isPro = session?.hasProAccess ?? false;
+    // Only an admin may add a design (`StoreDesignRequest`), so no one else
+    // gets the button — not even as an upgrade CTA they couldn't act on.
+    final me = session?.currentCompany;
+    if (me == null || !(me.isAdmin || me.isOwner)) {
+      return const SizedBox.shrink();
+    }
     return FilledButton.icon(
       style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
       onPressed: isPro

@@ -896,6 +896,7 @@
   "plus_n_more": "+:count ακόμη",
   "portal_domain_help": "Η διεύθυνση που χρησιμοποιούν οι πελάτες σας για το portal, ξεκινώντας με https://",
   "portal_features": "Λειτουργίες Portal",
+  "portal_qr_code_after_sync": "Ο κωδικός QR εμφανίζεται μόλις οι αλλαγές σας αποθηκευτούν και συγχρονιστούν.",
   "portal_settings": "Ρυθμίσεις Portal",
   "position_in_row": "Θέση στη γραμμή",
   "post": "POST",

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/script_fonts.dart';
 import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/supported_locales.dart';
 
@@ -361,12 +362,20 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
             rootBundle,
             '_app_pending_$key',
           ).then<Map<String, String>?>((m) => m, onError: (Object _) => null);
+    // The UI language's script font (Arabic, Hebrew, Thai, Lao, Khmer) loads
+    // here, alongside the bundles, so the first frame — which waits on this
+    // method — paints in it; on web CanvasKit would otherwise fetch its own
+    // from fonts.gstatic.com. Keyed off the locale Flutter resolved, and run
+    // again on a language change. Nothing to do for any other language;
+    // bounded and never throws (`ScriptFonts.loadForLocale`).
+    final scriptFontLoad = ScriptFonts.loadForLocale(locale);
     final fallback = await fallbackLoad;
     final pending = await pendingLoad;
     final strings = stringsLoad == null ? null : await stringsLoad;
     final localePending = localePendingLoad == null
         ? null
         : await localePendingLoad;
+    await scriptFontLoad;
     if (strings == null && localePending == null) {
       return Localization._(fallback, pending: pending);
     }

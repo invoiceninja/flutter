@@ -469,7 +469,12 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     if (!isEntityModuleEnabledForCompany(type, modules)) return;
     // Nor into a create form whose save the server would refuse: the list's
     // `+` and the dashboard's create menu ask for `create_<entity>` too.
-    if (!mayCreateEntity(type, can: (p) => me?.can(p) ?? false)) return;
+    final mayCreate = mayCreateEntity(
+      type,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
+    if (!mayCreate) return;
     // Same guard every other shell-level navigation runs: leaving a dirty
     // editor must prompt, not silently discard. Async like [_goBranch], which
     // is likewise invoked fire-and-forget from a shortcut action.

@@ -25,6 +25,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/core/widgets/scroll_edge_fades.dart';
+import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
@@ -1715,6 +1716,7 @@ class _RowStateW extends State<_Row> {
                     hintKey: 'description',
                     errorText: errors?['notes'],
                     maxLines: _kDescriptionMaxLines,
+                    spellCheck: true,
                   ),
                 ),
               ),
@@ -1968,6 +1970,7 @@ class _TextCell extends StatelessWidget {
     this.hintText,
     this.errorText,
     this.maxLines = 1,
+    this.spellCheck = false,
   });
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -1986,31 +1989,40 @@ class _TextCell extends StatelessWidget {
   /// `minHeight`, so it grows with it.
   final int maxLines;
 
+  /// Underline spelling mistakes (docs/spell-check.md) — the description
+  /// only; a custom field may hold anything.
+  final bool spellCheck;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      onChanged: (_) => onChanged(),
-      minLines: 1,
-      maxLines: maxLines,
-      textAlignVertical: TextAlignVertical.center,
-      style: const TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        hintText: hintText ?? (hintKey == null ? null : context.tr(hintKey!)),
-        errorText: errorText,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: _kCellPadH,
-          vertical: _kCellPadH,
-        ),
-        // Resting cells have no border so the row dividers carry the
-        // visual rhythm; a 2 px accent underline appears only on focus.
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: tokens.accent, width: 2),
+    return LineItemSpellCheck(
+      enabled: spellCheck,
+      builder: (context, config) => TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: (_) => onChanged(),
+        spellCheckConfiguration: config,
+        contextMenuBuilder: spellCheckContextMenuBuilder,
+        minLines: 1,
+        maxLines: maxLines,
+        textAlignVertical: TextAlignVertical.center,
+        style: const TextStyle(fontSize: 13),
+        decoration: InputDecoration(
+          hintText: hintText ?? (hintKey == null ? null : context.tr(hintKey!)),
+          errorText: errorText,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: _kCellPadH,
+            vertical: _kCellPadH,
+          ),
+          // Resting cells have no border so the row dividers carry the
+          // visual rhythm; a 2 px accent underline appears only on focus.
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: tokens.accent, width: 2),
+          ),
         ),
       ),
     );
@@ -2548,20 +2560,24 @@ class _ProductCellState extends State<_ProductCell> {
             onFieldSubmitted();
             return KeyEventResult.handled;
           },
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            // On native touch nothing else can close the popover — see
-            // `picker_dismissal.dart`. On desktop this is the SDK default.
-            onTapOutside: dismissPickerOnTapOutside(focusNode),
-            onChanged: (_) => widget.onCommitText(),
-            onSubmitted: (_) {
-              if (_acceptedCreateRow()) return;
-              onFieldSubmitted();
-            },
-            textAlignVertical: TextAlignVertical.center,
-            style: const TextStyle(fontSize: 13),
-            decoration: _decoration(context),
+          child: LineItemSpellCheck(
+            builder: (context, config) => TextField(
+              controller: controller,
+              focusNode: focusNode,
+              // On native touch nothing else can close the popover — see
+              // `picker_dismissal.dart`. On desktop this is the SDK default.
+              onTapOutside: dismissPickerOnTapOutside(focusNode),
+              onChanged: (_) => widget.onCommitText(),
+              onSubmitted: (_) {
+                if (_acceptedCreateRow()) return;
+                onFieldSubmitted();
+              },
+              spellCheckConfiguration: config,
+              contextMenuBuilder: spellCheckContextMenuBuilder,
+              textAlignVertical: TextAlignVertical.center,
+              style: const TextStyle(fontSize: 13),
+              decoration: _decoration(context),
+            ),
           ),
         );
       },

@@ -66,6 +66,7 @@ class MainFlutterWindow: NSWindow {
   private var themeChannel: FlutterMethodChannel?
   private var windowControlChannel: FlutterMethodChannel?
   private var splashChannel: FlutterMethodChannel?
+  private var spellChecker: NinjaSpellChecker?
   private var splashView: NSView?
   private var splashLogoLayer: CALayer?
   private var splashStartTime: CFTimeInterval = 0
@@ -215,6 +216,9 @@ class MainFlutterWindow: NSWindow {
       }
     }
     self.windowControlChannel = windowControlChannel
+
+    self.spellChecker = NinjaSpellChecker(
+      messenger: flutterViewController.engine.binaryMessenger)
 
     NSApp.addObserver(self,
                       forKeyPath: "effectiveAppearance",
@@ -590,5 +594,136 @@ extension MainFlutterWindow: NSWindowDelegate {
       pendingWindowResize = nil
       pending(false)
     }
+  }
+}
+
+/// Answers `invoice_ninja/spell_check` for the line-item fields' underlines
+/// (docs/spell-check.md). Flutter's engine has no spell-check service on
+/// macOS, so the Dart side's `NativeSpellCheckService` asks here.
+///
+/// `check {text, language}` replies `[{start, end, suggestions}]`, offsets in
+/// UTF-16 code units — what both `NSString` and a Dart string index in. It
+/// checks spelling and grammar; Flutter draws both with the same underline.
+final class NinjaSpellChecker {
+  private let channel: FlutterMethodChannel
+  private let documentTag = NSSpellChecker.uniqueSpellDocumentTag()
+  private static let maxSuggestions = 3
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "invoice_ninja/spell_check", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else { result(nil); return }
+      guard call.method == "check" else {
+        result(FlutterMethodNotImplemented); return
+      }
+      guard let args = call.arguments as? [String: Any],
+            let text = args["text"] as? String
+      else {
+        result(FlutterError(
+          code: "bad_args", message: "expected a text string", details: nil))
+        return
+      }
+      self.check(text, languageTag: args["language"] as? String, result: result)
+    }
+  }
+
+  private func check(
+    _ text: String, languageTag: String?, result: @escaping FlutterResult
+  ) {
+    let checker = NSSpellChecker.shared
+    let language = Self.language(for: languageTag, in: checker)
+    var options: [NSSpellChecker.OptionKey: Any] = [:]
+    // Without an orthography the checker identifies the language itself
+    // (System Settings' "Automatic by Language"), which is the better answer
+    // when the app's language isn't one it has a dictionary for.
+    if let language = language {
+      options[.orthography] = NSOrthography.defaultOrthography(forLanguage: language)
+    }
+    let length = (text as NSString).length
+    let types = NSTextCheckingResult.CheckingType.spelling.rawValue
+      | NSTextCheckingResult.CheckingType.grammar.rawValue
+    // The asynchronous request is the API built for checking off the main
+    // thread; its handler runs on an arbitrary queue, so everything else —
+    // `guesses` included — happens back on main.
+    checker.requestChecking(
+      of: text,
+      range: NSRange(location: 0, length: length),
+      types: types,
+      options: options,
+      inSpellDocumentWithTag: documentTag
+    ) { [weak self] _, results, _, _ in
+      DispatchQueue.main.async {
+        guard let self = self else { result([]); return }
+        result(self.spans(results, text: text, length: length, language: language))
+      }
+    }
+  }
+
+  private func spans(
+    _ results: [NSTextCheckingResult], text: String, length: Int,
+    language: String?
+  ) -> [[String: Any]] {
+    var spans: [[String: Any]] = []
+    for r in results {
+      switch r.resultType {
+      case .spelling:
+        let guesses = NSSpellChecker.shared.guesses(
+          forWordRange: r.range, in: text, language: language,
+          inSpellDocumentWithTag: documentTag) ?? []
+        spans.append(Self.span(r.range, Array(guesses.prefix(Self.maxSuggestions))))
+      case .grammar:
+        let details = r.grammarDetails ?? []
+        if details.isEmpty {
+          spans.append(Self.span(r.range, []))
+        }
+        for detail in details {
+          let corrections = detail["NSGrammarCorrections"] as? [String] ?? []
+          let range = Self.grammarRange(detail["NSGrammarRange"], in: r.range)
+          spans.append(Self.span(range, Array(corrections.prefix(Self.maxSuggestions))))
+        }
+      default:
+        break
+      }
+    }
+    // Dart drops anything out of bounds too, but a bad range is cheaper to
+    // catch here than to explain there.
+    return spans.filter {
+      guard let start = $0["start"] as? Int, let end = $0["end"] as? Int
+      else { return false }
+      return start >= 0 && end > start && end <= length
+    }
+  }
+
+  /// A grammar detail's range is relative to its result's range (as WebKit
+  /// reads it). Should one ever arrive absolute instead, keep it as given; if
+  /// it fits neither reading, underline the whole phrase.
+  private static func grammarRange(_ raw: Any?, in phrase: NSRange) -> NSRange {
+    guard let detail = (raw as? NSValue)?.rangeValue, detail.length > 0 else {
+      return phrase
+    }
+    let relative = NSRange(
+      location: phrase.location + detail.location, length: detail.length)
+    if NSMaxRange(relative) <= NSMaxRange(phrase) { return relative }
+    if detail.location >= phrase.location
+      && NSMaxRange(detail) <= NSMaxRange(phrase) {
+      return detail
+    }
+    return phrase
+  }
+
+  private static func span(_ range: NSRange, _ suggestions: [String]) -> [String: Any] {
+    ["start": range.location, "end": NSMaxRange(range), "suggestions": suggestions]
+  }
+
+  /// The checker's own name for a BCP-47 tag (`en-GB` → `en_GB`), falling
+  /// back to the bare language (`de-AT` → `de`); nil when it has neither.
+  private static func language(for tag: String?, in checker: NSSpellChecker) -> String? {
+    guard let tag = tag, !tag.isEmpty else { return nil }
+    let available = Set(checker.availableLanguages)
+    let underscored = tag.replacingOccurrences(of: "-", with: "_")
+    if available.contains(underscored) { return underscored }
+    let base = String(underscored.split(separator: "_").first ?? "")
+    return available.contains(base) ? base : nil
   }
 }

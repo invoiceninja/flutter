@@ -139,6 +139,9 @@ bool FlutterWindow::OnCreate() {
         }
       });
 
+  spell_checker_ =
+      std::make_unique<SpellChecker>(flutter_controller_->engine()->messenger());
+
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -194,6 +197,7 @@ void FlutterWindow::OnDestroy() {
   // Tear the channels down before the engine/messenger they borrow from.
   window_channel_ = nullptr;
   theme_channel_ = nullptr;
+  spell_checker_ = nullptr;
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

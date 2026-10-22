@@ -41,6 +41,7 @@ import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/sidebar_menu_controller.dart';
 import 'package:admin/app/hide_empty_panels_controller.dart';
 import 'package:admin/app/hide_unverified_users_controller.dart';
+import 'package:admin/app/spell_check_controller.dart';
 import 'package:admin/app/status_tabs_controller.dart';
 import 'package:admin/app/tasks_view_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
@@ -367,6 +368,7 @@ class Services implements SidebarBadgeContext {
     required this.signOutNotice,
     required this.mobileAppPromo,
     required this.whatsNew,
+    required this.spellCheck,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -790,6 +792,11 @@ class Services implements SidebarBadgeContext {
   /// The "What's new" dialog's schedule (docs/whats-new-dialog.md), armed
   /// only by `main()`. Read through its root provider, like [signOutNotice].
   final WhatsNewController whatsNew;
+
+  /// Whether line-item fields underline spelling mistakes
+  /// (docs/spell-check.md). Read through its root provider, like
+  /// [signOutNotice].
+  final SpellCheckController spellCheck;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1549,6 +1556,7 @@ class Services implements SidebarBadgeContext {
       credentials: auth.credentials,
     );
     final whatsNew = WhatsNewController(prefs: devicePrefs);
+    final spellCheck = SpellCheckController(prefs: devicePrefs);
     final mobileAppPromo = MobileAppPromoController(
       prefs: devicePrefs,
       promote: mobileAppPromote,
@@ -2302,6 +2310,7 @@ class Services implements SidebarBadgeContext {
       signOutNotice: signOutNotice,
       mobileAppPromo: mobileAppPromo,
       whatsNew: whatsNew,
+      spellCheck: spellCheck,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

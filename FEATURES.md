@@ -214,6 +214,7 @@ the honest default.
 | Line item — free-text row on phone (not only picked Products / Tasks / Expenses) | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — Products / Tasks line-item tabs: Settings → Task Settings → Show Tasks Table keeps Tasks on offer before any hourly line (invoice / quote / recurring); new Tasks rows are hourly (`type_id` 2, the PDF task table) with Service / Rate / Hours columns, and Hours takes `1:30` / `90m` | ✅ | ✅ | ✅ | | |
 | Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
+| Line item — spell check underlines the item name and description (iOS / Android; macOS also flags grammar; Windows), right-click suggestions on the desktop, Device Settings switch | ✅ | ❌ | ✅ | | |
 | Line item — custom fields (`product1..4`, `task1..4` on hourly lines): typed columns in the wide table (scrolls sideways when narrow), typed fields in the phone editor, values on the phone card and the detail view; expense lines carry the expense's custom values | 🟡 | ✅ | ✅ | | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — create a product from the items picker (`Create "<text>"`, prefilled dialog) | ✅ | — | ✅ | | |

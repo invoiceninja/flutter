@@ -1618,5 +1618,7 @@
   "release_notes_fixed": "Fixed",
   "release_changes_count": ":count changes",
   "release_change_count_one": "1 change",
-  "load_more": "Load more"
+  "load_more": "Load more",
+  "spell_check": "Spell Check",
+  "spell_check_help": "Underline spelling mistakes in line item names and descriptions"
 }

@@ -165,6 +165,11 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.whatsNew.noteOpened(DateTime.utc(2026, 10, 14, 12)),
     (s) => s.whatsNew.state.shownAt == null,
   ),
+  // Whether this machine's checker is worth the noise of flagged SKUs.
+  DevicePrefKeys.spellCheck: _Probe(
+    (s) => s.spellCheck.set(false),
+    (s) => s.spellCheck.value,
+  ),
 };
 
 final _certificate = CertificateFacts(

@@ -31,6 +31,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/sentry_gate.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/sign_out_notice.dart';
+import 'package:admin/app/spell_check_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/user_activity_notification.dart';
@@ -821,6 +822,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // read as `context.read<WhatsNewController?>()` for the same reason.
         ChangeNotifierProvider<WhatsNewController>.value(
           value: widget.services.whatsNew,
+        ),
+        // For the line-item fields' spell check and its Device Settings
+        // switch, read as `context.watch<SpellCheckController?>()` for the
+        // same reason.
+        ChangeNotifierProvider<SpellCheckController>.value(
+          value: widget.services.spellCheck,
         ),
       ],
       child: ListenableBuilder(

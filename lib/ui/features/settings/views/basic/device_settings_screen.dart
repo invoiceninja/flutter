@@ -8,10 +8,12 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/spell_check_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_constants.dart';
@@ -58,6 +60,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kMobileAppSearchKeys,
   ...kAssignedUsersSearchKeys,
   'default_tab',
+  'spell_check',
   'hide_peppol_sent_status',
   ...kDashboardPanelsSearchKeys,
   ...kListStatusTabsSearchKeys,
@@ -143,6 +146,10 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Also about what a form offers — which items tab a billing
               // document opens on (React #3355).
               const _DefaultItemsTabSection(),
+              // Also about a billing document's form — whether its line
+              // items underline spelling mistakes. Hides itself where there
+              // is no checker (Linux, web).
+              const _SpellCheckSection(),
               // Beside its sibling: what the invoice and credit lists show.
               // Only for a PEPPOL company — nobody else ever sees the mark.
               const _PeppolStatusSection(),
@@ -189,6 +196,38 @@ class _DefaultItemsTabSection extends StatelessWidget {
               (value: kItemsTabProducts, label: context.tr('products')),
               (value: kItemsTabTasks, label: context.tr('tasks')),
             ],
+            onChanged: controller.set,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Spell Check": underline spelling mistakes in a line item's name and
+/// description (docs/spell-check.md). Only where the platform has a checker —
+/// elsewhere the switch would toggle nothing.
+class _SpellCheckSection extends StatelessWidget {
+  const _SpellCheckSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.read<SpellCheckController?>();
+    if (controller == null || !platformSupportsSpellCheck) {
+      return const SizedBox.shrink();
+    }
+    return FormSection(
+      title: context.tr('spell_check'),
+      spacing: 0,
+      children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: controller,
+          builder: (context, enabled, _) => SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.spellcheck_outlined),
+            title: Text(context.tr('spell_check')),
+            subtitle: Text(context.tr('spell_check_help')),
+            value: enabled,
             onChanged: controller.set,
           ),
         ),

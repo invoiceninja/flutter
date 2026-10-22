@@ -250,6 +250,17 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// Underline spelling (and, on macOS, grammar) mistakes in a line item's
+  /// name and description (docs/spell-check.md). Whether this device's
+  /// checker is worth the noise of flagged SKUs is a judgement about the
+  /// machine and its language, like [listDensity], so it stays with the
+  /// device.
+  static const spellCheck = PrefKey<bool>(
+    'spell_check',
+    PrefCodec.boolean,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -277,6 +288,7 @@ abstract final class DevicePrefKeys {
     signOutNotice,
     mobileAppPromo,
     whatsNew,
+    spellCheck,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

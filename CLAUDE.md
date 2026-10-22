@@ -272,6 +272,7 @@ Every text input declares the keyboard, capitalization and autofill its data nee
 - **`signed:` is checked before `decimal:`, so `decimal: true` alone means no minus key.** → `docs/form-fields.md`
 - **Autofill hints go only on the signed-in user's own identity or their own company.** → `docs/form-fields.md`
 - **`TextInputType.multiline` is derived — never add it.** → `docs/form-fields.md`
+- **Spell check goes through `LineItemSpellCheck` — a raw `SpellCheckConfiguration()` on a platform with no service throws in debug and draws nothing, and one held from the first build never checks the saved text.** → `docs/spell-check.md`
 
 **Postal code is `text` + `TextCapitalization.characters`, never `number`** — UK / CA / NL / PL codes aren't numeric.
 

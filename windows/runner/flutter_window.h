@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "spell_checker.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -42,6 +43,9 @@ class FlutterWindow : public Win32Window {
   // Drives the app-painted title bar: window drag / minimize / maximize /
   // close / system menu from Dart, and the chrome pushes back the other way.
   std::unique_ptr<flutter::MethodChannel<>> window_channel_;
+
+  // Answers the line-item fields' spell checks (invoice_ninja/spell_check).
+  std::unique_ptr<SpellChecker> spell_checker_;
 
   // The payload behind both the `windowChrome` pull and the
   // `windowChromeChanged` push, so the two can never disagree.

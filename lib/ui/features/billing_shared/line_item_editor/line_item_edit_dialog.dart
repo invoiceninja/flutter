@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/custom_field_input.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -196,18 +197,26 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _productKey,
-                decoration: InputDecoration(labelText: label('product')),
-                textInputAction: TextInputAction.next,
-                autofocus: widget.autofocusProduct,
+              LineItemSpellCheck(
+                builder: (context, config) => TextField(
+                  controller: _productKey,
+                  decoration: InputDecoration(labelText: label('product')),
+                  textInputAction: TextInputAction.next,
+                  autofocus: widget.autofocusProduct,
+                  spellCheckConfiguration: config,
+                  contextMenuBuilder: spellCheckContextMenuBuilder,
+                ),
               ),
               SizedBox(height: InSpacing.md(context)),
-              TextField(
-                controller: _notes,
-                decoration: InputDecoration(labelText: label('description')),
-                maxLines: 3,
-                minLines: 2,
+              LineItemSpellCheck(
+                builder: (context, config) => TextField(
+                  controller: _notes,
+                  decoration: InputDecoration(labelText: label('description')),
+                  maxLines: 3,
+                  minLines: 2,
+                  spellCheckConfiguration: config,
+                  contextMenuBuilder: spellCheckContextMenuBuilder,
+                ),
               ),
               SizedBox(height: InSpacing.md(context)),
               Row(

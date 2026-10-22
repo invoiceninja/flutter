@@ -555,6 +555,8 @@
   "income_account": "حساب درآمد",
   "incoming": "ورودی",
   "initial": "اولیه",
+  "inline_create_name_taken": "یک رکورد بایگانی‌شده یا حذف‌شده از قبل :name نام دارد. به جای آن، آن را بازیابی کنید.",
+  "inline_create_used_existing": "از قبل وجود دارد، :name انتخاب شد",
   "insecure_url_use_https": "یک آدرس https://‎ وارد کنید. http://‎ ساده فقط برای سرور شبکه محلی مجاز است (مثلاً 192.168.x.x، localhost یا ‎.local).",
   "insert_field": "درج یک فیلد",
   "insert_variable": "درج متغیر",

@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Inklusiv moms",
   "incoming": "Indgående",
   "initial": "Indledende",
+  "inline_create_name_taken": "En arkiveret eller slettet post hedder allerede :name. Gendan den i stedet.",
+  "inline_create_used_existing": "Findes allerede, :name er valgt",
   "insecure_url_use_https": "Indtast en https://-adresse. Almindelig http:// er kun tilladt for en server på det lokale netværk (f.eks. 192.168.x.x, localhost eller .local).",
   "insert_field": "Indsæt et felt",
   "insert_variable": "Indsæt variabel",

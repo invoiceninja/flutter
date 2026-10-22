@@ -555,6 +555,8 @@
   "income_account": "Konto prihodkov",
   "incoming": "Dohodno",
   "initial": "Začetno",
+  "inline_create_name_taken": "Arhiviran ali izbrisan zapis se že imenuje :name. Namesto tega ga obnovite.",
+  "inline_create_used_existing": "Že obstaja, izbrano :name",
   "insecure_url_use_https": "Vnesite naslov https://. Navaden http:// je dovoljen samo za strežnik v lokalnem omrežju (npr. 192.168.x.x, localhost ali .local).",
   "insert_field": "Vstavi polje",
   "insert_variable": "Vstavi spremenljivko",

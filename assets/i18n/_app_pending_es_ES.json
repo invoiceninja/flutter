@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Impuestos incluidos",
   "incoming": "Entrante",
   "initial": "Inicial",
+  "inline_create_name_taken": "Un registro archivado o eliminado ya se llama :name. Restáuralo en su lugar.",
+  "inline_create_used_existing": "Ya existe, se ha seleccionado :name",
   "insecure_url_use_https": "Introduce una dirección https://. Solo se permite http:// para un servidor de la red local (p. ej. 192.168.x.x, localhost o .local).",
   "insert_field": "Insertar un campo",
   "insert_variable": "Insertar variable",

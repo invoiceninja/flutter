@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
@@ -11,7 +10,7 @@ import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
-import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/clients/widgets/client_picker_field_with_create.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/projects/view_models/project_edit_view_model.dart';
 import 'package:admin/ui/features/projects/widgets/edit/color_field.dart';
@@ -91,40 +90,23 @@ class _ClientPicker extends StatelessWidget {
         errorText: vm.fieldErrorFor('client_id'),
       );
     }
-    return StreamBuilder<List<Client>>(
-      stream: services.clients.watchPage(
-        companyId: companyId,
-        loadedPages: 100,
-      ),
-      builder: (context, snapshot) {
-        final clients = snapshot.data ?? const <Client>[];
-        Client? selected;
-        for (final c in clients) {
-          if (c.id == vm.draft.clientId) {
-            selected = c;
-            break;
-          }
+    // `ClientPickerField`: it searches the server before offering
+    // "Create «x»", so a client outside this device's cache is found rather
+    // than duplicated.
+    return ClientPickerFieldWithCreate(
+      companyId: companyId,
+      selectedClientId: vm.draft.clientId,
+      label: context.tr('client'),
+      errorText: vm.fieldErrorFor('client_id'),
+      onSelected: (c) {
+        vm.setClientId(c?.id ?? '');
+        // Apply the client's default task rate when one is set (React's
+        // client resolver). Leaves the existing rate untouched otherwise.
+        final raw = c?.settings?['default_task_rate'];
+        final rate = raw is num ? raw.toDouble() : null;
+        if (rate != null && rate > 0) {
+          vm.setTaskRate(rate.toString());
         }
-        return SearchableDropdownField<Client>(
-          label: context.tr('client'),
-          items: clients,
-          initialValue: selected,
-          displayString: (c) => c.displayName.isEmpty
-              ? (c.name.isEmpty ? c.id : c.name)
-              : c.displayName,
-          idOf: (c) => c.id,
-          onChanged: (c) {
-            vm.setClientId(c?.id ?? '');
-            // Apply the client's default task rate when one is set (React's
-            // client resolver). Leaves the existing rate untouched otherwise.
-            final raw = c?.settings?['default_task_rate'];
-            final rate = raw is num ? raw.toDouble() : null;
-            if (rate != null && rate > 0) {
-              vm.setTaskRate(rate.toString());
-            }
-          },
-          errorText: vm.fieldErrorFor('client_id'),
-        );
       },
     );
   }

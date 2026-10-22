@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
-import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
+import 'package:admin/ui/features/vendors/widgets/vendor_picker_field.dart';
 
 /// A vendor-addressed document's Vendor — today the purchase order's.
 ///
@@ -41,19 +38,9 @@ class BillingDocVendorPicker extends StatelessWidget {
         errorText: vm.fieldErrorFor('vendor_id'),
       );
     }
-    final services = context.read<Services>();
-    return EntityPickerField<Vendor>(
-      label: context.tr('vendor'),
-      cacheKey: companyId,
+    return VendorPickerField(
+      companyId: companyId,
       selectedId: vm.draft.vendorId,
-      itemsStream: () =>
-          services.vendors.watchPage(companyId: companyId, loadedPages: 100),
-      watchById: (id) => services.vendors.watch(companyId: companyId, id: id),
-      // Falls back to the id like its two siblings: now that an out-of-window
-      // or offline-created vendor actually resolves, a nameless one would
-      // otherwise render an empty field with not even an ✕ to signal it.
-      displayString: (v) => v.name.isEmpty ? v.id : v.name,
-      idOf: (v) => v.id,
       onChanged: (v) => vm.setVendorId(v?.id ?? ''),
       errorText: vm.fieldErrorFor('vendor_id'),
     );

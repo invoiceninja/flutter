@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Hinnas sisalduvad maksud",
   "incoming": "Sissetulev",
   "initial": "Algne",
+  "inline_create_name_taken": "Arhiveeritud või kustutatud kirje nimi on juba :name. Taasta see selle asemel.",
+  "inline_create_used_existing": "On juba olemas, valiti :name",
   "insecure_url_use_https": "Sisestage https:// aadress. Tavaline http:// on lubatud ainult kohtvõrgu serveri puhul (nt 192.168.x.x, localhost või .local).",
   "insert_field": "Lisa väli",
   "insert_variable": "Lisa muutuja",

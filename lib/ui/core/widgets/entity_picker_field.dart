@@ -48,6 +48,8 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
     this.idleResults,
     this.optionLeadingBuilder,
     this.footerBuilder,
+    this.onCreateRequested,
+    this.createLabelKey,
   });
 
   /// Resolved (already-translated) field label.
@@ -87,6 +89,18 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
   final int? idleResults;
   final Widget Function(BuildContext, T)? optionLeadingBuilder;
   final WidgetBuilder? footerBuilder;
+
+  /// Inline create — see [SearchableDropdownField.onCreateRequested]. Null
+  /// hides the row, so pass null when the user lacks the create permission.
+  ///
+  /// Offered only once the list stream has emitted: before that `items` is
+  /// empty for want of data, not for want of records, and a "Create «x»" row
+  /// there would invite a duplicate of a record that is a frame from arriving.
+  final Future<T?> Function(BuildContext context, String query)?
+  onCreateRequested;
+
+  /// Translation key for the empty-query create row (`new_vendor`, say).
+  final String? createLabelKey;
 
   @override
   State<EntityPickerField<T>> createState() => _EntityPickerFieldState<T>();
@@ -202,6 +216,19 @@ class _EntityPickerFieldState<T extends Object>
     return ([resolved, ...items], resolved);
   }
 
+  /// Wraps the caller's create so the new record becomes [_resolved] BEFORE
+  /// `onChanged` reaches the host. A just-created record carries a `tmp_` id
+  /// the list stream hasn't delivered yet; without the seed, the id change
+  /// drops the old answer in [_watchSelected], [_optionsWithSelection] returns
+  /// a null selection until Drift emits, and `SearchableDropdownField` clears
+  /// the unfocused field for those frames — or for good if the host held a
+  /// different value before.
+  Future<T?> _create(BuildContext context, String query) async {
+    final created = await widget.onCreateRequested!(context, query);
+    if (created != null && mounted) _resolved = created;
+    return created;
+  }
+
   @override
   Widget build(BuildContext context) {
     return WatchBuilder<List<T>>(
@@ -211,6 +238,7 @@ class _EntityPickerFieldState<T extends Object>
         final (options, selected) = _optionsWithSelection(
           snapshot.data ?? const [],
         );
+        final waiting = snapshot.connectionState == ConnectionState.waiting;
         return SearchableDropdownField<T>(
           label: widget.label,
           items: options,
@@ -226,12 +254,14 @@ class _EntityPickerFieldState<T extends Object>
           // every entry to a screen flashes "No records found" at a picker that
           // is merely still loading; falling through to the default `'loading'`
           // for that window says the true thing.
-          emptyHintKey: snapshot.connectionState == ConnectionState.waiting
-              ? null
-              : widget.emptyHintKey,
+          emptyHintKey: waiting ? null : widget.emptyHintKey,
           idleResults: widget.idleResults ?? 20,
           optionLeadingBuilder: widget.optionLeadingBuilder,
           footerBuilder: widget.footerBuilder,
+          onCreateRequested: waiting || widget.onCreateRequested == null
+              ? null
+              : _create,
+          createLabelKey: widget.createLabelKey,
         );
       },
     );

@@ -555,6 +555,8 @@
   "income_account": "Llogaria e të ardhurave",
   "incoming": "Hyrëse",
   "initial": "Fillestar",
+  "inline_create_name_taken": "Një regjistrim i arkivuar ose i fshirë quhet tashmë :name. Rikthejeni atë në vend të kësaj.",
+  "inline_create_used_existing": "Ekziston tashmë, u zgjodh :name",
   "insecure_url_use_https": "Shkruani një adresë https://. Thjesht http:// lejohet vetëm për një server në rrjetin lokal (p.sh. 192.168.x.x, localhost ose .local).",
   "insert_field": "Fut një fushë",
   "insert_variable": "Fut variabël",

@@ -531,6 +531,8 @@
   "inclusive_taxes_label": "الضرائب الشاملة",
   "incoming": "الوارد",
   "initial": "الأولي",
+  "inline_create_name_taken": "يوجد سجل مؤرشف أو محذوف باسم :name بالفعل. استعده بدلاً من ذلك.",
+  "inline_create_used_existing": "موجود بالفعل، تم اختيار :name",
   "insecure_url_use_https": "أدخل عنوانًا يبدأ بـ https://. لا يُسمح بـ http:// العادي إلا لخادم على شبكة محلية (مثل 192.168.x.x أو localhost أو .local).",
   "insert_field": "إدراج حقل",
   "insert_variable": "إدراج متغير",

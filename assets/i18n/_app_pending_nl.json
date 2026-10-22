@@ -555,6 +555,8 @@
   "income_account": "Opbrengstrekening",
   "incoming": "Inkomend",
   "initial": "Initieel",
+  "inline_create_name_taken": "Een gearchiveerd of verwijderd record heet al :name. Herstel het in plaats daarvan.",
+  "inline_create_used_existing": "Bestaat al, :name geselecteerd",
   "insecure_url_use_https": "Voer een https://-adres in. Gewoon http:// is alleen toegestaan voor een server in het lokale netwerk (bijv. 192.168.x.x, localhost of .local).",
   "insert_field": "Veld invoegen",
   "insert_variable": "Variabele invoegen",

@@ -30,6 +30,7 @@ import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_colu
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 
 // Cell-level layout constants. These are sub-token (smaller than
 // `InSpacing.sm`) and apply only inside the items-table grid; outer
@@ -2259,11 +2260,7 @@ class _ProductCellState extends State<_ProductCell> {
 
   /// Admin/owner bypass and `create_all` expansion are handled inside `can`.
   void _readPermission() {
-    _canCreateProducts =
-        context.read<Services>().auth.session.value?.currentCompany?.can(
-          'create_product',
-        ) ??
-        false;
+    _canCreateProducts = sessionCan(context, 'create_product');
   }
 
   @override

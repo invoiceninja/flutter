@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
-import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 
 /// A form field that is **shown but not editable**, because the server refuses
 /// to change it on UPDATE. Renders as an [InputDecorator] matching the host's
@@ -226,11 +225,7 @@ class LockedClientFieldRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canView =
-        context.read<Services>().auth.session.value?.currentCompany?.can(
-          'view_client',
-        ) ??
-        false;
+    final canView = sessionCan(context, 'view_client');
     final navigates = tappable && canView && clientId.isNotEmpty;
     return LockedEntityFieldRow(
       label: label ?? context.tr('client'),
@@ -268,11 +263,7 @@ class LockedVendorFieldRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canView =
-        context.read<Services>().auth.session.value?.currentCompany?.can(
-          'view_vendor',
-        ) ??
-        false;
+    final canView = sessionCan(context, 'view_vendor');
     final navigates = tappable && canView && vendorId.isNotEmpty;
     return LockedEntityFieldRow(
       label: label ?? context.tr('vendor'),

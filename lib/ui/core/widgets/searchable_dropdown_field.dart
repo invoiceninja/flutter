@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -62,6 +63,8 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
     this.idleResults = 20,
     this.footerBuilder,
     this.optionLeadingBuilder,
+    this.onCreateRequested,
+    this.createLabelKey,
   });
 
   /// Resolved (already-translated) field label.
@@ -97,14 +100,33 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
   final int idleResults;
 
   /// Optional widget pinned below the options list inside the popover. Use
-  /// for "Manage…" or "+ New…" links that belong with the dropdown rather
-  /// than below it. The builder fires once per popover render.
+  /// for "Manage…" links that belong with the dropdown rather than below it —
+  /// not for "+ New…": the popover unmounts when nothing matches, so a footer
+  /// is unreachable for the one query create exists for. That is
+  /// [onCreateRequested]. The builder fires once per popover render.
   final WidgetBuilder? footerBuilder;
 
   /// Optional glyph rendered before an option's label — a task status's colour
   /// dot, say. Also used as the field's `prefixIcon` for the committed item, so
   /// the collapsed and open states match. Null keeps the plain text row.
   final Widget Function(BuildContext, T)? optionLeadingBuilder;
+
+  /// Opt-in inline create. When set, the popover carries a pinned "New …" /
+  /// `Create "«query»"` row that calls this with the typed query (empty for an
+  /// untouched field) and commits whatever it resolves to; null means
+  /// cancelled. The caller owns the create UI, the permission gate (pass null
+  /// to hide the row) and duplicate checks — see `docs/pickers.md`.
+  ///
+  /// It also keeps an empty [items] live rather than a disabled placeholder,
+  /// since the create row is something to choose. Must handle an empty query:
+  /// on touch a list of ≤ 6 items suppresses the keyboard, so the empty-query
+  /// row is the only one reachable there.
+  final Future<T?> Function(BuildContext context, String query)?
+  onCreateRequested;
+
+  /// Translation key for the create row when the query is empty
+  /// (`new_vendor`, say). Defaults to `create`.
+  final String? createLabelKey;
 
   @override
   State<SearchableDropdownField<T>> createState() =>
@@ -121,8 +143,8 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
 /// purely in `optionsViewBuilder` is unreachable for a query that matches
 /// nothing — the one case it exists for.
 ///
-/// Introduced ahead of that feature as a pure no-op so the refactor and the
-/// behaviour change can be reviewed apart.
+/// The create row is [_CreateOpt], opted into by
+/// [SearchableDropdownField.onCreateRequested].
 sealed class _Opt<T extends Object> {
   const _Opt();
 }
@@ -158,6 +180,17 @@ final class _ItemOpt<T extends Object> extends _Opt<T> {
 
   @override
   int get hashCode => item.hashCode;
+}
+
+/// The synthetic "Create «query»" row — always last, so the default highlight
+/// stays on the best real match. Identity equality on purpose: it is a fresh
+/// instance per options build, which is why it must never be routed through
+/// `RawAutocomplete._select` (see [_SearchableDropdownFieldState._handleCreate]).
+final class _CreateOpt<T extends Object> extends _Opt<T> {
+  const _CreateOpt(this.query);
+
+  /// The trimmed query; empty renders the plain "New …" row.
+  final String query;
 }
 
 class _SearchableDropdownFieldState<T extends Object>
@@ -196,6 +229,14 @@ class _SearchableDropdownFieldState<T extends Object>
 
   /// True while the options overlay is mounted; cleared on blur and on commit.
   bool _optionsVisible = false;
+
+  /// True while [SearchableDropdownField.onCreateRequested] is in flight —
+  /// the re-entrancy guard a double Enter / click would otherwise get past.
+  bool _creating = false;
+
+  /// Set across a create so the blur it causes doesn't snap the typed query
+  /// away before a cancel can restore it.
+  bool _suppressBlurSnap = false;
 
   /// Set by [_reopenOptions] so the next popover render drops a carried-over
   /// highlight back to row 0. `_updateHighlight` only *clamps* the previous
@@ -247,7 +288,7 @@ class _SearchableDropdownFieldState<T extends Object>
     // On blur, snap the visible text back to the committed item's name —
     // otherwise the user could leave half-typed garbage in the field that
     // doesn't reflect any committed id.
-    if (_focusNode.hasFocus) return;
+    if (_focusNode.hasFocus || _suppressBlurSnap) return;
     final expected = _committed == null
         ? ''
         : widget.displayString(_committed!);
@@ -275,27 +316,87 @@ class _SearchableDropdownFieldState<T extends Object>
   }
 
   /// The options for [text], and the single place that decides whether there
-  /// is a query at all. Materialised rather than lazy so the caller can ask
+  /// is a query at all — plus whether some item's name IS the query, which
+  /// hides the create row. Materialised rather than lazy so the caller can ask
   /// whether it came back empty without re-iterating it.
-  List<T> _optionsFor(String text) {
+  (List<T>, bool) _optionsFor(String text) {
     // While the field still shows the committed item's own name the user has
     // typed nothing, so there is no query — offer the whole list rather than
     // the one item they already have (invoiceninja/flutter#34).
-    if (_isPristine(text)) return _idleOptions();
+    if (_isPristine(text)) return (_idleOptions(), false);
     final q = foldSearchText(text.trim());
-    if (q.isEmpty) return _idleOptions();
-    return widget.items
-        .where((it) => foldSearchText(widget.displayString(it)).contains(q))
-        .take(widget.maxResults)
-        .toList(growable: false);
+    if (q.isEmpty) return (_idleOptions(), false);
+    if (widget.onCreateRequested == null) {
+      // Lazy: stops at [maxResults] matches, which is all a plain picker needs.
+      final matches = widget.items
+          .where((it) => foldSearchText(widget.displayString(it)).contains(q))
+          .take(widget.maxResults)
+          .toList(growable: false);
+      return (matches, false);
+    }
+    // A creating picker must look at every item — an exact match anywhere
+    // hides the create row, so it must also be SHOWN, or a name past the 50th
+    // partial match would be neither listed nor creatable. Exact matches lead,
+    // the rest keep their order. The names are folded once per `items` list
+    // ([_foldedNames]), so a keystroke over a 5,000-row vendor list costs
+    // string compares, not 5,000 folds.
+    final folded = _foldedNames;
+    final exact = <T>[];
+    final partial = <T>[];
+    for (var i = 0; i < widget.items.length; i++) {
+      final name = folded[i];
+      if (name == q) {
+        exact.add(widget.items[i]);
+      } else if (partial.length < widget.maxResults && name.contains(q)) {
+        partial.add(widget.items[i]);
+      }
+    }
+    return (
+      [...exact, ...partial].take(widget.maxResults).toList(growable: false),
+      exact.isNotEmpty,
+    );
+  }
+
+  List<T>? _foldedFor;
+  List<String> _folded = const [];
+
+  /// Every item's display name, folded and trimmed — recomputed only when the
+  /// parent hands over a different `items` list. Hosts rebuild per keystroke
+  /// but pass the same list instance until their stream emits.
+  List<String> get _foldedNames {
+    if (!identical(_foldedFor, widget.items)) {
+      _foldedFor = widget.items;
+      _folded = [
+        for (final it in widget.items)
+          foldSearchText(widget.displayString(it)).trim(),
+      ];
+    }
+    return _folded;
   }
 
   /// The single place `T` becomes `_Opt<T>`. Keeping it here is what lets
   /// [_optionsFor] and [_idleOptions] — and the hoist rules they encode — stay
   /// exactly as they were.
-  List<_Opt<T>> _wrap(List<T> items) => [
+  List<_Opt<T>> _wrap(List<T> items, String text, {required bool hasExact}) => [
     for (final it in items) _ItemOpt<T>(it),
+    if (_offersCreate(text, hasExact: hasExact))
+      _CreateOpt<T>(_createQuery(text)),
   ];
+
+  /// The query a create row built from [text] carries — empty while the field
+  /// is untouched, so tapping a populated field offers "New Vendor" rather than
+  /// "Create «the vendor it already holds»".
+  String _createQuery(String text) => _isPristine(text) ? '' : text.trim();
+
+  /// Whether [text] earns a create row. Not when an item's folded name is
+  /// the query ([hasExact], from [_optionsFor]) — that row leads the list, and
+  /// offering a second record with the same name is how duplicates get made.
+  bool _offersCreate(String text, {required bool hasExact}) =>
+      widget.onCreateRequested != null && !_creating && !hasExact;
+
+  String _createRowLabel(BuildContext context, String query) => query.isEmpty
+      ? context.tr(widget.createLabelKey ?? 'create')
+      : '${context.tr('create')} "$query"';
 
   /// True when the parent still names [_committed] as its selection.
   ///
@@ -398,14 +499,96 @@ class _SearchableDropdownFieldState<T extends Object>
     if (committed == null || !_optionsVisible) return false;
     final index = _highlight?.value ?? 0;
     if (index < 0 || index >= _visibleOptions.length) return false;
-    // A `switch`, not an `is` test: this must become a COMPILE error when
-    // `_CreateOpt` lands. Answering `false` for a highlighted create row would
-    // send `_onSubmitted` to `onFieldSubmitted()` -> `_select(createOpt)` — the
-    // one call CLAUDE.md says must never be reached — and an `is` test makes
-    // that wrong answer quietly typecheck.
+    // A `switch`, not an `is` test, so a new `_Opt` subclass is a COMPILE
+    // error here. The create row answers `false`, which is safe only because
+    // `_onSubmitted` checks [_highlightIsCreateRow] first — otherwise Enter
+    // would reach `onFieldSubmitted()` -> `_select(createOpt)`, the one call
+    // `docs/pickers.md` says a create row must never go through.
     return switch (_visibleOptions[index]) {
       _ItemOpt<T>(:final item) => widget.idOf(item) == widget.idOf(committed),
+      _CreateOpt<T>() => false,
     };
+  }
+
+  /// Whether Enter would land on the create row. Gated on [_optionsVisible]:
+  /// Escape hides the overlay without touching focus or text, and a stale
+  /// highlight must not turn the next Enter into a create the user dismissed.
+  bool get _highlightIsCreateRow {
+    if (!_optionsVisible) return false;
+    final index = _highlight?.value ?? 0;
+    if (index < 0 || index >= _visibleOptions.length) return false;
+    return _visibleOptions[index] is _CreateOpt<T>;
+  }
+
+  /// Runs the caller's create UI for [query] and commits what it returns.
+  ///
+  /// Reached from the create row's `InkWell.onTap` and from the Enter
+  /// interceptor — never via `onSelected` except as a backstop, because
+  /// `RawAutocomplete._select` early-returns on an unchanged selection and the
+  /// row would go dead after one cancelled create. [restoreText] overrides what
+  /// a cancel puts back (the backstop path has already overwritten the field).
+  Future<void> _handleCreate(String query, {String? restoreText}) async {
+    final onCreate = widget.onCreateRequested;
+    if (_creating || onCreate == null) return;
+    final restore = restoreText ?? _controller.text;
+    setState(() {
+      _creating = true;
+      _optionsVisible = false;
+    });
+    // Hand focus to the create UI: unfocusing collapses the popover so it
+    // can't paint over a dialog barrier, and drops the soft keyboard before the
+    // dialog's own field claims it.
+    _suppressBlurSnap = true;
+    _focusNode.unfocus();
+    T? created;
+    try {
+      created = await onCreate(context, query);
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'searchable_dropdown_field',
+          context: ErrorDescription('running an inline create'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _creating = false);
+      _suppressBlurSnap = false;
+    }
+    if (!mounted) return;
+    if (created == null) {
+      _controller.value = TextEditingValue(
+        text: restore,
+        selection: TextSelection.collapsed(offset: restore.length),
+      );
+      // A typed name is handed back for editing — after a cancelled dialog, a
+      // refused name or a failed save alike, since the callback's null can't
+      // tell them apart, and a typo is the likeliest fix in each. The plain
+      // "New …" row has nothing to edit, so it refocuses nothing: that would
+      // just reopen the popover over the form. Post-frame: the field is still
+      // focus-excluded until the rebuild that clears `_creating` lands.
+      if (query.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusNode.requestFocus();
+        });
+      }
+      return;
+    }
+    final committed = created;
+    setState(() => _committed = committed);
+    // Set the text as well: the blur snap was suppressed, so the field still
+    // holds the query rather than the name the create UI settled on. Through a
+    // different value first: `RawAutocomplete` recomputes its options only on
+    // a text CHANGE, and an Enter-started create leaves the field holding this
+    // exact string already — its cached options would still be the
+    // `Create "«name»"` row, offered again for the record just created.
+    final label = widget.displayString(committed);
+    _controller.value = TextEditingValue(text: label.isEmpty ? ' ' : '');
+    _controller.text = label;
+    widget.onChanged(committed);
+    // Deliberately not refocusing — create is terminal, and focus would
+    // reopen the popover over the value just chosen.
   }
 
   void _onSubmitted(VoidCallback onFieldSubmitted) {
@@ -414,6 +597,10 @@ class _SearchableDropdownFieldState<T extends Object>
     // symmetric with a tap on that row, which is an explicit choice and does
     // re-commit: letting Done re-commit would let it silently re-add the last
     // item on a chip-adder.
+    if (_highlightIsCreateRow) {
+      unawaited(_handleCreate(_createQuery(_controller.text)));
+      return; // never reaches `_select`
+    }
     if (_highlightIsCommitted) {
       _focusNode.unfocus();
       return;
@@ -470,7 +657,8 @@ class _SearchableDropdownFieldState<T extends Object>
     // having no `suffixIcon`, where the live one is floored by a 44 px button.
     // An earlier version of this comment blamed the floating label for it and
     // built a "deliberate trade" on that; there is no trade.
-    if (widget.items.isEmpty) {
+    // A picker that can create stays live: its create row is something to pick.
+    if (widget.items.isEmpty && widget.onCreateRequested == null) {
       // This branch unmounts `RawAutocomplete`, which disposes the highlight
       // notifier we borrowed — drop the reference so a post-frame callback
       // can't write to it. Our own `mounted` says nothing about its lifetime.
@@ -554,6 +742,7 @@ class _SearchableDropdownFieldState<T extends Object>
             // non-item row returns the query it was built from, never ''.
             displayStringForOption: (o) => switch (o) {
               _ItemOpt<T>(:final item) => widget.displayString(item),
+              _CreateOpt<T>(:final query) => _createRowLabel(context, query),
             },
             // Flip above the field when there's more room there. Left at the
             // `.down` default, a picker low on a phone screen gets whatever
@@ -564,7 +753,8 @@ class _SearchableDropdownFieldState<T extends Object>
               // `_optionsFor` / `_idleOptions` stay in `T` — wrapping happens
               // here and nowhere else, so the hoist and its `parentAgrees`
               // guard are untouched.
-              final options = _wrap(_optionsFor(value.text));
+              final (items, hasExact) = _optionsFor(value.text);
+              final options = _wrap(items, value.text, hasExact: hasExact);
               // An empty list unmounts the overlay, and `optionsViewBuilder`
               // then never runs again to say so — without this `_optionsVisible`
               // latches true, and a later Enter would take the "dismiss the
@@ -577,27 +767,51 @@ class _SearchableDropdownFieldState<T extends Object>
             // the leading glyph is read from `_committed` during the field
             // build — without this it lags a parent rebuild behind the text.
             onSelected: (opt) {
-              final item = switch (opt) {
-                _ItemOpt<T>(:final item) => item,
-              };
+              final T item;
+              switch (opt) {
+                case _CreateOpt<T>(:final query):
+                  // Backstop only — the tap and Enter paths call
+                  // `_handleCreate` directly. `_select` has already written the
+                  // row's label into the field, so a cancel restores the query
+                  // — or, for the empty-query row, the committed value's name.
+                  final committed = _committed;
+                  unawaited(
+                    _handleCreate(
+                      query,
+                      restoreText: query.isNotEmpty || committed == null
+                          ? query
+                          : widget.displayString(committed),
+                    ),
+                  );
+                  return;
+                case _ItemOpt<T>(item: final picked):
+                  item = picked;
+              }
               setState(() {
                 _committed = item;
                 _optionsVisible = false;
               });
               widget.onChanged(item);
             },
-            fieldViewBuilder:
-                (context, textController, focusNode, onFieldSubmitted) {
-                  final committed = _committed;
-                  final prefix = committed == null
-                      ? null
-                      : widget.optionLeadingBuilder?.call(context, committed);
-                  // Own Material — RawAutocomplete (unlike Autocomplete) wraps
-                  // its field in none, so a host without a Material ancestor
-                  // throws "No Material widget found". Transparency = no visual
-                  // change.
-                  return Material(
-                    type: MaterialType.transparency,
+            fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+              final committed = _committed;
+              final prefix = committed == null
+                  ? null
+                  : widget.optionLeadingBuilder?.call(context, committed);
+              // Own Material — RawAutocomplete (unlike Autocomplete) wraps
+              // its field in none, so a host without a Material ancestor
+              // throws "No Material widget found". Transparency = no visual
+              // change.
+              return Material(
+                type: MaterialType.transparency,
+                // Locked while a create is in flight. A vendor's create
+                // searches the server first, which can take seconds, and a
+                // pick made in that window would be silently overwritten
+                // when the create resolves.
+                child: IgnorePointer(
+                  ignoring: _creating,
+                  child: ExcludeFocus(
+                    excluding: _creating,
                     child: EscapeObserver(
                       // `DismissIntent` hides the overlay without touching
                       // focus, so nothing else would tell us it is gone.
@@ -689,8 +903,10 @@ class _SearchableDropdownFieldState<T extends Object>
                         ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
+              );
+            },
             optionsViewBuilder: (context, onSelected, options) {
               final highlightedIndex = AutocompleteHighlightedOption.of(
                 context,
@@ -717,13 +933,26 @@ class _SearchableDropdownFieldState<T extends Object>
                 });
               }
               final optionExtent = _optionExtent(context);
+              // The create row is always last and is pinned below the list
+              // rather than scrolled with it — as row 21 of a 280 px popover
+              // nobody would find it. It stays in `options`, so the arrow keys
+              // and Enter still reach it through the SDK's highlight.
+              final createOpt = options.isNotEmpty
+                  ? switch (options.last) {
+                      final _CreateOpt<T> c => c,
+                      _ItemOpt<T>() => null,
+                    }
+                  : null;
+              final listCount = options.length - (createOpt == null ? 0 : 1);
               // Skip while resetting: this build still carries the old
               // highlight, so scrolling now would animate to the row the user
               // last arrowed to and then back to the top on the next build.
+              // `listCount`, not `options.length`: the pinned create row has
+              // nothing to scroll to.
               if (!resetting) {
                 _scrollHighlightedIntoView(
                   highlightedIndex,
-                  options.length,
+                  listCount,
                   optionExtent,
                 );
               }
@@ -742,6 +971,7 @@ class _SearchableDropdownFieldState<T extends Object>
                       (o) => switch (o) {
                         _ItemOpt<T>(:final item) =>
                           widget.idOf(item) == committedId,
+                        _CreateOpt<T>() => false,
                       },
                     );
               // No Align of our own: RawAutocomplete already wraps this in a
@@ -777,12 +1007,15 @@ class _SearchableDropdownFieldState<T extends Object>
                             padding: EdgeInsets.zero,
                             controller: _optionsScrollController,
                             itemExtent: optionExtent,
-                            itemCount: options.length,
+                            itemCount: listCount,
                             itemBuilder: (context, i) {
                               final opt = options.elementAt(i);
                               final item = switch (opt) {
                                 _ItemOpt<T>(:final item) => item,
+                                // Pinned below the list, never built here.
+                                _CreateOpt<T>() => null,
                               };
+                              if (item == null) return const SizedBox.shrink();
                               final isHighlighted = i == highlightedIndex;
                               final label = widget.displayString(item);
                               final isCommitted = i == committedIndex;
@@ -855,6 +1088,16 @@ class _SearchableDropdownFieldState<T extends Object>
                             },
                           ),
                         ),
+                        if (createOpt != null) ...[
+                          if (listCount > 0)
+                            Divider(height: 1, color: tokens.border),
+                          _CreateOptionRow(
+                            label: _createRowLabel(context, createOpt.query),
+                            extent: optionExtent,
+                            highlighted: highlightedIndex == listCount,
+                            onTap: () => _handleCreate(createOpt.query),
+                          ),
+                        ],
                         if (footer != null) ...[
                           Divider(height: 1, color: tokens.border),
                           footer,
@@ -908,6 +1151,16 @@ class _SearchableDropdownFieldState<T extends Object>
         // whose "unset" option is the empty string (dropdown custom fields)
         // has a non-null committed value with nothing to clear.
         final canClear = textController.text.isNotEmpty;
+        if (_creating) {
+          return const Padding(
+            padding: EdgeInsetsDirectional.only(end: InSpacing.sm * 1.5),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1010,6 +1263,63 @@ class _SearchableDropdownFieldState<T extends Object>
           ],
         );
       },
+    );
+  }
+}
+
+/// The pinned create row. Same look as `ClientPickerField`'s: `accentInk`, not
+/// `accent` — `accent` is one mid blue in both brightnesses and lands at
+/// ~3.2:1 on the dark `accentSoft` highlight, under the 4.5:1 floor.
+class _CreateOptionRow extends StatelessWidget {
+  const _CreateOptionRow({
+    required this.label,
+    required this.extent,
+    required this.highlighted,
+    required this.onTap,
+  });
+
+  final String label;
+  final double extent;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Semantics(
+      button: true,
+      child: Container(
+        color: highlighted ? tokens.accentSoft : null,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: extent),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: InSpacing.md(context),
+                vertical: InSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.add, size: 16, color: tokens.accentInk),
+                  const SizedBox(width: InSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: tokens.accentInk,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -555,6 +555,8 @@
   "income_account": "Inntektskonto",
   "incoming": "Innkommende",
   "initial": "Opprinnelig",
+  "inline_create_name_taken": "En arkivert eller slettet post heter allerede :name. Gjenopprett den i stedet.",
+  "inline_create_used_existing": "Finnes allerede, :name er valgt",
   "insecure_url_use_https": "Skriv inn en https://-adresse. Vanlig http:// er bare tillatt for en server på lokalt nettverk (f.eks. 192.168.x.x, localhost eller .local).",
   "insert_field": "Sett inn et felt",
   "insert_variable": "Sett inn variabel",

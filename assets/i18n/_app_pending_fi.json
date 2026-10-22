@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Verolliset hinnat",
   "incoming": "Saapuvat",
   "initial": "Alkuperäinen",
+  "inline_create_name_taken": "Arkistoidun tai poistetun tietueen nimi on jo :name. Palauta se sen sijaan.",
+  "inline_create_used_existing": "On jo olemassa, valittiin :name",
   "insecure_url_use_https": "Anna https://-osoite. Pelkkä http:// on sallittu vain lähiverkon palvelimelle (esim. 192.168.x.x, localhost tai .local).",
   "insert_field": "Lisää kenttä",
   "insert_variable": "Lisää muuttuja",

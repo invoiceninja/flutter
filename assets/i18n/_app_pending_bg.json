@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Включени данъци",
   "incoming": "Входящи",
   "initial": "Начален",
+  "inline_create_name_taken": "Архивиран или изтрит запис вече се казва :name. Възстановете го вместо това.",
+  "inline_create_used_existing": "Вече съществува, избрано е :name",
   "insecure_url_use_https": "Въведете адрес с https://. Обикновен http:// е разрешен само за сървър в локална мрежа (напр. 192.168.x.x, localhost или .local).",
   "insert_field": "Вмъкни поле",
   "insert_variable": "Вмъкни променлива",

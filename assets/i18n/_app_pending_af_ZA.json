@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Inklusiewe belasting",
   "incoming": "Inkomend",
   "initial": "Aanvanklik",
+  "inline_create_name_taken": "'n Geargiveerde of geskrapte rekord heet reeds :name. Herstel dit eerder.",
+  "inline_create_used_existing": "Bestaan reeds, :name gekies",
   "insecure_url_use_https": "Voer 'n https://-adres in. Gewone http:// word slegs toegelaat vir 'n plaaslike netwerkbediener (bv. 192.168.x.x, localhost of .local).",
   "insert_field": "Voeg 'n veld in",
   "insert_variable": "Voeg veranderlike in",

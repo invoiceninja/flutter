@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Φόροι συμπεριλαμβανόμενοι",
   "incoming": "Εισερχόμενα",
   "initial": "Αρχικό",
+  "inline_create_name_taken": "Μια αρχειοθετημένη ή διαγραμμένη εγγραφή ονομάζεται ήδη :name. Επαναφέρετέ την αντί γι' αυτό.",
+  "inline_create_used_existing": "Υπάρχει ήδη, επιλέχθηκε το :name",
   "insecure_url_use_https": "Εισαγάγετε μια διεύθυνση https://. Το απλό http:// επιτρέπεται μόνο για διακομιστή τοπικού δικτύου (π.χ. 192.168.x.x, localhost ή .local).",
   "insert_field": "Εισαγωγή πεδίου",
   "insert_variable": "Εισαγωγή μεταβλητής",

@@ -10,23 +10,23 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/expense.dart';
-import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/domain/project.dart';
-import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
-import 'package:admin/ui/core/widgets/client_picker_field.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/clients/widgets/client_picker_field_with_create.dart';
+import 'package:admin/ui/features/expense_categories/widgets/expense_category_picker_field.dart';
 import 'package:admin/ui/features/transactions/widgets/multi_pick_sheet.dart';
+import 'package:admin/ui/features/vendors/widgets/vendor_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 
@@ -526,8 +526,11 @@ class _DebitCreateTab extends StatefulWidget {
 }
 
 class _DebitCreateTabState extends State<_DebitCreateTab> {
-  Vendor? _selectedVendor;
-  ExpenseCategory? _selectedCategory;
+  // Ids, not records: `EntityPickerField` resolves them itself, which is what
+  // keeps a vendor or category created inline (a `tmp_` id the list stream
+  // hasn't delivered yet) on screen.
+  String _vendorId = '';
+  String _categoryId = '';
   bool _submitting = false;
   bool _seededFromRule = false;
 
@@ -580,25 +583,23 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
             final vendor = await services.vendors
                 .watch(companyId: companyId, id: rule.vendorId)
                 .first;
-            if (mounted && vendor != null && _selectedVendor == null) {
-              setState(() => _selectedVendor = vendor);
+            if (mounted && vendor != null && _vendorId.isEmpty) {
+              setState(() => _vendorId = vendor.id);
             }
           }
           if (rule.categoryId.isNotEmpty) {
             final cat = await services.expenseCategories
                 .watch(companyId: companyId, id: rule.categoryId)
                 .first;
-            if (mounted && cat != null && _selectedCategory == null) {
-              setState(() => _selectedCategory = cat);
+            if (mounted && cat != null && _categoryId.isEmpty) {
+              setState(() => _categoryId = cat.id);
             }
           }
         });
   }
 
   Future<void> _submit() async {
-    final vendor = _selectedVendor;
-    final cat = _selectedCategory;
-    if (vendor == null && cat == null) return;
+    if (_vendorId.isEmpty && _categoryId.isEmpty) return;
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     setState(() => _submitting = true);
@@ -607,8 +608,8 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
         () => services.bankTransactions.matchToExpense(
           companyId: companyId,
           transactionId: widget.transaction.id,
-          vendorId: vendor?.id ?? '',
-          categoryId: cat?.id ?? '',
+          vendorId: _vendorId,
+          categoryId: _categoryId,
           projectId: _projectId,
           clientId: _clientId,
           shouldBeInvoiced: _shouldBeInvoiced,
@@ -635,37 +636,18 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        StreamBuilder<List<Vendor>>(
-          stream: services.vendors.watchPage(
-            companyId: companyId,
-            loadedPages: 10,
-          ),
-          builder: (context, snapshot) {
-            final vendors = snapshot.data ?? const <Vendor>[];
-            return SearchableDropdownField<Vendor>(
-              label: context.tr('vendor'),
-              items: vendors,
-              initialValue: _selectedVendor,
-              idOf: (v) => v.id,
-              displayString: (v) => v.name.isEmpty ? v.id : v.name,
-              onChanged: (v) => setState(() => _selectedVendor = v),
-            );
-          },
+        // A bank feed is where new payees turn up, so these are the pickers
+        // most likely to need a record that doesn't exist yet.
+        VendorPickerField(
+          companyId: companyId,
+          selectedId: _vendorId,
+          onChanged: (v) => setState(() => _vendorId = v?.id ?? ''),
         ),
         const SizedBox(height: 12),
-        StreamBuilder<List<ExpenseCategory>>(
-          stream: services.expenseCategories.watchActive(companyId: companyId),
-          builder: (context, snapshot) {
-            final cats = snapshot.data ?? const <ExpenseCategory>[];
-            return SearchableDropdownField<ExpenseCategory>(
-              label: context.tr('category'),
-              items: cats,
-              initialValue: _selectedCategory,
-              idOf: (c) => c.id,
-              displayString: (c) => c.name.isEmpty ? c.id : c.name,
-              onChanged: (c) => setState(() => _selectedCategory = c),
-            );
-          },
+        ExpenseCategoryPickerField(
+          companyId: companyId,
+          selectedId: _categoryId,
+          onChanged: (c) => setState(() => _categoryId = c?.id ?? ''),
         ),
         if (projectsOn) ...[
           const SizedBox(height: 12),
@@ -703,7 +685,7 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
             tappable: false,
           )
         else
-          ClientPickerField(
+          ClientPickerFieldWithCreate(
             companyId: companyId,
             selectedClientId: _clientId,
             onSelected: (c) => setState(() => _clientId = c?.id ?? ''),
@@ -725,8 +707,7 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
               icon: const Icon(Icons.check, size: 18),
               label: Text(context.tr('create_expense')),
               onPressed:
-                  _submitting ||
-                      (_selectedVendor == null && _selectedCategory == null)
+                  _submitting || (_vendorId.isEmpty && _categoryId.isEmpty)
                   ? null
                   : _submit,
             ),

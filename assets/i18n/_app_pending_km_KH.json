@@ -531,6 +531,8 @@
   "inclusive_taxes_label": "ពន្ធរួមបញ្ចូល",
   "incoming": "ចូល",
   "initial": "ដំបូង",
+  "inline_create_name_taken": "កំណត់ត្រាដែលបានទុកក្នុងបណ្ណសារ ឬបានលុប មានឈ្មោះ :name រួចហើយ។ សូមស្ដារវាឡើងវិញជំនួសវិញ។",
+  "inline_create_used_existing": "មានរួចហើយ បានជ្រើសរើស :name",
   "insecure_url_use_https": "បញ្ចូលអាសយដ្ឋាន https://។ http:// ធម្មតាត្រូវបានអនុញ្ញាតតែសម្រាប់ម៉ាស៊ីនមេបណ្តាញមូលដ្ឋានប៉ុណ្ណោះ (ឧ. 192.168.x.x, localhost ឬ .local)។",
   "insert_field": "បញ្ចូលវាល",
   "insert_variable": "បញ្ចូលអថេរ",

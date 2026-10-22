@@ -526,6 +526,8 @@
   "inclusive_taxes_label": "Thuế đã bao gồm",
   "incoming": "Gọi đến",
   "initial": "Ban đầu",
+  "inline_create_name_taken": "Một bản ghi đã lưu trữ hoặc đã xóa đã có tên :name. Hãy khôi phục bản ghi đó.",
+  "inline_create_used_existing": "Đã tồn tại, đã chọn :name",
   "insecure_url_use_https": "Nhập địa chỉ https://. Chỉ cho phép http:// không mã hóa với máy chủ trong mạng nội bộ (vd. 192.168.x.x, localhost hoặc .local).",
   "insert_field": "Chèn trường",
   "insert_variable": "Chèn biến",

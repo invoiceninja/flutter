@@ -555,6 +555,8 @@
   "income_account": "Gelir hesabı",
   "incoming": "Gelen",
   "initial": "Başlangıç",
+  "inline_create_name_taken": "Arşivlenmiş veya silinmiş bir kaydın adı zaten :name. Bunun yerine onu geri yükleyin.",
+  "inline_create_used_existing": "Zaten var, :name seçildi",
   "insecure_url_use_https": "Bir https:// adresi girin. Düz http:// yalnızca yerel ağ sunucusu için izin verilir (ör. 192.168.x.x, localhost veya .local).",
   "insert_field": "Alan ekle",
   "insert_variable": "Değişken ekle",

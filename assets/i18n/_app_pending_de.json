@@ -555,6 +555,8 @@
   "income_account": "Erlöskonto",
   "incoming": "Eingehend",
   "initial": "Anfänglich",
+  "inline_create_name_taken": "Ein archivierter oder gelöschter Eintrag heißt bereits :name. Stellen Sie ihn stattdessen wieder her.",
+  "inline_create_used_existing": "Bereits vorhanden, :name ausgewählt",
   "insecure_url_use_https": "Geben Sie eine https://-Adresse ein. Einfaches http:// ist nur für einen Server im lokalen Netzwerk erlaubt (z. B. 192.168.x.x, localhost oder .local).",
   "insert_field": "Feld einfügen",
   "insert_variable": "Variable einfügen",

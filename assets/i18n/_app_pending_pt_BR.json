@@ -555,6 +555,8 @@
   "income_account": "Conta de receita",
   "incoming": "Recebida",
   "initial": "Inicial",
+  "inline_create_name_taken": "Um registro arquivado ou excluído já se chama :name. Restaure-o em vez disso.",
+  "inline_create_used_existing": "Já existe, :name selecionado",
   "insecure_url_use_https": "Digite um endereço https://. O http:// simples só é permitido para um servidor de rede local (ex.: 192.168.x.x, localhost ou .local).",
   "insert_field": "Inserir um campo",
   "insert_variable": "Inserir variável",

@@ -262,7 +262,7 @@ Don't introduce new `DropdownButtonFormField`s for long lists. They're fine only
 - **The assignee roster has one home now, and the five rules it enforces are each invisible at a call site.** → `docs/pickers.md`
 - **The create-task-from-a-line sheet seeds the Status and deliberately does not seed the assignee.** → `docs/pickers.md`
 - **A re-pick of the value the field already holds is a real command, not a no-op.** → `docs/pickers.md`
-- **A picker that needs inline "create new \<entity\>" can't be a `SearchableDropdownField`.** → `docs/pickers.md`
+- **Inline create goes through `SearchableDropdownField.onCreateRequested` (via the shared `VendorPickerField` / `ExpenseCategoryPickerField` / `ClientPickerFieldWithCreate`), never `footerBuilder` — the footer is unreachable on an empty match.** → `docs/pickers.md`
 - **A field the server freezes on UPDATE is a locked row, not a disabled picker, and the reason sits outside its tap surface.** → `docs/pickers.md`
 
 ### Input types

@@ -539,6 +539,8 @@
   "inclusive_taxes_label": "Bruttó adók",
   "incoming": "Bejövő",
   "initial": "Kezdeti",
+  "inline_create_name_taken": "Egy archivált vagy törölt rekord neve már :name. Inkább állítsa vissza.",
+  "inline_create_used_existing": "Már létezik, kiválasztva: :name",
   "insecure_url_use_https": "Adjon meg egy https:// címet. A sima http:// csak helyi hálózati szerver esetén engedélyezett (pl. 192.168.x.x, localhost vagy .local).",
   "insert_field": "Mező beszúrása",
   "insert_variable": "Változó beszúrása",

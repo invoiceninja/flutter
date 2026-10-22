@@ -553,6 +553,8 @@
   "inclusive_taxes_label": "Taxe incluse",
   "incoming": "Intrări",
   "initial": "Inițial",
+  "inline_create_name_taken": "O înregistrare arhivată sau ștearsă se numește deja :name. Restaurați-o în schimb.",
+  "inline_create_used_existing": "Există deja, s-a selectat :name",
   "insecure_url_use_https": "Introduceți o adresă https://. Adresele http:// simple sunt permise doar pentru un server din rețeaua locală (de ex. 192.168.x.x, localhost sau .local).",
   "insert_field": "Inserați un câmp",
   "insert_variable": "Inserați variabila",

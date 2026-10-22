@@ -555,6 +555,8 @@
   "income_account": "ບັນຊີລາຍຮັບ",
   "incoming": "ຂາເຂົ້າ",
   "initial": "ເບື້ອງຕົ້ນ",
+  "inline_create_name_taken": "ບັນທຶກທີ່ເກັບໄວ້ ຫຼື ຖືກລຶບ ມີຊື່ :name ແລ້ວ. ກະລຸນາກູ້ຄືນມັນແທນ.",
+  "inline_create_used_existing": "ມີຢູ່ແລ້ວ, ໄດ້ເລືອກ :name",
   "insecure_url_use_https": "ປ້ອນທີ່ຢູ່ https://. http:// ທຳມະດາອະນຸຍາດສະເພາະເຊີບເວີເຄືອຂ່າຍທ້ອງຖິ່ນ (ເຊັ່ນ 192.168.x.x, localhost ຫຼື .local).",
   "insert_field": "ແຊກຊ່ອງຂໍ້ມູນ",
   "insert_variable": "ແຊກຕົວແປ",

@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Impostos inclosos",
   "incoming": "Entrant",
   "initial": "Inicial",
+  "inline_create_name_taken": "Un registre arxivat o eliminat ja es diu :name. Restaureu-lo en lloc d'això.",
+  "inline_create_used_existing": "Ja existeix, s'ha seleccionat :name",
   "insecure_url_use_https": "Introduïu una adreça https://. El protocol http:// sense xifrar només es permet per a un servidor de xarxa local (p. ex. 192.168.x.x, localhost o .local).",
   "insert_field": "Insereix un camp",
   "insert_variable": "Insereix una variable",

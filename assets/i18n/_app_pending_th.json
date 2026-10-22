@@ -555,6 +555,8 @@
   "income_account": "บัญชีรายได้",
   "incoming": "ขาเข้า",
   "initial": "เริ่มต้น",
+  "inline_create_name_taken": "มีระเบียนที่เก็บถาวรหรือถูกลบชื่อ :name อยู่แล้ว โปรดกู้คืนระเบียนนั้นแทน",
+  "inline_create_used_existing": "มีอยู่แล้ว เลือก :name แล้ว",
   "insecure_url_use_https": "กรอกที่อยู่ https:// ใช้ http:// ธรรมดาได้เฉพาะกับเซิร์ฟเวอร์ในเครือข่ายท้องถิ่นเท่านั้น (เช่น 192.168.x.x, localhost หรือ .local)",
   "insert_field": "แทรกฟิลด์",
   "insert_variable": "แทรกตัวแปร",

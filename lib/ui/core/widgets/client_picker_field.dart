@@ -8,14 +8,20 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/core/widgets/escape_observer.dart';
 import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 
 /// Searchable client picker with an inline "create client" affordance.
 ///
-/// Deliberately **not** built on [SearchableDropdownField], for two reasons
-/// that are both silent failures rather than compile errors:
+/// Not built on [SearchableDropdownField]. That widget now does inline create
+/// too (`onCreateRequested`, behind `VendorPickerField` and
+/// `ExpenseCategoryPickerField`), but this one also searches the **server** as
+/// you type before offering create — and a client list is the one most likely
+/// to outgrow the local cache, so every Client field uses this widget (with
+/// create, through `ClientPickerFieldWithCreate`). When it was written, the
+/// shared widget also had two silent failures this one works around:
 ///
 ///  1. Flutter's `RawAutocomplete` only mounts its options overlay while the
 ///     option list is non-empty (`_canShowOptionsView`, `autocomplete.dart`),
@@ -194,11 +200,7 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
   /// Admin / owner bypass and `create_all` expansion are handled inside `can`.
   /// Re-read on a company switch — permissions are per company-user.
   void _readPermission() {
-    _canCreateClients =
-        context.read<Services>().auth.session.value?.currentCompany?.can(
-          'create_client',
-        ) ??
-        false;
+    _canCreateClients = sessionCan(context, 'create_client');
   }
 
   /// Track the selected client by id. Independent of the query, so a client

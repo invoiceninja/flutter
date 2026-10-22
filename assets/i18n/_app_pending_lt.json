@@ -538,6 +538,8 @@
   "inclusive_taxes_label": "Įskaičiuoti mokesčiai",
   "incoming": "Gaunama",
   "initial": "Pradinis",
+  "inline_create_name_taken": "Archyvuotas arba ištrintas įrašas jau pavadintas :name. Vietoj to jį atkurkite.",
+  "inline_create_used_existing": "Jau egzistuoja, pasirinkta :name",
   "insecure_url_use_https": "Įveskite https:// adresą. Paprastas http:// leidžiamas tik vietinio tinklo serveriui (pvz., 192.168.x.x, localhost arba .local).",
   "insert_field": "Įterpti lauką",
   "insert_variable": "Įterpti kintamąjį",

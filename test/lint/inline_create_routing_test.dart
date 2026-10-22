@@ -125,6 +125,30 @@ void main() {
     );
   });
 
+  /// The same two guards, for `SearchableDropdownField`'s create row: Enter is
+  /// intercepted only while the overlay is showing (Escape hides it without
+  /// touching focus or text), and a create already in flight can't start a
+  /// second one.
+  test('SearchableDropdownField re-implements the two guards too', () {
+    final src = File(
+      'lib/ui/core/widgets/searchable_dropdown_field.dart',
+    ).readAsStringSync().replaceAll('\n', ' ');
+    expect(
+      RegExp(
+        r'bool get _highlightIsCreateRow\s*\{\s*if \(!_optionsVisible\)',
+      ).hasMatch(src),
+      isTrue,
+      reason: 'the create row must be unreachable once the overlay is hidden.',
+    );
+    expect(
+      RegExp(
+        r'Future<void> _handleCreate\([^)]*\)[^{]*\{[^}]*if \(_creating',
+      ).hasMatch(src),
+      isTrue,
+      reason: 'the create round trip needs a re-entrancy guard.',
+    );
+  });
+
   /// `SearchableDropdownField` wraps each option in `_ItemOpt<T>` so the list
   /// can also hold the synthetic create row. `RawAutocomplete._select`
   /// early-returns on `nextSelection == _selection`, and before the wrapper
@@ -159,9 +183,11 @@ void main() {
   test(
     'every inline-create row fires its handler directly, not via onSelected',
     () {
-      // The three pickers that append a synthetic create option. Each must call
-      // its create handler from the row's own `onTap`.
+      // The pickers that append a synthetic create option. Each must call its
+      // create handler from the row's own `onTap`. `SearchableDropdownField`
+      // is the shared one — every `onCreateRequested` caller rides on it.
       const expected = <String, String>{
+        'lib/ui/core/widgets/searchable_dropdown_field.dart': '_handleCreate',
         'lib/ui/core/widgets/client_picker_field.dart': '_handleCreate',
         'lib/ui/core/widgets/tag_picker_field.dart': '_handleCreate',
         'lib/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart':

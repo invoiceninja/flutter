@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Impostos incluídos",
   "incoming": "Recebida",
   "initial": "Inicial",
+  "inline_create_name_taken": "Um registo arquivado ou eliminado já se chama :name. Em vez disso, restaure-o.",
+  "inline_create_used_existing": "Já existe, :name selecionado",
   "insecure_url_use_https": "Introduza um endereço https://. O http:// simples só é permitido para um servidor na rede local (p. ex. 192.168.x.x, localhost ou .local).",
   "insert_field": "Inserir um campo",
   "insert_variable": "Inserir variável",

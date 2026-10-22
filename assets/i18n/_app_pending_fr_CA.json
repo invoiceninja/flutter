@@ -526,6 +526,8 @@
   "inclusive_taxes_label": "Taxes incluses",
   "incoming": "Entrant",
   "initial": "Initial",
+  "inline_create_name_taken": "Un enregistrement archivé ou supprimé porte déjà le nom :name. Restaurez-le plutôt.",
+  "inline_create_used_existing": "Existe déjà, :name sélectionné",
   "insecure_url_use_https": "Saisissez une adresse https://. Le http:// simple n'est permis que pour un serveur sur un réseau local (p. ex. 192.168.x.x, localhost ou .local).",
   "insert_field": "Insérer un champ",
   "insert_variable": "Insérer une variable",

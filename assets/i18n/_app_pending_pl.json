@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Podatki wliczone",
   "incoming": "Przychodzące",
   "initial": "Początkowe",
+  "inline_create_name_taken": "Zarchiwizowany lub usunięty rekord ma już nazwę :name. Zamiast tego go przywróć.",
+  "inline_create_used_existing": "Już istnieje, wybrano :name",
   "insecure_url_use_https": "Wpisz adres https://. Zwykły http:// jest dozwolony tylko dla serwera w sieci lokalnej (np. 192.168.x.x, localhost lub .local).",
   "insert_field": "Wstaw pole",
   "insert_variable": "Wstaw zmienną",

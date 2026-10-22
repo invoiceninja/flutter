@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -745,7 +747,9 @@ void main() {
   // "create new <entity>" affordances, so a future refactor doesn't try to
   // fold `ClientPickerField` (lib/ui/core/widgets/client_picker_field.dart)
   // back into it. Both fail silently rather than throwing.
-  group('why inline-create needs a different widget', () {
+  // Why inline create is `onCreateRequested` (the `inline create` group
+  // below) and never a "+ New…" `footerBuilder`.
+  group('why a footer cannot carry inline create', () {
     testWidgets('footerBuilder is unreachable when nothing matches', (
       tester,
     ) async {
@@ -1123,6 +1127,323 @@ void main() {
             'they are a fixed 96 px and do not scale with text size, so this '
             'is the assertion that fails first if either grows',
       );
+    });
+  });
+
+  // Inline create (the `_CreateOpt` row). The routing rules these pin are the
+  // ones `docs/pickers.md` says fail silently: a create row that goes dead
+  // after one cancel, Enter on a dismissed popover, Tab creating by accident.
+  group('inline create', () {
+    /// Pumps a picker with [onCreate] wired; [created] records every query the
+    /// create callback was handed, and [changed] the last `onChanged` value.
+    Future<void> pumpCreate(
+      WidgetTester tester, {
+      required Future<_Option?> Function(String query) onCreate,
+      List<_Option> items = _items,
+      _Option? initial,
+      void Function(_Option?)? onChanged,
+      bool sink = false,
+    }) async {
+      await tester.pumpWidget(
+        _host(
+          SearchableDropdownField<_Option>(
+            label: 'Fruit',
+            items: items,
+            initialValue: initial,
+            displayString: (o) => o.name,
+            idOf: (o) => o.id,
+            onChanged: onChanged ?? (_) {},
+            createLabelKey: 'new_vendor',
+            onCreateRequested: (_, query) => onCreate(query),
+          ),
+          sink: sink,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder createRow(String query) => find.text('Create "$query"');
+
+    testWidgets('a query that matches nothing offers to create it', (
+      tester,
+    ) async {
+      final queries = <String>[];
+      _Option? changed;
+      await pumpCreate(
+        tester,
+        onCreate: (q) async {
+          queries.add(q);
+          return const _Option('tmp_1', 'Dragonfruit');
+        },
+        onChanged: (o) => changed = o,
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      expect(createRow('Dragonfruit'), findsOneWidget);
+
+      await tester.tap(createRow('Dragonfruit'));
+      await tester.pumpAndSettle();
+      expect(queries, ['Dragonfruit']);
+      expect(changed?.id, 'tmp_1');
+      // The field shows the created record, and the popover is gone.
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Dragonfruit',
+      );
+      expect(createRow('Dragonfruit'), findsNothing);
+    });
+
+    testWidgets('an exact match is not offered as a create', (tester) async {
+      await pumpCreate(tester, onCreate: (_) async => null);
+      await tester.tap(find.byType(TextField));
+      // Different case and an accent: the fold makes it the same name.
+      await tester.enterText(find.byType(TextField), 'bánana');
+      await tester.pumpAndSettle();
+      expect(createRow('bánana'), findsNothing);
+      expect(find.text('Banana'), findsOneWidget);
+    });
+
+    testWidgets('a partial match still offers the create, pinned below', (
+      tester,
+    ) async {
+      await pumpCreate(tester, onCreate: (_) async => null);
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'ap');
+      await tester.pumpAndSettle();
+      expect(find.text('Apple'), findsOneWidget);
+      expect(createRow('ap'), findsOneWidget);
+      // Outside the scrolling list, so a long list can't bury it.
+      expect(
+        find.descendant(of: find.byType(ListView), matching: createRow('ap')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('an untouched field offers the plain "New …" row', (
+      tester,
+    ) async {
+      final queries = <String>[];
+      await pumpCreate(
+        tester,
+        initial: _items[2],
+        onCreate: (q) async {
+          queries.add(q);
+          return null;
+        },
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      // Not "Create «Banana»" — the field's own value is not a query.
+      expect(createRow('Banana'), findsNothing);
+      expect(find.text('New Vendor'), findsOneWidget);
+
+      await tester.tap(find.text('New Vendor'));
+      await tester.pumpAndSettle();
+      expect(queries, ['']);
+    });
+
+    testWidgets('an empty list is a live field that can still create', (
+      tester,
+    ) async {
+      await pumpCreate(tester, items: const [], onCreate: (_) async => null);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).enabled,
+        isNot(false),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('New Vendor'), findsOneWidget);
+    });
+
+    testWidgets('the create row still works after a cancelled create', (
+      tester,
+    ) async {
+      var calls = 0;
+      await pumpCreate(
+        tester,
+        onCreate: (_) async {
+          calls++;
+          return null;
+        },
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.tap(createRow('Dragonfruit'));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+
+      // Cancel restored the query and refocused, so the row is back — and
+      // must not be dead (the `_select` latch `docs/pickers.md` warns about).
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Dragonfruit',
+      );
+      expect(createRow('Dragonfruit'), findsOneWidget);
+      await tester.tap(createRow('Dragonfruit'));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+    });
+
+    testWidgets('Enter on a highlighted create row creates', (tester) async {
+      final queries = <String>[];
+      await pumpCreate(
+        tester,
+        onCreate: (q) async {
+          queries.add(q);
+          return null;
+        },
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      // The create row is the only option, so it is the default highlight.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(queries, ['Dragonfruit']);
+    });
+
+    testWidgets('Enter on a real match picks it, not the create row', (
+      tester,
+    ) async {
+      var calls = 0;
+      _Option? changed;
+      await pumpCreate(
+        tester,
+        onCreate: (_) async {
+          calls++;
+          return null;
+        },
+        onChanged: (o) => changed = o,
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Cher');
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(changed?.name, 'Cherry');
+    });
+
+    testWidgets('Tab moves on without creating', (tester) async {
+      var calls = 0;
+      await pumpCreate(
+        tester,
+        sink: true,
+        onCreate: (_) async {
+          calls++;
+          return null;
+        },
+      );
+      await tester.tap(find.byType(TextField).first);
+      await tester.enterText(find.byType(TextField).first, 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+    });
+
+    testWidgets('an exact match past the first 50 partial matches leads', (
+      tester,
+    ) async {
+      // 60 names containing "al" that sort first, then the one named exactly
+      // "Al". It used to be cut off by `maxResults` while still hiding the
+      // create row — neither listed nor creatable.
+      final items = [
+        for (var i = 0; i < 60; i++) _Option('$i', 'Alpha $i'),
+        const _Option('exact', 'Al'),
+      ];
+      await pumpCreate(tester, items: items, onCreate: (_) async => null);
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'al');
+      await tester.pumpAndSettle();
+      expect(find.text('Al'), findsOneWidget);
+      expect(createRow('al'), findsNothing);
+    });
+
+    testWidgets('the field is locked while a create is in flight', (
+      tester,
+    ) async {
+      // Ten items, so the field is typable on touch too (≤ 6 suppresses the
+      // keyboard and a tap toggles instead) — the race needs typing.
+      final items = [for (var i = 0; i < 10; i++) _Option('$i', 'Item $i')];
+      final pending = Completer<_Option?>();
+      final changes = <_Option?>[];
+      await pumpCreate(
+        tester,
+        items: items,
+        onCreate: (_) => pending.future,
+        onChanged: changes.add,
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.tap(createRow('Dragonfruit'));
+      await tester.pump();
+
+      // Mid-create the user tries to pick something else. The field takes no
+      // focus and offers nothing, so there is no pick for the create to
+      // silently overwrite when it resolves.
+      await tester.tap(find.byType(TextField), warnIfMissed: false);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Item 3');
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isFalse,
+      );
+      expect(find.text('Item 3'), findsNothing);
+
+      pending.complete(const _Option('tmp_1', 'Dragonfruit'));
+      await tester.pumpAndSettle();
+      expect(changes.map((o) => o?.id), ['tmp_1']);
+    });
+
+    testWidgets('cancelling the plain "New …" row does not reopen the list', (
+      tester,
+    ) async {
+      await pumpCreate(tester, initial: _items[2], onCreate: (_) async => null);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New Vendor'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Banana',
+      );
+    });
+
+    testWidgets('after an Enter-started create the list is not stale', (
+      tester,
+    ) async {
+      // Enter leaves the field already holding the created name, and
+      // RawAutocomplete recomputes only on a text CHANGE — so without a forced
+      // recompute, reopening offered `Create "Dragonfruit"` for the record just
+      // created.
+      await pumpCreate(tester, onCreate: (q) async => _Option('tmp_1', q));
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Focus the way Tab does — no tap, so no reopen bounce to recompute.
+      tester
+          .widget<TextField>(find.byType(TextField))
+          .focusNode!
+          .requestFocus();
+      await tester.pumpAndSettle();
+      expect(createRow('Dragonfruit'), findsNothing);
+    });
+
+    testWidgets('no callback, no create row', (tester) async {
+      await _pump(tester);
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'ap');
+      await tester.pumpAndSettle();
+      expect(createRow('ap'), findsNothing);
     });
   });
 }

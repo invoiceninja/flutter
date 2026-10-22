@@ -555,6 +555,8 @@
   "income_account": "収益勘定",
   "incoming": "着信",
   "initial": "初期",
+  "inline_create_name_taken": "アーカイブ済みまたは削除済みのレコードが既に :name という名前です。代わりにそれを復元してください。",
+  "inline_create_used_existing": "既に存在します。:name を選択しました",
   "insecure_url_use_https": "https:// のアドレスを入力してください。http:// はローカルネットワークのサーバー（例: 192.168.x.x、localhost、.local）でのみ使用できます。",
   "insert_field": "フィールドを挿入",
   "insert_variable": "変数を挿入",

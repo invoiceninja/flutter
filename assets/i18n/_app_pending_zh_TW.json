@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "內含稅",
   "incoming": "來電",
   "initial": "初始",
+  "inline_create_name_taken": "已有一筆名為 :name 的已封存或已刪除記錄。請改為還原它。",
+  "inline_create_used_existing": "已存在，已選取 :name",
   "insecure_url_use_https": "請輸入 https:// 位址。純 http:// 僅允許用於區域網路伺服器（例如 192.168.x.x、localhost 或 .local）。",
   "insert_field": "插入欄位",
   "insert_variable": "插入變數",

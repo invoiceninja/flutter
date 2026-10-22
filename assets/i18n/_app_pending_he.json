@@ -531,6 +531,8 @@
   "inclusive_taxes_label": "מסים כלולים",
   "incoming": "נכנס",
   "initial": "ראשוני",
+  "inline_create_name_taken": "רשומה בארכיון או שנמחקה כבר נקראת :name. שחזר אותה במקום זאת.",
+  "inline_create_used_existing": "כבר קיים, נבחר :name",
   "insecure_url_use_https": "הזן כתובת https://‎. כתובת http://‎ רגילה מותרת רק עבור שרת ברשת מקומית (למשל 192.168.x.x, localhost או ‎.local).",
   "insert_field": "הוסף שדה",
   "insert_variable": "הוסף משתנה",

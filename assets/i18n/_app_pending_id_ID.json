@@ -533,6 +533,8 @@
   "inclusive_taxes_label": "Pajak inklusif",
   "incoming": "Masuk",
   "initial": "Awal",
+  "inline_create_name_taken": "Catatan yang diarsipkan atau dihapus sudah bernama :name. Pulihkan catatan itu saja.",
+  "inline_create_used_existing": "Sudah ada, :name dipilih",
   "insecure_url_use_https": "Masukkan alamat https://. http:// biasa hanya diizinkan untuk server jaringan lokal (mis. 192.168.x.x, localhost, atau .local).",
   "insert_field": "Sisipkan kolom",
   "insert_variable": "Sisipkan variabel",

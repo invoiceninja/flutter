@@ -555,6 +555,8 @@
   "income_account": "收入账户",
   "incoming": "呼入",
   "initial": "初始",
+  "inline_create_name_taken": "已有一条名为 :name 的已归档或已删除记录。请改为恢复它。",
+  "inline_create_used_existing": "已存在，已选择 :name",
   "insecure_url_use_https": "请输入 https:// 地址。仅本地网络服务器（如 192.168.x.x、localhost 或 .local）允许使用 http://。",
   "insert_field": "插入字段",
   "insert_variable": "插入变量",

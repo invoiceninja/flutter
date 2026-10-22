@@ -532,6 +532,8 @@
   "inclusive_taxes_label": "Dane zahrnuté v cene",
   "incoming": "Prichádzajúce",
   "initial": "Počiatočné",
+  "inline_create_name_taken": "Archivovaný alebo odstránený záznam sa už volá :name. Namiesto toho ho obnovte.",
+  "inline_create_used_existing": "Už existuje, vybraté :name",
   "insecure_url_use_https": "Zadajte adresu https://. Obyčajné http:// je povolené len pre server v lokálnej sieti (napr. 192.168.x.x, localhost alebo .local).",
   "insert_field": "Vložiť pole",
   "insert_variable": "Vložiť premennú",

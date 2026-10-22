@@ -238,4 +238,102 @@ void main() {
     await tester.pump();
     expect(find.text('Acme'), findsNothing);
   });
+
+  group('inline create', () {
+    /// Hosts the picker in a parent that owns the selected id, like an edit
+    /// form's view model — so `onChanged` really re-keys `selectedId`.
+    Widget host({
+      required String initialId,
+      required Stream<List<_Rec>> Function() items,
+      required Stream<_Rec?> Function(String) watchById,
+      required Future<_Rec?> Function(String) onCreate,
+    }) {
+      var selectedId = initialId;
+      return MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => SizedBox(
+              width: 360,
+              child: EntityPickerField<_Rec>(
+                label: 'Vendor',
+                selectedId: selectedId,
+                itemsStream: items,
+                watchById: watchById,
+                displayString: (r) => r.name.isEmpty ? r.id : r.name,
+                idOf: (r) => r.id,
+                createLabelKey: 'new_vendor',
+                onCreateRequested: (_, q) => onCreate(q),
+                onChanged: (r) => setState(() => selectedId = r?.id ?? ''),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+    testWidgets('a created record replaces the old one without a blank frame', (
+      tester,
+    ) async {
+      // The new record's by-id watch never emits and the list never carries
+      // it — the window a just-created `tmp_` row really sits in. Only the
+      // seed in `_create` can keep it on screen.
+      final silent = StreamController<_Rec?>.broadcast();
+      addTearDown(silent.close);
+      await tester.pumpWidget(
+        host(
+          initialId: 'a',
+          items: () => Stream.value(const [_Rec('a', 'Acme')]),
+          watchById: (id) =>
+              id == 'a' ? Stream.value(const _Rec('a', 'Acme')) : silent.stream,
+          onCreate: (q) async => _Rec('tmp_new', q),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(fieldText(tester), 'Acme');
+
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Newco');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create "Newco"'));
+      // Frame by frame: the bug was a blank for exactly these frames.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+        expect(fieldText(tester), 'Newco', reason: 'frame $i');
+      }
+      await tester.pumpAndSettle();
+      expect(fieldText(tester), 'Newco');
+    });
+
+    testWidgets('no create row until the list has loaded', (tester) async {
+      final items = StreamController<List<_Rec>>.broadcast();
+      addTearDown(items.close);
+      await tester.pumpWidget(
+        host(
+          initialId: '',
+          items: () => items.stream,
+          watchById: (_) => const Stream.empty(),
+          onCreate: (_) async => null,
+        ),
+      );
+      await tester.pump();
+      // Still waiting: the disabled placeholder, nothing to create from.
+      expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+
+      items.add(const []);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).enabled,
+        isNot(false),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('New Vendor'), findsOneWidget);
+    });
+  });
 }

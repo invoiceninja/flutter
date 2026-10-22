@@ -553,6 +553,8 @@
   "inclusive_taxes_label": "Inklusive skatter",
   "incoming": "Inkommande",
   "initial": "Initial",
+  "inline_create_name_taken": "En arkiverad eller borttagen post heter redan :name. Återställ den i stället.",
+  "inline_create_used_existing": "Finns redan, :name valdes",
   "insecure_url_use_https": "Ange en https://-adress. Vanlig http:// tillåts bara för en server i lokalt nätverk (t.ex. 192.168.x.x, localhost eller .local).",
   "insert_field": "Infoga ett fält",
   "insert_variable": "Infoga variabel",

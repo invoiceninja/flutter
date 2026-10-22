@@ -201,6 +201,7 @@ the honest default.
 | Client — view client invoices / quotes / payments / credits / recurring / projects / tasks / expenses | ✅ | ✅ | ✅ | ✅ | |
 | Client — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 | Client — create inline from the billing-doc Client picker, auto-selected on the document (invoice / quote / credit / recurring) | ✅ | ✅ | ✅ | | |
+| Client — create inline from the task / project Client picker, auto-selected | ✅ | ✅ | ✅ | | |
 
 ---
 
@@ -522,6 +523,7 @@ the honest default.
 | Purchase order — detail | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Purchase order — edit | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — create | ✅ | ✅ | ✅ | ✅ | |
+| Purchase order — create the vendor inline from the Vendor picker (new orders; it locks once saved) | ✅ | ✅ | ✅ | | |
 | Purchase order — clone | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — convert to expense | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — view linked expense | ✅ | ✅ | ✅ | ✅ | |
@@ -568,6 +570,7 @@ the honest default.
 | Expense — categorize | ✅ | ✅ | ✅ | ✅ | |
 | Expense — link to vendor | ✅ | ✅ | ✅ | ✅ | |
 | Expense — link to project / client | ✅ | ✅ | ✅ | ✅ | |
+| Expense — create a vendor / client / category inline from its picker, auto-selected (also on recurring expenses and bank transaction → Create Expense) | ✅ | ✅ | ✅ | | v1 created a vendor or category from the typed name and opened the full client screen; v2 does the first two the same way (an exact name is selected, an archived one's name refused) and opens the New Client dialog (`docs/pickers.md`) |
 | Expense — convert / add to invoice | ✅ | ✅ | ✅ | ✅ | |
 | Expense — bulk invoice / add to invoice from the list (one client, billable + uninvoiced only; skipped rows and missing currency conversions reported) | ✅ | ✅ | ✅ | | |
 | Expense — run template | ✅ | ✅ | ✅ | ✅ | |

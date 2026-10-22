@@ -555,6 +555,8 @@
   "income_account": "Conto ricavi",
   "incoming": "In entrata",
   "initial": "Iniziale",
+  "inline_create_name_taken": "Un record archiviato o eliminato si chiama già :name. Ripristinalo invece.",
+  "inline_create_used_existing": "Esiste già, selezionato :name",
   "insecure_url_use_https": "Inserisci un indirizzo https://. Il semplice http:// è consentito solo per un server di rete locale (es. 192.168.x.x, localhost o .local).",
   "insert_field": "Inserisci un campo",
   "insert_variable": "Inserisci variabile",

@@ -555,6 +555,8 @@
   "income_account": "Счёт доходов",
   "incoming": "Входящие",
   "initial": "Начальный",
+  "inline_create_name_taken": "Архивная или удалённая запись уже называется :name. Восстановите её вместо этого.",
+  "inline_create_used_existing": "Уже существует, выбрано :name",
   "insecure_url_use_https": "Введите адрес https://. Обычный http:// допустим только для сервера в локальной сети (например, 192.168.x.x, localhost или .local).",
   "insert_field": "Вставить поле",
   "insert_variable": "Вставить переменную",

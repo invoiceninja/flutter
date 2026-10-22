@@ -531,6 +531,8 @@
   "inclusive_taxes_label": "Porezi uključeni u cenu",
   "incoming": "Dolazno",
   "initial": "Početno",
+  "inline_create_name_taken": "Arhivirani ili izbrisani zapis se već zove :name. Umesto toga ga vratite.",
+  "inline_create_used_existing": "Već postoji, izabrano je :name",
   "insecure_url_use_https": "Unesite https:// adresu. Običan http:// je dozvoljen samo za server u lokalnoj mreži (npr. 192.168.x.x, localhost ili .local).",
   "insert_field": "Umetni polje",
   "insert_variable": "Umetni promenljivu",

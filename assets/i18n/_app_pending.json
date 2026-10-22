@@ -556,6 +556,8 @@
   "income_account": "Income account",
   "incoming": "Incoming",
   "initial": "Initial",
+  "inline_create_name_taken": "An archived or deleted record is already named :name. Restore it instead.",
+  "inline_create_used_existing": "Already exists, selected :name",
   "insecure_url_use_https": "Enter an https:// address. Plain http:// is only allowed for a local network server (e.g. 192.168.x.x, localhost, or .local).",
   "insert_field": "Insert a field",
   "insert_variable": "Insert variable",

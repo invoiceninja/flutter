@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
@@ -15,6 +14,7 @@ import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/clients/widgets/client_picker_field_with_create.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_rate_context.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/task_edit_times_section.dart';
@@ -384,7 +384,6 @@ class _ClientPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
     // The view model's company, not the session's: it is the company this form
     // is bound to, and all four pickers here read the same field. Locality
     // rather than a bug fix — no divergence between the two has been observed.
@@ -405,34 +404,18 @@ class _ClientPicker extends StatelessWidget {
       );
     }
 
-    return StreamBuilder<List<Client>>(
-      stream: services.clients.watchPage(
+    return _Lockable(
+      locked: locked,
+      // `ClientPickerField`: it searches the server before offering
+      // "Create «x»", so a client outside this device's cache is found rather
+      // than duplicated.
+      child: ClientPickerFieldWithCreate(
         companyId: companyId,
-        loadedPages: 100, // ≈5000 clients — sufficient for the v1 picker.
+        selectedClientId: vm.draft.clientId,
+        label: context.tr('client'),
+        enabled: !locked,
+        onSelected: (c) => vm.setClientId(c?.id ?? ''),
       ),
-      builder: (context, snapshot) {
-        final clients = snapshot.data ?? const <Client>[];
-        Client? selected;
-        for (final c in clients) {
-          if (c.id == vm.draft.clientId) {
-            selected = c;
-            break;
-          }
-        }
-        return _Lockable(
-          locked: locked,
-          child: SearchableDropdownField<Client>(
-            label: context.tr('client'),
-            items: clients,
-            initialValue: selected,
-            displayString: (c) => c.displayName.isEmpty
-                ? (c.name.isEmpty ? c.id : c.name)
-                : c.displayName,
-            idOf: (c) => c.id,
-            onChanged: (c) => vm.setClientId(c?.id ?? ''),
-          ),
-        );
-      },
     );
   }
 }

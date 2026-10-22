@@ -79,7 +79,7 @@ A `shownAt` in the future — the clock moved back — holds nothing, or the pro
 
 ## The dialog
 
-- **Highlights first.** At most five, merged across the releases shown, filtered by surface and by whether this user can open the target: a `ReleaseHighlightRoute` passes the rules the sidebar applies to the same row (the module enabled, and `view_reports` for Reports); `ReleaseHighlightMobileApp` passes where the promo itself may open. A highlight that fails is left out, not shown dead.
+- **Highlights first, key features before newer small ones.** At most five, merged across the releases shown (`whatsNewHighlights`): every `major` highlight first, then the rest, each group newest release first. Merged newest first alone, a catch-up filled its five with the latest release's small changes and dropped the key features of the releases the user skipped. Filtered by surface and by whether this user can open the target: a `ReleaseHighlightRoute` passes the rules the sidebar applies to the same row (the module enabled, and `view_reports` for Reports); `ReleaseHighlightMobileApp` passes where the promo itself may open. A highlight that fails is left out, not shown dead.
 - **Tapping one closes the dialog with where it leads.** The caller then follows it (`followWhatsNewResult`): a route, behind the unsaved-changes prompt the sidebar gives; the promo as a manual open; or Contact Us for Feedback. Every close means seen.
 - **A release with no highlights** (fixes only) opens on its full list, with nothing to fold.
 - **A catch-up** across several releases titles the newest, says "Including the changes since vX", and folds every release but the newest to "vX · N changes".

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/version.dart';
@@ -209,6 +209,103 @@ void main() {
       expect(
         show('1.0.2', '1.0.4', surfaces: const {ReleaseNoteSurface.appleStore}),
         ['1.0.4'],
+      );
+    });
+  });
+
+  group('whatsNewHighlights', () {
+    ReleaseHighlight h(String title, {bool major = false, String? path}) =>
+        ReleaseHighlight(
+          icon: Icons.star,
+          title: title,
+          body: title,
+          target: path == null ? null : ReleaseHighlightRoute(path),
+          major: major,
+        );
+    ReleaseNotes release(String v, List<ReleaseHighlight> highlights) =>
+        ReleaseNotes(version: v, highlights: highlights, items: const []);
+    List<String> titles(
+      List<ReleaseNotes> releases, {
+      bool Function(ReleaseHighlightTarget)? reachable,
+    }) => [
+      for (final x in whatsNewHighlights(
+        releases,
+        reachable: reachable ?? (_) => true,
+      ))
+        x.title,
+    ];
+
+    test('key features lead; otherwise a release keeps its own order', () {
+      expect(
+        titles([
+          release('1.0.2', [h('a'), h('b', major: true), h('c')]),
+        ]),
+        ['b', 'a', 'c'],
+      );
+      expect(
+        titles([
+          release('1.0.2', [h('a'), h('b'), h('c')]),
+        ]),
+        ['a', 'b', 'c'],
+      );
+    });
+
+    test('a catch-up leads with the key features of every release, before '
+        'the newest release\'s smaller ones', () {
+      final releases = [
+        release('1.0.4', [h('new 1'), h('new 2'), h('new 3')]),
+        release('1.0.3', [h('key 3', major: true), h('minor 3')]),
+        release('1.0.2', [
+          h('key 2a', major: true),
+          h('key 2b', major: true),
+          h('minor 2'),
+        ]),
+      ];
+      expect(titles(releases), ['key 3', 'key 2a', 'key 2b', 'new 1', 'new 2']);
+    });
+
+    test('stops at $kMaxReleaseHighlights, and leaves out what this user '
+        'cannot open', () {
+      final releases = [
+        release('1.0.3', [
+          for (var i = 0; i < 4; i++) h('key 3.$i', major: true),
+        ]),
+        release('1.0.2', [
+          h('key 2', major: true, path: '/hidden'),
+          h('key 2b', major: true),
+          h('minor 2'),
+        ]),
+      ];
+      final shown = titles(
+        releases,
+        reachable: (t) => t is! ReleaseHighlightRoute || t.path != '/hidden',
+      );
+      expect(shown, hasLength(kMaxReleaseHighlights));
+      expect(shown, isNot(contains('key 2')));
+      expect(shown.last, 'key 2b');
+    });
+
+    // The case that prompted the rule, pinned to its versions so newer
+    // releases at the top of the catalog don't move it.
+    test('5.1.15 to 5.1.19 leads with the key features of 5.1.16 and 5.1.17, '
+        'not only the small changes of 5.1.19', () {
+      final releases = releasesToShow(
+        seen: '5.1.15',
+        current: '5.1.19',
+        surfaces: const {},
+      );
+      expect(
+        whatsNewHighlights(
+          releases,
+          reachable: (_) => true,
+        ).map((x) => x.title),
+        [
+          'An Activity timeline',
+          'Reports, rebuilt',
+          'A Documents list',
+          'Project analytics',
+          'Search that ignores accents',
+        ],
       );
     });
   });

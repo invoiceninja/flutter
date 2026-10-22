@@ -155,11 +155,10 @@ class _WhatsNewDialogState extends State<WhatsNewDialog> {
 
   final _scroll = ScrollController();
   final _toggleKey = GlobalKey();
-  late final List<ReleaseHighlight> _highlights = [
-    for (final release in widget.releases)
-      for (final h in release.highlights)
-        if (h.target == null || widget.reachable(h.target!)) h,
-  ].take(kMaxReleaseHighlights).toList();
+  late final List<ReleaseHighlight> _highlights = whatsNewHighlights(
+    widget.releases,
+    reachable: widget.reachable,
+  );
 
   /// The full list starts open when there is nothing to lead with.
   late bool _expanded = _highlights.isEmpty;

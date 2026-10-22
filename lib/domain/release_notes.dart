@@ -112,6 +112,7 @@ class ReleaseHighlight {
     required this.body,
     this.target,
     this.hiddenOn = const {},
+    this.major = false,
   });
 
   /// The destination's own sidebar icon where it has one, so the row also
@@ -123,6 +124,11 @@ class ReleaseHighlight {
   final String body;
   final ReleaseHighlightTarget? target;
   final Set<ReleaseNoteSurface> hiddenOn;
+
+  /// A key feature — a new screen or a rebuilt one — that someone catching up
+  /// across several releases should still be shown. In a catch-up these lead,
+  /// ahead of every newer highlight that isn't one ([whatsNewHighlights]).
+  final bool major;
 }
 
 @immutable
@@ -160,6 +166,29 @@ const int kMaxReleaseHighlights = 5;
 
 /// The most releases a catch-up shows.
 const int kMaxReleasesShown = 5;
+
+/// The highlights the dialog leads with for [releases] (newest first): every
+/// [ReleaseHighlight.major] one first, then the rest, each group newest
+/// release first, leaving out any whose target isn't [reachable] — at most
+/// [kMaxReleaseHighlights].
+///
+/// A catch-up merges several releases' highlights into one short list, so
+/// taking them newest first would fill it with the latest release's small
+/// changes and drop the key features of the releases before it.
+List<ReleaseHighlight> whatsNewHighlights(
+  List<ReleaseNotes> releases, {
+  required bool Function(ReleaseHighlightTarget target) reachable,
+}) {
+  final open = [
+    for (final release in releases)
+      for (final h in release.highlights)
+        if (h.target == null || reachable(h.target!)) h,
+  ];
+  return [
+    ...open.where((h) => h.major),
+    ...open.where((h) => !h.major),
+  ].take(kMaxReleaseHighlights).toList();
+}
 
 /// The releases to show after an update from [seen] to [current], newest
 /// first, each filtered to [surfaces]; a release that filtering empties is
@@ -247,6 +276,7 @@ const List<ReleaseNotes> kReleaseNotes = [
         title: 'An Activity timeline',
         body: 'Tap or drag a period to filter, or narrow it by category.',
         target: ReleaseHighlightRoute('/activity'),
+        major: true,
       ),
       ReleaseHighlight(
         icon: Icons.event_repeat_outlined,
@@ -305,6 +335,7 @@ const List<ReleaseNotes> kReleaseNotes = [
             'Open a report to run it, with charts, saved views and PDF / CSV '
             'export.',
         target: ReleaseHighlightRoute('/reports', permission: 'view_reports'),
+        major: true,
       ),
       ReleaseHighlight(
         icon: Icons.description_outlined,
@@ -314,12 +345,14 @@ const List<ReleaseNotes> kReleaseNotes = [
           '/documents',
           module: EntityType.document,
         ),
+        major: true,
       ),
       ReleaseHighlight(
         icon: Icons.work_outline,
         title: 'Project analytics',
         body: 'A forecast finish date, the burn-up chart and a health score.',
         target: ReleaseHighlightRoute('/projects', module: EntityType.project),
+        major: true,
       ),
       ReleaseHighlight(
         icon: Icons.search,

@@ -77,10 +77,11 @@ void main() {
     expect(rtl, unorderedEquals(['ar', 'fa', 'he']));
   });
 
-  test('no bundle carries a :placeholder its English lacks', () {
-    // Translators rename tokens (`:arvo` for `:value`, `:day s` for `:days`)
-    // and the app, filling the English name, renders the raw token. The
-    // importer drops those; this catches a bundle that arrived another way.
+  test('every bundled translation has the :placeholders of its English', () {
+    // Translators rename tokens (`:arvo` for `:value`, `:day s` for `:days`),
+    // which renders the raw token, and drop them (`ar` count_minutes read
+    // "0 minutes" for any duration). The importer drops both; this catches a
+    // bundle that arrived another way.
     final english = {...pendingStrings(), ...enStrings()};
     Set<String> tokens(String s) => {
       for (final m in kLocalePlaceholderPattern.allMatches(s)) m.group(1)!,
@@ -93,7 +94,11 @@ void main() {
       bundle.forEach((k, v) {
         final source = english[k];
         if (source == null || v is! String) return;
-        if (!tokens(source).containsAll(tokens(v))) bad.add('$key → $k: "$v"');
+        final want = tokens(source);
+        final got = tokens(v);
+        if (want.length != got.length || !want.containsAll(got)) {
+          bad.add('$key → $k: "$v"');
+        }
       });
     }
     expect(bad, isEmpty, reason: bad.take(20).join('\n'));

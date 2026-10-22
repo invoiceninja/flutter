@@ -4,12 +4,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:intl/intl.dart' show Bidi;
 import 'package:logging/logging.dart';
 
 import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/supported_locales.dart';
-import 'package:admin/utils/bidi.dart';
 
 final _log = Logger('Localization');
 
@@ -22,11 +20,9 @@ class Localization {
     Map<String, String>? fallback,
     Map<String, String>? pending,
     Map<String, String>? overrides,
-    bool rtl = false,
   }) : _fallback = fallback ?? const {},
        _pending = pending ?? const {},
-       _overrides = overrides ?? const {},
-       _rtl = rtl;
+       _overrides = overrides ?? const {};
 
   // The active locale's bundle, with its translations of the app-local
   // strings already laid in — see [_withLocalePending].
@@ -43,10 +39,6 @@ class Localization {
   /// delegate loads; [of] layers them on from `CompanyLabelsScope`.
   final Map<String, String> _overrides;
 
-  /// Whether the locale lays out right-to-left (Arabic, Persian, Hebrew).
-  /// Then [lookup] isolates what it didn't translate — see there.
-  final bool _rtl;
-
   /// Lookup a key with optional `:name` placeholders.
   ///
   /// Missing keys return the raw key so a typo is immediately visible in
@@ -61,23 +53,14 @@ class Localization {
   /// "Estimate" sees "Estimate" wherever the app says `quote`, as React does
   /// and as the server does on every PDF and email. [lookupBundled] skips them.
   ///
-  /// In a right-to-left locale two things are isolated (`lib/utils/bidi.dart`)
-  /// so the surrounding Arabic or Hebrew can't reorder them: each param value
-  /// (an amount, `#INV-0042`, a phone number, a name in either script), and a
-  /// string that fell back to English, as a whole — else its full stop lands
-  /// at its start. The isolates are invisible; the comparisons that read
-  /// `tr()` output fold them away (`foldSearchText`), and [lookupBundled] and
-  /// [englishOf] never carry them.
-  String lookup(String key, [Map<String, String>? params]) {
-    final override = _nonBlank(_overrides[key]);
-    if (!_rtl) return _fill(override ?? _bundled(key), params);
-    if (override != null) return _fill(override, params, isolate: true);
-    final own = _nonBlank(_strings[key]);
-    if (own != null) return _fill(own, params, isolate: true);
-    final english = _nonBlank(_fallback[key]) ?? _nonBlank(_pending[key]);
-    if (english == null) return key;
-    return ltrIsolate(_fill(english, params, isolate: true));
-  }
+  /// The result is plain text, never wrapped in bidi isolates, even in a
+  /// right-to-left locale: `tr()` output is also *data* — a logged call's
+  /// note, an invoice line's task notes, a CSV header, a prefix match — and an
+  /// invisible control character there is persisted, exported and compared.
+  /// Isolate at render time instead (`LtrText`, `buildActivitySpans`); see
+  /// docs/right-to-left-layout.md.
+  String lookup(String key, [Map<String, String>? params]) =>
+      _fill(_nonBlank(_overrides[key]) ?? _bundled(key), params);
 
   /// [lookup] without the company's Custom Labels — the word this app ships.
   ///
@@ -100,16 +83,11 @@ class Localization {
       _nonBlank(_pending[key]) ??
       key;
 
-  static String _fill(
-    String raw,
-    Map<String, String>? params, {
-    bool isolate = false,
-  }) {
+  static String _fill(String raw, Map<String, String>? params) {
     if (params == null || params.isEmpty) return raw;
-    String value(String v) => isolate ? firstStrongIsolate(v) : v;
     if (params.length == 1) {
       final only = params.entries.first;
-      return raw.replaceAll(':${only.key}', value(only.value));
+      return raw.replaceAll(':${only.key}', only.value);
     }
     // LONGEST NAME FIRST. `replaceAll` in map-insertion order is silently
     // wrong whenever one placeholder name prefixes another: substituting
@@ -127,7 +105,7 @@ class Localization {
       ..sort((a, b) => b.length.compareTo(a.length));
     var out = raw;
     for (final name in names) {
-      out = out.replaceAll(':$name', value(params[name]!));
+      out = out.replaceAll(':$name', params[name]!);
     }
     return out;
   }
@@ -153,7 +131,6 @@ class Localization {
       fallback: _fallback,
       pending: _pending,
       overrides: overrides,
-      rtl: _rtl,
     );
   }
 
@@ -323,13 +300,11 @@ class Localization {
     Map<String, String>? fallback,
     Map<String, String>? pending,
     Map<String, String>? overrides,
-    bool rtl = false,
   }) => Localization._(
     _withLocalePending(strings, localePending, fallback),
     fallback: fallback,
     pending: pending,
     overrides: overrides,
-    rtl: rtl,
   );
 }
 
@@ -392,7 +367,6 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
     final localePending = localePendingLoad == null
         ? null
         : await localePendingLoad;
-    final rtl = Bidi.isRtlLanguage(locale.languageCode);
     if (strings == null && localePending == null) {
       return Localization._(fallback, pending: pending);
     }
@@ -404,7 +378,6 @@ class _LocalizationDelegate extends LocalizationsDelegate<Localization> {
       ),
       fallback: fallback,
       pending: pending,
-      rtl: rtl,
     );
   }
 

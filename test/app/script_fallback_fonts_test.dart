@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/script_fonts.dart';
+import 'package:admin/l10n/supported_locales.dart';
 
 /// The scripts Inter Tight lacks render from the bundled Noto fallbacks
 /// (`kScriptFallbackFonts`), not from whatever the platform or — on web —
@@ -72,13 +74,32 @@ void main() {
     }
   });
 
-  test('every fallback family is declared in pubspec and bundled', () {
+  test('every fallback family is a bundled asset ScriptFonts can load', () {
+    expect(
+      kScriptFallbackFontAssets.keys.toSet(),
+      kScriptFallbackFonts.toSet(),
+    );
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    for (final family in kScriptFallbackFonts) {
-      final asset = 'assets/fonts/${family.replaceAll(' ', '')}.ttf';
-      expect(pubspec, contains('- family: $family'), reason: family);
-      expect(pubspec, contains('- asset: $asset'), reason: family);
+    for (final asset in kScriptFallbackFontAssets.values) {
+      expect(pubspec, contains('- $asset'), reason: asset);
       expect(File(asset).existsSync(), isTrue, reason: asset);
     }
+    // Under `fonts:` the web engine would fetch all of them before the first
+    // frame, for every user.
+    for (final family in kScriptFallbackFonts) {
+      expect(pubspec, isNot(contains('- family: $family')), reason: family);
+    }
+  });
+
+  test('on web each shipped language loads the script font it needs', () {
+    for (final locale in kSupportedLocales) {
+      final needs = scriptFontsForLanguage(locale.languageCode);
+      for (final family in needs) {
+        expect(kScriptFallbackFontAssets, contains(family));
+      }
+    }
+    expect(scriptFontsForLanguage('fa'), ['Noto Sans Arabic']);
+    expect(scriptFontsForLanguage('he'), ['Noto Sans Hebrew']);
+    expect(scriptFontsForLanguage('en'), isEmpty);
   });
 }

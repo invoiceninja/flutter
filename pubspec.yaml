@@ -137,6 +137,16 @@ flutter:
     - assets/i18n/
     - assets/images/
     - assets/images/gateway_logos/
+    # Script fallbacks (Noto, OFL, variable) for the scripts Inter Tight and
+    # JetBrains Mono lack. Plain assets, loaded after the first frame by
+    # `ScriptFonts` (lib/app/script_fonts.dart) — declared under `fonts:`, the
+    # web engine would download all ~1.7 MB before the first frame for every
+    # user. CJK is left to the system / engine fallback (several MB each).
+    - assets/fonts/NotoSansArabic.ttf
+    - assets/fonts/NotoSansHebrew.ttf
+    - assets/fonts/NotoSansThai.ttf
+    - assets/fonts/NotoSansLao.ttf
+    - assets/fonts/NotoSansKhmer.ttf
   # Bundled app fonts (variable TTFs) so the web app loads them from our own
   # origin instead of fetching from fonts.gstatic.com at runtime. Each is a
   # single variable file; a TextStyle's `fontWeight` drives its `wght` axis.
@@ -149,26 +159,6 @@ flutter:
     - family: JetBrains Mono
       fonts:
         - asset: assets/fonts/JetBrainsMono.ttf
-    # Script fallbacks (Noto, OFL, variable) for the scripts Inter Tight and
-    # JetBrains Mono lack: without them the web engine fetches these from
-    # fonts.gstatic.com at runtime (tofu offline or behind a CSP) and
-    # `flutter test` draws boxes. `kScriptFallbackFonts` lists them; CJK is
-    # left to the system / engine fallback (several MB each).
-    - family: Noto Sans Arabic
-      fonts:
-        - asset: assets/fonts/NotoSansArabic.ttf
-    - family: Noto Sans Hebrew
-      fonts:
-        - asset: assets/fonts/NotoSansHebrew.ttf
-    - family: Noto Sans Thai
-      fonts:
-        - asset: assets/fonts/NotoSansThai.ttf
-    - family: Noto Sans Lao
-      fonts:
-        - asset: assets/fonts/NotoSansLao.ttf
-    - family: Noto Sans Khmer
-      fonts:
-        - asset: assets/fonts/NotoSansKhmer.ttf
     # Satisfies the Flutter web engine's hardcoded default-font check
     # (canvaskit + skwasm both look for a family literally named "Roboto") so it
     # never downloads Roboto from fonts.gstatic.com at boot. Aliased to the

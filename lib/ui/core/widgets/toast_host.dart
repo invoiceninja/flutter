@@ -46,6 +46,13 @@ class _ToastHostState extends State<ToastHost> {
     super.initState();
     _rendered.addAll(widget.controller.toasts);
     widget.controller.addListener(_sync);
+    // The macOS caption clearance below follows the traffic lights, which
+    // come and go with fullscreen.
+    NativeWindow.instance.chrome.addListener(_onChrome);
+  }
+
+  void _onChrome() {
+    if (mounted && _rendered.isNotEmpty) setState(() {});
   }
 
   @override
@@ -61,6 +68,7 @@ class _ToastHostState extends State<ToastHost> {
   @override
   void dispose() {
     widget.controller.removeListener(_sync);
+    NativeWindow.instance.chrome.removeListener(_onChrome);
     // The host is the sole renderer and is mounted once at the app root, so it
     // only unmounts at teardown — cancel pending auto-dismiss timers so they
     // don't outlive the tree (and so widget tests don't trip the pending-timer
@@ -142,13 +150,14 @@ class _ToastHostState extends State<ToastHost> {
     // toast would sit on top of the drawn minimize/maximize/close cluster and,
     // being opaque, swallow their clicks. Clear the band. macOS's traffic
     // lights stay at the physical top-left, which is the toast corner in a
-    // right-to-left locale, so clear their caption there too. Zero everywhere
-    // else.
+    // right-to-left locale, so clear their caption there too — while they are
+    // shown (fullscreen moves them into the menu bar). Zero everywhere else.
     final rtl = Directionality.of(context) == TextDirection.rtl;
+    final chrome = NativeWindow.instance.chrome.value;
     final captionBand = paintsAppTitleBar()
         ? kAppTitleBarHeight
-        : rtl && hostsMacCaptionRow()
-        ? NativeWindow.instance.chrome.value.captionHeight
+        : rtl && hostsMacCaptionRow() && chrome.hasWindowButtons
+        ? chrome.captionHeight
         : 0.0;
 
     if (isWide) {

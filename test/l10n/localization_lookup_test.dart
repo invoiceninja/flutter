@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/utils/bidi.dart';
 
 void main() {
   group('Localization.lookup', () {
@@ -56,41 +55,6 @@ void main() {
       test('survives a Custom Labels overlay', () {
         final withLabels = loc.withOverrides(const {'quote': 'Angebot'});
         expect(withLabels.lookup('sync_now'), 'Jetzt synchronisieren');
-      });
-    });
-
-    group('in a right-to-left locale', () {
-      final loc = Localization.forTesting(
-        strings: const {'paid': 'دفع :amount', 'save': 'حفظ'},
-        fallback: const {'saved': 'Saved.', 'paid': 'Paid :amount'},
-        pending: const {'sync_now': 'Sync now'},
-        rtl: true,
-      );
-
-      test('isolates each param so an amount keeps its sign in place', () {
-        expect(
-          loc.lookup('paid', {'amount': r'-$5.00'}),
-          'دفع ${firstStrongIsolate(r'-$5.00')}',
-        );
-      });
-
-      test('isolates an English fallback as a whole', () {
-        expect(loc.lookup('saved'), ltrIsolate('Saved.'));
-        expect(loc.lookup('sync_now'), ltrIsolate('Sync now'));
-      });
-
-      test('leaves a translated string, a missing key and English alone', () {
-        expect(loc.lookup('save'), 'حفظ');
-        expect(loc.lookup('no_such_key'), 'no_such_key');
-        expect(loc.englishOf('saved'), 'Saved.');
-        expect(loc.lookupBundled('saved'), 'Saved.');
-      });
-
-      test('a left-to-right locale is never isolated', () {
-        final ltr = Localization.forTesting(
-          strings: const {'paid': 'Paid :amount'},
-        );
-        expect(ltr.lookup('paid', {'amount': r'-$5.00'}), r'Paid -$5.00');
       });
     });
 

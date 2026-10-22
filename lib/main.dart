@@ -36,6 +36,7 @@ import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/user_activity_notification.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/app/script_fonts.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -712,6 +713,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
       _localDataNotice.forgetKeptChanges();
       await prior?.call();
     };
+    ScriptFonts.attach(widget.services.appLocale);
     WidgetsBinding.instance.addObserver(_passwordCacheObserver);
     WidgetsBinding.instance.addObserver(_syncObserver);
     WidgetsBinding.instance.addObserver(_idleTimeout);

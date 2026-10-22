@@ -115,10 +115,12 @@ Future<int> main(List<String> args) async {
     // newer than `en.json`; dropped, the lookup falls through to the same
     // English anyway. So every value identical to this zip's English goes.
     //
-    // So does a translation carrying a `:placeholder` its English lacks —
-    // translators rename them (`:arvo` for `:value`, `:day s` for `:days`),
-    // and the app, filling the English name, would render the raw token.
-    // Dropped, the key reads English with its value in it.
+    // So does a translation whose `:placeholder`s differ from its English.
+    // Translators rename them (`:arvo` for `:value`, `:day s` for `:days`) —
+    // the app fills the English name, so the raw token renders — and drop
+    // them (`ar` count_minutes is "0 minutes" for any duration; `hu` reads
+    // "activity 100" with no user or document). Dropped, the key reads
+    // English with its values in it.
     final enName = _kTransifexFileNames['en']!;
     final enFile = File('${tempDir.path}/$enName');
     Map<String, String>? english;
@@ -151,7 +153,7 @@ Future<int> main(List<String> args) async {
         map.removeWhere(
           (k, v) =>
               v == english![k] ||
-              !_placeholders(english[k] ?? '').containsAll(_placeholders(v)),
+              !_sameSet(_placeholders(english[k] ?? ''), _placeholders(v)),
         );
       }
       final sorted = SplayTreeMap<String, String>.from(map);
@@ -171,6 +173,9 @@ Future<int> main(List<String> args) async {
     await tempDir.delete(recursive: true);
   }
 }
+
+bool _sameSet(Set<String> a, Set<String> b) =>
+    a.length == b.length && a.containsAll(b);
 
 /// The `:name` placeholders in [s] — the same shape as the app's
 /// `kLocalePlaceholderPattern` (not glued to a word, a `/` or another `:`, so

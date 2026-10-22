@@ -268,6 +268,7 @@ void main() {
         'sign_out_notice_json',
         'mobile_app_promo_json',
         'whats_new_json',
+        'spell_check',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

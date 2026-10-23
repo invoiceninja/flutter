@@ -275,3 +275,7 @@ Pinned by `test/utils/html_source_test.dart` (the detectors, the wire rule and i
 placeholders) and `test/ui/core/widgets/markdown_text_field_html_mode_test.dart` (verbatim seed with
 no emission, the three blanking shapes, the key-bump and late-default cases, the toggle, `expand`,
 read-only scrolling, an embedded image intact on the wire, the pending edit surviving teardown).
+
+## A notes field shows its cascade default only over a value that is truly `''`
+
+A new document's terms, footer and public notes show the settings-cascade default muted, as the value the server fills on create (`InvoiceService::fillDefaults`). The server fills only an `empty()` value, and its `Request` runs every notes field through `Purify::clean` first, which keeps `<p><br></p>`. React saves an emptied field as exactly that, and a clone copies it. So `MarkdownNotesField` hands the editor its `defaultValue` only when the value is `''`, never for markup with no text in it. The editor folds that markup to an empty document and would otherwise show the default over a PDF that prints none. "Save as default" stays disabled over blank markup all the same: saving it would clear the company setting. Test: `markdown_notes_default_test.dart`.

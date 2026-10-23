@@ -8,7 +8,9 @@ import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/client_settings_cascade.dart';
 import 'package:admin/data/repositories/credit_repository.dart';
+import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/domain/billing/billing_doc_totals.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
@@ -31,6 +33,7 @@ import 'package:admin/utils/notes_html.dart';
 RecordReportSource<Credit> creditItemsReportSource({
   required CreditRepository credits,
   required ClientRepository clients,
+  required GroupSettingRepository groups,
   required IdRemapDao idRemap,
   required Map<String, Currency> Function() currencies,
   required Future<String> Function() companyCurrencyId,
@@ -71,12 +74,24 @@ RecordReportSource<Credit> creditItemsReportSource({
       companyId: companyId,
       ids: ids.map((id) => remap[id] ?? id),
     );
+    // A credit is in its client's currency: the client's own, else its
+    // group's, else the company's (`''` here).
+    final byGroup =
+        rows.any((c) => c.currencyId.isEmpty && c.groupSettingsId.isNotEmpty)
+        ? await groupCurrencyIds(groups, companyId)
+        : const <String, String>{};
     return ReportLookups(
       names: {
         'client': {for (final c in rows) c.id: c.displayName},
       },
       extra: {
         'client': {for (final c in rows) c.id: c},
+        kClientCurrencyLookup: {
+          for (final c in rows)
+            c.id: c.currencyId.isNotEmpty
+                ? c.currencyId
+                : (byGroup[c.groupSettingsId] ?? ''),
+        },
       },
       remap: remap,
       currencies: currencies(),
@@ -91,6 +106,9 @@ RecordReportSource<Credit> creditItemsReportSource({
         if (_creditMatches(c, query, lookups)) c.clientId,
     ]),
   },
+  // Uncapped: an unresolved client would put its credits in the company's
+  // currency.
+  uncappedNameKinds: const {'client'},
   hydrateNames: (companyId, ids) async {
     // One request per record (the list route takes no id filter), a few at
     // a time; `ensureLoaded` never throws and remembers a record the server
@@ -103,6 +121,10 @@ RecordReportSource<Credit> creditItemsReportSource({
     }
   },
 );
+
+/// [ReportLookups.extra] kind holding each client's effective currency id —
+/// its own, else its group's, else `''` for the company's.
+const String kClientCurrencyLookup = 'client_currency';
 
 /// The list filters a refresh sends: the credits dated in the range, of
 /// clients that are not deleted — what `CreditExport` reads.
@@ -351,9 +373,8 @@ ReportPreview buildCreditItemsPreview({
   for (final credit in kept) {
     final clientId = lookups.idOf(credit.clientId);
     final client = lookups.extra['client']?[clientId];
-    final currency = lookups.currencyOr(
-      client is Client ? client.currencyId : '',
-    );
+    final currencyId = lookups.extra[kClientCurrencyLookup]?[clientId];
+    final currency = lookups.currencyOr(currencyId is String ? currencyId : '');
     final precision = currency?.precision ?? 2;
     final input = credit.totalsInput;
     final subtotal = computeSubtotal(input, precision);

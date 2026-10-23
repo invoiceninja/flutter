@@ -357,6 +357,43 @@ void main() {
       );
     });
 
+    group('measured on the stored value', () {
+      String expandMeasured(String text, String measured) =>
+          expandDatePlaceholders(
+            text,
+            formatter: formatter(),
+            now: at,
+            measured: measured,
+          );
+
+      test('links in the stored HTML count as `:` tokens, so a keyword '
+          'the plain text would expand stays raw', () {
+        // What `plainTextFromHtml` makes of 32 links and a keyword: no `:`
+        // but the keyword's. The server counts the HTML's 32 `https://`.
+        final links = List.filled(
+          32,
+          '<a href="https://example.com">site</a>',
+        ).join(' ');
+        final stored = '<p>$links Due :MONTH</p>';
+        final plain = '${List.filled(32, 'site').join(' ')} Due :MONTH';
+        expect(expandMeasured(plain, stored), plain);
+        expect(expand(plain), endsWith('Due August'));
+      });
+
+      test('nl2br is counted toward the length cap', () {
+        // 2,400 lines of 6 bytes are 14,400 bytes as stored and 28,800 once
+        // the server adds a `<br />` per line.
+        final stored = '${List.filled(2400, 'line.').join('\n')}\n:MONTH';
+        expect(stored.length, lessThan(16384));
+        expect(expandMeasured(stored, serverNl2br(stored)), stored);
+      });
+
+      test('a stored value under the caps expands as before', () {
+        const stored = '<p>Due <a href="https://x.test">by</a> :MONTH</p>';
+        expect(expandMeasured('Due by :MONTH', stored), 'Due by August');
+      });
+    });
+
     test('a bracket range does not use up the `:` token budget', () {
       final times = List.filled(31, '10:30').join(' ');
       expect(

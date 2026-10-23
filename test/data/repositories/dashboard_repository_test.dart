@@ -127,6 +127,10 @@ class _FakeDashboardApi extends DashboardApi {
   /// When set, a fetch carrying `before` fails with this instead.
   Object? activitiesBeforeError;
 
+  /// `before` values the server no longer has: a fetch naming one fails with
+  /// `before: record_not_found`, as `ActivityController` answers.
+  final Set<String> activitiesBeforeGone = {};
+
   @override
   Future<Object?> fetchActivities({
     int rows = kActivityFeedRows,
@@ -137,6 +141,13 @@ class _FakeDashboardApi extends DashboardApi {
     final beforeError = activitiesBeforeError;
     if (before != null && beforeError != null) {
       return Future<Object?>.error(beforeError);
+    }
+    if (before != null && activitiesBeforeGone.contains(before)) {
+      return Future<Object?>.error(
+        const ValidationException('invalid', {
+          'before': ['record_not_found'],
+        }),
+      );
     }
     final paged = activitiesBefore;
     return _maybe(
@@ -860,48 +871,53 @@ void main() {
         },
       );
 
-      test(
-        'a cursor row deleted server-side re-fetches the window once',
-        () async {
-          api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
-          await repo.refreshActivities('co_a');
+      test('a cursor row deleted server-side is dropped and the cursor asked '
+          'again from the next row', () async {
+        api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];
+        await repo.refreshActivities('co_a');
 
-          // Row 6 — the cursor — went with a purged client: the server 422s
-          // `before: record_not_found` for it, forever.
-          api.activitiesBeforeError = const ValidationException('invalid', {
-            'before': ['record_not_found'],
-          });
-          api.activities = [
-            for (var i = 10; i >= 7; i--) hashed(i),
-            for (var i = 5; i >= 1; i--) hashed(i),
-          ];
-          final page = await repo.loadOlderActivities('co_a');
+        // Rows 6 and 7 went with a purged client: the server 422s
+        // `before: record_not_found` for each of them, forever.
+        api.activitiesBeforeGone.addAll({'h6', 'h7'});
+        api.activitiesBefore = [for (var i = 5; i >= 3; i--) hashed(i)];
+        final page = await repo.loadOlderActivities('co_a');
 
-          expect(page, (asked: 5 + kActivityFeedRows, received: 9));
-          expect(await cachedIds(), [
-            '10',
-            '9',
-            '8',
-            '7',
-            '5',
-            '4',
-            '3',
-            '2',
-            '1',
-          ]);
-          expect(
-            repo.activityCursorSupported('co_a'),
-            isNot(isFalse),
-            reason: 'the server does page with `before`',
-          );
+        expect(page, (asked: kActivityFeedRows, received: 3));
+        expect(api.activityBefore, containsAllInOrder(['h6', 'h7', 'h8']));
+        expect(await cachedIds(), ['10', '9', '8', '5', '4', '3']);
+        expect(repo.activityCursorSupported('co_a'), isTrue);
+      });
 
-          // The next Load more asks from a row that exists.
-          api.activitiesBeforeError = null;
-          api.activitiesBefore = <Object?>[];
-          await repo.loadOlderActivities('co_a');
-          expect(api.activityBefore.last, 'h1');
-        },
-      );
+      test('a window deeper than the newest-window fetch still pages past a '
+          'purged run, a few rows per Load more', () async {
+        // Deeper than kActivityWindowMax: re-asking for the newest window
+        // could never reach back to the vanished rows, so the old fallback
+        // carried them over and every Load more 422'd on the same one.
+        const n = 1500;
+        api.activities = [for (var i = n; i >= 1; i--) hashed(i)];
+        await repo.refreshActivities('co_a', rows: n);
+        final hops = DashboardRepository.kActivityCursorGoneHops;
+        api.activitiesBeforeGone.addAll({
+          for (var i = 1; i <= hops + 2; i++) 'h$i',
+        });
+
+        // The first call drops [hops] rows and reports the failure…
+        await expectLater(
+          repo.loadOlderActivities('co_a'),
+          throwsA(isA<ValidationException>()),
+        );
+        expect((await cachedIds()).length, n - hops);
+        expect(api.activityRows.where((r) => r > kActivityFeedRows), [n]);
+
+        // …and the next carries on from the smaller window and gets past.
+        api.activitiesBefore = <Object?>[hashed(0)];
+        final page = await repo.loadOlderActivities('co_a');
+        expect(page, (asked: kActivityFeedRows, received: 1));
+        expect(api.activityBefore.last, 'h${hops + 3}');
+        final ids = await cachedIds();
+        expect(ids.length, n - hops - 2 + 1);
+        expect(ids.last, '0');
+      });
 
       test('any other 422 still fails the Load more', () async {
         api.activities = [for (var i = 10; i >= 6; i--) hashed(i)];

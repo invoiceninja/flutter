@@ -39,10 +39,16 @@ import 'package:admin/utils/formatting.dart';
 /// over 16,384 *bytes* is left whole, and each pass looks at only the first 32
 /// candidates — `[…]` groups for the ranges, `:token`s for the rest, counted
 /// whether or not they are keywords, so a terms block full of times (`10:30`)
-/// or links (`https://`) leaves its later keywords raw on the PDF. Most
-/// callers pass the plain text of an HTML field, which is shorter and has
-/// fewer `:` than the stored value the server counts; so a cap here can only
-/// leave raw what the server leaves raw too, never the other way around.
+/// or links (`https://`) leaves its later keywords raw on the PDF.
+///
+/// The server counts the *stored* value — HTML, and for terms, footer and
+/// public notes `nl2br`'d ([serverNl2br]) — and every link and inline style
+/// in it is a `:token`. A caller that passes the plain text of an HTML field
+/// therefore passes the value the server measures as [measured]. When that is
+/// over either cap, nothing is expanded: which of its keywords fall inside
+/// the server's first 32 cannot be read off the plain text, and a keyword
+/// shown raw reads as a token, where one expanded that the PDF leaves raw
+/// reads as fact.
 ///
 /// [separator] matches the server's untranslated `-`, which it now uses for the
 /// bracket ranges and the literal windows alike. Deliberately *not* `tr('to')`:
@@ -54,12 +60,16 @@ String expandDatePlaceholders(
   Formatter? formatter,
   DateTime? now,
   String separator = '-',
+  String? measured,
 }) {
   if (text.isEmpty) return text;
   // Cheap bail-out before any regex work — the overwhelming majority of
   // descriptions carry no keyword at all. Mirrors the server's own early exit.
   if (!text.contains(':') && !text.contains('[')) return text;
   if (_exceedsLengthCap(text)) return text;
+  if (measured != null && measured != text && _exceedsAnyCap(measured)) {
+    return text;
+  }
 
   final at = now ?? DateTime.now();
   // `CompanyFormatSettings.locale` is a non-nullable String that is `''` both in
@@ -167,6 +177,21 @@ bool _exceedsLengthCap(String text) {
   if (text.length * 3 <= _maxKeywordTextBytes) return false;
   return utf8.encode(text).length > _maxKeywordTextBytes;
 }
+
+/// Whether the server would stop short anywhere in [value]: over the length
+/// cap, or more than [_maxKeywordMatches] candidates for either pass. Counted
+/// before the range pass, which can only remove `:token`s, so it errs toward
+/// leaving a keyword raw.
+bool _exceedsAnyCap(String value) =>
+    _exceedsLengthCap(value) ||
+    _bracketPattern.allMatches(value).length > _maxKeywordMatches ||
+    _colonTokenPattern.allMatches(value).length > _maxKeywordMatches;
+
+/// PHP's `nl2br`: `<br />` before every line break (`\r\n`, `\n\r`, `\n`,
+/// `\r`), which the server applies to terms, footer and public notes before
+/// it expands their keywords (`HtmlEngine`) — so a cap counts them too.
+String serverNl2br(String value) =>
+    value.replaceAllMapped(RegExp(r'\r\n|\n\r|\n|\r'), (m) => '<br />${m[0]}');
 
 /// [text] cut where upstream stops looking: before the start of the match of
 /// [pattern] that follows the first [_maxKeywordMatches]. The tail is `''`

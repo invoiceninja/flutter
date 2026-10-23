@@ -73,4 +73,9 @@ The real fix is a keyset cursor on the `reactv2` branch (BACKEND.md § F3f), whi
 
 **Support is read from the reply, not a version.** A server without the cursor ignores `before` and answers with the newest rows. `pageHonouredCursor` checks that no returned row is newer than the cursor row's second. If one is, the company is remembered as cursor-less for the session and Load more falls back to the growing window. Unknown counts as paged, so the first Load more past 1000 rows still asks. A reply that isn't a list falls back once without being remembered.
 
+**A cursor row the server no longer has is dropped, not re-fetched around.**
+- The server answers a `before` naming a deleted activity with a 422, `before: record_not_found`. Purging a client force-deletes all of its activities, so a run of tail rows often goes at once.
+- `loadOlderActivities` drops the vanished row from the cache, keeping its `fetchedAt`, and asks again from the next oldest row, up to `DashboardRepository.kActivityCursorGoneHops` (5) times per call. Past that it rethrows, so the footer shows the failure, and the next tap continues from the smaller window.
+- It used to re-fetch the newest window instead and let the merge drop the vanished row. A window deeper than that fetch (≥ ~1000 rows) carried every older row over, the vanished one included, so every Load more 422'd on the same row and the button never went away.
+
 **Tests:** `activity_window_test` › paging back with the cursor, `dashboard_repository_test` › loadOlderActivities, `activity_view_model_test` › load more.

@@ -31,6 +31,7 @@ class RecordReportSource<T> implements LocalReportSource {
     required this.build,
     this.namesToFetch,
     this.hydrateNames,
+    this.uncappedNameKinds = const {},
   });
 
   /// For the log.
@@ -74,6 +75,12 @@ class RecordReportSource<T> implements LocalReportSource {
     ReportLookups lookups,
   )?
   namesToFetch;
+
+  /// Kinds [namesToFetch] answers that are fetched in full rather than up to
+  /// [kRecordReportMaxNameFetches]: the rows' amounts depend on them, not just
+  /// a name — a credit's currency is its client's. One request each, and each
+  /// record is fetched once: it stays on the device.
+  final Set<String> uncappedNameKinds;
 
   /// Fetch the records [namesToFetch] answered. Never throws for a record
   /// that cannot be had: the row reads `—`.
@@ -130,7 +137,9 @@ class RecordReportSource<T> implements LocalReportSource {
           lookups,
         ).entries)
           if (value.isNotEmpty)
-            key: value.take(kRecordReportMaxNameFetches).toSet(),
+            key: uncappedNameKinds.contains(key)
+                ? value
+                : value.take(kRecordReportMaxNameFetches).toSet(),
       };
       if (missing.isNotEmpty) {
         try {

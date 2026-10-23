@@ -6,7 +6,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/task_status.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/tasks/view_models/kanban_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/kanban/kanban_column.dart';
@@ -48,16 +50,15 @@ class KanbanBoard extends StatelessWidget {
     }
     if (vm.statuses.isEmpty) {
       // Surface the "Create a status" CTA inline so users discover the
-      // settings screen from the kanban itself. Hidden for non-admins
-      // (statuses are an admin-ish surface; non-edit users don't have
-      // access to Settings → Task Statuses anyway).
-      final me = context.read<Services>().auth.session.value?.currentCompany;
-      final canEdit = me?.can('edit_task') ?? false;
+      // settings screen from the kanban itself. Admins only: the server's
+      // `StoreTaskStatusRequest` asks `isAdmin()`, and the router bounces
+      // anyone else's `/new` back to the list.
+      final mayCreate = sessionMayCreate(context, EntityType.taskStatus);
       return EmptyState(
         icon: Icons.label_outline,
         title: context.tr('no_task_statuses'),
         subtitle: context.tr('no_task_statuses_hint'),
-        action: !canEdit
+        action: !mayCreate
             ? null
             : FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),

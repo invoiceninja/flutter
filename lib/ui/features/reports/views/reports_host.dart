@@ -102,6 +102,7 @@ class _ReportsHostState extends State<ReportsHost> {
       'credit_item' => creditItemsReportSource(
         credits: s.credits,
         clients: s.clients,
+        groups: s.groupSettings,
         idRemap: s.db.idRemapDao,
         currencies: () => s.statics.currencies,
         companyCurrencyId: companyCurrency,

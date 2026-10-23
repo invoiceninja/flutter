@@ -85,7 +85,11 @@ class BillingDocPrintedNotesCard extends StatelessWidget {
             // expansion — so show what they will say
             // (invoiceninja/flutter#93). On a recurring invoice that previews
             // the next run.
-            body: expandDatePlaceholders(text, formatter: formatter),
+            body: expandDatePlaceholders(
+              text,
+              formatter: formatter,
+              measured: serverNl2br(stored),
+            ),
           ),
     ];
     if (blocks.isEmpty) return const SizedBox.shrink();

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_empty_state.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/features/gateways/view_models/company_gateway_list_view_model.dart';
 
 class CompanyGatewayListEmptyState extends StatelessWidget {
@@ -17,13 +19,16 @@ class CompanyGatewayListEmptyState extends StatelessWidget {
     emptyTitle: context.tr('no_company_gateways_yet'),
     emptySubtitle: context.tr('create_your_first_company_gateway_placeholder'),
     // Gateways are created from Settings, not from a list "New" button, so
-    // the first-run state carries its own way in.
-    emptyAction: FilledButton.icon(
-      style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-      onPressed: () => context.go('/settings/company_gateways/new'),
-      icon: const Icon(Icons.add),
-      label: Text(context.tr('add_gateway')),
-    ),
+    // the first-run state carries its own way in — for an admin only, as the
+    // server's `StoreCompanyGatewayRequest` (the router bounces anyone else).
+    emptyAction: !sessionMayCreate(context, EntityType.companyGateway)
+        ? null
+        : FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            onPressed: () => context.go('/settings/company_gateways/new'),
+            icon: const Icon(Icons.add),
+            label: Text(context.tr('add_gateway')),
+          ),
     archivedTitle: context.tr('no_archived_company_gateways'),
     deletedTitle: context.tr('no_deleted_company_gateways'),
     noMatchTitle: context.tr('no_company_gateways_match_filters'),

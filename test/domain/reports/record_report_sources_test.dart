@@ -13,6 +13,7 @@ import 'package:admin/data/models/api/recurring_expense_api_model.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/credit.dart';
+import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/data/models/value/currency.dart';
@@ -20,6 +21,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/credit_repository.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
+import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -152,12 +154,14 @@ Client _client(
   String id, {
   String name = 'Acme',
   String currencyId = '1',
+  String groupId = '',
   bool isDeleted = false,
   int archivedAt = 0,
 }) => Client.fromApi(
   ClientApi.fromJson({
     'id': id,
     'name': name,
+    'group_settings_id': groupId,
     'display_name': name,
     'number': 'N-$id',
     'currency_id': currencyId,
@@ -175,6 +179,7 @@ ReportLookups _creditLookups(List<Client> clients) => ReportLookups(
   },
   extra: {
     'client': {for (final c in clients) c.id: c},
+    kClientCurrencyLookup: {for (final c in clients) c.id: c.currencyId},
   },
   currencies: {'1': _usd, '3': _eur},
   companyCurrencyId: '1',
@@ -667,6 +672,7 @@ void main() {
       Map<String, Set<String>> Function()? missing,
       Future<void> Function(Map<String, Set<String>>)? hydrate,
       List<String> records = const ['r1'],
+      Set<String> uncapped = const {},
     }) => RecordReportSource<String>(
       name: 'test',
       fetchPage: (companyId, page, s, f) async {
@@ -687,7 +693,21 @@ void main() {
       ),
       namesToFetch: missing == null ? null : (r, q, l) => missing(),
       hydrateNames: hydrate == null ? null : (c, ids) => hydrate(ids),
+      uncappedNameKinds: uncapped,
     );
+
+    test('a kind the amounts depend on is fetched in full', () async {
+      final ids = {for (var i = 0; i < 250; i++) 'c$i'};
+      final asked = <String, Set<String>>{};
+      await source(
+        pages: [],
+        missing: () => {'client': ids, 'vendor': ids},
+        hydrate: (got) async => asked.addAll(got),
+        uncapped: const {'client'},
+      ).refresh(_october());
+      expect(asked['client'], hasLength(250));
+      expect(asked['vendor'], hasLength(kRecordReportMaxNameFetches));
+    });
 
     test(
       'pages until the server says no more, then reads the device',
@@ -820,6 +840,7 @@ void main() {
       final source = creditItemsReportSource(
         credits: credits,
         clients: clients,
+        groups: _Groups(const []),
         idRemap: db.idRemapDao,
         currencies: () => {'1': _usd},
         companyCurrencyId: () async => '1',
@@ -849,7 +870,64 @@ void main() {
       expect(clients.refetched, ['c1']);
       expect(p.rows, hasLength(1));
     });
+
+    test("a client's credits are in its group's currency when it names "
+        'none of its own', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final source = creditItemsReportSource(
+        credits: _Credits([
+          _credit('a', clientId: 'c1', items: [_item()]),
+          _credit('b', clientId: 'c2', items: [_item()]),
+        ]),
+        clients: _Clients([
+          _client('c1', currencyId: '', groupId: 'g1'),
+          _client('c2', currencyId: '', groupId: 'g2'),
+        ]),
+        groups: _Groups([
+          _group('g1', {'currency_id': '3'}),
+          _group('g2', const {}),
+        ]),
+        idRemap: db.idRemapDao,
+        currencies: () => {'1': _usd, '3': _eur},
+        companyCurrencyId: () async => '1',
+      );
+      final p = await source.refresh(_october());
+      final byNumber = {
+        for (var i = 0; i < p.rows.length; i++)
+          _text(p, i, 'credit.number'): p.rows[i].currencyId,
+      };
+      // The group's EUR, not the company's USD; a group without one inherits.
+      expect(byNumber, {'CR-a': '3', 'CR-b': '1'});
+    });
   });
+}
+
+GroupSetting _group(String id, Map<String, dynamic> settings) => GroupSetting(
+  id: id,
+  name: id,
+  customValue1: '',
+  customValue2: '',
+  customValue3: '',
+  customValue4: '',
+  updatedAt: DateTime.utc(2026),
+  createdAt: DateTime.utc(2026),
+  archivedAt: null,
+  isDeleted: false,
+  settings: settings,
+);
+
+class _Groups implements GroupSettingRepository {
+  _Groups(this.held);
+  final List<GroupSetting> held;
+
+  @override
+  dynamic noSuchMethod(Invocation i) {
+    if (i.memberName == #watchAll) {
+      return Stream<List<GroupSetting>>.value(held);
+    }
+    return super.noSuchMethod(i);
+  }
 }
 
 class _Credits implements CreditRepository {
@@ -873,6 +951,8 @@ class _Credits implements CreditRepository {
 }
 
 class _Clients implements ClientRepository {
+  _Clients([this.held = const []]);
+  final List<Client> held;
   final List<List<String>> lookedUp = [];
   final List<String> refetched = [];
 
@@ -881,7 +961,11 @@ class _Clients implements ClientRepository {
     final ids = i.namedArguments[#ids] as Iterable<String>?;
     if (i.memberName == #getByIds) {
       lookedUp.add([...?ids]);
-      return Future.value(const <Client>[]);
+      final wanted = {...?ids};
+      return Future.value([
+        for (final c in held)
+          if (wanted.contains(c.id)) c,
+      ]);
     }
     if (i.memberName == #ensureLoaded) {
       refetched.add(i.namedArguments[#id] as String);

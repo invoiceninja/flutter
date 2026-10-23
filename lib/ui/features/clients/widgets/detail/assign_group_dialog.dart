@@ -5,6 +5,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -65,6 +67,15 @@ class _AssignGroupDialogState extends State<_AssignGroupDialog> {
 
   bool get _canAssign => _selectedId != widget.client.groupSettingsId;
 
+  bool get _mayCreateGroup {
+    final me = widget.services.auth.session.value?.currentCompany;
+    return mayCreateEntity(
+      EntityType.group,
+      can: (p) => me?.can(p) ?? false,
+      isAdmin: me?.isAdmin == true || me?.isOwner == true,
+    );
+  }
+
   void _onAssign() {
     if (!_canAssign) return;
     Navigator.of(
@@ -117,28 +128,32 @@ class _AssignGroupDialogState extends State<_AssignGroupDialog> {
                       selectedId: _selectedId,
                       onChanged: (id) => setState(() => _selectedId = id),
                     ),
-                  const SizedBox(height: 4),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.add, size: 18),
-                      label: Text(context.tr('new_group')),
-                      onPressed: () {
-                        // Capture the router before pop — the dialog's
-                        // BuildContext is unmounted once Navigator.pop runs,
-                        // so calling context.go(...) after pop throws in
-                        // debug ("deactivated widget's ancestor").
-                        final router = GoRouter.of(context);
-                        Navigator.of(context).pop(
-                          const AssignGroupResult(
-                            changed: false,
-                            groupId: null,
-                          ),
-                        );
-                        router.go('/settings/group_settings/new');
-                      },
+                  // Admins only: group creation is `GroupSettingPolicy::create`
+                  // (`isAdmin()`), and the router bounces anyone else's `/new`.
+                  if (_mayCreateGroup) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text(context.tr('new_group')),
+                        onPressed: () {
+                          // Capture the router before pop — the dialog's
+                          // BuildContext is unmounted once Navigator.pop runs,
+                          // so calling context.go(...) after pop throws in
+                          // debug ("deactivated widget's ancestor").
+                          final router = GoRouter.of(context);
+                          Navigator.of(context).pop(
+                            const AssignGroupResult(
+                              changed: false,
+                              groupId: null,
+                            ),
+                          );
+                          router.go('/settings/group_settings/new');
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             );

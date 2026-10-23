@@ -14,11 +14,13 @@ import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_schedule_seed.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/reports/report_csv.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_group_label.dart';
 import 'package:admin/domain/reports/report_schedule.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/core/widgets/labeled_switch_group.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -127,8 +129,11 @@ class ReportExportActions {
         child: Text(tr('report_email_me')),
       ),
       // Offered only for reports the server's scheduled-report runner
-      // handles; it deletes a schedule naming any other.
-      if (isReportSchedulable(vm.reportIdentifier))
+      // handles; it deletes a schedule naming any other. Admins only:
+      // `StoreSchedulerRequest` asks `isAdmin()`, and the router bounces
+      // anyone else's `/settings/schedules/new` back to the list.
+      if (isReportSchedulable(vm.reportIdentifier) &&
+          sessionMayCreate(context, EntityType.schedule))
         MenuItemButton(
           leadingIcon: const Icon(Icons.schedule_outlined, size: 16),
           onPressed: when(true, () => _schedule(context)),

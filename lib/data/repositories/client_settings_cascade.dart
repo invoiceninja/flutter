@@ -63,15 +63,16 @@ Stream<String> watchEffectiveClientCurrency({
       yield '';
       continue;
     }
-    groupCurrencies ??= await _groupCurrencies(groups, companyId);
+    groupCurrencies ??= await groupCurrencyIds(groups, companyId);
     yield groupCurrencies[groupId] ?? '';
   }
 }
 
-/// `{groupId: currencyId}` for the company's groups. A failed read degrades to
-/// "client's own override, else company" — what the app did before this
-/// cascade existed — rather than killing the stream.
-Future<Map<String, String>> _groupCurrencies(
+/// `{groupId: currencyId}` for the company's groups that set one — the middle
+/// tier of a client's currency (its own, else its group's, else the company's).
+/// A failed read degrades to "client's own override, else company" — what the
+/// app did before this cascade existed — rather than killing the caller.
+Future<Map<String, String>> groupCurrencyIds(
   GroupSettingRepository groups,
   String companyId,
 ) async {

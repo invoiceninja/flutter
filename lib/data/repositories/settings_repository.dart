@@ -175,11 +175,43 @@ class SettingsRepository {
   /// `lock_invoices = when_sent` never locked in the app: no banner, Edit and
   /// Delete still enabled on a sent invoice, and the write then either 4xx'd
   /// from the outbox or diverged from what the portal and PDF show.
+  ///
+  /// A layer's null or `''` is unset, not an override: the server's
+  /// `ClientSettings::buildClientSettings` takes the parent's value for a
+  /// string of length 0 (no trim; `false` and `0` do override). So a client
+  /// holding `invoice_terms: ""` still gets the company's terms on its PDF.
+  ///
+  /// The default tax tiers are the exception: `tax_name<N>` and `tax_rate<N>`
+  /// come as a pair from the first layer that names a tax, as React's create
+  /// screen resolves them (`settingResolver`) — the server never reads them,
+  /// so React is the reference, and a per-key merge would pair the company's
+  /// tax name with a client's leftover `tax_rate1: 0`.
   Map<String, dynamic> _merge({
     required Map<String, dynamic> company,
     required Map<String, dynamic> group,
     required Map<String, dynamic> client,
-  }) => <String, dynamic>{...company, ...group, ...client};
+  }) {
+    final out = <String, dynamic>{...company};
+    for (final layer in [group, client]) {
+      for (final MapEntry(:key, :value) in layer.entries) {
+        final unset = value == null || value == '';
+        if (unset && out.containsKey(key)) continue;
+        out[key] = value;
+      }
+    }
+    for (var n = 1; n <= 3; n++) {
+      final name = 'tax_name$n';
+      for (final layer in [client, group, company]) {
+        final value = layer[name];
+        if (value is String && value.isNotEmpty) {
+          out[name] = value;
+          out['tax_rate$n'] = layer['tax_rate$n'];
+          break;
+        }
+      }
+    }
+    return out;
+  }
 
   /// Store an unmodifiable copy: a caller mutating a [resolved] result must not
   /// be able to corrupt the mirror, or vice versa.

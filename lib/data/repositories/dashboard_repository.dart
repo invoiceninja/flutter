@@ -470,6 +470,10 @@ class DashboardRepository {
     return run;
   }
 
+  /// How many vanished boundary rows one Load more drops before it gives up
+  /// and reports a failure; the next one carries on from there.
+  static const int kActivityCursorGoneHops = 5;
+
   /// Per company: whether the server honours the feed's `before` cursor —
   /// learned from the first reply, null until then. Session-scoped on
   /// purpose: a server upgrade is picked up by the next sign-in.
@@ -488,6 +492,8 @@ class DashboardRepository {
   /// rows — `pageHonouredCursor` sees that, the company is remembered as
   /// cursor-less, and this falls back to re-asking for the newest
   /// `N + 250` rows (at most [kActivityWindowMax]), as every server allows.
+  /// A boundary row the server no longer has is dropped and the cursor asked
+  /// again from the next one, up to [kActivityCursorGoneHops] times a call.
   ///
   /// Returns how many rows were asked for and how many came back: fewer than
   /// asked means there is no older activity.
@@ -499,12 +505,15 @@ class DashboardRepository {
   ) async {
     const kind = DashboardKind.activities;
     final cached = await _readActivityWindow(companyId);
-    final boundary = oldestActivityRow(cached ?? const []);
-    final before = boundary is Map ? boundary['hashed_id'] : null;
+    // `window` is the row as stored: every writer of it runs on this chain.
+    var window = cached ?? const <Object?>[];
 
-    if (_activityCursor[companyId] != false && before is String) {
+    for (var hop = 1; _activityCursor[companyId] != false; hop++) {
+      final boundary = oldestActivityRow(window);
+      final before = boundary is Map ? boundary['hashed_id'] : null;
+      if (before is! String) break;
       _ensureStillActive(companyId, kind);
-      Object? raw;
+      final Object? raw;
       try {
         raw = await api.fetchActivities(
           rows: kActivityFeedRows,
@@ -512,40 +521,71 @@ class DashboardRepository {
         );
       } on ValidationException catch (e) {
         // `before: record_not_found` — the boundary row is gone server-side
-        // (purging a client force-deletes its activities), so this cursor can
-        // never be answered and every Load more would fail on it for good.
-        // The server does page with `before`, so the company stays
-        // cursor-capable; this one time, re-ask for the newest window below,
-        // whose merge drops the vanished row from the cache.
+        // (purging a client force-deletes all its activities, so the rows
+        // under it are often gone too). The server does page with `before`,
+        // so the company stays cursor-capable: drop the vanished row and ask
+        // again from the one before it. Re-fetching the newest window instead
+        // cannot help once the window is deeper than that fetch reaches —
+        // the merge carries every older row over, the vanished one included,
+        // and every Load more failed on it for good.
         if (!e.fieldErrors.containsKey('before')) rethrow;
-        _log.info('Activity cursor row gone; re-fetching the window');
+        _ensureStillActive(companyId, kind);
+        window = [
+          for (final row in window)
+            if (!identical(row, boundary)) row,
+        ];
+        await _writeActivityWindowKeepingAge(companyId, window);
+        _log.info('Activity cursor row gone; dropped it (hop $hop)');
+        // Bounded per call; the next Load more carries on from the smaller
+        // window, so a long run of purged rows still drains.
+        if (hop >= kActivityCursorGoneHops) rethrow;
+        continue;
       }
       _ensureStillActive(companyId, kind);
-      if (raw is List) {
-        if (pageHonouredCursor(raw, boundary)) {
-          _activityCursor[companyId] = true;
-          // `cached` is still the row as stored: every writer of it runs on
-          // this chain.
-          await _dao.upsert(
-            companyId: companyId,
-            kind: kind,
-            filterHash: kDashboardListFilterHash,
-            payload: jsonEncode(
-              appendOlderActivities(cached: cached ?? const [], older: raw),
-            ),
-            fetchedAt: _now(),
-          );
-          return (asked: kActivityFeedRows, received: raw.length);
-        }
-        _activityCursor[companyId] = false;
+      if (raw is! List) break;
+      if (pageHonouredCursor(raw, boundary)) {
+        _activityCursor[companyId] = true;
+        await _dao.upsert(
+          companyId: companyId,
+          kind: kind,
+          filterHash: kDashboardListFilterHash,
+          payload: jsonEncode(
+            appendOlderActivities(cached: window, older: raw),
+          ),
+          fetchedAt: _now(),
+        );
+        return (asked: kActivityFeedRows, received: raw.length);
       }
+      _activityCursor[companyId] = false;
     }
 
     final asked = math.min(
-      (cached?.length ?? 0) + kActivityFeedRows,
+      window.length + kActivityFeedRows,
       kActivityWindowMax,
     );
     return (asked: asked, received: await _refreshActivities(companyId, asked));
+  }
+
+  /// Rewrite the cached activity window without touching its `fetchedAt`:
+  /// pruning a row the server says is gone is not a fetch, and the screen's
+  /// "updated …" label must not claim one.
+  Future<void> _writeActivityWindowKeepingAge(
+    String companyId,
+    List<Object?> rows,
+  ) async {
+    const kind = DashboardKind.activities;
+    final current = await _dao.read(
+      companyId: companyId,
+      kind: kind,
+      filterHash: kDashboardListFilterHash,
+    );
+    await _dao.upsert(
+      companyId: companyId,
+      kind: kind,
+      filterHash: kDashboardListFilterHash,
+      payload: jsonEncode(rows),
+      fetchedAt: current?.fetchedAt ?? _now(),
+    );
   }
 
   /// The cached activity window as raw rows, or null when there is none or it

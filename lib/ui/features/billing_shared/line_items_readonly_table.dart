@@ -445,6 +445,8 @@ class LineItemsReadonlyTable extends StatelessWidget {
   String _notesText(LineItem it) => expandDatePlaceholders(
     lineItemNotesPlainText(it.notes),
     formatter: formatter,
+    // The server counts its caps on the notes as stored.
+    measured: it.notes,
   );
 
   String _discountLabel(LineItem it) =>

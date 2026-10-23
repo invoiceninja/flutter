@@ -163,6 +163,93 @@ void main() {
         });
       },
     );
+
+    Future<void> seedGroupedClient(Map<String, dynamic> settings) =>
+        db.clientDao.upsert(
+          ClientsCompanion.insert(
+            id: 'cl1',
+            companyId: 'co',
+            name: 'Client',
+            number: '',
+            email: '',
+            displayName: 'Client',
+            balance: '0',
+            updatedAt: 1,
+            payload: jsonEncode({'id': 'cl1', 'settings': settings}),
+            groupSettingsId: const Value('grp1'),
+          ),
+        );
+
+    test(
+      'an empty or null override falls through, as the server merges',
+      () async {
+        // `ClientSettings::buildClientSettings` takes the parent's value for a
+        // string of length 0 — so the PDF of a client holding `""` carries the
+        // company's terms, and the app must not show none.
+        await seedCompany(
+          jsonEncode({
+            'invoice_terms': 'Net 30',
+            'payment_terms': '30',
+            'lock_invoices': 'off',
+            'auto_bill': 'always',
+          }),
+        );
+        await seedGroup({'invoice_terms': '', 'payment_terms': '14'});
+        await seedGroupedClient({
+          'payment_terms': '',
+          'lock_invoices': null,
+          'auto_bill': 'off',
+          'client_only': '',
+        });
+
+        expect(await repo.resolved(companyId: 'co', clientId: 'cl1'), {
+          'invoice_terms': 'Net 30',
+          'payment_terms': '14',
+          'lock_invoices': 'off',
+          'auto_bill': 'off',
+          // No parent holds it, so the child's value stands, as on the server.
+          'client_only': '',
+        });
+      },
+    );
+
+    test('false and 0 still override', () async {
+      await seedCompany(jsonEncode({'inclusive_taxes': true, 'tax_rate2': 5}));
+      await seedGroup({});
+      await seedGroupedClient({'inclusive_taxes': false});
+
+      final resolved = await repo.resolved(companyId: 'co', clientId: 'cl1');
+      expect(resolved['inclusive_taxes'], false);
+    });
+
+    test('a default tax is a name-and-rate pair from the first layer that '
+        'names one', () async {
+      await seedCompany(
+        jsonEncode({
+          'tax_name1': 'VAT',
+          'tax_rate1': 20,
+          'tax_name2': 'City',
+          'tax_rate2': 2,
+          'tax_name3': '',
+          'tax_rate3': 0,
+        }),
+      );
+      // The group names tier 3; the client cleared tier 1 but left a rate.
+      await seedGroup({'tax_name3': 'Levy', 'tax_rate3': 1.5});
+      await seedGroupedClient({
+        'tax_name1': '',
+        'tax_rate1': 0,
+        'tax_name2': 'Reduced',
+        'tax_rate2': 7,
+      });
+
+      final resolved = await repo.resolved(companyId: 'co', clientId: 'cl1');
+      // Tier 1: the client's blank name falls through, and so does its rate —
+      // a per-key merge would have paired VAT with the client's 0.
+      expect((resolved['tax_name1'], resolved['tax_rate1']), ('VAT', 20));
+      expect((resolved['tax_name2'], resolved['tax_rate2']), ('Reduced', 7));
+      expect((resolved['tax_name3'], resolved['tax_rate3']), ('Levy', 1.5));
+    });
   });
 
   group('company layer', () {

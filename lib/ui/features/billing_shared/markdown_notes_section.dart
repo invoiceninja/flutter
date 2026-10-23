@@ -133,6 +133,8 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
     // screen may be a client's or a group's, which the button would copy to
     // the company. Disabled rather than removed, so the row does not appear
     // under an `expand` editor — shrinking it — as the first edit lands.
+    // Blank markup counts as empty here even though no default is shown over
+    // it: saving it would clear the company setting all the same.
     final showingDefault =
         _isBlank(widget.value) && !_isBlank(widget.defaultValue ?? '');
     final saveButton = widget.onSaveAsDefault == null
@@ -174,7 +176,14 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
       expand: widget.expand,
       externalValueKey: widget.externalValueKey,
       controller: _controller,
-      defaultValue: widget.defaultValue,
+      // Only a value that is truly `''` stands for the default. Markup with no
+      // text in it (`<p><br></p>`, which React saves for an emptied field and
+      // a clone copies) is kept by the server — `Purify::clean` leaves it and
+      // `fillDefaults` fills only an `empty()` value — so its PDF has no
+      // terms, and the field must not show the default as if it would.
+      defaultValue: widget.value.isNotEmpty && _isBlank(widget.value)
+          ? null
+          : widget.defaultValue,
       defaultCaption: context.tr('default_value_caption'),
     );
 

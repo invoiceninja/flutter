@@ -15,7 +15,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/data/repositories/company_repository.dart'
     show kCompanyWireName;
 import 'package:admin/data/repositories/user_settings_repository.dart'
-    show kUserSettingsWireName;
+    show applyServerReactSettings, kUserSettingsWireName;
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/auth_service.dart';
@@ -2103,24 +2103,36 @@ class AuthRepository {
           companyId: uc.company.id,
           entityType: kUserSettingsWireName,
         );
-        if (pendingSettingsEdit) continue;
-        final settings = uc.settings;
-        final tableColumns = settings['table_columns'];
-        final extra = Map<String, dynamic>.from(settings)
-          ..remove('table_columns');
-        await _db.userSettingsDao.upsert(
-          UserSettingsCompanion(
-            companyId: Value(uc.company.id),
-            userId: Value(uc.user.id),
-            tableColumnsJson: Value(
-              jsonEncode(
-                tableColumns is Map ? tableColumns : <String, dynamic>{},
+        if (!pendingSettingsEdit) {
+          final settings = uc.settings;
+          final tableColumns = settings['table_columns'];
+          final extra = Map<String, dynamic>.from(settings)
+            ..remove('table_columns');
+          await _db.userSettingsDao.upsert(
+            UserSettingsCompanion(
+              companyId: Value(uc.company.id),
+              userId: Value(uc.user.id),
+              tableColumnsJson: Value(
+                jsonEncode(
+                  tableColumns is Map ? tableColumns : <String, dynamic>{},
+                ),
               ),
+              extraJson: Value(jsonEncode(extra)),
+              updatedAt: Value(nowMs),
             ),
-            extraJson: Value(jsonEncode(extra)),
-            updatedAt: Value(nowMs),
-          ),
-        );
+          );
+        }
+        // `react_settings` has its own outbox rows, which carry patches, so a
+        // queued one is laid over the server's blob rather than skipping it.
+        final reactSettings = uc.reactSettings;
+        if (reactSettings != null) {
+          await applyServerReactSettings(
+            _db,
+            companyId: uc.company.id,
+            server: reactSettings,
+            nowMs: nowMs,
+          );
+        }
       }
       // Auth user record. /refresh's `data[N].user` carries the full
       // profile shape — first/last name, signature, language_id,

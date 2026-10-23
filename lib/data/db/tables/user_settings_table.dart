@@ -15,6 +15,12 @@ import 'package:drift/drift.dart';
 /// `/api/v1/company_users/{userId}` we don't accidentally clobber settings
 /// the new app doesn't know about.
 ///
+/// `reactSettingsJson` is `company_user.react_settings` — the blob the React
+/// web client keeps its preferences in, and where this app syncs its
+/// dashboard (`docs/dashboard-panels.md`). Null until a login or `/refresh`
+/// has captured it: the server *replaces* the blob on a write, so a write made
+/// before then would wipe React's preferences.
+///
 /// Single row per company; `companyId` is the primary key.
 @DataClassName('UserSettingsRow')
 class UserSettings extends Table {
@@ -24,6 +30,8 @@ class UserSettings extends Table {
       text().named('table_columns_json').withDefault(const Constant('{}'))();
   TextColumn get extraJson =>
       text().named('extra_json').withDefault(const Constant('{}'))();
+  TextColumn get reactSettingsJson =>
+      text().named('react_settings_json').nullable()();
   IntColumn get updatedAt => integer().named('updated_at')();
 
   @override

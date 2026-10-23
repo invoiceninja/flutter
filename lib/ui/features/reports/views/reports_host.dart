@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/domain/reports/credit_items_source.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
+import 'package:admin/domain/reports/recurring_expenses_source.dart';
 import 'package:admin/domain/reports/task_items_source.dart';
+import 'package:admin/domain/reports/transactions_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
@@ -46,6 +49,10 @@ class _ReportsHostState extends State<ReportsHost> {
   /// needs. One per view model: a company switch builds both again.
   TaskItemsReportSource? _taskItems;
 
+  /// The other reports built on the device, by identifier — made the same
+  /// way, the first time each is asked for.
+  final Map<String, LocalReportSource> _recordSources = {};
+
   @override
   void initState() {
     super.initState();
@@ -76,12 +83,60 @@ class _ReportsHostState extends State<ReportsHost> {
         ),
       );
 
-  LocalReportSource? _localSourceFor(String identifier) =>
-      identifier == 'task_item' ? _taskItemsSource() : null;
+  LocalReportSource? _localSourceFor(String identifier) {
+    if (identifier == 'task_item') return _taskItemsSource();
+    final made = _recordSources[identifier];
+    if (made != null) return made;
+    final source = _recordSource(identifier);
+    if (source != null) _recordSources[identifier] = source;
+    return source;
+  }
+
+  LocalReportSource? _recordSource(String identifier) {
+    final s = _services;
+    final companyId = _companyId;
+    // A record with no currency of its own is in the company's.
+    Future<String> companyCurrency() async =>
+        (await s.formatterFor(companyId)).settings.currencyId;
+    return switch (identifier) {
+      'credit_item' => creditItemsReportSource(
+        credits: s.credits,
+        clients: s.clients,
+        idRemap: s.db.idRemapDao,
+        currencies: () => s.statics.currencies,
+        companyCurrencyId: companyCurrency,
+      ),
+      'recurring_expense' => recurringExpensesReportSource(
+        recurringExpenses: s.recurringExpenses,
+        clients: s.clients,
+        vendors: s.vendors,
+        categories: s.expenseCategories,
+        users: s.user,
+        idRemap: s.db.idRemapDao,
+        currencies: () => s.statics.currencies,
+        paymentTypes: () => s.statics.paymentTypes,
+        companyCurrencyId: companyCurrency,
+      ),
+      'transaction' => transactionsReportSource(
+        transactions: s.bankTransactions,
+        bankAccounts: s.bankAccounts,
+        vendors: s.vendors,
+        categories: s.expenseCategories,
+        invoices: s.invoices,
+        expenses: s.expenses,
+        payments: s.payments,
+        idRemap: s.db.idRemapDao,
+        currencies: () => s.statics.currencies,
+        companyCurrencyId: companyCurrency,
+      ),
+      _ => null,
+    };
+  }
 
   ReportsViewModel _buildVm() {
     final companyId = _companyId;
     _taskItems = null;
+    _recordSources.clear();
     return ReportsViewModel(
       repo: _services.reports,
       statics: _services.statics,

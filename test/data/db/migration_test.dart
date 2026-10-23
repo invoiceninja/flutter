@@ -18,6 +18,7 @@ import '../../generated/schema_v11.dart' as v11;
 import '../../generated/schema_v13.dart' as v13;
 import '../../generated/schema_v14.dart' as v14;
 import '../../generated/schema_v15.dart' as v15;
+import '../../generated/schema_v16.dart' as v16;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -63,6 +64,7 @@ void main() {
     14: 'a97b89f9b596bee6c58211ad778d68913e8fb933579484795fd61c653242821d',
     15: 'a9e25a73d3eeb9b00cc83e412a95a8d20f1069609eccfbdd2e25ea2015e63269',
     16: '9db7061812c29fe2531ca892746b82dd7f1171e87704c1cab2c08fd94054b66d',
+    17: 'fc839ef1872bf0bf3ece4ad76159967f3ae1de090aa90297793b55e9f3443d35',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -481,6 +483,25 @@ void main() {
       expect(await contactSearch(), 'jurgen\noz\nj@x.de');
       expect(await found('jurgen'), ['c1']);
       expect(await db.clientDao.fillContactSearch(companyId: 'co'), 0);
+      await db.close();
+    });
+
+    test('v16 → v17 adds react_settings_json as null — not yet captured, so '
+        'nothing is written over React\'s preferences', () async {
+      final schema = await verifier.schemaAt(16);
+      final old = v16.DatabaseAtV16(schema.newConnection());
+      await old.customStatement(
+        'INSERT INTO user_settings (company_id, user_id, table_columns_json, '
+        "extra_json, updated_at) VALUES ('co', 'u1', '{\"k\":[\"a\"]}', "
+        "'{}', 1)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final row = await db.userSettingsDao.get('co');
+      expect(row!.tableColumnsJson, '{"k":["a"]}');
+      expect(row.reactSettingsJson, isNull);
       await db.close();
     });
 

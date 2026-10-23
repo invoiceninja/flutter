@@ -208,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -411,6 +411,13 @@ class AppDatabase extends _$AppDatabase {
           if (from < 16) {
             await _addColumnIfMissing(m, clients, clients.contactSearch);
             await _addColumnIfMissing(m, vendors, vendors.contactSearch);
+          }
+          if (from < 17) {
+            await _addColumnIfMissing(
+              m,
+              userSettings,
+              userSettings.reactSettingsJson,
+            );
           }
           // Create any declared table this database is missing, before the
           // index pass below touches it.

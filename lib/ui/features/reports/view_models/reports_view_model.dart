@@ -2294,8 +2294,12 @@ class ReportsViewModel extends ChangeNotifier {
       start: window?.$1,
       end: window?.$2,
       status: payload.status ?? '',
-      clientIds: ids(payload.clientId),
+      // A report offers one of the two client filters, never both.
+      clientIds: {...ids(payload.clientId), ...ids(payload.clients)},
       projectIds: ids(payload.projects),
+      vendorIds: ids(payload.vendors),
+      categoryIds: ids(payload.categories),
+      productKeys: ids(payload.productKey),
       tagIds: ids(payload.tags),
       includeDeleted: payload.includeDeleted,
     );

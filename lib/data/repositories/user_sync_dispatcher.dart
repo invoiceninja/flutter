@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
@@ -256,10 +257,16 @@ class UserSyncDispatcher implements SyncDispatcher {
 /// `entity_type` wire name to the right sub-dispatcher:
 ///   * `'user_settings'` → the per-(user, company) settings PUT to
 ///     `/company_users/{id}` (existing flow, [userSettings]).
+///   * `'user_preferences'` → `react_settings` to
+///     `/company_users/{id}/preferences` ([userSettings] too).
 ///   * `'user'` → the full-user PUT / disconnect / management flows on
 ///     `/users/{id}` (existing + new flow, [user]).
 class CompositeUserDispatcher implements SyncDispatcher {
-  CompositeUserDispatcher({required this.userSettings, required this.user});
+  CompositeUserDispatcher({
+    required this.userSettings,
+    required this.user,
+    this.outbox,
+  });
 
   final SyncDispatcher userSettings;
   final SyncDispatcher user;
@@ -277,19 +284,42 @@ class CompositeUserDispatcher implements SyncDispatcher {
     await user.deleteLocalRecord(companyId: companyId, id: id);
   }
 
+  /// Answers whether a `user` row still owns the users row's dirty flag —
+  /// see [clearLocalDirty]. Null in tests that don't exercise it.
+  final OutboxDao? outbox;
+
   @override
   Future<void> clearLocalDirty({
     required String companyId,
     required String id,
   }) async {
     await userSettings.clearLocalDirty(companyId: companyId, id: id);
+    // The caller checked for other rows of the DISCARDED row's wire name only,
+    // and a `user_settings` / `user_preferences` row (one per dashboard tweak)
+    // is keyed to the same user id. Its discard must not clear the flag a
+    // pending or failed profile edit still needs — the next /refresh would
+    // overwrite the edit its Save-failed banner offers to retry.
+    final outbox = this.outbox;
+    if (outbox != null &&
+        (await outbox.hasActiveRowsForEntity(
+              companyId: companyId,
+              entityType: kUserWireName,
+              entityId: id,
+            ) ||
+            await outbox.hasEditRowForEntity(
+              companyId: companyId,
+              entityType: kUserWireName,
+              entityId: id,
+            ))) {
+      return;
+    }
     await user.clearLocalDirty(companyId: companyId, id: id);
   }
 
   @override
   Future<void> dispatch({required OutboxRow row, required MutationKind kind}) {
     switch (row.entityType) {
-      case kUserSettingsWireName:
+      case kUserSettingsWireName || kUserPreferencesWireName:
         return userSettings.dispatch(row: row, kind: kind);
       case kUserWireName:
         return user.dispatch(row: row, kind: kind);

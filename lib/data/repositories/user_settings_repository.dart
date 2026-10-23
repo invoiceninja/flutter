@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:collection/collection.dart' show DeepCollectionEquality;
 import 'package:drift/drift.dart' show Value;
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
@@ -15,6 +16,11 @@ final _log = Logger('UserSettingsRepository');
 /// `EntityRegistry` routes rows with this wire name to the
 /// `UserSettingsSyncDispatcher`.
 const String kUserSettingsWireName = 'user_settings';
+
+/// `entity_type` of an outbox row that writes `company_user.react_settings`
+/// through `PUT /company_users/{userId}/preferences`. Routed by the same
+/// registry slot as [kUserSettingsWireName].
+const String kUserPreferencesWireName = 'user_preferences';
 
 /// Read/write per-(user, company) settings (in particular: `table_columns`).
 ///
@@ -145,6 +151,85 @@ class UserSettingsRepository {
       ),
       nowMs: nowMs,
     );
+  }
+
+  /// Watch `company_user.react_settings` for [companyId]. Emits null until a
+  /// login or `/refresh` has captured it (see [patchReactSettings]).
+  Stream<Map<String, dynamic>?> watchReactSettings(String companyId) => db
+      .userSettingsDao
+      .watch(companyId)
+      .map((row) => decodeReactSettings(row?.reactSettingsJson))
+      .distinct(const DeepCollectionEquality().equals);
+
+  Future<Map<String, dynamic>?> getReactSettings(String companyId) async =>
+      decodeReactSettings(
+        (await db.userSettingsDao.get(companyId))?.reactSettingsJson,
+      );
+
+  /// Set each dotted path in [patch] (`'preferences.dashboard_charts.
+  /// default_view'`) in `react_settings`, locally at once and on the server
+  /// through the outbox. Returns whether anything changed.
+  ///
+  /// The server's endpoint *replaces* the blob, and React writes the rest of
+  /// it, so the outbox row carries only the patch: the dispatcher lays it over
+  /// the freshest local copy when it sends, and a `/refresh` that lands
+  /// meanwhile lays it over the server's ([applyServerReactSettings]).
+  ///
+  /// A no-op until the blob has been captured: a patch laid over nothing would
+  /// send a blob holding only this app's keys, wiping React's preferences.
+  /// Rapid patches collapse into the one pending row.
+  Future<bool> patchReactSettings({
+    required String companyId,
+    required Map<String, Object?> patch,
+  }) async {
+    final queued = await db.transaction(() async {
+      final row = await db.userSettingsDao.get(companyId);
+      final current = decodeReactSettings(row?.reactSettingsJson);
+      if (row == null || current == null) {
+        _log.fine(
+          'patchReactSettings before react_settings was captured for '
+          '$companyId; kept local.',
+        );
+        return false;
+      }
+      final next = applyReactSettingsPatch(current, patch);
+      if (const DeepCollectionEquality().equals(current, next)) return false;
+      final nowMs = _now().millisecondsSinceEpoch;
+      await db.userSettingsDao.writeReactSettings(
+        companyId: companyId,
+        reactSettingsJson: jsonEncode(next),
+        now: nowMs,
+      );
+      final pending = await db.outboxDao.findPending(
+        companyId: companyId,
+        entityType: kUserPreferencesWireName,
+      );
+      if (pending != null &&
+          await db.outboxDao.updatePayload(
+            id: pending.id,
+            payload: encodeReactSettingsPatch({
+              ...reactSettingsPatchOf(pending.payload),
+              ...patch,
+            }),
+          )) {
+        return true;
+      }
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: companyId,
+          entityType: kUserPreferencesWireName,
+          entityId: row.userId,
+          mutationKind: MutationKind.update.wireName,
+          payload: encodeReactSettingsPatch(patch),
+          idempotencyKey: _uuid.v4(),
+          nextAttemptAt: nowMs,
+          createdAt: nowMs,
+        ),
+      );
+      return true;
+    });
+    if (queued) onEnqueued?.call(companyId);
+    return queued;
   }
 
   /// Server replied to our PUT with the canonical UserCompany shape — write
@@ -288,4 +373,84 @@ class UserSettingsRepository {
     final map = _decodeTableColumns(raw);
     return map[key];
   }
+}
+
+/// Store the server's `react_settings` for [companyId] (login / `/refresh`),
+/// with every patch still waiting in the outbox laid over it in queue order —
+/// a change the server hasn't taken yet must not visually revert, and the
+/// rest of the blob must not go stale behind it. A no-op without a settings
+/// row.
+Future<void> applyServerReactSettings(
+  AppDatabase db, {
+  required String companyId,
+  required Map<String, dynamic> server,
+  required int nowMs,
+}) async {
+  final waiting = await db.outboxDao.activeRowsFor(
+    companyId: companyId,
+    entityType: kUserPreferencesWireName,
+  );
+  var blob = server;
+  for (final row in waiting) {
+    blob = applyReactSettingsPatch(blob, reactSettingsPatchOf(row.payload));
+  }
+  await db.userSettingsDao.writeReactSettings(
+    companyId: companyId,
+    reactSettingsJson: jsonEncode(blob),
+    now: nowMs,
+  );
+}
+
+/// The stored blob, or null when it has not been captured (or is unreadable).
+Map<String, dynamic>? decodeReactSettings(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) return decoded;
+  } on FormatException {
+    // Fall through: unknown, never empty.
+  }
+  return null;
+}
+
+/// A deep copy of [base] with each dotted path in [patch] set; a null value
+/// removes its key. A non-map met on the way is replaced by a map.
+Map<String, dynamic> applyReactSettingsPatch(
+  Map<String, dynamic> base,
+  Map<String, Object?> patch,
+) {
+  final out = jsonDecode(jsonEncode(base)) as Map<String, dynamic>;
+  for (final MapEntry(:key, :value) in patch.entries) {
+    final segments = key.split('.');
+    var node = out;
+    for (final segment in segments.take(segments.length - 1)) {
+      final child = node[segment];
+      if (child is Map<String, dynamic>) {
+        node = child;
+      } else {
+        node = node[segment] = <String, dynamic>{};
+      }
+    }
+    if (value == null) {
+      node.remove(segments.last);
+    } else {
+      node[segments.last] = jsonDecode(jsonEncode(value));
+    }
+  }
+  return out;
+}
+
+/// The payload of a [kUserPreferencesWireName] outbox row.
+String encodeReactSettingsPatch(Map<String, Object?> patch) =>
+    jsonEncode({'patch': patch});
+
+Map<String, Object?> reactSettingsPatchOf(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    final patch = decoded is Map ? decoded['patch'] : null;
+    if (patch is Map<String, dynamic>) return patch;
+  } on FormatException {
+    // Fall through.
+  }
+  return const {};
 }

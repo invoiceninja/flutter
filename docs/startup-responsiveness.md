@@ -44,6 +44,7 @@ the log). A release build runs the body directly.
 | `prefetch.sweep` | `_runSidebarPrefetch` | the whole 14-entity sweep |
 | `dashboard.refresh` | `DashboardRepository._runJobs` | one dashboard refresh pass |
 | `scriptFonts.load` | `ScriptFonts._load` | one bundled Noto family read and registered (`family:`) |
+| `scriptFonts.deferred` | `ScriptFonts._loadDeferred` | the deferred families, with what set them off (`trigger: settled \| ceiling`) and `sinceFirstFrameMs` — the measured length of the launch window |
 
 `main.dart`'s debug boot stopwatch (`main.boot`) gained a `first frame` mark, which times the gap
 between the last awaited stage and the first paint.

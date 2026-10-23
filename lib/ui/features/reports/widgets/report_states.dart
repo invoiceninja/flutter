@@ -93,7 +93,11 @@ class ReportNotice extends StatelessWidget {
     // the refresh has failed, or cannot be made: while it is on its way the
     // hairline above says so, and the line would flash on every open.
     final device = hasResult && vm.resultFromDevice
-        ? tr('report_device_rows')
+        ? tr(
+            vm.definition.rowsAreTimeEntries
+                ? 'report_device_rows'
+                : 'report_device_records',
+          )
         : null;
 
     if (error != null) {

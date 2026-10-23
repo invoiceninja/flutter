@@ -18,6 +18,7 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/helpers/needs_attention.dart';
@@ -41,6 +42,7 @@ class DashboardViewModel extends ChangeNotifier {
     required this.companyId,
     required this.navStateDao,
     required this.statics,
+    this.userSettings,
     ValueListenable<ResyncCompletion?>? resyncCompletions,
     ValueListenable<RealtimeRefresh?>? realtimeRefreshes,
     Stream<int>? outboxActive,
@@ -119,6 +121,12 @@ class DashboardViewModel extends ChangeNotifier {
   final DashboardRepository repo;
   final String companyId;
   final NavStateDao navStateDao;
+
+  /// Where the cards, the chart's legend and grouping, and the panel
+  /// arrangement sync across devices — `company_user.react_settings`
+  /// ([_adoptSynced]). Null in tests that don't exercise it: the dashboard is
+  /// then device-local, as `nav_state` alone made it.
+  final UserSettingsRepository? userSettings;
   final StaticsRepository statics;
   final Duration _persistDebounce;
   final DateTime Function() _now;
@@ -438,14 +446,14 @@ class DashboardViewModel extends ChangeNotifier {
     if (next.isEmpty) return; // never leave the chart empty
     visibleChartSeries = next;
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.series);
   }
 
   void setChartGrouping(ChartGrouping next) {
     if (next == chartGrouping) return;
     chartGrouping = next;
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.grouping);
   }
 
   /// Add a configured card (no-op if an identical config already exists).
@@ -455,7 +463,7 @@ class DashboardViewModel extends ChangeNotifier {
     dashboardCards = [...dashboardCards, config];
     _cardSections[config.key] = const AsyncSection.loading();
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.cards);
     _subscribeCard(config);
     unawaited(_refreshCard(config));
   }
@@ -465,6 +473,14 @@ class DashboardViewModel extends ChangeNotifier {
     if (idx < 0) return;
     final removed = dashboardCards[idx];
     dashboardCards = [...dashboardCards]..removeAt(idx);
+    _detachCard(removed);
+    notifyListeners();
+    _schedulePersist(sync: _Synced.cards);
+  }
+
+  /// Stop watching [removed]'s figure and purge its cache row.
+  void _detachCard(DashboardCardConfig removed) {
+    final key = removed.key;
     _subs[DashboardKind.calc(key)]?.cancel();
     _subs.remove(DashboardKind.calc(key));
     _sectionNotifiers.remove(DashboardKind.calc(key))?.dispose();
@@ -478,8 +494,23 @@ class DashboardViewModel extends ChangeNotifier {
         }
       }),
     );
-    notifyListeners();
-    _schedulePersist();
+  }
+
+  /// Swap in a card list another device chose: detach the cards it left out,
+  /// and watch and fetch the ones it added, as [removeCard] / [addCard] do.
+  void _replaceCards(List<DashboardCardConfig> next) {
+    final kept = {for (final c in next) c.key};
+    final had = {for (final c in dashboardCards) c.key};
+    for (final c in dashboardCards) {
+      if (!kept.contains(c.key)) _detachCard(c);
+    }
+    dashboardCards = next;
+    for (final c in next) {
+      if (had.contains(c.key)) continue;
+      _cardSections[c.key] = const AsyncSection.loading();
+      _subscribeCard(c);
+      unawaited(_refreshCard(c));
+    }
   }
 
   void reorderCards(int oldIndex, int newIndex) {
@@ -489,7 +520,7 @@ class DashboardViewModel extends ChangeNotifier {
     next.insert(newIndex.clamp(0, next.length), moved);
     dashboardCards = next;
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.cards);
   }
 
   // ─── List-panel ordering / visibility ─────────────────────────────────
@@ -515,7 +546,7 @@ class DashboardViewModel extends ChangeNotifier {
         p.kind == DashboardKind.pastDue ? p : rest[ri++],
     ];
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.panels);
   }
 
   void togglePanelVisibility(String kind) {
@@ -525,14 +556,14 @@ class DashboardViewModel extends ChangeNotifier {
     next[idx] = next[idx].copyWith(visible: !next[idx].visible);
     panelPrefs = next;
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.panels);
   }
 
   void resetPanels() {
     if (panelsAreDefault) return;
     panelPrefs = _defaultPanelPrefs();
     notifyListeners();
-    _schedulePersist();
+    _schedulePersist(sync: _Synced.panels);
   }
 
   /// True when [panelPrefs] equals the canonical default — order-sensitive
@@ -852,7 +883,17 @@ class DashboardViewModel extends ChangeNotifier {
     // boot and on every company switch (which builds a fresh VM).
     isAnyRefreshing = true;
     await _hydrate();
+    _adoptSynced(await _readSynced(), initial: true);
     _subscribeAll();
+    final synced = userSettings?.watchReactSettings(companyId);
+    if (synced != null && !_disposed) {
+      _subs[_kSyncedSub] = synced.listen(
+        _adoptSynced,
+        onError: (Object e, StackTrace st) {
+          _log.warning('Dashboard react_settings stream error', e, st);
+        },
+      );
+    }
     await refresh();
     _bootRefreshDone = true;
     if (!_disposed) {
@@ -1152,16 +1193,11 @@ class DashboardViewModel extends ChangeNotifier {
         }
       }
 
-      final cards = dash['dashboardCards'];
-      if (cards is List) {
-        final seen = <String>{};
-        final loaded = <DashboardCardConfig>[];
-        for (final c in cards) {
-          final cfg = DashboardCardConfig.tryParse(c);
-          if (cfg != null && seen.add(cfg.key)) loaded.add(cfg);
-        }
-        dashboardCards = loaded;
-      }
+      final cards = _parseCards(
+        dash['dashboardCards'],
+        DashboardCardConfig.tryParse,
+      );
+      if (cards != null) dashboardCards = cards;
 
       // The Invoices & Quotes panel's selected tab. Restored alongside the date
       // range, which is a far stronger filter living in this same blob — it
@@ -1174,66 +1210,8 @@ class DashboardViewModel extends ChangeNotifier {
 
       // When `panels` is absent (every pre-upgrade install), panelPrefs keeps
       // its all-visible default — no else branch.
-      final panels = dash['panels'];
-      if (panels is List) {
-        final seen = <String>{};
-        final loaded = <DashboardPanelPref>[];
-        for (final p in panels) {
-          final pref = DashboardPanelPref.tryParse(p);
-          // Keep only known panel kinds; dedupe by kind.
-          if (pref != null &&
-              DashboardKind.panelKinds.contains(pref.kind) &&
-              seen.add(pref.kind)) {
-            loaded.add(pref);
-          }
-        }
-        // Past-due leads, whatever a save from before it was pinned on every
-        // layout says. Done before the placement below, which anchors a new
-        // panel after its canonical predecessor: left where a user once
-        // dragged past-due, that anchor sat far down the page.
-        final pinned = loaded.indexWhere(
-          (p) => p.kind == DashboardKind.pastDue,
-        );
-        if (pinned > 0) loaded.insert(0, loaded.removeAt(pinned));
-
-        // Place any panel missing from the saved list (e.g. one added in a
-        // later release) visible-by-default, AT ITS CANONICAL RANK rather than
-        // at the end.
-        //
-        // Appending was the old rule, and it made a new panel's declared slot
-        // unreachable for anyone who had ever changed the date range — which
-        // persists this blob — so it always landed last on every existing
-        // install. The rule has to be stated precisely, because the obvious
-        // version is wrong:
-        //
-        //  * walk `panelKinds` in ASCENDING canonical order, so several
-        //    missing kinds keep their relative order rather than landing
-        //    arbitrarily;
-        //  * insert each immediately AFTER the last already-placed kind of
-        //    smaller canonical index (position 0 if there is none). Anchoring
-        //    on the predecessor is what keeps a new kind below `past_due` even
-        //    in a save where the user dragged `past_due` down.
-        //
-        // Never `loaded.insert(canonicalIndex, …)`: on a reordered save that
-        // shoves unrelated panels around, and it `RangeError`s whenever the
-        // saved list is shorter than the index — which the `catch` below would
-        // swallow, silently discarding the user's whole arrangement.
-        final rank = {
-          for (var i = 0; i < DashboardKind.panelKinds.length; i++)
-            DashboardKind.panelKinds[i]: i,
-        };
-        for (final k in DashboardKind.panelKinds) {
-          if (!seen.add(k)) continue;
-          final mine = rank[k]!;
-          var at = 0;
-          for (var i = 0; i < loaded.length; i++) {
-            final other = rank[loaded[i].kind];
-            if (other != null && other < mine) at = i + 1;
-          }
-          loaded.insert(at, DashboardPanelPref(kind: k, visible: true));
-        }
-        panelPrefs = loaded;
-      }
+      final panels = _parsePanels(dash['panels']);
+      if (panels != null) panelPrefs = panels;
     } catch (e, st) {
       _log.warning('Failed to hydrate dashboard nav_state', e, st);
     } finally {
@@ -1241,8 +1219,216 @@ class DashboardViewModel extends ChangeNotifier {
     }
   }
 
-  void _schedulePersist() {
+  /// A stored card list, deduplicated, with entries [parse] rejects dropped;
+  /// null when [raw] is not a list.
+  static List<DashboardCardConfig>? _parseCards(
+    Object? raw,
+    DashboardCardConfig? Function(Object?) parse,
+  ) {
+    if (raw is! List) return null;
+    final seen = <String>{};
+    return [
+      for (final c in raw)
+        if (parse(c) case final cfg? when seen.add(cfg.key)) cfg,
+    ];
+  }
+
+  /// A stored panel arrangement, or null when [raw] is not a list. Unknown
+  /// kinds are dropped, past-due leads, and a kind the list lacks is placed at
+  /// its canonical rank.
+  static List<DashboardPanelPref>? _parsePanels(Object? raw) {
+    if (raw is! List) return null;
+    final seen = <String>{};
+    final loaded = <DashboardPanelPref>[];
+    for (final p in raw) {
+      final pref = DashboardPanelPref.tryParse(p);
+      // Keep only known panel kinds; dedupe by kind.
+      if (pref != null &&
+          DashboardKind.panelKinds.contains(pref.kind) &&
+          seen.add(pref.kind)) {
+        loaded.add(pref);
+      }
+    }
+    // Past-due leads, whatever a save from before it was pinned on every
+    // layout says. Done before the placement below, which anchors a new
+    // panel after its canonical predecessor: left where a user once
+    // dragged past-due, that anchor sat far down the page.
+    final pinned = loaded.indexWhere((p) => p.kind == DashboardKind.pastDue);
+    if (pinned > 0) loaded.insert(0, loaded.removeAt(pinned));
+
+    // Place any panel missing from the saved list (e.g. one added in a
+    // later release) visible-by-default, AT ITS CANONICAL RANK rather than
+    // at the end.
+    //
+    // Appending was the old rule, and it made a new panel's declared slot
+    // unreachable for anyone who had ever changed the date range — which
+    // persists this blob — so it always landed last on every existing
+    // install. The rule has to be stated precisely, because the obvious
+    // version is wrong:
+    //
+    //  * walk `panelKinds` in ASCENDING canonical order, so several
+    //    missing kinds keep their relative order rather than landing
+    //    arbitrarily;
+    //  * insert each immediately AFTER the last already-placed kind of
+    //    smaller canonical index (position 0 if there is none). Anchoring
+    //    on the predecessor is what keeps a new kind below `past_due` even
+    //    in a save where the user dragged `past_due` down.
+    //
+    // Never `loaded.insert(canonicalIndex, …)`: on a reordered save that
+    // shoves unrelated panels around, and it `RangeError`s whenever the
+    // saved list is shorter than the index — which `_hydrate`'s `catch` would
+    // swallow, silently discarding the user's whole arrangement.
+    final rank = {
+      for (var i = 0; i < DashboardKind.panelKinds.length; i++)
+        DashboardKind.panelKinds[i]: i,
+    };
+    for (final k in DashboardKind.panelKinds) {
+      if (!seen.add(k)) continue;
+      final mine = rank[k]!;
+      var at = 0;
+      for (var i = 0; i < loaded.length; i++) {
+        final other = rank[loaded[i].kind];
+        if (other != null && other < mine) at = i + 1;
+      }
+      loaded.insert(at, DashboardPanelPref(kind: k, visible: true));
+    }
+    return loaded;
+  }
+
+  /// A stored legend selection, or null when [raw] is not a list or names no
+  /// series — the chart is never left empty.
+  static Set<ChartSeriesId>? _parseSeries(Object? raw) {
+    if (raw is! List) return null;
+    final next = {
+      for (final id in ChartSeriesId.values)
+        if (raw.contains(id.name)) id,
+    };
+    return next.isEmpty ? null : next;
+  }
+
+  // ─── Cross-device sync (company_user.react_settings) ─────────────────
+  //
+  // The cards live where React keeps its own (`dashboard_fields`, React's key
+  // format), so the two clients share them; the chart grouping is React's
+  // `dashboard_charts.default_view`. The legend and the panel arrangement are
+  // this app's alone, under one key React never reads. The old Flutter app
+  // keeps its dashboard in `company_user.settings`, which none of this
+  // touches. See `docs/dashboard-panels.md`.
+
+  static const String _kSyncedOwn = 'flutter_dashboard';
+  static const String _kSyncedSub = 'react_settings';
+
+  /// Set while a local change is waiting to be written to `react_settings` —
+  /// an emission meanwhile (a `/refresh` capture) still holds the old value
+  /// and would revert it. The write re-emits once it lands.
+  bool _syncPending = false;
+
+  /// The synced preferences this device changed since it last wrote them —
+  /// the persist [_persistTimer] is waiting on writes these, and only these,
+  /// up. Sending the rest too would lay this device's possibly stale copy of
+  /// them over another device's (or React's) newer edit.
+  final Set<_Synced> _syncDirty = {};
+
+  /// Entries of React's `dashboard_fields` this build cannot read (a field
+  /// added later, a malformed key). Written back after this app's own cards,
+  /// so a card change here never deletes a card React shows.
+  List<String> _foreignCards = const [];
+
+  Future<Map<String, dynamic>?> _readSynced() async {
+    try {
+      return await userSettings?.getReactSettings(companyId);
+    } catch (e, st) {
+      _log.warning('Failed to read react_settings', e, st);
+      return null;
+    }
+  }
+
+  /// Adopt what [blob] holds over what `nav_state` restored. A preference it
+  /// does not hold yet, where this device has a choice of its own, is written
+  /// up — the first device to sync seeds the rest. [initial] is the read
+  /// before the watches open, so a card is only listed, not fetched.
+  void _adoptSynced(Map<String, dynamic>? blob, {bool initial = false}) {
+    if (blob == null || _disposed || _syncPending) return;
+    var changed = false;
+
+    final missing = <_Synced>{};
+    final rawCards = blob[_Synced.cards.path];
+    final cards = _parseCards(rawCards, DashboardCardConfig.fromReactKey);
+    _foreignCards = [
+      if (rawCards is List)
+        for (final c in rawCards)
+          if (c is String && DashboardCardConfig.fromReactKey(c) == null) c,
+    ];
+    if (cards == null) {
+      if (dashboardCards.isNotEmpty) missing.add(_Synced.cards);
+    } else if (!listEquals(cards, dashboardCards)) {
+      initial ? dashboardCards = cards : _replaceCards(cards);
+      changed = true;
+    }
+
+    final prefs = blob['preferences'];
+    final charts = prefs is Map ? prefs['dashboard_charts'] : null;
+    final view = charts is Map ? charts['default_view'] : null;
+    final grouping = ChartGrouping.values
+        .where((g) => g.name == view)
+        .firstOrNull;
+    if (grouping == null) {
+      if (chartGrouping != ChartGrouping.month) missing.add(_Synced.grouping);
+    } else if (grouping != chartGrouping) {
+      chartGrouping = grouping;
+      changed = true;
+    }
+
+    final own = blob[_kSyncedOwn];
+    final panels = _parsePanels(own is Map ? own['panels'] : null);
+    if (panels == null) {
+      if (!panelsAreDefault) missing.add(_Synced.panels);
+    } else if (!listEquals(panels, panelPrefs)) {
+      panelPrefs = panels;
+      changed = true;
+    }
+    final series = _parseSeries(own is Map ? own['chart_series'] : null);
+    if (series == null) {
+      if (!setEquals(visibleChartSeries, kDefaultChartSeries)) {
+        missing.add(_Synced.series);
+      }
+    } else if (!setEquals(series, visibleChartSeries)) {
+      visibleChartSeries = series;
+      changed = true;
+    }
+
+    if (changed && !initial) notifyListeners();
+    // An adopted value only needs `nav_state` (the offline copy) in step; a
+    // missing one is written up.
+    if (changed || missing.isNotEmpty) _schedulePersist(syncAll: missing);
+  }
+
+  /// [which] of this device's synced preferences as `react_settings` paths.
+  Map<String, Object?> _syncedPatch(Set<_Synced> which) => {
+    for (final s in which)
+      s.path: switch (s) {
+        _Synced.cards => [
+          for (final c in dashboardCards) c.toReactKey(),
+          ..._foreignCards,
+        ],
+        _Synced.grouping => chartGrouping.name,
+        _Synced.panels => [for (final p in panelPrefs) p.toJson()],
+        _Synced.series => [
+          for (final id in ChartSeriesId.values)
+            if (visibleChartSeries.contains(id)) id.name,
+        ],
+      },
+  };
+
+  /// Write `nav_state` after the debounce — and the synced preferences named
+  /// by [sync] / [syncAll] to `react_settings`.
+  void _schedulePersist({_Synced? sync, Set<_Synced> syncAll = const {}}) {
     if (!_hydrated) return;
+    final dirty = {?sync, ...syncAll};
+    if (dirty.isNotEmpty) {
+      _syncPending = true;
+      _syncDirty.addAll(dirty);
+    }
     _persistTimer?.cancel();
     _persistTimer = Timer(_persistDebounce, _persist);
   }
@@ -1283,6 +1469,20 @@ class DashboardViewModel extends ChangeNotifier {
       );
     } catch (e, st) {
       _log.warning('Failed to persist dashboard nav_state', e, st);
+    }
+    if (_syncDirty.isEmpty) return;
+    final patch = _syncedPatch(_syncDirty);
+    _syncDirty.clear();
+    try {
+      await userSettings?.patchReactSettings(
+        companyId: companyId,
+        patch: patch,
+      );
+    } catch (e, st) {
+      _log.warning('Failed to sync dashboard preferences', e, st);
+    } finally {
+      // A change made while this one was written has its own timer running.
+      _syncPending = _persistTimer?.isActive ?? false;
     }
   }
 
@@ -1328,6 +1528,20 @@ class DashboardViewModel extends ChangeNotifier {
 /// only the widget(s) bound to it.
 class _SectionNotifier extends ChangeNotifier {
   void bump() => notifyListeners();
+}
+
+/// A preference the dashboard syncs, by its `react_settings` path.
+enum _Synced {
+  /// React's own key, shared with it.
+  cards('dashboard_fields'),
+
+  /// React's `default_view`, shared with it.
+  grouping('preferences.dashboard_charts.default_view'),
+  panels('${DashboardViewModel._kSyncedOwn}.panels'),
+  series('${DashboardViewModel._kSyncedOwn}.chart_series');
+
+  const _Synced(this.path);
+  final String path;
 }
 
 /// Series ids that the chart card can toggle via legend chips.

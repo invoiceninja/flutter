@@ -38,6 +38,61 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// `nav_state.filters_json` and in saved views.
 const String kBadgeModeFilterKey = 'badge_mode';
 
+/// The `extraFilters` slot each entity's Status chip (`status:`) writes.
+///
+/// **A status tab and a Status chip are one filter, not two** — picking a tab
+/// drops the chip, and setting the chip moves the strip back to `All`
+/// ([exclusiveStatusFilters]). They used to AND together, so `Paid` beside
+/// `status:draft` was a list that could hold nothing, and on a tab narrowed
+/// locally it fetched five pages looking for rows before saying so.
+/// `test/domain/list_status_tabs_test.dart` checks each slot against the
+/// chip's own `serverKey`.
+const Map<EntityType, String> kStatusChipServerKeys = {
+  EntityType.invoice: 'status_id',
+  EntityType.quote: 'client_status',
+  EntityType.credit: 'client_status',
+  EntityType.payment: 'client_status',
+  EntityType.recurringInvoice: 'status_id',
+  EntityType.purchaseOrder: 'client_status',
+  EntityType.task: 'task_status',
+  EntityType.expense: 'client_status',
+  EntityType.transaction: 'status_id',
+};
+
+/// [next] with the status tab and the Status chip made exclusive. Whichever
+/// one [next] changed from [previous] wins; when both arrive at once — a
+/// restored snapshot or saved view, a deep link — the tab does, since it is
+/// the one on screen above the list.
+Map<String, Set<String>> exclusiveStatusFilters(
+  EntityType entityType, {
+  required Map<String, Set<String>> previous,
+  required Map<String, Set<String>> next,
+}) {
+  final chipKey = kStatusChipServerKeys[entityType];
+  if (chipKey == null) return next;
+  final tab = next[kBadgeModeFilterKey] ?? const <String>{};
+  final chip = next[chipKey] ?? const <String>{};
+  // Only a tab this build offers is a tab: the list drops any other
+  // (`_dropUnknownBadgeMode`), and letting a dead one win would take a live
+  // chip with it.
+  if (tab.length != 1 ||
+      !isKnownStatusTabMode(entityType, tab.single) ||
+      chip.isEmpty) {
+    return next;
+  }
+  final chipChanged = !_sameSet(previous[chipKey], chip);
+  final tabChanged = !_sameSet(previous[kBadgeModeFilterKey], tab);
+  final keep = chipChanged && !tabChanged ? chipKey : kBadgeModeFilterKey;
+  return {
+    for (final e in next.entries)
+      if (e.key == keep || (e.key != chipKey && e.key != kBadgeModeFilterKey))
+        e.key: e.value,
+  };
+}
+
+bool _sameSet(Set<String>? a, Set<String> b) =>
+    (a ?? const <String>{}).length == b.length && b.every(a!.contains);
+
 /// One non-`All` tab: which badge mode it shows, and how (if at all) that
 /// narrows the network fetch.
 class ListStatusTabSpec {

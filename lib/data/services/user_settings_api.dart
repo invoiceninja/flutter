@@ -26,4 +26,21 @@ class UserSettingsApi {
     if (raw is Map<String, dynamic>) return raw;
     return null;
   }
+
+  /// PUT `react_settings` whole — the server replaces the stored blob — to
+  /// `/api/v1/company_users/{userId}/preferences`, the route React saves
+  /// through. Unlike [update] it needs no admin rights: the server only checks
+  /// that [userId] is the signed-in user.
+  Future<void> updatePreferences({
+    required String userId,
+    required Map<String, dynamic> reactSettings,
+    required String idempotencyKey,
+  }) async {
+    await _client.mutate(
+      method: 'PUT',
+      path: '/api/v1/company_users/$userId/preferences',
+      idempotencyKey: idempotencyKey,
+      body: {'react_settings': reactSettings},
+    );
+  }
 }

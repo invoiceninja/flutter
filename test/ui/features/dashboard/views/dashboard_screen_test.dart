@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/data/services/upload_source.dart';
@@ -104,6 +105,11 @@ class _FakeServices implements Services {
   @override
   final RealtimeService realtime = _IdleRealtime();
 
+  /// Where the dashboard syncs its preferences. Nothing is stored, and no
+  /// Drift watch is opened.
+  @override
+  final UserSettingsRepository userSettings = _NoSyncedSettings();
+
   /// And the outbox count it refetches on. Never emits — and deliberately not
   /// the real Drift watch, which a widget test must not sit on.
   @override
@@ -154,6 +160,20 @@ class _FakeServices implements Services {
     bool isClone = false,
     List<UploadSource> attachments = const [],
   }) => staged.add((basePath, draft));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _NoSyncedSettings implements UserSettingsRepository {
+  @override
+  Future<Map<String, dynamic>?> getReactSettings(String companyId) async =>
+      null;
+
+  @override
+  Stream<Map<String, dynamic>?> watchReactSettings(String companyId) =>
+      const Stream.empty();
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

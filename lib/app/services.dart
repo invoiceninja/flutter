@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/app/accent_color_controller.dart';
 import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/company_label_overrides.dart';
+import 'package:admin/app/script_fonts.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
@@ -1825,7 +1826,7 @@ class Services implements SidebarBadgeContext {
       wireName: kUserSettingsWireName,
       // `'user'` rows (full-user PUTs from Settings > User Details) flow
       // through the same composite dispatcher; see [CompositeUserDispatcher].
-      extraWireNames: const [kUserWireName],
+      extraWireNames: const [kUserWireName, kUserPreferencesWireName],
       apiPath: '/api/v1/company_users',
       routePath: '/settings/account',
       icon: Icons.person,
@@ -1836,6 +1837,7 @@ class Services implements SidebarBadgeContext {
           repo: userSettingsRepo,
         ),
         user: UserSyncDispatcher(api: usersApi, repo: userRepo, auth: auth),
+        outbox: db.outboxDao,
       ),
     );
     registry.replaceAll(handlers, branchOrder: kBranchOrder);
@@ -2191,7 +2193,9 @@ class Services implements SidebarBadgeContext {
           entities,
           companyId,
           isStale: () => auth.credentials.value?.companyId != companyId,
-        ),
+          // The first sweep is the last of launch's network work, so its end
+          // is when the deferred script fonts may relayout the app.
+        ).whenComplete(ScriptFonts.launchSettled),
       );
       // Warm the per-company Formatter cache so `formatterIfReady` is reliably
       // non-null on every screen (product edit, tax-rate edit, …) instead of

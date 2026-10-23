@@ -112,6 +112,13 @@ abstract class UserCompanyApi with _$UserCompanyApi {
     @Default(SessionTokenApi()) SessionTokenApi token,
     required AccountEnvelopeApi account,
     @Default(<String, dynamic>{}) Map<String, dynamic> settings,
+    // `company_user.react_settings` — the React client's preferences, where
+    // the dashboard syncs (`UserSettingsRepository.patchReactSettings`). Null
+    // when the response doesn't carry it, which must never be read as "empty":
+    // the blob is written back whole. Loose on purpose — a bad value here
+    // must not drop the company through `tolerantList`.
+    @JsonKey(name: 'react_settings', fromJson: _reactSettingsFromJson)
+    Map<String, dynamic>? reactSettings,
     @JsonKey(name: 'user') @Default(UserSummaryApi()) UserSummaryApi user,
     // Pre-signed hosted-billing URL for this `(user, company)`. Surfaced by
     // Settings → Account Management → Plan as the "Manage Plan" CTA target;
@@ -123,6 +130,15 @@ abstract class UserCompanyApi with _$UserCompanyApi {
   factory UserCompanyApi.fromJson(Map<String, dynamic> json) =>
       _$UserCompanyApiFromJson(json);
 }
+
+/// A JSON object as a map; an empty list (PHP's `[]` for an empty array) as
+/// an empty one; anything else as unknown.
+Map<String, dynamic>? _reactSettingsFromJson(Object? raw) => switch (raw) {
+  Map<String, dynamic>() => raw,
+  Map() => raw.map((k, v) => MapEntry(k.toString(), v)),
+  List() when raw.isEmpty => <String, dynamic>{},
+  _ => null,
+};
 
 /// The authenticated user's record, decoded from `data[N].user` in the
 /// `/api/v1/login` and `/api/v1/refresh` response. Carries everything the

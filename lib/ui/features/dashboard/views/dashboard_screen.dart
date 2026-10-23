@@ -111,6 +111,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     companyId: _companyId,
     navStateDao: _services.db.navStateDao,
     statics: _services.statics,
+    // The cards, legend, grouping and panel arrangement follow the user across
+    // devices (and share the cards with the React client).
+    userSettings: _services.userSettings,
     // A completed Sync pass refetches the sections only this view model can
     // key (invoiceninja/flutter#162). Passed here, the single construction
     // site, so the company-switch rebuild in `_onSessionChanged` keeps it.

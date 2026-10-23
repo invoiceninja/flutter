@@ -45,6 +45,8 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
         // have the arm, which is why the invoice list above can offer it.)
       ];
     case 'credit':
+    // Built on the device, which reads the same four.
+    case 'credit_item':
       return const [
         (id: 'draft', labelKey: 'draft'),
         (id: 'sent', labelKey: 'sent'),
@@ -100,6 +102,23 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
       return const [
         (id: 'invoiced', labelKey: 'invoiced'),
         (id: 'uninvoiced', labelKey: 'uninvoiced'),
+      ];
+    // Built on the device: the status the recurring expense list shows,
+    // "Pending" included (active and never sent).
+    case 'recurring_expense':
+      return const [
+        (id: 'draft', labelKey: 'draft'),
+        (id: 'pending', labelKey: 'pending'),
+        (id: 'active', labelKey: 'active'),
+        (id: 'paused', labelKey: 'paused'),
+        (id: 'completed', labelKey: 'completed'),
+      ];
+    // Built on the device: the Transactions list's three statuses.
+    case 'transaction':
+      return const [
+        (id: 'unmatched', labelKey: 'unmatched'),
+        (id: 'matched', labelKey: 'matched'),
+        (id: 'converted', labelKey: 'converted'),
       ];
     default:
       return null;

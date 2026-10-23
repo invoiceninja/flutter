@@ -5,9 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
+import 'package:admin/domain/reports/credit_items_source.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
+import 'package:admin/domain/reports/recurring_expenses_source.dart';
 import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/domain/reports/task_items_source.dart';
+import 'package:admin/domain/reports/transactions_source.dart';
 
 /// The server's default column set for each report, as it answered a plain
 /// run on the demo server (2026-10-08). The registry names columns by id in
@@ -515,6 +518,9 @@ const Map<String, Set<String>> _kLocalColumns = {
 /// not anything the server answers.
 final Map<String, Set<String>> _kDeviceColumns = {
   'task_item': kTaskItemsColumnIds.toSet(),
+  'credit_item': kCreditItemsColumnIds.toSet(),
+  'recurring_expense': kRecurringExpensesColumnIds.toSet(),
+  'transaction': kTransactionsColumnIds.toSet(),
 };
 
 Map<String, dynamic> _bundle(String name) =>
@@ -588,12 +594,40 @@ void main() {
 
   test('every header of a report built on the device resolves', () {
     // A server report's headers come from the server; these are the app's.
-    final p = buildTaskItemsPreview(
-      tasks: const [],
-      query: ReportQuery(companyId: '', now: DateTime(2026), label: (k) => k),
+    final query = ReportQuery(
+      companyId: '',
+      now: DateTime(2026),
+      label: (k) => k,
     );
-    for (final c in p.columns) {
-      expect(resolves(c.displayLabel), isTrue, reason: c.identifier);
+    for (final p in [
+      buildTaskItemsPreview(tasks: const [], query: query),
+      buildCreditItemsPreview(credits: const [], query: query),
+      buildRecurringExpensesPreview(recurringExpenses: const [], query: query),
+      buildTransactionsPreview(transactions: const [], query: query),
+    ]) {
+      for (final c in p.columns) {
+        expect(resolves(c.displayLabel), isTrue, reason: c.identifier);
+      }
+    }
+    // And what a cell reads through the same lookup: a status, a state, an
+    // endless schedule.
+    for (final key in const [
+      'endless',
+      'active',
+      'archived',
+      'deleted',
+      'unmatched',
+      'matched',
+      'converted',
+      'pending',
+      'paused',
+      'completed',
+      'draft',
+      'applied',
+      'partial',
+      'sent',
+    ]) {
+      expect(resolves(key), isTrue, reason: key);
     }
     // And what a running timer's end reads.
     expect(resolves('running'), isTrue);

@@ -925,7 +925,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       });
       _migrateLegacyUpdatedBetween(next);
       _dropUnknownBadgeMode(next);
-      _extraFilters = next;
+      _extraFilters = exclusiveStatusFilters(
+        entityType,
+        previous: const {},
+        next: next,
+      );
     }
 
     // Missing keys mean "written before grouping existed" (or simply at the
@@ -1112,7 +1116,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         if (e.value.isNotEmpty) e.key: Set<String>.unmodifiable(e.value),
     };
     _dropUnknownBadgeMode(next);
-    _extraFilters = Map<String, Set<String>>.unmodifiable(next);
+    _extraFilters = Map<String, Set<String>>.unmodifiable(
+      exclusiveStatusFilters(entityType, previous: const {}, next: next),
+    );
   }
 
   /// Apply a dashboard deep-link [intent] and reload page 1. Idempotent per
@@ -1483,7 +1489,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       if (setEquals(next[serverKey], values)) return;
       next[serverKey] = Set.unmodifiable(values);
     }
-    _extraFilters = Map.unmodifiable(next);
+    _extraFilters = Map.unmodifiable(
+      exclusiveStatusFilters(entityType, previous: _extraFilters, next: next),
+    );
     await _resetAndReload(ignoreCursor: false);
   }
 
@@ -1866,10 +1874,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
           return;
         }
       }
-      // Heal a pre-#126 `"states": []` before the compares below: both sides
-      // they run against are normalized, so an un-healed slot would never
-      // dedupe and every unrelated nav_state touch would reload the list.
-      slot = normalizeSnapshotStates(slot);
+      // Heal a pre-#126 `"states": []` — and a tab beside a Status chip —
+      // before the compares below: both sides they run against are
+      // normalized, so an un-healed slot would never dedupe and every
+      // unrelated nav_state touch would reload the list.
+      slot = normalizeSnapshot(entityType, slot);
       const eq = DeepCollectionEquality();
       // Skip when this entity's persisted slot didn't actually change — the
       // shared `nav_state` row was touched for an unrelated reason (route

@@ -15,6 +15,7 @@ import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
+import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 
 /// Task Items is built on the device (`ReportDefinition.isLocal`): these pin
@@ -154,7 +155,9 @@ void main() {
       canRun: canRun,
       online: online,
       now: () => now,
-      localSourceFor: wired ? (id) => id == 'task_item' ? source : null : null,
+      localSourceFor: wired
+          ? (id) => reportDefinitionFor(id).isLocal ? source : null
+          : null,
       tasksCrossRange: tasksCrossRange,
     );
     addTearDown(vm.dispose);
@@ -533,5 +536,67 @@ void main() {
     expect(vm.thenBy, isEmpty);
     expect(vm.chartColumn, isNull);
     expect(vm.sortField, 'invoice.number');
+  });
+
+  group('the reports v1 built on its device', () {
+    for (final report in const [
+      'credit_item',
+      'recurring_expense',
+      'transaction',
+    ]) {
+      test(
+        '$report is built from its source, never asked of the server',
+        () async {
+          final vm = vmFor(report: report);
+          await vm.open(report);
+          await settle();
+          expect(source.refreshes, hasLength(1));
+          expect(repo.asked, isEmpty);
+          expect(vm.run.preview!.rows, hasLength(2));
+        },
+      );
+    }
+
+    test('every filter the report offers reaches the device', () async {
+      final vm = vmFor(report: 'recurring_expense');
+      await vm.open('recurring_expense');
+      await settle();
+      vm.setPayload(
+        vm.payload.copyWith(
+          clients: () => 'c1,c2',
+          vendors: () => 'v1',
+          categories: () => 'k1',
+          status: () => 'active,paused',
+          tags: () => 't1',
+          includeDeleted: true,
+        ),
+      );
+      await settle();
+      final q = source.refreshes.last;
+      expect(q.clientIds, {'c1', 'c2'});
+      expect(q.vendorIds, {'v1'});
+      expect(q.categoryIds, {'k1'});
+      expect(q.status, 'active,paused');
+      expect(q.tagIds, {'t1'});
+      expect(q.includeDeleted, isTrue);
+    });
+
+    test(
+      "a line report's product filter and client ids reach it too",
+      () async {
+        final vm = vmFor(report: 'credit_item');
+        await vm.open('credit_item');
+        await settle();
+        vm.setPayload(
+          vm.payload.copyWith(clientId: () => 'c1', productKey: () => 'widget'),
+        );
+        await settle();
+        final q = source.refreshes.last;
+        expect(q.clientIds, {'c1'});
+        expect(q.productKeys, {'widget'});
+        // This year, the report's opening range.
+        expect(q.start, Date(2026, 1, 1));
+      },
+    );
   });
 }

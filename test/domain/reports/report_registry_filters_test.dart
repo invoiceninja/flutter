@@ -31,6 +31,27 @@ void main() {
         'tagsMulti',
         'includeDeleted',
       ],
+      // Built on the device: the credit report's filters and the item
+      // reports' product filter, applied there.
+      'credit_item': [
+        'dateRange',
+        'status',
+        'clientIdsMulti',
+        'productKey',
+        'tagsMulti',
+        'includeDeleted',
+      ],
+      // Built on the device, every filter applied there.
+      'recurring_expense': [
+        'dateRange',
+        'status',
+        'clientsMulti',
+        'vendorsMulti',
+        'categoriesMulti',
+        'tagsMulti',
+        'includeDeleted',
+      ],
+      'transaction': ['dateRange', 'status', 'tagsMulti', 'includeDeleted'],
       'expense': [
         'dateRange',
         'status',

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/entity_modules.dart';
@@ -308,6 +310,112 @@ void main() {
       expect(isKnownStatusTabMode(EntityType.quote, 'sent'), isTrue);
       expect(isKnownStatusTabMode(EntityType.invoice, 'sent'), isFalse);
       expect(isKnownStatusTabMode(EntityType.design, 'draft'), isFalse);
+    });
+  });
+
+  group('kStatusChipServerKeys', () {
+    // Each entity's Status chip, by its file: the slot the map names must be
+    // the one the chip writes, or a tab and a chip would AND again unnoticed.
+    const chips = {
+      EntityType.invoice: 'invoices/widgets/invoice_filter_keys.dart',
+      EntityType.quote: 'quotes/widgets/quote_filter_keys.dart',
+      EntityType.credit: 'credits/widgets/credit_filter_keys.dart',
+      EntityType.payment: 'payments/widgets/payment_filter_keys.dart',
+      EntityType.recurringInvoice:
+          'recurring_invoices/widgets/recurring_invoice_filter_keys.dart',
+      EntityType.purchaseOrder:
+          'purchase_orders/widgets/purchase_order_filter_keys.dart',
+      EntityType.task: 'tasks/task_filter_keys.dart',
+      EntityType.expense: 'expenses/widgets/expense_filter_keys.dart',
+      EntityType.transaction:
+          'transactions/widgets/transaction_filter_keys.dart',
+    };
+
+    test('names the slot each Status chip writes', () {
+      expect(kStatusChipServerKeys.keys.toSet(), chips.keys.toSet());
+      for (final MapEntry(key: type, value: path) in chips.entries) {
+        final source = File('lib/ui/features/$path').readAsStringSync();
+        // The class whose `id` is 'status', up to the next class.
+        final at = source.indexOf("String get id => 'status';");
+        expect(at, isNonNegative, reason: '$path has no Status chip');
+        final start = source.lastIndexOf('\nclass ', at);
+        final end = source.indexOf('\nclass ', at);
+        final body = source.substring(start, end < 0 ? source.length : end);
+        final slot = RegExp(
+          r"(?:_serverKey =|serverKey =>) '([a-z_]+)'",
+        ).firstMatch(body)?.group(1);
+        expect(slot, kStatusChipServerKeys[type], reason: path);
+      }
+    });
+
+    test(
+      'every entity with a Status chip has a strip to be exclusive with',
+      () {
+        for (final type in kStatusChipServerKeys.keys) {
+          expect(kListStatusTabs[type], isNotNull, reason: type.name);
+        }
+      },
+    );
+
+    test('whichever changed wins; arriving together, the tab does', () {
+      const tab = {
+        kBadgeModeFilterKey: {'draft'},
+      };
+      const chip = {
+        'status_id': {'4'},
+      };
+      Map<String, Set<String>> both() => {
+        ...tab,
+        ...chip,
+        'x': {'1'},
+      };
+      expect(
+        exclusiveStatusFilters(
+          EntityType.invoice,
+          previous: chip,
+          next: both(),
+        ).keys,
+        {kBadgeModeFilterKey, 'x'},
+      );
+      expect(
+        exclusiveStatusFilters(
+          EntityType.invoice,
+          previous: tab,
+          next: both(),
+        ).keys,
+        {'status_id', 'x'},
+      );
+      expect(
+        exclusiveStatusFilters(
+          EntityType.invoice,
+          previous: const {},
+          next: both(),
+        ).keys,
+        {kBadgeModeFilterKey, 'x'},
+      );
+      // A tab this build doesn't offer is no tab: the live chip stays.
+      final retired = {
+        kBadgeModeFilterKey: {'retired_mode'},
+        ...chip,
+      };
+      expect(
+        exclusiveStatusFilters(
+          EntityType.invoice,
+          previous: const {},
+          next: retired,
+        ),
+        same(retired),
+      );
+      // No Status chip on projects: nothing to make exclusive.
+      final project = both();
+      expect(
+        exclusiveStatusFilters(
+          EntityType.project,
+          previous: const {},
+          next: project,
+        ),
+        same(project),
+      );
     });
   });
 }

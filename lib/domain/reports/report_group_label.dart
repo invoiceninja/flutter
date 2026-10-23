@@ -190,6 +190,8 @@ String? reportDateKeyLabelKey(String? dateRangeKey) {
       return 'start_date'; // tasks: `calculated_start_date`
     case kTimeEntryDateKey:
       return 'date'; // task items: each entry's own day
+    case 'next_send_date':
+      return 'next_send_date'; // recurring expenses, built on the device
     default:
       return null;
   }

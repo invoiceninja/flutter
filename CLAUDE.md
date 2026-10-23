@@ -477,6 +477,7 @@ A one-tap status strip above every entity list (invoiceninja/flutter#98) — a *
 - **Counts are active-only, and a zero renders in the neutral palette.**
 - **The strip's edge fades are gated on the scroll position, like `EntityDetailTabs`'.** → `docs/entity-lists.md`
 - **The strip has a second, wrapped layout, used only by the dashboard's Invoices & Quotes panel — and selection there is a fill, not the underline.** → `docs/dashboard-panels.md`
+- **A status tab and the Status chip are one filter — picking a tab drops the chip, setting the chip moves the strip to All, and a stored slot holding both keeps the tab (`exclusiveStatusFilters`, `kStatusChipServerKeys`, healed by `normalizeSnapshot`).** → `docs/entity-lists.md`
 - **Quote `rejected` is a tab but not a chip, and the difference is what reaches the wire.** → `docs/entity-lists.md`
 
 ## List state filter
@@ -503,8 +504,9 @@ Five layouts (list / daily / weekly / calendar / kanban). **`?view=` on the URL 
 
 ## Dashboard panels
 
-Panels are ordered and hidden per device — `DashboardKind.panelKinds` is the registry, `DashboardPanelPref` the stored `"<kind>|<1|0>"` entry — and a kind missing from a saved arrangement goes at its canonical rank, visible (no migration). **The module gate lives only in `enabledPanelKinds`.** → `docs/dashboard-panels.md`
+Panels are ordered and hidden per user — `DashboardKind.panelKinds` is the registry, `DashboardPanelPref` the stored `"<kind>|<1|0>"` entry — and a kind missing from a saved arrangement goes at its canonical rank, visible (no migration). **The module gate lives only in `enabledPanelKinds`.** → `docs/dashboard-panels.md`
 
+- **The cards, the chart's legend and grouping, and the panel arrangement sync through `company_user.react_settings` — the cards in React's own `dashboard_fields`, never the old app's `company_user.settings` — as a patch laid over the freshest blob, and never before that blob was captured (the server replaces it whole).** → `docs/dashboard-panels.md`
 - **The needs-attention band leads both layouts, and its slot is always one list child.** → `docs/dashboard-panels.md`
 - **A row's action runs on a re-read record, never on the cached row.** → `docs/dashboard-panels.md`
 - **Unknown is not zero (`ValueSectionState`): placeholder, dash + Retry, or the value.** → `docs/dashboard-panels.md`
@@ -558,7 +560,8 @@ Tapping a phone number opens the dialer (invoiceninja/flutter#109), behind a dev
 - **A cell's `id` is its field name, so a row links only through `rowIdKey`; totals never cross currencies or a parent's repeated lines.** → `docs/reports.md`
 - **A file-only report is read back as a `ReportDocument`: nothing matches a header's text, and an unreadable file is a download.** → `docs/reports.md`
 - **A comparison pairs periods by position, never by index; a saved view is a `saved_views` row of type `report`, not an `EntityType`.** → `docs/reports.md`
-- **Task Items is the one report built on the device — `/tasks?activity_dates` into Drift, a row per time entry on the day it started, and no server file, email or schedule.** → `docs/reports.md`
+- **Task Items is built on the device — `/tasks?activity_dates` into Drift, a row per time entry on the day it started, and no server file, email or schedule.** → `docs/reports.md`
+- **Credit Items, Recurring Expenses and Transactions are built on the device too — a `RecordReportSource` each: the list route narrowed by `date_range` into Drift, every filter applied on the device, each row's currency named by its `*.currency_id` column.** → `docs/reports.md`
 - **The Tasks report merges the server's per-entry rows into one per task (`collapsesToRecord`) — each of them carries the task's whole duration.** → `docs/reports.md`
 - **A duration is hours — decimal or `H:MM` as the device's hours-format preference says — never a day count.** → `docs/reports.md`
 

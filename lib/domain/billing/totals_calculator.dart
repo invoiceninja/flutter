@@ -215,37 +215,9 @@ Map<String, Decimal> computeTaxBreakdown(
   // --- line taxes: grouped by name, each group rounded at `precision` ---
   final lineGroups = <String, Decimal>{};
   for (final item in input.lineItems) {
-    final rate1 = _round(item.taxRate1, 3);
-    final rate2 = _round(item.taxRate2, 3);
-    final rate3 = _round(item.taxRate3, 3);
-    final itemRateSum = rate1 + rate2 + rate3;
-    final base = getItemTaxable(item, subtotal, input, precision);
-    // Exclusive per-line tax rounds at 2 (`calcAmountLineTax`); the inclusive
-    // back-out uses the currency precision (`InvoiceItemSumInclusive:262`).
-    final scale = input.usesInclusiveTaxes ? precision : 2;
-
-    // The server gates each line tier on `strlen(tax_name) > 1`
-    // (`InvoiceItemSum:326/334/342`) and drops it from `total_taxes` entirely
-    // otherwise — `getTotalTaxes()` on the item sum is never read. For an
-    // AMOUNT discount `setTaxMap` re-runs `calcTaxesWithAmountDiscount`, which
-    // resets the groups first and uses the looser `strlen > 1 || total != 0`.
-    bool applies(String name) => input.isAmountDiscount || name.length >= 2;
-
-    void addTier(String name, Decimal rate) {
-      if (rate == Decimal.zero || !applies(name)) return;
-      final t = _taxAmount(
-        base,
-        rate,
-        input.usesInclusiveTaxes,
-        scale,
-        totalRate: itemRateSum,
-      );
+    for (final (name, t) in _lineTaxTiers(item, subtotal, input, precision)) {
       lineGroups.update(name, (v) => v + t, ifAbsent: () => t);
     }
-
-    addTier(item.taxName1, rate1);
-    addTier(item.taxName2, rate2);
-    addTier(item.taxName3, rate3);
   }
   final rounded = {
     for (final e in lineGroups.entries) e.key: _round(e.value, precision),
@@ -311,6 +283,75 @@ Map<String, Decimal> computeTaxBreakdown(
     breakdown.update(e.key, (v) => v + e.value, ifAbsent: () => e.value);
   }
   return (breakdown: breakdown, total: total);
+}
+
+/// The tax tiers one line contributes to its document's `total_taxes`, each
+/// with its name — the line half of [_computeTaxes], shared with
+/// [computeLineTaxAmount] so a line read on its own adds up to the document.
+List<(String, Decimal)> _lineTaxTiers(
+  LineItem item,
+  Decimal subtotal,
+  BillingTotalsInput input,
+  int precision,
+) {
+  final rate1 = _round(item.taxRate1, 3);
+  final rate2 = _round(item.taxRate2, 3);
+  final rate3 = _round(item.taxRate3, 3);
+  final itemRateSum = rate1 + rate2 + rate3;
+  final base = getItemTaxable(item, subtotal, input, precision);
+  // Exclusive per-line tax rounds at 2 (`calcAmountLineTax`); the inclusive
+  // back-out uses the currency precision (`InvoiceItemSumInclusive:262`).
+  final scale = input.usesInclusiveTaxes ? precision : 2;
+
+  // The server gates each line tier on `strlen(tax_name) > 1`
+  // (`InvoiceItemSum:326/334/342`) and drops it from `total_taxes` entirely
+  // otherwise — `getTotalTaxes()` on the item sum is never read. For an
+  // AMOUNT discount `setTaxMap` re-runs `calcTaxesWithAmountDiscount`, which
+  // resets the groups first and uses the looser `strlen > 1 || total != 0`.
+  bool applies(String name) => input.isAmountDiscount || name.length >= 2;
+
+  final tiers = <(String, Decimal)>[];
+  void addTier(String name, Decimal rate) {
+    if (rate == Decimal.zero || !applies(name)) return;
+    tiers.add((
+      name,
+      _taxAmount(
+        base,
+        rate,
+        input.usesInclusiveTaxes,
+        scale,
+        totalRate: itemRateSum,
+      ),
+    ));
+  }
+
+  addTier(item.taxName1, rate1);
+  addTier(item.taxName2, rate2);
+  addTier(item.taxName3, rate3);
+  return tiers;
+}
+
+/// One line's share of its document's line taxes — what a report of line
+/// items shows as the line's tax. The same tiers [computeTotals] adds up, so
+/// the lines of a document total its line taxes (invoice-level taxes are the
+/// document's, not any line's). [subtotal] is the document's
+/// [computeSubtotal]; pass it when reading many lines of one document.
+Decimal computeLineTaxAmount(
+  LineItem item,
+  BillingTotalsInput input,
+  int precision, {
+  Decimal? subtotal,
+}) {
+  final tiers = _lineTaxTiers(
+    item,
+    subtotal ?? computeSubtotal(input, precision),
+    input,
+    precision,
+  );
+  return _round(
+    tiers.fold<Decimal>(Decimal.zero, (sum, t) => sum + t.$2),
+    precision,
+  );
 }
 
 /// Taxable amount of a single line item against the invoice's running

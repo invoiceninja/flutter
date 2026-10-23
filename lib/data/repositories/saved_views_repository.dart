@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/utils/combine_latest.dart';
 
 final _log = Logger('SavedViewsRepository');
@@ -71,6 +72,39 @@ Map<String, dynamic> normalizeSnapshotStates(Map<String, dynamic> slot) {
   }
   return Map<String, dynamic>.from(slot)
     ..['states'] = <String>[EntityState.active.name];
+}
+
+/// [normalizeSnapshotStates], and a status tab and Status chip made exclusive
+/// the way the list VM makes them on read ([exclusiveStatusFilters]) — a slot
+/// written before that rule can hold both. Every site that heals the states
+/// heals this too, for the same reasons. Returns [slot] itself when there is
+/// nothing to heal.
+Map<String, dynamic> normalizeSnapshot(
+  EntityType entityType,
+  Map<String, dynamic> slot,
+) {
+  final healed = normalizeSnapshotStates(slot);
+  final extras = healed['extraFilters'];
+  if (extras is! Map) return healed;
+  final sets = <String, Set<String>>{
+    for (final MapEntry(:key, :value) in extras.entries)
+      if (key is String && value is List && value.isNotEmpty)
+        key: value.whereType<String>().toSet(),
+  };
+  final exclusive = exclusiveStatusFilters(
+    entityType,
+    previous: const {},
+    next: sets,
+  );
+  if (identical(exclusive, sets)) return healed;
+  return Map<String, dynamic>.from(healed)
+    ..['extraFilters'] = {
+      for (final MapEntry(:key, :value) in extras.entries)
+        if (key is! String ||
+            exclusive.containsKey(key) ||
+            !sets.containsKey(key))
+          key: value,
+    };
 }
 
 /// Local-only saved views: named snapshots of a list screen's
@@ -163,10 +197,12 @@ class SavedViewsRepository {
     // differ in general — [_matchSlot] also strips `columnIds` and
     // [kDisplayOnlySnapshotKeys] and this doesn't — which is latent only
     // because nothing in `lib/` calls this one.
-    final live = normalizeSnapshotStates(currentSnapshot);
+    final live = normalizeSnapshot(entityType, currentSnapshot);
     return watchForEntity(companyId, entityType).map((views) {
       for (final v in views) {
-        if (eq.equals(normalizeSnapshotStates(v.snapshot), live)) return v;
+        if (eq.equals(normalizeSnapshot(entityType, v.snapshot), live)) {
+          return v;
+        }
       }
       return null;
     });
@@ -189,7 +225,7 @@ class SavedViewsRepository {
       (views, nav) {
         final slot = _filterSlot(nav?.filtersJson, companyId, entityType);
         if (slot == null) return null;
-        return _matchSlot(views, slot);
+        return _matchSlot(entityType, views, slot);
       },
     );
   }
@@ -205,17 +241,22 @@ class SavedViewsRepository {
   /// nav_state slot but are a display preference, not a filter. Leaving them
   /// in would mean grouping a list — or just folding one group — silently
   /// dropped the active-view highlight and disabled [clearAppliedViewFilters].
-  SavedView? _matchSlot(List<SavedView> views, Map<String, dynamic> slot) {
+  SavedView? _matchSlot(
+    EntityType entityType,
+    List<SavedView> views,
+    Map<String, dynamic> slot,
+  ) {
     const eq = DeepCollectionEquality();
     // `Map.from` on the OUTSIDE: [normalizeSnapshotStates] hands back the
     // argument itself when there is nothing to heal, and the `removeWhere` /
     // `remove` below would then strip keys out of the caller's live snapshot —
     // and out of `SavedView.snapshot`'s own map.
-    final liveSlot = Map<String, dynamic>.from(normalizeSnapshotStates(slot))
-      ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
+    final liveSlot = Map<String, dynamic>.from(
+      normalizeSnapshot(entityType, slot),
+    )..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
     for (final v in views) {
       final viewSlot =
-          Map<String, dynamic>.from(normalizeSnapshotStates(v.snapshot))
+          Map<String, dynamic>.from(normalizeSnapshot(entityType, v.snapshot))
             ..remove('columnIds')
             ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
       if (eq.equals(viewSlot, liveSlot)) return v;
@@ -242,7 +283,9 @@ class SavedViewsRepository {
     final slot = _filterSlot(nav?.filtersJson, companyId, entityType);
     if (slot == null) return; // nothing applied
     final views = await watchForEntity(companyId, entityType).first;
-    if (_matchSlot(views, slot) == null) return; // manual filters → keep
+    if (_matchSlot(entityType, views, slot) == null) {
+      return; // manual filters → keep
+    }
     final decoded = jsonDecode(nav!.filtersJson!);
     if (decoded is! Map) return;
     final doc = Map<String, dynamic>.from(decoded);
@@ -490,7 +533,7 @@ class SavedViewsRepository {
     // reader heals it today; this keeps the claim above ("the live snapshot
     // can never carry `"states": []` again") true rather than nearly true.
     final filterSlot = Map<String, dynamic>.from(
-      normalizeSnapshotStates(snapshot),
+      normalizeSnapshot(entityType, snapshot),
     )..remove('columnIds');
     final nav = await db.navStateDao.current();
     final existing = nav?.filtersJson;

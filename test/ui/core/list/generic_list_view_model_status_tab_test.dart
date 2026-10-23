@@ -181,20 +181,63 @@ void main() {
     },
   );
 
-  test('a filter the user set by hand wins the fetch', () async {
-    final vm = await makeVm(EntityType.invoice);
-    // Hand-picked "Paid" via the search field, then the Draft tab.
-    await vm.setExtraFilter(serverKey: 'status_id', values: {'4'});
-    await vm.setBadgeMode('draft');
+  group('a status tab and the Status chip are one filter', () {
+    test('picking a tab drops the Status chip', () async {
+      final vm = await makeVm(EntityType.invoice);
+      // Hand-picked "Paid" via the search field, then the Draft tab.
+      await vm.setExtraFilter(serverKey: 'status_id', values: {'4'});
+      await vm.setBadgeMode('draft');
 
-    expect(
-      vm.lastFetchExtraFilters['status_id'],
-      {'4'},
-      reason:
-          'the tab must not silently widen the fetch behind a chip the user '
-          'can see; its own predicate still ANDs on top locally',
-    );
-    vm.dispose();
+      expect(vm.extraFilters.containsKey('status_id'), isFalse);
+      expect(
+        vm.lastFetchExtraFilters['status_id'],
+        {'1'},
+        reason: 'Draft AND Paid could hold nothing; the tab replaces the chip',
+      );
+      vm.dispose();
+    });
+
+    test('setting the Status chip moves the strip back to All', () async {
+      final vm = await makeVm(EntityType.quote);
+      await vm.setBadgeMode('draft');
+      await vm.setExtraFilter(serverKey: 'client_status', values: {'sent'});
+
+      expect(vm.activeBadgeModeId, isNull);
+      expect(vm.extraFilters['client_status'], {'sent'});
+      vm.dispose();
+    });
+
+    test('any other chip still combines with a tab', () async {
+      final vm = await makeVm(EntityType.invoice);
+      await vm.setExtraFilter(serverKey: 'client_id', values: {'c1'});
+      await vm.setBadgeMode('draft');
+
+      expect(vm.activeBadgeModeId, 'draft');
+      expect(vm.extraFilters['client_id'], {'c1'});
+      vm.dispose();
+    });
+
+    test('a saved slot holding both restores the tab alone', () async {
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {
+            'invoice': {
+              'extraFilters': {
+                kBadgeModeFilterKey: ['draft'],
+                'status_id': ['4'],
+                'client_id': ['c1'],
+              },
+            },
+          },
+        }),
+        now: 1,
+      );
+      final vm = await makeVm(EntityType.invoice);
+      expect(vm.activeBadgeModeId, 'draft');
+      expect(vm.extraFilters.containsKey('status_id'), isFalse);
+      expect(vm.extraFilters['client_id'], {'c1'});
+      vm.dispose();
+    });
   });
 
   group('clients (#119)', () {

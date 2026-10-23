@@ -14,9 +14,10 @@ import 'package:admin/l10n/localization.dart';
 ///   gates the first frame — so an Arabic UI paints its first frame in Noto
 ///   Sans Arabic, and on web CanvasKit never fetches its own;
 /// - nothing at all for a language Inter Tight covers;
-/// - natively, every other family only [kDeferredScriptFontsDelay] after the
-///   first frame, out of the launch window — each registration re-lays out
-///   every paragraph.
+/// - natively, every other family once launch work has settled
+///   ([ScriptFonts.launchSettled]) or at the latest [kDeferredScriptFontsDelay]
+///   after the first frame, out of the launch window — each registration
+///   re-lays out every paragraph.
 ///
 /// Proved the way `script_fallback_fonts_test` proves coverage: under
 /// `flutter test` a glyph no loaded font has is Inter Tight's placeholder box,
@@ -101,6 +102,53 @@ void main() {
     await tester.runAsync(() => ScriptFonts.ensureLoaded(kScriptFallbackFonts));
     await tester.pump();
     expect(isBoxes(thai), isFalse);
+    ScriptFonts.detach();
+  });
+
+  // The families are registered by the test above, so these watch the trigger.
+  testWidgets('launch settling brings the deferred load forward', (
+    tester,
+  ) async {
+    ScriptFonts.detach();
+    ScriptFonts.attach();
+    tester.binding.scheduleFrame();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(ScriptFonts.lastDeferredTrigger, isNull);
+
+    ScriptFonts.launchSettled();
+    await tester.pump(
+      kScriptFontsSettleGrace - const Duration(milliseconds: 1),
+    );
+    expect(ScriptFonts.lastDeferredTrigger, isNull);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(ScriptFonts.lastDeferredTrigger, 'settled');
+    ScriptFonts.detach();
+  });
+
+  testWidgets('a launch that settles before the first frame waits for it', (
+    tester,
+  ) async {
+    ScriptFonts.detach();
+    ScriptFonts.attach();
+    ScriptFonts.launchSettled();
+    expect(ScriptFonts.lastDeferredTrigger, isNull);
+    tester.binding.scheduleFrame();
+    await tester.pump();
+    await tester.pump(kScriptFontsSettleGrace);
+    expect(ScriptFonts.lastDeferredTrigger, 'settled');
+    ScriptFonts.detach();
+  });
+
+  testWidgets('a launch that never settles loads at the ceiling', (
+    tester,
+  ) async {
+    ScriptFonts.detach();
+    ScriptFonts.attach();
+    tester.binding.scheduleFrame();
+    await tester.pump();
+    await tester.pump(kDeferredScriptFontsDelay);
+    expect(ScriptFonts.lastDeferredTrigger, 'ceiling');
     ScriptFonts.detach();
   });
 

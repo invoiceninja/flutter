@@ -33,9 +33,17 @@ List<String> scriptFontsForLanguage(String languageCode) =>
       _ => const [],
     };
 
-/// How long after the first frame a native build registers the families the
-/// UI language does not need (see [ScriptFonts.attach]).
-const Duration kDeferredScriptFontsDelay = Duration(seconds: 15);
+/// The latest, after the first frame, a native build registers the families
+/// the UI language does not need (see [ScriptFonts.attach]). Normally they
+/// load sooner — once launch work has settled ([ScriptFonts.launchSettled]);
+/// this is for a launch that never gets there (the login screen, which has no
+/// company to sweep). Offline the sweep fails fast, which is settled too:
+/// nothing else is coming over the network to lay out.
+const Duration kDeferredScriptFontsDelay = Duration(seconds: 30);
+
+/// How long after launch work settles the deferred families load — the rows
+/// the last request wrote are still being laid out for a frame or two.
+const Duration kScriptFontsSettleGrace = Duration(seconds: 1);
 
 /// How long the localization delegate waits on the UI language's family
 /// before letting the first frame go without it (see
@@ -52,9 +60,12 @@ const Duration kScriptFontFirstFrameBudget = Duration(seconds: 2);
 /// own fallback from fonts.gstatic.com first — and every other language pays
 /// nothing.
 ///
-/// **The other families** load natively only, [kDeferredScriptFontsDelay]
-/// after the first frame ([attach]), so an Arabic client name in an English
-/// UI renders in the bundled font too. Every `FontLoader.load` sends a
+/// **The other families** load natively only, once launch work has settled
+/// ([launchSettled], the first sidebar prefetch sweep) or at the latest
+/// [kDeferredScriptFontsDelay] after the first frame ([attach]), so an Arabic
+/// client name in an English UI renders in the bundled font too. The trace
+/// records which came first and when, so the launch window is measured on
+/// real launches rather than guessed. Every `FontLoader.load` sends a
 /// `fontsChange` that re-lays out every paragraph, so they are kept out of
 /// the launch window and loaded together; until then the platform's own
 /// font fallback draws those scripts (each OS ships fonts for them). On web
@@ -69,6 +80,8 @@ class ScriptFonts {
   static final Map<String, Future<void>> _loads = {};
   static Timer? _deferred;
   static bool _attached = false;
+  static bool _settled = false;
+  static Stopwatch? _sinceFirstFrame;
 
   /// Loads the families text in [locale]'s language needs, waiting at most
   /// [budget] — past it the load carries on and the text relays out when it
@@ -89,16 +102,56 @@ class ScriptFonts {
     _attached = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!_attached) return;
+      _sinceFirstFrame = Stopwatch()..start();
       _deferred ??= Timer(
         kDeferredScriptFontsDelay,
-        () => unawaited(ensureLoaded(kScriptFallbackFonts)),
+        () => _loadDeferred('ceiling'),
       );
+      if (_settled) _onSettled();
     });
+  }
+
+  /// Launch work is over: the first sidebar prefetch sweep has finished
+  /// (`Services`). Brings the deferred load forward to
+  /// [kScriptFontsSettleGrace] from now. Later calls do nothing.
+  static void launchSettled() {
+    if (kIsWeb || _settled) return;
+    _settled = true;
+    // Before the first frame, the post-frame callback in [attach] picks it up.
+    if (_attached && _sinceFirstFrame != null) _onSettled();
+  }
+
+  static void _onSettled() {
+    final pending = _deferred;
+    if (pending == null || !pending.isActive) return;
+    pending.cancel();
+    _deferred = Timer(kScriptFontsSettleGrace, () => _loadDeferred('settled'));
+  }
+
+  /// What set off the last deferred load — `settled` or `ceiling` — or null.
+  @visibleForTesting
+  static String? lastDeferredTrigger;
+
+  static void _loadDeferred(String trigger) {
+    lastDeferredTrigger = trigger;
+    unawaited(
+      traceAsync(
+        'scriptFonts.deferred',
+        () => ensureLoaded(kScriptFallbackFonts),
+        args: {
+          'trigger': trigger,
+          'sinceFirstFrameMs': _sinceFirstFrame?.elapsedMilliseconds,
+        },
+      ),
+    );
   }
 
   /// Cancels a deferred load [attach] scheduled that has not run yet.
   static void detach() {
     _attached = false;
+    lastDeferredTrigger = null;
+    _settled = false;
+    _sinceFirstFrame = null;
     _deferred?.cancel();
     _deferred = null;
   }

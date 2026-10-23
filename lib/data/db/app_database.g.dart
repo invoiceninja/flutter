@@ -13231,6 +13231,18 @@ class $UserSettingsTable extends UserSettings
     requiredDuringInsert: false,
     defaultValue: const Constant('{}'),
   );
+  static const VerificationMeta _reactSettingsJsonMeta = const VerificationMeta(
+    'reactSettingsJson',
+  );
+  @override
+  late final GeneratedColumn<String> reactSettingsJson =
+      GeneratedColumn<String>(
+        'react_settings_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -13248,6 +13260,7 @@ class $UserSettingsTable extends UserSettings
     userId,
     tableColumnsJson,
     extraJson,
+    reactSettingsJson,
     updatedAt,
   ];
   @override
@@ -13293,6 +13306,15 @@ class $UserSettingsTable extends UserSettings
         extraJson.isAcceptableOrUnknown(data['extra_json']!, _extraJsonMeta),
       );
     }
+    if (data.containsKey('react_settings_json')) {
+      context.handle(
+        _reactSettingsJsonMeta,
+        reactSettingsJson.isAcceptableOrUnknown(
+          data['react_settings_json']!,
+          _reactSettingsJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -13326,6 +13348,10 @@ class $UserSettingsTable extends UserSettings
         DriftSqlType.string,
         data['${effectivePrefix}extra_json'],
       )!,
+      reactSettingsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}react_settings_json'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}updated_at'],
@@ -13344,12 +13370,14 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
   final String userId;
   final String tableColumnsJson;
   final String extraJson;
+  final String? reactSettingsJson;
   final int updatedAt;
   const UserSettingsRow({
     required this.companyId,
     required this.userId,
     required this.tableColumnsJson,
     required this.extraJson,
+    this.reactSettingsJson,
     required this.updatedAt,
   });
   @override
@@ -13359,6 +13387,9 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     map['user_id'] = Variable<String>(userId);
     map['table_columns_json'] = Variable<String>(tableColumnsJson);
     map['extra_json'] = Variable<String>(extraJson);
+    if (!nullToAbsent || reactSettingsJson != null) {
+      map['react_settings_json'] = Variable<String>(reactSettingsJson);
+    }
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
   }
@@ -13369,6 +13400,9 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       userId: Value(userId),
       tableColumnsJson: Value(tableColumnsJson),
       extraJson: Value(extraJson),
+      reactSettingsJson: reactSettingsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reactSettingsJson),
       updatedAt: Value(updatedAt),
     );
   }
@@ -13383,6 +13417,9 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       userId: serializer.fromJson<String>(json['userId']),
       tableColumnsJson: serializer.fromJson<String>(json['tableColumnsJson']),
       extraJson: serializer.fromJson<String>(json['extraJson']),
+      reactSettingsJson: serializer.fromJson<String?>(
+        json['reactSettingsJson'],
+      ),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
   }
@@ -13394,6 +13431,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       'userId': serializer.toJson<String>(userId),
       'tableColumnsJson': serializer.toJson<String>(tableColumnsJson),
       'extraJson': serializer.toJson<String>(extraJson),
+      'reactSettingsJson': serializer.toJson<String?>(reactSettingsJson),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
   }
@@ -13403,12 +13441,16 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     String? userId,
     String? tableColumnsJson,
     String? extraJson,
+    Value<String?> reactSettingsJson = const Value.absent(),
     int? updatedAt,
   }) => UserSettingsRow(
     companyId: companyId ?? this.companyId,
     userId: userId ?? this.userId,
     tableColumnsJson: tableColumnsJson ?? this.tableColumnsJson,
     extraJson: extraJson ?? this.extraJson,
+    reactSettingsJson: reactSettingsJson.present
+        ? reactSettingsJson.value
+        : this.reactSettingsJson,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   UserSettingsRow copyWithCompanion(UserSettingsCompanion data) {
@@ -13419,6 +13461,9 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
           ? data.tableColumnsJson.value
           : this.tableColumnsJson,
       extraJson: data.extraJson.present ? data.extraJson.value : this.extraJson,
+      reactSettingsJson: data.reactSettingsJson.present
+          ? data.reactSettingsJson.value
+          : this.reactSettingsJson,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -13430,14 +13475,21 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
           ..write('userId: $userId, ')
           ..write('tableColumnsJson: $tableColumnsJson, ')
           ..write('extraJson: $extraJson, ')
+          ..write('reactSettingsJson: $reactSettingsJson, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(companyId, userId, tableColumnsJson, extraJson, updatedAt);
+  int get hashCode => Object.hash(
+    companyId,
+    userId,
+    tableColumnsJson,
+    extraJson,
+    reactSettingsJson,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -13446,6 +13498,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
           other.userId == this.userId &&
           other.tableColumnsJson == this.tableColumnsJson &&
           other.extraJson == this.extraJson &&
+          other.reactSettingsJson == this.reactSettingsJson &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -13454,6 +13507,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
   final Value<String> userId;
   final Value<String> tableColumnsJson;
   final Value<String> extraJson;
+  final Value<String?> reactSettingsJson;
   final Value<int> updatedAt;
   final Value<int> rowid;
   const UserSettingsCompanion({
@@ -13461,6 +13515,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
     this.userId = const Value.absent(),
     this.tableColumnsJson = const Value.absent(),
     this.extraJson = const Value.absent(),
+    this.reactSettingsJson = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -13469,6 +13524,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
     required String userId,
     this.tableColumnsJson = const Value.absent(),
     this.extraJson = const Value.absent(),
+    this.reactSettingsJson = const Value.absent(),
     required int updatedAt,
     this.rowid = const Value.absent(),
   }) : companyId = Value(companyId),
@@ -13479,6 +13535,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
     Expression<String>? userId,
     Expression<String>? tableColumnsJson,
     Expression<String>? extraJson,
+    Expression<String>? reactSettingsJson,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -13487,6 +13544,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
       if (userId != null) 'user_id': userId,
       if (tableColumnsJson != null) 'table_columns_json': tableColumnsJson,
       if (extraJson != null) 'extra_json': extraJson,
+      if (reactSettingsJson != null) 'react_settings_json': reactSettingsJson,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -13497,6 +13555,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
     Value<String>? userId,
     Value<String>? tableColumnsJson,
     Value<String>? extraJson,
+    Value<String?>? reactSettingsJson,
     Value<int>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -13505,6 +13564,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
       userId: userId ?? this.userId,
       tableColumnsJson: tableColumnsJson ?? this.tableColumnsJson,
       extraJson: extraJson ?? this.extraJson,
+      reactSettingsJson: reactSettingsJson ?? this.reactSettingsJson,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -13525,6 +13585,9 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
     if (extraJson.present) {
       map['extra_json'] = Variable<String>(extraJson.value);
     }
+    if (reactSettingsJson.present) {
+      map['react_settings_json'] = Variable<String>(reactSettingsJson.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
@@ -13541,6 +13604,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSettingsRow> {
           ..write('userId: $userId, ')
           ..write('tableColumnsJson: $tableColumnsJson, ')
           ..write('extraJson: $extraJson, ')
+          ..write('reactSettingsJson: $reactSettingsJson, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -52411,6 +52475,7 @@ typedef $$UserSettingsTableCreateCompanionBuilder =
       required String userId,
       Value<String> tableColumnsJson,
       Value<String> extraJson,
+      Value<String?> reactSettingsJson,
       required int updatedAt,
       Value<int> rowid,
     });
@@ -52420,6 +52485,7 @@ typedef $$UserSettingsTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> tableColumnsJson,
       Value<String> extraJson,
+      Value<String?> reactSettingsJson,
       Value<int> updatedAt,
       Value<int> rowid,
     });
@@ -52450,6 +52516,11 @@ class $$UserSettingsTableFilterComposer
 
   ColumnFilters<String> get extraJson => $composableBuilder(
     column: $table.extraJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reactSettingsJson => $composableBuilder(
+    column: $table.reactSettingsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -52488,6 +52559,11 @@ class $$UserSettingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get reactSettingsJson => $composableBuilder(
+    column: $table.reactSettingsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -52516,6 +52592,11 @@ class $$UserSettingsTableAnnotationComposer
 
   GeneratedColumn<String> get extraJson =>
       $composableBuilder(column: $table.extraJson, builder: (column) => column);
+
+  GeneratedColumn<String> get reactSettingsJson => $composableBuilder(
+    column: $table.reactSettingsJson,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -52556,6 +52637,7 @@ class $$UserSettingsTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> tableColumnsJson = const Value.absent(),
                 Value<String> extraJson = const Value.absent(),
+                Value<String?> reactSettingsJson = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserSettingsCompanion(
@@ -52563,6 +52645,7 @@ class $$UserSettingsTableTableManager
                 userId: userId,
                 tableColumnsJson: tableColumnsJson,
                 extraJson: extraJson,
+                reactSettingsJson: reactSettingsJson,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -52572,6 +52655,7 @@ class $$UserSettingsTableTableManager
                 required String userId,
                 Value<String> tableColumnsJson = const Value.absent(),
                 Value<String> extraJson = const Value.absent(),
+                Value<String?> reactSettingsJson = const Value.absent(),
                 required int updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => UserSettingsCompanion.insert(
@@ -52579,6 +52663,7 @@ class $$UserSettingsTableTableManager
                 userId: userId,
                 tableColumnsJson: tableColumnsJson,
                 extraJson: extraJson,
+                reactSettingsJson: reactSettingsJson,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),

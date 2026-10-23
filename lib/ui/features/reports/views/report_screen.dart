@@ -797,7 +797,7 @@ class _Results extends StatelessWidget {
               icon: Icons.inbox_outlined,
               message: totalRows > 0
                   ? tr('report_no_matching_rows')
-                  : vm.definition.isLocal
+                  : vm.definition.rowsAreTimeEntries
                   ? tr('report_no_time_entries')
                   : tr('report_no_rows'),
               actions: [
@@ -813,7 +813,8 @@ class _Results extends StatelessWidget {
                     child: Text(tr('clear_filters')),
                   )
                 // Not on a report built on the device: there "All time" is
-                // every task the company has, fetched page by page.
+                // every record of the kind the company has, fetched page by
+                // page.
                 else if (vm.definition.honoursDateRange &&
                     !vm.definition.isLocal &&
                     vm.payload.datePreset != ReportDatePreset.allTime)

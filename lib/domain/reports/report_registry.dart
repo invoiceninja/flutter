@@ -14,8 +14,11 @@ const Map<String, String> kReportTagEntityTypes = {
   'quote': 'quote',
   'quote_item': 'quote',
   'credit': 'credit',
+  'credit_item': 'credit',
   'payment': 'payment',
   'expense': 'expense',
+  'recurring_expense': 'recurring_expense',
+  'transaction': 'bank_transaction',
   'task': 'task',
   'task_item': 'task',
   'product': 'product',
@@ -27,9 +30,10 @@ const Map<String, String> kReportTagEntityTypes = {
   'project': 'project',
 };
 
-/// The 28 reports we mirror from React (`useReports.ts`), and Task Items,
-/// which v1 had and the server cannot produce (it is built on the device —
-/// [ReportDefinition.isLocal]). Each entry carries
+/// The 28 reports we mirror from React (`useReports.ts`), and four that v1
+/// had and the server cannot produce — Task Items, Credit Items, Recurring
+/// Expenses and Transactions, built on the device
+/// ([ReportDefinition.isLocal]). Each entry carries
 /// its endpoint, `supportsPreview`, the server-side `filterFields` the settings
 /// panel renders, and `defaultFilterValues`. Field visibility mirrors
 /// `react/src/pages/reports/common/hooks/useShowReportField.ts`.
@@ -153,6 +157,54 @@ const kReportDefinitions = <ReportDefinition>[
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'created_at'},
   ),
+  // Built on the device (`creditItemsReportSource`): the server has an item
+  // report for invoices, quotes and recurring invoices, and none for credits.
+  ReportDefinition(
+    identifier: 'credit_item',
+    isLocal: true,
+    category: ReportCategory.sales,
+    defaultRange: ReportDatePreset.thisYear,
+    defaultColumnIds: [
+      'client.name',
+      'credit.number',
+      'credit.date',
+      'item.product_key',
+      'item.notes',
+      'item.quantity',
+      'item.cost',
+      'item.line_total',
+    ],
+    headlineMeasureIds: ['item.line_total', 'item.quantity'],
+    starterViews: [
+      ReportStarterView(labelKey: 'product', group: 'item.product_key'),
+      ReportStarterView(
+        labelKey: 'month',
+        group: 'credit.date',
+        subgroup: ReportSubgroup.month,
+      ),
+      ReportStarterView(labelKey: 'client', group: 'client.name'),
+    ],
+    // The rows carry their credit's id; a credit's own figures repeat on
+    // each of its lines.
+    lineItemPrefix: 'item',
+    dateRangeKey: 'date',
+    // Never called — see `isLocal`.
+    endpoint: '',
+    labelKey: 'credit_items',
+    icon: EntityType.credit,
+    requiredPermission: 'view_credit',
+    // The credit report's filters and the item reports' product filter,
+    // applied on the device.
+    filterFields: [
+      ReportFilterField.dateRange,
+      ReportFilterField.status,
+      ReportFilterField.clientIdsMulti,
+      ReportFilterField.productKey,
+      ReportFilterField.tagsMulti,
+      ReportFilterField.includeDeleted,
+    ],
+    defaultFilterValues: {'date_range': 'all'},
+  ),
   ReportDefinition(
     identifier: 'document',
     category: ReportCategory.records,
@@ -210,6 +262,53 @@ const kReportDefinitions = <ReportDefinition>[
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'date'},
+  ),
+  // Built on the device (`recurringExpensesReportSource`): the server has a
+  // recurring-invoice report and no recurring-expense one.
+  ReportDefinition(
+    identifier: 'recurring_expense',
+    isLocal: true,
+    category: ReportCategory.expenses,
+    defaultColumnIds: [
+      'recurring_expense.number',
+      'vendor.name',
+      'recurring_expense.category_id',
+      'recurring_expense.frequency_id',
+      'recurring_expense.next_send_date',
+      'recurring_expense.remaining_cycles',
+      'recurring_expense.status',
+      'recurring_expense.amount',
+    ],
+    headlineMeasureIds: ['recurring_expense.amount'],
+    starterViews: [
+      ReportStarterView(labelKey: 'vendor', group: 'vendor.name'),
+      ReportStarterView(
+        labelKey: 'category',
+        group: 'recurring_expense.category_id',
+      ),
+      ReportStarterView(
+        labelKey: 'frequency',
+        group: 'recurring_expense.frequency_id',
+      ),
+    ],
+    // A list of schedules first, as the recurring invoice report is.
+    opensGrouped: false,
+    dateRangeKey: 'next_send_date',
+    // Never called — see `isLocal`.
+    endpoint: '',
+    labelKey: 'recurring_expenses',
+    icon: EntityType.recurringExpense,
+    requiredPermission: 'view_recurring_expense',
+    filterFields: [
+      ReportFilterField.dateRange,
+      ReportFilterField.status,
+      ReportFilterField.clientsMulti,
+      ReportFilterField.vendorsMulti,
+      ReportFilterField.categoriesMulti,
+      ReportFilterField.tagsMulti,
+      ReportFilterField.includeDeleted,
+    ],
+    defaultFilterValues: {'date_range': 'all'},
   ),
   ReportDefinition(
     identifier: 'invoice',
@@ -677,6 +776,7 @@ const kReportDefinitions = <ReportDefinition>[
   ReportDefinition(
     identifier: 'task_item',
     isLocal: true,
+    rowsAreTimeEntries: true,
     category: ReportCategory.time,
     defaultRange: ReportDatePreset.thisMonth,
     // A list first: the entries are what was asked for.
@@ -768,6 +868,50 @@ const kReportDefinitions = <ReportDefinition>[
     defaultFilterValues: {'date_range': 'all'},
   ),
   // ─── Financial / aggregate reports ───
+  // Built on the device (`transactionsReportSource`): the server has no
+  // report of bank transactions.
+  ReportDefinition(
+    identifier: 'transaction',
+    isLocal: true,
+    category: ReportCategory.financial,
+    defaultRange: ReportDatePreset.thisYear,
+    defaultColumnIds: [
+      'bank_transaction.date',
+      'bank_transaction.description',
+      'bank_transaction.status',
+      'bank_transaction.deposit',
+      'bank_transaction.withdrawal',
+      'bank_account.name',
+      'bank_transaction.invoices',
+      'bank_transaction.expense_number',
+    ],
+    headlineMeasureIds: [
+      'bank_transaction.deposit',
+      'bank_transaction.withdrawal',
+    ],
+    starterViews: [
+      ReportStarterView(
+        labelKey: 'month',
+        group: 'bank_transaction.date',
+        subgroup: ReportSubgroup.month,
+      ),
+      ReportStarterView(labelKey: 'bank_account', group: 'bank_account.name'),
+      ReportStarterView(labelKey: 'status', group: 'bank_transaction.status'),
+    ],
+    dateRangeKey: 'date',
+    // Never called — see `isLocal`.
+    endpoint: '',
+    labelKey: 'transactions',
+    icon: EntityType.transaction,
+    requiredPermission: 'view_bank_transaction',
+    filterFields: [
+      ReportFilterField.dateRange,
+      ReportFilterField.status,
+      ReportFilterField.tagsMulti,
+      ReportFilterField.includeDeleted,
+    ],
+    defaultFilterValues: {'date_range': 'all'},
+  ),
   ReportDefinition(
     identifier: 'profitloss',
     category: ReportCategory.financial,

@@ -177,6 +177,10 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    // Off only for the Credit Items report, which keeps the credits of an
+    // archived client as the server's credit report does (it narrows with
+    // `filter_deleted_clients` instead).
+    bool excludeDeletedClients = true,
   }) => ensurePageLoadedTemplate(
     companyId: companyId,
     page: page,
@@ -185,7 +189,7 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     states: states,
     extraFilters: extraFilters,
     ignoreCursor: ignoreCursor,
-    excludeDeletedClients: true,
+    excludeDeletedClients: excludeDeletedClients,
     // `?include=documents` so a paged refresh carries each record's
     // attachments into the local `documents` column.
     staticFilters: const {'include': 'documents'},

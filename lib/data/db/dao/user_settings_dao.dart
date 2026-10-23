@@ -42,6 +42,22 @@ class UserSettingsDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Replace only the `react_settings_json` blob.
+  Future<void> writeReactSettings({
+    required String companyId,
+    required String reactSettingsJson,
+    required int now,
+  }) async {
+    await (update(
+      userSettings,
+    )..where((u) => u.companyId.equals(companyId))).write(
+      UserSettingsCompanion(
+        reactSettingsJson: Value(reactSettingsJson),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
   Future<int> deleteFor(String companyId) =>
       (delete(userSettings)..where((u) => u.companyId.equals(companyId))).go();
 }

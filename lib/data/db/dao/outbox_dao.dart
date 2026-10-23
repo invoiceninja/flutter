@@ -706,6 +706,22 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return (await q.getSingleOrNull()) != null;
   }
 
+  /// The non-terminal rows [hasActiveRowsFor] asks about, in queue order —
+  /// for a caller that replays what they carry (`applyServerReactSettings`).
+  Future<List<OutboxRow>> activeRowsFor({
+    required String companyId,
+    required String entityType,
+  }) =>
+      (select(outbox)
+            ..where(
+              (o) =>
+                  o.companyId.equals(companyId) &
+                  o.entityType.equals(entityType) &
+                  o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']),
+            )
+            ..orderBy([(o) => OrderingTerm(expression: o.id)]))
+          .get();
+
   /// Like [hasActiveRowsFor] but scoped to a single [entityId]. The discard
   /// reconciliation uses it to decide whether clearing a local record's
   /// `is_dirty` is safe — only when NO other pending/in_flight outbox row

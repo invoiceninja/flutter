@@ -14,6 +14,9 @@ class ReportQuery {
     this.status = '',
     this.clientIds = const {},
     this.projectIds = const {},
+    this.vendorIds = const {},
+    this.categoryIds = const {},
+    this.productKeys = const {},
     this.tagIds = const {},
     this.includeDeleted = false,
   });
@@ -29,8 +32,18 @@ class ReportQuery {
   /// The report's Status filter as the server spells it — a comma-joined
   /// list, empty for none.
   final String status;
+
+  /// Clients, whichever of the two client filters the report offers
+  /// (`client_id` or `clients`) set them.
   final Set<String> clientIds;
   final Set<String> projectIds;
+  final Set<String> vendorIds;
+
+  /// Expense categories.
+  final Set<String> categoryIds;
+
+  /// Product keys, matched against a line item's own.
+  final Set<String> productKeys;
   final Set<String> tagIds;
   final bool includeDeleted;
 

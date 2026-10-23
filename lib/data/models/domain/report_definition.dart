@@ -127,6 +127,7 @@ class ReportDefinition {
     this.hiddenColumnIds = const {},
     this.collapsesToRecord = false,
     this.isLocal = false,
+    this.rowsAreTimeEntries = false,
     this.defaultFilterValues = const {},
     this.defaultColumnIds = const [],
     this.category = ReportCategory.records,
@@ -295,6 +296,11 @@ class ReportDefinition {
   /// its [identifier]; without one the run fails rather than asking the
   /// server for an endpoint that does not exist.
   final bool isLocal;
+
+  /// Whether each row is a time entry rather than a record — Task Items. The
+  /// empty state and the "built on this device" line say "time entries"
+  /// instead of "rows" / "records".
+  final bool rowsAreTimeEntries;
 
   /// Canonical default values. Used by the "Filters (N)" badge counter
   /// (non-default = bumped) and by "Reset filters". Excludes `dateRange`

@@ -129,9 +129,9 @@ the honest default.
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | v2 draws the nearest grouping the range can show (one month by month is a single line) and the control shows the one in effect |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
 | Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | ✅ | — | ✅ | | React on its develop branch (ui#3356), unreleased |
-| Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
+| Reorder + show/hide dashboard panels (synced across devices) | — | — | ✅ | ✅ | |
 | Hide empty dashboard panels — list panels with nothing to show are left off, with an "N empty panels hidden" link on phones (device-local; on by default on phones, off on tablets / desktop) | — | — | ✅ | | |
-| Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
+| Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ✅ | ✅ | v2: the cards (shared with React in `react_settings.dashboard_fields`), the chart grouping (React's `default_view`), the legend and the panel arrangement, through `company_user.react_settings`; the date range stays per device. v1 keeps its cards in `company_user.settings` in another format, which v2 leaves alone (`docs/dashboard-panels.md`) |
 | Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
 | Invoices & Quotes panel — one card, status tabs with live counts, most recent first | ❌ | ❌ | ✅ | | flutter#155 |
 | Dashboard panel order — a new panel lands at its declared slot, not last | — | — | ✅ | | |
@@ -768,11 +768,11 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | Report — durations in hours (decimal or H:MM, per the weekly timesheet's hours-format switch) | ❌ | ❌ | ✅ | — | cells, totals, headlines and the files written on the device; was `1d 13h 30m` / h:mm:ss |
 | Report — open a report by name from the command palette | ❌ | ❌ | ✅ | — | |
 | Report — shows an existing email schedule of the report | ❌ | ❌ | ✅ | — | |
-| Report — credit item | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
+| Report — credit item | ❌ | ✅ | ✅ | — | The server has no endpoint either: v2 builds it on the device from `/credits?date_range=`, a row per line item with its net and gross totals, tax, profit and markup ("Credit Items"). Download this view / group totals only — no server file, email or schedule. |
 | Report — task item | ❌ | ✅ | ✅ | — | The server has no endpoint either: v2 builds it on the device from `/tasks?activity_dates`, a row per time entry kept or dropped by its own day ("Task Items"). Download this view / group totals only — no server file, email or schedule. |
 | Report — invoice tax / payment tax / expense tax | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server's tax summary and tax period reports cover the ground |
-| Report — recurring expense | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
-| Report — transaction | ❌ | ✅ | ❌ | — | v1 computes it from its local store; the server has no endpoint |
+| Report — recurring expense | ❌ | ✅ | ✅ | — | The server has no endpoint either: v2 builds it on the device from `/recurring_expenses`, the range on the next send date ("Recurring Expenses"). Download this view / group totals only — no server file, email or schedule. |
+| Report — transaction | ❌ | ✅ | ✅ | — | The server has no endpoint either: v2 builds it on the device from `/bank_transactions?date_range=`, deposits and withdrawals totalled apart ("Transactions"). Download this view / group totals only — no server file, email or schedule. |
 
 ---
 

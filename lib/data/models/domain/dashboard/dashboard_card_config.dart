@@ -185,6 +185,25 @@ class DashboardCardConfig {
   /// mirrors React storing an array of encoded strings.
   String toJson() => key;
 
+  /// React's `encodeDashboardField`, as stored in `react_settings.
+  /// dashboard_fields`: [key] with an empty format for a count field (React's
+  /// `StoredFormat`) where this app says `none`, and React's trailing index.
+  /// That index counts identical cards already in the list, and React refuses
+  /// a duplicate before adding one, so it is always 0.
+  String toReactKey() =>
+      '$field|${period.name}|${calculate.name}|'
+      '${format == CardFormat.none ? '' : format.name}|0';
+
+  /// Parse a React `dashboard_fields` entry ([toReactKey]); the index is
+  /// ignored — list order carries it. Null for anything [tryParse] rejects.
+  static DashboardCardConfig? fromReactKey(Object? raw) {
+    if (raw is! String) return null;
+    final parts = raw.split('|');
+    if (parts.length < 4) return null;
+    if (parts[3].isEmpty) parts[3] = CardFormat.none.name;
+    return tryParse(parts.take(4).join('|'));
+  }
+
   static T? _byName<T extends Enum>(List<T> values, String name) {
     for (final v in values) {
       if (v.name == name) return v;

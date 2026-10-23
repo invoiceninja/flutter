@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'gateway_token.dart';
@@ -9,6 +9,7 @@ part of 'gateway_token.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $GatewayTokenCopyWith<GatewayToken> get copyWith => _$GatewayTokenCopyWithImpl<G
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GatewayToken&&(identical(other.id, id) || other.id == id)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.customerReference, customerReference) || other.customerReference == customerReference)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.brand, brand) || other.brand == brand)&&(identical(other.last4, last4) || other.last4 == last4)&&(identical(other.expMonth, expMonth) || other.expMonth == expMonth)&&(identical(other.expYear, expYear) || other.expYear == expYear)&&(identical(other.cardType, cardType) || other.cardType == cardType));
+  final _this = this as GatewayToken;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GatewayToken&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.companyGatewayId, _this.companyGatewayId) || other.companyGatewayId == _this.companyGatewayId)&&(identical(other.gatewayTypeId, _this.gatewayTypeId) || other.gatewayTypeId == _this.gatewayTypeId)&&(identical(other.customerReference, _this.customerReference) || other.customerReference == _this.customerReference)&&(identical(other.isDefault, _this.isDefault) || other.isDefault == _this.isDefault)&&(identical(other.brand, _this.brand) || other.brand == _this.brand)&&(identical(other.last4, _this.last4) || other.last4 == _this.last4)&&(identical(other.expMonth, _this.expMonth) || other.expMonth == _this.expMonth)&&(identical(other.expYear, _this.expYear) || other.expYear == _this.expYear)&&(identical(other.cardType, _this.cardType) || other.cardType == _this.cardType));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,companyGatewayId,gatewayTypeId,customerReference,isDefault,brand,last4,expMonth,expYear,cardType);
+int get hashCode {
+  final _this = this as GatewayToken;
+  return Object.hash(runtimeType,_this.id,_this.companyGatewayId,_this.gatewayTypeId,_this.customerReference,_this.isDefault,_this.brand,_this.last4,_this.expMonth,_this.expYear,_this.cardType);
+}
 
 @override
 String toString() {
-  return 'GatewayToken(id: $id, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, customerReference: $customerReference, isDefault: $isDefault, brand: $brand, last4: $last4, expMonth: $expMonth, expYear: $expYear, cardType: $cardType)';
+  final _this = this as GatewayToken;
+  return 'GatewayToken(id: ${_this.id}, companyGatewayId: ${_this.companyGatewayId}, gatewayTypeId: ${_this.gatewayTypeId}, customerReference: ${_this.customerReference}, isDefault: ${_this.isDefault}, brand: ${_this.brand}, last4: ${_this.last4}, expMonth: ${_this.expMonth}, expYear: ${_this.expYear}, cardType: ${_this.cardType})';
 }
 
 
@@ -63,7 +69,7 @@ class _$GatewayTokenCopyWithImpl<$Res>
 /// Create a copy of GatewayToken
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? companyGatewayId = null,Object? gatewayTypeId = null,Object? customerReference = null,Object? isDefault = null,Object? brand = null,Object? last4 = null,Object? expMonth = null,Object? expYear = null,Object? cardType = null,}) {
-  return _then(_self.copyWith(
+  return _then(GatewayToken(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,companyGatewayId: null == companyGatewayId ? _self.companyGatewayId : companyGatewayId // ignore: cast_nullable_to_non_nullable
 as String,gatewayTypeId: null == gatewayTypeId ? _self.gatewayTypeId : gatewayTypeId // ignore: cast_nullable_to_non_nullable
@@ -239,16 +245,18 @@ _$GatewayTokenCopyWith<_GatewayToken> get copyWith => __$GatewayTokenCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GatewayToken&&(identical(other.id, id) || other.id == id)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.customerReference, customerReference) || other.customerReference == customerReference)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.brand, brand) || other.brand == brand)&&(identical(other.last4, last4) || other.last4 == last4)&&(identical(other.expMonth, expMonth) || other.expMonth == expMonth)&&(identical(other.expYear, expYear) || other.expYear == expYear)&&(identical(other.cardType, cardType) || other.cardType == cardType));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GatewayToken&&(identical(other.id, id) || other.id == id)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.customerReference, customerReference) || other.customerReference == customerReference)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.brand, brand) || other.brand == brand)&&(identical(other.last4, last4) || other.last4 == last4)&&(identical(other.expMonth, expMonth) || other.expMonth == expMonth)&&(identical(other.expYear, expYear) || other.expYear == expYear)&&(identical(other.cardType, cardType) || other.cardType == cardType));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,companyGatewayId,gatewayTypeId,customerReference,isDefault,brand,last4,expMonth,expYear,cardType);
+int get hashCode {
+    return Object.hash(runtimeType,id,companyGatewayId,gatewayTypeId,customerReference,isDefault,brand,last4,expMonth,expYear,cardType);
+}
 
 @override
 String toString() {
-  return 'GatewayToken(id: $id, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, customerReference: $customerReference, isDefault: $isDefault, brand: $brand, last4: $last4, expMonth: $expMonth, expYear: $expYear, cardType: $cardType)';
+    return 'GatewayToken(id: $id, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, customerReference: $customerReference, isDefault: $isDefault, brand: $brand, last4: $last4, expMonth: $expMonth, expYear: $expYear, cardType: $cardType)';
 }
 
 

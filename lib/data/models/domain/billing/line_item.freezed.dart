@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'line_item.dart';
@@ -9,6 +9,7 @@ part of 'line_item.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $LineItemCopyWith<LineItem> get copyWith => _$LineItemCopyWithImpl<LineItem>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LineItem&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.cost, cost) || other.cost == cost)&&(identical(other.productCost, productCost) || other.productCost == productCost)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.taxCategoryId, taxCategoryId) || other.taxCategoryId == taxCategoryId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  final _this = this as LineItem;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LineItem&&(identical(other.productKey, _this.productKey) || other.productKey == _this.productKey)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.cost, _this.cost) || other.cost == _this.cost)&&(identical(other.productCost, _this.productCost) || other.productCost == _this.productCost)&&(identical(other.quantity, _this.quantity) || other.quantity == _this.quantity)&&(identical(other.taxName1, _this.taxName1) || other.taxName1 == _this.taxName1)&&(identical(other.taxName2, _this.taxName2) || other.taxName2 == _this.taxName2)&&(identical(other.taxName3, _this.taxName3) || other.taxName3 == _this.taxName3)&&(identical(other.taxRate1, _this.taxRate1) || other.taxRate1 == _this.taxRate1)&&(identical(other.taxRate2, _this.taxRate2) || other.taxRate2 == _this.taxRate2)&&(identical(other.taxRate3, _this.taxRate3) || other.taxRate3 == _this.taxRate3)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.discount, _this.discount) || other.discount == _this.discount)&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.expenseId, _this.expenseId) || other.expenseId == _this.expenseId)&&(identical(other.taxCategoryId, _this.taxCategoryId) || other.taxCategoryId == _this.taxCategoryId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,productKey,notes,cost,productCost,quantity,taxName1,taxName2,taxName3,taxRate1,taxRate2,taxRate3,typeId,customValue1,customValue2,customValue3,customValue4,discount,taskId,expenseId,taxCategoryId,createdAt]);
+int get hashCode {
+  final _this = this as LineItem;
+  return Object.hashAll([runtimeType,_this.productKey,_this.notes,_this.cost,_this.productCost,_this.quantity,_this.taxName1,_this.taxName2,_this.taxName3,_this.taxRate1,_this.taxRate2,_this.taxRate3,_this.typeId,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.discount,_this.taskId,_this.expenseId,_this.taxCategoryId,_this.createdAt]);
+}
 
 @override
 String toString() {
-  return 'LineItem(productKey: $productKey, notes: $notes, cost: $cost, productCost: $productCost, quantity: $quantity, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, typeId: $typeId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, discount: $discount, taskId: $taskId, expenseId: $expenseId, taxCategoryId: $taxCategoryId, createdAt: $createdAt)';
+  final _this = this as LineItem;
+  return 'LineItem(productKey: ${_this.productKey}, notes: ${_this.notes}, cost: ${_this.cost}, productCost: ${_this.productCost}, quantity: ${_this.quantity}, taxName1: ${_this.taxName1}, taxName2: ${_this.taxName2}, taxName3: ${_this.taxName3}, taxRate1: ${_this.taxRate1}, taxRate2: ${_this.taxRate2}, taxRate3: ${_this.taxRate3}, typeId: ${_this.typeId}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, discount: ${_this.discount}, taskId: ${_this.taskId}, expenseId: ${_this.expenseId}, taxCategoryId: ${_this.taxCategoryId}, createdAt: ${_this.createdAt})';
 }
 
 
@@ -63,7 +69,7 @@ class _$LineItemCopyWithImpl<$Res>
 /// Create a copy of LineItem
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? productKey = null,Object? notes = null,Object? cost = null,Object? productCost = null,Object? quantity = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? typeId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? discount = null,Object? taskId = freezed,Object? expenseId = freezed,Object? taxCategoryId = null,Object? createdAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(LineItem(
 productKey: null == productKey ? _self.productKey : productKey // ignore: cast_nullable_to_non_nullable
 as String,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
 as String,cost: null == cost ? _self.cost : cost // ignore: cast_nullable_to_non_nullable
@@ -261,16 +267,18 @@ _$LineItemCopyWith<_LineItem> get copyWith => __$LineItemCopyWithImpl<_LineItem>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LineItem&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.cost, cost) || other.cost == cost)&&(identical(other.productCost, productCost) || other.productCost == productCost)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.taxCategoryId, taxCategoryId) || other.taxCategoryId == taxCategoryId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LineItem&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.cost, cost) || other.cost == cost)&&(identical(other.productCost, productCost) || other.productCost == productCost)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.taxCategoryId, taxCategoryId) || other.taxCategoryId == taxCategoryId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,productKey,notes,cost,productCost,quantity,taxName1,taxName2,taxName3,taxRate1,taxRate2,taxRate3,typeId,customValue1,customValue2,customValue3,customValue4,discount,taskId,expenseId,taxCategoryId,createdAt]);
+int get hashCode {
+    return Object.hashAll([runtimeType,productKey,notes,cost,productCost,quantity,taxName1,taxName2,taxName3,taxRate1,taxRate2,taxRate3,typeId,customValue1,customValue2,customValue3,customValue4,discount,taskId,expenseId,taxCategoryId,createdAt]);
+}
 
 @override
 String toString() {
-  return 'LineItem(productKey: $productKey, notes: $notes, cost: $cost, productCost: $productCost, quantity: $quantity, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, typeId: $typeId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, discount: $discount, taskId: $taskId, expenseId: $expenseId, taxCategoryId: $taxCategoryId, createdAt: $createdAt)';
+    return 'LineItem(productKey: $productKey, notes: $notes, cost: $cost, productCost: $productCost, quantity: $quantity, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, typeId: $typeId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, discount: $discount, taskId: $taskId, expenseId: $expenseId, taxCategoryId: $taxCategoryId, createdAt: $createdAt)';
 }
 
 

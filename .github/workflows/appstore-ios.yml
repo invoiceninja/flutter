@@ -112,9 +112,10 @@ jobs:
       # a URL scheme, or the SDK throws before showing the account chooser. The
       # client ID is a secret here and not committed, so the scheme is added to
       # ios/Runner/Info.plist on the runner (idempotent — a scheme already
-      # committed is left alone). Committing it is still the preferred fix, and
-      # the only one a local Product → Archive gets (docs/setup.md § Google
-      # Sign-In client IDs). Unset secret = Google stays hidden = nothing to add.
+      # committed is left alone). Committing it is still the preferred fix: a
+      # local Product → Archive without it leaves the ID out and hides the button
+      # (docs/setup.md § Google Sign-In client IDs). Unset secret = Google stays
+      # hidden = nothing to add.
       - name: Register the Google Sign-In URL scheme
         run: |
           set -euo pipefail

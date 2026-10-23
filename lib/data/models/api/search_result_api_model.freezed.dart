@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'search_result_api_model.dart';
@@ -9,6 +9,7 @@ part of 'search_result_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $SearchResultApiCopyWith<SearchResultApi> get copyWith => _$SearchResultApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchResultApi&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.id, id) || other.id == id)&&(identical(other.path, path) || other.path == path));
+  final _this = this as SearchResultApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchResultApi&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.path, _this.path) || other.path == _this.path));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,type,id,path);
+int get hashCode {
+  final _this = this as SearchResultApi;
+  return Object.hash(runtimeType,_this.name,_this.type,_this.id,_this.path);
+}
 
 @override
 String toString() {
-  return 'SearchResultApi(name: $name, type: $type, id: $id, path: $path)';
+  final _this = this as SearchResultApi;
+  return 'SearchResultApi(name: ${_this.name}, type: ${_this.type}, id: ${_this.id}, path: ${_this.path})';
 }
 
 
@@ -66,7 +72,7 @@ class _$SearchResultApiCopyWithImpl<$Res>
 /// Create a copy of SearchResultApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? type = null,Object? id = null,Object? path = null,}) {
-  return _then(_self.copyWith(
+  return _then(SearchResultApi(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as String,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
@@ -233,16 +239,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchResultApi&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.id, id) || other.id == id)&&(identical(other.path, path) || other.path == path));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchResultApi&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.id, id) || other.id == id)&&(identical(other.path, path) || other.path == path));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,type,id,path);
+int get hashCode {
+    return Object.hash(runtimeType,name,type,id,path);
+}
 
 @override
 String toString() {
-  return 'SearchResultApi(name: $name, type: $type, id: $id, path: $path)';
+    return 'SearchResultApi(name: $name, type: $type, id: $id, path: $path)';
 }
 
 

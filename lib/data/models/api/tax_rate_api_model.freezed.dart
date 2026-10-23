@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'tax_rate_api_model.dart';
@@ -9,6 +9,7 @@ part of 'tax_rate_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $TaxRateApiCopyWith<TaxRateApi> get copyWith => _$TaxRateApiCopyWithImpl<TaxRate
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as TaxRateApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.rate, _this.rate) || other.rate == _this.rate)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rate,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+  final _this = this as TaxRateApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.rate,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'TaxRateApi(id: $id, name: $name, rate: $rate, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as TaxRateApi;
+  return 'TaxRateApi(id: ${_this.id}, name: ${_this.name}, rate: ${_this.rate}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -66,7 +72,7 @@ class _$TaxRateApiCopyWithImpl<$Res>
 /// Create a copy of TaxRateApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? rate = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxRateApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,rate: null == rate ? _self.rate : rate // ignore: cast_nullable_to_non_nullable
@@ -239,16 +245,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rate,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,rate,createdAt,updatedAt,archivedAt,isDeleted);
+}
 
 @override
 String toString() {
-  return 'TaxRateApi(id: $id, name: $name, rate: $rate, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'TaxRateApi(id: $id, name: $name, rate: $rate, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -309,16 +317,21 @@ $TaxRateListApiCopyWith<TaxRateListApi> get copyWith => _$TaxRateListApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as TaxRateListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as TaxRateListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'TaxRateListApi(data: $data)';
+  final _this = this as TaxRateListApi;
+  return 'TaxRateListApi(data: ${_this.data})';
 }
 
 
@@ -347,7 +360,7 @@ class _$TaxRateListApiCopyWithImpl<$Res>
 /// Create a copy of TaxRateListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxRateListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<TaxRateApi>,
   ));
@@ -490,7 +503,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TaxRateListApi implements TaxRateListApi {
-  const _TaxRateListApi({@JsonKey(fromJson: _taxRateListData) final  List<TaxRateApi> data = const []}): _data = data;
+  const _TaxRateListApi({@JsonKey(fromJson: _taxRateListData)  List<TaxRateApi> data = const []}): _data = data;
   factory _TaxRateListApi.fromJson(Map<String, dynamic> json) => _$TaxRateListApiFromJson(json);
 
  final  List<TaxRateApi> _data;
@@ -514,16 +527,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'TaxRateListApi(data: $data)';
+    return 'TaxRateListApi(data: $data)';
 }
 
 
@@ -578,16 +593,21 @@ $TaxRateItemApiCopyWith<TaxRateItemApi> get copyWith => _$TaxRateItemApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as TaxRateItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRateItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as TaxRateItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'TaxRateItemApi(data: $data)';
+  final _this = this as TaxRateItemApi;
+  return 'TaxRateItemApi(data: ${_this.data})';
 }
 
 
@@ -616,7 +636,7 @@ class _$TaxRateItemApiCopyWithImpl<$Res>
 /// Create a copy of TaxRateItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxRateItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as TaxRateApi,
   ));
@@ -786,16 +806,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRateItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'TaxRateItemApi(data: $data)';
+    return 'TaxRateItemApi(data: $data)';
 }
 
 

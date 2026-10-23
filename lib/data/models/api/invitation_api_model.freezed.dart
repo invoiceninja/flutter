@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'invitation_api_model.dart';
@@ -9,6 +9,7 @@ part of 'invitation_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $InvitationApiCopyWith<InvitationApi> get copyWith => _$InvitationApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationApi&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as InvitationApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.vendorContactId, _this.vendorContactId) || other.vendorContactId == _this.vendorContactId)&&(identical(other.sentDate, _this.sentDate) || other.sentDate == _this.sentDate)&&(identical(other.viewedDate, _this.viewedDate) || other.viewedDate == _this.viewedDate)&&(identical(other.openedDate, _this.openedDate) || other.openedDate == _this.openedDate)&&(identical(other.emailStatus, _this.emailStatus) || other.emailStatus == _this.emailStatus)&&(identical(other.emailError, _this.emailError) || other.emailError == _this.emailError)&&(identical(other.messageId, _this.messageId) || other.messageId == _this.messageId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,createdAt,updatedAt);
+int get hashCode {
+  final _this = this as InvitationApi;
+  return Object.hash(runtimeType,_this.id,_this.key,_this.link,_this.clientContactId,_this.vendorContactId,_this.sentDate,_this.viewedDate,_this.openedDate,_this.emailStatus,_this.emailError,_this.messageId,_this.createdAt,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'InvitationApi(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, createdAt: $createdAt, updatedAt: $updatedAt)';
+  final _this = this as InvitationApi;
+  return 'InvitationApi(id: ${_this.id}, key: ${_this.key}, link: ${_this.link}, clientContactId: ${_this.clientContactId}, vendorContactId: ${_this.vendorContactId}, sentDate: ${_this.sentDate}, viewedDate: ${_this.viewedDate}, openedDate: ${_this.openedDate}, emailStatus: ${_this.emailStatus}, emailError: ${_this.emailError}, messageId: ${_this.messageId}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$InvitationApiCopyWithImpl<$Res>
 /// Create a copy of InvitationApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? createdAt = null,Object? updatedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(InvitationApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
 as String,link: null == link ? _self.link : link // ignore: cast_nullable_to_non_nullable
@@ -251,16 +257,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationApi&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationApi&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,createdAt,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,createdAt,updatedAt);
+}
 
 @override
 String toString() {
-  return 'InvitationApi(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'InvitationApi(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 

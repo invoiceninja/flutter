@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'email_history_api_model.dart';
@@ -9,6 +9,7 @@ part of 'email_history_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $EmailHistoryEventApiCopyWith<EmailHistoryEventApi> get copyWith => _$EmailHisto
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EmailHistoryEventApi&&(identical(other.date, date) || other.date == date)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.recipient, recipient) || other.recipient == recipient)&&(identical(other.server, server) || other.server == server)&&(identical(other.serverIp, serverIp) || other.serverIp == serverIp)&&(identical(other.status, status) || other.status == status)&&(identical(other.bounceId, bounceId) || other.bounceId == bounceId));
+  final _this = this as EmailHistoryEventApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EmailHistoryEventApi&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.deliveryMessage, _this.deliveryMessage) || other.deliveryMessage == _this.deliveryMessage)&&(identical(other.recipient, _this.recipient) || other.recipient == _this.recipient)&&(identical(other.server, _this.server) || other.server == _this.server)&&(identical(other.serverIp, _this.serverIp) || other.serverIp == _this.serverIp)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.bounceId, _this.bounceId) || other.bounceId == _this.bounceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,date,deliveryMessage,recipient,server,serverIp,status,bounceId);
+int get hashCode {
+  final _this = this as EmailHistoryEventApi;
+  return Object.hash(runtimeType,_this.date,_this.deliveryMessage,_this.recipient,_this.server,_this.serverIp,_this.status,_this.bounceId);
+}
 
 @override
 String toString() {
-  return 'EmailHistoryEventApi(date: $date, deliveryMessage: $deliveryMessage, recipient: $recipient, server: $server, serverIp: $serverIp, status: $status, bounceId: $bounceId)';
+  final _this = this as EmailHistoryEventApi;
+  return 'EmailHistoryEventApi(date: ${_this.date}, deliveryMessage: ${_this.deliveryMessage}, recipient: ${_this.recipient}, server: ${_this.server}, serverIp: ${_this.serverIp}, status: ${_this.status}, bounceId: ${_this.bounceId})';
 }
 
 
@@ -66,7 +72,7 @@ class _$EmailHistoryEventApiCopyWithImpl<$Res>
 /// Create a copy of EmailHistoryEventApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? date = null,Object? deliveryMessage = null,Object? recipient = null,Object? server = null,Object? serverIp = null,Object? status = null,Object? bounceId = null,}) {
-  return _then(_self.copyWith(
+  return _then(EmailHistoryEventApi(
 date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
 as String,deliveryMessage: null == deliveryMessage ? _self.deliveryMessage : deliveryMessage // ignore: cast_nullable_to_non_nullable
 as String,recipient: null == recipient ? _self.recipient : recipient // ignore: cast_nullable_to_non_nullable
@@ -239,16 +245,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EmailHistoryEventApi&&(identical(other.date, date) || other.date == date)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.recipient, recipient) || other.recipient == recipient)&&(identical(other.server, server) || other.server == server)&&(identical(other.serverIp, serverIp) || other.serverIp == serverIp)&&(identical(other.status, status) || other.status == status)&&(identical(other.bounceId, bounceId) || other.bounceId == bounceId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _EmailHistoryEventApi&&(identical(other.date, date) || other.date == date)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.recipient, recipient) || other.recipient == recipient)&&(identical(other.server, server) || other.server == server)&&(identical(other.serverIp, serverIp) || other.serverIp == serverIp)&&(identical(other.status, status) || other.status == status)&&(identical(other.bounceId, bounceId) || other.bounceId == bounceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,date,deliveryMessage,recipient,server,serverIp,status,bounceId);
+int get hashCode {
+    return Object.hash(runtimeType,date,deliveryMessage,recipient,server,serverIp,status,bounceId);
+}
 
 @override
 String toString() {
-  return 'EmailHistoryEventApi(date: $date, deliveryMessage: $deliveryMessage, recipient: $recipient, server: $server, serverIp: $serverIp, status: $status, bounceId: $bounceId)';
+    return 'EmailHistoryEventApi(date: $date, deliveryMessage: $deliveryMessage, recipient: $recipient, server: $server, serverIp: $serverIp, status: $status, bounceId: $bounceId)';
 }
 
 
@@ -309,16 +317,21 @@ $EmailHistoryRecordApiCopyWith<EmailHistoryRecordApi> get copyWith => _$EmailHis
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EmailHistoryRecordApi&&(identical(other.entity, entity) || other.entity == entity)&&(identical(other.entityId, entityId) || other.entityId == entityId)&&(identical(other.subject, subject) || other.subject == subject)&&(identical(other.recipients, recipients) || other.recipients == recipients)&&const DeepCollectionEquality().equals(other.events, events));
+  final _this = this as EmailHistoryRecordApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EmailHistoryRecordApi&&(identical(other.entity, _this.entity) || other.entity == _this.entity)&&(identical(other.entityId, _this.entityId) || other.entityId == _this.entityId)&&(identical(other.subject, _this.subject) || other.subject == _this.subject)&&(identical(other.recipients, _this.recipients) || other.recipients == _this.recipients)&&const DeepCollectionEquality().equals(other.events, _this.events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,entity,entityId,subject,recipients,const DeepCollectionEquality().hash(events));
+int get hashCode {
+  final _this = this as EmailHistoryRecordApi;
+  return Object.hash(runtimeType,_this.entity,_this.entityId,_this.subject,_this.recipients,const DeepCollectionEquality().hash(_this.events));
+}
 
 @override
 String toString() {
-  return 'EmailHistoryRecordApi(entity: $entity, entityId: $entityId, subject: $subject, recipients: $recipients, events: $events)';
+  final _this = this as EmailHistoryRecordApi;
+  return 'EmailHistoryRecordApi(entity: ${_this.entity}, entityId: ${_this.entityId}, subject: ${_this.subject}, recipients: ${_this.recipients}, events: ${_this.events})';
 }
 
 
@@ -347,7 +360,7 @@ class _$EmailHistoryRecordApiCopyWithImpl<$Res>
 /// Create a copy of EmailHistoryRecordApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? entity = null,Object? entityId = null,Object? subject = null,Object? recipients = null,Object? events = null,}) {
-  return _then(_self.copyWith(
+  return _then(EmailHistoryRecordApi(
 entity: null == entity ? _self.entity : entity // ignore: cast_nullable_to_non_nullable
 as String,entityId: null == entityId ? _self.entityId : entityId // ignore: cast_nullable_to_non_nullable
 as String,subject: null == subject ? _self.subject : subject // ignore: cast_nullable_to_non_nullable
@@ -494,7 +507,7 @@ return $default(_that.entity,_that.entityId,_that.subject,_that.recipients,_that
 @JsonSerializable()
 
 class _EmailHistoryRecordApi implements EmailHistoryRecordApi {
-  const _EmailHistoryRecordApi({this.entity = '', @JsonKey(name: 'entity_id') this.entityId = '', this.subject = '', this.recipients = '', final  List<EmailHistoryEventApi> events = const []}): _events = events;
+  const _EmailHistoryRecordApi({this.entity = '', @JsonKey(name: 'entity_id') this.entityId = '', this.subject = '', this.recipients = '',  List<EmailHistoryEventApi> events = const []}): _events = events;
   factory _EmailHistoryRecordApi.fromJson(Map<String, dynamic> json) => _$EmailHistoryRecordApiFromJson(json);
 
 @override@JsonKey() final  String entity;
@@ -522,16 +535,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EmailHistoryRecordApi&&(identical(other.entity, entity) || other.entity == entity)&&(identical(other.entityId, entityId) || other.entityId == entityId)&&(identical(other.subject, subject) || other.subject == subject)&&(identical(other.recipients, recipients) || other.recipients == recipients)&&const DeepCollectionEquality().equals(other._events, _events));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _EmailHistoryRecordApi&&(identical(other.entity, entity) || other.entity == entity)&&(identical(other.entityId, entityId) || other.entityId == entityId)&&(identical(other.subject, subject) || other.subject == subject)&&(identical(other.recipients, recipients) || other.recipients == recipients)&&const DeepCollectionEquality().equals(other.events, _events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,entity,entityId,subject,recipients,const DeepCollectionEquality().hash(_events));
+int get hashCode {
+    return Object.hash(runtimeType,entity,entityId,subject,recipients,const DeepCollectionEquality().hash(_events));
+}
 
 @override
 String toString() {
-  return 'EmailHistoryRecordApi(entity: $entity, entityId: $entityId, subject: $subject, recipients: $recipients, events: $events)';
+    return 'EmailHistoryRecordApi(entity: $entity, entityId: $entityId, subject: $subject, recipients: $recipients, events: $events)';
 }
 
 

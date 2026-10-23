@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'design.dart';
@@ -9,6 +9,7 @@ part of 'design.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $DesignCopyWith<Design> get copyWith => _$DesignCopyWithImpl<Design>(this as Des
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Design&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&const DeepCollectionEquality().equals(other.entities, entities)&&(identical(other.template, template) || other.template == template)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as Design;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Design&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.isCustom, _this.isCustom) || other.isCustom == _this.isCustom)&&(identical(other.isActive, _this.isActive) || other.isActive == _this.isActive)&&(identical(other.isTemplate, _this.isTemplate) || other.isTemplate == _this.isTemplate)&&(identical(other.isFree, _this.isFree) || other.isFree == _this.isFree)&&const DeepCollectionEquality().equals(other.entities, _this.entities)&&(identical(other.template, _this.template) || other.template == _this.template)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,const DeepCollectionEquality().hash(entities),template,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+int get hashCode {
+  final _this = this as Design;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.isCustom,_this.isActive,_this.isTemplate,_this.isFree,const DeepCollectionEquality().hash(_this.entities),_this.template,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDeleted,_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'Design(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, template: $template, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
+  final _this = this as Design;
+  return 'Design(id: ${_this.id}, name: ${_this.name}, isCustom: ${_this.isCustom}, isActive: ${_this.isActive}, isTemplate: ${_this.isTemplate}, isFree: ${_this.isFree}, entities: ${_this.entities}, template: ${_this.template}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$DesignCopyWithImpl<$Res>
 /// Create a copy of Design
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? isCustom = null,Object? isActive = null,Object? isTemplate = null,Object? isFree = null,Object? entities = null,Object? template = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(Design(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,isCustom: null == isCustom ? _self.isCustom : isCustom // ignore: cast_nullable_to_non_nullable
@@ -227,7 +233,7 @@ return $default(_that.id,_that.name,_that.isCustom,_that.isActive,_that.isTempla
 
 
 class _Design implements Design {
-  const _Design({required this.id, required this.name, required this.isCustom, required this.isActive, required this.isTemplate, required this.isFree, required final  List<String> entities, required this.template, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, this.isDirty = false}): _entities = entities;
+  const _Design({required this.id, required this.name, required this.isCustom, required this.isActive, required this.isTemplate, required this.isFree, required  List<String> entities, required this.template, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, this.isDirty = false}): _entities = entities;
   
 
 @override final  String id;
@@ -260,16 +266,18 @@ _$DesignCopyWith<_Design> get copyWith => __$DesignCopyWithImpl<_Design>(this, _
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Design&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&const DeepCollectionEquality().equals(other._entities, _entities)&&(identical(other.template, template) || other.template == template)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Design&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&const DeepCollectionEquality().equals(other.entities, _entities)&&(identical(other.template, template) || other.template == template)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,const DeepCollectionEquality().hash(_entities),template,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,const DeepCollectionEquality().hash(_entities),template,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+}
 
 @override
 String toString() {
-  return 'Design(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, template: $template, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
+    return 'Design(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, template: $template, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
 }
 
 
@@ -344,16 +352,21 @@ $DesignTemplateCopyWith<DesignTemplate> get copyWith => _$DesignTemplateCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DesignTemplate;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplate&&(identical(other.body, _this.body) || other.body == _this.body)&&(identical(other.header, _this.header) || other.header == _this.header)&&(identical(other.footer, _this.footer) || other.footer == _this.footer)&&(identical(other.includes, _this.includes) || other.includes == _this.includes)&&(identical(other.product, _this.product) || other.product == _this.product)&&(identical(other.task, _this.task) || other.task == _this.task)&&const DeepCollectionEquality().equals(other.blocks, _this.blocks)&&(identical(other.documentSettings, _this.documentSettings) || other.documentSettings == _this.documentSettings)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings,const DeepCollectionEquality().hash(extra));
+int get hashCode {
+  final _this = this as DesignTemplate;
+  return Object.hash(runtimeType,_this.body,_this.header,_this.footer,_this.includes,_this.product,_this.task,const DeepCollectionEquality().hash(_this.blocks),_this.documentSettings,const DeepCollectionEquality().hash(_this.extra));
+}
 
 @override
 String toString() {
-  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
+  final _this = this as DesignTemplate;
+  return 'DesignTemplate(body: ${_this.body}, header: ${_this.header}, footer: ${_this.footer}, includes: ${_this.includes}, product: ${_this.product}, task: ${_this.task}, blocks: ${_this.blocks}, documentSettings: ${_this.documentSettings}, extra: ${_this.extra})';
 }
 
 
@@ -382,7 +395,7 @@ class _$DesignTemplateCopyWithImpl<$Res>
 /// Create a copy of DesignTemplate
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = null,}) {
-  return _then(_self.copyWith(
+  return _then(DesignTemplate(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
 as String,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
@@ -545,7 +558,7 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 
 
 class _DesignTemplate implements DesignTemplate {
-  const _DesignTemplate({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlock> blocks = const <DesignBlock>[], this.documentSettings, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _blocks = blocks,_extra = extra;
+  const _DesignTemplate({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '',  List<DesignBlock> blocks = const <DesignBlock>[], this.documentSettings,  Map<String, dynamic> extra = const <String, dynamic>{}}): _blocks = blocks,_extra = extra;
   
 
 @override@JsonKey() final  String body;
@@ -584,16 +597,18 @@ _$DesignTemplateCopyWith<_DesignTemplate> get copyWith => __$DesignTemplateCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplate&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
+int get hashCode {
+    return Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
+}
 
 @override
 String toString() {
-  return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
+    return 'DesignTemplate(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -666,16 +681,21 @@ $DesignBlockCopyWith<DesignBlock> get copyWith => _$DesignBlockCopyWithImpl<Desi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DesignBlock;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlock&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.gridPosition, _this.gridPosition) || other.gridPosition == _this.gridPosition)&&const DeepCollectionEquality().equals(other.properties, _this.properties)&&(identical(other.locked, _this.locked) || other.locked == _this.locked)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked,const DeepCollectionEquality().hash(extra));
+int get hashCode {
+  final _this = this as DesignBlock;
+  return Object.hash(runtimeType,_this.id,_this.type,_this.gridPosition,const DeepCollectionEquality().hash(_this.properties),_this.locked,const DeepCollectionEquality().hash(_this.extra));
+}
 
 @override
 String toString() {
-  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, extra: $extra)';
+  final _this = this as DesignBlock;
+  return 'DesignBlock(id: ${_this.id}, type: ${_this.type}, gridPosition: ${_this.gridPosition}, properties: ${_this.properties}, locked: ${_this.locked}, extra: ${_this.extra})';
 }
 
 
@@ -704,7 +724,7 @@ class _$DesignBlockCopyWithImpl<$Res>
 /// Create a copy of DesignBlock
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = null,Object? locked = null,Object? extra = null,}) {
-  return _then(_self.copyWith(
+  return _then(DesignBlock(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as String,gridPosition: null == gridPosition ? _self.gridPosition : gridPosition // ignore: cast_nullable_to_non_nullable
@@ -861,7 +881,7 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 
 
 class _DesignBlock implements DesignBlock {
-  const _DesignBlock({required this.id, required this.type, required this.gridPosition, final  Map<String, dynamic> properties = const <String, dynamic>{}, this.locked = false, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _properties = properties,_extra = extra;
+  const _DesignBlock({required this.id, required this.type, required this.gridPosition,  Map<String, dynamic> properties = const <String, dynamic>{}, this.locked = false,  Map<String, dynamic> extra = const <String, dynamic>{}}): _properties = properties,_extra = extra;
   
 
 @override final  String id;
@@ -895,16 +915,18 @@ _$DesignBlockCopyWith<_DesignBlock> get copyWith => __$DesignBlockCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlock&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,const DeepCollectionEquality().hash(_extra));
+int get hashCode {
+    return Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,const DeepCollectionEquality().hash(_extra));
+}
 
 @override
 String toString() {
-  return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, extra: $extra)';
+    return 'DesignBlock(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, extra: $extra)';
 }
 
 
@@ -970,16 +992,21 @@ $GridPositionCopyWith<GridPosition> get copyWith => _$GridPositionCopyWithImpl<G
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridPosition&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+  final _this = this as GridPosition;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridPosition&&(identical(other.x, _this.x) || other.x == _this.x)&&(identical(other.y, _this.y) || other.y == _this.y)&&(identical(other.w, _this.w) || other.w == _this.w)&&(identical(other.h, _this.h) || other.h == _this.h));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,x,y,w,h);
+int get hashCode {
+  final _this = this as GridPosition;
+  return Object.hash(runtimeType,_this.x,_this.y,_this.w,_this.h);
+}
 
 @override
 String toString() {
-  return 'GridPosition(x: $x, y: $y, w: $w, h: $h)';
+  final _this = this as GridPosition;
+  return 'GridPosition(x: ${_this.x}, y: ${_this.y}, w: ${_this.w}, h: ${_this.h})';
 }
 
 
@@ -1008,7 +1035,7 @@ class _$GridPositionCopyWithImpl<$Res>
 /// Create a copy of GridPosition
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? x = null,Object? y = null,Object? w = null,Object? h = null,}) {
-  return _then(_self.copyWith(
+  return _then(GridPosition(
 x: null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
 as int,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
 as int,w: null == w ? _self.w : w // ignore: cast_nullable_to_non_nullable
@@ -1172,16 +1199,18 @@ _$GridPositionCopyWith<_GridPosition> get copyWith => __$GridPositionCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridPosition&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridPosition&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,x,y,w,h);
+int get hashCode {
+    return Object.hash(runtimeType,x,y,w,h);
+}
 
 @override
 String toString() {
-  return 'GridPosition(x: $x, y: $y, w: $w, h: $h)';
+    return 'GridPosition(x: $x, y: $y, w: $w, h: $h)';
 }
 
 
@@ -1237,16 +1266,21 @@ $DocumentSettingsCopyWith<DocumentSettings> get copyWith => _$DocumentSettingsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DocumentSettings;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettings&&(identical(other.pageLayout, _this.pageLayout) || other.pageLayout == _this.pageLayout)&&(identical(other.pageSize, _this.pageSize) || other.pageSize == _this.pageSize)&&(identical(other.globalFontSize, _this.globalFontSize) || other.globalFontSize == _this.globalFontSize)&&(identical(other.primaryFont, _this.primaryFont) || other.primaryFont == _this.primaryFont)&&(identical(other.secondaryFont, _this.secondaryFont) || other.secondaryFont == _this.secondaryFont)&&(identical(other.showPaidStamp, _this.showPaidStamp) || other.showPaidStamp == _this.showPaidStamp)&&(identical(other.showShippingAddress, _this.showShippingAddress) || other.showShippingAddress == _this.showShippingAddress)&&(identical(other.embedDocuments, _this.embedDocuments) || other.embedDocuments == _this.embedDocuments)&&(identical(other.hideEmptyColumns, _this.hideEmptyColumns) || other.hideEmptyColumns == _this.hideEmptyColumns)&&(identical(other.pageNumbering, _this.pageNumbering) || other.pageNumbering == _this.pageNumbering)&&(identical(other.pageMarginTop, _this.pageMarginTop) || other.pageMarginTop == _this.pageMarginTop)&&(identical(other.pageMarginRight, _this.pageMarginRight) || other.pageMarginRight == _this.pageMarginRight)&&(identical(other.pageMarginBottom, _this.pageMarginBottom) || other.pageMarginBottom == _this.pageMarginBottom)&&(identical(other.pageMarginLeft, _this.pageMarginLeft) || other.pageMarginLeft == _this.pageMarginLeft)&&(identical(other.pagePaddingTop, _this.pagePaddingTop) || other.pagePaddingTop == _this.pagePaddingTop)&&(identical(other.pagePaddingRight, _this.pagePaddingRight) || other.pagePaddingRight == _this.pagePaddingRight)&&(identical(other.pagePaddingBottom, _this.pagePaddingBottom) || other.pagePaddingBottom == _this.pagePaddingBottom)&&(identical(other.pagePaddingLeft, _this.pagePaddingLeft) || other.pagePaddingLeft == _this.pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(extra)]);
+int get hashCode {
+  final _this = this as DocumentSettings;
+  return Object.hashAll([runtimeType,_this.pageLayout,_this.pageSize,_this.globalFontSize,_this.primaryFont,_this.secondaryFont,_this.showPaidStamp,_this.showShippingAddress,_this.embedDocuments,_this.hideEmptyColumns,_this.pageNumbering,_this.pageMarginTop,_this.pageMarginRight,_this.pageMarginBottom,_this.pageMarginLeft,_this.pagePaddingTop,_this.pagePaddingRight,_this.pagePaddingBottom,_this.pagePaddingLeft,const DeepCollectionEquality().hash(_this.extra)]);
+}
 
 @override
 String toString() {
-  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
+  final _this = this as DocumentSettings;
+  return 'DocumentSettings(pageLayout: ${_this.pageLayout}, pageSize: ${_this.pageSize}, globalFontSize: ${_this.globalFontSize}, primaryFont: ${_this.primaryFont}, secondaryFont: ${_this.secondaryFont}, showPaidStamp: ${_this.showPaidStamp}, showShippingAddress: ${_this.showShippingAddress}, embedDocuments: ${_this.embedDocuments}, hideEmptyColumns: ${_this.hideEmptyColumns}, pageNumbering: ${_this.pageNumbering}, pageMarginTop: ${_this.pageMarginTop}, pageMarginRight: ${_this.pageMarginRight}, pageMarginBottom: ${_this.pageMarginBottom}, pageMarginLeft: ${_this.pageMarginLeft}, pagePaddingTop: ${_this.pagePaddingTop}, pagePaddingRight: ${_this.pagePaddingRight}, pagePaddingBottom: ${_this.pagePaddingBottom}, pagePaddingLeft: ${_this.pagePaddingLeft}, extra: ${_this.extra})';
 }
 
 
@@ -1275,7 +1309,7 @@ class _$DocumentSettingsCopyWithImpl<$Res>
 /// Create a copy of DocumentSettings
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentSettings(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as String,globalFontSize: null == globalFontSize ? _self.globalFontSize : globalFontSize // ignore: cast_nullable_to_non_nullable
@@ -1436,7 +1470,7 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 
 
 class _DocumentSettings implements DocumentSettings {
-  const _DocumentSettings({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30, final  Map<String, dynamic> extra = const <String, dynamic>{}}): _extra = extra;
+  const _DocumentSettings({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30,  Map<String, dynamic> extra = const <String, dynamic>{}}): _extra = extra;
   
 
 @override@JsonKey() final  String pageLayout;
@@ -1477,16 +1511,18 @@ _$DocumentSettingsCopyWith<_DocumentSettings> get copyWith => __$DocumentSetting
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettings&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
+}
 
 @override
 String toString() {
-  return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
+    return 'DocumentSettings(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 

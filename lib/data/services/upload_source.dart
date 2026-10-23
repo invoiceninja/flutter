@@ -10,8 +10,8 @@ export 'package:admin/data/services/upload_source_seam.dart'
 
 /// A platform-neutral handle to an about-to-be-uploaded file.
 ///
-/// Native screens have a filesystem path; web screens (`file_picker` /
-/// `image_picker`) only have in-memory bytes. Both the upload transport
+/// Native screens have a filesystem path; web screens (`file_picker`, a
+/// browser drop) only have in-memory bytes. Both the upload transport
 /// (`ApiClient.uploadMultipartChunked`, the entity/company `*Api.upload*`
 /// methods) and the offline outbox speak [UploadSource] so neither has to
 /// branch on platform.

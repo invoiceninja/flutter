@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'location.dart';
@@ -9,6 +9,7 @@ part of 'location.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $LocationCopyWith<Location> get copyWith => _$LocationCopyWithImpl<Location>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Location&&(identical(other.id, id) || other.id == id)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.isShippingLocation, isShippingLocation) || other.isShippingLocation == isShippingLocation)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as Location;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Location&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.address1, _this.address1) || other.address1 == _this.address1)&&(identical(other.address2, _this.address2) || other.address2 == _this.address2)&&(identical(other.city, _this.city) || other.city == _this.city)&&(identical(other.state, _this.state) || other.state == _this.state)&&(identical(other.postalCode, _this.postalCode) || other.postalCode == _this.postalCode)&&(identical(other.countryId, _this.countryId) || other.countryId == _this.countryId)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.isShippingLocation, _this.isShippingLocation) || other.isShippingLocation == _this.isShippingLocation)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,clientId,name,address1,address2,city,state,postalCode,countryId,customValue1,customValue2,customValue3,customValue4,isShippingLocation,updatedAt,isDeleted);
+int get hashCode {
+  final _this = this as Location;
+  return Object.hash(runtimeType,_this.id,_this.clientId,_this.name,_this.address1,_this.address2,_this.city,_this.state,_this.postalCode,_this.countryId,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.isShippingLocation,_this.updatedAt,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'Location(id: $id, clientId: $clientId, name: $name, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, isShippingLocation: $isShippingLocation, updatedAt: $updatedAt, isDeleted: $isDeleted)';
+  final _this = this as Location;
+  return 'Location(id: ${_this.id}, clientId: ${_this.clientId}, name: ${_this.name}, address1: ${_this.address1}, address2: ${_this.address2}, city: ${_this.city}, state: ${_this.state}, postalCode: ${_this.postalCode}, countryId: ${_this.countryId}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, isShippingLocation: ${_this.isShippingLocation}, updatedAt: ${_this.updatedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -63,7 +69,7 @@ class _$LocationCopyWithImpl<$Res>
 /// Create a copy of Location
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? clientId = null,Object? name = null,Object? address1 = null,Object? address2 = null,Object? city = null,Object? state = null,Object? postalCode = null,Object? countryId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? isShippingLocation = null,Object? updatedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(Location(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -251,16 +257,18 @@ _$LocationCopyWith<_Location> get copyWith => __$LocationCopyWithImpl<_Location>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Location&&(identical(other.id, id) || other.id == id)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.isShippingLocation, isShippingLocation) || other.isShippingLocation == isShippingLocation)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Location&&(identical(other.id, id) || other.id == id)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.isShippingLocation, isShippingLocation) || other.isShippingLocation == isShippingLocation)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,clientId,name,address1,address2,city,state,postalCode,countryId,customValue1,customValue2,customValue3,customValue4,isShippingLocation,updatedAt,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,clientId,name,address1,address2,city,state,postalCode,countryId,customValue1,customValue2,customValue3,customValue4,isShippingLocation,updatedAt,isDeleted);
+}
 
 @override
 String toString() {
-  return 'Location(id: $id, clientId: $clientId, name: $name, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, isShippingLocation: $isShippingLocation, updatedAt: $updatedAt, isDeleted: $isDeleted)';
+    return 'Location(id: $id, clientId: $clientId, name: $name, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, isShippingLocation: $isShippingLocation, updatedAt: $updatedAt, isDeleted: $isDeleted)';
 }
 
 

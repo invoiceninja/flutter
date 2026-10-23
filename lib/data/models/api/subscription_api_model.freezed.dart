@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'subscription_api_model.dart';
@@ -9,15 +9,14 @@ part of 'subscription_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$SubscriptionApi {
 
- String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'company_id') String get companyId; String get name;// num-or-string on the wire. Domain model normalizes to Decimal.
- Object get price;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'frequency_id') String get frequencyId;@JsonKey(name: 'product_ids') String get productIds;@JsonKey(name: 'recurring_product_ids') String get recurringProductIds;@JsonKey(name: 'optional_product_ids') String get optionalProductIds;@JsonKey(name: 'optional_recurring_product_ids') String get optionalRecurringProductIds;@JsonKey(name: 'group_id') String get groupId;@JsonKey(name: 'auto_bill') String get autoBill;@JsonKey(name: 'remaining_cycles') int get remainingCycles;@JsonKey(name: 'refund_period') int get refundPeriod;@JsonKey(name: 'trial_enabled') bool get trialEnabled;@JsonKey(name: 'trial_duration') int get trialDuration;@JsonKey(name: 'promo_code') String get promoCode;@JsonKey(name: 'promo_discount') Object get promoDiscount;@JsonKey(name: 'promo_price') Object get promoPrice;@JsonKey(name: 'is_amount_discount') bool get isAmountDiscount;@JsonKey(name: 'allow_cancellation') bool get allowCancellation;@JsonKey(name: 'allow_plan_changes') bool get allowPlanChanges;@JsonKey(name: 'allow_query_overrides') bool get allowQueryOverrides;@JsonKey(name: 'registration_required') bool get registrationRequired;@JsonKey(name: 'use_inventory_management') bool get useInventoryManagement;@JsonKey(name: 'per_seat_enabled') bool get perSeatEnabled;@JsonKey(name: 'max_seats_limit') int get maxSeatsLimit;@JsonKey(name: 'webhook_configuration') WebhookConfigurationApi get webhookConfiguration; String get steps;@JsonKey(name: 'purchase_page') String get purchasePage;// Internal field — opaque round-trip, no editor.
-@JsonKey(name: 'plan_map') String get planMap;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;
+ String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'company_id') String get companyId; String get name; Object get price;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'frequency_id') String get frequencyId;@JsonKey(name: 'product_ids') String get productIds;@JsonKey(name: 'recurring_product_ids') String get recurringProductIds;@JsonKey(name: 'optional_product_ids') String get optionalProductIds;@JsonKey(name: 'optional_recurring_product_ids') String get optionalRecurringProductIds;@JsonKey(name: 'group_id') String get groupId;@JsonKey(name: 'auto_bill') String get autoBill;@JsonKey(name: 'remaining_cycles') int get remainingCycles;@JsonKey(name: 'refund_period') int get refundPeriod;@JsonKey(name: 'trial_enabled') bool get trialEnabled;@JsonKey(name: 'trial_duration') int get trialDuration;@JsonKey(name: 'promo_code') String get promoCode;@JsonKey(name: 'promo_discount') Object get promoDiscount;@JsonKey(name: 'promo_price') Object get promoPrice;@JsonKey(name: 'is_amount_discount') bool get isAmountDiscount;@JsonKey(name: 'allow_cancellation') bool get allowCancellation;@JsonKey(name: 'allow_plan_changes') bool get allowPlanChanges;@JsonKey(name: 'allow_query_overrides') bool get allowQueryOverrides;@JsonKey(name: 'registration_required') bool get registrationRequired;@JsonKey(name: 'use_inventory_management') bool get useInventoryManagement;@JsonKey(name: 'per_seat_enabled') bool get perSeatEnabled;@JsonKey(name: 'max_seats_limit') int get maxSeatsLimit;@JsonKey(name: 'webhook_configuration') WebhookConfigurationApi get webhookConfiguration; String get steps;@JsonKey(name: 'purchase_page') String get purchasePage;@JsonKey(name: 'plan_map') String get planMap;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;
 /// Create a copy of SubscriptionApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +29,21 @@ $SubscriptionApiCopyWith<SubscriptionApi> get copyWith => _$SubscriptionApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.price, price)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.productIds, productIds) || other.productIds == productIds)&&(identical(other.recurringProductIds, recurringProductIds) || other.recurringProductIds == recurringProductIds)&&(identical(other.optionalProductIds, optionalProductIds) || other.optionalProductIds == optionalProductIds)&&(identical(other.optionalRecurringProductIds, optionalRecurringProductIds) || other.optionalRecurringProductIds == optionalRecurringProductIds)&&(identical(other.groupId, groupId) || other.groupId == groupId)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.refundPeriod, refundPeriod) || other.refundPeriod == refundPeriod)&&(identical(other.trialEnabled, trialEnabled) || other.trialEnabled == trialEnabled)&&(identical(other.trialDuration, trialDuration) || other.trialDuration == trialDuration)&&(identical(other.promoCode, promoCode) || other.promoCode == promoCode)&&const DeepCollectionEquality().equals(other.promoDiscount, promoDiscount)&&const DeepCollectionEquality().equals(other.promoPrice, promoPrice)&&(identical(other.isAmountDiscount, isAmountDiscount) || other.isAmountDiscount == isAmountDiscount)&&(identical(other.allowCancellation, allowCancellation) || other.allowCancellation == allowCancellation)&&(identical(other.allowPlanChanges, allowPlanChanges) || other.allowPlanChanges == allowPlanChanges)&&(identical(other.allowQueryOverrides, allowQueryOverrides) || other.allowQueryOverrides == allowQueryOverrides)&&(identical(other.registrationRequired, registrationRequired) || other.registrationRequired == registrationRequired)&&(identical(other.useInventoryManagement, useInventoryManagement) || other.useInventoryManagement == useInventoryManagement)&&(identical(other.perSeatEnabled, perSeatEnabled) || other.perSeatEnabled == perSeatEnabled)&&(identical(other.maxSeatsLimit, maxSeatsLimit) || other.maxSeatsLimit == maxSeatsLimit)&&(identical(other.webhookConfiguration, webhookConfiguration) || other.webhookConfiguration == webhookConfiguration)&&(identical(other.steps, steps) || other.steps == steps)&&(identical(other.purchasePage, purchasePage) || other.purchasePage == purchasePage)&&(identical(other.planMap, planMap) || other.planMap == planMap)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as SubscriptionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.companyId, _this.companyId) || other.companyId == _this.companyId)&&(identical(other.name, _this.name) || other.name == _this.name)&&const DeepCollectionEquality().equals(other.price, _this.price)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.frequencyId, _this.frequencyId) || other.frequencyId == _this.frequencyId)&&(identical(other.productIds, _this.productIds) || other.productIds == _this.productIds)&&(identical(other.recurringProductIds, _this.recurringProductIds) || other.recurringProductIds == _this.recurringProductIds)&&(identical(other.optionalProductIds, _this.optionalProductIds) || other.optionalProductIds == _this.optionalProductIds)&&(identical(other.optionalRecurringProductIds, _this.optionalRecurringProductIds) || other.optionalRecurringProductIds == _this.optionalRecurringProductIds)&&(identical(other.groupId, _this.groupId) || other.groupId == _this.groupId)&&(identical(other.autoBill, _this.autoBill) || other.autoBill == _this.autoBill)&&(identical(other.remainingCycles, _this.remainingCycles) || other.remainingCycles == _this.remainingCycles)&&(identical(other.refundPeriod, _this.refundPeriod) || other.refundPeriod == _this.refundPeriod)&&(identical(other.trialEnabled, _this.trialEnabled) || other.trialEnabled == _this.trialEnabled)&&(identical(other.trialDuration, _this.trialDuration) || other.trialDuration == _this.trialDuration)&&(identical(other.promoCode, _this.promoCode) || other.promoCode == _this.promoCode)&&const DeepCollectionEquality().equals(other.promoDiscount, _this.promoDiscount)&&const DeepCollectionEquality().equals(other.promoPrice, _this.promoPrice)&&(identical(other.isAmountDiscount, _this.isAmountDiscount) || other.isAmountDiscount == _this.isAmountDiscount)&&(identical(other.allowCancellation, _this.allowCancellation) || other.allowCancellation == _this.allowCancellation)&&(identical(other.allowPlanChanges, _this.allowPlanChanges) || other.allowPlanChanges == _this.allowPlanChanges)&&(identical(other.allowQueryOverrides, _this.allowQueryOverrides) || other.allowQueryOverrides == _this.allowQueryOverrides)&&(identical(other.registrationRequired, _this.registrationRequired) || other.registrationRequired == _this.registrationRequired)&&(identical(other.useInventoryManagement, _this.useInventoryManagement) || other.useInventoryManagement == _this.useInventoryManagement)&&(identical(other.perSeatEnabled, _this.perSeatEnabled) || other.perSeatEnabled == _this.perSeatEnabled)&&(identical(other.maxSeatsLimit, _this.maxSeatsLimit) || other.maxSeatsLimit == _this.maxSeatsLimit)&&(identical(other.webhookConfiguration, _this.webhookConfiguration) || other.webhookConfiguration == _this.webhookConfiguration)&&(identical(other.steps, _this.steps) || other.steps == _this.steps)&&(identical(other.purchasePage, _this.purchasePage) || other.purchasePage == _this.purchasePage)&&(identical(other.planMap, _this.planMap) || other.planMap == _this.planMap)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,companyId,name,const DeepCollectionEquality().hash(price),currencyId,frequencyId,productIds,recurringProductIds,optionalProductIds,optionalRecurringProductIds,groupId,autoBill,remainingCycles,refundPeriod,trialEnabled,trialDuration,promoCode,const DeepCollectionEquality().hash(promoDiscount),const DeepCollectionEquality().hash(promoPrice),isAmountDiscount,allowCancellation,allowPlanChanges,allowQueryOverrides,registrationRequired,useInventoryManagement,perSeatEnabled,maxSeatsLimit,webhookConfiguration,steps,purchasePage,planMap,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+  final _this = this as SubscriptionApi;
+  return Object.hashAll([runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.companyId,_this.name,const DeepCollectionEquality().hash(_this.price),_this.currencyId,_this.frequencyId,_this.productIds,_this.recurringProductIds,_this.optionalProductIds,_this.optionalRecurringProductIds,_this.groupId,_this.autoBill,_this.remainingCycles,_this.refundPeriod,_this.trialEnabled,_this.trialDuration,_this.promoCode,const DeepCollectionEquality().hash(_this.promoDiscount),const DeepCollectionEquality().hash(_this.promoPrice),_this.isAmountDiscount,_this.allowCancellation,_this.allowPlanChanges,_this.allowQueryOverrides,_this.registrationRequired,_this.useInventoryManagement,_this.perSeatEnabled,_this.maxSeatsLimit,_this.webhookConfiguration,_this.steps,_this.purchasePage,_this.planMap,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted]);
+}
 
 @override
 String toString() {
-  return 'SubscriptionApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, companyId: $companyId, name: $name, price: $price, currencyId: $currencyId, frequencyId: $frequencyId, productIds: $productIds, recurringProductIds: $recurringProductIds, optionalProductIds: $optionalProductIds, optionalRecurringProductIds: $optionalRecurringProductIds, groupId: $groupId, autoBill: $autoBill, remainingCycles: $remainingCycles, refundPeriod: $refundPeriod, trialEnabled: $trialEnabled, trialDuration: $trialDuration, promoCode: $promoCode, promoDiscount: $promoDiscount, promoPrice: $promoPrice, isAmountDiscount: $isAmountDiscount, allowCancellation: $allowCancellation, allowPlanChanges: $allowPlanChanges, allowQueryOverrides: $allowQueryOverrides, registrationRequired: $registrationRequired, useInventoryManagement: $useInventoryManagement, perSeatEnabled: $perSeatEnabled, maxSeatsLimit: $maxSeatsLimit, webhookConfiguration: $webhookConfiguration, steps: $steps, purchasePage: $purchasePage, planMap: $planMap, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as SubscriptionApi;
+  return 'SubscriptionApi(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, companyId: ${_this.companyId}, name: ${_this.name}, price: ${_this.price}, currencyId: ${_this.currencyId}, frequencyId: ${_this.frequencyId}, productIds: ${_this.productIds}, recurringProductIds: ${_this.recurringProductIds}, optionalProductIds: ${_this.optionalProductIds}, optionalRecurringProductIds: ${_this.optionalRecurringProductIds}, groupId: ${_this.groupId}, autoBill: ${_this.autoBill}, remainingCycles: ${_this.remainingCycles}, refundPeriod: ${_this.refundPeriod}, trialEnabled: ${_this.trialEnabled}, trialDuration: ${_this.trialDuration}, promoCode: ${_this.promoCode}, promoDiscount: ${_this.promoDiscount}, promoPrice: ${_this.promoPrice}, isAmountDiscount: ${_this.isAmountDiscount}, allowCancellation: ${_this.allowCancellation}, allowPlanChanges: ${_this.allowPlanChanges}, allowQueryOverrides: ${_this.allowQueryOverrides}, registrationRequired: ${_this.registrationRequired}, useInventoryManagement: ${_this.useInventoryManagement}, perSeatEnabled: ${_this.perSeatEnabled}, maxSeatsLimit: ${_this.maxSeatsLimit}, webhookConfiguration: ${_this.webhookConfiguration}, steps: ${_this.steps}, purchasePage: ${_this.purchasePage}, planMap: ${_this.planMap}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -68,7 +72,7 @@ class _$SubscriptionApiCopyWithImpl<$Res>
 /// Create a copy of SubscriptionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? companyId = null,Object? name = null,Object? price = null,Object? currencyId = null,Object? frequencyId = null,Object? productIds = null,Object? recurringProductIds = null,Object? optionalProductIds = null,Object? optionalRecurringProductIds = null,Object? groupId = null,Object? autoBill = null,Object? remainingCycles = null,Object? refundPeriod = null,Object? trialEnabled = null,Object? trialDuration = null,Object? promoCode = null,Object? promoDiscount = null,Object? promoPrice = null,Object? isAmountDiscount = null,Object? allowCancellation = null,Object? allowPlanChanges = null,Object? allowQueryOverrides = null,Object? registrationRequired = null,Object? useInventoryManagement = null,Object? perSeatEnabled = null,Object? maxSeatsLimit = null,Object? webhookConfiguration = null,Object? steps = null,Object? purchasePage = null,Object? planMap = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(SubscriptionApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -261,7 +265,6 @@ class _SubscriptionApi implements SubscriptionApi {
 @override@JsonKey(name: 'assigned_user_id') final  String assignedUserId;
 @override@JsonKey(name: 'company_id') final  String companyId;
 @override@JsonKey() final  String name;
-// num-or-string on the wire. Domain model normalizes to Decimal.
 @override@JsonKey() final  Object price;
 @override@JsonKey(name: 'currency_id') final  String currencyId;
 @override@JsonKey(name: 'frequency_id') final  String frequencyId;
@@ -289,7 +292,6 @@ class _SubscriptionApi implements SubscriptionApi {
 @override@JsonKey(name: 'webhook_configuration') final  WebhookConfigurationApi webhookConfiguration;
 @override@JsonKey() final  String steps;
 @override@JsonKey(name: 'purchase_page') final  String purchasePage;
-// Internal field — opaque round-trip, no editor.
 @override@JsonKey(name: 'plan_map') final  String planMap;
 @override@JsonKey(name: 'created_at') final  int createdAt;
 @override@JsonKey(name: 'updated_at') final  int updatedAt;
@@ -309,16 +311,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.price, price)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.productIds, productIds) || other.productIds == productIds)&&(identical(other.recurringProductIds, recurringProductIds) || other.recurringProductIds == recurringProductIds)&&(identical(other.optionalProductIds, optionalProductIds) || other.optionalProductIds == optionalProductIds)&&(identical(other.optionalRecurringProductIds, optionalRecurringProductIds) || other.optionalRecurringProductIds == optionalRecurringProductIds)&&(identical(other.groupId, groupId) || other.groupId == groupId)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.refundPeriod, refundPeriod) || other.refundPeriod == refundPeriod)&&(identical(other.trialEnabled, trialEnabled) || other.trialEnabled == trialEnabled)&&(identical(other.trialDuration, trialDuration) || other.trialDuration == trialDuration)&&(identical(other.promoCode, promoCode) || other.promoCode == promoCode)&&const DeepCollectionEquality().equals(other.promoDiscount, promoDiscount)&&const DeepCollectionEquality().equals(other.promoPrice, promoPrice)&&(identical(other.isAmountDiscount, isAmountDiscount) || other.isAmountDiscount == isAmountDiscount)&&(identical(other.allowCancellation, allowCancellation) || other.allowCancellation == allowCancellation)&&(identical(other.allowPlanChanges, allowPlanChanges) || other.allowPlanChanges == allowPlanChanges)&&(identical(other.allowQueryOverrides, allowQueryOverrides) || other.allowQueryOverrides == allowQueryOverrides)&&(identical(other.registrationRequired, registrationRequired) || other.registrationRequired == registrationRequired)&&(identical(other.useInventoryManagement, useInventoryManagement) || other.useInventoryManagement == useInventoryManagement)&&(identical(other.perSeatEnabled, perSeatEnabled) || other.perSeatEnabled == perSeatEnabled)&&(identical(other.maxSeatsLimit, maxSeatsLimit) || other.maxSeatsLimit == maxSeatsLimit)&&(identical(other.webhookConfiguration, webhookConfiguration) || other.webhookConfiguration == webhookConfiguration)&&(identical(other.steps, steps) || other.steps == steps)&&(identical(other.purchasePage, purchasePage) || other.purchasePage == purchasePage)&&(identical(other.planMap, planMap) || other.planMap == planMap)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.price, price)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.productIds, productIds) || other.productIds == productIds)&&(identical(other.recurringProductIds, recurringProductIds) || other.recurringProductIds == recurringProductIds)&&(identical(other.optionalProductIds, optionalProductIds) || other.optionalProductIds == optionalProductIds)&&(identical(other.optionalRecurringProductIds, optionalRecurringProductIds) || other.optionalRecurringProductIds == optionalRecurringProductIds)&&(identical(other.groupId, groupId) || other.groupId == groupId)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.refundPeriod, refundPeriod) || other.refundPeriod == refundPeriod)&&(identical(other.trialEnabled, trialEnabled) || other.trialEnabled == trialEnabled)&&(identical(other.trialDuration, trialDuration) || other.trialDuration == trialDuration)&&(identical(other.promoCode, promoCode) || other.promoCode == promoCode)&&const DeepCollectionEquality().equals(other.promoDiscount, promoDiscount)&&const DeepCollectionEquality().equals(other.promoPrice, promoPrice)&&(identical(other.isAmountDiscount, isAmountDiscount) || other.isAmountDiscount == isAmountDiscount)&&(identical(other.allowCancellation, allowCancellation) || other.allowCancellation == allowCancellation)&&(identical(other.allowPlanChanges, allowPlanChanges) || other.allowPlanChanges == allowPlanChanges)&&(identical(other.allowQueryOverrides, allowQueryOverrides) || other.allowQueryOverrides == allowQueryOverrides)&&(identical(other.registrationRequired, registrationRequired) || other.registrationRequired == registrationRequired)&&(identical(other.useInventoryManagement, useInventoryManagement) || other.useInventoryManagement == useInventoryManagement)&&(identical(other.perSeatEnabled, perSeatEnabled) || other.perSeatEnabled == perSeatEnabled)&&(identical(other.maxSeatsLimit, maxSeatsLimit) || other.maxSeatsLimit == maxSeatsLimit)&&(identical(other.webhookConfiguration, webhookConfiguration) || other.webhookConfiguration == webhookConfiguration)&&(identical(other.steps, steps) || other.steps == steps)&&(identical(other.purchasePage, purchasePage) || other.purchasePage == purchasePage)&&(identical(other.planMap, planMap) || other.planMap == planMap)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,companyId,name,const DeepCollectionEquality().hash(price),currencyId,frequencyId,productIds,recurringProductIds,optionalProductIds,optionalRecurringProductIds,groupId,autoBill,remainingCycles,refundPeriod,trialEnabled,trialDuration,promoCode,const DeepCollectionEquality().hash(promoDiscount),const DeepCollectionEquality().hash(promoPrice),isAmountDiscount,allowCancellation,allowPlanChanges,allowQueryOverrides,registrationRequired,useInventoryManagement,perSeatEnabled,maxSeatsLimit,webhookConfiguration,steps,purchasePage,planMap,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,userId,assignedUserId,companyId,name,const DeepCollectionEquality().hash(price),currencyId,frequencyId,productIds,recurringProductIds,optionalProductIds,optionalRecurringProductIds,groupId,autoBill,remainingCycles,refundPeriod,trialEnabled,trialDuration,promoCode,const DeepCollectionEquality().hash(promoDiscount),const DeepCollectionEquality().hash(promoPrice),isAmountDiscount,allowCancellation,allowPlanChanges,allowQueryOverrides,registrationRequired,useInventoryManagement,perSeatEnabled,maxSeatsLimit,webhookConfiguration,steps,purchasePage,planMap,createdAt,updatedAt,archivedAt,isDeleted]);
+}
 
 @override
 String toString() {
-  return 'SubscriptionApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, companyId: $companyId, name: $name, price: $price, currencyId: $currencyId, frequencyId: $frequencyId, productIds: $productIds, recurringProductIds: $recurringProductIds, optionalProductIds: $optionalProductIds, optionalRecurringProductIds: $optionalRecurringProductIds, groupId: $groupId, autoBill: $autoBill, remainingCycles: $remainingCycles, refundPeriod: $refundPeriod, trialEnabled: $trialEnabled, trialDuration: $trialDuration, promoCode: $promoCode, promoDiscount: $promoDiscount, promoPrice: $promoPrice, isAmountDiscount: $isAmountDiscount, allowCancellation: $allowCancellation, allowPlanChanges: $allowPlanChanges, allowQueryOverrides: $allowQueryOverrides, registrationRequired: $registrationRequired, useInventoryManagement: $useInventoryManagement, perSeatEnabled: $perSeatEnabled, maxSeatsLimit: $maxSeatsLimit, webhookConfiguration: $webhookConfiguration, steps: $steps, purchasePage: $purchasePage, planMap: $planMap, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'SubscriptionApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, companyId: $companyId, name: $name, price: $price, currencyId: $currencyId, frequencyId: $frequencyId, productIds: $productIds, recurringProductIds: $recurringProductIds, optionalProductIds: $optionalProductIds, optionalRecurringProductIds: $optionalRecurringProductIds, groupId: $groupId, autoBill: $autoBill, remainingCycles: $remainingCycles, refundPeriod: $refundPeriod, trialEnabled: $trialEnabled, trialDuration: $trialDuration, promoCode: $promoCode, promoDiscount: $promoDiscount, promoPrice: $promoPrice, isAmountDiscount: $isAmountDiscount, allowCancellation: $allowCancellation, allowPlanChanges: $allowPlanChanges, allowQueryOverrides: $allowQueryOverrides, registrationRequired: $registrationRequired, useInventoryManagement: $useInventoryManagement, perSeatEnabled: $perSeatEnabled, maxSeatsLimit: $maxSeatsLimit, webhookConfiguration: $webhookConfiguration, steps: $steps, purchasePage: $purchasePage, planMap: $planMap, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -415,16 +419,21 @@ $WebhookConfigurationApiCopyWith<WebhookConfigurationApi> get copyWith => _$Webh
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookConfigurationApi&&(identical(other.returnUrl, returnUrl) || other.returnUrl == returnUrl)&&(identical(other.postPurchaseUrl, postPurchaseUrl) || other.postPurchaseUrl == postPurchaseUrl)&&(identical(other.postPurchaseRestMethod, postPurchaseRestMethod) || other.postPurchaseRestMethod == postPurchaseRestMethod)&&const DeepCollectionEquality().equals(other.postPurchaseHeaders, postPurchaseHeaders)&&(identical(other.postPurchaseBody, postPurchaseBody) || other.postPurchaseBody == postPurchaseBody));
+  final _this = this as WebhookConfigurationApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookConfigurationApi&&(identical(other.returnUrl, _this.returnUrl) || other.returnUrl == _this.returnUrl)&&(identical(other.postPurchaseUrl, _this.postPurchaseUrl) || other.postPurchaseUrl == _this.postPurchaseUrl)&&(identical(other.postPurchaseRestMethod, _this.postPurchaseRestMethod) || other.postPurchaseRestMethod == _this.postPurchaseRestMethod)&&const DeepCollectionEquality().equals(other.postPurchaseHeaders, _this.postPurchaseHeaders)&&(identical(other.postPurchaseBody, _this.postPurchaseBody) || other.postPurchaseBody == _this.postPurchaseBody));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,returnUrl,postPurchaseUrl,postPurchaseRestMethod,const DeepCollectionEquality().hash(postPurchaseHeaders),postPurchaseBody);
+int get hashCode {
+  final _this = this as WebhookConfigurationApi;
+  return Object.hash(runtimeType,_this.returnUrl,_this.postPurchaseUrl,_this.postPurchaseRestMethod,const DeepCollectionEquality().hash(_this.postPurchaseHeaders),_this.postPurchaseBody);
+}
 
 @override
 String toString() {
-  return 'WebhookConfigurationApi(returnUrl: $returnUrl, postPurchaseUrl: $postPurchaseUrl, postPurchaseRestMethod: $postPurchaseRestMethod, postPurchaseHeaders: $postPurchaseHeaders, postPurchaseBody: $postPurchaseBody)';
+  final _this = this as WebhookConfigurationApi;
+  return 'WebhookConfigurationApi(returnUrl: ${_this.returnUrl}, postPurchaseUrl: ${_this.postPurchaseUrl}, postPurchaseRestMethod: ${_this.postPurchaseRestMethod}, postPurchaseHeaders: ${_this.postPurchaseHeaders}, postPurchaseBody: ${_this.postPurchaseBody})';
 }
 
 
@@ -453,7 +462,7 @@ class _$WebhookConfigurationApiCopyWithImpl<$Res>
 /// Create a copy of WebhookConfigurationApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? returnUrl = null,Object? postPurchaseUrl = null,Object? postPurchaseRestMethod = null,Object? postPurchaseHeaders = null,Object? postPurchaseBody = null,}) {
-  return _then(_self.copyWith(
+  return _then(WebhookConfigurationApi(
 returnUrl: null == returnUrl ? _self.returnUrl : returnUrl // ignore: cast_nullable_to_non_nullable
 as String,postPurchaseUrl: null == postPurchaseUrl ? _self.postPurchaseUrl : postPurchaseUrl // ignore: cast_nullable_to_non_nullable
 as String,postPurchaseRestMethod: null == postPurchaseRestMethod ? _self.postPurchaseRestMethod : postPurchaseRestMethod // ignore: cast_nullable_to_non_nullable
@@ -600,7 +609,7 @@ return $default(_that.returnUrl,_that.postPurchaseUrl,_that.postPurchaseRestMeth
 @JsonSerializable()
 
 class _WebhookConfigurationApi implements WebhookConfigurationApi {
-  const _WebhookConfigurationApi({@JsonKey(name: 'return_url') this.returnUrl = '', @JsonKey(name: 'post_purchase_url') this.postPurchaseUrl = '', @JsonKey(name: 'post_purchase_rest_method') this.postPurchaseRestMethod = '', @JsonKey(name: 'post_purchase_headers', fromJson: _headersFromJson) final  Map<String, String> postPurchaseHeaders = const <String, String>{}, @JsonKey(name: 'post_purchase_body') this.postPurchaseBody = ''}): _postPurchaseHeaders = postPurchaseHeaders;
+  const _WebhookConfigurationApi({@JsonKey(name: 'return_url') this.returnUrl = '', @JsonKey(name: 'post_purchase_url') this.postPurchaseUrl = '', @JsonKey(name: 'post_purchase_rest_method') this.postPurchaseRestMethod = '', @JsonKey(name: 'post_purchase_headers', fromJson: _headersFromJson)  Map<String, String> postPurchaseHeaders = const <String, String>{}, @JsonKey(name: 'post_purchase_body') this.postPurchaseBody = ''}): _postPurchaseHeaders = postPurchaseHeaders;
   factory _WebhookConfigurationApi.fromJson(Map<String, dynamic> json) => _$WebhookConfigurationApiFromJson(json);
 
 @override@JsonKey(name: 'return_url') final  String returnUrl;
@@ -628,16 +637,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookConfigurationApi&&(identical(other.returnUrl, returnUrl) || other.returnUrl == returnUrl)&&(identical(other.postPurchaseUrl, postPurchaseUrl) || other.postPurchaseUrl == postPurchaseUrl)&&(identical(other.postPurchaseRestMethod, postPurchaseRestMethod) || other.postPurchaseRestMethod == postPurchaseRestMethod)&&const DeepCollectionEquality().equals(other._postPurchaseHeaders, _postPurchaseHeaders)&&(identical(other.postPurchaseBody, postPurchaseBody) || other.postPurchaseBody == postPurchaseBody));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookConfigurationApi&&(identical(other.returnUrl, returnUrl) || other.returnUrl == returnUrl)&&(identical(other.postPurchaseUrl, postPurchaseUrl) || other.postPurchaseUrl == postPurchaseUrl)&&(identical(other.postPurchaseRestMethod, postPurchaseRestMethod) || other.postPurchaseRestMethod == postPurchaseRestMethod)&&const DeepCollectionEquality().equals(other.postPurchaseHeaders, _postPurchaseHeaders)&&(identical(other.postPurchaseBody, postPurchaseBody) || other.postPurchaseBody == postPurchaseBody));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,returnUrl,postPurchaseUrl,postPurchaseRestMethod,const DeepCollectionEquality().hash(_postPurchaseHeaders),postPurchaseBody);
+int get hashCode {
+    return Object.hash(runtimeType,returnUrl,postPurchaseUrl,postPurchaseRestMethod,const DeepCollectionEquality().hash(_postPurchaseHeaders),postPurchaseBody);
+}
 
 @override
 String toString() {
-  return 'WebhookConfigurationApi(returnUrl: $returnUrl, postPurchaseUrl: $postPurchaseUrl, postPurchaseRestMethod: $postPurchaseRestMethod, postPurchaseHeaders: $postPurchaseHeaders, postPurchaseBody: $postPurchaseBody)';
+    return 'WebhookConfigurationApi(returnUrl: $returnUrl, postPurchaseUrl: $postPurchaseUrl, postPurchaseRestMethod: $postPurchaseRestMethod, postPurchaseHeaders: $postPurchaseHeaders, postPurchaseBody: $postPurchaseBody)';
 }
 
 
@@ -696,16 +707,21 @@ $SubscriptionListApiCopyWith<SubscriptionListApi> get copyWith => _$Subscription
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as SubscriptionListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as SubscriptionListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'SubscriptionListApi(data: $data)';
+  final _this = this as SubscriptionListApi;
+  return 'SubscriptionListApi(data: ${_this.data})';
 }
 
 
@@ -734,7 +750,7 @@ class _$SubscriptionListApiCopyWithImpl<$Res>
 /// Create a copy of SubscriptionListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(SubscriptionListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<SubscriptionApi>,
   ));
@@ -877,7 +893,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _SubscriptionListApi implements SubscriptionListApi {
-  const _SubscriptionListApi({@JsonKey(fromJson: _subscriptionListData) final  List<SubscriptionApi> data = const []}): _data = data;
+  const _SubscriptionListApi({@JsonKey(fromJson: _subscriptionListData)  List<SubscriptionApi> data = const []}): _data = data;
   factory _SubscriptionListApi.fromJson(Map<String, dynamic> json) => _$SubscriptionListApiFromJson(json);
 
  final  List<SubscriptionApi> _data;
@@ -901,16 +917,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'SubscriptionListApi(data: $data)';
+    return 'SubscriptionListApi(data: $data)';
 }
 
 
@@ -965,16 +983,21 @@ $SubscriptionItemApiCopyWith<SubscriptionItemApi> get copyWith => _$Subscription
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as SubscriptionItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as SubscriptionItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'SubscriptionItemApi(data: $data)';
+  final _this = this as SubscriptionItemApi;
+  return 'SubscriptionItemApi(data: ${_this.data})';
 }
 
 
@@ -1003,7 +1026,7 @@ class _$SubscriptionItemApiCopyWithImpl<$Res>
 /// Create a copy of SubscriptionItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(SubscriptionItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as SubscriptionApi,
   ));
@@ -1173,16 +1196,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'SubscriptionItemApi(data: $data)';
+    return 'SubscriptionItemApi(data: $data)';
 }
 
 
@@ -1246,16 +1271,21 @@ $SubscriptionStepApiCopyWith<SubscriptionStepApi> get copyWith => _$Subscription
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionStepApi&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&const DeepCollectionEquality().equals(other.dependencies, dependencies));
+  final _this = this as SubscriptionStepApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionStepApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.label, _this.label) || other.label == _this.label)&&const DeepCollectionEquality().equals(other.dependencies, _this.dependencies));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,const DeepCollectionEquality().hash(dependencies));
+int get hashCode {
+  final _this = this as SubscriptionStepApi;
+  return Object.hash(runtimeType,_this.id,_this.label,const DeepCollectionEquality().hash(_this.dependencies));
+}
 
 @override
 String toString() {
-  return 'SubscriptionStepApi(id: $id, label: $label, dependencies: $dependencies)';
+  final _this = this as SubscriptionStepApi;
+  return 'SubscriptionStepApi(id: ${_this.id}, label: ${_this.label}, dependencies: ${_this.dependencies})';
 }
 
 
@@ -1284,7 +1314,7 @@ class _$SubscriptionStepApiCopyWithImpl<$Res>
 /// Create a copy of SubscriptionStepApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? dependencies = null,}) {
-  return _then(_self.copyWith(
+  return _then(SubscriptionStepApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,dependencies: null == dependencies ? _self.dependencies : dependencies // ignore: cast_nullable_to_non_nullable
@@ -1429,7 +1459,7 @@ return $default(_that.id,_that.label,_that.dependencies);case _:
 @JsonSerializable()
 
 class _SubscriptionStepApi implements SubscriptionStepApi {
-  const _SubscriptionStepApi({this.id = '', this.label = '', final  List<String> dependencies = const <String>[]}): _dependencies = dependencies;
+  const _SubscriptionStepApi({this.id = '', this.label = '',  List<String> dependencies = const <String>[]}): _dependencies = dependencies;
   factory _SubscriptionStepApi.fromJson(Map<String, dynamic> json) => _$SubscriptionStepApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -1455,16 +1485,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionStepApi&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&const DeepCollectionEquality().equals(other._dependencies, _dependencies));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionStepApi&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&const DeepCollectionEquality().equals(other.dependencies, _dependencies));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,const DeepCollectionEquality().hash(_dependencies));
+int get hashCode {
+    return Object.hash(runtimeType,id,label,const DeepCollectionEquality().hash(_dependencies));
+}
 
 @override
 String toString() {
-  return 'SubscriptionStepApi(id: $id, label: $label, dependencies: $dependencies)';
+    return 'SubscriptionStepApi(id: $id, label: $label, dependencies: $dependencies)';
 }
 
 

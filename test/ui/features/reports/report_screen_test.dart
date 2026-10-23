@@ -21,6 +21,7 @@ import 'package:admin/ui/core/charts/bar_list.dart';
 import 'package:admin/ui/features/reports/widgets/report_document_view.dart';
 import 'package:admin/ui/features/reports/widgets/report_states.dart';
 import 'package:admin/ui/features/reports/widgets/report_summary_card.dart';
+import 'package:admin/ui/features/reports/widgets/charts/report_series_plot.dart';
 
 import '_report_screen_harness.dart';
 
@@ -563,6 +564,30 @@ void main() {
       final jan = tester.getCenter(find.text('January 2026')).dy;
       final feb = tester.getCenter(find.text('February 2026')).dy;
       expect(jan, lessThan(feb));
+    }, variant: kDesktop);
+
+    testWidgets('a right-click on a period offers to show its rows and to '
+        'copy its figure; View drills like a click', (tester) async {
+      final h = await pumpReports(tester, preview: invoiceReportFixture());
+      final plot = tester.widget<ReportSeriesPlot>(
+        find.byType(ReportSeriesPlot),
+      );
+      // fl_chart's side — which period a right-click lands on — is
+      // report_series_plot_test's; this is what the card does with it.
+      final march = plot.labels.indexOf('March 2026');
+      expect(march, isNonNegative);
+      plot.onSecondaryTapIndex!(march, const Offset(200, 200));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('report-chart-menu-copy')), findsOneWidget);
+      final view = find.byKey(const Key('report-chart-menu-view'));
+      expect(
+        find.descendant(of: view, matching: find.text('March 2026')),
+        findsOneWidget,
+      );
+      await tester.tap(view);
+      await tester.pumpAndSettle();
+      expect(h.vm.selectedGroup, '2026-03-01');
     }, variant: kDesktop);
 
     testWidgets('by a category it is a ranking, and the table agrees with it', (

@@ -17,4 +17,4 @@ dependency_overrides:
     git:
       url: https://github.com/Flutter-Bounty-Hunters/super_editor
       path: super_editor
-      ref: 2408aa52579a6d13479b38da980dc3093c2982a8
+      ref: 8705fe9da3633e20ef7b32b934f3d933fa3bab94

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'vendor_contact.dart';
@@ -9,24 +9,13 @@ part of 'vendor_contact.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$VendorContact {
 
- String get id; String get firstName; String get lastName; String get email; String get phone; String get password;// Twin of `Contact.portalPlaceholderEmail` — the address the server minted
-// for a vendor contact that had none, stripped out of [email] on the way in
-// and re-emitted by [toApiJson] rather than cleared. Full rationale (and
-// why omitting the key instead is wrong) lives on the client-side field in
-// `contact.dart`; the vendor portal mints these from
-// `VendorPortal/InvitationController.php:58` and
-// `Middleware/VendorContactKeyLogin.php`.
- String get portalPlaceholderEmail; bool get sendEmail;// Server-managed / optional flags default so call sites that don't care
-// can omit them; mirror the optional fields on `Contact`.
- bool get ccOnly; bool get isPrimary;// "Authorized to sign" — portal e-signature permission (React parity).
- bool get canSign;// Server-generated portal auto-login URL. Read-only; echoed back on save.
- String get link; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; bool get isDeleted;// Last portal login (read-only, display-only); null when never signed in.
- DateTime? get lastLogin;
+ String get id; String get firstName; String get lastName; String get email; String get phone; String get password; String get portalPlaceholderEmail; bool get sendEmail; bool get ccOnly; bool get isPrimary; bool get canSign; String get link; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; bool get isDeleted; DateTime? get lastLogin;
 /// Create a copy of VendorContact
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -37,16 +26,21 @@ $VendorContactCopyWith<VendorContact> get copyWith => _$VendorContactCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorContact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin));
+  final _this = this as VendorContact;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorContact&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.password, _this.password) || other.password == _this.password)&&(identical(other.portalPlaceholderEmail, _this.portalPlaceholderEmail) || other.portalPlaceholderEmail == _this.portalPlaceholderEmail)&&(identical(other.sendEmail, _this.sendEmail) || other.sendEmail == _this.sendEmail)&&(identical(other.ccOnly, _this.ccOnly) || other.ccOnly == _this.ccOnly)&&(identical(other.isPrimary, _this.isPrimary) || other.isPrimary == _this.isPrimary)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,portalPlaceholderEmail,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,updatedAt,isDeleted,lastLogin]);
+int get hashCode {
+  final _this = this as VendorContact;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.password,_this.portalPlaceholderEmail,_this.sendEmail,_this.ccOnly,_this.isPrimary,_this.canSign,_this.link,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.updatedAt,_this.isDeleted,_this.lastLogin]);
+}
 
 @override
 String toString() {
-  return 'VendorContact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, isDeleted: $isDeleted, lastLogin: $lastLogin)';
+  final _this = this as VendorContact;
+  return 'VendorContact(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, password: ${_this.password}, portalPlaceholderEmail: ${_this.portalPlaceholderEmail}, sendEmail: ${_this.sendEmail}, ccOnly: ${_this.ccOnly}, isPrimary: ${_this.isPrimary}, canSign: ${_this.canSign}, link: ${_this.link}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, updatedAt: ${_this.updatedAt}, isDeleted: ${_this.isDeleted}, lastLogin: ${_this.lastLogin})';
 }
 
 
@@ -75,7 +69,7 @@ class _$VendorContactCopyWithImpl<$Res>
 /// Create a copy of VendorContact
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? password = null,Object? portalPlaceholderEmail = null,Object? sendEmail = null,Object? ccOnly = null,Object? isPrimary = null,Object? canSign = null,Object? link = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? isDeleted = null,Object? lastLogin = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(VendorContact(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -245,22 +239,11 @@ class _VendorContact implements VendorContact {
 @override final  String email;
 @override final  String phone;
 @override final  String password;
-// Twin of `Contact.portalPlaceholderEmail` — the address the server minted
-// for a vendor contact that had none, stripped out of [email] on the way in
-// and re-emitted by [toApiJson] rather than cleared. Full rationale (and
-// why omitting the key instead is wrong) lives on the client-side field in
-// `contact.dart`; the vendor portal mints these from
-// `VendorPortal/InvitationController.php:58` and
-// `Middleware/VendorContactKeyLogin.php`.
 @override@JsonKey() final  String portalPlaceholderEmail;
 @override final  bool sendEmail;
-// Server-managed / optional flags default so call sites that don't care
-// can omit them; mirror the optional fields on `Contact`.
 @override@JsonKey() final  bool ccOnly;
 @override final  bool isPrimary;
-// "Authorized to sign" — portal e-signature permission (React parity).
 @override@JsonKey() final  bool canSign;
-// Server-generated portal auto-login URL. Read-only; echoed back on save.
 @override@JsonKey() final  String link;
 @override final  String customValue1;
 @override final  String customValue2;
@@ -268,7 +251,6 @@ class _VendorContact implements VendorContact {
 @override final  String customValue4;
 @override final  DateTime updatedAt;
 @override final  bool isDeleted;
-// Last portal login (read-only, display-only); null when never signed in.
 @override final  DateTime? lastLogin;
 
 /// Create a copy of VendorContact
@@ -281,16 +263,18 @@ _$VendorContactCopyWith<_VendorContact> get copyWith => __$VendorContactCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorContact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorContact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,portalPlaceholderEmail,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,updatedAt,isDeleted,lastLogin]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,portalPlaceholderEmail,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,updatedAt,isDeleted,lastLogin]);
+}
 
 @override
 String toString() {
-  return 'VendorContact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, isDeleted: $isDeleted, lastLogin: $lastLogin)';
+    return 'VendorContact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, isDeleted: $isDeleted, lastLogin: $lastLogin)';
 }
 
 

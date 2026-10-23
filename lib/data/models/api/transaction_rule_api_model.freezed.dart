@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'transaction_rule_api_model.dart';
@@ -9,6 +9,7 @@ part of 'transaction_rule_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $RuleCriterionApiCopyWith<RuleCriterionApi> get copyWith => _$RuleCriterionApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleCriterionApi&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
+  final _this = this as RuleCriterionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleCriterionApi&&(identical(other.searchKey, _this.searchKey) || other.searchKey == _this.searchKey)&&(identical(other.operator, _this.operator) || other.operator == _this.operator)&&(identical(other.value, _this.value) || other.value == _this.value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,searchKey,operator,value);
+int get hashCode {
+  final _this = this as RuleCriterionApi;
+  return Object.hash(runtimeType,_this.searchKey,_this.operator,_this.value);
+}
 
 @override
 String toString() {
-  return 'RuleCriterionApi(searchKey: $searchKey, operator: $operator, value: $value)';
+  final _this = this as RuleCriterionApi;
+  return 'RuleCriterionApi(searchKey: ${_this.searchKey}, operator: ${_this.operator}, value: ${_this.value})';
 }
 
 
@@ -66,7 +72,7 @@ class _$RuleCriterionApiCopyWithImpl<$Res>
 /// Create a copy of RuleCriterionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? searchKey = null,Object? operator = null,Object? value = null,}) {
-  return _then(_self.copyWith(
+  return _then(RuleCriterionApi(
 searchKey: null == searchKey ? _self.searchKey : searchKey // ignore: cast_nullable_to_non_nullable
 as String,operator: null == operator ? _self.operator : operator // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
@@ -231,16 +237,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RuleCriterionApi&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RuleCriterionApi&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,searchKey,operator,value);
+int get hashCode {
+    return Object.hash(runtimeType,searchKey,operator,value);
+}
 
 @override
 String toString() {
-  return 'RuleCriterionApi(searchKey: $searchKey, operator: $operator, value: $value)';
+    return 'RuleCriterionApi(searchKey: $searchKey, operator: $operator, value: $value)';
 }
 
 
@@ -297,16 +305,21 @@ $TransactionRuleApiCopyWith<TransactionRuleApi> get copyWith => _$TransactionRul
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other.rules, rules)&&const DeepCollectionEquality().equals(other.vendor, vendor)&&const DeepCollectionEquality().equals(other.expenseCategory, expenseCategory)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as TransactionRuleApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.appliesTo, _this.appliesTo) || other.appliesTo == _this.appliesTo)&&(identical(other.matchesOnAll, _this.matchesOnAll) || other.matchesOnAll == _this.matchesOnAll)&&(identical(other.autoConvert, _this.autoConvert) || other.autoConvert == _this.autoConvert)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.categoryId, _this.categoryId) || other.categoryId == _this.categoryId)&&const DeepCollectionEquality().equals(other.rules, _this.rules)&&const DeepCollectionEquality().equals(other.vendor, _this.vendor)&&const DeepCollectionEquality().equals(other.expenseCategory, _this.expenseCategory)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(rules),const DeepCollectionEquality().hash(vendor),const DeepCollectionEquality().hash(expenseCategory),isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as TransactionRuleApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.appliesTo,_this.matchesOnAll,_this.autoConvert,_this.vendorId,_this.categoryId,const DeepCollectionEquality().hash(_this.rules),const DeepCollectionEquality().hash(_this.vendor),const DeepCollectionEquality().hash(_this.expenseCategory),_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'TransactionRuleApi(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendor: $vendor, expenseCategory: $expenseCategory, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as TransactionRuleApi;
+  return 'TransactionRuleApi(id: ${_this.id}, name: ${_this.name}, appliesTo: ${_this.appliesTo}, matchesOnAll: ${_this.matchesOnAll}, autoConvert: ${_this.autoConvert}, vendorId: ${_this.vendorId}, categoryId: ${_this.categoryId}, rules: ${_this.rules}, vendor: ${_this.vendor}, expenseCategory: ${_this.expenseCategory}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -335,7 +348,7 @@ class _$TransactionRuleApiCopyWithImpl<$Res>
 /// Create a copy of TransactionRuleApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? appliesTo = null,Object? matchesOnAll = null,Object? autoConvert = null,Object? vendorId = null,Object? categoryId = null,Object? rules = null,Object? vendor = freezed,Object? expenseCategory = freezed,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(TransactionRuleApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,appliesTo: null == appliesTo ? _self.appliesTo : appliesTo // ignore: cast_nullable_to_non_nullable
@@ -491,7 +504,7 @@ return $default(_that.id,_that.name,_that.appliesTo,_that.matchesOnAll,_that.aut
 
 @JsonSerializable(includeIfNull: false)
 class _TransactionRuleApi implements TransactionRuleApi {
-  const _TransactionRuleApi({this.id = '', this.name = '', @JsonKey(name: 'applies_to') this.appliesTo = 'DEBIT', @JsonKey(name: 'matches_on_all') this.matchesOnAll = true, @JsonKey(name: 'auto_convert') this.autoConvert = false, @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'category_id') this.categoryId = '', final  List<RuleCriterionApi> rules = const <RuleCriterionApi>[], final  Map<String, dynamic>? vendor, @JsonKey(name: 'expense_category') final  Map<String, dynamic>? expenseCategory, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0}): _rules = rules,_vendor = vendor,_expenseCategory = expenseCategory;
+  const _TransactionRuleApi({this.id = '', this.name = '', @JsonKey(name: 'applies_to') this.appliesTo = 'DEBIT', @JsonKey(name: 'matches_on_all') this.matchesOnAll = true, @JsonKey(name: 'auto_convert') this.autoConvert = false, @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'category_id') this.categoryId = '',  List<RuleCriterionApi> rules = const <RuleCriterionApi>[],  Map<String, dynamic>? vendor, @JsonKey(name: 'expense_category')  Map<String, dynamic>? expenseCategory, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0}): _rules = rules,_vendor = vendor,_expenseCategory = expenseCategory;
   factory _TransactionRuleApi.fromJson(Map<String, dynamic> json) => _$TransactionRuleApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -544,16 +557,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other._rules, _rules)&&const DeepCollectionEquality().equals(other._vendor, _vendor)&&const DeepCollectionEquality().equals(other._expenseCategory, _expenseCategory)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other.rules, _rules)&&const DeepCollectionEquality().equals(other.vendor, _vendor)&&const DeepCollectionEquality().equals(other.expenseCategory, _expenseCategory)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(_rules),const DeepCollectionEquality().hash(_vendor),const DeepCollectionEquality().hash(_expenseCategory),isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(_rules),const DeepCollectionEquality().hash(_vendor),const DeepCollectionEquality().hash(_expenseCategory),isDeleted,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'TransactionRuleApi(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendor: $vendor, expenseCategory: $expenseCategory, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'TransactionRuleApi(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendor: $vendor, expenseCategory: $expenseCategory, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -621,16 +636,21 @@ $TransactionRuleListApiCopyWith<TransactionRuleListApi> get copyWith => _$Transa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as TransactionRuleListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as TransactionRuleListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'TransactionRuleListApi(data: $data)';
+  final _this = this as TransactionRuleListApi;
+  return 'TransactionRuleListApi(data: ${_this.data})';
 }
 
 
@@ -659,7 +679,7 @@ class _$TransactionRuleListApiCopyWithImpl<$Res>
 /// Create a copy of TransactionRuleListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TransactionRuleListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<TransactionRuleApi>,
   ));
@@ -802,7 +822,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TransactionRuleListApi implements TransactionRuleListApi {
-  const _TransactionRuleListApi({@JsonKey(fromJson: _transactionRuleListData) final  List<TransactionRuleApi> data = const []}): _data = data;
+  const _TransactionRuleListApi({@JsonKey(fromJson: _transactionRuleListData)  List<TransactionRuleApi> data = const []}): _data = data;
   factory _TransactionRuleListApi.fromJson(Map<String, dynamic> json) => _$TransactionRuleListApiFromJson(json);
 
  final  List<TransactionRuleApi> _data;
@@ -826,16 +846,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'TransactionRuleListApi(data: $data)';
+    return 'TransactionRuleListApi(data: $data)';
 }
 
 
@@ -890,16 +912,21 @@ $TransactionRuleItemApiCopyWith<TransactionRuleItemApi> get copyWith => _$Transa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as TransactionRuleItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRuleItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as TransactionRuleItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'TransactionRuleItemApi(data: $data)';
+  final _this = this as TransactionRuleItemApi;
+  return 'TransactionRuleItemApi(data: ${_this.data})';
 }
 
 
@@ -928,7 +955,7 @@ class _$TransactionRuleItemApiCopyWithImpl<$Res>
 /// Create a copy of TransactionRuleItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TransactionRuleItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as TransactionRuleApi,
   ));
@@ -1098,16 +1125,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRuleItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'TransactionRuleItemApi(data: $data)';
+    return 'TransactionRuleItemApi(data: $data)';
 }
 
 

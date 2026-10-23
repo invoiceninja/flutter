@@ -1,8 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show File;
 
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +15,7 @@ import 'package:admin/data/services/live_design_service.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
@@ -1294,16 +1292,9 @@ class DesignerToolbar extends StatelessWidget {
     // lint: allow-raw-file-name — the only interpolation is an epoch int.
     final name = 'invoice-design-${DateTime.now().millisecondsSinceEpoch}.json';
     try {
-      final path = await FilePicker.saveFile(fileName: name, bytes: bytes);
-      if (path == null) return;
-      // Desktop returns a path without writing; web writes via `bytes`
-      // and may return a synthesized URL. Native: write defensively.
-      if (!kIsWeb) {
-        final file = File(path);
-        if (!await file.exists() || await file.length() == 0) {
-          await file.writeAsBytes(bytes);
-        }
-      }
+      final saved = await saveBytesFile(fileName: name, bytes: bytes);
+      // A cancel; or a browser download, which shows its own.
+      if (saved == null || saved.isBrowserDownload) return;
       toasts?.success(tr('exported'));
     } catch (_) {
       toasts?.error(tr('an_error_occurred'));

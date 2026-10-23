@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'task.dart';
@@ -9,6 +9,7 @@ part of 'task.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -24,11 +25,7 @@ mixin _$Task {
 /// against which `workedDuration` is the actual. 0 means unset: the
 /// server distinguishes a stored `0` from `null` and we deliberately
 /// collapse them, because "estimated: zero" is not a thing a user means.
- int get estimatedSeconds; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents;// Attached tag ids (hashed). Names/colors are resolved from the tag
-// cache for rendering; `toApiJson` sends the full set (server `sync()`s).
- List<String> get tagIds;// Set only when this task was converted from a calendar event — carries the
-// event link the server uses to dedupe (one task per user per event).
- TaskMeta? get meta; bool get isDirty;
+ int get estimatedSeconds; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents; List<String> get tagIds; TaskMeta? get meta; bool get isDirty;
 /// Create a copy of Task
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -39,16 +36,21 @@ $TaskCopyWith<Task> get copyWith => _$TaskCopyWithImpl<Task>(this as Task, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&const DeepCollectionEquality().equals(other.timeLog, timeLog)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.estimatedSeconds, estimatedSeconds) || other.estimatedSeconds == estimatedSeconds)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as Task;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Task&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.rate, _this.rate) || other.rate == _this.rate)&&(identical(other.invoiceId, _this.invoiceId) || other.invoiceId == _this.invoiceId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&(identical(other.statusOrder, _this.statusOrder) || other.statusOrder == _this.statusOrder)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&const DeepCollectionEquality().equals(other.timeLog, _this.timeLog)&&(identical(other.dueDate, _this.dueDate) || other.dueDate == _this.dueDate)&&(identical(other.estimatedSeconds, _this.estimatedSeconds) || other.estimatedSeconds == _this.estimatedSeconds)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tagIds, _this.tagIds)&&(identical(other.meta, _this.meta) || other.meta == _this.meta)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,userId,const DeepCollectionEquality().hash(timeLog),dueDate,estimatedSeconds,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tagIds),meta,isDirty]);
+int get hashCode {
+  final _this = this as Task;
+  return Object.hashAll([runtimeType,_this.id,_this.number,_this.description,_this.rate,_this.invoiceId,_this.clientId,_this.projectId,_this.statusId,_this.statusOrder,_this.assignedUserId,_this.userId,const DeepCollectionEquality().hash(_this.timeLog),_this.dueDate,_this.estimatedSeconds,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDeleted,const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tagIds),_this.meta,_this.isDirty]);
+}
 
 @override
 String toString() {
-  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, userId: $userId, timeLog: $timeLog, dueDate: $dueDate, estimatedSeconds: $estimatedSeconds, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
+  final _this = this as Task;
+  return 'Task(id: ${_this.id}, number: ${_this.number}, description: ${_this.description}, rate: ${_this.rate}, invoiceId: ${_this.invoiceId}, clientId: ${_this.clientId}, projectId: ${_this.projectId}, statusId: ${_this.statusId}, statusOrder: ${_this.statusOrder}, assignedUserId: ${_this.assignedUserId}, userId: ${_this.userId}, timeLog: ${_this.timeLog}, dueDate: ${_this.dueDate}, estimatedSeconds: ${_this.estimatedSeconds}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, documents: ${_this.documents}, tagIds: ${_this.tagIds}, meta: ${_this.meta}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -77,7 +79,7 @@ class _$TaskCopyWithImpl<$Res>
 /// Create a copy of Task
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? description = null,Object? rate = null,Object? invoiceId = null,Object? clientId = null,Object? projectId = null,Object? statusId = null,Object? statusOrder = null,Object? assignedUserId = null,Object? userId = null,Object? timeLog = null,Object? dueDate = freezed,Object? estimatedSeconds = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? meta = freezed,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(Task(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -257,7 +259,7 @@ return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoice
 
 
 class _Task implements Task {
-  const _Task({required this.id, required this.number, required this.description, required this.rate, required this.invoiceId, required this.clientId, required this.projectId, required this.statusId, required this.statusOrder, required this.assignedUserId, this.userId = '', required final  List<TimeEntry> timeLog, this.dueDate, this.estimatedSeconds = 0, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, final  List<Document> documents = const <Document>[], final  List<String> tagIds = const <String>[], this.meta, this.isDirty = false}): _timeLog = timeLog,_documents = documents,_tagIds = tagIds;
+  const _Task({required this.id, required this.number, required this.description, required this.rate, required this.invoiceId, required this.clientId, required this.projectId, required this.statusId, required this.statusOrder, required this.assignedUserId, this.userId = '', required  List<TimeEntry> timeLog, this.dueDate, this.estimatedSeconds = 0, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted,  List<Document> documents = const <Document>[],  List<String> tagIds = const <String>[], this.meta, this.isDirty = false}): _timeLog = timeLog,_documents = documents,_tagIds = tagIds;
   
 
 @override final  String id;
@@ -305,19 +307,13 @@ class _Task implements Task {
   return EqualUnmodifiableListView(_documents);
 }
 
-// Attached tag ids (hashed). Names/colors are resolved from the tag
-// cache for rendering; `toApiJson` sends the full set (server `sync()`s).
  final  List<String> _tagIds;
-// Attached tag ids (hashed). Names/colors are resolved from the tag
-// cache for rendering; `toApiJson` sends the full set (server `sync()`s).
 @override@JsonKey() List<String> get tagIds {
   if (_tagIds is EqualUnmodifiableListView) return _tagIds;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_tagIds);
 }
 
-// Set only when this task was converted from a calendar event — carries the
-// event link the server uses to dedupe (one task per user per event).
 @override final  TaskMeta? meta;
 @override@JsonKey() final  bool isDirty;
 
@@ -331,16 +327,18 @@ _$TaskCopyWith<_Task> get copyWith => __$TaskCopyWithImpl<_Task>(this, _$identit
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&const DeepCollectionEquality().equals(other._timeLog, _timeLog)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.estimatedSeconds, estimatedSeconds) || other.estimatedSeconds == estimatedSeconds)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&const DeepCollectionEquality().equals(other.timeLog, _timeLog)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.estimatedSeconds, estimatedSeconds) || other.estimatedSeconds == estimatedSeconds)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tagIds, _tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,userId,const DeepCollectionEquality().hash(_timeLog),dueDate,estimatedSeconds,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),meta,isDirty]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,userId,const DeepCollectionEquality().hash(_timeLog),dueDate,estimatedSeconds,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),meta,isDirty]);
+}
 
 @override
 String toString() {
-  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, userId: $userId, timeLog: $timeLog, dueDate: $dueDate, estimatedSeconds: $estimatedSeconds, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
+    return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, userId: $userId, timeLog: $timeLog, dueDate: $dueDate, estimatedSeconds: $estimatedSeconds, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
 }
 
 
@@ -429,16 +427,21 @@ $TaskMetaCopyWith<TaskMeta> get copyWith => _$TaskMetaCopyWithImpl<TaskMeta>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaskMeta&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId));
+  final _this = this as TaskMeta;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaskMeta&&(identical(other.calendarEventId, _this.calendarEventId) || other.calendarEventId == _this.calendarEventId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,calendarEventId);
+int get hashCode {
+  final _this = this as TaskMeta;
+  return Object.hash(runtimeType,_this.calendarEventId);
+}
 
 @override
 String toString() {
-  return 'TaskMeta(calendarEventId: $calendarEventId)';
+  final _this = this as TaskMeta;
+  return 'TaskMeta(calendarEventId: ${_this.calendarEventId})';
 }
 
 
@@ -467,7 +470,7 @@ class _$TaskMetaCopyWithImpl<$Res>
 /// Create a copy of TaskMeta
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? calendarEventId = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaskMeta(
 calendarEventId: null == calendarEventId ? _self.calendarEventId : calendarEventId // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -625,16 +628,18 @@ _$TaskMetaCopyWith<_TaskMeta> get copyWith => __$TaskMetaCopyWithImpl<_TaskMeta>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaskMeta&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaskMeta&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,calendarEventId);
+int get hashCode {
+    return Object.hash(runtimeType,calendarEventId);
+}
 
 @override
 String toString() {
-  return 'TaskMeta(calendarEventId: $calendarEventId)';
+    return 'TaskMeta(calendarEventId: $calendarEventId)';
 }
 
 

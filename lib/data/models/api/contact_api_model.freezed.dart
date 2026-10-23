@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'contact_api_model.dart';
@@ -9,6 +9,7 @@ part of 'contact_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ContactApiCopyWith<ContactApi> get copyWith => _$ContactApiCopyWithImpl<Contact
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.link, link) || other.link == link)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as ContactApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ContactApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.isPrimary, _this.isPrimary) || other.isPrimary == _this.isPrimary)&&(identical(other.sendEmail, _this.sendEmail) || other.sendEmail == _this.sendEmail)&&(identical(other.ccOnly, _this.ccOnly) || other.ccOnly == _this.ccOnly)&&(identical(other.isLocked, _this.isLocked) || other.isLocked == _this.isLocked)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign)&&(identical(other.password, _this.password) || other.password == _this.password)&&(identical(other.contactKey, _this.contactKey) || other.contactKey == _this.contactKey)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,contactKey,link,lastLogin,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+  final _this = this as ContactApi;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.isPrimary,_this.sendEmail,_this.ccOnly,_this.isLocked,_this.canSign,_this.password,_this.contactKey,_this.link,_this.lastLogin,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted]);
+}
 
 @override
 String toString() {
-  return 'ContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, contactKey: $contactKey, link: $link, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as ContactApi;
+  return 'ContactApi(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, isPrimary: ${_this.isPrimary}, sendEmail: ${_this.sendEmail}, ccOnly: ${_this.ccOnly}, isLocked: ${_this.isLocked}, canSign: ${_this.canSign}, password: ${_this.password}, contactKey: ${_this.contactKey}, link: ${_this.link}, lastLogin: ${_this.lastLogin}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ContactApiCopyWithImpl<$Res>
 /// Create a copy of ContactApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? isPrimary = null,Object? sendEmail = null,Object? ccOnly = null,Object? isLocked = null,Object? canSign = null,Object? password = null,Object? contactKey = null,Object? link = null,Object? lastLogin = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(ContactApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -269,16 +275,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.link, link) || other.link == link)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.link, link) || other.link == link)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,contactKey,link,lastLogin,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,contactKey,link,lastLogin,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted]);
+}
 
 @override
 String toString() {
-  return 'ContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, contactKey: $contactKey, link: $link, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'ContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, contactKey: $contactKey, link: $link, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 

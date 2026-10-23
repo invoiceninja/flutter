@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment_term.dart';
@@ -9,6 +9,7 @@ part of 'payment_term.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $PaymentTermCopyWith<PaymentTerm> get copyWith => _$PaymentTermCopyWithImpl<Paym
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTerm&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as PaymentTerm;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTerm&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.numDays, _this.numDays) || other.numDays == _this.numDays)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,numDays,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+int get hashCode {
+  final _this = this as PaymentTerm;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.numDays,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDeleted,_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'PaymentTerm(id: $id, name: $name, numDays: $numDays, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
+  final _this = this as PaymentTerm;
+  return 'PaymentTerm(id: ${_this.id}, name: ${_this.name}, numDays: ${_this.numDays}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$PaymentTermCopyWithImpl<$Res>
 /// Create a copy of PaymentTerm
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? numDays = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentTerm(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,numDays: null == numDays ? _self.numDays : numDays // ignore: cast_nullable_to_non_nullable
@@ -235,16 +241,18 @@ _$PaymentTermCopyWith<_PaymentTerm> get copyWith => __$PaymentTermCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTerm&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTerm&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,numDays,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,numDays,updatedAt,createdAt,archivedAt,isDeleted,isDirty);
+}
 
 @override
 String toString() {
-  return 'PaymentTerm(id: $id, name: $name, numDays: $numDays, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
+    return 'PaymentTerm(id: $id, name: $name, numDays: $numDays, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty)';
 }
 
 

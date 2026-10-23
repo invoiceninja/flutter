@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'tag_api_model.dart';
@@ -9,16 +9,14 @@ part of 'tag_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$TagApi {
 
- String get id;// Echoed as the FQCN by the server; normalize via [normalizeTagEntityType]
-// before it reaches the domain model.
-@JsonKey(name: 'entity_type') String get entityType; String get name;// Hex string (`#RRGGBB`) or null when unset.
- String? get color;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;
+ String get id;@JsonKey(name: 'entity_type') String get entityType; String get name; String? get color;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;
 /// Create a copy of TagApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +29,21 @@ $TagApiCopyWith<TagApi> get copyWith => _$TagApiCopyWithImpl<TagApi>(this as Tag
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagApi&&(identical(other.id, id) || other.id == id)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as TagApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.entityType, _this.entityType) || other.entityType == _this.entityType)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.color, _this.color) || other.color == _this.color)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,entityType,name,color,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as TagApi;
+  return Object.hash(runtimeType,_this.id,_this.entityType,_this.name,_this.color,_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'TagApi(id: $id, entityType: $entityType, name: $name, color: $color, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as TagApi;
+  return 'TagApi(id: ${_this.id}, entityType: ${_this.entityType}, name: ${_this.name}, color: ${_this.color}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -69,7 +72,7 @@ class _$TagApiCopyWithImpl<$Res>
 /// Create a copy of TagApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? entityType = null,Object? name = null,Object? color = freezed,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(TagApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,entityType: null == entityType ? _self.entityType : entityType // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -223,11 +226,8 @@ class _TagApi implements TagApi {
   factory _TagApi.fromJson(Map<String, dynamic> json) => _$TagApiFromJson(json);
 
 @override@JsonKey() final  String id;
-// Echoed as the FQCN by the server; normalize via [normalizeTagEntityType]
-// before it reaches the domain model.
 @override@JsonKey(name: 'entity_type') final  String entityType;
 @override@JsonKey() final  String name;
-// Hex string (`#RRGGBB`) or null when unset.
 @override final  String? color;
 @override@JsonKey(name: 'is_deleted') final  bool isDeleted;
 @override@JsonKey(name: 'created_at') final  int createdAt;
@@ -247,16 +247,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagApi&&(identical(other.id, id) || other.id == id)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagApi&&(identical(other.id, id) || other.id == id)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,entityType,name,color,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,entityType,name,color,isDeleted,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'TagApi(id: $id, entityType: $entityType, name: $name, color: $color, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'TagApi(id: $id, entityType: $entityType, name: $name, color: $color, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -318,16 +320,21 @@ $TagRefApiCopyWith<TagRefApi> get copyWith => _$TagRefApiCopyWithImpl<TagRefApi>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color));
+  final _this = this as TagRefApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagRefApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.color, _this.color) || other.color == _this.color));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,color);
+int get hashCode {
+  final _this = this as TagRefApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.color);
+}
 
 @override
 String toString() {
-  return 'TagRefApi(id: $id, name: $name, color: $color)';
+  final _this = this as TagRefApi;
+  return 'TagRefApi(id: ${_this.id}, name: ${_this.name}, color: ${_this.color})';
 }
 
 
@@ -356,7 +363,7 @@ class _$TagRefApiCopyWithImpl<$Res>
 /// Create a copy of TagRefApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? color = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(TagRefApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,color: freezed == color ? _self.color : color // ignore: cast_nullable_to_non_nullable
@@ -521,16 +528,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,color);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,color);
+}
 
 @override
 String toString() {
-  return 'TagRefApi(id: $id, name: $name, color: $color)';
+    return 'TagRefApi(id: $id, name: $name, color: $color)';
 }
 
 
@@ -587,16 +596,21 @@ $TagListApiCopyWith<TagListApi> get copyWith => _$TagListApiCopyWithImpl<TagList
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as TagListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as TagListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'TagListApi(data: $data)';
+  final _this = this as TagListApi;
+  return 'TagListApi(data: ${_this.data})';
 }
 
 
@@ -625,7 +639,7 @@ class _$TagListApiCopyWithImpl<$Res>
 /// Create a copy of TagListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TagListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<TagApi>,
   ));
@@ -768,7 +782,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TagListApi implements TagListApi {
-  const _TagListApi({@JsonKey(fromJson: _tagListData) final  List<TagApi> data = const []}): _data = data;
+  const _TagListApi({@JsonKey(fromJson: _tagListData)  List<TagApi> data = const []}): _data = data;
   factory _TagListApi.fromJson(Map<String, dynamic> json) => _$TagListApiFromJson(json);
 
  final  List<TagApi> _data;
@@ -792,16 +806,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'TagListApi(data: $data)';
+    return 'TagListApi(data: $data)';
 }
 
 
@@ -856,16 +872,21 @@ $TagItemApiCopyWith<TagItemApi> get copyWith => _$TagItemApiCopyWithImpl<TagItem
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as TagItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TagItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as TagItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'TagItemApi(data: $data)';
+  final _this = this as TagItemApi;
+  return 'TagItemApi(data: ${_this.data})';
 }
 
 
@@ -894,7 +915,7 @@ class _$TagItemApiCopyWithImpl<$Res>
 /// Create a copy of TagItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TagItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as TagApi,
   ));
@@ -1064,16 +1085,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TagItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'TagItemApi(data: $data)';
+    return 'TagItemApi(data: $data)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'recurring_expense_api_model.dart';
@@ -9,16 +9,14 @@ part of 'recurring_expense_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$RecurringExpenseApi {
 
- String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'vendor_id') String get vendorId;@JsonKey(name: 'invoice_id') String get invoiceId;@JsonKey(name: 'client_id') String get clientId;@JsonKey(name: 'bank_id') String get bankId;@JsonKey(name: 'invoice_currency_id') String get invoiceCurrencyId;@JsonKey(name: 'expense_currency_id') String get expenseCurrencyId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'category_id') String get categoryId;@JsonKey(name: 'payment_type_id') String get paymentTypeId;@JsonKey(name: 'recurring_expense_id') String get recurringExpenseId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'transaction_reference') String get transactionReference;@JsonKey(name: 'transaction_id') String get transactionId; String get date; String get number;@JsonKey(name: 'payment_date') String get paymentDate;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'tax_name1') String get taxName1;@JsonKey(name: 'tax_name2') String get taxName2;@JsonKey(name: 'tax_name3') String get taxName3;@JsonKey(name: 'project_id') String get projectId;@JsonKey(name: 'entity_type') String get entityType;// Recurring schedule deltas.
-@JsonKey(name: 'frequency_id') String get frequencyId;@JsonKey(name: 'remaining_cycles') int get remainingCycles;@JsonKey(name: 'next_send_date') String get nextSendDate;@JsonKey(name: 'last_sent_date') String get lastSentDate;@JsonKey(name: 'status_id') String? get statusId;// Only populated when the server replies with `?show_dates=true`.
-@JsonKey(name: 'recurring_dates') List<RecurringDateApi>? get recurringDates;// Money — Object so number / string are both decoded.
- Object get amount;@JsonKey(name: 'foreign_amount') Object get foreignAmount;@JsonKey(name: 'exchange_rate') Object get exchangeRate;@JsonKey(name: 'tax_amount1') Object get taxAmount1;@JsonKey(name: 'tax_amount2') Object get taxAmount2;@JsonKey(name: 'tax_amount3') Object get taxAmount3;@JsonKey(name: 'tax_rate1') Object get taxRate1;@JsonKey(name: 'tax_rate2') Object get taxRate2;@JsonKey(name: 'tax_rate3') Object get taxRate3;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'should_be_invoiced') bool get shouldBeInvoiced;@JsonKey(name: 'invoice_documents') bool get invoiceDocuments;@JsonKey(name: 'uses_inclusive_taxes') bool get usesInclusiveTaxes;@JsonKey(name: 'calculate_tax_by_amount') bool get calculateTaxByAmount;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt; List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
+ String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'vendor_id') String get vendorId;@JsonKey(name: 'invoice_id') String get invoiceId;@JsonKey(name: 'client_id') String get clientId;@JsonKey(name: 'bank_id') String get bankId;@JsonKey(name: 'invoice_currency_id') String get invoiceCurrencyId;@JsonKey(name: 'expense_currency_id') String get expenseCurrencyId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'category_id') String get categoryId;@JsonKey(name: 'payment_type_id') String get paymentTypeId;@JsonKey(name: 'recurring_expense_id') String get recurringExpenseId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'transaction_reference') String get transactionReference;@JsonKey(name: 'transaction_id') String get transactionId; String get date; String get number;@JsonKey(name: 'payment_date') String get paymentDate;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'tax_name1') String get taxName1;@JsonKey(name: 'tax_name2') String get taxName2;@JsonKey(name: 'tax_name3') String get taxName3;@JsonKey(name: 'project_id') String get projectId;@JsonKey(name: 'entity_type') String get entityType;@JsonKey(name: 'frequency_id') String get frequencyId;@JsonKey(name: 'remaining_cycles') int get remainingCycles;@JsonKey(name: 'next_send_date') String get nextSendDate;@JsonKey(name: 'last_sent_date') String get lastSentDate;@JsonKey(name: 'status_id') String? get statusId;@JsonKey(name: 'recurring_dates') List<RecurringDateApi>? get recurringDates; Object get amount;@JsonKey(name: 'foreign_amount') Object get foreignAmount;@JsonKey(name: 'exchange_rate') Object get exchangeRate;@JsonKey(name: 'tax_amount1') Object get taxAmount1;@JsonKey(name: 'tax_amount2') Object get taxAmount2;@JsonKey(name: 'tax_amount3') Object get taxAmount3;@JsonKey(name: 'tax_rate1') Object get taxRate1;@JsonKey(name: 'tax_rate2') Object get taxRate2;@JsonKey(name: 'tax_rate3') Object get taxRate3;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'should_be_invoiced') bool get shouldBeInvoiced;@JsonKey(name: 'invoice_documents') bool get invoiceDocuments;@JsonKey(name: 'uses_inclusive_taxes') bool get usesInclusiveTaxes;@JsonKey(name: 'calculate_tax_by_amount') bool get calculateTaxByAmount;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt; List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
 /// Create a copy of RecurringExpenseApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +29,21 @@ $RecurringExpenseApiCopyWith<RecurringExpenseApi> get copyWith => _$RecurringExp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.bankId, bankId) || other.bankId == bankId)&&(identical(other.invoiceCurrencyId, invoiceCurrencyId) || other.invoiceCurrencyId == invoiceCurrencyId)&&(identical(other.expenseCurrencyId, expenseCurrencyId) || other.expenseCurrencyId == expenseCurrencyId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.paymentTypeId, paymentTypeId) || other.paymentTypeId == paymentTypeId)&&(identical(other.recurringExpenseId, recurringExpenseId) || other.recurringExpenseId == recurringExpenseId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.date, date) || other.date == date)&&(identical(other.number, number) || other.number == number)&&(identical(other.paymentDate, paymentDate) || other.paymentDate == paymentDate)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.nextSendDate, nextSendDate) || other.nextSendDate == nextSendDate)&&(identical(other.lastSentDate, lastSentDate) || other.lastSentDate == lastSentDate)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&const DeepCollectionEquality().equals(other.recurringDates, recurringDates)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.foreignAmount, foreignAmount)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&const DeepCollectionEquality().equals(other.taxAmount1, taxAmount1)&&const DeepCollectionEquality().equals(other.taxAmount2, taxAmount2)&&const DeepCollectionEquality().equals(other.taxAmount3, taxAmount3)&&const DeepCollectionEquality().equals(other.taxRate1, taxRate1)&&const DeepCollectionEquality().equals(other.taxRate2, taxRate2)&&const DeepCollectionEquality().equals(other.taxRate3, taxRate3)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.shouldBeInvoiced, shouldBeInvoiced) || other.shouldBeInvoiced == shouldBeInvoiced)&&(identical(other.invoiceDocuments, invoiceDocuments) || other.invoiceDocuments == invoiceDocuments)&&(identical(other.usesInclusiveTaxes, usesInclusiveTaxes) || other.usesInclusiveTaxes == usesInclusiveTaxes)&&(identical(other.calculateTaxByAmount, calculateTaxByAmount) || other.calculateTaxByAmount == calculateTaxByAmount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tags, tags));
+  final _this = this as RecurringExpenseApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.invoiceId, _this.invoiceId) || other.invoiceId == _this.invoiceId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.bankId, _this.bankId) || other.bankId == _this.bankId)&&(identical(other.invoiceCurrencyId, _this.invoiceCurrencyId) || other.invoiceCurrencyId == _this.invoiceCurrencyId)&&(identical(other.expenseCurrencyId, _this.expenseCurrencyId) || other.expenseCurrencyId == _this.expenseCurrencyId)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.categoryId, _this.categoryId) || other.categoryId == _this.categoryId)&&(identical(other.paymentTypeId, _this.paymentTypeId) || other.paymentTypeId == _this.paymentTypeId)&&(identical(other.recurringExpenseId, _this.recurringExpenseId) || other.recurringExpenseId == _this.recurringExpenseId)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.publicNotes, _this.publicNotes) || other.publicNotes == _this.publicNotes)&&(identical(other.transactionReference, _this.transactionReference) || other.transactionReference == _this.transactionReference)&&(identical(other.transactionId, _this.transactionId) || other.transactionId == _this.transactionId)&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.paymentDate, _this.paymentDate) || other.paymentDate == _this.paymentDate)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.taxName1, _this.taxName1) || other.taxName1 == _this.taxName1)&&(identical(other.taxName2, _this.taxName2) || other.taxName2 == _this.taxName2)&&(identical(other.taxName3, _this.taxName3) || other.taxName3 == _this.taxName3)&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.entityType, _this.entityType) || other.entityType == _this.entityType)&&(identical(other.frequencyId, _this.frequencyId) || other.frequencyId == _this.frequencyId)&&(identical(other.remainingCycles, _this.remainingCycles) || other.remainingCycles == _this.remainingCycles)&&(identical(other.nextSendDate, _this.nextSendDate) || other.nextSendDate == _this.nextSendDate)&&(identical(other.lastSentDate, _this.lastSentDate) || other.lastSentDate == _this.lastSentDate)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&const DeepCollectionEquality().equals(other.recurringDates, _this.recurringDates)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&const DeepCollectionEquality().equals(other.foreignAmount, _this.foreignAmount)&&const DeepCollectionEquality().equals(other.exchangeRate, _this.exchangeRate)&&const DeepCollectionEquality().equals(other.taxAmount1, _this.taxAmount1)&&const DeepCollectionEquality().equals(other.taxAmount2, _this.taxAmount2)&&const DeepCollectionEquality().equals(other.taxAmount3, _this.taxAmount3)&&const DeepCollectionEquality().equals(other.taxRate1, _this.taxRate1)&&const DeepCollectionEquality().equals(other.taxRate2, _this.taxRate2)&&const DeepCollectionEquality().equals(other.taxRate3, _this.taxRate3)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.shouldBeInvoiced, _this.shouldBeInvoiced) || other.shouldBeInvoiced == _this.shouldBeInvoiced)&&(identical(other.invoiceDocuments, _this.invoiceDocuments) || other.invoiceDocuments == _this.invoiceDocuments)&&(identical(other.usesInclusiveTaxes, _this.usesInclusiveTaxes) || other.usesInclusiveTaxes == _this.usesInclusiveTaxes)&&(identical(other.calculateTaxByAmount, _this.calculateTaxByAmount) || other.calculateTaxByAmount == _this.calculateTaxByAmount)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tags, _this.tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,vendorId,invoiceId,clientId,bankId,invoiceCurrencyId,expenseCurrencyId,currencyId,categoryId,paymentTypeId,recurringExpenseId,privateNotes,publicNotes,transactionReference,transactionId,date,number,paymentDate,customValue1,customValue2,customValue3,customValue4,taxName1,taxName2,taxName3,projectId,entityType,frequencyId,remainingCycles,nextSendDate,lastSentDate,statusId,const DeepCollectionEquality().hash(recurringDates),const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(foreignAmount),const DeepCollectionEquality().hash(exchangeRate),const DeepCollectionEquality().hash(taxAmount1),const DeepCollectionEquality().hash(taxAmount2),const DeepCollectionEquality().hash(taxAmount3),const DeepCollectionEquality().hash(taxRate1),const DeepCollectionEquality().hash(taxRate2),const DeepCollectionEquality().hash(taxRate3),isDeleted,shouldBeInvoiced,invoiceDocuments,usesInclusiveTaxes,calculateTaxByAmount,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tags)]);
+int get hashCode {
+  final _this = this as RecurringExpenseApi;
+  return Object.hashAll([runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.vendorId,_this.invoiceId,_this.clientId,_this.bankId,_this.invoiceCurrencyId,_this.expenseCurrencyId,_this.currencyId,_this.categoryId,_this.paymentTypeId,_this.recurringExpenseId,_this.privateNotes,_this.publicNotes,_this.transactionReference,_this.transactionId,_this.date,_this.number,_this.paymentDate,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.taxName1,_this.taxName2,_this.taxName3,_this.projectId,_this.entityType,_this.frequencyId,_this.remainingCycles,_this.nextSendDate,_this.lastSentDate,_this.statusId,const DeepCollectionEquality().hash(_this.recurringDates),const DeepCollectionEquality().hash(_this.amount),const DeepCollectionEquality().hash(_this.foreignAmount),const DeepCollectionEquality().hash(_this.exchangeRate),const DeepCollectionEquality().hash(_this.taxAmount1),const DeepCollectionEquality().hash(_this.taxAmount2),const DeepCollectionEquality().hash(_this.taxAmount3),const DeepCollectionEquality().hash(_this.taxRate1),const DeepCollectionEquality().hash(_this.taxRate2),const DeepCollectionEquality().hash(_this.taxRate3),_this.isDeleted,_this.shouldBeInvoiced,_this.invoiceDocuments,_this.usesInclusiveTaxes,_this.calculateTaxByAmount,_this.createdAt,_this.updatedAt,_this.archivedAt,const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tags)]);
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, vendorId: $vendorId, invoiceId: $invoiceId, clientId: $clientId, bankId: $bankId, invoiceCurrencyId: $invoiceCurrencyId, expenseCurrencyId: $expenseCurrencyId, currencyId: $currencyId, categoryId: $categoryId, paymentTypeId: $paymentTypeId, recurringExpenseId: $recurringExpenseId, privateNotes: $privateNotes, publicNotes: $publicNotes, transactionReference: $transactionReference, transactionId: $transactionId, date: $date, number: $number, paymentDate: $paymentDate, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, projectId: $projectId, entityType: $entityType, frequencyId: $frequencyId, remainingCycles: $remainingCycles, nextSendDate: $nextSendDate, lastSentDate: $lastSentDate, statusId: $statusId, recurringDates: $recurringDates, amount: $amount, foreignAmount: $foreignAmount, exchangeRate: $exchangeRate, taxAmount1: $taxAmount1, taxAmount2: $taxAmount2, taxAmount3: $taxAmount3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, isDeleted: $isDeleted, shouldBeInvoiced: $shouldBeInvoiced, invoiceDocuments: $invoiceDocuments, usesInclusiveTaxes: $usesInclusiveTaxes, calculateTaxByAmount: $calculateTaxByAmount, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documents: $documents, tags: $tags)';
+  final _this = this as RecurringExpenseApi;
+  return 'RecurringExpenseApi(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, vendorId: ${_this.vendorId}, invoiceId: ${_this.invoiceId}, clientId: ${_this.clientId}, bankId: ${_this.bankId}, invoiceCurrencyId: ${_this.invoiceCurrencyId}, expenseCurrencyId: ${_this.expenseCurrencyId}, currencyId: ${_this.currencyId}, categoryId: ${_this.categoryId}, paymentTypeId: ${_this.paymentTypeId}, recurringExpenseId: ${_this.recurringExpenseId}, privateNotes: ${_this.privateNotes}, publicNotes: ${_this.publicNotes}, transactionReference: ${_this.transactionReference}, transactionId: ${_this.transactionId}, date: ${_this.date}, number: ${_this.number}, paymentDate: ${_this.paymentDate}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, taxName1: ${_this.taxName1}, taxName2: ${_this.taxName2}, taxName3: ${_this.taxName3}, projectId: ${_this.projectId}, entityType: ${_this.entityType}, frequencyId: ${_this.frequencyId}, remainingCycles: ${_this.remainingCycles}, nextSendDate: ${_this.nextSendDate}, lastSentDate: ${_this.lastSentDate}, statusId: ${_this.statusId}, recurringDates: ${_this.recurringDates}, amount: ${_this.amount}, foreignAmount: ${_this.foreignAmount}, exchangeRate: ${_this.exchangeRate}, taxAmount1: ${_this.taxAmount1}, taxAmount2: ${_this.taxAmount2}, taxAmount3: ${_this.taxAmount3}, taxRate1: ${_this.taxRate1}, taxRate2: ${_this.taxRate2}, taxRate3: ${_this.taxRate3}, isDeleted: ${_this.isDeleted}, shouldBeInvoiced: ${_this.shouldBeInvoiced}, invoiceDocuments: ${_this.invoiceDocuments}, usesInclusiveTaxes: ${_this.usesInclusiveTaxes}, calculateTaxByAmount: ${_this.calculateTaxByAmount}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, documents: ${_this.documents}, tags: ${_this.tags})';
 }
 
 
@@ -69,7 +72,7 @@ class _$RecurringExpenseApiCopyWithImpl<$Res>
 /// Create a copy of RecurringExpenseApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? vendorId = null,Object? invoiceId = null,Object? clientId = null,Object? bankId = null,Object? invoiceCurrencyId = null,Object? expenseCurrencyId = null,Object? currencyId = null,Object? categoryId = null,Object? paymentTypeId = null,Object? recurringExpenseId = null,Object? privateNotes = null,Object? publicNotes = null,Object? transactionReference = null,Object? transactionId = null,Object? date = null,Object? number = null,Object? paymentDate = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? projectId = null,Object? entityType = null,Object? frequencyId = null,Object? remainingCycles = null,Object? nextSendDate = null,Object? lastSentDate = null,Object? statusId = freezed,Object? recurringDates = freezed,Object? amount = null,Object? foreignAmount = null,Object? exchangeRate = null,Object? taxAmount1 = null,Object? taxAmount2 = null,Object? taxAmount3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? isDeleted = null,Object? shouldBeInvoiced = null,Object? invoiceDocuments = null,Object? usesInclusiveTaxes = null,Object? calculateTaxByAmount = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? documents = freezed,Object? tags = null,}) {
-  return _then(_self.copyWith(
+  return _then(RecurringExpenseApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -256,7 +259,7 @@ return $default(_that.id,_that.userId,_that.assignedUserId,_that.vendorId,_that.
 @JsonSerializable()
 
 class _RecurringExpenseApi implements RecurringExpenseApi {
-  const _RecurringExpenseApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'invoice_id') this.invoiceId = '', @JsonKey(name: 'client_id') this.clientId = '', @JsonKey(name: 'bank_id') this.bankId = '', @JsonKey(name: 'invoice_currency_id') this.invoiceCurrencyId = '', @JsonKey(name: 'expense_currency_id') this.expenseCurrencyId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'category_id') this.categoryId = '', @JsonKey(name: 'payment_type_id') this.paymentTypeId = '', @JsonKey(name: 'recurring_expense_id') this.recurringExpenseId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'transaction_reference') this.transactionReference = '', @JsonKey(name: 'transaction_id') this.transactionId = '', this.date = '', this.number = '', @JsonKey(name: 'payment_date') this.paymentDate = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'tax_name1') this.taxName1 = '', @JsonKey(name: 'tax_name2') this.taxName2 = '', @JsonKey(name: 'tax_name3') this.taxName3 = '', @JsonKey(name: 'project_id') this.projectId = '', @JsonKey(name: 'entity_type') this.entityType = '', @JsonKey(name: 'frequency_id') this.frequencyId = '5', @JsonKey(name: 'remaining_cycles') this.remainingCycles = -1, @JsonKey(name: 'next_send_date') this.nextSendDate = '', @JsonKey(name: 'last_sent_date') this.lastSentDate = '', @JsonKey(name: 'status_id') this.statusId, @JsonKey(name: 'recurring_dates') final  List<RecurringDateApi>? recurringDates, this.amount = '0', @JsonKey(name: 'foreign_amount') this.foreignAmount = '0', @JsonKey(name: 'exchange_rate') this.exchangeRate = '1', @JsonKey(name: 'tax_amount1') this.taxAmount1 = '0', @JsonKey(name: 'tax_amount2') this.taxAmount2 = '0', @JsonKey(name: 'tax_amount3') this.taxAmount3 = '0', @JsonKey(name: 'tax_rate1') this.taxRate1 = '0', @JsonKey(name: 'tax_rate2') this.taxRate2 = '0', @JsonKey(name: 'tax_rate3') this.taxRate3 = '0', @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'should_be_invoiced') this.shouldBeInvoiced = false, @JsonKey(name: 'invoice_documents') this.invoiceDocuments = false, @JsonKey(name: 'uses_inclusive_taxes') this.usesInclusiveTaxes = false, @JsonKey(name: 'calculate_tax_by_amount') this.calculateTaxByAmount = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, final  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[]}): _recurringDates = recurringDates,_documents = documents,_tags = tags;
+  const _RecurringExpenseApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'invoice_id') this.invoiceId = '', @JsonKey(name: 'client_id') this.clientId = '', @JsonKey(name: 'bank_id') this.bankId = '', @JsonKey(name: 'invoice_currency_id') this.invoiceCurrencyId = '', @JsonKey(name: 'expense_currency_id') this.expenseCurrencyId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'category_id') this.categoryId = '', @JsonKey(name: 'payment_type_id') this.paymentTypeId = '', @JsonKey(name: 'recurring_expense_id') this.recurringExpenseId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'transaction_reference') this.transactionReference = '', @JsonKey(name: 'transaction_id') this.transactionId = '', this.date = '', this.number = '', @JsonKey(name: 'payment_date') this.paymentDate = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'tax_name1') this.taxName1 = '', @JsonKey(name: 'tax_name2') this.taxName2 = '', @JsonKey(name: 'tax_name3') this.taxName3 = '', @JsonKey(name: 'project_id') this.projectId = '', @JsonKey(name: 'entity_type') this.entityType = '', @JsonKey(name: 'frequency_id') this.frequencyId = '5', @JsonKey(name: 'remaining_cycles') this.remainingCycles = -1, @JsonKey(name: 'next_send_date') this.nextSendDate = '', @JsonKey(name: 'last_sent_date') this.lastSentDate = '', @JsonKey(name: 'status_id') this.statusId, @JsonKey(name: 'recurring_dates')  List<RecurringDateApi>? recurringDates, this.amount = '0', @JsonKey(name: 'foreign_amount') this.foreignAmount = '0', @JsonKey(name: 'exchange_rate') this.exchangeRate = '1', @JsonKey(name: 'tax_amount1') this.taxAmount1 = '0', @JsonKey(name: 'tax_amount2') this.taxAmount2 = '0', @JsonKey(name: 'tax_amount3') this.taxAmount3 = '0', @JsonKey(name: 'tax_rate1') this.taxRate1 = '0', @JsonKey(name: 'tax_rate2') this.taxRate2 = '0', @JsonKey(name: 'tax_rate3') this.taxRate3 = '0', @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'should_be_invoiced') this.shouldBeInvoiced = false, @JsonKey(name: 'invoice_documents') this.invoiceDocuments = false, @JsonKey(name: 'uses_inclusive_taxes') this.usesInclusiveTaxes = false, @JsonKey(name: 'calculate_tax_by_amount') this.calculateTaxByAmount = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0,  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[]}): _recurringDates = recurringDates,_documents = documents,_tags = tags;
   factory _RecurringExpenseApi.fromJson(Map<String, dynamic> json) => _$RecurringExpenseApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -288,15 +291,12 @@ class _RecurringExpenseApi implements RecurringExpenseApi {
 @override@JsonKey(name: 'tax_name3') final  String taxName3;
 @override@JsonKey(name: 'project_id') final  String projectId;
 @override@JsonKey(name: 'entity_type') final  String entityType;
-// Recurring schedule deltas.
 @override@JsonKey(name: 'frequency_id') final  String frequencyId;
 @override@JsonKey(name: 'remaining_cycles') final  int remainingCycles;
 @override@JsonKey(name: 'next_send_date') final  String nextSendDate;
 @override@JsonKey(name: 'last_sent_date') final  String lastSentDate;
 @override@JsonKey(name: 'status_id') final  String? statusId;
-// Only populated when the server replies with `?show_dates=true`.
  final  List<RecurringDateApi>? _recurringDates;
-// Only populated when the server replies with `?show_dates=true`.
 @override@JsonKey(name: 'recurring_dates') List<RecurringDateApi>? get recurringDates {
   final value = _recurringDates;
   if (value == null) return null;
@@ -305,7 +305,6 @@ class _RecurringExpenseApi implements RecurringExpenseApi {
   return EqualUnmodifiableListView(value);
 }
 
-// Money — Object so number / string are both decoded.
 @override@JsonKey() final  Object amount;
 @override@JsonKey(name: 'foreign_amount') final  Object foreignAmount;
 @override@JsonKey(name: 'exchange_rate') final  Object exchangeRate;
@@ -353,16 +352,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.bankId, bankId) || other.bankId == bankId)&&(identical(other.invoiceCurrencyId, invoiceCurrencyId) || other.invoiceCurrencyId == invoiceCurrencyId)&&(identical(other.expenseCurrencyId, expenseCurrencyId) || other.expenseCurrencyId == expenseCurrencyId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.paymentTypeId, paymentTypeId) || other.paymentTypeId == paymentTypeId)&&(identical(other.recurringExpenseId, recurringExpenseId) || other.recurringExpenseId == recurringExpenseId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.date, date) || other.date == date)&&(identical(other.number, number) || other.number == number)&&(identical(other.paymentDate, paymentDate) || other.paymentDate == paymentDate)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.nextSendDate, nextSendDate) || other.nextSendDate == nextSendDate)&&(identical(other.lastSentDate, lastSentDate) || other.lastSentDate == lastSentDate)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&const DeepCollectionEquality().equals(other._recurringDates, _recurringDates)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.foreignAmount, foreignAmount)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&const DeepCollectionEquality().equals(other.taxAmount1, taxAmount1)&&const DeepCollectionEquality().equals(other.taxAmount2, taxAmount2)&&const DeepCollectionEquality().equals(other.taxAmount3, taxAmount3)&&const DeepCollectionEquality().equals(other.taxRate1, taxRate1)&&const DeepCollectionEquality().equals(other.taxRate2, taxRate2)&&const DeepCollectionEquality().equals(other.taxRate3, taxRate3)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.shouldBeInvoiced, shouldBeInvoiced) || other.shouldBeInvoiced == shouldBeInvoiced)&&(identical(other.invoiceDocuments, invoiceDocuments) || other.invoiceDocuments == invoiceDocuments)&&(identical(other.usesInclusiveTaxes, usesInclusiveTaxes) || other.usesInclusiveTaxes == usesInclusiveTaxes)&&(identical(other.calculateTaxByAmount, calculateTaxByAmount) || other.calculateTaxByAmount == calculateTaxByAmount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tags, _tags));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.bankId, bankId) || other.bankId == bankId)&&(identical(other.invoiceCurrencyId, invoiceCurrencyId) || other.invoiceCurrencyId == invoiceCurrencyId)&&(identical(other.expenseCurrencyId, expenseCurrencyId) || other.expenseCurrencyId == expenseCurrencyId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.paymentTypeId, paymentTypeId) || other.paymentTypeId == paymentTypeId)&&(identical(other.recurringExpenseId, recurringExpenseId) || other.recurringExpenseId == recurringExpenseId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.date, date) || other.date == date)&&(identical(other.number, number) || other.number == number)&&(identical(other.paymentDate, paymentDate) || other.paymentDate == paymentDate)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.entityType, entityType) || other.entityType == entityType)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&(identical(other.nextSendDate, nextSendDate) || other.nextSendDate == nextSendDate)&&(identical(other.lastSentDate, lastSentDate) || other.lastSentDate == lastSentDate)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&const DeepCollectionEquality().equals(other.recurringDates, _recurringDates)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.foreignAmount, foreignAmount)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&const DeepCollectionEquality().equals(other.taxAmount1, taxAmount1)&&const DeepCollectionEquality().equals(other.taxAmount2, taxAmount2)&&const DeepCollectionEquality().equals(other.taxAmount3, taxAmount3)&&const DeepCollectionEquality().equals(other.taxRate1, taxRate1)&&const DeepCollectionEquality().equals(other.taxRate2, taxRate2)&&const DeepCollectionEquality().equals(other.taxRate3, taxRate3)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.shouldBeInvoiced, shouldBeInvoiced) || other.shouldBeInvoiced == shouldBeInvoiced)&&(identical(other.invoiceDocuments, invoiceDocuments) || other.invoiceDocuments == invoiceDocuments)&&(identical(other.usesInclusiveTaxes, usesInclusiveTaxes) || other.usesInclusiveTaxes == usesInclusiveTaxes)&&(identical(other.calculateTaxByAmount, calculateTaxByAmount) || other.calculateTaxByAmount == calculateTaxByAmount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tags, _tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,vendorId,invoiceId,clientId,bankId,invoiceCurrencyId,expenseCurrencyId,currencyId,categoryId,paymentTypeId,recurringExpenseId,privateNotes,publicNotes,transactionReference,transactionId,date,number,paymentDate,customValue1,customValue2,customValue3,customValue4,taxName1,taxName2,taxName3,projectId,entityType,frequencyId,remainingCycles,nextSendDate,lastSentDate,statusId,const DeepCollectionEquality().hash(_recurringDates),const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(foreignAmount),const DeepCollectionEquality().hash(exchangeRate),const DeepCollectionEquality().hash(taxAmount1),const DeepCollectionEquality().hash(taxAmount2),const DeepCollectionEquality().hash(taxAmount3),const DeepCollectionEquality().hash(taxRate1),const DeepCollectionEquality().hash(taxRate2),const DeepCollectionEquality().hash(taxRate3),isDeleted,shouldBeInvoiced,invoiceDocuments,usesInclusiveTaxes,calculateTaxByAmount,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,userId,assignedUserId,vendorId,invoiceId,clientId,bankId,invoiceCurrencyId,expenseCurrencyId,currencyId,categoryId,paymentTypeId,recurringExpenseId,privateNotes,publicNotes,transactionReference,transactionId,date,number,paymentDate,customValue1,customValue2,customValue3,customValue4,taxName1,taxName2,taxName3,projectId,entityType,frequencyId,remainingCycles,nextSendDate,lastSentDate,statusId,const DeepCollectionEquality().hash(_recurringDates),const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(foreignAmount),const DeepCollectionEquality().hash(exchangeRate),const DeepCollectionEquality().hash(taxAmount1),const DeepCollectionEquality().hash(taxAmount2),const DeepCollectionEquality().hash(taxAmount3),const DeepCollectionEquality().hash(taxRate1),const DeepCollectionEquality().hash(taxRate2),const DeepCollectionEquality().hash(taxRate3),isDeleted,shouldBeInvoiced,invoiceDocuments,usesInclusiveTaxes,calculateTaxByAmount,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, vendorId: $vendorId, invoiceId: $invoiceId, clientId: $clientId, bankId: $bankId, invoiceCurrencyId: $invoiceCurrencyId, expenseCurrencyId: $expenseCurrencyId, currencyId: $currencyId, categoryId: $categoryId, paymentTypeId: $paymentTypeId, recurringExpenseId: $recurringExpenseId, privateNotes: $privateNotes, publicNotes: $publicNotes, transactionReference: $transactionReference, transactionId: $transactionId, date: $date, number: $number, paymentDate: $paymentDate, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, projectId: $projectId, entityType: $entityType, frequencyId: $frequencyId, remainingCycles: $remainingCycles, nextSendDate: $nextSendDate, lastSentDate: $lastSentDate, statusId: $statusId, recurringDates: $recurringDates, amount: $amount, foreignAmount: $foreignAmount, exchangeRate: $exchangeRate, taxAmount1: $taxAmount1, taxAmount2: $taxAmount2, taxAmount3: $taxAmount3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, isDeleted: $isDeleted, shouldBeInvoiced: $shouldBeInvoiced, invoiceDocuments: $invoiceDocuments, usesInclusiveTaxes: $usesInclusiveTaxes, calculateTaxByAmount: $calculateTaxByAmount, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documents: $documents, tags: $tags)';
+    return 'RecurringExpenseApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, vendorId: $vendorId, invoiceId: $invoiceId, clientId: $clientId, bankId: $bankId, invoiceCurrencyId: $invoiceCurrencyId, expenseCurrencyId: $expenseCurrencyId, currencyId: $currencyId, categoryId: $categoryId, paymentTypeId: $paymentTypeId, recurringExpenseId: $recurringExpenseId, privateNotes: $privateNotes, publicNotes: $publicNotes, transactionReference: $transactionReference, transactionId: $transactionId, date: $date, number: $number, paymentDate: $paymentDate, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, projectId: $projectId, entityType: $entityType, frequencyId: $frequencyId, remainingCycles: $remainingCycles, nextSendDate: $nextSendDate, lastSentDate: $lastSentDate, statusId: $statusId, recurringDates: $recurringDates, amount: $amount, foreignAmount: $foreignAmount, exchangeRate: $exchangeRate, taxAmount1: $taxAmount1, taxAmount2: $taxAmount2, taxAmount3: $taxAmount3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, isDeleted: $isDeleted, shouldBeInvoiced: $shouldBeInvoiced, invoiceDocuments: $invoiceDocuments, usesInclusiveTaxes: $usesInclusiveTaxes, calculateTaxByAmount: $calculateTaxByAmount, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documents: $documents, tags: $tags)';
 }
 
 
@@ -461,16 +462,21 @@ $RecurringDateApiCopyWith<RecurringDateApi> get copyWith => _$RecurringDateApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringDateApi&&(identical(other.sendDate, sendDate) || other.sendDate == sendDate));
+  final _this = this as RecurringDateApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringDateApi&&(identical(other.sendDate, _this.sendDate) || other.sendDate == _this.sendDate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,sendDate);
+int get hashCode {
+  final _this = this as RecurringDateApi;
+  return Object.hash(runtimeType,_this.sendDate);
+}
 
 @override
 String toString() {
-  return 'RecurringDateApi(sendDate: $sendDate)';
+  final _this = this as RecurringDateApi;
+  return 'RecurringDateApi(sendDate: ${_this.sendDate})';
 }
 
 
@@ -499,7 +505,7 @@ class _$RecurringDateApiCopyWithImpl<$Res>
 /// Create a copy of RecurringDateApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? sendDate = null,}) {
-  return _then(_self.copyWith(
+  return _then(RecurringDateApi(
 sendDate: null == sendDate ? _self.sendDate : sendDate // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -660,16 +666,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringDateApi&&(identical(other.sendDate, sendDate) || other.sendDate == sendDate));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringDateApi&&(identical(other.sendDate, sendDate) || other.sendDate == sendDate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,sendDate);
+int get hashCode {
+    return Object.hash(runtimeType,sendDate);
+}
 
 @override
 String toString() {
-  return 'RecurringDateApi(sendDate: $sendDate)';
+    return 'RecurringDateApi(sendDate: $sendDate)';
 }
 
 
@@ -724,16 +732,21 @@ $RecurringExpenseListApiCopyWith<RecurringExpenseListApi> get copyWith => _$Recu
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as RecurringExpenseListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as RecurringExpenseListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseListApi(data: $data)';
+  final _this = this as RecurringExpenseListApi;
+  return 'RecurringExpenseListApi(data: ${_this.data})';
 }
 
 
@@ -762,7 +775,7 @@ class _$RecurringExpenseListApiCopyWithImpl<$Res>
 /// Create a copy of RecurringExpenseListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(RecurringExpenseListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<RecurringExpenseApi>,
   ));
@@ -905,7 +918,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _RecurringExpenseListApi implements RecurringExpenseListApi {
-  const _RecurringExpenseListApi({@JsonKey(fromJson: _recurringExpenseListData) final  List<RecurringExpenseApi> data = const []}): _data = data;
+  const _RecurringExpenseListApi({@JsonKey(fromJson: _recurringExpenseListData)  List<RecurringExpenseApi> data = const []}): _data = data;
   factory _RecurringExpenseListApi.fromJson(Map<String, dynamic> json) => _$RecurringExpenseListApiFromJson(json);
 
  final  List<RecurringExpenseApi> _data;
@@ -929,16 +942,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseListApi(data: $data)';
+    return 'RecurringExpenseListApi(data: $data)';
 }
 
 
@@ -993,16 +1008,21 @@ $RecurringExpenseItemApiCopyWith<RecurringExpenseItemApi> get copyWith => _$Recu
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as RecurringExpenseItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecurringExpenseItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as RecurringExpenseItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseItemApi(data: $data)';
+  final _this = this as RecurringExpenseItemApi;
+  return 'RecurringExpenseItemApi(data: ${_this.data})';
 }
 
 
@@ -1031,7 +1051,7 @@ class _$RecurringExpenseItemApiCopyWithImpl<$Res>
 /// Create a copy of RecurringExpenseItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(RecurringExpenseItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as RecurringExpenseApi,
   ));
@@ -1201,16 +1221,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecurringExpenseItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'RecurringExpenseItemApi(data: $data)';
+    return 'RecurringExpenseItemApi(data: $data)';
 }
 
 

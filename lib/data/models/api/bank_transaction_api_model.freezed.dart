@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'bank_transaction_api_model.dart';
@@ -9,15 +9,14 @@ part of 'bank_transaction_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$BankTransactionApi {
 
- String get id; Object get amount;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'category_type') String get categoryType;@JsonKey(name: 'base_type') String get baseType; String get date;@JsonKey(name: 'bank_integration_id') String get bankIntegrationId; String get description;@JsonKey(name: 'status_id') String get statusId;@JsonKey(name: 'ninja_category_id') String get ninjaCategoryId;@JsonKey(name: 'invoice_ids') String get invoiceIds;@JsonKey(name: 'payment_id') String get paymentId;@JsonKey(name: 'expense_id') String get expenseId;@JsonKey(name: 'vendor_id') String get vendorId;// Provider transaction id — int on the wire, kept as Object so we
-// can accept either number or string.
-@JsonKey(name: 'transaction_id') Object get transactionId;@JsonKey(name: 'bank_transaction_rule_id') String get bankTransactionRuleId;@JsonKey(name: 'participant_name') String get participantName; String get participant;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
+ String get id; Object get amount;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'category_type') String get categoryType;@JsonKey(name: 'base_type') String get baseType; String get date;@JsonKey(name: 'bank_integration_id') String get bankIntegrationId; String get description;@JsonKey(name: 'status_id') String get statusId;@JsonKey(name: 'ninja_category_id') String get ninjaCategoryId;@JsonKey(name: 'invoice_ids') String get invoiceIds;@JsonKey(name: 'payment_id') String get paymentId;@JsonKey(name: 'expense_id') String get expenseId;@JsonKey(name: 'vendor_id') String get vendorId;@JsonKey(name: 'transaction_id') Object get transactionId;@JsonKey(name: 'bank_transaction_rule_id') String get bankTransactionRuleId;@JsonKey(name: 'participant_name') String get participantName; String get participant;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
 /// Create a copy of BankTransactionApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +29,21 @@ $BankTransactionApiCopyWith<BankTransactionApi> get copyWith => _$BankTransactio
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionApi&&(identical(other.id, id) || other.id == id)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryType, categoryType) || other.categoryType == categoryType)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankIntegrationId, bankIntegrationId) || other.bankIntegrationId == bankIntegrationId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.ninjaCategoryId, ninjaCategoryId) || other.ninjaCategoryId == ninjaCategoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&const DeepCollectionEquality().equals(other.transactionId, transactionId)&&(identical(other.bankTransactionRuleId, bankTransactionRuleId) || other.bankTransactionRuleId == bankTransactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.tags, tags));
+  final _this = this as BankTransactionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionApi&&(identical(other.id, _this.id) || other.id == _this.id)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.categoryType, _this.categoryType) || other.categoryType == _this.categoryType)&&(identical(other.baseType, _this.baseType) || other.baseType == _this.baseType)&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.bankIntegrationId, _this.bankIntegrationId) || other.bankIntegrationId == _this.bankIntegrationId)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&(identical(other.ninjaCategoryId, _this.ninjaCategoryId) || other.ninjaCategoryId == _this.ninjaCategoryId)&&(identical(other.invoiceIds, _this.invoiceIds) || other.invoiceIds == _this.invoiceIds)&&(identical(other.paymentId, _this.paymentId) || other.paymentId == _this.paymentId)&&(identical(other.expenseId, _this.expenseId) || other.expenseId == _this.expenseId)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&const DeepCollectionEquality().equals(other.transactionId, _this.transactionId)&&(identical(other.bankTransactionRuleId, _this.bankTransactionRuleId) || other.bankTransactionRuleId == _this.bankTransactionRuleId)&&(identical(other.participantName, _this.participantName) || other.participantName == _this.participantName)&&(identical(other.participant, _this.participant) || other.participant == _this.participant)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&const DeepCollectionEquality().equals(other.tags, _this.tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,const DeepCollectionEquality().hash(amount),currencyId,categoryType,baseType,date,bankIntegrationId,description,statusId,ninjaCategoryId,invoiceIds,paymentId,expenseId,vendorId,const DeepCollectionEquality().hash(transactionId),bankTransactionRuleId,participantName,participant,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(tags)]);
+int get hashCode {
+  final _this = this as BankTransactionApi;
+  return Object.hashAll([runtimeType,_this.id,const DeepCollectionEquality().hash(_this.amount),_this.currencyId,_this.categoryType,_this.baseType,_this.date,_this.bankIntegrationId,_this.description,_this.statusId,_this.ninjaCategoryId,_this.invoiceIds,_this.paymentId,_this.expenseId,_this.vendorId,const DeepCollectionEquality().hash(_this.transactionId),_this.bankTransactionRuleId,_this.participantName,_this.participant,_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt,const DeepCollectionEquality().hash(_this.tags)]);
+}
 
 @override
 String toString() {
-  return 'BankTransactionApi(id: $id, amount: $amount, currencyId: $currencyId, categoryType: $categoryType, baseType: $baseType, date: $date, bankIntegrationId: $bankIntegrationId, description: $description, statusId: $statusId, ninjaCategoryId: $ninjaCategoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, bankTransactionRuleId: $bankTransactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, tags: $tags)';
+  final _this = this as BankTransactionApi;
+  return 'BankTransactionApi(id: ${_this.id}, amount: ${_this.amount}, currencyId: ${_this.currencyId}, categoryType: ${_this.categoryType}, baseType: ${_this.baseType}, date: ${_this.date}, bankIntegrationId: ${_this.bankIntegrationId}, description: ${_this.description}, statusId: ${_this.statusId}, ninjaCategoryId: ${_this.ninjaCategoryId}, invoiceIds: ${_this.invoiceIds}, paymentId: ${_this.paymentId}, expenseId: ${_this.expenseId}, vendorId: ${_this.vendorId}, transactionId: ${_this.transactionId}, bankTransactionRuleId: ${_this.bankTransactionRuleId}, participantName: ${_this.participantName}, participant: ${_this.participant}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, tags: ${_this.tags})';
 }
 
 
@@ -68,7 +72,7 @@ class _$BankTransactionApiCopyWithImpl<$Res>
 /// Create a copy of BankTransactionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? amount = null,Object? currencyId = null,Object? categoryType = null,Object? baseType = null,Object? date = null,Object? bankIntegrationId = null,Object? description = null,Object? statusId = null,Object? ninjaCategoryId = null,Object? invoiceIds = null,Object? paymentId = null,Object? expenseId = null,Object? vendorId = null,Object? transactionId = null,Object? bankTransactionRuleId = null,Object? participantName = null,Object? participant = null,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? tags = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankTransactionApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount ,currencyId: null == currencyId ? _self.currencyId : currencyId // ignore: cast_nullable_to_non_nullable
 as String,categoryType: null == categoryType ? _self.categoryType : categoryType // ignore: cast_nullable_to_non_nullable
@@ -231,7 +235,7 @@ return $default(_that.id,_that.amount,_that.currencyId,_that.categoryType,_that.
 
 @JsonSerializable(includeIfNull: false)
 class _BankTransactionApi implements BankTransactionApi {
-  const _BankTransactionApi({this.id = '', this.amount = '0', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'category_type') this.categoryType = '', @JsonKey(name: 'base_type') this.baseType = '', this.date = '', @JsonKey(name: 'bank_integration_id') this.bankIntegrationId = '', this.description = '', @JsonKey(name: 'status_id') this.statusId = '1', @JsonKey(name: 'ninja_category_id') this.ninjaCategoryId = '', @JsonKey(name: 'invoice_ids') this.invoiceIds = '', @JsonKey(name: 'payment_id') this.paymentId = '', @JsonKey(name: 'expense_id') this.expenseId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'transaction_id') this.transactionId = 0, @JsonKey(name: 'bank_transaction_rule_id') this.bankTransactionRuleId = '', @JsonKey(name: 'participant_name') this.participantName = '', this.participant = '', @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[]}): _tags = tags;
+  const _BankTransactionApi({this.id = '', this.amount = '0', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'category_type') this.categoryType = '', @JsonKey(name: 'base_type') this.baseType = '', this.date = '', @JsonKey(name: 'bank_integration_id') this.bankIntegrationId = '', this.description = '', @JsonKey(name: 'status_id') this.statusId = '1', @JsonKey(name: 'ninja_category_id') this.ninjaCategoryId = '', @JsonKey(name: 'invoice_ids') this.invoiceIds = '', @JsonKey(name: 'payment_id') this.paymentId = '', @JsonKey(name: 'expense_id') this.expenseId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'transaction_id') this.transactionId = 0, @JsonKey(name: 'bank_transaction_rule_id') this.bankTransactionRuleId = '', @JsonKey(name: 'participant_name') this.participantName = '', this.participant = '', @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[]}): _tags = tags;
   factory _BankTransactionApi.fromJson(Map<String, dynamic> json) => _$BankTransactionApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -248,8 +252,6 @@ class _BankTransactionApi implements BankTransactionApi {
 @override@JsonKey(name: 'payment_id') final  String paymentId;
 @override@JsonKey(name: 'expense_id') final  String expenseId;
 @override@JsonKey(name: 'vendor_id') final  String vendorId;
-// Provider transaction id — int on the wire, kept as Object so we
-// can accept either number or string.
 @override@JsonKey(name: 'transaction_id') final  Object transactionId;
 @override@JsonKey(name: 'bank_transaction_rule_id') final  String bankTransactionRuleId;
 @override@JsonKey(name: 'participant_name') final  String participantName;
@@ -279,16 +281,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionApi&&(identical(other.id, id) || other.id == id)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryType, categoryType) || other.categoryType == categoryType)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankIntegrationId, bankIntegrationId) || other.bankIntegrationId == bankIntegrationId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.ninjaCategoryId, ninjaCategoryId) || other.ninjaCategoryId == ninjaCategoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&const DeepCollectionEquality().equals(other.transactionId, transactionId)&&(identical(other.bankTransactionRuleId, bankTransactionRuleId) || other.bankTransactionRuleId == bankTransactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other._tags, _tags));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionApi&&(identical(other.id, id) || other.id == id)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.categoryType, categoryType) || other.categoryType == categoryType)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankIntegrationId, bankIntegrationId) || other.bankIntegrationId == bankIntegrationId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.ninjaCategoryId, ninjaCategoryId) || other.ninjaCategoryId == ninjaCategoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&const DeepCollectionEquality().equals(other.transactionId, transactionId)&&(identical(other.bankTransactionRuleId, bankTransactionRuleId) || other.bankTransactionRuleId == bankTransactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.tags, _tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,const DeepCollectionEquality().hash(amount),currencyId,categoryType,baseType,date,bankIntegrationId,description,statusId,ninjaCategoryId,invoiceIds,paymentId,expenseId,vendorId,const DeepCollectionEquality().hash(transactionId),bankTransactionRuleId,participantName,participant,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_tags)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,const DeepCollectionEquality().hash(amount),currencyId,categoryType,baseType,date,bankIntegrationId,description,statusId,ninjaCategoryId,invoiceIds,paymentId,expenseId,vendorId,const DeepCollectionEquality().hash(transactionId),bankTransactionRuleId,participantName,participant,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_tags)]);
+}
 
 @override
 String toString() {
-  return 'BankTransactionApi(id: $id, amount: $amount, currencyId: $currencyId, categoryType: $categoryType, baseType: $baseType, date: $date, bankIntegrationId: $bankIntegrationId, description: $description, statusId: $statusId, ninjaCategoryId: $ninjaCategoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, bankTransactionRuleId: $bankTransactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, tags: $tags)';
+    return 'BankTransactionApi(id: $id, amount: $amount, currencyId: $currencyId, categoryType: $categoryType, baseType: $baseType, date: $date, bankIntegrationId: $bankIntegrationId, description: $description, statusId: $statusId, ninjaCategoryId: $ninjaCategoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, bankTransactionRuleId: $bankTransactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, tags: $tags)';
 }
 
 
@@ -363,16 +367,21 @@ $BankTransactionListApiCopyWith<BankTransactionListApi> get copyWith => _$BankTr
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as BankTransactionListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as BankTransactionListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'BankTransactionListApi(data: $data)';
+  final _this = this as BankTransactionListApi;
+  return 'BankTransactionListApi(data: ${_this.data})';
 }
 
 
@@ -401,7 +410,7 @@ class _$BankTransactionListApiCopyWithImpl<$Res>
 /// Create a copy of BankTransactionListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankTransactionListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<BankTransactionApi>,
   ));
@@ -544,7 +553,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _BankTransactionListApi implements BankTransactionListApi {
-  const _BankTransactionListApi({@JsonKey(fromJson: _bankTransactionListData) final  List<BankTransactionApi> data = const []}): _data = data;
+  const _BankTransactionListApi({@JsonKey(fromJson: _bankTransactionListData)  List<BankTransactionApi> data = const []}): _data = data;
   factory _BankTransactionListApi.fromJson(Map<String, dynamic> json) => _$BankTransactionListApiFromJson(json);
 
  final  List<BankTransactionApi> _data;
@@ -568,16 +577,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'BankTransactionListApi(data: $data)';
+    return 'BankTransactionListApi(data: $data)';
 }
 
 
@@ -632,16 +643,21 @@ $BankTransactionItemApiCopyWith<BankTransactionItemApi> get copyWith => _$BankTr
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as BankTransactionItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransactionItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as BankTransactionItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'BankTransactionItemApi(data: $data)';
+  final _this = this as BankTransactionItemApi;
+  return 'BankTransactionItemApi(data: ${_this.data})';
 }
 
 
@@ -670,7 +686,7 @@ class _$BankTransactionItemApiCopyWithImpl<$Res>
 /// Create a copy of BankTransactionItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankTransactionItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as BankTransactionApi,
   ));
@@ -840,16 +856,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransactionItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'BankTransactionItemApi(data: $data)';
+    return 'BankTransactionItemApi(data: $data)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'product_api_model.dart';
@@ -9,18 +9,14 @@ part of 'product_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$ProductApi {
 
- String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'product_key') String get productKey; String get notes;@JsonKey(name: 'cost') Object get cost;@JsonKey(name: 'price') Object get price;@JsonKey(name: 'quantity') Object get quantity;@JsonKey(name: 'tax_name1') String get taxName1;@JsonKey(name: 'tax_rate1') num get taxRate1;@JsonKey(name: 'tax_name2') String get taxName2;@JsonKey(name: 'tax_rate2') num get taxRate2;@JsonKey(name: 'tax_name3') String get taxName3;@JsonKey(name: 'tax_rate3') num get taxRate3;@JsonKey(name: 'tax_id') String get taxId;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'in_stock_quantity') num get inStockQuantity;@JsonKey(name: 'stock_notification') bool get stockNotification;@JsonKey(name: 'stock_notification_threshold') num get stockNotificationThreshold;@JsonKey(name: 'max_quantity') num get maxQuantity;@JsonKey(name: 'product_image') String get productImage;@JsonKey(name: 'income_account_id') String get incomeAccountId;// Attached tags — `[{id, name, color}]` from the server (or bare ids on the
-// Drift-payload round-trip). The domain keeps just the ids.
-@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;// Nullable so JSON-omitted (→ null) is distinguishable from
-// JSON-present-and-empty (→ `const []`). See `ClientApi.documents` for
-// the rationale.
- List<DocumentApi>? get documents;
+ String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'product_key') String get productKey; String get notes;@JsonKey(name: 'cost') Object get cost;@JsonKey(name: 'price') Object get price;@JsonKey(name: 'quantity') Object get quantity;@JsonKey(name: 'tax_name1') String get taxName1;@JsonKey(name: 'tax_rate1') num get taxRate1;@JsonKey(name: 'tax_name2') String get taxName2;@JsonKey(name: 'tax_rate2') num get taxRate2;@JsonKey(name: 'tax_name3') String get taxName3;@JsonKey(name: 'tax_rate3') num get taxRate3;@JsonKey(name: 'tax_id') String get taxId;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'in_stock_quantity') num get inStockQuantity;@JsonKey(name: 'stock_notification') bool get stockNotification;@JsonKey(name: 'stock_notification_threshold') num get stockNotificationThreshold;@JsonKey(name: 'max_quantity') num get maxQuantity;@JsonKey(name: 'product_image') String get productImage;@JsonKey(name: 'income_account_id') String get incomeAccountId;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags; List<DocumentApi>? get documents;
 /// Create a copy of ProductApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -33,16 +29,21 @@ $ProductApiCopyWith<ProductApi> get copyWith => _$ProductApiCopyWithImpl<Product
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.cost, cost)&&const DeepCollectionEquality().equals(other.price, price)&&const DeepCollectionEquality().equals(other.quantity, quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.inStockQuantity, inStockQuantity) || other.inStockQuantity == inStockQuantity)&&(identical(other.stockNotification, stockNotification) || other.stockNotification == stockNotification)&&(identical(other.stockNotificationThreshold, stockNotificationThreshold) || other.stockNotificationThreshold == stockNotificationThreshold)&&(identical(other.maxQuantity, maxQuantity) || other.maxQuantity == maxQuantity)&&(identical(other.productImage, productImage) || other.productImage == productImage)&&(identical(other.incomeAccountId, incomeAccountId) || other.incomeAccountId == incomeAccountId)&&const DeepCollectionEquality().equals(other.tags, tags)&&const DeepCollectionEquality().equals(other.documents, documents));
+  final _this = this as ProductApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.productKey, _this.productKey) || other.productKey == _this.productKey)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&const DeepCollectionEquality().equals(other.cost, _this.cost)&&const DeepCollectionEquality().equals(other.price, _this.price)&&const DeepCollectionEquality().equals(other.quantity, _this.quantity)&&(identical(other.taxName1, _this.taxName1) || other.taxName1 == _this.taxName1)&&(identical(other.taxRate1, _this.taxRate1) || other.taxRate1 == _this.taxRate1)&&(identical(other.taxName2, _this.taxName2) || other.taxName2 == _this.taxName2)&&(identical(other.taxRate2, _this.taxRate2) || other.taxRate2 == _this.taxRate2)&&(identical(other.taxName3, _this.taxName3) || other.taxName3 == _this.taxName3)&&(identical(other.taxRate3, _this.taxRate3) || other.taxRate3 == _this.taxRate3)&&(identical(other.taxId, _this.taxId) || other.taxId == _this.taxId)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.inStockQuantity, _this.inStockQuantity) || other.inStockQuantity == _this.inStockQuantity)&&(identical(other.stockNotification, _this.stockNotification) || other.stockNotification == _this.stockNotification)&&(identical(other.stockNotificationThreshold, _this.stockNotificationThreshold) || other.stockNotificationThreshold == _this.stockNotificationThreshold)&&(identical(other.maxQuantity, _this.maxQuantity) || other.maxQuantity == _this.maxQuantity)&&(identical(other.productImage, _this.productImage) || other.productImage == _this.productImage)&&(identical(other.incomeAccountId, _this.incomeAccountId) || other.incomeAccountId == _this.incomeAccountId)&&const DeepCollectionEquality().equals(other.tags, _this.tags)&&const DeepCollectionEquality().equals(other.documents, _this.documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,productKey,notes,const DeepCollectionEquality().hash(cost),const DeepCollectionEquality().hash(price),const DeepCollectionEquality().hash(quantity),taxName1,taxRate1,taxName2,taxRate2,taxName3,taxRate3,taxId,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,inStockQuantity,stockNotification,stockNotificationThreshold,maxQuantity,productImage,incomeAccountId,const DeepCollectionEquality().hash(tags),const DeepCollectionEquality().hash(documents)]);
+int get hashCode {
+  final _this = this as ProductApi;
+  return Object.hashAll([runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.productKey,_this.notes,const DeepCollectionEquality().hash(_this.cost),const DeepCollectionEquality().hash(_this.price),const DeepCollectionEquality().hash(_this.quantity),_this.taxName1,_this.taxRate1,_this.taxName2,_this.taxRate2,_this.taxName3,_this.taxRate3,_this.taxId,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,_this.inStockQuantity,_this.stockNotification,_this.stockNotificationThreshold,_this.maxQuantity,_this.productImage,_this.incomeAccountId,const DeepCollectionEquality().hash(_this.tags),const DeepCollectionEquality().hash(_this.documents)]);
+}
 
 @override
 String toString() {
-  return 'ProductApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, productKey: $productKey, notes: $notes, cost: $cost, price: $price, quantity: $quantity, taxName1: $taxName1, taxRate1: $taxRate1, taxName2: $taxName2, taxRate2: $taxRate2, taxName3: $taxName3, taxRate3: $taxRate3, taxId: $taxId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, inStockQuantity: $inStockQuantity, stockNotification: $stockNotification, stockNotificationThreshold: $stockNotificationThreshold, maxQuantity: $maxQuantity, productImage: $productImage, incomeAccountId: $incomeAccountId, tags: $tags, documents: $documents)';
+  final _this = this as ProductApi;
+  return 'ProductApi(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, productKey: ${_this.productKey}, notes: ${_this.notes}, cost: ${_this.cost}, price: ${_this.price}, quantity: ${_this.quantity}, taxName1: ${_this.taxName1}, taxRate1: ${_this.taxRate1}, taxName2: ${_this.taxName2}, taxRate2: ${_this.taxRate2}, taxName3: ${_this.taxName3}, taxRate3: ${_this.taxRate3}, taxId: ${_this.taxId}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, inStockQuantity: ${_this.inStockQuantity}, stockNotification: ${_this.stockNotification}, stockNotificationThreshold: ${_this.stockNotificationThreshold}, maxQuantity: ${_this.maxQuantity}, productImage: ${_this.productImage}, incomeAccountId: ${_this.incomeAccountId}, tags: ${_this.tags}, documents: ${_this.documents})';
 }
 
 
@@ -71,7 +72,7 @@ class _$ProductApiCopyWithImpl<$Res>
 /// Create a copy of ProductApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? productKey = null,Object? notes = null,Object? cost = null,Object? price = null,Object? quantity = null,Object? taxName1 = null,Object? taxRate1 = null,Object? taxName2 = null,Object? taxRate2 = null,Object? taxName3 = null,Object? taxRate3 = null,Object? taxId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? inStockQuantity = null,Object? stockNotification = null,Object? stockNotificationThreshold = null,Object? maxQuantity = null,Object? productImage = null,Object? incomeAccountId = null,Object? tags = null,Object? documents = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ProductApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -241,7 +242,7 @@ return $default(_that.id,_that.userId,_that.assignedUserId,_that.productKey,_tha
 @JsonSerializable()
 
 class _ProductApi implements ProductApi {
-  const _ProductApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'product_key') this.productKey = '', this.notes = '', @JsonKey(name: 'cost') this.cost = '0', @JsonKey(name: 'price') this.price = '0', @JsonKey(name: 'quantity') this.quantity = '0', @JsonKey(name: 'tax_name1') this.taxName1 = '', @JsonKey(name: 'tax_rate1') this.taxRate1 = 0, @JsonKey(name: 'tax_name2') this.taxName2 = '', @JsonKey(name: 'tax_rate2') this.taxRate2 = 0, @JsonKey(name: 'tax_name3') this.taxName3 = '', @JsonKey(name: 'tax_rate3') this.taxRate3 = 0, @JsonKey(name: 'tax_id') this.taxId = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'in_stock_quantity') this.inStockQuantity = 0, @JsonKey(name: 'stock_notification') this.stockNotification = false, @JsonKey(name: 'stock_notification_threshold') this.stockNotificationThreshold = 0, @JsonKey(name: 'max_quantity') this.maxQuantity = 0, @JsonKey(name: 'product_image') this.productImage = '', @JsonKey(name: 'income_account_id') this.incomeAccountId = '', @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[], final  List<DocumentApi>? documents}): _tags = tags,_documents = documents;
+  const _ProductApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'product_key') this.productKey = '', this.notes = '', @JsonKey(name: 'cost') this.cost = '0', @JsonKey(name: 'price') this.price = '0', @JsonKey(name: 'quantity') this.quantity = '0', @JsonKey(name: 'tax_name1') this.taxName1 = '', @JsonKey(name: 'tax_rate1') this.taxRate1 = 0, @JsonKey(name: 'tax_name2') this.taxName2 = '', @JsonKey(name: 'tax_rate2') this.taxRate2 = 0, @JsonKey(name: 'tax_name3') this.taxName3 = '', @JsonKey(name: 'tax_rate3') this.taxRate3 = 0, @JsonKey(name: 'tax_id') this.taxId = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'in_stock_quantity') this.inStockQuantity = 0, @JsonKey(name: 'stock_notification') this.stockNotification = false, @JsonKey(name: 'stock_notification_threshold') this.stockNotificationThreshold = 0, @JsonKey(name: 'max_quantity') this.maxQuantity = 0, @JsonKey(name: 'product_image') this.productImage = '', @JsonKey(name: 'income_account_id') this.incomeAccountId = '', @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[],  List<DocumentApi>? documents}): _tags = tags,_documents = documents;
   factory _ProductApi.fromJson(Map<String, dynamic> json) => _$ProductApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -273,24 +274,14 @@ class _ProductApi implements ProductApi {
 @override@JsonKey(name: 'max_quantity') final  num maxQuantity;
 @override@JsonKey(name: 'product_image') final  String productImage;
 @override@JsonKey(name: 'income_account_id') final  String incomeAccountId;
-// Attached tags — `[{id, name, color}]` from the server (or bare ids on the
-// Drift-payload round-trip). The domain keeps just the ids.
  final  List<TagRefApi> _tags;
-// Attached tags — `[{id, name, color}]` from the server (or bare ids on the
-// Drift-payload round-trip). The domain keeps just the ids.
 @override@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags {
   if (_tags is EqualUnmodifiableListView) return _tags;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_tags);
 }
 
-// Nullable so JSON-omitted (→ null) is distinguishable from
-// JSON-present-and-empty (→ `const []`). See `ClientApi.documents` for
-// the rationale.
  final  List<DocumentApi>? _documents;
-// Nullable so JSON-omitted (→ null) is distinguishable from
-// JSON-present-and-empty (→ `const []`). See `ClientApi.documents` for
-// the rationale.
 @override List<DocumentApi>? get documents {
   final value = _documents;
   if (value == null) return null;
@@ -313,16 +304,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.cost, cost)&&const DeepCollectionEquality().equals(other.price, price)&&const DeepCollectionEquality().equals(other.quantity, quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.inStockQuantity, inStockQuantity) || other.inStockQuantity == inStockQuantity)&&(identical(other.stockNotification, stockNotification) || other.stockNotification == stockNotification)&&(identical(other.stockNotificationThreshold, stockNotificationThreshold) || other.stockNotificationThreshold == stockNotificationThreshold)&&(identical(other.maxQuantity, maxQuantity) || other.maxQuantity == maxQuantity)&&(identical(other.productImage, productImage) || other.productImage == productImage)&&(identical(other.incomeAccountId, incomeAccountId) || other.incomeAccountId == incomeAccountId)&&const DeepCollectionEquality().equals(other._tags, _tags)&&const DeepCollectionEquality().equals(other._documents, _documents));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&const DeepCollectionEquality().equals(other.cost, cost)&&const DeepCollectionEquality().equals(other.price, price)&&const DeepCollectionEquality().equals(other.quantity, quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.inStockQuantity, inStockQuantity) || other.inStockQuantity == inStockQuantity)&&(identical(other.stockNotification, stockNotification) || other.stockNotification == stockNotification)&&(identical(other.stockNotificationThreshold, stockNotificationThreshold) || other.stockNotificationThreshold == stockNotificationThreshold)&&(identical(other.maxQuantity, maxQuantity) || other.maxQuantity == maxQuantity)&&(identical(other.productImage, productImage) || other.productImage == productImage)&&(identical(other.incomeAccountId, incomeAccountId) || other.incomeAccountId == incomeAccountId)&&const DeepCollectionEquality().equals(other.tags, _tags)&&const DeepCollectionEquality().equals(other.documents, _documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,productKey,notes,const DeepCollectionEquality().hash(cost),const DeepCollectionEquality().hash(price),const DeepCollectionEquality().hash(quantity),taxName1,taxRate1,taxName2,taxRate2,taxName3,taxRate3,taxId,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,inStockQuantity,stockNotification,stockNotificationThreshold,maxQuantity,productImage,incomeAccountId,const DeepCollectionEquality().hash(_tags),const DeepCollectionEquality().hash(_documents)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,userId,assignedUserId,productKey,notes,const DeepCollectionEquality().hash(cost),const DeepCollectionEquality().hash(price),const DeepCollectionEquality().hash(quantity),taxName1,taxRate1,taxName2,taxRate2,taxName3,taxRate3,taxId,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,inStockQuantity,stockNotification,stockNotificationThreshold,maxQuantity,productImage,incomeAccountId,const DeepCollectionEquality().hash(_tags),const DeepCollectionEquality().hash(_documents)]);
+}
 
 @override
 String toString() {
-  return 'ProductApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, productKey: $productKey, notes: $notes, cost: $cost, price: $price, quantity: $quantity, taxName1: $taxName1, taxRate1: $taxRate1, taxName2: $taxName2, taxRate2: $taxRate2, taxName3: $taxName3, taxRate3: $taxRate3, taxId: $taxId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, inStockQuantity: $inStockQuantity, stockNotification: $stockNotification, stockNotificationThreshold: $stockNotificationThreshold, maxQuantity: $maxQuantity, productImage: $productImage, incomeAccountId: $incomeAccountId, tags: $tags, documents: $documents)';
+    return 'ProductApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, productKey: $productKey, notes: $notes, cost: $cost, price: $price, quantity: $quantity, taxName1: $taxName1, taxRate1: $taxRate1, taxName2: $taxName2, taxRate2: $taxRate2, taxName3: $taxName3, taxRate3: $taxRate3, taxId: $taxId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, inStockQuantity: $inStockQuantity, stockNotification: $stockNotification, stockNotificationThreshold: $stockNotificationThreshold, maxQuantity: $maxQuantity, productImage: $productImage, incomeAccountId: $incomeAccountId, tags: $tags, documents: $documents)';
 }
 
 
@@ -404,16 +397,21 @@ $ProductListApiCopyWith<ProductListApi> get copyWith => _$ProductListApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as ProductListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as ProductListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'ProductListApi(data: $data)';
+  final _this = this as ProductListApi;
+  return 'ProductListApi(data: ${_this.data})';
 }
 
 
@@ -442,7 +440,7 @@ class _$ProductListApiCopyWithImpl<$Res>
 /// Create a copy of ProductListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ProductListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<ProductApi>,
   ));
@@ -585,7 +583,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ProductListApi implements ProductListApi {
-  const _ProductListApi({@JsonKey(fromJson: _productListData) final  List<ProductApi> data = const []}): _data = data;
+  const _ProductListApi({@JsonKey(fromJson: _productListData)  List<ProductApi> data = const []}): _data = data;
   factory _ProductListApi.fromJson(Map<String, dynamic> json) => _$ProductListApiFromJson(json);
 
  final  List<ProductApi> _data;
@@ -609,16 +607,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'ProductListApi(data: $data)';
+    return 'ProductListApi(data: $data)';
 }
 
 
@@ -673,16 +673,21 @@ $ProductItemApiCopyWith<ProductItemApi> get copyWith => _$ProductItemApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as ProductItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as ProductItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'ProductItemApi(data: $data)';
+  final _this = this as ProductItemApi;
+  return 'ProductItemApi(data: ${_this.data})';
 }
 
 
@@ -711,7 +716,7 @@ class _$ProductItemApiCopyWithImpl<$Res>
 /// Create a copy of ProductItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ProductItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as ProductApi,
   ));
@@ -881,16 +886,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'ProductItemApi(data: $data)';
+    return 'ProductItemApi(data: $data)';
 }
 
 

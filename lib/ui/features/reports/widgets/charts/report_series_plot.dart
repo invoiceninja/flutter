@@ -52,6 +52,7 @@ class ReportSeriesPlot extends StatefulWidget {
     required this.semanticsLabel,
     this.axisLabels,
     this.onTapIndex,
+    this.onSecondaryTapIndex,
     this.wholeNumbers = false,
     this.height = 240,
   });
@@ -75,6 +76,10 @@ class ReportSeriesPlot extends StatefulWidget {
   /// Drill into the period at this position. Null draws a chart that is
   /// only read.
   final ValueChanged<int>? onTapIndex;
+
+  /// A right-click on the period at this position, with where the pointer is
+  /// — for a context menu. Pointer input only, like [onTapIndex].
+  final void Function(int index, Offset globalPosition)? onSecondaryTapIndex;
 
   /// A count: the axis has no half rows.
   final bool wholeNumbers;
@@ -249,27 +254,29 @@ class _ReportSeriesPlotState extends State<ReportSeriesPlot> {
           : null,
   ];
 
-  bool _isDrill(FlTouchEvent event) =>
-      // A completed click, with a pointer. `isInterestedForInteractions` —
-      // the obvious test — is true for a hover too.
-      event is FlTapUpEvent && !Env.isTouchPrimary;
-
-  void _onBarTouch(FlTouchEvent event, BarTouchResponse? response) {
-    final onTap = widget.onTapIndex;
-    if (onTap == null || !_isDrill(event)) return;
-    final index = response?.spot?.touchedBarGroupIndex;
-    if (index != null && index >= 0 && index < widget.labels.length) {
-      onTap(index);
-    }
-  }
+  void _onBarTouch(FlTouchEvent event, BarTouchResponse? response) =>
+      _onPointer(event, response?.spot?.touchedBarGroupIndex);
 
   void _onLineTouch(FlTouchEvent event, LineTouchResponse? response) {
-    final onTap = widget.onTapIndex;
-    if (onTap == null || !_isDrill(event)) return;
     final spots = response?.lineBarSpots;
-    if (spots == null || spots.isEmpty) return;
-    final index = spots.first.x.round();
-    if (index >= 0 && index < widget.labels.length) onTap(index);
+    _onPointer(
+      event,
+      spots == null || spots.isEmpty ? null : spots.first.x.round(),
+    );
+  }
+
+  /// A completed click drills and a completed right-click asks for the menu,
+  /// both with a pointer only — on touch a tap opens the tooltip and nothing
+  /// else. Matched on the up events: `isInterestedForInteractions`, the
+  /// obvious test, is true for a hover too.
+  void _onPointer(FlTouchEvent event, int? index) {
+    if (Env.isTouchPrimary || index == null) return;
+    if (index < 0 || index >= widget.labels.length) return;
+    if (event is FlTapUpEvent) {
+      widget.onTapIndex?.call(index);
+    } else if (event is FlSecondaryTapUpEvent) {
+      widget.onSecondaryTapIndex?.call(index, event.details.globalPosition);
+    }
   }
 
   FlTitlesData _titles(BuildContext context) => FlTitlesData(

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'webhook.dart';
@@ -9,6 +9,7 @@ part of 'webhook.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $WebhookCopyWith<Webhook> get copyWith => _$WebhookCopyWithImpl<Webhook>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Webhook&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other.headers, headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as Webhook;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Webhook&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.eventId, _this.eventId) || other.eventId == _this.eventId)&&(identical(other.targetUrl, _this.targetUrl) || other.targetUrl == _this.targetUrl)&&(identical(other.format, _this.format) || other.format == _this.format)&&(identical(other.restMethod, _this.restMethod) || other.restMethod == _this.restMethod)&&const DeepCollectionEquality().equals(other.headers, _this.headers)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(headers),isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+  final _this = this as Webhook;
+  return Object.hash(runtimeType,_this.id,_this.eventId,_this.targetUrl,_this.format,_this.restMethod,const DeepCollectionEquality().hash(_this.headers),_this.isDeleted,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'Webhook(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+  final _this = this as Webhook;
+  return 'Webhook(id: ${_this.id}, eventId: ${_this.eventId}, targetUrl: ${_this.targetUrl}, format: ${_this.format}, restMethod: ${_this.restMethod}, headers: ${_this.headers}, isDeleted: ${_this.isDeleted}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$WebhookCopyWithImpl<$Res>
 /// Create a copy of Webhook
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? eventId = null,Object? targetUrl = null,Object? format = null,Object? restMethod = null,Object? headers = null,Object? isDeleted = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(Webhook(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,eventId: null == eventId ? _self.eventId : eventId // ignore: cast_nullable_to_non_nullable
 as String,targetUrl: null == targetUrl ? _self.targetUrl : targetUrl // ignore: cast_nullable_to_non_nullable
@@ -216,7 +222,7 @@ return $default(_that.id,_that.eventId,_that.targetUrl,_that.format,_that.restMe
 
 
 class _Webhook extends Webhook {
-  const _Webhook({required this.id, required this.eventId, required this.targetUrl, required this.format, required this.restMethod, final  Map<String, String> headers = const <String, String>{}, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, this.isDirty = false}): _headers = headers,super._();
+  const _Webhook({required this.id, required this.eventId, required this.targetUrl, required this.format, required this.restMethod,  Map<String, String> headers = const <String, String>{}, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, this.isDirty = false}): _headers = headers,super._();
   
 
 @override final  String id;
@@ -247,16 +253,18 @@ _$WebhookCopyWith<_Webhook> get copyWith => __$WebhookCopyWithImpl<_Webhook>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Webhook&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other._headers, _headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Webhook&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other.headers, _headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(_headers),isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(_headers),isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+}
 
 @override
 String toString() {
-  return 'Webhook(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+    return 'Webhook(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
 }
 
 

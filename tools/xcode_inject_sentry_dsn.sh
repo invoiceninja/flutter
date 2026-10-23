@@ -175,12 +175,46 @@ fi
 # build --config-only` that knew the value — the CI case, and
 # `tools/prepare_ios_archive.sh` with a DSN in the env). Only a key with no
 # value anywhere stays off, with no blank entry baked.
+current="$(xcconfig_get DART_DEFINES)"
+
+# A Google client ID without its reversed URL scheme in Info.plist is a crash,
+# not a broken button: google_sign_in_ios 6.3.7+ raises a native exception on
+# the first tap. So when the scheme is missing the ID is left out of the build
+# and the button stays hidden, whether the ID came from the env / dev.json or
+# was already in DART_DEFINES. CI registers the scheme on the runner before it
+# archives, so this never trips there. docs/setup.md § Google Sign-In client IDs.
+google_scheme_missing=0
+if [[ "$platform" == "ios" ]]; then
+  google_effective="$google_ios_client_id"
+  if [[ -z "$google_effective" ]]; then
+    saved_ifs="$IFS"
+    IFS=','
+    for entry in $current; do
+      decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
+      if [[ "$decoded" == "IN_GOOGLE_IOS_CLIENT_ID="?* ]]; then
+        google_effective="${decoded#IN_GOOGLE_IOS_CLIENT_ID=}"
+      fi
+    done
+    IFS="$saved_ifs"
+  fi
+  if [[ -n "$google_effective" ]]; then
+    google_scheme="com.googleusercontent.apps.${google_effective%.apps.googleusercontent.com}"
+    if ! /usr/bin/plutil -extract CFBundleURLTypes json -o - "$repo_root/ios/Runner/Info.plist" 2>/dev/null \
+        | /usr/bin/grep -qF "\"$google_scheme\""; then
+      google_scheme_missing=1
+      google_ios_client_id=""
+    fi
+  fi
+fi
+
 replace_keys=()
 [[ -n "$dsn" ]] && replace_keys+=(IN_SENTRY_DSN)
-[[ -n "$google_ios_client_id" ]] && replace_keys+=(IN_GOOGLE_IOS_CLIENT_ID)
+# A missing scheme also drops an entry a `--config-only` build already wrote.
+if [[ -n "$google_ios_client_id" || "$google_scheme_missing" -eq 1 ]]; then
+  replace_keys+=(IN_GOOGLE_IOS_CLIENT_ID)
+fi
 kept_dsn=0
 kept_google=0
-current="$(xcconfig_get DART_DEFINES)"
 rebuilt=""
 saved_ifs="$IFS"
 IFS=','
@@ -231,7 +265,9 @@ else
   echo "warning: [sentry-dsn] This $platform build will ship with Sentry DISABLED." >&2
 fi
 if [[ "$platform" == "ios" ]]; then
-  if [[ -n "$google_ios_client_id" ]]; then
+  if [[ "$google_scheme_missing" -eq 1 ]]; then
+    echo "warning: [google] ios/Runner/Info.plist has no $google_scheme URL scheme — left IN_GOOGLE_IOS_CLIENT_ID out, so Sign in with Google is hidden instead of crashing. Add the scheme (docs/setup.md § Google Sign-In client IDs)." >&2
+  elif [[ -n "$google_ios_client_id" ]]; then
     echo "==> [google] Baked the Google Sign-In iOS client ID into the build."
   elif [[ "$kept_google" -eq 1 ]]; then
     echo "==> [google] IN_GOOGLE_IOS_CLIENT_ID is not in the environment or dev.json — kept the one already in DART_DEFINES."

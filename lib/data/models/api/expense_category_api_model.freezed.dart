@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'expense_category_api_model.dart';
@@ -9,6 +9,7 @@ part of 'expense_category_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ExpenseCategoryApiCopyWith<ExpenseCategoryApi> get copyWith => _$ExpenseCategor
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as ExpenseCategoryApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.color, _this.color) || other.color == _this.color)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,assignedUserId,name,color,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+  final _this = this as ExpenseCategoryApi;
+  return Object.hash(runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.name,_this.color,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, color: $color, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as ExpenseCategoryApi;
+  return 'ExpenseCategoryApi(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, name: ${_this.name}, color: ${_this.color}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ExpenseCategoryApiCopyWithImpl<$Res>
 /// Create a copy of ExpenseCategoryApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? name = null,Object? color = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(ExpenseCategoryApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -243,16 +249,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.color, color) || other.color == color)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,assignedUserId,name,color,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,userId,assignedUserId,name,color,createdAt,updatedAt,archivedAt,isDeleted);
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, color: $color, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'ExpenseCategoryApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, color: $color, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -315,16 +323,21 @@ $ExpenseCategoryListApiCopyWith<ExpenseCategoryListApi> get copyWith => _$Expens
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as ExpenseCategoryListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as ExpenseCategoryListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryListApi(data: $data)';
+  final _this = this as ExpenseCategoryListApi;
+  return 'ExpenseCategoryListApi(data: ${_this.data})';
 }
 
 
@@ -353,7 +366,7 @@ class _$ExpenseCategoryListApiCopyWithImpl<$Res>
 /// Create a copy of ExpenseCategoryListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ExpenseCategoryListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<ExpenseCategoryApi>,
   ));
@@ -496,7 +509,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ExpenseCategoryListApi implements ExpenseCategoryListApi {
-  const _ExpenseCategoryListApi({@JsonKey(fromJson: _expenseCategoryListData) final  List<ExpenseCategoryApi> data = const []}): _data = data;
+  const _ExpenseCategoryListApi({@JsonKey(fromJson: _expenseCategoryListData)  List<ExpenseCategoryApi> data = const []}): _data = data;
   factory _ExpenseCategoryListApi.fromJson(Map<String, dynamic> json) => _$ExpenseCategoryListApiFromJson(json);
 
  final  List<ExpenseCategoryApi> _data;
@@ -520,16 +533,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryListApi(data: $data)';
+    return 'ExpenseCategoryListApi(data: $data)';
 }
 
 
@@ -584,16 +599,21 @@ $ExpenseCategoryItemApiCopyWith<ExpenseCategoryItemApi> get copyWith => _$Expens
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as ExpenseCategoryItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExpenseCategoryItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as ExpenseCategoryItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryItemApi(data: $data)';
+  final _this = this as ExpenseCategoryItemApi;
+  return 'ExpenseCategoryItemApi(data: ${_this.data})';
 }
 
 
@@ -622,7 +642,7 @@ class _$ExpenseCategoryItemApiCopyWithImpl<$Res>
 /// Create a copy of ExpenseCategoryItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ExpenseCategoryItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as ExpenseCategoryApi,
   ));
@@ -792,16 +812,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExpenseCategoryItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'ExpenseCategoryItemApi(data: $data)';
+    return 'ExpenseCategoryItemApi(data: $data)';
 }
 
 

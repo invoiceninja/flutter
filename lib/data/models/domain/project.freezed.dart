@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'project.dart';
@@ -9,6 +9,7 @@ part of 'project.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -17,8 +18,7 @@ mixin _$Project {
  String get id; String get userId; String get assignedUserId; String get clientId; String get number; String get name; Decimal get taskRate; Date? get dueDate; String get privateNotes; String get publicNotes; double get budgetedHours;/// Optional money budget, independent of `budgetedHours`. The server's
 /// project charts fall back to `budgetedHours × taskRate` when this is
 /// zero (`ProjectBurnUpService::budgetedAmount`).
- Decimal get budgetedAmount; double get currentHours; String get customValue1; String get customValue2; String get customValue3; String get customValue4; String get color; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents;// Attached tag ids (hashed); names/colors resolved from the tag cache.
- List<String> get tagIds; bool get isDirty;
+ Decimal get budgetedAmount; double get currentHours; String get customValue1; String get customValue2; String get customValue3; String get customValue4; String get color; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents; List<String> get tagIds; bool get isDirty;
 /// Create a copy of Project
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +29,21 @@ $ProjectCopyWith<Project> get copyWith => _$ProjectCopyWithImpl<Project>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Project&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.number, number) || other.number == number)&&(identical(other.name, name) || other.name == name)&&(identical(other.taskRate, taskRate) || other.taskRate == taskRate)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.budgetedHours, budgetedHours) || other.budgetedHours == budgetedHours)&&(identical(other.budgetedAmount, budgetedAmount) || other.budgetedAmount == budgetedAmount)&&(identical(other.currentHours, currentHours) || other.currentHours == currentHours)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.color, color) || other.color == color)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as Project;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Project&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.taskRate, _this.taskRate) || other.taskRate == _this.taskRate)&&(identical(other.dueDate, _this.dueDate) || other.dueDate == _this.dueDate)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.publicNotes, _this.publicNotes) || other.publicNotes == _this.publicNotes)&&(identical(other.budgetedHours, _this.budgetedHours) || other.budgetedHours == _this.budgetedHours)&&(identical(other.budgetedAmount, _this.budgetedAmount) || other.budgetedAmount == _this.budgetedAmount)&&(identical(other.currentHours, _this.currentHours) || other.currentHours == _this.currentHours)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.color, _this.color) || other.color == _this.color)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tagIds, _this.tagIds)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,clientId,number,name,taskRate,dueDate,privateNotes,publicNotes,budgetedHours,budgetedAmount,currentHours,customValue1,customValue2,customValue3,customValue4,color,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tagIds),isDirty]);
+int get hashCode {
+  final _this = this as Project;
+  return Object.hashAll([runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.clientId,_this.number,_this.name,_this.taskRate,_this.dueDate,_this.privateNotes,_this.publicNotes,_this.budgetedHours,_this.budgetedAmount,_this.currentHours,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.color,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDeleted,const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tagIds),_this.isDirty]);
+}
 
 @override
 String toString() {
-  return 'Project(id: $id, userId: $userId, assignedUserId: $assignedUserId, clientId: $clientId, number: $number, name: $name, taskRate: $taskRate, dueDate: $dueDate, privateNotes: $privateNotes, publicNotes: $publicNotes, budgetedHours: $budgetedHours, budgetedAmount: $budgetedAmount, currentHours: $currentHours, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, color: $color, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
+  final _this = this as Project;
+  return 'Project(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, clientId: ${_this.clientId}, number: ${_this.number}, name: ${_this.name}, taskRate: ${_this.taskRate}, dueDate: ${_this.dueDate}, privateNotes: ${_this.privateNotes}, publicNotes: ${_this.publicNotes}, budgetedHours: ${_this.budgetedHours}, budgetedAmount: ${_this.budgetedAmount}, currentHours: ${_this.currentHours}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, color: ${_this.color}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, documents: ${_this.documents}, tagIds: ${_this.tagIds}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -67,7 +72,7 @@ class _$ProjectCopyWithImpl<$Res>
 /// Create a copy of Project
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? clientId = null,Object? number = null,Object? name = null,Object? taskRate = null,Object? dueDate = freezed,Object? privateNotes = null,Object? publicNotes = null,Object? budgetedHours = null,Object? budgetedAmount = null,Object? currentHours = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? color = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(Project(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -234,7 +239,7 @@ return $default(_that.id,_that.userId,_that.assignedUserId,_that.clientId,_that.
 
 
 class _Project implements Project {
-  const _Project({required this.id, required this.userId, required this.assignedUserId, required this.clientId, required this.number, required this.name, required this.taskRate, required this.dueDate, required this.privateNotes, required this.publicNotes, required this.budgetedHours, required this.budgetedAmount, required this.currentHours, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.color, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, final  List<Document> documents = const <Document>[], final  List<String> tagIds = const <String>[], this.isDirty = false}): _documents = documents,_tagIds = tagIds;
+  const _Project({required this.id, required this.userId, required this.assignedUserId, required this.clientId, required this.number, required this.name, required this.taskRate, required this.dueDate, required this.privateNotes, required this.publicNotes, required this.budgetedHours, required this.budgetedAmount, required this.currentHours, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.color, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted,  List<Document> documents = const <Document>[],  List<String> tagIds = const <String>[], this.isDirty = false}): _documents = documents,_tagIds = tagIds;
   
 
 @override final  String id;
@@ -269,9 +274,7 @@ class _Project implements Project {
   return EqualUnmodifiableListView(_documents);
 }
 
-// Attached tag ids (hashed); names/colors resolved from the tag cache.
  final  List<String> _tagIds;
-// Attached tag ids (hashed); names/colors resolved from the tag cache.
 @override@JsonKey() List<String> get tagIds {
   if (_tagIds is EqualUnmodifiableListView) return _tagIds;
   // ignore: implicit_dynamic_type
@@ -290,16 +293,18 @@ _$ProjectCopyWith<_Project> get copyWith => __$ProjectCopyWithImpl<_Project>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Project&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.number, number) || other.number == number)&&(identical(other.name, name) || other.name == name)&&(identical(other.taskRate, taskRate) || other.taskRate == taskRate)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.budgetedHours, budgetedHours) || other.budgetedHours == budgetedHours)&&(identical(other.budgetedAmount, budgetedAmount) || other.budgetedAmount == budgetedAmount)&&(identical(other.currentHours, currentHours) || other.currentHours == currentHours)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.color, color) || other.color == color)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Project&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.number, number) || other.number == number)&&(identical(other.name, name) || other.name == name)&&(identical(other.taskRate, taskRate) || other.taskRate == taskRate)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.budgetedHours, budgetedHours) || other.budgetedHours == budgetedHours)&&(identical(other.budgetedAmount, budgetedAmount) || other.budgetedAmount == budgetedAmount)&&(identical(other.currentHours, currentHours) || other.currentHours == currentHours)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.color, color) || other.color == color)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,assignedUserId,clientId,number,name,taskRate,dueDate,privateNotes,publicNotes,budgetedHours,budgetedAmount,currentHours,customValue1,customValue2,customValue3,customValue4,color,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),isDirty]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,userId,assignedUserId,clientId,number,name,taskRate,dueDate,privateNotes,publicNotes,budgetedHours,budgetedAmount,currentHours,customValue1,customValue2,customValue3,customValue4,color,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),isDirty]);
+}
 
 @override
 String toString() {
-  return 'Project(id: $id, userId: $userId, assignedUserId: $assignedUserId, clientId: $clientId, number: $number, name: $name, taskRate: $taskRate, dueDate: $dueDate, privateNotes: $privateNotes, publicNotes: $publicNotes, budgetedHours: $budgetedHours, budgetedAmount: $budgetedAmount, currentHours: $currentHours, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, color: $color, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
+    return 'Project(id: $id, userId: $userId, assignedUserId: $assignedUserId, clientId: $clientId, number: $number, name: $name, taskRate: $taskRate, dueDate: $dueDate, privateNotes: $privateNotes, publicNotes: $publicNotes, budgetedHours: $budgetedHours, budgetedAmount: $budgetedAmount, currentHours: $currentHours, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, color: $color, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
 }
 
 

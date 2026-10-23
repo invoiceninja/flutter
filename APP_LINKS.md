@@ -290,7 +290,7 @@ test from Messages or Notes.
 | Link building, parsing, the claimed host | this | `lib/app/entity_links.dart` |
 | Android claim (on `DeepLinkReceiverActivity`) + Flutter's own deep linking off (on MainActivity) | this | `android/app/src/main/AndroidManifest.xml` |
 | Apple claim | this | `ios/Runner/Runner.entitlements`, `macos/Runner/Release.entitlements` |
-| Cold-start / macOS shims for `app_links` | this | `ios/Runner/SceneDelegate.swift`, `macos/Runner/AppDelegate.swift` |
+| macOS universal-link shim for `app_links` | this | `macos/Runner/AppDelegate.swift` |
 | Wiring guard | this | `test/lint/universal_links_test.dart` |
 | `.well-known` documents + bridge page | backend | `app/Http/Controllers/AppLinksController.php` |
 | App route → web route translation | backend | `app/Utils/AppLinkPath.php` |

@@ -62,4 +62,6 @@ class StoreBilling {
   Future<void> restorePurchases() async {}
 
   Future<void> completePurchase(StorePurchase purchase) async {}
+
+  Future<bool> showManageSubscriptions() async => false;
 }

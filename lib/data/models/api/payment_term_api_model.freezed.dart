@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment_term_api_model.dart';
@@ -9,6 +9,7 @@ part of 'payment_term_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $PaymentTermApiCopyWith<PaymentTermApi> get copyWith => _$PaymentTermApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as PaymentTermApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.numDays, _this.numDays) || other.numDays == _this.numDays)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,numDays,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+  final _this = this as PaymentTermApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.numDays,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentTermApi(id: $id, name: $name, numDays: $numDays, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as PaymentTermApi;
+  return 'PaymentTermApi(id: ${_this.id}, name: ${_this.name}, numDays: ${_this.numDays}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -66,7 +72,7 @@ class _$PaymentTermApiCopyWithImpl<$Res>
 /// Create a copy of PaymentTermApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? numDays = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentTermApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,numDays: null == numDays ? _self.numDays : numDays // ignore: cast_nullable_to_non_nullable
@@ -239,16 +245,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.numDays, numDays) || other.numDays == numDays)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,numDays,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,numDays,createdAt,updatedAt,archivedAt,isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentTermApi(id: $id, name: $name, numDays: $numDays, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'PaymentTermApi(id: $id, name: $name, numDays: $numDays, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -309,16 +317,21 @@ $PaymentTermListApiCopyWith<PaymentTermListApi> get copyWith => _$PaymentTermLis
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as PaymentTermListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as PaymentTermListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'PaymentTermListApi(data: $data)';
+  final _this = this as PaymentTermListApi;
+  return 'PaymentTermListApi(data: ${_this.data})';
 }
 
 
@@ -347,7 +360,7 @@ class _$PaymentTermListApiCopyWithImpl<$Res>
 /// Create a copy of PaymentTermListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentTermListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<PaymentTermApi>,
   ));
@@ -490,7 +503,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _PaymentTermListApi implements PaymentTermListApi {
-  const _PaymentTermListApi({@JsonKey(fromJson: _paymentTermListData) final  List<PaymentTermApi> data = const []}): _data = data;
+  const _PaymentTermListApi({@JsonKey(fromJson: _paymentTermListData)  List<PaymentTermApi> data = const []}): _data = data;
   factory _PaymentTermListApi.fromJson(Map<String, dynamic> json) => _$PaymentTermListApiFromJson(json);
 
  final  List<PaymentTermApi> _data;
@@ -514,16 +527,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'PaymentTermListApi(data: $data)';
+    return 'PaymentTermListApi(data: $data)';
 }
 
 
@@ -578,16 +593,21 @@ $PaymentTermItemApiCopyWith<PaymentTermItemApi> get copyWith => _$PaymentTermIte
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as PaymentTermItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentTermItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as PaymentTermItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'PaymentTermItemApi(data: $data)';
+  final _this = this as PaymentTermItemApi;
+  return 'PaymentTermItemApi(data: ${_this.data})';
 }
 
 
@@ -616,7 +636,7 @@ class _$PaymentTermItemApiCopyWithImpl<$Res>
 /// Create a copy of PaymentTermItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentTermItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as PaymentTermApi,
   ));
@@ -786,16 +806,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentTermItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'PaymentTermItemApi(data: $data)';
+    return 'PaymentTermItemApi(data: $data)';
 }
 
 

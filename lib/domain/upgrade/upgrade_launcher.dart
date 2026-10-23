@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -74,12 +75,28 @@ Future<void> _openPortalOrPlanScreen(BuildContext context, String url) async {
   context.go('/settings/account_management');
 }
 
-Future<void> _openStoreSubscriptions() async {
-  final uri = defaultTargetPlatform == TargetPlatform.android
-      ? Uri.parse('https://play.google.com/store/account/subscriptions')
-      // Apple's own subscription management page — not payment steering.
-      : Uri.parse('https://apps.apple.com/account/subscriptions');
-  await launchExternalUri(uri);
+Future<void> _openStoreSubscriptions() => openStoreSubscriptions(
+  platform: defaultTargetPlatform,
+  showAppleSheet: () => StoreBilling().showManageSubscriptions(),
+  launch: launchExternalUri,
+);
+
+/// The store's own subscription management, for an IAP-billed plan. On iOS
+/// that is Apple's sheet over the app (StoreKit 2), so the user never leaves
+/// it; when the sheet can't be shown, and on Android, it is the store's
+/// subscriptions page. Neither is payment steering.
+@visibleForTesting
+Future<void> openStoreSubscriptions({
+  required TargetPlatform platform,
+  required Future<bool> Function() showAppleSheet,
+  required Future<bool> Function(Uri) launch,
+}) async {
+  if (platform == TargetPlatform.iOS && await showAppleSheet()) return;
+  await launch(
+    platform == TargetPlatform.android
+        ? Uri.parse('https://play.google.com/store/account/subscriptions')
+        : Uri.parse('https://apps.apple.com/account/subscriptions'),
+  );
 }
 
 /// Bottom sheet listing the store products. Owns a [PurchaseService] for its

@@ -63,6 +63,9 @@ claude-diagnostics.log.*
 *.db-shm
 *.db-wal
 *.db.broken.*
+# The one exception: an encrypted store an OLDER cipher build wrote, kept on
+# purpose (test/data/db/encrypted_fixture_compat_test.dart).
+!test/fixtures/db/*.db
 
 key.properties
 key.jks

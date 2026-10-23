@@ -155,40 +155,41 @@ The unsigned `.msix` is submitted to the existing `InvoiceNinja.AdminPortal` Mic
 
 ## Dependency updates
 
-Routine bump: raise the `^` floors in `pubspec.yaml`, run `flutter pub upgrade`, regenerate codegen (`dart run build_runner build --delete-conflicting-outputs`), and — only if `drift` or `sqlite3` moved — the vendored web assets (§ Web setup notes). Gate the result with `flutter analyze` + `flutter test` + `flutter build web --wasm`. If `sqlite3` moved, also re-pin the `SQLITE3MC_*` URL and hashes in `tools/prepare_foss.sh` to the sqlite3mc release the new version ships prebuilt (`docs/fdroid.md` § Bumping sqlite3mc). The store SDKs (`google_sign_in`, `in_app_purchase*`, `sentry_flutter`) are bumped in `packages/store_services/pubspec.yaml`, not here. Any change to `pubspec.lock`, store-SDK bumps included, may move the F-Droid build's lock: run `tools/prepare_foss.sh --update-lock` and commit any change it makes to `tools/foss/pubspec.lock`. `test/lint/store_sdk_boundary_test.dart` fails while that lock is stale (`docs/fdroid.md` § F-Droid resolves a committed FOSS lock).
+Routine bump: raise the `^` floors in `pubspec.yaml`, run `flutter pub upgrade`, regenerate codegen (`dart run build_runner build --delete-conflicting-outputs`), and — only if `drift` or `sqlite3` moved — the vendored web assets (§ Web setup notes). Gate the result with `flutter analyze` + `flutter test` + `flutter build web --wasm`. If `sqlite3` moved, also re-pin the `SQLITE3MC_*` URL and hashes in `tools/prepare_foss.sh` to the sqlite3mc release the new version ships prebuilt (`docs/fdroid.md` § Bumping sqlite3mc), and confirm `test/data/db/encrypted_fixture_compat_test.dart` still opens its fixture — a store an older cipher build wrote. **Never regenerate that fixture as part of a bump**: it would then test the new build against itself. If `printing` moved, re-vendor pdf.js (§ Web setup notes); `test/lint/vendored_pdfjs_version_test.dart` fails until you do. The store SDKs (`google_sign_in`, `in_app_purchase*`, `sentry_flutter`) are bumped in `packages/store_services/pubspec.yaml`, not here. Any change to `pubspec.lock`, store-SDK bumps included, may move the F-Droid build's lock: run `tools/prepare_foss.sh --update-lock` and commit any change it makes to `tools/foss/pubspec.lock`. `test/lint/store_sdk_boundary_test.dart` fails while that lock is stale (`docs/fdroid.md` § F-Droid resolves a committed FOSS lock).
 
-**Why `flutter pub outdated` still shows a stale tail.** It has two parts now. Verified 2026-10-18 on Flutter 3.47.7 / Dart 3.13.5.
+**Why `flutter pub outdated` still shows a stale tail.** Verified 2026-10-23 on Flutter 3.47.7 / Dart 3.13.5, after the bump that took every major the graph allowed (freezed 4, drift 2.35 + sqlite3 3.7, file_picker 13, flutter_secure_storage 11, app_links 7, printing 5.15). What is left is held on purpose, or capped by something we don't control.
 
-*Resolvable, not yet taken.* The Flutter 3.47 bump changed only what the SDK forced (`meta`, `vector_math`, `intl`, `matcher`, `test`, `test_api`, `test_core`). 3.47 also relaxed most of the SDK's exact pins, and `freezed` 4 needs Dart ≥ 3.13, so `flutter pub upgrade --major-versions --dry-run` now **would change 126 dependencies**. Before the bump it changed none. These are majors to take in their own change:
+*Held on purpose* — each would resolve, and each costs something:
 
-| Would move | Notes |
+| Held | Why |
 |---|---|
-| `freezed` 3.2.5 → 4.0.1, with `analyzer` 10 → 13, `_fe_analyzer_shared`, `dart_style`, `mockito` 5.8, `build_runner` 2.16.1, `json_serializable` | `freezed` 4 regenerates every `.freezed.dart` |
-| `drift` / `drift_dev` 2.33 → 2.35 | `drift_dev` 2.35 needs analyzer ≥ 13; re-vendor the web assets (§ Web setup notes) |
-| `printing` 5.15 / `pdf` 3.13 → `xml` 7.1, `image` 4.12 | `xml` 7.1 itself needs Dart 3.13 |
-| `flutter_secure_storage` 11, `app_links` 7, `file_picker` 13.1 | majors; `app_links` 7 retires the iOS half of upstream-workarounds § 11 |
+| `go_router` 18, `google_fonts` 9 (kept at 17.5.0 / 8.2.1) | Both move onto the standalone `material_ui` / `cupertino_ui` packages, a second copy of Material. go_router 18's `isMaterialApp` looks for **`material_ui`'s** `MaterialApp` (`lib/src/pages/material.dart`), which our SDK `MaterialApp.router` is not, so every `builder:` route silently falls back to a `NoTransitionPage` — no page transitions, no iOS swipe-back, no compile error. Take them together with a `dart fix --code=migrate_design_widgets` migration of the whole app. |
+| `sentry_flutter` 10 (kept at 9.30.1, `packages/store_services`) | Raises Android `minSdk` to 26 for every build, F-Droid's included, and switches the Linux / Windows native backend from crashpad to Breakpad, which breaks the AppImage job's `crashpad_handler` check. 9.30.1 also keeps `jni` at 0.14.2, which in turn holds `path_provider_android` at 2.2.x (2.3 needs `jni` 1.x). |
+| `connectivity_plus` 7.3.2 (kept at 7.3.1) | Needs `nm` 0.6 → `dbus` ^0.8, while `desktop_drop` 0.8.1+ needs `dbus` ^0.7.10. desktop_drop 0.8.4 wins: 0.8.0 requires **AGP 9** (we are on 8.11.1) and 0.8.2 restored AGP 8; connectivity 7.3.2 adds only an iOS multi-engine fix. Recheck when desktop_drop or nm moves. |
 
-*Capped even by the major solve* — by an already-latest upstream, the SDK, or our own path packages:
+*Capped* — by an already-latest upstream, the SDK, or our own pins:
 
 | Stuck package(s) | Capped by |
 |---|---|
-| `analyzer` 14, `_fe_analyzer_shared`, `build` 5, `build_runner` 2.17, `source_gen` 4.3 | `test` 1.31.1 → `analyzer <14` (`test` is in the graph only because `super_editor`'s `attributed_text` lists it as a regular dependency) |
+| `freezed` 4.0.2+, `build_runner` 2.17, `analyzer` 14, `_fe_analyzer_shared`, `build` 5, `source_gen` 4.3 | `test` 1.31.1 → `analyzer <14` (`test` is in the graph only because `super_editor`'s `attributed_text` lists it as a regular dependency). freezed 4.0.1 is the last on analyzer 13. |
 | `test`, `test_api`, `test_core`, `material_color_utilities` | Flutter SDK exact pins (`flutter_test` → `test_api 0.7.12`; `material_color_utilities 0.13.0`) |
+| `desktop_drop` 0.9, `cross_file` 0.4 | desktop_drop 0.9 needs `cross_file` ^0.4, and `file_picker` 13.1, `share_plus` 13.3 and their platform interfaces still require <0.4. 0.9 is a rewrite of the API `lib/ui/core/widgets/file_drop_zone.dart` uses (`onDrop(DropDetails)`, typed `DropFileItem`s with a nullable `localPath`), and a dropped file lives only for the `onDrop` call — it must be copied into app storage there, because the outbox streams an upload later. In return: drops on iPad and Android. |
 | `cli_util` | `flutter_launcher_icons` 0.14.4 → `cli_util ^0.4.1` |
 | `qr` | `qr_flutter 4.1.0` + `barcode` → `qr ^3` |
-| `sentry` / `sentry_flutter` 10, `jni`, `path_provider_android` | `packages/store_services/pubspec.yaml`'s `^9` (the major solve rewrites only the root pubspec); `sentry_flutter` 9 pins `jni 0.14.2` |
-| `cross_file` 0.4, `desktop_drop` 0.9, `equatable` 3, `package_config` 3, `build_config` 1.4, `coverage` 1.16 | their parents (`share_plus` / `file_selector` / `image_picker`, `fl_chart`, `build_runner`, `test`) |
+| `isolate_manager` (overridden) | `re_editor` 0.10.0 still asks for ^4 (`docs/upstream-workarounds.md`) |
 | `dart_quill_delta`, `flutter_test_robots`, `flutter_test_runners` | the `super_editor` git pin in `pubspec.yaml` |
+| `equatable` 3, `package_config` 3, `build_config` 1.4, `coverage` 1.16 | their parents (`build_runner`, `test`) |
 
-Don't force the capped ones with `dependency_overrides` — `analyzer ≥14` breaks `test`, and the SDK pins break the framework. Re-run `flutter pub upgrade --major-versions --dry-run` after any future `freezed` / `pdf` / `qr_flutter` / Flutter bump to see what has since opened up.
+Don't force the capped ones with `dependency_overrides` — `analyzer ≥14` breaks `test`, and the SDK pins break the framework. Re-run `flutter pub upgrade --major-versions --dry-run` after any future `super_editor` / `qr_flutter` / Flutter bump to see what has since opened up. **Check a resolver's pick before taking it** — `flutter pub upgrade --major-versions` chose desktop_drop 0.8.0, the one version of the line that requires AGP 9.
 
 ## Web setup notes
 
 See CLAUDE.md § Web for the runtime model (unencrypted IndexedDB via drift WASM, localStorage tokens, hash URLs, OAuth/biometric disabled, the `Idempotency-Key` CORS backend dependency in `BACKEND.md`). Operational notes for this repo:
 
 - **Vendored assets** live in `web/` and are committed: `web/sqlite3.wasm` and `web/drift_worker.js`. They are **not** generated by `flutter build web` — regenerate them by hand whenever `drift` or `sqlite3` is bumped in `pubspec.lock`:
-  - `web/sqlite3.wasm`: download the `sqlite3.wasm` asset for the **resolved `sqlite3` Dart package version** from <https://github.com/simolus3/sqlite3.dart/releases> (tag `sqlite3-<version>`). Use the plain build, not `sqlite3mc` — web is unencrypted. Current: matched to `sqlite3` 3.3.2.
+  - `web/sqlite3.wasm`: download the `sqlite3.wasm` asset for the **resolved `sqlite3` Dart package version** from <https://github.com/simolus3/sqlite3.dart/releases> (tag `sqlite3-<version>`). Use the plain build, not `sqlite3mc` — web is unencrypted. Current: matched to `sqlite3` 3.7.1.
   - `web/drift_worker.js`: `dart compile js -O4 -o web/drift_worker.js web/drift_worker.dart` (the `.dart` source is committed; the `.js` output is what's served). Delete the stray `.js.deps`/`.js.map` afterward.
+- **`web/pdfjs/`** holds pdf.js for the web PDF preview, served from our own origin rather than unpkg (`window.dartPdfJsBaseUrl` in `web/index.html`, read by `printing`'s web plugin). It must be the exact version `printing` pins (`_pdfJsVersion` in `printing_web.dart`; 6.2.108 for printing 5.15.1): on a `printing` bump, download `build/pdf.min.mjs`, `build/pdf.worker.min.mjs` and `LICENSE` from `pdfjs-dist@<version>` into it and update `web/pdfjs/VERSION`. `test/lint/vendored_pdfjs_version_test.dart` enforces the match.
 - **Serving**: any static host. The host must serve `.wasm` as `Content-Type: application/wasm`. Hash routing means no rewrite-to-index config is required.
 - **Run / build**: `flutter run -d chrome`, `flutter build web --release`. `flutter build web` is the authoritative web compile gate (catches platform-API regressions; `flutter analyze` runs against the VM target and won't). CI builds with `--wasm`, so it also gates WebAssembly compatibility (dart2wasm rejects `dart:html`).
 
@@ -209,7 +210,7 @@ The sandboxed macOS build needs four entitlements (see `macos/Runner/{DebugProfi
 - `com.apple.security.app-sandbox` — on by default.
 - `com.apple.security.network.client` — outbound HTTP. Added in M1.1.
 - `keychain-access-groups` — required by `flutter_secure_storage`. Value: `$(AppIdentifierPrefix)com.invoiceninja.admin`. Without it, the first `auth.login` throws `PlatformException -34018 (errSecMissingEntitlement)`.
-- `com.apple.security.files.user-selected.read-write` — required by `image_picker` + `file_picker` (Company Details: Logo, Documents tabs). Without it the sandbox blocks the open panels and the plugins log `NSCocoaErrorDomain` errors.
+- `com.apple.security.files.user-selected.read-write` — required by `file_picker` (Company Details: Logo, Documents tabs). Without it the sandbox blocks the open panels and the plugins log `NSCocoaErrorDomain` errors.
 
 Any new package that touches Keychain (OAuth, biometric login, etc.) is already covered by the keychain entitlement — don't add another. If we ever change the bundle id from `com.invoiceninja.admin`, update the `keychain-access-groups` entries to match.
 
@@ -268,15 +269,17 @@ Web, macOS, Windows and Linux have no Google sign-in (admin-portal had none ther
 
 **Why new IDs are needed.** An OAuth client is bound to one bundle / package id. admin-portal's clients (Cloud project `640903115046`) are for `com.invoiceninja.app`; this app is `com.invoiceninja.admin`, so reusing them fails with `DEVELOPER_ERROR` (Android) or a bundle mismatch (iOS).
 
-**One-time Google Cloud setup** (Cloud Console → APIs & Services → Credentials, in project `640903115046` so the existing consent screen and Web client are shared):
+**Status (2026-10-23): no client exists for `com.invoiceninja.admin` yet, so every shipped build has the Google button hidden** — that is safe to ship (nothing Google-related runs without an ID). The steps below switch it on.
 
-1. **iOS client** — Create credentials → OAuth client ID → *iOS*, bundle id `com.invoiceninja.admin`. Note the client ID (`<n>-<hash>.apps.googleusercontent.com`) and the *iOS URL scheme* it shows (`com.googleusercontent.apps.<n>-<hash>`).
-2. **Android client** — Create credentials → OAuth client ID → *Android*, package `com.invoiceninja.admin`, and the SHA-1 of the **Play app-signing** key (Play Console → Setup → App integrity), plus one for the upload / debug key if you test local builds. Nothing from this client is passed to the app — it only has to exist in the same project as the Web client.
+**One-time Google Cloud setup** (Cloud Console → APIs & Services → Credentials, in project number `640903115046` — pick it in the console's project picker — so the existing consent screen and Web client are shared):
+
+1. **iOS client** — **+ Create credentials → OAuth client ID** → Application type *iOS*. Name `Invoice Ninja admin (iOS)`, Bundle ID `com.invoiceninja.admin`, Team ID `NPC44Y2C98` (the Xcode project's `DEVELOPMENT_TEAM`); App Store ID can stay blank and be added later. **Create**, then note the client ID (`<n>-<hash>.apps.googleusercontent.com`) and the *iOS URL scheme* it shows (`com.googleusercontent.apps.<n>-<hash>` — the ID reversed).
+2. **Android client** — Create credentials → OAuth client ID → *Android*, package `com.invoiceninja.admin`, and the SHA-1 of the **Play app-signing** key (Play Console → Setup → App integrity → App signing key certificate), plus one for the upload / debug key if you test local release builds. Nothing from this client is passed to the app — it only has to exist in the same project as the Web client; without it Android sign-in fails with `DEVELOPER_ERROR`.
 3. **Web client** — reuse the existing one (`640903115046-37ltu6s2j07gcqkssmf5feofj4isnsju.apps.googleusercontent.com`, admin-portal's `serverClientId`) or create a new *Web application* client. That ID is `IN_GOOGLE_SERVER_CLIENT_ID`.
 
 **Wiring the values:**
 
-- `ios/Runner/Info.plist` — add a second `CFBundleURLTypes` entry whose `CFBundleURLSchemes` holds the iOS URL scheme from step 1 (next to the existing `invoiceninja` one). The Google SDK throws before showing the chooser without it. It is public and safe to commit (admin-portal committed its own). **Until it is committed, `appstore-ios.yml` adds it on the runner** — when `IN_GOOGLE_IOS_CLIENT_ID` is set it checks the `.apps.googleusercontent.com` suffix, reverses the ID into `com.googleusercontent.apps.<prefix>` and adds that entry with `PlistBuddy` (a no-op if the scheme is already there), and a guard step then fails the job if the secret is set and the scheme is absent. Committing it is still the preferred fix: a local **Product → Archive** has no such step, so it ships a Google button that crashes on tap.
+- `ios/Runner/Info.plist` — add a second `CFBundleURLTypes` entry whose `CFBundleURLSchemes` holds the iOS URL scheme from step 1 (next to the existing `invoiceninja` one). It is public and safe to commit (admin-portal committed its own). Since google_sign_in_ios 6.3.7 an ID without this scheme is a **native crash on the first tap**, not an error, so two guards keep a build from shipping that pair: `appstore-ios.yml` adds the scheme on the runner when `IN_GOOGLE_IOS_CLIENT_ID` is set (checking the `.apps.googleusercontent.com` suffix, reversing the ID into `com.googleusercontent.apps.<prefix>`, adding it with `PlistBuddy`, a no-op if it is already there) and fails the job if it is still absent; and the `tools/xcode_inject_sentry_dsn.sh` pre-action leaves the ID **out** of any Release build (a local **Product → Archive** included) whose `Info.plist` lacks the scheme, with an Xcode `warning:` — the button is hidden instead. Committing the scheme is still the fix: until then a local archive has no Google sign-in. A Debug `flutter run --dart-define-from-file=dev.json` skips the pre-action, so there the missing scheme still crashes on tap.
 - CI — add the repo secrets `IN_GOOGLE_SERVER_CLIENT_ID` (read by `playstore.yml`) and `IN_GOOGLE_IOS_CLIENT_ID` (read by `appstore-ios.yml`).
 - Local release builds — put both keys in `dev.json`; `tools/build_release.sh` resolves them env → `dev.json` → empty, like the Sentry DSN, and an Xcode **Product → Archive** picks up `IN_GOOGLE_IOS_CLIENT_ID` through the same `tools/xcode_inject_sentry_dsn.sh` pre-action.
 - Debug runs — `flutter run --dart-define-from-file=dev.json` passes them too.

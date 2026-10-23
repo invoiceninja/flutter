@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'schedule_item.dart';
@@ -9,6 +9,7 @@ part of 'schedule_item.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $ScheduleItemCopyWith<ScheduleItem> get copyWith => _$ScheduleItemCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleItem&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill));
+  final _this = this as ScheduleItem;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleItem&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.autoBill, _this.autoBill) || other.autoBill == _this.autoBill));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,date,amount,autoBill);
+int get hashCode {
+  final _this = this as ScheduleItem;
+  return Object.hash(runtimeType,_this.date,_this.amount,_this.autoBill);
+}
 
 @override
 String toString() {
-  return 'ScheduleItem(date: $date, amount: $amount, autoBill: $autoBill)';
+  final _this = this as ScheduleItem;
+  return 'ScheduleItem(date: ${_this.date}, amount: ${_this.amount}, autoBill: ${_this.autoBill})';
 }
 
 
@@ -63,7 +69,7 @@ class _$ScheduleItemCopyWithImpl<$Res>
 /// Create a copy of ScheduleItem
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? date = null,Object? amount = null,Object? autoBill = null,}) {
-  return _then(_self.copyWith(
+  return _then(ScheduleItem(
 date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as String,autoBill: null == autoBill ? _self.autoBill : autoBill // ignore: cast_nullable_to_non_nullable
@@ -225,16 +231,18 @@ _$ScheduleItemCopyWith<_ScheduleItem> get copyWith => __$ScheduleItemCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleItem&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleItem&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.autoBill, autoBill) || other.autoBill == autoBill));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,date,amount,autoBill);
+int get hashCode {
+    return Object.hash(runtimeType,date,amount,autoBill);
+}
 
 @override
 String toString() {
-  return 'ScheduleItem(date: $date, amount: $amount, autoBill: $autoBill)';
+    return 'ScheduleItem(date: $date, amount: $amount, autoBill: $autoBill)';
 }
 
 

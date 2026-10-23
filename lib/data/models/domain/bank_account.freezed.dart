@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'bank_account.dart';
@@ -9,6 +9,7 @@ part of 'bank_account.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $BankAccountCopyWith<BankAccount> get copyWith => _$BankAccountCopyWithImpl<Bank
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccount&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.status, status) || other.status == status)&&(identical(other.type, type) || other.type == type)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as BankAccount;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccount&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.provider, _this.provider) || other.provider == _this.provider)&&(identical(other.balance, _this.balance) || other.balance == _this.balance)&&(identical(other.currency, _this.currency) || other.currency == _this.currency)&&(identical(other.fromDate, _this.fromDate) || other.fromDate == _this.fromDate)&&(identical(other.autoSync, _this.autoSync) || other.autoSync == _this.autoSync)&&(identical(other.disabledUpstream, _this.disabledUpstream) || other.disabledUpstream == _this.disabledUpstream)&&(identical(other.integrationType, _this.integrationType) || other.integrationType == _this.integrationType)&&(identical(other.nordigenInstitutionId, _this.nordigenInstitutionId) || other.nordigenInstitutionId == _this.nordigenInstitutionId)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,status,type,provider,balance,currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+  final _this = this as BankAccount;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.status,_this.type,_this.provider,_this.balance,_this.currency,_this.fromDate,_this.autoSync,_this.disabledUpstream,_this.integrationType,_this.nordigenInstitutionId,_this.isDeleted,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'BankAccount(id: $id, name: $name, status: $status, type: $type, provider: $provider, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+  final _this = this as BankAccount;
+  return 'BankAccount(id: ${_this.id}, name: ${_this.name}, status: ${_this.status}, type: ${_this.type}, provider: ${_this.provider}, balance: ${_this.balance}, currency: ${_this.currency}, fromDate: ${_this.fromDate}, autoSync: ${_this.autoSync}, disabledUpstream: ${_this.disabledUpstream}, integrationType: ${_this.integrationType}, nordigenInstitutionId: ${_this.nordigenInstitutionId}, isDeleted: ${_this.isDeleted}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$BankAccountCopyWithImpl<$Res>
 /// Create a copy of BankAccount
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? status = null,Object? type = null,Object? provider = null,Object? balance = null,Object? currency = null,Object? fromDate = freezed,Object? autoSync = null,Object? disabledUpstream = null,Object? integrationType = null,Object? nordigenInstitutionId = null,Object? isDeleted = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankAccount(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -253,16 +259,18 @@ _$BankAccountCopyWith<_BankAccount> get copyWith => __$BankAccountCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccount&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.status, status) || other.status == status)&&(identical(other.type, type) || other.type == type)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccount&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.status, status) || other.status == status)&&(identical(other.type, type) || other.type == type)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,status,type,provider,balance,currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,status,type,provider,balance,currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+}
 
 @override
 String toString() {
-  return 'BankAccount(id: $id, name: $name, status: $status, type: $type, provider: $provider, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+    return 'BankAccount(id: $id, name: $name, status: $status, type: $type, provider: $provider, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
 }
 
 

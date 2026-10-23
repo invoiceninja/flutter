@@ -15,6 +15,8 @@ import 'package:admin/domain/reports/report_measures.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/charts/chart_chrome.dart';
 import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
@@ -841,6 +843,59 @@ class _ChartBody extends StatelessWidget {
   String _fullDouble(BuildContext context, double value) =>
       _full(context, Decimal.parse(value.toStringAsFixed(2)));
 
+  /// A right-click on a period: what a click does (show its rows), and its
+  /// figure to copy — each item says which period and which figure.
+  Future<void> _showPointMenu(
+    BuildContext context,
+    ReportChartPoint point,
+    String label,
+    Offset position,
+  ) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final tokens = context.inTheme;
+    final value = _full(context, point.value);
+    Widget item(String action, String detail) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(action),
+        const SizedBox(width: 16),
+        LtrText(detail, style: TextStyle(color: tokens.ink3)),
+      ],
+    );
+    final action = await showMenu<_PointAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(position, position),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        // A period the fill invented has no rows to show.
+        if (point.hasRows)
+          PopupMenuItem(
+            key: const Key('report-chart-menu-view'),
+            value: _PointAction.view,
+            child: item(context.tr('view'), label),
+          ),
+        PopupMenuItem(
+          key: const Key('report-chart-menu-copy'),
+          value: _PointAction.copy,
+          child: item(context.tr('copy'), value),
+        ),
+      ],
+    );
+    if (!context.mounted) return;
+    switch (action) {
+      case _PointAction.view:
+        vm.setSelectedGroup(point.key);
+      case _PointAction.copy:
+        await copyToClipboard(context, value);
+      case null:
+        break;
+    }
+  }
+
   /// A value as an axis label: short enough to sit in the margin.
   String _axis(double value) {
     final column = measure.column;
@@ -893,16 +948,17 @@ class _ChartBody extends StatelessWidget {
         '${measure.label} — ${_groupingText(context, vm, groupColumn)}';
     switch (model) {
       case ReportTimeSeriesChart():
+        final labels = [
+          for (final p in model.points)
+            reportGroupDisplayLabel(
+              key: p.key,
+              columnType: groupColumn?.type,
+              subgroup: vm.subgroup,
+              formatter: formatter,
+            ),
+        ];
         final plot = ReportSeriesPlot(
-          labels: [
-            for (final p in model.points)
-              reportGroupDisplayLabel(
-                key: p.key,
-                columnType: groupColumn?.type,
-                subgroup: vm.subgroup,
-                formatter: formatter,
-              ),
-          ],
+          labels: labels,
           axisLabels: reportGroupAxisLabels(
             keys: [for (final p in model.points) p.key],
             subgroup: vm.subgroup,
@@ -934,6 +990,8 @@ class _ChartBody extends StatelessWidget {
             // A period the fill invented has no rows to show.
             if (point.hasRows) vm.setSelectedGroup(point.key);
           },
+          onSecondaryTapIndex: (i, position) =>
+              _showPointMenu(context, model.points[i], labels[i], position),
         );
         if (!model.hasPrevious) return plot;
         // Two series, so a legend — and it is where the earlier period is
@@ -1182,3 +1240,5 @@ class _Suggestions extends StatelessWidget {
     );
   }
 }
+
+enum _PointAction { view, copy }

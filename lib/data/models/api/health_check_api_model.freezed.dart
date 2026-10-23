@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'health_check_api_model.dart';
@@ -9,6 +9,7 @@ part of 'health_check_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $HealthCheckResponseCopyWith<HealthCheckResponse> get copyWith => _$HealthCheckR
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckResponse&&(identical(other.systemHealth, systemHealth) || other.systemHealth == systemHealth)&&(identical(other.dbCheck, dbCheck) || other.dbCheck == dbCheck)&&(identical(other.phpVersion, phpVersion) || other.phpVersion == phpVersion)&&(identical(other.queueData, queueData) || other.queueData == queueData)&&(identical(other.queue, queue) || other.queue == queue)&&(identical(other.emailDriver, emailDriver) || other.emailDriver == emailDriver)&&(identical(other.pdfEngine, pdfEngine) || other.pdfEngine == pdfEngine)&&(identical(other.filePermissions, filePermissions) || other.filePermissions == filePermissions)&&(identical(other.trailingSlash, trailingSlash) || other.trailingSlash == trailingSlash)&&(identical(other.exchangeRateApiNotConfigured, exchangeRateApiNotConfigured) || other.exchangeRateApiNotConfigured == exchangeRateApiNotConfigured)&&(identical(other.pendingMigration, pendingMigration) || other.pendingMigration == pendingMigration)&&(identical(other.cacheEnabled, cacheEnabled) || other.cacheEnabled == cacheEnabled)&&(identical(other.envWritable, envWritable) || other.envWritable == envWritable)&&(identical(other.openBasedir, openBasedir) || other.openBasedir == openBasedir)&&(identical(other.execEnabled, execEnabled) || other.execEnabled == execEnabled)&&(identical(other.phantomEnabled, phantomEnabled) || other.phantomEnabled == phantomEnabled)&&(identical(other.isDocker, isDocker) || other.isDocker == isDocker)&&(identical(other.pendingJobs, pendingJobs) || other.pendingJobs == pendingJobs));
+  final _this = this as HealthCheckResponse;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckResponse&&(identical(other.systemHealth, _this.systemHealth) || other.systemHealth == _this.systemHealth)&&(identical(other.dbCheck, _this.dbCheck) || other.dbCheck == _this.dbCheck)&&(identical(other.phpVersion, _this.phpVersion) || other.phpVersion == _this.phpVersion)&&(identical(other.queueData, _this.queueData) || other.queueData == _this.queueData)&&(identical(other.queue, _this.queue) || other.queue == _this.queue)&&(identical(other.emailDriver, _this.emailDriver) || other.emailDriver == _this.emailDriver)&&(identical(other.pdfEngine, _this.pdfEngine) || other.pdfEngine == _this.pdfEngine)&&(identical(other.filePermissions, _this.filePermissions) || other.filePermissions == _this.filePermissions)&&(identical(other.trailingSlash, _this.trailingSlash) || other.trailingSlash == _this.trailingSlash)&&(identical(other.exchangeRateApiNotConfigured, _this.exchangeRateApiNotConfigured) || other.exchangeRateApiNotConfigured == _this.exchangeRateApiNotConfigured)&&(identical(other.pendingMigration, _this.pendingMigration) || other.pendingMigration == _this.pendingMigration)&&(identical(other.cacheEnabled, _this.cacheEnabled) || other.cacheEnabled == _this.cacheEnabled)&&(identical(other.envWritable, _this.envWritable) || other.envWritable == _this.envWritable)&&(identical(other.openBasedir, _this.openBasedir) || other.openBasedir == _this.openBasedir)&&(identical(other.execEnabled, _this.execEnabled) || other.execEnabled == _this.execEnabled)&&(identical(other.phantomEnabled, _this.phantomEnabled) || other.phantomEnabled == _this.phantomEnabled)&&(identical(other.isDocker, _this.isDocker) || other.isDocker == _this.isDocker)&&(identical(other.pendingJobs, _this.pendingJobs) || other.pendingJobs == _this.pendingJobs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,systemHealth,dbCheck,phpVersion,queueData,queue,emailDriver,pdfEngine,filePermissions,trailingSlash,exchangeRateApiNotConfigured,pendingMigration,cacheEnabled,envWritable,openBasedir,execEnabled,phantomEnabled,isDocker,pendingJobs);
+int get hashCode {
+  final _this = this as HealthCheckResponse;
+  return Object.hash(runtimeType,_this.systemHealth,_this.dbCheck,_this.phpVersion,_this.queueData,_this.queue,_this.emailDriver,_this.pdfEngine,_this.filePermissions,_this.trailingSlash,_this.exchangeRateApiNotConfigured,_this.pendingMigration,_this.cacheEnabled,_this.envWritable,_this.openBasedir,_this.execEnabled,_this.phantomEnabled,_this.isDocker,_this.pendingJobs);
+}
 
 @override
 String toString() {
-  return 'HealthCheckResponse(systemHealth: $systemHealth, dbCheck: $dbCheck, phpVersion: $phpVersion, queueData: $queueData, queue: $queue, emailDriver: $emailDriver, pdfEngine: $pdfEngine, filePermissions: $filePermissions, trailingSlash: $trailingSlash, exchangeRateApiNotConfigured: $exchangeRateApiNotConfigured, pendingMigration: $pendingMigration, cacheEnabled: $cacheEnabled, envWritable: $envWritable, openBasedir: $openBasedir, execEnabled: $execEnabled, phantomEnabled: $phantomEnabled, isDocker: $isDocker, pendingJobs: $pendingJobs)';
+  final _this = this as HealthCheckResponse;
+  return 'HealthCheckResponse(systemHealth: ${_this.systemHealth}, dbCheck: ${_this.dbCheck}, phpVersion: ${_this.phpVersion}, queueData: ${_this.queueData}, queue: ${_this.queue}, emailDriver: ${_this.emailDriver}, pdfEngine: ${_this.pdfEngine}, filePermissions: ${_this.filePermissions}, trailingSlash: ${_this.trailingSlash}, exchangeRateApiNotConfigured: ${_this.exchangeRateApiNotConfigured}, pendingMigration: ${_this.pendingMigration}, cacheEnabled: ${_this.cacheEnabled}, envWritable: ${_this.envWritable}, openBasedir: ${_this.openBasedir}, execEnabled: ${_this.execEnabled}, phantomEnabled: ${_this.phantomEnabled}, isDocker: ${_this.isDocker}, pendingJobs: ${_this.pendingJobs})';
 }
 
 
@@ -66,7 +72,7 @@ class _$HealthCheckResponseCopyWithImpl<$Res>
 /// Create a copy of HealthCheckResponse
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? systemHealth = null,Object? dbCheck = null,Object? phpVersion = null,Object? queueData = null,Object? queue = null,Object? emailDriver = null,Object? pdfEngine = null,Object? filePermissions = null,Object? trailingSlash = null,Object? exchangeRateApiNotConfigured = null,Object? pendingMigration = null,Object? cacheEnabled = null,Object? envWritable = null,Object? openBasedir = null,Object? execEnabled = null,Object? phantomEnabled = null,Object? isDocker = null,Object? pendingJobs = null,}) {
-  return _then(_self.copyWith(
+  return _then(HealthCheckResponse(
 systemHealth: null == systemHealth ? _self.systemHealth : systemHealth // ignore: cast_nullable_to_non_nullable
 as bool,dbCheck: null == dbCheck ? _self.dbCheck : dbCheck // ignore: cast_nullable_to_non_nullable
 as bool,phpVersion: null == phpVersion ? _self.phpVersion : phpVersion // ignore: cast_nullable_to_non_nullable
@@ -279,16 +285,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckResponse&&(identical(other.systemHealth, systemHealth) || other.systemHealth == systemHealth)&&(identical(other.dbCheck, dbCheck) || other.dbCheck == dbCheck)&&(identical(other.phpVersion, phpVersion) || other.phpVersion == phpVersion)&&(identical(other.queueData, queueData) || other.queueData == queueData)&&(identical(other.queue, queue) || other.queue == queue)&&(identical(other.emailDriver, emailDriver) || other.emailDriver == emailDriver)&&(identical(other.pdfEngine, pdfEngine) || other.pdfEngine == pdfEngine)&&(identical(other.filePermissions, filePermissions) || other.filePermissions == filePermissions)&&(identical(other.trailingSlash, trailingSlash) || other.trailingSlash == trailingSlash)&&(identical(other.exchangeRateApiNotConfigured, exchangeRateApiNotConfigured) || other.exchangeRateApiNotConfigured == exchangeRateApiNotConfigured)&&(identical(other.pendingMigration, pendingMigration) || other.pendingMigration == pendingMigration)&&(identical(other.cacheEnabled, cacheEnabled) || other.cacheEnabled == cacheEnabled)&&(identical(other.envWritable, envWritable) || other.envWritable == envWritable)&&(identical(other.openBasedir, openBasedir) || other.openBasedir == openBasedir)&&(identical(other.execEnabled, execEnabled) || other.execEnabled == execEnabled)&&(identical(other.phantomEnabled, phantomEnabled) || other.phantomEnabled == phantomEnabled)&&(identical(other.isDocker, isDocker) || other.isDocker == isDocker)&&(identical(other.pendingJobs, pendingJobs) || other.pendingJobs == pendingJobs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckResponse&&(identical(other.systemHealth, systemHealth) || other.systemHealth == systemHealth)&&(identical(other.dbCheck, dbCheck) || other.dbCheck == dbCheck)&&(identical(other.phpVersion, phpVersion) || other.phpVersion == phpVersion)&&(identical(other.queueData, queueData) || other.queueData == queueData)&&(identical(other.queue, queue) || other.queue == queue)&&(identical(other.emailDriver, emailDriver) || other.emailDriver == emailDriver)&&(identical(other.pdfEngine, pdfEngine) || other.pdfEngine == pdfEngine)&&(identical(other.filePermissions, filePermissions) || other.filePermissions == filePermissions)&&(identical(other.trailingSlash, trailingSlash) || other.trailingSlash == trailingSlash)&&(identical(other.exchangeRateApiNotConfigured, exchangeRateApiNotConfigured) || other.exchangeRateApiNotConfigured == exchangeRateApiNotConfigured)&&(identical(other.pendingMigration, pendingMigration) || other.pendingMigration == pendingMigration)&&(identical(other.cacheEnabled, cacheEnabled) || other.cacheEnabled == cacheEnabled)&&(identical(other.envWritable, envWritable) || other.envWritable == envWritable)&&(identical(other.openBasedir, openBasedir) || other.openBasedir == openBasedir)&&(identical(other.execEnabled, execEnabled) || other.execEnabled == execEnabled)&&(identical(other.phantomEnabled, phantomEnabled) || other.phantomEnabled == phantomEnabled)&&(identical(other.isDocker, isDocker) || other.isDocker == isDocker)&&(identical(other.pendingJobs, pendingJobs) || other.pendingJobs == pendingJobs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,systemHealth,dbCheck,phpVersion,queueData,queue,emailDriver,pdfEngine,filePermissions,trailingSlash,exchangeRateApiNotConfigured,pendingMigration,cacheEnabled,envWritable,openBasedir,execEnabled,phantomEnabled,isDocker,pendingJobs);
+int get hashCode {
+    return Object.hash(runtimeType,systemHealth,dbCheck,phpVersion,queueData,queue,emailDriver,pdfEngine,filePermissions,trailingSlash,exchangeRateApiNotConfigured,pendingMigration,cacheEnabled,envWritable,openBasedir,execEnabled,phantomEnabled,isDocker,pendingJobs);
+}
 
 @override
 String toString() {
-  return 'HealthCheckResponse(systemHealth: $systemHealth, dbCheck: $dbCheck, phpVersion: $phpVersion, queueData: $queueData, queue: $queue, emailDriver: $emailDriver, pdfEngine: $pdfEngine, filePermissions: $filePermissions, trailingSlash: $trailingSlash, exchangeRateApiNotConfigured: $exchangeRateApiNotConfigured, pendingMigration: $pendingMigration, cacheEnabled: $cacheEnabled, envWritable: $envWritable, openBasedir: $openBasedir, execEnabled: $execEnabled, phantomEnabled: $phantomEnabled, isDocker: $isDocker, pendingJobs: $pendingJobs)';
+    return 'HealthCheckResponse(systemHealth: $systemHealth, dbCheck: $dbCheck, phpVersion: $phpVersion, queueData: $queueData, queue: $queue, emailDriver: $emailDriver, pdfEngine: $pdfEngine, filePermissions: $filePermissions, trailingSlash: $trailingSlash, exchangeRateApiNotConfigured: $exchangeRateApiNotConfigured, pendingMigration: $pendingMigration, cacheEnabled: $cacheEnabled, envWritable: $envWritable, openBasedir: $openBasedir, execEnabled: $execEnabled, phantomEnabled: $phantomEnabled, isDocker: $isDocker, pendingJobs: $pendingJobs)';
 }
 
 
@@ -378,16 +386,21 @@ $HealthCheckPhpResponseCopyWith<HealthCheckPhpResponse> get copyWith => _$Health
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckPhpResponse&&(identical(other.currentPhpVersion, currentPhpVersion) || other.currentPhpVersion == currentPhpVersion)&&(identical(other.currentPhpCliVersion, currentPhpCliVersion) || other.currentPhpCliVersion == currentPhpCliVersion)&&(identical(other.minimumPhpVersion, minimumPhpVersion) || other.minimumPhpVersion == minimumPhpVersion)&&(identical(other.isOkay, isOkay) || other.isOkay == isOkay)&&(identical(other.memoryLimit, memoryLimit) || other.memoryLimit == memoryLimit));
+  final _this = this as HealthCheckPhpResponse;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckPhpResponse&&(identical(other.currentPhpVersion, _this.currentPhpVersion) || other.currentPhpVersion == _this.currentPhpVersion)&&(identical(other.currentPhpCliVersion, _this.currentPhpCliVersion) || other.currentPhpCliVersion == _this.currentPhpCliVersion)&&(identical(other.minimumPhpVersion, _this.minimumPhpVersion) || other.minimumPhpVersion == _this.minimumPhpVersion)&&(identical(other.isOkay, _this.isOkay) || other.isOkay == _this.isOkay)&&(identical(other.memoryLimit, _this.memoryLimit) || other.memoryLimit == _this.memoryLimit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,currentPhpVersion,currentPhpCliVersion,minimumPhpVersion,isOkay,memoryLimit);
+int get hashCode {
+  final _this = this as HealthCheckPhpResponse;
+  return Object.hash(runtimeType,_this.currentPhpVersion,_this.currentPhpCliVersion,_this.minimumPhpVersion,_this.isOkay,_this.memoryLimit);
+}
 
 @override
 String toString() {
-  return 'HealthCheckPhpResponse(currentPhpVersion: $currentPhpVersion, currentPhpCliVersion: $currentPhpCliVersion, minimumPhpVersion: $minimumPhpVersion, isOkay: $isOkay, memoryLimit: $memoryLimit)';
+  final _this = this as HealthCheckPhpResponse;
+  return 'HealthCheckPhpResponse(currentPhpVersion: ${_this.currentPhpVersion}, currentPhpCliVersion: ${_this.currentPhpCliVersion}, minimumPhpVersion: ${_this.minimumPhpVersion}, isOkay: ${_this.isOkay}, memoryLimit: ${_this.memoryLimit})';
 }
 
 
@@ -416,7 +429,7 @@ class _$HealthCheckPhpResponseCopyWithImpl<$Res>
 /// Create a copy of HealthCheckPhpResponse
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? currentPhpVersion = null,Object? currentPhpCliVersion = null,Object? minimumPhpVersion = null,Object? isOkay = null,Object? memoryLimit = null,}) {
-  return _then(_self.copyWith(
+  return _then(HealthCheckPhpResponse(
 currentPhpVersion: null == currentPhpVersion ? _self.currentPhpVersion : currentPhpVersion // ignore: cast_nullable_to_non_nullable
 as String,currentPhpCliVersion: null == currentPhpCliVersion ? _self.currentPhpCliVersion : currentPhpCliVersion // ignore: cast_nullable_to_non_nullable
 as String,minimumPhpVersion: null == minimumPhpVersion ? _self.minimumPhpVersion : minimumPhpVersion // ignore: cast_nullable_to_non_nullable
@@ -585,16 +598,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckPhpResponse&&(identical(other.currentPhpVersion, currentPhpVersion) || other.currentPhpVersion == currentPhpVersion)&&(identical(other.currentPhpCliVersion, currentPhpCliVersion) || other.currentPhpCliVersion == currentPhpCliVersion)&&(identical(other.minimumPhpVersion, minimumPhpVersion) || other.minimumPhpVersion == minimumPhpVersion)&&(identical(other.isOkay, isOkay) || other.isOkay == isOkay)&&(identical(other.memoryLimit, memoryLimit) || other.memoryLimit == memoryLimit));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckPhpResponse&&(identical(other.currentPhpVersion, currentPhpVersion) || other.currentPhpVersion == currentPhpVersion)&&(identical(other.currentPhpCliVersion, currentPhpCliVersion) || other.currentPhpCliVersion == currentPhpCliVersion)&&(identical(other.minimumPhpVersion, minimumPhpVersion) || other.minimumPhpVersion == minimumPhpVersion)&&(identical(other.isOkay, isOkay) || other.isOkay == isOkay)&&(identical(other.memoryLimit, memoryLimit) || other.memoryLimit == memoryLimit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,currentPhpVersion,currentPhpCliVersion,minimumPhpVersion,isOkay,memoryLimit);
+int get hashCode {
+    return Object.hash(runtimeType,currentPhpVersion,currentPhpCliVersion,minimumPhpVersion,isOkay,memoryLimit);
+}
 
 @override
 String toString() {
-  return 'HealthCheckPhpResponse(currentPhpVersion: $currentPhpVersion, currentPhpCliVersion: $currentPhpCliVersion, minimumPhpVersion: $minimumPhpVersion, isOkay: $isOkay, memoryLimit: $memoryLimit)';
+    return 'HealthCheckPhpResponse(currentPhpVersion: $currentPhpVersion, currentPhpCliVersion: $currentPhpCliVersion, minimumPhpVersion: $minimumPhpVersion, isOkay: $isOkay, memoryLimit: $memoryLimit)';
 }
 
 
@@ -653,16 +668,21 @@ $HealthCheckQueueResponseCopyWith<HealthCheckQueueResponse> get copyWith => _$He
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckQueueResponse&&(identical(other.pending, pending) || other.pending == pending)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.lastError, lastError) || other.lastError == lastError));
+  final _this = this as HealthCheckQueueResponse;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckQueueResponse&&(identical(other.pending, _this.pending) || other.pending == _this.pending)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.lastError, _this.lastError) || other.lastError == _this.lastError));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,pending,failed,lastError);
+int get hashCode {
+  final _this = this as HealthCheckQueueResponse;
+  return Object.hash(runtimeType,_this.pending,_this.failed,_this.lastError);
+}
 
 @override
 String toString() {
-  return 'HealthCheckQueueResponse(pending: $pending, failed: $failed, lastError: $lastError)';
+  final _this = this as HealthCheckQueueResponse;
+  return 'HealthCheckQueueResponse(pending: ${_this.pending}, failed: ${_this.failed}, lastError: ${_this.lastError})';
 }
 
 
@@ -691,7 +711,7 @@ class _$HealthCheckQueueResponseCopyWithImpl<$Res>
 /// Create a copy of HealthCheckQueueResponse
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? pending = null,Object? failed = null,Object? lastError = null,}) {
-  return _then(_self.copyWith(
+  return _then(HealthCheckQueueResponse(
 pending: null == pending ? _self.pending : pending // ignore: cast_nullable_to_non_nullable
 as int,failed: null == failed ? _self.failed : failed // ignore: cast_nullable_to_non_nullable
 as int,lastError: null == lastError ? _self.lastError : lastError // ignore: cast_nullable_to_non_nullable
@@ -856,16 +876,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckQueueResponse&&(identical(other.pending, pending) || other.pending == pending)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.lastError, lastError) || other.lastError == lastError));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckQueueResponse&&(identical(other.pending, pending) || other.pending == pending)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.lastError, lastError) || other.lastError == lastError));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,pending,failed,lastError);
+int get hashCode {
+    return Object.hash(runtimeType,pending,failed,lastError);
+}
 
 @override
 String toString() {
-  return 'HealthCheckQueueResponse(pending: $pending, failed: $failed, lastError: $lastError)';
+    return 'HealthCheckQueueResponse(pending: $pending, failed: $failed, lastError: $lastError)';
 }
 
 
@@ -922,16 +944,21 @@ $HealthCheckLastErrorResponseCopyWith<HealthCheckLastErrorResponse> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckLastErrorResponse&&(identical(other.lastError, lastError) || other.lastError == lastError));
+  final _this = this as HealthCheckLastErrorResponse;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HealthCheckLastErrorResponse&&(identical(other.lastError, _this.lastError) || other.lastError == _this.lastError));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lastError);
+int get hashCode {
+  final _this = this as HealthCheckLastErrorResponse;
+  return Object.hash(runtimeType,_this.lastError);
+}
 
 @override
 String toString() {
-  return 'HealthCheckLastErrorResponse(lastError: $lastError)';
+  final _this = this as HealthCheckLastErrorResponse;
+  return 'HealthCheckLastErrorResponse(lastError: ${_this.lastError})';
 }
 
 
@@ -960,7 +987,7 @@ class _$HealthCheckLastErrorResponseCopyWithImpl<$Res>
 /// Create a copy of HealthCheckLastErrorResponse
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? lastError = null,}) {
-  return _then(_self.copyWith(
+  return _then(HealthCheckLastErrorResponse(
 lastError: null == lastError ? _self.lastError : lastError // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -1121,16 +1148,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckLastErrorResponse&&(identical(other.lastError, lastError) || other.lastError == lastError));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _HealthCheckLastErrorResponse&&(identical(other.lastError, lastError) || other.lastError == lastError));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lastError);
+int get hashCode {
+    return Object.hash(runtimeType,lastError);
+}
 
 @override
 String toString() {
-  return 'HealthCheckLastErrorResponse(lastError: $lastError)';
+    return 'HealthCheckLastErrorResponse(lastError: $lastError)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'client_api_model.dart';
@@ -9,40 +9,14 @@ part of 'client_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$ClientApi {
 
- String get id; String get name;@JsonKey(name: 'display_name') String get displayName; String get number;@JsonKey(name: 'id_number') String get idNumber;@JsonKey(name: 'vat_number') String get vatNumber;// Server-assigned, read-only. Used to build the client-portal silent
-// auto-login URL (`?silent=true&client_hash=…`). Always present on
-// client GET/list responses.
-@JsonKey(name: 'client_hash') String get clientHash; String get website;@JsonKey(name: 'phone') String get phone; String get address1; String get address2; String get city; String get state;@JsonKey(name: 'postal_code') String get postalCode;@JsonKey(name: 'country_id') String get countryId;@JsonKey(name: 'shipping_address1') String get shippingAddress1;@JsonKey(name: 'shipping_address2') String get shippingAddress2;@JsonKey(name: 'shipping_city') String get shippingCity;@JsonKey(name: 'shipping_state') String get shippingState;@JsonKey(name: 'shipping_postal_code') String get shippingPostalCode;@JsonKey(name: 'shipping_country_id') String get shippingCountryId;@JsonKey(name: 'balance') Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;@JsonKey(name: 'credit_balance') Object get creditBalance;@JsonKey(name: 'payment_balance') Object get paymentBalance;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'language_id') String get languageId;@JsonKey(name: 'payment_terms') String get paymentTerms;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'group_settings_id') String get groupSettingsId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'industry_id') String get industryId;@JsonKey(name: 'size_id') String get sizeId;@JsonKey(name: 'classification') String get classification;@JsonKey(name: 'is_tax_exempt') bool get isTaxExempt;@JsonKey(name: 'has_valid_vat_number') bool get hasValidVatNumber;@JsonKey(name: 'routing_id') String get routingId;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted; List<ContactApi> get contacts;// Non-nullable (unlike `documents`) on purpose: the IN server embeds
-// `locations` on every client GET/list response *unconditionally* —
-// it is NOT `?include=`-gated the way `documents` is (probed against
-// demo.invoiceninja.com, 2026-05: the `locations` key is always present,
-// `[]` when empty). So the authoritative array always round-trips
-// through the Drift `payload` JSON and no preserve-on-missing guard /
-// dedicated column is needed. The client_repository round-trip test
-// locks this contract — if the server ever makes it include-gated that
-// test fails loudly instead of silently wiping locations.
- List<LocationApi> get locations;// Saved payment methods (cards / bank accounts) stored at the gateway.
-// Present on client GET/list responses (probe-verified: top-level key,
-// `[]` when none). Read-only — surfaced in the "Payment Methods" detail
-// card and never written back as part of the client save payload.
-@JsonKey(name: 'gateway_tokens') List<GatewayTokenApi> get gatewayTokens;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;// Nullable on purpose: the IN list endpoint omits the `documents` field
-// unless `?include=documents` is requested. Distinguishing "key missing
-// from JSON" (→ null) from "key present, array empty" (→ `const []`)
-// lets `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on responses
-// that did. See `ClientRepository._apiToCompanion` for the guard.
- List<DocumentApi>? get documents;// Sparse per-client settings overrides. Each key is a wire field name
-// on the company `settings` blob (mirrors `CompanySettingsApi` shape).
-// Absent keys mean "inherit from the company-level cascade." Stored
-// raw as a JSON map because the wire shape is open-ended and the
-// typed `CompanySettings` view is reconstructed in the VM.
-@JsonKey(name: 'settings', includeIfNull: false) Map<String, dynamic>? get settings;
+ String get id; String get name;@JsonKey(name: 'display_name') String get displayName; String get number;@JsonKey(name: 'id_number') String get idNumber;@JsonKey(name: 'vat_number') String get vatNumber;@JsonKey(name: 'client_hash') String get clientHash; String get website;@JsonKey(name: 'phone') String get phone; String get address1; String get address2; String get city; String get state;@JsonKey(name: 'postal_code') String get postalCode;@JsonKey(name: 'country_id') String get countryId;@JsonKey(name: 'shipping_address1') String get shippingAddress1;@JsonKey(name: 'shipping_address2') String get shippingAddress2;@JsonKey(name: 'shipping_city') String get shippingCity;@JsonKey(name: 'shipping_state') String get shippingState;@JsonKey(name: 'shipping_postal_code') String get shippingPostalCode;@JsonKey(name: 'shipping_country_id') String get shippingCountryId;@JsonKey(name: 'balance') Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;@JsonKey(name: 'credit_balance') Object get creditBalance;@JsonKey(name: 'payment_balance') Object get paymentBalance;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'language_id') String get languageId;@JsonKey(name: 'payment_terms') String get paymentTerms;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'group_settings_id') String get groupSettingsId;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'industry_id') String get industryId;@JsonKey(name: 'size_id') String get sizeId;@JsonKey(name: 'classification') String get classification;@JsonKey(name: 'is_tax_exempt') bool get isTaxExempt;@JsonKey(name: 'has_valid_vat_number') bool get hasValidVatNumber;@JsonKey(name: 'routing_id') String get routingId;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted; List<ContactApi> get contacts; List<LocationApi> get locations;@JsonKey(name: 'gateway_tokens') List<GatewayTokenApi> get gatewayTokens;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags; List<DocumentApi>? get documents;@JsonKey(name: 'settings', includeIfNull: false) Map<String, dynamic>? get settings;
 /// Create a copy of ClientApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -55,16 +29,21 @@ $ClientApiCopyWith<ClientApi> get copyWith => _$ClientApiCopyWithImpl<ClientApi>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.clientHash, clientHash) || other.clientHash == clientHash)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.shippingAddress1, shippingAddress1) || other.shippingAddress1 == shippingAddress1)&&(identical(other.shippingAddress2, shippingAddress2) || other.shippingAddress2 == shippingAddress2)&&(identical(other.shippingCity, shippingCity) || other.shippingCity == shippingCity)&&(identical(other.shippingState, shippingState) || other.shippingState == shippingState)&&(identical(other.shippingPostalCode, shippingPostalCode) || other.shippingPostalCode == shippingPostalCode)&&(identical(other.shippingCountryId, shippingCountryId) || other.shippingCountryId == shippingCountryId)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&const DeepCollectionEquality().equals(other.creditBalance, creditBalance)&&const DeepCollectionEquality().equals(other.paymentBalance, paymentBalance)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.paymentTerms, paymentTerms) || other.paymentTerms == paymentTerms)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.groupSettingsId, groupSettingsId) || other.groupSettingsId == groupSettingsId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.industryId, industryId) || other.industryId == industryId)&&(identical(other.sizeId, sizeId) || other.sizeId == sizeId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.hasValidVatNumber, hasValidVatNumber) || other.hasValidVatNumber == hasValidVatNumber)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.contacts, contacts)&&const DeepCollectionEquality().equals(other.locations, locations)&&const DeepCollectionEquality().equals(other.gatewayTokens, gatewayTokens)&&const DeepCollectionEquality().equals(other.tags, tags)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.settings, settings));
+  final _this = this as ClientApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.displayName, _this.displayName) || other.displayName == _this.displayName)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.idNumber, _this.idNumber) || other.idNumber == _this.idNumber)&&(identical(other.vatNumber, _this.vatNumber) || other.vatNumber == _this.vatNumber)&&(identical(other.clientHash, _this.clientHash) || other.clientHash == _this.clientHash)&&(identical(other.website, _this.website) || other.website == _this.website)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.address1, _this.address1) || other.address1 == _this.address1)&&(identical(other.address2, _this.address2) || other.address2 == _this.address2)&&(identical(other.city, _this.city) || other.city == _this.city)&&(identical(other.state, _this.state) || other.state == _this.state)&&(identical(other.postalCode, _this.postalCode) || other.postalCode == _this.postalCode)&&(identical(other.countryId, _this.countryId) || other.countryId == _this.countryId)&&(identical(other.shippingAddress1, _this.shippingAddress1) || other.shippingAddress1 == _this.shippingAddress1)&&(identical(other.shippingAddress2, _this.shippingAddress2) || other.shippingAddress2 == _this.shippingAddress2)&&(identical(other.shippingCity, _this.shippingCity) || other.shippingCity == _this.shippingCity)&&(identical(other.shippingState, _this.shippingState) || other.shippingState == _this.shippingState)&&(identical(other.shippingPostalCode, _this.shippingPostalCode) || other.shippingPostalCode == _this.shippingPostalCode)&&(identical(other.shippingCountryId, _this.shippingCountryId) || other.shippingCountryId == _this.shippingCountryId)&&const DeepCollectionEquality().equals(other.balance, _this.balance)&&const DeepCollectionEquality().equals(other.paidToDate, _this.paidToDate)&&const DeepCollectionEquality().equals(other.creditBalance, _this.creditBalance)&&const DeepCollectionEquality().equals(other.paymentBalance, _this.paymentBalance)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.languageId, _this.languageId) || other.languageId == _this.languageId)&&(identical(other.paymentTerms, _this.paymentTerms) || other.paymentTerms == _this.paymentTerms)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.publicNotes, _this.publicNotes) || other.publicNotes == _this.publicNotes)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.groupSettingsId, _this.groupSettingsId) || other.groupSettingsId == _this.groupSettingsId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.industryId, _this.industryId) || other.industryId == _this.industryId)&&(identical(other.sizeId, _this.sizeId) || other.sizeId == _this.sizeId)&&(identical(other.classification, _this.classification) || other.classification == _this.classification)&&(identical(other.isTaxExempt, _this.isTaxExempt) || other.isTaxExempt == _this.isTaxExempt)&&(identical(other.hasValidVatNumber, _this.hasValidVatNumber) || other.hasValidVatNumber == _this.hasValidVatNumber)&&(identical(other.routingId, _this.routingId) || other.routingId == _this.routingId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.contacts, _this.contacts)&&const DeepCollectionEquality().equals(other.locations, _this.locations)&&const DeepCollectionEquality().equals(other.gatewayTokens, _this.gatewayTokens)&&const DeepCollectionEquality().equals(other.tags, _this.tags)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.settings, _this.settings));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,displayName,number,idNumber,vatNumber,clientHash,website,phone,address1,address2,city,state,postalCode,countryId,shippingAddress1,shippingAddress2,shippingCity,shippingState,shippingPostalCode,shippingCountryId,const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),const DeepCollectionEquality().hash(creditBalance),const DeepCollectionEquality().hash(paymentBalance),currencyId,languageId,paymentTerms,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,groupSettingsId,assignedUserId,industryId,sizeId,classification,isTaxExempt,hasValidVatNumber,routingId,userId,lastLogin,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(contacts),const DeepCollectionEquality().hash(locations),const DeepCollectionEquality().hash(gatewayTokens),const DeepCollectionEquality().hash(tags),const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(settings)]);
+int get hashCode {
+  final _this = this as ClientApi;
+  return Object.hashAll([runtimeType,_this.id,_this.name,_this.displayName,_this.number,_this.idNumber,_this.vatNumber,_this.clientHash,_this.website,_this.phone,_this.address1,_this.address2,_this.city,_this.state,_this.postalCode,_this.countryId,_this.shippingAddress1,_this.shippingAddress2,_this.shippingCity,_this.shippingState,_this.shippingPostalCode,_this.shippingCountryId,const DeepCollectionEquality().hash(_this.balance),const DeepCollectionEquality().hash(_this.paidToDate),const DeepCollectionEquality().hash(_this.creditBalance),const DeepCollectionEquality().hash(_this.paymentBalance),_this.currencyId,_this.languageId,_this.paymentTerms,_this.privateNotes,_this.publicNotes,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.groupSettingsId,_this.assignedUserId,_this.industryId,_this.sizeId,_this.classification,_this.isTaxExempt,_this.hasValidVatNumber,_this.routingId,_this.userId,_this.lastLogin,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,const DeepCollectionEquality().hash(_this.contacts),const DeepCollectionEquality().hash(_this.locations),const DeepCollectionEquality().hash(_this.gatewayTokens),const DeepCollectionEquality().hash(_this.tags),const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.settings)]);
+}
 
 @override
 String toString() {
-  return 'ClientApi(id: $id, name: $name, displayName: $displayName, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, clientHash: $clientHash, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, shippingAddress1: $shippingAddress1, shippingAddress2: $shippingAddress2, shippingCity: $shippingCity, shippingState: $shippingState, shippingPostalCode: $shippingPostalCode, shippingCountryId: $shippingCountryId, balance: $balance, paidToDate: $paidToDate, creditBalance: $creditBalance, paymentBalance: $paymentBalance, currencyId: $currencyId, languageId: $languageId, paymentTerms: $paymentTerms, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, groupSettingsId: $groupSettingsId, assignedUserId: $assignedUserId, industryId: $industryId, sizeId: $sizeId, classification: $classification, isTaxExempt: $isTaxExempt, hasValidVatNumber: $hasValidVatNumber, routingId: $routingId, userId: $userId, lastLogin: $lastLogin, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, contacts: $contacts, locations: $locations, gatewayTokens: $gatewayTokens, tags: $tags, documents: $documents, settings: $settings)';
+  final _this = this as ClientApi;
+  return 'ClientApi(id: ${_this.id}, name: ${_this.name}, displayName: ${_this.displayName}, number: ${_this.number}, idNumber: ${_this.idNumber}, vatNumber: ${_this.vatNumber}, clientHash: ${_this.clientHash}, website: ${_this.website}, phone: ${_this.phone}, address1: ${_this.address1}, address2: ${_this.address2}, city: ${_this.city}, state: ${_this.state}, postalCode: ${_this.postalCode}, countryId: ${_this.countryId}, shippingAddress1: ${_this.shippingAddress1}, shippingAddress2: ${_this.shippingAddress2}, shippingCity: ${_this.shippingCity}, shippingState: ${_this.shippingState}, shippingPostalCode: ${_this.shippingPostalCode}, shippingCountryId: ${_this.shippingCountryId}, balance: ${_this.balance}, paidToDate: ${_this.paidToDate}, creditBalance: ${_this.creditBalance}, paymentBalance: ${_this.paymentBalance}, currencyId: ${_this.currencyId}, languageId: ${_this.languageId}, paymentTerms: ${_this.paymentTerms}, privateNotes: ${_this.privateNotes}, publicNotes: ${_this.publicNotes}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, groupSettingsId: ${_this.groupSettingsId}, assignedUserId: ${_this.assignedUserId}, industryId: ${_this.industryId}, sizeId: ${_this.sizeId}, classification: ${_this.classification}, isTaxExempt: ${_this.isTaxExempt}, hasValidVatNumber: ${_this.hasValidVatNumber}, routingId: ${_this.routingId}, userId: ${_this.userId}, lastLogin: ${_this.lastLogin}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, contacts: ${_this.contacts}, locations: ${_this.locations}, gatewayTokens: ${_this.gatewayTokens}, tags: ${_this.tags}, documents: ${_this.documents}, settings: ${_this.settings})';
 }
 
 
@@ -93,7 +72,7 @@ class _$ClientApiCopyWithImpl<$Res>
 /// Create a copy of ClientApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? displayName = null,Object? number = null,Object? idNumber = null,Object? vatNumber = null,Object? clientHash = null,Object? website = null,Object? phone = null,Object? address1 = null,Object? address2 = null,Object? city = null,Object? state = null,Object? postalCode = null,Object? countryId = null,Object? shippingAddress1 = null,Object? shippingAddress2 = null,Object? shippingCity = null,Object? shippingState = null,Object? shippingPostalCode = null,Object? shippingCountryId = null,Object? balance = null,Object? paidToDate = null,Object? creditBalance = null,Object? paymentBalance = null,Object? currencyId = null,Object? languageId = null,Object? paymentTerms = null,Object? privateNotes = null,Object? publicNotes = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? groupSettingsId = null,Object? assignedUserId = null,Object? industryId = null,Object? sizeId = null,Object? classification = null,Object? isTaxExempt = null,Object? hasValidVatNumber = null,Object? routingId = null,Object? userId = null,Object? lastLogin = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? contacts = null,Object? locations = null,Object? gatewayTokens = null,Object? tags = null,Object? documents = freezed,Object? settings = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ClientApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -285,7 +264,7 @@ return $default(_that.id,_that.name,_that.displayName,_that.number,_that.idNumbe
 @JsonSerializable()
 
 class _ClientApi implements ClientApi {
-  const _ClientApi({this.id = '', this.name = '', @JsonKey(name: 'display_name') this.displayName = '', this.number = '', @JsonKey(name: 'id_number') this.idNumber = '', @JsonKey(name: 'vat_number') this.vatNumber = '', @JsonKey(name: 'client_hash') this.clientHash = '', this.website = '', @JsonKey(name: 'phone') this.phone = '', this.address1 = '', this.address2 = '', this.city = '', this.state = '', @JsonKey(name: 'postal_code') this.postalCode = '', @JsonKey(name: 'country_id') this.countryId = '', @JsonKey(name: 'shipping_address1') this.shippingAddress1 = '', @JsonKey(name: 'shipping_address2') this.shippingAddress2 = '', @JsonKey(name: 'shipping_city') this.shippingCity = '', @JsonKey(name: 'shipping_state') this.shippingState = '', @JsonKey(name: 'shipping_postal_code') this.shippingPostalCode = '', @JsonKey(name: 'shipping_country_id') this.shippingCountryId = '', @JsonKey(name: 'balance') this.balance = '0', @JsonKey(name: 'paid_to_date') this.paidToDate = '0', @JsonKey(name: 'credit_balance') this.creditBalance = '0', @JsonKey(name: 'payment_balance') this.paymentBalance = '0', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'language_id') this.languageId = '', @JsonKey(name: 'payment_terms') this.paymentTerms = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'group_settings_id') this.groupSettingsId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'industry_id') this.industryId = '', @JsonKey(name: 'size_id') this.sizeId = '', @JsonKey(name: 'classification') this.classification = '', @JsonKey(name: 'is_tax_exempt') this.isTaxExempt = false, @JsonKey(name: 'has_valid_vat_number') this.hasValidVatNumber = false, @JsonKey(name: 'routing_id') this.routingId = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'last_login') this.lastLogin = 0, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, final  List<ContactApi> contacts = const <ContactApi>[], final  List<LocationApi> locations = const <LocationApi>[], @JsonKey(name: 'gateway_tokens') final  List<GatewayTokenApi> gatewayTokens = const <GatewayTokenApi>[], @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[], final  List<DocumentApi>? documents, @JsonKey(name: 'settings', includeIfNull: false) final  Map<String, dynamic>? settings}): _contacts = contacts,_locations = locations,_gatewayTokens = gatewayTokens,_tags = tags,_documents = documents,_settings = settings;
+  const _ClientApi({this.id = '', this.name = '', @JsonKey(name: 'display_name') this.displayName = '', this.number = '', @JsonKey(name: 'id_number') this.idNumber = '', @JsonKey(name: 'vat_number') this.vatNumber = '', @JsonKey(name: 'client_hash') this.clientHash = '', this.website = '', @JsonKey(name: 'phone') this.phone = '', this.address1 = '', this.address2 = '', this.city = '', this.state = '', @JsonKey(name: 'postal_code') this.postalCode = '', @JsonKey(name: 'country_id') this.countryId = '', @JsonKey(name: 'shipping_address1') this.shippingAddress1 = '', @JsonKey(name: 'shipping_address2') this.shippingAddress2 = '', @JsonKey(name: 'shipping_city') this.shippingCity = '', @JsonKey(name: 'shipping_state') this.shippingState = '', @JsonKey(name: 'shipping_postal_code') this.shippingPostalCode = '', @JsonKey(name: 'shipping_country_id') this.shippingCountryId = '', @JsonKey(name: 'balance') this.balance = '0', @JsonKey(name: 'paid_to_date') this.paidToDate = '0', @JsonKey(name: 'credit_balance') this.creditBalance = '0', @JsonKey(name: 'payment_balance') this.paymentBalance = '0', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'language_id') this.languageId = '', @JsonKey(name: 'payment_terms') this.paymentTerms = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'group_settings_id') this.groupSettingsId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'industry_id') this.industryId = '', @JsonKey(name: 'size_id') this.sizeId = '', @JsonKey(name: 'classification') this.classification = '', @JsonKey(name: 'is_tax_exempt') this.isTaxExempt = false, @JsonKey(name: 'has_valid_vat_number') this.hasValidVatNumber = false, @JsonKey(name: 'routing_id') this.routingId = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'last_login') this.lastLogin = 0, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false,  List<ContactApi> contacts = const <ContactApi>[],  List<LocationApi> locations = const <LocationApi>[], @JsonKey(name: 'gateway_tokens')  List<GatewayTokenApi> gatewayTokens = const <GatewayTokenApi>[], @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[],  List<DocumentApi>? documents, @JsonKey(name: 'settings', includeIfNull: false)  Map<String, dynamic>? settings}): _contacts = contacts,_locations = locations,_gatewayTokens = gatewayTokens,_tags = tags,_documents = documents,_settings = settings;
   factory _ClientApi.fromJson(Map<String, dynamic> json) => _$ClientApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -294,9 +273,6 @@ class _ClientApi implements ClientApi {
 @override@JsonKey() final  String number;
 @override@JsonKey(name: 'id_number') final  String idNumber;
 @override@JsonKey(name: 'vat_number') final  String vatNumber;
-// Server-assigned, read-only. Used to build the client-portal silent
-// auto-login URL (`?silent=true&client_hash=…`). Always present on
-// client GET/list responses.
 @override@JsonKey(name: 'client_hash') final  String clientHash;
 @override@JsonKey() final  String website;
 @override@JsonKey(name: 'phone') final  String phone;
@@ -346,40 +322,14 @@ class _ClientApi implements ClientApi {
   return EqualUnmodifiableListView(_contacts);
 }
 
-// Non-nullable (unlike `documents`) on purpose: the IN server embeds
-// `locations` on every client GET/list response *unconditionally* —
-// it is NOT `?include=`-gated the way `documents` is (probed against
-// demo.invoiceninja.com, 2026-05: the `locations` key is always present,
-// `[]` when empty). So the authoritative array always round-trips
-// through the Drift `payload` JSON and no preserve-on-missing guard /
-// dedicated column is needed. The client_repository round-trip test
-// locks this contract — if the server ever makes it include-gated that
-// test fails loudly instead of silently wiping locations.
  final  List<LocationApi> _locations;
-// Non-nullable (unlike `documents`) on purpose: the IN server embeds
-// `locations` on every client GET/list response *unconditionally* —
-// it is NOT `?include=`-gated the way `documents` is (probed against
-// demo.invoiceninja.com, 2026-05: the `locations` key is always present,
-// `[]` when empty). So the authoritative array always round-trips
-// through the Drift `payload` JSON and no preserve-on-missing guard /
-// dedicated column is needed. The client_repository round-trip test
-// locks this contract — if the server ever makes it include-gated that
-// test fails loudly instead of silently wiping locations.
 @override@JsonKey() List<LocationApi> get locations {
   if (_locations is EqualUnmodifiableListView) return _locations;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_locations);
 }
 
-// Saved payment methods (cards / bank accounts) stored at the gateway.
-// Present on client GET/list responses (probe-verified: top-level key,
-// `[]` when none). Read-only — surfaced in the "Payment Methods" detail
-// card and never written back as part of the client save payload.
  final  List<GatewayTokenApi> _gatewayTokens;
-// Saved payment methods (cards / bank accounts) stored at the gateway.
-// Present on client GET/list responses (probe-verified: top-level key,
-// `[]` when none). Read-only — surfaced in the "Payment Methods" detail
-// card and never written back as part of the client save payload.
 @override@JsonKey(name: 'gateway_tokens') List<GatewayTokenApi> get gatewayTokens {
   if (_gatewayTokens is EqualUnmodifiableListView) return _gatewayTokens;
   // ignore: implicit_dynamic_type
@@ -393,19 +343,7 @@ class _ClientApi implements ClientApi {
   return EqualUnmodifiableListView(_tags);
 }
 
-// Nullable on purpose: the IN list endpoint omits the `documents` field
-// unless `?include=documents` is requested. Distinguishing "key missing
-// from JSON" (→ null) from "key present, array empty" (→ `const []`)
-// lets `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on responses
-// that did. See `ClientRepository._apiToCompanion` for the guard.
  final  List<DocumentApi>? _documents;
-// Nullable on purpose: the IN list endpoint omits the `documents` field
-// unless `?include=documents` is requested. Distinguishing "key missing
-// from JSON" (→ null) from "key present, array empty" (→ `const []`)
-// lets `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on responses
-// that did. See `ClientRepository._apiToCompanion` for the guard.
 @override List<DocumentApi>? get documents {
   final value = _documents;
   if (value == null) return null;
@@ -414,17 +352,7 @@ class _ClientApi implements ClientApi {
   return EqualUnmodifiableListView(value);
 }
 
-// Sparse per-client settings overrides. Each key is a wire field name
-// on the company `settings` blob (mirrors `CompanySettingsApi` shape).
-// Absent keys mean "inherit from the company-level cascade." Stored
-// raw as a JSON map because the wire shape is open-ended and the
-// typed `CompanySettings` view is reconstructed in the VM.
  final  Map<String, dynamic>? _settings;
-// Sparse per-client settings overrides. Each key is a wire field name
-// on the company `settings` blob (mirrors `CompanySettingsApi` shape).
-// Absent keys mean "inherit from the company-level cascade." Stored
-// raw as a JSON map because the wire shape is open-ended and the
-// typed `CompanySettings` view is reconstructed in the VM.
 @override@JsonKey(name: 'settings', includeIfNull: false) Map<String, dynamic>? get settings {
   final value = _settings;
   if (value == null) return null;
@@ -447,16 +375,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.clientHash, clientHash) || other.clientHash == clientHash)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.shippingAddress1, shippingAddress1) || other.shippingAddress1 == shippingAddress1)&&(identical(other.shippingAddress2, shippingAddress2) || other.shippingAddress2 == shippingAddress2)&&(identical(other.shippingCity, shippingCity) || other.shippingCity == shippingCity)&&(identical(other.shippingState, shippingState) || other.shippingState == shippingState)&&(identical(other.shippingPostalCode, shippingPostalCode) || other.shippingPostalCode == shippingPostalCode)&&(identical(other.shippingCountryId, shippingCountryId) || other.shippingCountryId == shippingCountryId)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&const DeepCollectionEquality().equals(other.creditBalance, creditBalance)&&const DeepCollectionEquality().equals(other.paymentBalance, paymentBalance)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.paymentTerms, paymentTerms) || other.paymentTerms == paymentTerms)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.groupSettingsId, groupSettingsId) || other.groupSettingsId == groupSettingsId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.industryId, industryId) || other.industryId == industryId)&&(identical(other.sizeId, sizeId) || other.sizeId == sizeId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.hasValidVatNumber, hasValidVatNumber) || other.hasValidVatNumber == hasValidVatNumber)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._contacts, _contacts)&&const DeepCollectionEquality().equals(other._locations, _locations)&&const DeepCollectionEquality().equals(other._gatewayTokens, _gatewayTokens)&&const DeepCollectionEquality().equals(other._tags, _tags)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._settings, _settings));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.clientHash, clientHash) || other.clientHash == clientHash)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.shippingAddress1, shippingAddress1) || other.shippingAddress1 == shippingAddress1)&&(identical(other.shippingAddress2, shippingAddress2) || other.shippingAddress2 == shippingAddress2)&&(identical(other.shippingCity, shippingCity) || other.shippingCity == shippingCity)&&(identical(other.shippingState, shippingState) || other.shippingState == shippingState)&&(identical(other.shippingPostalCode, shippingPostalCode) || other.shippingPostalCode == shippingPostalCode)&&(identical(other.shippingCountryId, shippingCountryId) || other.shippingCountryId == shippingCountryId)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&const DeepCollectionEquality().equals(other.creditBalance, creditBalance)&&const DeepCollectionEquality().equals(other.paymentBalance, paymentBalance)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.paymentTerms, paymentTerms) || other.paymentTerms == paymentTerms)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.groupSettingsId, groupSettingsId) || other.groupSettingsId == groupSettingsId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.industryId, industryId) || other.industryId == industryId)&&(identical(other.sizeId, sizeId) || other.sizeId == sizeId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.hasValidVatNumber, hasValidVatNumber) || other.hasValidVatNumber == hasValidVatNumber)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.contacts, _contacts)&&const DeepCollectionEquality().equals(other.locations, _locations)&&const DeepCollectionEquality().equals(other.gatewayTokens, _gatewayTokens)&&const DeepCollectionEquality().equals(other.tags, _tags)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.settings, _settings));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,displayName,number,idNumber,vatNumber,clientHash,website,phone,address1,address2,city,state,postalCode,countryId,shippingAddress1,shippingAddress2,shippingCity,shippingState,shippingPostalCode,shippingCountryId,const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),const DeepCollectionEquality().hash(creditBalance),const DeepCollectionEquality().hash(paymentBalance),currencyId,languageId,paymentTerms,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,groupSettingsId,assignedUserId,industryId,sizeId,classification,isTaxExempt,hasValidVatNumber,routingId,userId,lastLogin,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_locations),const DeepCollectionEquality().hash(_gatewayTokens),const DeepCollectionEquality().hash(_tags),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_settings)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,name,displayName,number,idNumber,vatNumber,clientHash,website,phone,address1,address2,city,state,postalCode,countryId,shippingAddress1,shippingAddress2,shippingCity,shippingState,shippingPostalCode,shippingCountryId,const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),const DeepCollectionEquality().hash(creditBalance),const DeepCollectionEquality().hash(paymentBalance),currencyId,languageId,paymentTerms,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,groupSettingsId,assignedUserId,industryId,sizeId,classification,isTaxExempt,hasValidVatNumber,routingId,userId,lastLogin,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_locations),const DeepCollectionEquality().hash(_gatewayTokens),const DeepCollectionEquality().hash(_tags),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_settings)]);
+}
 
 @override
 String toString() {
-  return 'ClientApi(id: $id, name: $name, displayName: $displayName, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, clientHash: $clientHash, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, shippingAddress1: $shippingAddress1, shippingAddress2: $shippingAddress2, shippingCity: $shippingCity, shippingState: $shippingState, shippingPostalCode: $shippingPostalCode, shippingCountryId: $shippingCountryId, balance: $balance, paidToDate: $paidToDate, creditBalance: $creditBalance, paymentBalance: $paymentBalance, currencyId: $currencyId, languageId: $languageId, paymentTerms: $paymentTerms, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, groupSettingsId: $groupSettingsId, assignedUserId: $assignedUserId, industryId: $industryId, sizeId: $sizeId, classification: $classification, isTaxExempt: $isTaxExempt, hasValidVatNumber: $hasValidVatNumber, routingId: $routingId, userId: $userId, lastLogin: $lastLogin, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, contacts: $contacts, locations: $locations, gatewayTokens: $gatewayTokens, tags: $tags, documents: $documents, settings: $settings)';
+    return 'ClientApi(id: $id, name: $name, displayName: $displayName, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, clientHash: $clientHash, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, shippingAddress1: $shippingAddress1, shippingAddress2: $shippingAddress2, shippingCity: $shippingCity, shippingState: $shippingState, shippingPostalCode: $shippingPostalCode, shippingCountryId: $shippingCountryId, balance: $balance, paidToDate: $paidToDate, creditBalance: $creditBalance, paymentBalance: $paymentBalance, currencyId: $currencyId, languageId: $languageId, paymentTerms: $paymentTerms, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, groupSettingsId: $groupSettingsId, assignedUserId: $assignedUserId, industryId: $industryId, sizeId: $sizeId, classification: $classification, isTaxExempt: $isTaxExempt, hasValidVatNumber: $hasValidVatNumber, routingId: $routingId, userId: $userId, lastLogin: $lastLogin, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, contacts: $contacts, locations: $locations, gatewayTokens: $gatewayTokens, tags: $tags, documents: $documents, settings: $settings)';
 }
 
 
@@ -560,16 +490,21 @@ $ClientListApiCopyWith<ClientListApi> get copyWith => _$ClientListApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as ClientListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as ClientListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'ClientListApi(data: $data)';
+  final _this = this as ClientListApi;
+  return 'ClientListApi(data: ${_this.data})';
 }
 
 
@@ -598,7 +533,7 @@ class _$ClientListApiCopyWithImpl<$Res>
 /// Create a copy of ClientListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ClientListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<ClientApi>,
   ));
@@ -741,7 +676,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ClientListApi implements ClientListApi {
-  const _ClientListApi({@JsonKey(fromJson: _clientListData) final  List<ClientApi> data = const <ClientApi>[]}): _data = data;
+  const _ClientListApi({@JsonKey(fromJson: _clientListData)  List<ClientApi> data = const <ClientApi>[]}): _data = data;
   factory _ClientListApi.fromJson(Map<String, dynamic> json) => _$ClientListApiFromJson(json);
 
  final  List<ClientApi> _data;
@@ -765,16 +700,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'ClientListApi(data: $data)';
+    return 'ClientListApi(data: $data)';
 }
 
 
@@ -829,16 +766,21 @@ $ClientItemApiCopyWith<ClientItemApi> get copyWith => _$ClientItemApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as ClientItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ClientItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as ClientItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'ClientItemApi(data: $data)';
+  final _this = this as ClientItemApi;
+  return 'ClientItemApi(data: ${_this.data})';
 }
 
 
@@ -867,7 +809,7 @@ class _$ClientItemApiCopyWithImpl<$Res>
 /// Create a copy of ClientItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ClientItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as ClientApi,
   ));
@@ -1037,16 +979,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ClientItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'ClientItemApi(data: $data)';
+    return 'ClientItemApi(data: $data)';
 }
 
 

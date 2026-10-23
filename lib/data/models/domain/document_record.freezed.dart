@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'document_record.dart';
@@ -9,6 +9,7 @@ part of 'document_record.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $DocumentRecordCopyWith<DocumentRecord> get copyWith => _$DocumentRecordCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.parentType, parentType) || other.parentType == parentType)&&(identical(other.parentId, parentId) || other.parentId == parentId));
+  final _this = this as DocumentRecord;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentRecord&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.hash, _this.hash) || other.hash == _this.hash)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.width, _this.width) || other.width == _this.width)&&(identical(other.height, _this.height) || other.height == _this.height)&&(identical(other.isPublic, _this.isPublic) || other.isPublic == _this.isPublic)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty)&&(identical(other.parentType, _this.parentType) || other.parentType == _this.parentType)&&(identical(other.parentId, _this.parentId) || other.parentId == _this.parentId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,type,hash,size,width,height,isPublic,userId,assignedUserId,createdAt,updatedAt,archivedAt,isDeleted,isDirty,parentType,parentId);
+int get hashCode {
+  final _this = this as DocumentRecord;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.type,_this.hash,_this.size,_this.width,_this.height,_this.isPublic,_this.userId,_this.assignedUserId,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,_this.isDirty,_this.parentType,_this.parentId);
+}
 
 @override
 String toString() {
-  return 'DocumentRecord(id: $id, name: $name, type: $type, hash: $hash, size: $size, width: $width, height: $height, isPublic: $isPublic, userId: $userId, assignedUserId: $assignedUserId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, parentType: $parentType, parentId: $parentId)';
+  final _this = this as DocumentRecord;
+  return 'DocumentRecord(id: ${_this.id}, name: ${_this.name}, type: ${_this.type}, hash: ${_this.hash}, size: ${_this.size}, width: ${_this.width}, height: ${_this.height}, isPublic: ${_this.isPublic}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, isDirty: ${_this.isDirty}, parentType: ${_this.parentType}, parentId: ${_this.parentId})';
 }
 
 
@@ -63,7 +69,7 @@ class _$DocumentRecordCopyWithImpl<$Res>
 /// Create a copy of DocumentRecord
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? type = null,Object? hash = null,Object? size = null,Object? width = null,Object? height = null,Object? isPublic = null,Object? userId = null,Object? assignedUserId = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? isDirty = null,Object? parentType = freezed,Object? parentId = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentRecord(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -253,16 +259,18 @@ _$DocumentRecordCopyWith<_DocumentRecord> get copyWith => __$DocumentRecordCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.parentType, parentType) || other.parentType == parentType)&&(identical(other.parentId, parentId) || other.parentId == parentId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.parentType, parentType) || other.parentType == parentType)&&(identical(other.parentId, parentId) || other.parentId == parentId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,type,hash,size,width,height,isPublic,userId,assignedUserId,createdAt,updatedAt,archivedAt,isDeleted,isDirty,parentType,parentId);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,type,hash,size,width,height,isPublic,userId,assignedUserId,createdAt,updatedAt,archivedAt,isDeleted,isDirty,parentType,parentId);
+}
 
 @override
 String toString() {
-  return 'DocumentRecord(id: $id, name: $name, type: $type, hash: $hash, size: $size, width: $width, height: $height, isPublic: $isPublic, userId: $userId, assignedUserId: $assignedUserId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, parentType: $parentType, parentId: $parentId)';
+    return 'DocumentRecord(id: $id, name: $name, type: $type, hash: $hash, size: $size, width: $width, height: $height, isPublic: $isPublic, userId: $userId, assignedUserId: $assignedUserId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, parentType: $parentType, parentId: $parentId)';
 }
 
 

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'token_api_model.dart';
@@ -9,6 +9,7 @@ part of 'token_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $TokenApiCopyWith<TokenApi> get copyWith => _$TokenApiCopyWithImpl<TokenApi>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.token, token) || other.token == token)&&(identical(other.name, name) || other.name == name)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as TokenApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.token, _this.token) || other.token == _this.token)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.isSystem, _this.isSystem) || other.isSystem == _this.isSystem)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,token,name,isSystem,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as TokenApi;
+  return Object.hash(runtimeType,_this.id,_this.userId,_this.token,_this.name,_this.isSystem,_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'TokenApi(id: $id, userId: $userId, token: $token, name: $name, isSystem: $isSystem, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as TokenApi;
+  return 'TokenApi(id: ${_this.id}, userId: ${_this.userId}, token: ${_this.token}, name: ${_this.name}, isSystem: ${_this.isSystem}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$TokenApiCopyWithImpl<$Res>
 /// Create a copy of TokenApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? token = null,Object? name = null,Object? isSystem = null,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(TokenApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,token: null == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
@@ -243,16 +249,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.token, token) || other.token == token)&&(identical(other.name, name) || other.name == name)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.token, token) || other.token == token)&&(identical(other.name, name) || other.name == name)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,token,name,isSystem,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,userId,token,name,isSystem,isDeleted,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'TokenApi(id: $id, userId: $userId, token: $token, name: $name, isSystem: $isSystem, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'TokenApi(id: $id, userId: $userId, token: $token, name: $name, isSystem: $isSystem, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -315,16 +323,21 @@ $TokenListApiCopyWith<TokenListApi> get copyWith => _$TokenListApiCopyWithImpl<T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as TokenListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as TokenListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'TokenListApi(data: $data)';
+  final _this = this as TokenListApi;
+  return 'TokenListApi(data: ${_this.data})';
 }
 
 
@@ -353,7 +366,7 @@ class _$TokenListApiCopyWithImpl<$Res>
 /// Create a copy of TokenListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TokenListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<TokenApi>,
   ));
@@ -496,7 +509,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TokenListApi implements TokenListApi {
-  const _TokenListApi({@JsonKey(fromJson: _tokenListData) final  List<TokenApi> data = const []}): _data = data;
+  const _TokenListApi({@JsonKey(fromJson: _tokenListData)  List<TokenApi> data = const []}): _data = data;
   factory _TokenListApi.fromJson(Map<String, dynamic> json) => _$TokenListApiFromJson(json);
 
  final  List<TokenApi> _data;
@@ -520,16 +533,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'TokenListApi(data: $data)';
+    return 'TokenListApi(data: $data)';
 }
 
 
@@ -584,16 +599,21 @@ $TokenItemApiCopyWith<TokenItemApi> get copyWith => _$TokenItemApiCopyWithImpl<T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as TokenItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as TokenItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'TokenItemApi(data: $data)';
+  final _this = this as TokenItemApi;
+  return 'TokenItemApi(data: ${_this.data})';
 }
 
 
@@ -622,7 +642,7 @@ class _$TokenItemApiCopyWithImpl<$Res>
 /// Create a copy of TokenItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(TokenItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as TokenApi,
   ));
@@ -792,16 +812,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'TokenItemApi(data: $data)';
+    return 'TokenItemApi(data: $data)';
 }
 
 

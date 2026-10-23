@@ -217,18 +217,18 @@ void main() {
       );
     });
 
-    test('both app_links shims are still there', () {
+    test('iOS needs no shim: app_links reads the cold-start link itself', () {
+      // Through 6.4.1 app_links registered only as an app delegate and never
+      // saw the launch URL a scene delivers in `connectionOptions`, so
+      // SceneDelegate handed it over by hand. 7.x registers a scene delegate
+      // (`addSceneDelegate`) and reads it; a second hand-over would deliver
+      // the cold-start link twice. Verified on the iOS simulator with
+      // `simctl openurl` against a terminated app (docs/upstream-workarounds.md).
       final ios = read('ios/Runner/SceneDelegate.swift');
-      expect(
-        ios,
-        contains('AppLinks.shared.handleLink'),
-        reason:
-            'without it a link tapped with the app not running does NOTHING on '
-            'iOS: UIKit delivers the launch URL only in connectionOptions, and '
-            'app_links implements no didFinishLaunchingWithOptions',
-      );
-      expect(ios, contains('willConnectTo'));
+      expect(ios, isNot(contains('AppLinks.shared.handleLink')));
+    });
 
+    test('the macOS app_links shim is still there', () {
       final macos = read('macos/Runner/AppDelegate.swift');
       expect(
         macos,

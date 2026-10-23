@@ -34,16 +34,17 @@ UploadSource? uploadSourceFromParts({
 }
 
 /// Converts the picked [PlatformFile]s (the click-to-select path) into upload
-/// sources, dropping any entry that has neither a path nor bytes. Native picks
-/// carry a real path (streamed, never copied); web picks have no path, so their
-/// bytes are read on demand — `readAsBytes()` fetches the blob, replacing the
-/// removed `withData` eager-load.
+/// sources, dropping any entry that has neither a path nor bytes. A native pick
+/// with a `file:` Uri carries a real path (streamed, never copied); a web pick,
+/// or one whose Uri is not a file (`PlatformFile.path` is null for an Android
+/// `content:` document), is read on demand — `readAsBytes()` fetches it,
+/// replacing the removed `withData` eager-load.
 Future<List<UploadSource>> uploadSourcesFromPicked(
   List<PlatformFile> files,
 ) async {
   final out = <UploadSource>[];
   for (final f in files) {
-    final bytes = kIsWeb ? await f.readAsBytes() : null;
+    final bytes = kIsWeb || f.path == null ? await f.readAsBytes() : null;
     final src = uploadSourceFromParts(path: f.path, bytes: bytes, name: f.name);
     if (src != null) out.add(src);
   }
@@ -118,12 +119,11 @@ class _FileDropZoneState extends State<FileDropZone> {
     // Bytes are pulled on demand in uploadSourcesFromPicked (no eager withData).
     final List<PlatformFile> files;
     if (widget.allowMultiple) {
-      final picked = await FilePicker.pickFiles(
+      // An empty list is a cancel.
+      files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: widget.allowedExtensions,
       );
-      if (picked == null) return;
-      files = picked.files;
     } else {
       final picked = await FilePicker.pickFile(
         type: FileType.custom,

@@ -1128,6 +1128,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | E-invoicing settings at company level only; PEPPOL hidden for self-hosted companies in France | ✅ | — | ✅ | | |
 | State-aware upgrade copy (trial / trialing / expired-renew / upgrade) | ✅ | ✅ | ✅ | ✅ | |
 | Hosted upgrade via App Store / Play IAP (web/desktop → portal) | — | ✅ | 🟡 | ✅ | |
+| Manage an App Store subscription in-app (Apple's sheet on iOS; the subscriptions page as fallback) | — | — | ✅ | | |
 | `premium_business_plus` / `white_label` treated as full paid tiers | — | — | ✅ | ✅ | |
 | Trial-expires-soon urgent footer (≤3 days) | ✅ | ✅ | ✅ | ✅ | |
 | Purchase License (self-hosted white label) | ✅ | ✅ | ✅ | ✅ | |

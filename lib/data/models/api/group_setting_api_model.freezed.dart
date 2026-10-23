@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'group_setting_api_model.dart';
@@ -9,16 +9,14 @@ part of 'group_setting_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$GroupSettingApi {
 
- String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId; String get name;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'settings', includeIfNull: false) Map<String, dynamic>? get settings;// Nullable to distinguish JSON-omitted (list endpoint without
-// `?include=documents`) from JSON-present-and-empty. Lives in its own
-// Drift column; the repo's `_fromRow` overlays it. See `ClientApi.documents`.
- List<DocumentApi>? get documents;
+ String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'assigned_user_id') String get assignedUserId; String get name;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'settings', includeIfNull: false) Map<String, dynamic>? get settings; List<DocumentApi>? get documents;
 /// Create a copy of GroupSettingApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +29,21 @@ $GroupSettingApiCopyWith<GroupSettingApi> get copyWith => _$GroupSettingApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.settings, settings)&&const DeepCollectionEquality().equals(other.documents, documents));
+  final _this = this as GroupSettingApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.settings, _this.settings)&&const DeepCollectionEquality().equals(other.documents, _this.documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,assignedUserId,name,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(settings),const DeepCollectionEquality().hash(documents));
+int get hashCode {
+  final _this = this as GroupSettingApi;
+  return Object.hash(runtimeType,_this.id,_this.userId,_this.assignedUserId,_this.name,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,const DeepCollectionEquality().hash(_this.settings),const DeepCollectionEquality().hash(_this.documents));
+}
 
 @override
 String toString() {
-  return 'GroupSettingApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents)';
+  final _this = this as GroupSettingApi;
+  return 'GroupSettingApi(id: ${_this.id}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, name: ${_this.name}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, settings: ${_this.settings}, documents: ${_this.documents})';
 }
 
 
@@ -69,7 +72,7 @@ class _$GroupSettingApiCopyWithImpl<$Res>
 /// Create a copy of GroupSettingApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? assignedUserId = null,Object? name = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? settings = freezed,Object? documents = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(GroupSettingApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
@@ -225,7 +228,7 @@ return $default(_that.id,_that.userId,_that.assignedUserId,_that.name,_that.cust
 @JsonSerializable()
 
 class _GroupSettingApi implements GroupSettingApi {
-  const _GroupSettingApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', this.name = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'settings', includeIfNull: false) final  Map<String, dynamic>? settings, final  List<DocumentApi>? documents}): _settings = settings,_documents = documents;
+  const _GroupSettingApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', this.name = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'settings', includeIfNull: false)  Map<String, dynamic>? settings,  List<DocumentApi>? documents}): _settings = settings,_documents = documents;
   factory _GroupSettingApi.fromJson(Map<String, dynamic> json) => _$GroupSettingApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -249,13 +252,7 @@ class _GroupSettingApi implements GroupSettingApi {
   return EqualUnmodifiableMapView(value);
 }
 
-// Nullable to distinguish JSON-omitted (list endpoint without
-// `?include=documents`) from JSON-present-and-empty. Lives in its own
-// Drift column; the repo's `_fromRow` overlays it. See `ClientApi.documents`.
  final  List<DocumentApi>? _documents;
-// Nullable to distinguish JSON-omitted (list endpoint without
-// `?include=documents`) from JSON-present-and-empty. Lives in its own
-// Drift column; the repo's `_fromRow` overlays it. See `ClientApi.documents`.
 @override List<DocumentApi>? get documents {
   final value = _documents;
   if (value == null) return null;
@@ -278,16 +275,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._settings, _settings)&&const DeepCollectionEquality().equals(other._documents, _documents));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.settings, _settings)&&const DeepCollectionEquality().equals(other.documents, _documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,userId,assignedUserId,name,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_settings),const DeepCollectionEquality().hash(_documents));
+int get hashCode {
+    return Object.hash(runtimeType,id,userId,assignedUserId,name,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_settings),const DeepCollectionEquality().hash(_documents));
+}
 
 @override
 String toString() {
-  return 'GroupSettingApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents)';
+    return 'GroupSettingApi(id: $id, userId: $userId, assignedUserId: $assignedUserId, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents)';
 }
 
 
@@ -355,16 +354,21 @@ $GroupSettingListApiCopyWith<GroupSettingListApi> get copyWith => _$GroupSetting
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as GroupSettingListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as GroupSettingListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'GroupSettingListApi(data: $data)';
+  final _this = this as GroupSettingListApi;
+  return 'GroupSettingListApi(data: ${_this.data})';
 }
 
 
@@ -393,7 +397,7 @@ class _$GroupSettingListApiCopyWithImpl<$Res>
 /// Create a copy of GroupSettingListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(GroupSettingListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<GroupSettingApi>,
   ));
@@ -536,7 +540,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _GroupSettingListApi implements GroupSettingListApi {
-  const _GroupSettingListApi({@JsonKey(fromJson: _groupSettingListData) final  List<GroupSettingApi> data = const []}): _data = data;
+  const _GroupSettingListApi({@JsonKey(fromJson: _groupSettingListData)  List<GroupSettingApi> data = const []}): _data = data;
   factory _GroupSettingListApi.fromJson(Map<String, dynamic> json) => _$GroupSettingListApiFromJson(json);
 
  final  List<GroupSettingApi> _data;
@@ -560,16 +564,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'GroupSettingListApi(data: $data)';
+    return 'GroupSettingListApi(data: $data)';
 }
 
 
@@ -624,16 +630,21 @@ $GroupSettingItemApiCopyWith<GroupSettingItemApi> get copyWith => _$GroupSetting
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as GroupSettingItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSettingItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as GroupSettingItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'GroupSettingItemApi(data: $data)';
+  final _this = this as GroupSettingItemApi;
+  return 'GroupSettingItemApi(data: ${_this.data})';
 }
 
 
@@ -662,7 +673,7 @@ class _$GroupSettingItemApiCopyWithImpl<$Res>
 /// Create a copy of GroupSettingItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(GroupSettingItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as GroupSettingApi,
   ));
@@ -832,16 +843,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSettingItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'GroupSettingItemApi(data: $data)';
+    return 'GroupSettingItemApi(data: $data)';
 }
 
 

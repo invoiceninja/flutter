@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'webhook_api_model.dart';
@@ -9,6 +9,7 @@ part of 'webhook_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $WebhookApiCopyWith<WebhookApi> get copyWith => _$WebhookApiCopyWithImpl<Webhook
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookApi&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other.headers, headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as WebhookApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.eventId, _this.eventId) || other.eventId == _this.eventId)&&(identical(other.targetUrl, _this.targetUrl) || other.targetUrl == _this.targetUrl)&&(identical(other.format, _this.format) || other.format == _this.format)&&(identical(other.restMethod, _this.restMethod) || other.restMethod == _this.restMethod)&&const DeepCollectionEquality().equals(other.headers, _this.headers)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(headers),isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as WebhookApi;
+  return Object.hash(runtimeType,_this.id,_this.eventId,_this.targetUrl,_this.format,_this.restMethod,const DeepCollectionEquality().hash(_this.headers),_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'WebhookApi(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as WebhookApi;
+  return 'WebhookApi(id: ${_this.id}, eventId: ${_this.eventId}, targetUrl: ${_this.targetUrl}, format: ${_this.format}, restMethod: ${_this.restMethod}, headers: ${_this.headers}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$WebhookApiCopyWithImpl<$Res>
 /// Create a copy of WebhookApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? eventId = null,Object? targetUrl = null,Object? format = null,Object? restMethod = null,Object? headers = null,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(WebhookApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,eventId: null == eventId ? _self.eventId : eventId // ignore: cast_nullable_to_non_nullable
 as String,targetUrl: null == targetUrl ? _self.targetUrl : targetUrl // ignore: cast_nullable_to_non_nullable
@@ -218,7 +224,7 @@ return $default(_that.id,_that.eventId,_that.targetUrl,_that.format,_that.restMe
 
 @JsonSerializable(includeIfNull: false)
 class _WebhookApi implements WebhookApi {
-  const _WebhookApi({this.id = '', @JsonKey(name: 'event_id') this.eventId = '', @JsonKey(name: 'target_url') this.targetUrl = '', this.format = 'JSON', @JsonKey(name: 'rest_method') this.restMethod = 'post', @JsonKey(fromJson: _headersFromJson) final  Map<String, String> headers = const <String, String>{}, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0}): _headers = headers;
+  const _WebhookApi({this.id = '', @JsonKey(name: 'event_id') this.eventId = '', @JsonKey(name: 'target_url') this.targetUrl = '', this.format = 'JSON', @JsonKey(name: 'rest_method') this.restMethod = 'post', @JsonKey(fromJson: _headersFromJson)  Map<String, String> headers = const <String, String>{}, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0}): _headers = headers;
   factory _WebhookApi.fromJson(Map<String, dynamic> json) => _$WebhookApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -251,16 +257,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookApi&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other._headers, _headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookApi&&(identical(other.id, id) || other.id == id)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.targetUrl, targetUrl) || other.targetUrl == targetUrl)&&(identical(other.format, format) || other.format == format)&&(identical(other.restMethod, restMethod) || other.restMethod == restMethod)&&const DeepCollectionEquality().equals(other.headers, _headers)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(_headers),isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,eventId,targetUrl,format,restMethod,const DeepCollectionEquality().hash(_headers),isDeleted,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'WebhookApi(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'WebhookApi(id: $id, eventId: $eventId, targetUrl: $targetUrl, format: $format, restMethod: $restMethod, headers: $headers, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -324,16 +332,21 @@ $WebhookListApiCopyWith<WebhookListApi> get copyWith => _$WebhookListApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as WebhookListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as WebhookListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'WebhookListApi(data: $data)';
+  final _this = this as WebhookListApi;
+  return 'WebhookListApi(data: ${_this.data})';
 }
 
 
@@ -362,7 +375,7 @@ class _$WebhookListApiCopyWithImpl<$Res>
 /// Create a copy of WebhookListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(WebhookListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<WebhookApi>,
   ));
@@ -505,7 +518,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _WebhookListApi implements WebhookListApi {
-  const _WebhookListApi({@JsonKey(fromJson: _webhookListData) final  List<WebhookApi> data = const []}): _data = data;
+  const _WebhookListApi({@JsonKey(fromJson: _webhookListData)  List<WebhookApi> data = const []}): _data = data;
   factory _WebhookListApi.fromJson(Map<String, dynamic> json) => _$WebhookListApiFromJson(json);
 
  final  List<WebhookApi> _data;
@@ -529,16 +542,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'WebhookListApi(data: $data)';
+    return 'WebhookListApi(data: $data)';
 }
 
 
@@ -593,16 +608,21 @@ $WebhookItemApiCopyWith<WebhookItemApi> get copyWith => _$WebhookItemApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as WebhookItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WebhookItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as WebhookItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'WebhookItemApi(data: $data)';
+  final _this = this as WebhookItemApi;
+  return 'WebhookItemApi(data: ${_this.data})';
 }
 
 
@@ -631,7 +651,7 @@ class _$WebhookItemApiCopyWithImpl<$Res>
 /// Create a copy of WebhookItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(WebhookItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as WebhookApi,
   ));
@@ -801,16 +821,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _WebhookItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'WebhookItemApi(data: $data)';
+    return 'WebhookItemApi(data: $data)';
 }
 
 

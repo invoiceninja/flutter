@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment.dart';
@@ -9,6 +9,7 @@ part of 'payment.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $PaymentCopyWith<Payment> get copyWith => _$PaymentCopyWithImpl<Payment>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Payment&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.applied, applied) || other.applied == applied)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.exchangeRate, exchangeRate) || other.exchangeRate == exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, paymentables)&&const DeepCollectionEquality().equals(other.invoices, invoices)&&const DeepCollectionEquality().equals(other.credits, credits)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as Payment;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Payment&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.companyGatewayId, _this.companyGatewayId) || other.companyGatewayId == _this.companyGatewayId)&&(identical(other.gatewayTypeId, _this.gatewayTypeId) || other.gatewayTypeId == _this.gatewayTypeId)&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.invitationId, _this.invitationId) || other.invitationId == _this.invitationId)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.exchangeCurrencyId, _this.exchangeCurrencyId) || other.exchangeCurrencyId == _this.exchangeCurrencyId)&&(identical(other.transactionReference, _this.transactionReference) || other.transactionReference == _this.transactionReference)&&(identical(other.transactionId, _this.transactionId) || other.transactionId == _this.transactionId)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.createdUserId, _this.createdUserId) || other.createdUserId == _this.createdUserId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.applied, _this.applied) || other.applied == _this.applied)&&(identical(other.refunded, _this.refunded) || other.refunded == _this.refunded)&&(identical(other.exchangeRate, _this.exchangeRate) || other.exchangeRate == _this.exchangeRate)&&(identical(other.isManual, _this.isManual) || other.isManual == _this.isManual)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, _this.paymentables)&&const DeepCollectionEquality().equals(other.invoices, _this.invoices)&&const DeepCollectionEquality().equals(other.credits, _this.credits)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tagIds, _this.tagIds)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,userId,createdUserId,assignedUserId,date,amount,applied,refunded,exchangeRate,isManual,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(paymentables),const DeepCollectionEquality().hash(invoices),const DeepCollectionEquality().hash(credits),const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tagIds),isDirty]);
+int get hashCode {
+  final _this = this as Payment;
+  return Object.hashAll([runtimeType,_this.id,_this.number,_this.statusId,_this.typeId,_this.clientId,_this.clientContactId,_this.companyGatewayId,_this.gatewayTypeId,_this.projectId,_this.vendorId,_this.invitationId,_this.currencyId,_this.exchangeCurrencyId,_this.transactionReference,_this.transactionId,_this.privateNotes,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.userId,_this.createdUserId,_this.assignedUserId,_this.date,_this.amount,_this.applied,_this.refunded,_this.exchangeRate,_this.isManual,_this.isDeleted,_this.updatedAt,_this.createdAt,_this.archivedAt,const DeepCollectionEquality().hash(_this.paymentables),const DeepCollectionEquality().hash(_this.invoices),const DeepCollectionEquality().hash(_this.credits),const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tagIds),_this.isDirty]);
+}
 
 @override
 String toString() {
-  return 'Payment(id: $id, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
+  final _this = this as Payment;
+  return 'Payment(id: ${_this.id}, number: ${_this.number}, statusId: ${_this.statusId}, typeId: ${_this.typeId}, clientId: ${_this.clientId}, clientContactId: ${_this.clientContactId}, companyGatewayId: ${_this.companyGatewayId}, gatewayTypeId: ${_this.gatewayTypeId}, projectId: ${_this.projectId}, vendorId: ${_this.vendorId}, invitationId: ${_this.invitationId}, currencyId: ${_this.currencyId}, exchangeCurrencyId: ${_this.exchangeCurrencyId}, transactionReference: ${_this.transactionReference}, transactionId: ${_this.transactionId}, privateNotes: ${_this.privateNotes}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, userId: ${_this.userId}, createdUserId: ${_this.createdUserId}, assignedUserId: ${_this.assignedUserId}, date: ${_this.date}, amount: ${_this.amount}, applied: ${_this.applied}, refunded: ${_this.refunded}, exchangeRate: ${_this.exchangeRate}, isManual: ${_this.isManual}, isDeleted: ${_this.isDeleted}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, paymentables: ${_this.paymentables}, invoices: ${_this.invoices}, credits: ${_this.credits}, documents: ${_this.documents}, tagIds: ${_this.tagIds}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$PaymentCopyWithImpl<$Res>
 /// Create a copy of Payment
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? statusId = null,Object? typeId = null,Object? clientId = null,Object? clientContactId = null,Object? companyGatewayId = null,Object? gatewayTypeId = null,Object? projectId = null,Object? vendorId = null,Object? invitationId = null,Object? currencyId = null,Object? exchangeCurrencyId = null,Object? transactionReference = null,Object? transactionId = null,Object? privateNotes = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? userId = null,Object? createdUserId = null,Object? assignedUserId = null,Object? date = freezed,Object? amount = null,Object? applied = null,Object? refunded = null,Object? exchangeRate = null,Object? isManual = null,Object? isDeleted = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? paymentables = null,Object? invoices = null,Object? credits = null,Object? documents = null,Object? tagIds = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(Payment(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,statusId: null == statusId ? _self.statusId : statusId // ignore: cast_nullable_to_non_nullable
@@ -244,7 +250,7 @@ return $default(_that.id,_that.number,_that.statusId,_that.typeId,_that.clientId
 
 
 class _Payment implements Payment {
-  const _Payment({required this.id, required this.number, required this.statusId, required this.typeId, required this.clientId, required this.clientContactId, required this.companyGatewayId, required this.gatewayTypeId, required this.projectId, required this.vendorId, required this.invitationId, required this.currencyId, required this.exchangeCurrencyId, required this.transactionReference, required this.transactionId, required this.privateNotes, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.userId, required this.createdUserId, required this.assignedUserId, required this.date, required this.amount, required this.applied, required this.refunded, required this.exchangeRate, required this.isManual, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, final  List<Paymentable> paymentables = const <Paymentable>[], final  List<PaymentInvoiceRef> invoices = const <PaymentInvoiceRef>[], final  List<PaymentCreditRef> credits = const <PaymentCreditRef>[], final  List<Document> documents = const <Document>[], final  List<String> tagIds = const <String>[], this.isDirty = false}): _paymentables = paymentables,_invoices = invoices,_credits = credits,_documents = documents,_tagIds = tagIds;
+  const _Payment({required this.id, required this.number, required this.statusId, required this.typeId, required this.clientId, required this.clientContactId, required this.companyGatewayId, required this.gatewayTypeId, required this.projectId, required this.vendorId, required this.invitationId, required this.currencyId, required this.exchangeCurrencyId, required this.transactionReference, required this.transactionId, required this.privateNotes, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.userId, required this.createdUserId, required this.assignedUserId, required this.date, required this.amount, required this.applied, required this.refunded, required this.exchangeRate, required this.isManual, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt,  List<Paymentable> paymentables = const <Paymentable>[],  List<PaymentInvoiceRef> invoices = const <PaymentInvoiceRef>[],  List<PaymentCreditRef> credits = const <PaymentCreditRef>[],  List<Document> documents = const <Document>[],  List<String> tagIds = const <String>[], this.isDirty = false}): _paymentables = paymentables,_invoices = invoices,_credits = credits,_documents = documents,_tagIds = tagIds;
   
 
 @override final  String id;
@@ -327,16 +333,18 @@ _$PaymentCopyWith<_Payment> get copyWith => __$PaymentCopyWithImpl<_Payment>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Payment&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.applied, applied) || other.applied == applied)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.exchangeRate, exchangeRate) || other.exchangeRate == exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other._paymentables, _paymentables)&&const DeepCollectionEquality().equals(other._invoices, _invoices)&&const DeepCollectionEquality().equals(other._credits, _credits)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Payment&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.date, date) || other.date == date)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.applied, applied) || other.applied == applied)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.exchangeRate, exchangeRate) || other.exchangeRate == exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, _paymentables)&&const DeepCollectionEquality().equals(other.invoices, _invoices)&&const DeepCollectionEquality().equals(other.credits, _credits)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,userId,createdUserId,assignedUserId,date,amount,applied,refunded,exchangeRate,isManual,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(_paymentables),const DeepCollectionEquality().hash(_invoices),const DeepCollectionEquality().hash(_credits),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),isDirty]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,userId,createdUserId,assignedUserId,date,amount,applied,refunded,exchangeRate,isManual,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(_paymentables),const DeepCollectionEquality().hash(_invoices),const DeepCollectionEquality().hash(_credits),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),isDirty]);
+}
 
 @override
 String toString() {
-  return 'Payment(id: $id, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
+    return 'Payment(id: $id, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tagIds: $tagIds, isDirty: $isDirty)';
 }
 
 
@@ -426,16 +434,21 @@ $PaymentableCopyWith<Paymentable> get copyWith => _$PaymentableCopyWithImpl<Paym
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Paymentable&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as Paymentable;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Paymentable&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.invoiceId, _this.invoiceId) || other.invoiceId == _this.invoiceId)&&(identical(other.creditId, _this.creditId) || other.creditId == _this.creditId)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.refunded, _this.refunded) || other.refunded == _this.refunded)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,invoiceId,creditId,amount,refunded,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as Paymentable;
+  return Object.hash(runtimeType,_this.id,_this.invoiceId,_this.creditId,_this.amount,_this.refunded,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'Paymentable(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as Paymentable;
+  return 'Paymentable(id: ${_this.id}, invoiceId: ${_this.invoiceId}, creditId: ${_this.creditId}, amount: ${_this.amount}, refunded: ${_this.refunded}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -464,7 +477,7 @@ class _$PaymentableCopyWithImpl<$Res>
 /// Create a copy of Paymentable
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? invoiceId = null,Object? creditId = null,Object? amount = null,Object? refunded = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(Paymentable(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,invoiceId: null == invoiceId ? _self.invoiceId : invoiceId // ignore: cast_nullable_to_non_nullable
 as String,creditId: null == creditId ? _self.creditId : creditId // ignore: cast_nullable_to_non_nullable
@@ -636,16 +649,18 @@ _$PaymentableCopyWith<_Paymentable> get copyWith => __$PaymentableCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Paymentable&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Paymentable&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.refunded, refunded) || other.refunded == refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,invoiceId,creditId,amount,refunded,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,invoiceId,creditId,amount,refunded,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'Paymentable(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'Paymentable(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -704,16 +719,21 @@ $PaymentInvoiceRefCopyWith<PaymentInvoiceRef> get copyWith => _$PaymentInvoiceRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as PaymentInvoiceRef;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRef&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.balance, _this.balance) || other.balance == _this.balance)&&(identical(other.paidToDate, _this.paidToDate) || other.paidToDate == _this.paidToDate)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate,isDeleted);
+int get hashCode {
+  final _this = this as PaymentInvoiceRef;
+  return Object.hash(runtimeType,_this.id,_this.number,_this.amount,_this.balance,_this.paidToDate,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
+  final _this = this as PaymentInvoiceRef;
+  return 'PaymentInvoiceRef(id: ${_this.id}, number: ${_this.number}, amount: ${_this.amount}, balance: ${_this.balance}, paidToDate: ${_this.paidToDate}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -742,7 +762,7 @@ class _$PaymentInvoiceRefCopyWithImpl<$Res>
 /// Create a copy of PaymentInvoiceRef
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentInvoiceRef(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
@@ -910,16 +930,18 @@ _$PaymentInvoiceRefCopyWith<_PaymentInvoiceRef> get copyWith => __$PaymentInvoic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance)&&(identical(other.paidToDate, paidToDate) || other.paidToDate == paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance,paidToDate,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,number,amount,balance,paidToDate,isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
+    return 'PaymentInvoiceRef(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -976,16 +998,21 @@ $PaymentCreditRefCopyWith<PaymentCreditRef> get copyWith => _$PaymentCreditRefCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentCreditRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance));
+  final _this = this as PaymentCreditRef;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentCreditRef&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.balance, _this.balance) || other.balance == _this.balance));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance);
+int get hashCode {
+  final _this = this as PaymentCreditRef;
+  return Object.hash(runtimeType,_this.id,_this.number,_this.amount,_this.balance);
+}
 
 @override
 String toString() {
-  return 'PaymentCreditRef(id: $id, number: $number, amount: $amount, balance: $balance)';
+  final _this = this as PaymentCreditRef;
+  return 'PaymentCreditRef(id: ${_this.id}, number: ${_this.number}, amount: ${_this.amount}, balance: ${_this.balance})';
 }
 
 
@@ -1014,7 +1041,7 @@ class _$PaymentCreditRefCopyWithImpl<$Res>
 /// Create a copy of PaymentCreditRef
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentCreditRef(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
@@ -1178,16 +1205,18 @@ _$PaymentCreditRefCopyWith<_PaymentCreditRef> get copyWith => __$PaymentCreditRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentCreditRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentCreditRef&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.balance, balance) || other.balance == balance));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,number,amount,balance);
+int get hashCode {
+    return Object.hash(runtimeType,id,number,amount,balance);
+}
 
 @override
 String toString() {
-  return 'PaymentCreditRef(id: $id, number: $number, amount: $amount, balance: $balance)';
+    return 'PaymentCreditRef(id: $id, number: $number, amount: $amount, balance: $balance)';
 }
 
 

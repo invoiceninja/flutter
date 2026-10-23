@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'tax_config_api_model.dart';
@@ -9,6 +9,7 @@ part of 'tax_config_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $TaxConfigApiCopyWith<TaxConfigApi> get copyWith => _$TaxConfigApiCopyWithImpl<T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxConfigApi&&(identical(other.version, version) || other.version == version)&&(identical(other.sellerSubregion, sellerSubregion) || other.sellerSubregion == sellerSubregion)&&(identical(other.actsAsSender, actsAsSender) || other.actsAsSender == actsAsSender)&&(identical(other.actsAsReceiver, actsAsReceiver) || other.actsAsReceiver == actsAsReceiver)&&const DeepCollectionEquality().equals(other.regions, regions));
+  final _this = this as TaxConfigApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxConfigApi&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.sellerSubregion, _this.sellerSubregion) || other.sellerSubregion == _this.sellerSubregion)&&(identical(other.actsAsSender, _this.actsAsSender) || other.actsAsSender == _this.actsAsSender)&&(identical(other.actsAsReceiver, _this.actsAsReceiver) || other.actsAsReceiver == _this.actsAsReceiver)&&const DeepCollectionEquality().equals(other.regions, _this.regions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,version,sellerSubregion,actsAsSender,actsAsReceiver,const DeepCollectionEquality().hash(regions));
+int get hashCode {
+  final _this = this as TaxConfigApi;
+  return Object.hash(runtimeType,_this.version,_this.sellerSubregion,_this.actsAsSender,_this.actsAsReceiver,const DeepCollectionEquality().hash(_this.regions));
+}
 
 @override
 String toString() {
-  return 'TaxConfigApi(version: $version, sellerSubregion: $sellerSubregion, actsAsSender: $actsAsSender, actsAsReceiver: $actsAsReceiver, regions: $regions)';
+  final _this = this as TaxConfigApi;
+  return 'TaxConfigApi(version: ${_this.version}, sellerSubregion: ${_this.sellerSubregion}, actsAsSender: ${_this.actsAsSender}, actsAsReceiver: ${_this.actsAsReceiver}, regions: ${_this.regions})';
 }
 
 
@@ -66,7 +72,7 @@ class _$TaxConfigApiCopyWithImpl<$Res>
 /// Create a copy of TaxConfigApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? version = null,Object? sellerSubregion = null,Object? actsAsSender = null,Object? actsAsReceiver = null,Object? regions = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxConfigApi(
 version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
 as String,sellerSubregion: null == sellerSubregion ? _self.sellerSubregion : sellerSubregion // ignore: cast_nullable_to_non_nullable
 as String,actsAsSender: null == actsAsSender ? _self.actsAsSender : actsAsSender // ignore: cast_nullable_to_non_nullable
@@ -213,7 +219,7 @@ return $default(_that.version,_that.sellerSubregion,_that.actsAsSender,_that.act
 
 @JsonSerializable(includeIfNull: false)
 class _TaxConfigApi implements TaxConfigApi {
-  const _TaxConfigApi({this.version = '', @JsonKey(name: 'seller_subregion') this.sellerSubregion = '', @JsonKey(name: 'acts_as_sender') this.actsAsSender = false, @JsonKey(name: 'acts_as_receiver') this.actsAsReceiver = false, final  Map<String, TaxRegionApi> regions = const <String, TaxRegionApi>{}}): _regions = regions;
+  const _TaxConfigApi({this.version = '', @JsonKey(name: 'seller_subregion') this.sellerSubregion = '', @JsonKey(name: 'acts_as_sender') this.actsAsSender = false, @JsonKey(name: 'acts_as_receiver') this.actsAsReceiver = false,  Map<String, TaxRegionApi> regions = const <String, TaxRegionApi>{}}): _regions = regions;
   factory _TaxConfigApi.fromJson(Map<String, dynamic> json) => _$TaxConfigApiFromJson(json);
 
 @override@JsonKey() final  String version;
@@ -241,16 +247,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxConfigApi&&(identical(other.version, version) || other.version == version)&&(identical(other.sellerSubregion, sellerSubregion) || other.sellerSubregion == sellerSubregion)&&(identical(other.actsAsSender, actsAsSender) || other.actsAsSender == actsAsSender)&&(identical(other.actsAsReceiver, actsAsReceiver) || other.actsAsReceiver == actsAsReceiver)&&const DeepCollectionEquality().equals(other._regions, _regions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxConfigApi&&(identical(other.version, version) || other.version == version)&&(identical(other.sellerSubregion, sellerSubregion) || other.sellerSubregion == sellerSubregion)&&(identical(other.actsAsSender, actsAsSender) || other.actsAsSender == actsAsSender)&&(identical(other.actsAsReceiver, actsAsReceiver) || other.actsAsReceiver == actsAsReceiver)&&const DeepCollectionEquality().equals(other.regions, _regions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,version,sellerSubregion,actsAsSender,actsAsReceiver,const DeepCollectionEquality().hash(_regions));
+int get hashCode {
+    return Object.hash(runtimeType,version,sellerSubregion,actsAsSender,actsAsReceiver,const DeepCollectionEquality().hash(_regions));
+}
 
 @override
 String toString() {
-  return 'TaxConfigApi(version: $version, sellerSubregion: $sellerSubregion, actsAsSender: $actsAsSender, actsAsReceiver: $actsAsReceiver, regions: $regions)';
+    return 'TaxConfigApi(version: $version, sellerSubregion: $sellerSubregion, actsAsSender: $actsAsSender, actsAsReceiver: $actsAsReceiver, regions: $regions)';
 }
 
 
@@ -309,16 +317,21 @@ $TaxRegionApiCopyWith<TaxRegionApi> get copyWith => _$TaxRegionApiCopyWithImpl<T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRegionApi&&(identical(other.taxAllSubregions, taxAllSubregions) || other.taxAllSubregions == taxAllSubregions)&&(identical(other.taxThreshold, taxThreshold) || other.taxThreshold == taxThreshold)&&(identical(other.hasSalesAboveThreshold, hasSalesAboveThreshold) || other.hasSalesAboveThreshold == hasSalesAboveThreshold)&&const DeepCollectionEquality().equals(other.subregions, subregions));
+  final _this = this as TaxRegionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxRegionApi&&(identical(other.taxAllSubregions, _this.taxAllSubregions) || other.taxAllSubregions == _this.taxAllSubregions)&&(identical(other.taxThreshold, _this.taxThreshold) || other.taxThreshold == _this.taxThreshold)&&(identical(other.hasSalesAboveThreshold, _this.hasSalesAboveThreshold) || other.hasSalesAboveThreshold == _this.hasSalesAboveThreshold)&&const DeepCollectionEquality().equals(other.subregions, _this.subregions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taxAllSubregions,taxThreshold,hasSalesAboveThreshold,const DeepCollectionEquality().hash(subregions));
+int get hashCode {
+  final _this = this as TaxRegionApi;
+  return Object.hash(runtimeType,_this.taxAllSubregions,_this.taxThreshold,_this.hasSalesAboveThreshold,const DeepCollectionEquality().hash(_this.subregions));
+}
 
 @override
 String toString() {
-  return 'TaxRegionApi(taxAllSubregions: $taxAllSubregions, taxThreshold: $taxThreshold, hasSalesAboveThreshold: $hasSalesAboveThreshold, subregions: $subregions)';
+  final _this = this as TaxRegionApi;
+  return 'TaxRegionApi(taxAllSubregions: ${_this.taxAllSubregions}, taxThreshold: ${_this.taxThreshold}, hasSalesAboveThreshold: ${_this.hasSalesAboveThreshold}, subregions: ${_this.subregions})';
 }
 
 
@@ -347,7 +360,7 @@ class _$TaxRegionApiCopyWithImpl<$Res>
 /// Create a copy of TaxRegionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? taxAllSubregions = null,Object? taxThreshold = null,Object? hasSalesAboveThreshold = null,Object? subregions = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxRegionApi(
 taxAllSubregions: null == taxAllSubregions ? _self.taxAllSubregions : taxAllSubregions // ignore: cast_nullable_to_non_nullable
 as bool,taxThreshold: null == taxThreshold ? _self.taxThreshold : taxThreshold // ignore: cast_nullable_to_non_nullable
 as double,hasSalesAboveThreshold: null == hasSalesAboveThreshold ? _self.hasSalesAboveThreshold : hasSalesAboveThreshold // ignore: cast_nullable_to_non_nullable
@@ -493,7 +506,7 @@ return $default(_that.taxAllSubregions,_that.taxThreshold,_that.hasSalesAboveThr
 
 @JsonSerializable(includeIfNull: false)
 class _TaxRegionApi implements TaxRegionApi {
-  const _TaxRegionApi({@JsonKey(name: 'tax_all_subregions') this.taxAllSubregions = false, @JsonKey(name: 'tax_threshold') this.taxThreshold = 0.0, @JsonKey(name: 'has_sales_above_threshold') this.hasSalesAboveThreshold = false, final  Map<String, TaxSubregionApi> subregions = const <String, TaxSubregionApi>{}}): _subregions = subregions;
+  const _TaxRegionApi({@JsonKey(name: 'tax_all_subregions') this.taxAllSubregions = false, @JsonKey(name: 'tax_threshold') this.taxThreshold = 0.0, @JsonKey(name: 'has_sales_above_threshold') this.hasSalesAboveThreshold = false,  Map<String, TaxSubregionApi> subregions = const <String, TaxSubregionApi>{}}): _subregions = subregions;
   factory _TaxRegionApi.fromJson(Map<String, dynamic> json) => _$TaxRegionApiFromJson(json);
 
 @override@JsonKey(name: 'tax_all_subregions') final  bool taxAllSubregions;
@@ -520,16 +533,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRegionApi&&(identical(other.taxAllSubregions, taxAllSubregions) || other.taxAllSubregions == taxAllSubregions)&&(identical(other.taxThreshold, taxThreshold) || other.taxThreshold == taxThreshold)&&(identical(other.hasSalesAboveThreshold, hasSalesAboveThreshold) || other.hasSalesAboveThreshold == hasSalesAboveThreshold)&&const DeepCollectionEquality().equals(other._subregions, _subregions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxRegionApi&&(identical(other.taxAllSubregions, taxAllSubregions) || other.taxAllSubregions == taxAllSubregions)&&(identical(other.taxThreshold, taxThreshold) || other.taxThreshold == taxThreshold)&&(identical(other.hasSalesAboveThreshold, hasSalesAboveThreshold) || other.hasSalesAboveThreshold == hasSalesAboveThreshold)&&const DeepCollectionEquality().equals(other.subregions, _subregions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taxAllSubregions,taxThreshold,hasSalesAboveThreshold,const DeepCollectionEquality().hash(_subregions));
+int get hashCode {
+    return Object.hash(runtimeType,taxAllSubregions,taxThreshold,hasSalesAboveThreshold,const DeepCollectionEquality().hash(_subregions));
+}
 
 @override
 String toString() {
-  return 'TaxRegionApi(taxAllSubregions: $taxAllSubregions, taxThreshold: $taxThreshold, hasSalesAboveThreshold: $hasSalesAboveThreshold, subregions: $subregions)';
+    return 'TaxRegionApi(taxAllSubregions: $taxAllSubregions, taxThreshold: $taxThreshold, hasSalesAboveThreshold: $hasSalesAboveThreshold, subregions: $subregions)';
 }
 
 
@@ -587,16 +602,21 @@ $TaxSubregionApiCopyWith<TaxSubregionApi> get copyWith => _$TaxSubregionApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxSubregionApi&&(identical(other.applyTax, applyTax) || other.applyTax == applyTax)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxRate, taxRate) || other.taxRate == taxRate)&&(identical(other.reducedTaxRate, reducedTaxRate) || other.reducedTaxRate == reducedTaxRate)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber));
+  final _this = this as TaxSubregionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TaxSubregionApi&&(identical(other.applyTax, _this.applyTax) || other.applyTax == _this.applyTax)&&(identical(other.taxName, _this.taxName) || other.taxName == _this.taxName)&&(identical(other.taxRate, _this.taxRate) || other.taxRate == _this.taxRate)&&(identical(other.reducedTaxRate, _this.reducedTaxRate) || other.reducedTaxRate == _this.reducedTaxRate)&&(identical(other.vatNumber, _this.vatNumber) || other.vatNumber == _this.vatNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,applyTax,taxName,taxRate,reducedTaxRate,vatNumber);
+int get hashCode {
+  final _this = this as TaxSubregionApi;
+  return Object.hash(runtimeType,_this.applyTax,_this.taxName,_this.taxRate,_this.reducedTaxRate,_this.vatNumber);
+}
 
 @override
 String toString() {
-  return 'TaxSubregionApi(applyTax: $applyTax, taxName: $taxName, taxRate: $taxRate, reducedTaxRate: $reducedTaxRate, vatNumber: $vatNumber)';
+  final _this = this as TaxSubregionApi;
+  return 'TaxSubregionApi(applyTax: ${_this.applyTax}, taxName: ${_this.taxName}, taxRate: ${_this.taxRate}, reducedTaxRate: ${_this.reducedTaxRate}, vatNumber: ${_this.vatNumber})';
 }
 
 
@@ -625,7 +645,7 @@ class _$TaxSubregionApiCopyWithImpl<$Res>
 /// Create a copy of TaxSubregionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? applyTax = null,Object? taxName = null,Object? taxRate = null,Object? reducedTaxRate = null,Object? vatNumber = null,}) {
-  return _then(_self.copyWith(
+  return _then(TaxSubregionApi(
 applyTax: null == applyTax ? _self.applyTax : applyTax // ignore: cast_nullable_to_non_nullable
 as bool,taxName: null == taxName ? _self.taxName : taxName // ignore: cast_nullable_to_non_nullable
 as String,taxRate: null == taxRate ? _self.taxRate : taxRate // ignore: cast_nullable_to_non_nullable
@@ -794,16 +814,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxSubregionApi&&(identical(other.applyTax, applyTax) || other.applyTax == applyTax)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxRate, taxRate) || other.taxRate == taxRate)&&(identical(other.reducedTaxRate, reducedTaxRate) || other.reducedTaxRate == reducedTaxRate)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TaxSubregionApi&&(identical(other.applyTax, applyTax) || other.applyTax == applyTax)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxRate, taxRate) || other.taxRate == taxRate)&&(identical(other.reducedTaxRate, reducedTaxRate) || other.reducedTaxRate == reducedTaxRate)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,applyTax,taxName,taxRate,reducedTaxRate,vatNumber);
+int get hashCode {
+    return Object.hash(runtimeType,applyTax,taxName,taxRate,reducedTaxRate,vatNumber);
+}
 
 @override
 String toString() {
-  return 'TaxSubregionApi(applyTax: $applyTax, taxName: $taxName, taxRate: $taxRate, reducedTaxRate: $reducedTaxRate, vatNumber: $vatNumber)';
+    return 'TaxSubregionApi(applyTax: $applyTax, taxName: $taxName, taxRate: $taxRate, reducedTaxRate: $reducedTaxRate, vatNumber: $vatNumber)';
 }
 
 

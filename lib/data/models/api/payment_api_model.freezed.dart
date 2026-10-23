@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment_api_model.dart';
@@ -9,16 +9,14 @@ part of 'payment_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$PaymentApi {
 
- String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'created_user_id') String get createdUserId;@JsonKey(name: 'assigned_user_id') String get assignedUserId; String get number;@JsonKey(name: 'status_id') String get statusId;@JsonKey(name: 'type_id') String get typeId;@JsonKey(name: 'client_id') String get clientId;@JsonKey(name: 'client_contact_id') String get clientContactId;@JsonKey(name: 'company_gateway_id') String get companyGatewayId;@JsonKey(name: 'gateway_type_id') String get gatewayTypeId;@JsonKey(name: 'project_id') String get projectId;@JsonKey(name: 'vendor_id') String get vendorId;@JsonKey(name: 'invitation_id') String get invitationId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'exchange_currency_id') String get exchangeCurrencyId;@JsonKey(name: 'transaction_reference') String get transactionReference;@JsonKey(name: 'transaction_id') String get transactionId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4; String get date;// Money — Object so number / string both decode; parsed via parseMoney.
- Object get amount; Object get applied; Object get refunded;@JsonKey(name: 'exchange_rate') Object get exchangeRate;@JsonKey(name: 'is_manual') bool get isManual;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;// Nested allocations + server-include refs. Nullable so JSON-omitted
-// (→ null) is distinguishable from JSON-present-and-empty (→ const []).
- List<PaymentableApi>? get paymentables; List<PaymentInvoiceRefApi>? get invoices; List<PaymentCreditRefApi>? get credits; List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
+ String get id;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'created_user_id') String get createdUserId;@JsonKey(name: 'assigned_user_id') String get assignedUserId; String get number;@JsonKey(name: 'status_id') String get statusId;@JsonKey(name: 'type_id') String get typeId;@JsonKey(name: 'client_id') String get clientId;@JsonKey(name: 'client_contact_id') String get clientContactId;@JsonKey(name: 'company_gateway_id') String get companyGatewayId;@JsonKey(name: 'gateway_type_id') String get gatewayTypeId;@JsonKey(name: 'project_id') String get projectId;@JsonKey(name: 'vendor_id') String get vendorId;@JsonKey(name: 'invitation_id') String get invitationId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'exchange_currency_id') String get exchangeCurrencyId;@JsonKey(name: 'transaction_reference') String get transactionReference;@JsonKey(name: 'transaction_id') String get transactionId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4; String get date; Object get amount; Object get applied; Object get refunded;@JsonKey(name: 'exchange_rate') Object get exchangeRate;@JsonKey(name: 'is_manual') bool get isManual;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt; List<PaymentableApi>? get paymentables; List<PaymentInvoiceRefApi>? get invoices; List<PaymentCreditRefApi>? get credits; List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
 /// Create a copy of PaymentApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +29,21 @@ $PaymentApiCopyWith<PaymentApi> get copyWith => _$PaymentApiCopyWithImpl<Payment
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.applied, applied)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, paymentables)&&const DeepCollectionEquality().equals(other.invoices, invoices)&&const DeepCollectionEquality().equals(other.credits, credits)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tags, tags));
+  final _this = this as PaymentApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.createdUserId, _this.createdUserId) || other.createdUserId == _this.createdUserId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.companyGatewayId, _this.companyGatewayId) || other.companyGatewayId == _this.companyGatewayId)&&(identical(other.gatewayTypeId, _this.gatewayTypeId) || other.gatewayTypeId == _this.gatewayTypeId)&&(identical(other.projectId, _this.projectId) || other.projectId == _this.projectId)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.invitationId, _this.invitationId) || other.invitationId == _this.invitationId)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.exchangeCurrencyId, _this.exchangeCurrencyId) || other.exchangeCurrencyId == _this.exchangeCurrencyId)&&(identical(other.transactionReference, _this.transactionReference) || other.transactionReference == _this.transactionReference)&&(identical(other.transactionId, _this.transactionId) || other.transactionId == _this.transactionId)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.date, _this.date) || other.date == _this.date)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&const DeepCollectionEquality().equals(other.applied, _this.applied)&&const DeepCollectionEquality().equals(other.refunded, _this.refunded)&&const DeepCollectionEquality().equals(other.exchangeRate, _this.exchangeRate)&&(identical(other.isManual, _this.isManual) || other.isManual == _this.isManual)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, _this.paymentables)&&const DeepCollectionEquality().equals(other.invoices, _this.invoices)&&const DeepCollectionEquality().equals(other.credits, _this.credits)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tags, _this.tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,createdUserId,assignedUserId,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,date,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(applied),const DeepCollectionEquality().hash(refunded),const DeepCollectionEquality().hash(exchangeRate),isManual,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(paymentables),const DeepCollectionEquality().hash(invoices),const DeepCollectionEquality().hash(credits),const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tags)]);
+int get hashCode {
+  final _this = this as PaymentApi;
+  return Object.hashAll([runtimeType,_this.id,_this.userId,_this.createdUserId,_this.assignedUserId,_this.number,_this.statusId,_this.typeId,_this.clientId,_this.clientContactId,_this.companyGatewayId,_this.gatewayTypeId,_this.projectId,_this.vendorId,_this.invitationId,_this.currencyId,_this.exchangeCurrencyId,_this.transactionReference,_this.transactionId,_this.privateNotes,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.date,const DeepCollectionEquality().hash(_this.amount),const DeepCollectionEquality().hash(_this.applied),const DeepCollectionEquality().hash(_this.refunded),const DeepCollectionEquality().hash(_this.exchangeRate),_this.isManual,_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt,const DeepCollectionEquality().hash(_this.paymentables),const DeepCollectionEquality().hash(_this.invoices),const DeepCollectionEquality().hash(_this.credits),const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tags)]);
+}
 
 @override
 String toString() {
-  return 'PaymentApi(id: $id, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tags: $tags)';
+  final _this = this as PaymentApi;
+  return 'PaymentApi(id: ${_this.id}, userId: ${_this.userId}, createdUserId: ${_this.createdUserId}, assignedUserId: ${_this.assignedUserId}, number: ${_this.number}, statusId: ${_this.statusId}, typeId: ${_this.typeId}, clientId: ${_this.clientId}, clientContactId: ${_this.clientContactId}, companyGatewayId: ${_this.companyGatewayId}, gatewayTypeId: ${_this.gatewayTypeId}, projectId: ${_this.projectId}, vendorId: ${_this.vendorId}, invitationId: ${_this.invitationId}, currencyId: ${_this.currencyId}, exchangeCurrencyId: ${_this.exchangeCurrencyId}, transactionReference: ${_this.transactionReference}, transactionId: ${_this.transactionId}, privateNotes: ${_this.privateNotes}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, date: ${_this.date}, amount: ${_this.amount}, applied: ${_this.applied}, refunded: ${_this.refunded}, exchangeRate: ${_this.exchangeRate}, isManual: ${_this.isManual}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, paymentables: ${_this.paymentables}, invoices: ${_this.invoices}, credits: ${_this.credits}, documents: ${_this.documents}, tags: ${_this.tags})';
 }
 
 
@@ -69,7 +72,7 @@ class _$PaymentApiCopyWithImpl<$Res>
 /// Create a copy of PaymentApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? userId = null,Object? createdUserId = null,Object? assignedUserId = null,Object? number = null,Object? statusId = null,Object? typeId = null,Object? clientId = null,Object? clientContactId = null,Object? companyGatewayId = null,Object? gatewayTypeId = null,Object? projectId = null,Object? vendorId = null,Object? invitationId = null,Object? currencyId = null,Object? exchangeCurrencyId = null,Object? transactionReference = null,Object? transactionId = null,Object? privateNotes = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? date = null,Object? amount = null,Object? applied = null,Object? refunded = null,Object? exchangeRate = null,Object? isManual = null,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? paymentables = freezed,Object? invoices = freezed,Object? credits = freezed,Object? documents = freezed,Object? tags = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,createdUserId: null == createdUserId ? _self.createdUserId : createdUserId // ignore: cast_nullable_to_non_nullable
@@ -245,7 +248,7 @@ return $default(_that.id,_that.userId,_that.createdUserId,_that.assignedUserId,_
 @JsonSerializable()
 
 class _PaymentApi implements PaymentApi {
-  const _PaymentApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'created_user_id') this.createdUserId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', this.number = '', @JsonKey(name: 'status_id') this.statusId = '', @JsonKey(name: 'type_id') this.typeId = '', @JsonKey(name: 'client_id') this.clientId = '', @JsonKey(name: 'client_contact_id') this.clientContactId = '', @JsonKey(name: 'company_gateway_id') this.companyGatewayId = '', @JsonKey(name: 'gateway_type_id') this.gatewayTypeId = '', @JsonKey(name: 'project_id') this.projectId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'invitation_id') this.invitationId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'exchange_currency_id') this.exchangeCurrencyId = '', @JsonKey(name: 'transaction_reference') this.transactionReference = '', @JsonKey(name: 'transaction_id') this.transactionId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', this.date = '', this.amount = '0', this.applied = '0', this.refunded = '0', @JsonKey(name: 'exchange_rate') this.exchangeRate = '1', @JsonKey(name: 'is_manual') this.isManual = false, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, final  List<PaymentableApi>? paymentables, final  List<PaymentInvoiceRefApi>? invoices, final  List<PaymentCreditRefApi>? credits, final  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[]}): _paymentables = paymentables,_invoices = invoices,_credits = credits,_documents = documents,_tags = tags;
+  const _PaymentApi({this.id = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'created_user_id') this.createdUserId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', this.number = '', @JsonKey(name: 'status_id') this.statusId = '', @JsonKey(name: 'type_id') this.typeId = '', @JsonKey(name: 'client_id') this.clientId = '', @JsonKey(name: 'client_contact_id') this.clientContactId = '', @JsonKey(name: 'company_gateway_id') this.companyGatewayId = '', @JsonKey(name: 'gateway_type_id') this.gatewayTypeId = '', @JsonKey(name: 'project_id') this.projectId = '', @JsonKey(name: 'vendor_id') this.vendorId = '', @JsonKey(name: 'invitation_id') this.invitationId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'exchange_currency_id') this.exchangeCurrencyId = '', @JsonKey(name: 'transaction_reference') this.transactionReference = '', @JsonKey(name: 'transaction_id') this.transactionId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', this.date = '', this.amount = '0', this.applied = '0', this.refunded = '0', @JsonKey(name: 'exchange_rate') this.exchangeRate = '1', @JsonKey(name: 'is_manual') this.isManual = false, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0,  List<PaymentableApi>? paymentables,  List<PaymentInvoiceRefApi>? invoices,  List<PaymentCreditRefApi>? credits,  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[]}): _paymentables = paymentables,_invoices = invoices,_credits = credits,_documents = documents,_tags = tags;
   factory _PaymentApi.fromJson(Map<String, dynamic> json) => _$PaymentApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -272,7 +275,6 @@ class _PaymentApi implements PaymentApi {
 @override@JsonKey(name: 'custom_value3') final  String customValue3;
 @override@JsonKey(name: 'custom_value4') final  String customValue4;
 @override@JsonKey() final  String date;
-// Money — Object so number / string both decode; parsed via parseMoney.
 @override@JsonKey() final  Object amount;
 @override@JsonKey() final  Object applied;
 @override@JsonKey() final  Object refunded;
@@ -282,11 +284,7 @@ class _PaymentApi implements PaymentApi {
 @override@JsonKey(name: 'created_at') final  int createdAt;
 @override@JsonKey(name: 'updated_at') final  int updatedAt;
 @override@JsonKey(name: 'archived_at') final  int archivedAt;
-// Nested allocations + server-include refs. Nullable so JSON-omitted
-// (→ null) is distinguishable from JSON-present-and-empty (→ const []).
  final  List<PaymentableApi>? _paymentables;
-// Nested allocations + server-include refs. Nullable so JSON-omitted
-// (→ null) is distinguishable from JSON-present-and-empty (→ const []).
 @override List<PaymentableApi>? get paymentables {
   final value = _paymentables;
   if (value == null) return null;
@@ -343,16 +341,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.applied, applied)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other._paymentables, _paymentables)&&const DeepCollectionEquality().equals(other._invoices, _invoices)&&const DeepCollectionEquality().equals(other._credits, _credits)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tags, _tags));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdUserId, createdUserId) || other.createdUserId == createdUserId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.number, number) || other.number == number)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.companyGatewayId, companyGatewayId) || other.companyGatewayId == companyGatewayId)&&(identical(other.gatewayTypeId, gatewayTypeId) || other.gatewayTypeId == gatewayTypeId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.invitationId, invitationId) || other.invitationId == invitationId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.exchangeCurrencyId, exchangeCurrencyId) || other.exchangeCurrencyId == exchangeCurrencyId)&&(identical(other.transactionReference, transactionReference) || other.transactionReference == transactionReference)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.applied, applied)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&const DeepCollectionEquality().equals(other.exchangeRate, exchangeRate)&&(identical(other.isManual, isManual) || other.isManual == isManual)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.paymentables, _paymentables)&&const DeepCollectionEquality().equals(other.invoices, _invoices)&&const DeepCollectionEquality().equals(other.credits, _credits)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tags, _tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,userId,createdUserId,assignedUserId,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,date,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(applied),const DeepCollectionEquality().hash(refunded),const DeepCollectionEquality().hash(exchangeRate),isManual,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_paymentables),const DeepCollectionEquality().hash(_invoices),const DeepCollectionEquality().hash(_credits),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,userId,createdUserId,assignedUserId,number,statusId,typeId,clientId,clientContactId,companyGatewayId,gatewayTypeId,projectId,vendorId,invitationId,currencyId,exchangeCurrencyId,transactionReference,transactionId,privateNotes,customValue1,customValue2,customValue3,customValue4,date,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(applied),const DeepCollectionEquality().hash(refunded),const DeepCollectionEquality().hash(exchangeRate),isManual,isDeleted,createdAt,updatedAt,archivedAt,const DeepCollectionEquality().hash(_paymentables),const DeepCollectionEquality().hash(_invoices),const DeepCollectionEquality().hash(_credits),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+}
 
 @override
 String toString() {
-  return 'PaymentApi(id: $id, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tags: $tags)';
+    return 'PaymentApi(id: $id, userId: $userId, createdUserId: $createdUserId, assignedUserId: $assignedUserId, number: $number, statusId: $statusId, typeId: $typeId, clientId: $clientId, clientContactId: $clientContactId, companyGatewayId: $companyGatewayId, gatewayTypeId: $gatewayTypeId, projectId: $projectId, vendorId: $vendorId, invitationId: $invitationId, currencyId: $currencyId, exchangeCurrencyId: $exchangeCurrencyId, transactionReference: $transactionReference, transactionId: $transactionId, privateNotes: $privateNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, date: $date, amount: $amount, applied: $applied, refunded: $refunded, exchangeRate: $exchangeRate, isManual: $isManual, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, paymentables: $paymentables, invoices: $invoices, credits: $credits, documents: $documents, tags: $tags)';
 }
 
 
@@ -440,16 +440,21 @@ $PaymentableApiCopyWith<PaymentableApi> get copyWith => _$PaymentableApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentableApi&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as PaymentableApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentableApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.invoiceId, _this.invoiceId) || other.invoiceId == _this.invoiceId)&&(identical(other.creditId, _this.creditId) || other.creditId == _this.creditId)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&const DeepCollectionEquality().equals(other.refunded, _this.refunded)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,invoiceId,creditId,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(refunded),createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as PaymentableApi;
+  return Object.hash(runtimeType,_this.id,_this.invoiceId,_this.creditId,const DeepCollectionEquality().hash(_this.amount),const DeepCollectionEquality().hash(_this.refunded),_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'PaymentableApi(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as PaymentableApi;
+  return 'PaymentableApi(id: ${_this.id}, invoiceId: ${_this.invoiceId}, creditId: ${_this.creditId}, amount: ${_this.amount}, refunded: ${_this.refunded}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -478,7 +483,7 @@ class _$PaymentableApiCopyWithImpl<$Res>
 /// Create a copy of PaymentableApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? invoiceId = null,Object? creditId = null,Object? amount = null,Object? refunded = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentableApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,invoiceId: null == invoiceId ? _self.invoiceId : invoiceId // ignore: cast_nullable_to_non_nullable
 as String,creditId: null == creditId ? _self.creditId : creditId // ignore: cast_nullable_to_non_nullable
@@ -651,16 +656,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentableApi&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentableApi&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.creditId, creditId) || other.creditId == creditId)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.refunded, refunded)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,invoiceId,creditId,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(refunded),createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,invoiceId,creditId,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(refunded),createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'PaymentableApi(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'PaymentableApi(id: $id, invoiceId: $invoiceId, creditId: $creditId, amount: $amount, refunded: $refunded, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -707,10 +714,7 @@ as int,
 /// @nodoc
 mixin _$PaymentInvoiceRefApi {
 
- String get id; String get number; Object get amount; Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;// The relation is `withTrashed()`, so a deleted invoice still comes back
-// here — and the server refuses to delete a payment linked to one
-// (`deleted_invoices_exist`). Read so the Delete action can stand down.
-@JsonKey(name: 'is_deleted') bool get isDeleted;
+ String get id; String get number; Object get amount; Object get balance;@JsonKey(name: 'paid_to_date') Object get paidToDate;@JsonKey(name: 'is_deleted') bool get isDeleted;
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -723,16 +727,21 @@ $PaymentInvoiceRefApiCopyWith<PaymentInvoiceRefApi> get copyWith => _$PaymentInv
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as PaymentInvoiceRefApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentInvoiceRefApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&const DeepCollectionEquality().equals(other.balance, _this.balance)&&const DeepCollectionEquality().equals(other.paidToDate, _this.paidToDate)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),isDeleted);
+int get hashCode {
+  final _this = this as PaymentInvoiceRefApi;
+  return Object.hash(runtimeType,_this.id,_this.number,const DeepCollectionEquality().hash(_this.amount),const DeepCollectionEquality().hash(_this.balance),const DeepCollectionEquality().hash(_this.paidToDate),_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
+  final _this = this as PaymentInvoiceRefApi;
+  return 'PaymentInvoiceRefApi(id: ${_this.id}, number: ${_this.number}, amount: ${_this.amount}, balance: ${_this.balance}, paidToDate: ${_this.paidToDate}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -761,7 +770,7 @@ class _$PaymentInvoiceRefApiCopyWithImpl<$Res>
 /// Create a copy of PaymentInvoiceRefApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,Object? paidToDate = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentInvoiceRefApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,paidToDate: null == paidToDate ? _self.paidToDate : paidToDate ,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
@@ -914,9 +923,6 @@ class _PaymentInvoiceRefApi implements PaymentInvoiceRefApi {
 @override@JsonKey() final  Object amount;
 @override@JsonKey() final  Object balance;
 @override@JsonKey(name: 'paid_to_date') final  Object paidToDate;
-// The relation is `withTrashed()`, so a deleted invoice still comes back
-// here — and the server refuses to delete a payment linked to one
-// (`deleted_invoices_exist`). Read so the Delete action can stand down.
 @override@JsonKey(name: 'is_deleted') final  bool isDeleted;
 
 /// Create a copy of PaymentInvoiceRefApi
@@ -932,16 +938,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentInvoiceRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance)&&const DeepCollectionEquality().equals(other.paidToDate, paidToDate)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance),const DeepCollectionEquality().hash(paidToDate),isDeleted);
+}
 
 @override
 String toString() {
-  return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
+    return 'PaymentInvoiceRefApi(id: $id, number: $number, amount: $amount, balance: $balance, paidToDate: $paidToDate, isDeleted: $isDeleted)';
 }
 
 
@@ -998,16 +1006,21 @@ $PaymentCreditRefApiCopyWith<PaymentCreditRefApi> get copyWith => _$PaymentCredi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentCreditRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance));
+  final _this = this as PaymentCreditRefApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentCreditRefApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.number, _this.number) || other.number == _this.number)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&const DeepCollectionEquality().equals(other.balance, _this.balance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance));
+int get hashCode {
+  final _this = this as PaymentCreditRefApi;
+  return Object.hash(runtimeType,_this.id,_this.number,const DeepCollectionEquality().hash(_this.amount),const DeepCollectionEquality().hash(_this.balance));
+}
 
 @override
 String toString() {
-  return 'PaymentCreditRefApi(id: $id, number: $number, amount: $amount, balance: $balance)';
+  final _this = this as PaymentCreditRefApi;
+  return 'PaymentCreditRefApi(id: ${_this.id}, number: ${_this.number}, amount: ${_this.amount}, balance: ${_this.balance})';
 }
 
 
@@ -1036,7 +1049,7 @@ class _$PaymentCreditRefApiCopyWithImpl<$Res>
 /// Create a copy of PaymentCreditRefApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? amount = null,Object? balance = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentCreditRefApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount ,balance: null == balance ? _self.balance : balance ,
@@ -1201,16 +1214,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentCreditRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentCreditRefApi&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&const DeepCollectionEquality().equals(other.amount, amount)&&const DeepCollectionEquality().equals(other.balance, balance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance));
+int get hashCode {
+    return Object.hash(runtimeType,id,number,const DeepCollectionEquality().hash(amount),const DeepCollectionEquality().hash(balance));
+}
 
 @override
 String toString() {
-  return 'PaymentCreditRefApi(id: $id, number: $number, amount: $amount, balance: $balance)';
+    return 'PaymentCreditRefApi(id: $id, number: $number, amount: $amount, balance: $balance)';
 }
 
 
@@ -1266,16 +1281,21 @@ $PaymentListApiCopyWith<PaymentListApi> get copyWith => _$PaymentListApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as PaymentListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as PaymentListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'PaymentListApi(data: $data)';
+  final _this = this as PaymentListApi;
+  return 'PaymentListApi(data: ${_this.data})';
 }
 
 
@@ -1304,7 +1324,7 @@ class _$PaymentListApiCopyWithImpl<$Res>
 /// Create a copy of PaymentListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<PaymentApi>,
   ));
@@ -1447,7 +1467,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _PaymentListApi implements PaymentListApi {
-  const _PaymentListApi({@JsonKey(fromJson: _paymentListData) final  List<PaymentApi> data = const []}): _data = data;
+  const _PaymentListApi({@JsonKey(fromJson: _paymentListData)  List<PaymentApi> data = const []}): _data = data;
   factory _PaymentListApi.fromJson(Map<String, dynamic> json) => _$PaymentListApiFromJson(json);
 
  final  List<PaymentApi> _data;
@@ -1471,16 +1491,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'PaymentListApi(data: $data)';
+    return 'PaymentListApi(data: $data)';
 }
 
 
@@ -1535,16 +1557,21 @@ $PaymentItemApiCopyWith<PaymentItemApi> get copyWith => _$PaymentItemApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as PaymentItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PaymentItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as PaymentItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'PaymentItemApi(data: $data)';
+  final _this = this as PaymentItemApi;
+  return 'PaymentItemApi(data: ${_this.data})';
 }
 
 
@@ -1573,7 +1600,7 @@ class _$PaymentItemApiCopyWithImpl<$Res>
 /// Create a copy of PaymentItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as PaymentApi,
   ));
@@ -1743,16 +1770,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PaymentItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'PaymentItemApi(data: $data)';
+    return 'PaymentItemApi(data: $data)';
 }
 
 

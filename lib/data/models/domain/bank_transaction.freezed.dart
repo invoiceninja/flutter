@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'bank_transaction.dart';
@@ -9,6 +9,7 @@ part of 'bank_transaction.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $BankTransactionCopyWith<BankTransaction> get copyWith => _$BankTransactionCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransaction&&(identical(other.id, id) || other.id == id)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.category, category) || other.category == category)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankAccountId, bankAccountId) || other.bankAccountId == bankAccountId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.transactionRuleId, transactionRuleId) || other.transactionRuleId == transactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as BankTransaction;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankTransaction&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.category, _this.category) || other.category == _this.category)&&(identical(other.baseType, _this.baseType) || other.baseType == _this.baseType)&&(identical(other.date, _this.date) || other.date == _this.date)&&(identical(other.bankAccountId, _this.bankAccountId) || other.bankAccountId == _this.bankAccountId)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.statusId, _this.statusId) || other.statusId == _this.statusId)&&(identical(other.categoryId, _this.categoryId) || other.categoryId == _this.categoryId)&&(identical(other.invoiceIds, _this.invoiceIds) || other.invoiceIds == _this.invoiceIds)&&(identical(other.paymentId, _this.paymentId) || other.paymentId == _this.paymentId)&&(identical(other.expenseId, _this.expenseId) || other.expenseId == _this.expenseId)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.transactionId, _this.transactionId) || other.transactionId == _this.transactionId)&&(identical(other.transactionRuleId, _this.transactionRuleId) || other.transactionRuleId == _this.transactionRuleId)&&(identical(other.participantName, _this.participantName) || other.participantName == _this.participantName)&&(identical(other.participant, _this.participant) || other.participant == _this.participant)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&const DeepCollectionEquality().equals(other.tagIds, _this.tagIds)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,amount,currencyId,category,baseType,date,bankAccountId,description,statusId,categoryId,invoiceIds,paymentId,expenseId,vendorId,transactionId,transactionRuleId,participantName,participant,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(tagIds),isDirty]);
+int get hashCode {
+  final _this = this as BankTransaction;
+  return Object.hashAll([runtimeType,_this.id,_this.amount,_this.currencyId,_this.category,_this.baseType,_this.date,_this.bankAccountId,_this.description,_this.statusId,_this.categoryId,_this.invoiceIds,_this.paymentId,_this.expenseId,_this.vendorId,_this.transactionId,_this.transactionRuleId,_this.participantName,_this.participant,_this.isDeleted,_this.updatedAt,_this.createdAt,_this.archivedAt,const DeepCollectionEquality().hash(_this.tagIds),_this.isDirty]);
+}
 
 @override
 String toString() {
-  return 'BankTransaction(id: $id, amount: $amount, currencyId: $currencyId, category: $category, baseType: $baseType, date: $date, bankAccountId: $bankAccountId, description: $description, statusId: $statusId, categoryId: $categoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, transactionRuleId: $transactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, tagIds: $tagIds, isDirty: $isDirty)';
+  final _this = this as BankTransaction;
+  return 'BankTransaction(id: ${_this.id}, amount: ${_this.amount}, currencyId: ${_this.currencyId}, category: ${_this.category}, baseType: ${_this.baseType}, date: ${_this.date}, bankAccountId: ${_this.bankAccountId}, description: ${_this.description}, statusId: ${_this.statusId}, categoryId: ${_this.categoryId}, invoiceIds: ${_this.invoiceIds}, paymentId: ${_this.paymentId}, expenseId: ${_this.expenseId}, vendorId: ${_this.vendorId}, transactionId: ${_this.transactionId}, transactionRuleId: ${_this.transactionRuleId}, participantName: ${_this.participantName}, participant: ${_this.participant}, isDeleted: ${_this.isDeleted}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, tagIds: ${_this.tagIds}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -63,7 +69,7 @@ class _$BankTransactionCopyWithImpl<$Res>
 /// Create a copy of BankTransaction
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? amount = null,Object? currencyId = null,Object? category = null,Object? baseType = null,Object? date = freezed,Object? bankAccountId = null,Object? description = null,Object? statusId = null,Object? categoryId = null,Object? invoiceIds = null,Object? paymentId = null,Object? expenseId = null,Object? vendorId = null,Object? transactionId = null,Object? transactionRuleId = null,Object? participantName = null,Object? participant = null,Object? isDeleted = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? tagIds = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankTransaction(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as Decimal,currencyId: null == currencyId ? _self.currencyId : currencyId // ignore: cast_nullable_to_non_nullable
@@ -229,7 +235,7 @@ return $default(_that.id,_that.amount,_that.currencyId,_that.category,_that.base
 
 
 class _BankTransaction extends BankTransaction {
-  const _BankTransaction({required this.id, required this.amount, required this.currencyId, required this.category, required this.baseType, required this.date, required this.bankAccountId, required this.description, required this.statusId, required this.categoryId, required this.invoiceIds, required this.paymentId, required this.expenseId, required this.vendorId, required this.transactionId, required this.transactionRuleId, required this.participantName, required this.participant, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, final  List<String> tagIds = const <String>[], this.isDirty = false}): _tagIds = tagIds,super._();
+  const _BankTransaction({required this.id, required this.amount, required this.currencyId, required this.category, required this.baseType, required this.date, required this.bankAccountId, required this.description, required this.statusId, required this.categoryId, required this.invoiceIds, required this.paymentId, required this.expenseId, required this.vendorId, required this.transactionId, required this.transactionRuleId, required this.participantName, required this.participant, required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt,  List<String> tagIds = const <String>[], this.isDirty = false}): _tagIds = tagIds,super._();
   
 
 @override final  String id;
@@ -273,16 +279,18 @@ _$BankTransactionCopyWith<_BankTransaction> get copyWith => __$BankTransactionCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransaction&&(identical(other.id, id) || other.id == id)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.category, category) || other.category == category)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankAccountId, bankAccountId) || other.bankAccountId == bankAccountId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.transactionRuleId, transactionRuleId) || other.transactionRuleId == transactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankTransaction&&(identical(other.id, id) || other.id == id)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.category, category) || other.category == category)&&(identical(other.baseType, baseType) || other.baseType == baseType)&&(identical(other.date, date) || other.date == date)&&(identical(other.bankAccountId, bankAccountId) || other.bankAccountId == bankAccountId)&&(identical(other.description, description) || other.description == description)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.invoiceIds, invoiceIds) || other.invoiceIds == invoiceIds)&&(identical(other.paymentId, paymentId) || other.paymentId == paymentId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.transactionId, transactionId) || other.transactionId == transactionId)&&(identical(other.transactionRuleId, transactionRuleId) || other.transactionRuleId == transactionRuleId)&&(identical(other.participantName, participantName) || other.participantName == participantName)&&(identical(other.participant, participant) || other.participant == participant)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&const DeepCollectionEquality().equals(other.tagIds, _tagIds)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,amount,currencyId,category,baseType,date,bankAccountId,description,statusId,categoryId,invoiceIds,paymentId,expenseId,vendorId,transactionId,transactionRuleId,participantName,participant,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(_tagIds),isDirty]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,amount,currencyId,category,baseType,date,bankAccountId,description,statusId,categoryId,invoiceIds,paymentId,expenseId,vendorId,transactionId,transactionRuleId,participantName,participant,isDeleted,updatedAt,createdAt,archivedAt,const DeepCollectionEquality().hash(_tagIds),isDirty]);
+}
 
 @override
 String toString() {
-  return 'BankTransaction(id: $id, amount: $amount, currencyId: $currencyId, category: $category, baseType: $baseType, date: $date, bankAccountId: $bankAccountId, description: $description, statusId: $statusId, categoryId: $categoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, transactionRuleId: $transactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, tagIds: $tagIds, isDirty: $isDirty)';
+    return 'BankTransaction(id: $id, amount: $amount, currencyId: $currencyId, category: $category, baseType: $baseType, date: $date, bankAccountId: $bankAccountId, description: $description, statusId: $statusId, categoryId: $categoryId, invoiceIds: $invoiceIds, paymentId: $paymentId, expenseId: $expenseId, vendorId: $vendorId, transactionId: $transactionId, transactionRuleId: $transactionRuleId, participantName: $participantName, participant: $participant, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, tagIds: $tagIds, isDirty: $isDirty)';
 }
 
 

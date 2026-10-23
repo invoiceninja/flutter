@@ -23,8 +23,8 @@ import 'package:admin/app/entity_links.dart';
 ///
 /// This class only *transports* them; [DeepLinkRouter] decides what each one
 /// means. Covers cold-start (the launching link) and warm (stream) deliveries —
-/// though on iOS the cold-start half depends on `SceneDelegate.swift` handing
-/// the launch URL over by hand; see docs/upstream-workarounds.md.
+/// on iOS the cold-start half arrives through the plugin's own scene delegate
+/// (`app_links` 7+); see docs/deep-links.md.
 ///
 /// On **Android** the OS never hands a link to MainActivity: the manifest
 /// routes every VIEW intent to the engine-free `DeepLinkReceiverActivity`,

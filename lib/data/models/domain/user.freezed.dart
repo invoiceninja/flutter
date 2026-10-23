@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'user.dart';
@@ -9,6 +9,7 @@ part of 'user.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -27,16 +28,21 @@ $UserCopyWith<User> get copyWith => _$UserCopyWithImpl<User>(this as User, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is User&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.googleTwoFactorEnabled, googleTwoFactorEnabled) || other.googleTwoFactorEnabled == googleTwoFactorEnabled)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser)&&const DeepCollectionEquality().equals(other.rawCompanyUserSettings, rawCompanyUserSettings)&&(identical(other.companyUserSettings, companyUserSettings) || other.companyUserSettings == companyUserSettings)&&const DeepCollectionEquality().equals(other.notificationsEmail, notificationsEmail)&&const DeepCollectionEquality().equals(other.rawNotifications, rawNotifications));
+  final _this = this as User;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is User&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.signature, _this.signature) || other.signature == _this.signature)&&(identical(other.languageId, _this.languageId) || other.languageId == _this.languageId)&&(identical(other.oauthProviderId, _this.oauthProviderId) || other.oauthProviderId == _this.oauthProviderId)&&(identical(other.oauthUserToken, _this.oauthUserToken) || other.oauthUserToken == _this.oauthUserToken)&&(identical(other.oauthUserRefreshToken, _this.oauthUserRefreshToken) || other.oauthUserRefreshToken == _this.oauthUserRefreshToken)&&(identical(other.googleTwoFactorEnabled, _this.googleTwoFactorEnabled) || other.googleTwoFactorEnabled == _this.googleTwoFactorEnabled)&&(identical(other.verifiedPhoneNumber, _this.verifiedPhoneNumber) || other.verifiedPhoneNumber == _this.verifiedPhoneNumber)&&(identical(other.hasPassword, _this.hasPassword) || other.hasPassword == _this.hasPassword)&&(identical(other.userLoggedInNotification, _this.userLoggedInNotification) || other.userLoggedInNotification == _this.userLoggedInNotification)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.emailVerifiedAt, _this.emailVerifiedAt) || other.emailVerifiedAt == _this.emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, _this.lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == _this.lastConfirmedEmailAddress)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty)&&(identical(other.companyUser, _this.companyUser) || other.companyUser == _this.companyUser)&&const DeepCollectionEquality().equals(other.rawCompanyUserSettings, _this.rawCompanyUserSettings)&&(identical(other.companyUserSettings, _this.companyUserSettings) || other.companyUserSettings == _this.companyUserSettings)&&const DeepCollectionEquality().equals(other.notificationsEmail, _this.notificationsEmail)&&const DeepCollectionEquality().equals(other.rawNotifications, _this.rawNotifications));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,googleTwoFactorEnabled,verifiedPhoneNumber,hasPassword,userLoggedInNotification,customValue1,customValue2,customValue3,customValue4,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,createdAt,updatedAt,archivedAt,isDeleted,isDirty,companyUser,const DeepCollectionEquality().hash(rawCompanyUserSettings),companyUserSettings,const DeepCollectionEquality().hash(notificationsEmail),const DeepCollectionEquality().hash(rawNotifications)]);
+int get hashCode {
+  final _this = this as User;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.signature,_this.languageId,_this.oauthProviderId,_this.oauthUserToken,_this.oauthUserRefreshToken,_this.googleTwoFactorEnabled,_this.verifiedPhoneNumber,_this.hasPassword,_this.userLoggedInNotification,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.lastLogin,_this.emailVerifiedAt,_this.lastConfirmedEmailAddress,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,_this.isDirty,_this.companyUser,const DeepCollectionEquality().hash(_this.rawCompanyUserSettings),_this.companyUserSettings,const DeepCollectionEquality().hash(_this.notificationsEmail),const DeepCollectionEquality().hash(_this.rawNotifications)]);
+}
 
 @override
 String toString() {
-  return 'User(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, googleTwoFactorEnabled: $googleTwoFactorEnabled, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, userLoggedInNotification: $userLoggedInNotification, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, companyUser: $companyUser, rawCompanyUserSettings: $rawCompanyUserSettings, companyUserSettings: $companyUserSettings, notificationsEmail: $notificationsEmail, rawNotifications: $rawNotifications)';
+  final _this = this as User;
+  return 'User(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, signature: ${_this.signature}, languageId: ${_this.languageId}, oauthProviderId: ${_this.oauthProviderId}, oauthUserToken: ${_this.oauthUserToken}, oauthUserRefreshToken: ${_this.oauthUserRefreshToken}, googleTwoFactorEnabled: ${_this.googleTwoFactorEnabled}, verifiedPhoneNumber: ${_this.verifiedPhoneNumber}, hasPassword: ${_this.hasPassword}, userLoggedInNotification: ${_this.userLoggedInNotification}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, lastLogin: ${_this.lastLogin}, emailVerifiedAt: ${_this.emailVerifiedAt}, lastConfirmedEmailAddress: ${_this.lastConfirmedEmailAddress}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, isDirty: ${_this.isDirty}, companyUser: ${_this.companyUser}, rawCompanyUserSettings: ${_this.rawCompanyUserSettings}, companyUserSettings: ${_this.companyUserSettings}, notificationsEmail: ${_this.notificationsEmail}, rawNotifications: ${_this.rawNotifications})';
 }
 
 
@@ -65,7 +71,7 @@ class _$UserCopyWithImpl<$Res>
 /// Create a copy of User
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? signature = null,Object? languageId = null,Object? oauthProviderId = null,Object? oauthUserToken = null,Object? oauthUserRefreshToken = null,Object? googleTwoFactorEnabled = null,Object? verifiedPhoneNumber = null,Object? hasPassword = null,Object? userLoggedInNotification = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? lastLogin = null,Object? emailVerifiedAt = null,Object? lastConfirmedEmailAddress = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? isDirty = null,Object? companyUser = null,Object? rawCompanyUserSettings = null,Object? companyUserSettings = null,Object? notificationsEmail = null,Object? rawNotifications = null,}) {
-  return _then(_self.copyWith(
+  return _then(User(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -256,7 +262,7 @@ return $default(_that.id,_that.firstName,_that.lastName,_that.email,_that.phone,
 
 
 class _User extends User {
-  const _User({this.id = '', this.firstName = '', this.lastName = '', this.email = '', this.phone = '', this.signature = '', this.languageId = '', this.oauthProviderId = '', this.oauthUserToken = '', this.oauthUserRefreshToken = '', this.googleTwoFactorEnabled = false, this.verifiedPhoneNumber = false, this.hasPassword = false, this.userLoggedInNotification = false, this.customValue1 = '', this.customValue2 = '', this.customValue3 = '', this.customValue4 = '', this.lastLogin = 0, this.emailVerifiedAt = 0, this.lastConfirmedEmailAddress = '', this.createdAt = 0, this.updatedAt = 0, this.archivedAt = 0, this.isDeleted = false, this.isDirty = false, this.companyUser = const CompanyUser(), final  Map<String, dynamic> rawCompanyUserSettings = const <String, dynamic>{}, this.companyUserSettings = const CompanyUserSettings(), final  List<String> notificationsEmail = const <String>[], final  Map<String, dynamic> rawNotifications = const <String, dynamic>{}}): _rawCompanyUserSettings = rawCompanyUserSettings,_notificationsEmail = notificationsEmail,_rawNotifications = rawNotifications,super._();
+  const _User({this.id = '', this.firstName = '', this.lastName = '', this.email = '', this.phone = '', this.signature = '', this.languageId = '', this.oauthProviderId = '', this.oauthUserToken = '', this.oauthUserRefreshToken = '', this.googleTwoFactorEnabled = false, this.verifiedPhoneNumber = false, this.hasPassword = false, this.userLoggedInNotification = false, this.customValue1 = '', this.customValue2 = '', this.customValue3 = '', this.customValue4 = '', this.lastLogin = 0, this.emailVerifiedAt = 0, this.lastConfirmedEmailAddress = '', this.createdAt = 0, this.updatedAt = 0, this.archivedAt = 0, this.isDeleted = false, this.isDirty = false, this.companyUser = const CompanyUser(),  Map<String, dynamic> rawCompanyUserSettings = const <String, dynamic>{}, this.companyUserSettings = const CompanyUserSettings(),  List<String> notificationsEmail = const <String>[],  Map<String, dynamic> rawNotifications = const <String, dynamic>{}}): _rawCompanyUserSettings = rawCompanyUserSettings,_notificationsEmail = notificationsEmail,_rawNotifications = rawNotifications,super._();
   
 
 @override@JsonKey() final  String id;
@@ -321,16 +327,18 @@ _$UserCopyWith<_User> get copyWith => __$UserCopyWithImpl<_User>(this, _$identit
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _User&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.googleTwoFactorEnabled, googleTwoFactorEnabled) || other.googleTwoFactorEnabled == googleTwoFactorEnabled)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser)&&const DeepCollectionEquality().equals(other._rawCompanyUserSettings, _rawCompanyUserSettings)&&(identical(other.companyUserSettings, companyUserSettings) || other.companyUserSettings == companyUserSettings)&&const DeepCollectionEquality().equals(other._notificationsEmail, _notificationsEmail)&&const DeepCollectionEquality().equals(other._rawNotifications, _rawNotifications));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _User&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.googleTwoFactorEnabled, googleTwoFactorEnabled) || other.googleTwoFactorEnabled == googleTwoFactorEnabled)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser)&&const DeepCollectionEquality().equals(other.rawCompanyUserSettings, _rawCompanyUserSettings)&&(identical(other.companyUserSettings, companyUserSettings) || other.companyUserSettings == companyUserSettings)&&const DeepCollectionEquality().equals(other.notificationsEmail, _notificationsEmail)&&const DeepCollectionEquality().equals(other.rawNotifications, _rawNotifications));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,googleTwoFactorEnabled,verifiedPhoneNumber,hasPassword,userLoggedInNotification,customValue1,customValue2,customValue3,customValue4,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,createdAt,updatedAt,archivedAt,isDeleted,isDirty,companyUser,const DeepCollectionEquality().hash(_rawCompanyUserSettings),companyUserSettings,const DeepCollectionEquality().hash(_notificationsEmail),const DeepCollectionEquality().hash(_rawNotifications)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,googleTwoFactorEnabled,verifiedPhoneNumber,hasPassword,userLoggedInNotification,customValue1,customValue2,customValue3,customValue4,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,createdAt,updatedAt,archivedAt,isDeleted,isDirty,companyUser,const DeepCollectionEquality().hash(_rawCompanyUserSettings),companyUserSettings,const DeepCollectionEquality().hash(_notificationsEmail),const DeepCollectionEquality().hash(_rawNotifications)]);
+}
 
 @override
 String toString() {
-  return 'User(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, googleTwoFactorEnabled: $googleTwoFactorEnabled, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, userLoggedInNotification: $userLoggedInNotification, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, companyUser: $companyUser, rawCompanyUserSettings: $rawCompanyUserSettings, companyUserSettings: $companyUserSettings, notificationsEmail: $notificationsEmail, rawNotifications: $rawNotifications)';
+    return 'User(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, googleTwoFactorEnabled: $googleTwoFactorEnabled, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, userLoggedInNotification: $userLoggedInNotification, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, isDirty: $isDirty, companyUser: $companyUser, rawCompanyUserSettings: $rawCompanyUserSettings, companyUserSettings: $companyUserSettings, notificationsEmail: $notificationsEmail, rawNotifications: $rawNotifications)';
 }
 
 
@@ -430,16 +438,21 @@ $CompanyUserCopyWith<CompanyUser> get copyWith => _$CompanyUserCopyWithImpl<Comp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUser&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked));
+  final _this = this as CompanyUser;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUser&&(identical(other.permissions, _this.permissions) || other.permissions == _this.permissions)&&(identical(other.isOwner, _this.isOwner) || other.isOwner == _this.isOwner)&&(identical(other.isAdmin, _this.isAdmin) || other.isAdmin == _this.isAdmin)&&(identical(other.isLocked, _this.isLocked) || other.isLocked == _this.isLocked));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked);
+int get hashCode {
+  final _this = this as CompanyUser;
+  return Object.hash(runtimeType,_this.permissions,_this.isOwner,_this.isAdmin,_this.isLocked);
+}
 
 @override
 String toString() {
-  return 'CompanyUser(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked)';
+  final _this = this as CompanyUser;
+  return 'CompanyUser(permissions: ${_this.permissions}, isOwner: ${_this.isOwner}, isAdmin: ${_this.isAdmin}, isLocked: ${_this.isLocked})';
 }
 
 
@@ -468,7 +481,7 @@ class _$CompanyUserCopyWithImpl<$Res>
 /// Create a copy of CompanyUser
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? permissions = null,Object? isOwner = null,Object? isAdmin = null,Object? isLocked = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyUser(
 permissions: null == permissions ? _self.permissions : permissions // ignore: cast_nullable_to_non_nullable
 as String,isOwner: null == isOwner ? _self.isOwner : isOwner // ignore: cast_nullable_to_non_nullable
 as bool,isAdmin: null == isAdmin ? _self.isAdmin : isAdmin // ignore: cast_nullable_to_non_nullable
@@ -632,16 +645,18 @@ _$CompanyUserCopyWith<_CompanyUser> get copyWith => __$CompanyUserCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUser&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUser&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked);
+int get hashCode {
+    return Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked);
+}
 
 @override
 String toString() {
-  return 'CompanyUser(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked)';
+    return 'CompanyUser(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked)';
 }
 
 
@@ -696,16 +711,21 @@ $CompanyUserSettingsCopyWith<CompanyUserSettings> get copyWith => _$CompanyUserS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUserSettings&&(identical(other.accentColor, accentColor) || other.accentColor == accentColor));
+  final _this = this as CompanyUserSettings;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUserSettings&&(identical(other.accentColor, _this.accentColor) || other.accentColor == _this.accentColor));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,accentColor);
+int get hashCode {
+  final _this = this as CompanyUserSettings;
+  return Object.hash(runtimeType,_this.accentColor);
+}
 
 @override
 String toString() {
-  return 'CompanyUserSettings(accentColor: $accentColor)';
+  final _this = this as CompanyUserSettings;
+  return 'CompanyUserSettings(accentColor: ${_this.accentColor})';
 }
 
 
@@ -734,7 +754,7 @@ class _$CompanyUserSettingsCopyWithImpl<$Res>
 /// Create a copy of CompanyUserSettings
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? accentColor = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyUserSettings(
 accentColor: null == accentColor ? _self.accentColor : accentColor // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -892,16 +912,18 @@ _$CompanyUserSettingsCopyWith<_CompanyUserSettings> get copyWith => __$CompanyUs
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUserSettings&&(identical(other.accentColor, accentColor) || other.accentColor == accentColor));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUserSettings&&(identical(other.accentColor, accentColor) || other.accentColor == accentColor));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,accentColor);
+int get hashCode {
+    return Object.hash(runtimeType,accentColor);
+}
 
 @override
 String toString() {
-  return 'CompanyUserSettings(accentColor: $accentColor)';
+    return 'CompanyUserSettings(accentColor: $accentColor)';
 }
 
 

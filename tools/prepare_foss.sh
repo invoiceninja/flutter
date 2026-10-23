@@ -43,10 +43,10 @@ esac
 # `sqlite3` package ships prebuilt (its tool/download_sqlite.dart at the
 # matching tag) — so the FOSS build compiles the same source the store build
 # downloads. Bump both when `sqlite3` moves (docs/fdroid.md § Bumping sqlite3mc).
-SQLITE3MC_URL="https://github.com/utelle/SQLite3MultipleCiphers/releases/download/v2.3.4/sqlite3mc-2.3.4-sqlite-3.53.1-amalgamation.zip"
-SQLITE3MC_ZIP_SHA256="402ef9f360912b59caae87d000b4c02c0e9c409a846e6c7dc6bdf020ac6fe041"
-SQLITE3MC_C_SHA256="81b4f59505366aa90bf0488aecaf22048a69050d816896e8510910a4702b4017"
-SQLITE3MC_H_SHA256="554a136d44aba53b9857b1d0326b0079b16c5d69cee97bd2b46a7c355fa0eda8"
+SQLITE3MC_URL="https://github.com/utelle/SQLite3MultipleCiphers/releases/download/v2.6.1/sqlite3mc-2.6.1-sqlite-3.54.0-amalgamation.zip"
+SQLITE3MC_ZIP_SHA256="3f25af603566a23c821d8e581778b5ece2a541d2435776de57b8d845c176815a"
+SQLITE3MC_C_SHA256="9b129d1ceb2c7d5dbf374b833eb29a640ecfa8e4a5af6d48508b429019c707b0"
+SQLITE3MC_H_SHA256="99b3e6997aa5fc604d9ea2352e6ae89dfd4d0af8d5bd7cbfe7293d959779e6eb"
 SQLITE3MC_DIR="native/sqlite3mc"
 SQLITE3MC_C="$SQLITE3MC_DIR/sqlite3mc_amalgamation.c"
 SQLITE3MC_H="$SQLITE3MC_DIR/sqlite3mc_amalgamation.h"

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'group_setting.dart';
@@ -9,14 +9,13 @@ part of 'group_setting.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$GroupSetting {
 
- String get id; String get name; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted;// Sparse cascade overrides. Stored raw because keys vary widely;
-// the typed `CompanySettings` view is reconstructed on demand.
- Map<String, dynamic>? get settings; List<Document> get documents; bool get isDirty;
+ String get id; String get name; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; Map<String, dynamic>? get settings; List<Document> get documents; bool get isDirty;
 /// Create a copy of GroupSetting
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,16 +26,21 @@ $GroupSettingCopyWith<GroupSetting> get copyWith => _$GroupSettingCopyWithImpl<G
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSetting&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.settings, settings)&&const DeepCollectionEquality().equals(other.documents, documents)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as GroupSetting;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GroupSetting&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.settings, _this.settings)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(settings),const DeepCollectionEquality().hash(documents),isDirty);
+int get hashCode {
+  final _this = this as GroupSetting;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDeleted,const DeepCollectionEquality().hash(_this.settings),const DeepCollectionEquality().hash(_this.documents),_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'GroupSetting(id: $id, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents, isDirty: $isDirty)';
+  final _this = this as GroupSetting;
+  return 'GroupSetting(id: ${_this.id}, name: ${_this.name}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, settings: ${_this.settings}, documents: ${_this.documents}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -65,7 +69,7 @@ class _$GroupSettingCopyWithImpl<$Res>
 /// Create a copy of GroupSetting
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? settings = freezed,Object? documents = null,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(GroupSetting(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,customValue1: null == customValue1 ? _self.customValue1 : customValue1 // ignore: cast_nullable_to_non_nullable
@@ -220,7 +224,7 @@ return $default(_that.id,_that.name,_that.customValue1,_that.customValue2,_that.
 
 
 class _GroupSetting extends GroupSetting {
-  const _GroupSetting({required this.id, required this.name, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, final  Map<String, dynamic>? settings, final  List<Document> documents = const <Document>[], this.isDirty = false}): _settings = settings,_documents = documents,super._();
+  const _GroupSetting({required this.id, required this.name, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted,  Map<String, dynamic>? settings,  List<Document> documents = const <Document>[], this.isDirty = false}): _settings = settings,_documents = documents,super._();
   
 
 @override final  String id;
@@ -233,11 +237,7 @@ class _GroupSetting extends GroupSetting {
 @override final  DateTime createdAt;
 @override final  DateTime? archivedAt;
 @override final  bool isDeleted;
-// Sparse cascade overrides. Stored raw because keys vary widely;
-// the typed `CompanySettings` view is reconstructed on demand.
  final  Map<String, dynamic>? _settings;
-// Sparse cascade overrides. Stored raw because keys vary widely;
-// the typed `CompanySettings` view is reconstructed on demand.
 @override Map<String, dynamic>? get settings {
   final value = _settings;
   if (value == null) return null;
@@ -265,16 +265,18 @@ _$GroupSettingCopyWith<_GroupSetting> get copyWith => __$GroupSettingCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSetting&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._settings, _settings)&&const DeepCollectionEquality().equals(other._documents, _documents)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GroupSetting&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.settings, _settings)&&const DeepCollectionEquality().equals(other.documents, _documents)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_settings),const DeepCollectionEquality().hash(_documents),isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_settings),const DeepCollectionEquality().hash(_documents),isDirty);
+}
 
 @override
 String toString() {
-  return 'GroupSetting(id: $id, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents, isDirty: $isDirty)';
+    return 'GroupSetting(id: $id, name: $name, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, settings: $settings, documents: $documents, isDirty: $isDirty)';
 }
 
 

@@ -23,6 +23,10 @@ Web is a supported target (`flutter run -d chrome`, `flutter build web`). Native
 
 **Vendored WASM assets** (committed in `web/`, served from app root): `web/sqlite3.wasm` (plain unencrypted build, from the [sqlite3.dart releases](https://github.com/simolus3/sqlite3.dart/releases) — must match the resolved `sqlite3` Dart package version) and `web/drift_worker.js` (`dart compile js -O4 -o web/drift_worker.js web/drift_worker.dart`). **Regenerate both on any `drift`/`sqlite3` bump** — version skew between the vendored assets and the Dart packages is the #1 web runtime failure mode. `database_opener_web.dart` logs `WasmDatabase` `missingFeatures` at boot.
 
+## Re-vendor web/pdfjs on any printing bump
+
+**pdf.js is vendored too, and moves with `printing`, not with drift.** The web PDF preview rasterises through pdf.js, which `printing` loads with a dynamic `import()` from `window.dartPdfJsBaseUrl` — set in `web/index.html` to `web/pdfjs/`, resolved against the document base URI so a non-root `--base-href` works — instead of from unpkg. A third-party script host at runtime is the same trade the bundled fonts and the self-hosted CanvasKit already declined, and printing 5.15's pdf.js 6 also closes CVE-2024-4367 (a crafted PDF running script), which matters for a viewer of uploaded documents. pdf.js 6 calls `Promise.withResolvers` throughout (27 sites in `pdf.min.mjs`), so its floor is Safari 17.4 / Chrome 119 / Firefox 121; an older browser gets no raster preview, self-hosted or not. Version rule and re-vendor steps: `docs/setup.md` § Web setup notes.
+
 ## The URL strategy stays hash
 
 **URL strategy: hash (`/#/clients`), the Flutter default.** Intentionally left as-is (no `setUrlStrategy`) so the build deploys to any static host with no rewrite-to-index config. Locked decision (see the comment near `runApp` in `main.dart`) — don't switch to `PathUrlStrategy`.

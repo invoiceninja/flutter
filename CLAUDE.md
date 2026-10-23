@@ -84,6 +84,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Every `onUpgrade` step runs inside its one `transaction()` and must be safe to run twice — `_addColumnIfMissing`, never a bare `m.addColumn`.** → `docs/migrations.md`
 - **A failed database open destroys the store only when a fresh store fixes it** (corrupt, or drift / a failed upgrade that `repairSchema` can't fix); a lock — on web, just a second tab — a full disk or an unrecognised error leaves it untouched. → `docs/migrations.md`
 - **Every new table is classified durable / anchor / cache in `kTableRetention`** — repair may drop only cache tables. → `docs/migrations.md`
+- **A cipher-library bump must still open a store the old one wrote — `encrypted_fixture_compat_test` opens a fixture an older `sqlite3` wrote, and the fixture is never regenerated as part of a bump.** → `docs/migrations.md`
 - **A reset quarantines the store and an open imports its non-cache tables, once — the `.salvage` marker is taken *before* the import, because a second import resends delivered outbox rows — reading the snapshot with the key the open used, never a second keychain read.** → `docs/migrations.md`
 - **A reset's outcome reaches the user once per launch, never over the lock screen — a toast when everything came across, a dialog when unsynced work may not have — and a copy it keeps leaves the device only through Device Settings → Data.** → `docs/migrations.md`
 - **One process per store: `holdStoreLock` runs before the key is read and before any reset moves the store, and refuses only a lock another process holds — `inUse` gets no Reset.** → `docs/migrations.md`
@@ -645,7 +646,7 @@ invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq     <- fallback, still 
 
 - **The link is https because a custom scheme is not a link.** → `docs/deep-links.md`
 - **Only `kHostedAppLinkHost` can ever be OS-verified, and the `/app/` prefix is what keeps that claim narrow.** → `docs/deep-links.md`
-- **Flutter's own deep linking must stay off, and turning it off costs iOS its cold start unless the shim stays too.** → `docs/deep-links.md`
+- **Flutter's own deep linking must stay off, and on iOS the `app_links` plugin's own scene delegate (7.x) is what still delivers the cold start.** → `docs/deep-links.md`
 - **A link that names another instance is refused, not followed.** → `docs/deep-links.md`
 - **The whole route lives in the URI path, behind a constant `app` host.** → `docs/deep-links.md`
 - **Four pieces, deliberately split — `entity_links.dart` (a leaf), `deep_link_router.dart` (arrival choreography), `app_deep_links.dart` (the platform bridge), and `switch_company_guarded.dart`.** → `docs/deep-links.md`
@@ -671,6 +672,7 @@ Web is a supported target; native behavior stays **byte-identical** — every di
 - **Web storage is unencrypted drift WASM over IndexedDB/OPFS, and the token lives in `localStorage` — a locked decision; don't add an encryption layer without re-deciding.**
 - **A web database reset must be verified, and a store the browser won't delete is abandoned (generation-bumped), never reopened.** → `docs/architecture.md`
 - **Regenerate the vendored `web/sqlite3.wasm` and `web/drift_worker.js` on any `drift` / `sqlite3` bump** — version skew is the #1 web runtime failure.
+- **Re-vendor `web/pdfjs/` on any `printing` bump — the web PDF preview loads pdf.js from our own origin, at exactly the version `printing` pins (`vendored_pdfjs_version_test`).** → `docs/web-platform-differences.md`
 - **The URL strategy stays hash (`/#/clients`)** — locked, so any static host works; never `PathUrlStrategy`.
 - **`dart:io` compiles on web; guard the call with `kIsWeb`**, and prefer `defaultTargetPlatform` + `kIsWeb` over `Platform.isX`.
 - **Web does not send `Idempotency-Key`** (the CORS allow-list omits it): `ApiClient(sendIdempotencyKey:)` defaults to `!kIsWeb`.

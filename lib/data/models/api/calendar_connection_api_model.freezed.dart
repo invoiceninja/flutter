@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'calendar_connection_api_model.dart';
@@ -9,6 +9,7 @@ part of 'calendar_connection_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $CalendarConnectionCopyWith<CalendarConnection> get copyWith => _$CalendarConnec
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarConnection&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.email, email) || other.email == email)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other.calendars, calendars));
+  final _this = this as CalendarConnection;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarConnection&&(identical(other.connected, _this.connected) || other.connected == _this.connected)&&(identical(other.provider, _this.provider) || other.provider == _this.provider)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.expiresAt, _this.expiresAt) || other.expiresAt == _this.expiresAt)&&const DeepCollectionEquality().equals(other.calendars, _this.calendars));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,connected,provider,email,expiresAt,const DeepCollectionEquality().hash(calendars));
+int get hashCode {
+  final _this = this as CalendarConnection;
+  return Object.hash(runtimeType,_this.connected,_this.provider,_this.email,_this.expiresAt,const DeepCollectionEquality().hash(_this.calendars));
+}
 
 @override
 String toString() {
-  return 'CalendarConnection(connected: $connected, provider: $provider, email: $email, expiresAt: $expiresAt, calendars: $calendars)';
+  final _this = this as CalendarConnection;
+  return 'CalendarConnection(connected: ${_this.connected}, provider: ${_this.provider}, email: ${_this.email}, expiresAt: ${_this.expiresAt}, calendars: ${_this.calendars})';
 }
 
 
@@ -66,7 +72,7 @@ class _$CalendarConnectionCopyWithImpl<$Res>
 /// Create a copy of CalendarConnection
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? connected = null,Object? provider = freezed,Object? email = freezed,Object? expiresAt = freezed,Object? calendars = null,}) {
-  return _then(_self.copyWith(
+  return _then(CalendarConnection(
 connected: null == connected ? _self.connected : connected // ignore: cast_nullable_to_non_nullable
 as bool,provider: freezed == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
 as String?,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
@@ -213,7 +219,7 @@ return $default(_that.connected,_that.provider,_that.email,_that.expiresAt,_that
 @JsonSerializable()
 
 class _CalendarConnection implements CalendarConnection {
-  const _CalendarConnection({this.connected = false, this.provider, this.email, @JsonKey(name: 'expires_at') this.expiresAt, final  List<CalendarInfo> calendars = const <CalendarInfo>[]}): _calendars = calendars;
+  const _CalendarConnection({this.connected = false, this.provider, this.email, @JsonKey(name: 'expires_at') this.expiresAt,  List<CalendarInfo> calendars = const <CalendarInfo>[]}): _calendars = calendars;
   factory _CalendarConnection.fromJson(Map<String, dynamic> json) => _$CalendarConnectionFromJson(json);
 
 @override@JsonKey() final  bool connected;
@@ -241,16 +247,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarConnection&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.email, email) || other.email == email)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other._calendars, _calendars));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarConnection&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.email, email) || other.email == email)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other.calendars, _calendars));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,connected,provider,email,expiresAt,const DeepCollectionEquality().hash(_calendars));
+int get hashCode {
+    return Object.hash(runtimeType,connected,provider,email,expiresAt,const DeepCollectionEquality().hash(_calendars));
+}
 
 @override
 String toString() {
-  return 'CalendarConnection(connected: $connected, provider: $provider, email: $email, expiresAt: $expiresAt, calendars: $calendars)';
+    return 'CalendarConnection(connected: $connected, provider: $provider, email: $email, expiresAt: $expiresAt, calendars: $calendars)';
 }
 
 
@@ -309,16 +317,21 @@ $CalendarInfoCopyWith<CalendarInfo> get copyWith => _$CalendarInfoCopyWithImpl<C
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarInfo&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.name, name) || other.name == name)&&(identical(other.primary, primary) || other.primary == primary)&&(identical(other.writable, writable) || other.writable == writable)&&(identical(other.selected, selected) || other.selected == selected));
+  final _this = this as CalendarInfo;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarInfo&&(identical(other.calendarId, _this.calendarId) || other.calendarId == _this.calendarId)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.primary, _this.primary) || other.primary == _this.primary)&&(identical(other.writable, _this.writable) || other.writable == _this.writable)&&(identical(other.selected, _this.selected) || other.selected == _this.selected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,calendarId,name,primary,writable,selected);
+int get hashCode {
+  final _this = this as CalendarInfo;
+  return Object.hash(runtimeType,_this.calendarId,_this.name,_this.primary,_this.writable,_this.selected);
+}
 
 @override
 String toString() {
-  return 'CalendarInfo(calendarId: $calendarId, name: $name, primary: $primary, writable: $writable, selected: $selected)';
+  final _this = this as CalendarInfo;
+  return 'CalendarInfo(calendarId: ${_this.calendarId}, name: ${_this.name}, primary: ${_this.primary}, writable: ${_this.writable}, selected: ${_this.selected})';
 }
 
 
@@ -347,7 +360,7 @@ class _$CalendarInfoCopyWithImpl<$Res>
 /// Create a copy of CalendarInfo
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? calendarId = null,Object? name = null,Object? primary = null,Object? writable = null,Object? selected = null,}) {
-  return _then(_self.copyWith(
+  return _then(CalendarInfo(
 calendarId: null == calendarId ? _self.calendarId : calendarId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,primary: null == primary ? _self.primary : primary // ignore: cast_nullable_to_non_nullable
@@ -516,16 +529,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarInfo&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.name, name) || other.name == name)&&(identical(other.primary, primary) || other.primary == primary)&&(identical(other.writable, writable) || other.writable == writable)&&(identical(other.selected, selected) || other.selected == selected));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarInfo&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.name, name) || other.name == name)&&(identical(other.primary, primary) || other.primary == primary)&&(identical(other.writable, writable) || other.writable == writable)&&(identical(other.selected, selected) || other.selected == selected));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,calendarId,name,primary,writable,selected);
+int get hashCode {
+    return Object.hash(runtimeType,calendarId,name,primary,writable,selected);
+}
 
 @override
 String toString() {
-  return 'CalendarInfo(calendarId: $calendarId, name: $name, primary: $primary, writable: $writable, selected: $selected)';
+    return 'CalendarInfo(calendarId: $calendarId, name: $name, primary: $primary, writable: $writable, selected: $selected)';
 }
 
 
@@ -584,16 +599,21 @@ $CalendarEventCopyWith<CalendarEvent> get copyWith => _$CalendarEventCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.providerEventId, providerEventId) || other.providerEventId == providerEventId)&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.calendarName, calendarName) || other.calendarName == calendarName)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.location, location) || other.location == location)&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.allDay, allDay) || other.allDay == allDay)&&(identical(other.status, status) || other.status == status)&&(identical(other.updated, updated) || other.updated == updated));
+  final _this = this as CalendarEvent;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CalendarEvent&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.calendarEventId, _this.calendarEventId) || other.calendarEventId == _this.calendarEventId)&&(identical(other.provider, _this.provider) || other.provider == _this.provider)&&(identical(other.providerEventId, _this.providerEventId) || other.providerEventId == _this.providerEventId)&&(identical(other.calendarId, _this.calendarId) || other.calendarId == _this.calendarId)&&(identical(other.calendarName, _this.calendarName) || other.calendarName == _this.calendarName)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.location, _this.location) || other.location == _this.location)&&(identical(other.start, _this.start) || other.start == _this.start)&&(identical(other.end, _this.end) || other.end == _this.end)&&(identical(other.allDay, _this.allDay) || other.allDay == _this.allDay)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.updated, _this.updated) || other.updated == _this.updated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,calendarEventId,provider,providerEventId,calendarId,calendarName,title,description,location,start,end,allDay,status,updated);
+int get hashCode {
+  final _this = this as CalendarEvent;
+  return Object.hash(runtimeType,_this.id,_this.calendarEventId,_this.provider,_this.providerEventId,_this.calendarId,_this.calendarName,_this.title,_this.description,_this.location,_this.start,_this.end,_this.allDay,_this.status,_this.updated);
+}
 
 @override
 String toString() {
-  return 'CalendarEvent(id: $id, calendarEventId: $calendarEventId, provider: $provider, providerEventId: $providerEventId, calendarId: $calendarId, calendarName: $calendarName, title: $title, description: $description, location: $location, start: $start, end: $end, allDay: $allDay, status: $status, updated: $updated)';
+  final _this = this as CalendarEvent;
+  return 'CalendarEvent(id: ${_this.id}, calendarEventId: ${_this.calendarEventId}, provider: ${_this.provider}, providerEventId: ${_this.providerEventId}, calendarId: ${_this.calendarId}, calendarName: ${_this.calendarName}, title: ${_this.title}, description: ${_this.description}, location: ${_this.location}, start: ${_this.start}, end: ${_this.end}, allDay: ${_this.allDay}, status: ${_this.status}, updated: ${_this.updated})';
 }
 
 
@@ -622,7 +642,7 @@ class _$CalendarEventCopyWithImpl<$Res>
 /// Create a copy of CalendarEvent
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? calendarEventId = null,Object? provider = null,Object? providerEventId = null,Object? calendarId = null,Object? calendarName = null,Object? title = null,Object? description = null,Object? location = null,Object? start = null,Object? end = null,Object? allDay = null,Object? status = null,Object? updated = null,}) {
-  return _then(_self.copyWith(
+  return _then(CalendarEvent(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,calendarEventId: null == calendarEventId ? _self.calendarEventId : calendarEventId // ignore: cast_nullable_to_non_nullable
 as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
@@ -809,16 +829,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.providerEventId, providerEventId) || other.providerEventId == providerEventId)&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.calendarName, calendarName) || other.calendarName == calendarName)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.location, location) || other.location == location)&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.allDay, allDay) || other.allDay == allDay)&&(identical(other.status, status) || other.status == status)&&(identical(other.updated, updated) || other.updated == updated));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CalendarEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.calendarEventId, calendarEventId) || other.calendarEventId == calendarEventId)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.providerEventId, providerEventId) || other.providerEventId == providerEventId)&&(identical(other.calendarId, calendarId) || other.calendarId == calendarId)&&(identical(other.calendarName, calendarName) || other.calendarName == calendarName)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.location, location) || other.location == location)&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.allDay, allDay) || other.allDay == allDay)&&(identical(other.status, status) || other.status == status)&&(identical(other.updated, updated) || other.updated == updated));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,calendarEventId,provider,providerEventId,calendarId,calendarName,title,description,location,start,end,allDay,status,updated);
+int get hashCode {
+    return Object.hash(runtimeType,id,calendarEventId,provider,providerEventId,calendarId,calendarName,title,description,location,start,end,allDay,status,updated);
+}
 
 @override
 String toString() {
-  return 'CalendarEvent(id: $id, calendarEventId: $calendarEventId, provider: $provider, providerEventId: $providerEventId, calendarId: $calendarId, calendarName: $calendarName, title: $title, description: $description, location: $location, start: $start, end: $end, allDay: $allDay, status: $status, updated: $updated)';
+    return 'CalendarEvent(id: $id, calendarEventId: $calendarEventId, provider: $provider, providerEventId: $providerEventId, calendarId: $calendarId, calendarName: $calendarName, title: $title, description: $description, location: $location, start: $start, end: $end, allDay: $allDay, status: $status, updated: $updated)';
 }
 
 

@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +17,7 @@ import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_group_label.dart';
 import 'package:admin/domain/reports/report_schedule.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/core/widgets/labeled_switch_group.dart';
@@ -284,16 +282,9 @@ class ReportExportActions {
     Uint8List bytes,
   ) async {
     try {
-      final path = await FilePicker.saveFile(fileName: name, bytes: bytes);
-      if (path == null) return;
-      // Desktop returns a path without writing; the web has no filesystem
-      // (the browser has already downloaded it). Write only where asked to.
-      if (!kIsWeb) {
-        final file = File(path);
-        if (!await file.exists() || await file.length() == 0) {
-          await file.writeAsBytes(bytes);
-        }
-      }
+      final saved = await saveBytesFile(fileName: name, bytes: bytes);
+      // A cancel; or a browser download, which shows its own.
+      if (saved == null || saved.isBrowserDownload) return;
       toasts?.success(tr('exported'));
     } catch (_) {
       toasts?.error(tr('an_error_occurred'));

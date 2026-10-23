@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'document_version_api_model.dart';
@@ -9,6 +9,7 @@ part of 'document_version_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $DocumentVersionItemApiCopyWith<DocumentVersionItemApi> get copyWith => _$Docume
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as DocumentVersionItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as DocumentVersionItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionItemApi(data: $data)';
+  final _this = this as DocumentVersionItemApi;
+  return 'DocumentVersionItemApi(data: ${_this.data})';
 }
 
 
@@ -66,7 +72,7 @@ class _$DocumentVersionItemApiCopyWithImpl<$Res>
 /// Create a copy of DocumentVersionItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentVersionItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as DocumentVersionEntityApi,
   ));
@@ -236,16 +242,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionItemApi(data: $data)';
+    return 'DocumentVersionItemApi(data: $data)';
 }
 
 
@@ -309,16 +317,21 @@ $DocumentVersionEntityApiCopyWith<DocumentVersionEntityApi> get copyWith => _$Do
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionEntityApi&&const DeepCollectionEquality().equals(other.activities, activities));
+  final _this = this as DocumentVersionEntityApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionEntityApi&&const DeepCollectionEquality().equals(other.activities, _this.activities));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(activities));
+int get hashCode {
+  final _this = this as DocumentVersionEntityApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.activities));
+}
 
 @override
 String toString() {
-  return 'DocumentVersionEntityApi(activities: $activities)';
+  final _this = this as DocumentVersionEntityApi;
+  return 'DocumentVersionEntityApi(activities: ${_this.activities})';
 }
 
 
@@ -347,7 +360,7 @@ class _$DocumentVersionEntityApiCopyWithImpl<$Res>
 /// Create a copy of DocumentVersionEntityApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? activities = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentVersionEntityApi(
 activities: null == activities ? _self.activities : activities // ignore: cast_nullable_to_non_nullable
 as List<DocumentVersionActivityApi>,
   ));
@@ -490,7 +503,7 @@ return $default(_that.activities);case _:
 @JsonSerializable()
 
 class _DocumentVersionEntityApi implements DocumentVersionEntityApi {
-  const _DocumentVersionEntityApi({@JsonKey(fromJson: _versionActivities) final  List<DocumentVersionActivityApi> activities = const []}): _activities = activities;
+  const _DocumentVersionEntityApi({@JsonKey(fromJson: _versionActivities)  List<DocumentVersionActivityApi> activities = const []}): _activities = activities;
   factory _DocumentVersionEntityApi.fromJson(Map<String, dynamic> json) => _$DocumentVersionEntityApiFromJson(json);
 
  final  List<DocumentVersionActivityApi> _activities;
@@ -514,16 +527,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionEntityApi&&const DeepCollectionEquality().equals(other._activities, _activities));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionEntityApi&&const DeepCollectionEquality().equals(other.activities, _activities));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_activities));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_activities));
+}
 
 @override
 String toString() {
-  return 'DocumentVersionEntityApi(activities: $activities)';
+    return 'DocumentVersionEntityApi(activities: $activities)';
 }
 
 
@@ -578,16 +593,21 @@ $DocumentVersionActivityApiCopyWith<DocumentVersionActivityApi> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.history, history) || other.history == history));
+  final _this = this as DocumentVersionActivityApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionActivityApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.activityTypeId, _this.activityTypeId) || other.activityTypeId == _this.activityTypeId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.contactId, _this.contactId) || other.contactId == _this.contactId)&&(identical(other.isSystem, _this.isSystem) || other.isSystem == _this.isSystem)&&(identical(other.history, _this.history) || other.history == _this.history));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,activityTypeId,userId,contactId,isSystem,history);
+int get hashCode {
+  final _this = this as DocumentVersionActivityApi;
+  return Object.hash(runtimeType,_this.id,_this.activityTypeId,_this.userId,_this.contactId,_this.isSystem,_this.history);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionActivityApi(id: $id, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem, history: $history)';
+  final _this = this as DocumentVersionActivityApi;
+  return 'DocumentVersionActivityApi(id: ${_this.id}, activityTypeId: ${_this.activityTypeId}, userId: ${_this.userId}, contactId: ${_this.contactId}, isSystem: ${_this.isSystem}, history: ${_this.history})';
 }
 
 
@@ -616,7 +636,7 @@ class _$DocumentVersionActivityApiCopyWithImpl<$Res>
 /// Create a copy of DocumentVersionActivityApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? activityTypeId = null,Object? userId = null,Object? contactId = null,Object? isSystem = null,Object? history = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentVersionActivityApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,activityTypeId: null == activityTypeId ? _self.activityTypeId : activityTypeId // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
@@ -799,16 +819,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.history, history) || other.history == history));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem)&&(identical(other.history, history) || other.history == history));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,activityTypeId,userId,contactId,isSystem,history);
+int get hashCode {
+    return Object.hash(runtimeType,id,activityTypeId,userId,contactId,isSystem,history);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionActivityApi(id: $id, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem, history: $history)';
+    return 'DocumentVersionActivityApi(id: $id, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem, history: $history)';
 }
 
 
@@ -880,16 +902,21 @@ $DocumentVersionHistoryApiCopyWith<DocumentVersionHistoryApi> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionHistoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityId, activityId) || other.activityId == activityId)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  final _this = this as DocumentVersionHistoryApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersionHistoryApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.activityId, _this.activityId) || other.activityId == _this.activityId)&&const DeepCollectionEquality().equals(other.amount, _this.amount)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,activityId,const DeepCollectionEquality().hash(amount),createdAt);
+int get hashCode {
+  final _this = this as DocumentVersionHistoryApi;
+  return Object.hash(runtimeType,_this.id,_this.activityId,const DeepCollectionEquality().hash(_this.amount),_this.createdAt);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionHistoryApi(id: $id, activityId: $activityId, amount: $amount, createdAt: $createdAt)';
+  final _this = this as DocumentVersionHistoryApi;
+  return 'DocumentVersionHistoryApi(id: ${_this.id}, activityId: ${_this.activityId}, amount: ${_this.amount}, createdAt: ${_this.createdAt})';
 }
 
 
@@ -918,7 +945,7 @@ class _$DocumentVersionHistoryApiCopyWithImpl<$Res>
 /// Create a copy of DocumentVersionHistoryApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? activityId = null,Object? amount = null,Object? createdAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentVersionHistoryApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,activityId: null == activityId ? _self.activityId : activityId // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount ,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -1084,16 +1111,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionHistoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityId, activityId) || other.activityId == activityId)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersionHistoryApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityId, activityId) || other.activityId == activityId)&&const DeepCollectionEquality().equals(other.amount, amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,activityId,const DeepCollectionEquality().hash(amount),createdAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,activityId,const DeepCollectionEquality().hash(amount),createdAt);
+}
 
 @override
 String toString() {
-  return 'DocumentVersionHistoryApi(id: $id, activityId: $activityId, amount: $amount, createdAt: $createdAt)';
+    return 'DocumentVersionHistoryApi(id: $id, activityId: $activityId, amount: $amount, createdAt: $createdAt)';
 }
 
 

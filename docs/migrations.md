@@ -463,6 +463,12 @@ desktop it offers Quit. The app draws its own window buttons on Windows and Linu
 screen isn't the app, so without Quit the "already open in another window" screen had no way
 out at all.
 
+## A cipher-library bump must still open a store the old one wrote
+
+The native store is SQLCipher-4-compatible, opened through SQLite3MultipleCiphers with `cipher = 'sqlcipher'`, `legacy = 4` and a raw 256-bit key (`openDatabaseExecutorAt`, `lib/data/db/database_opener_io.dart`). That library ships inside the `sqlite3` package (`hooks: user_defines: sqlite3: source: sqlite3mc`), so a routine `sqlite3` bump is a cipher upgrade. If the new build cannot decrypt an existing file, nothing fails loudly: the open lands in § A failed open destroys the store only when a fresh store fixes it, and a store that reads as corrupt is quarantined, taking unsynced edits with it.
+
+`test/data/db/encrypted_fixture_compat_test.dart` opens `test/fixtures/db/sqlcipher4_legacy_raw_key.db` — 200 rows across several pages, written by `sqlite3` 3.3.2 / SQLite3MultipleCiphers 2.3.4 — through the production opener and checks every row plus `PRAGMA integrity_check`. It was generated **before** the 2026-10-23 bump to `sqlite3` 3.7.1 / SQLite3MultipleCiphers 2.6.1, whose 2.6.0 reworked MAC verification and "handling of legacy cipher modes", and passed on both sides of it. **Never regenerate the fixture as part of a bump** — the test would then compare the new build with itself. Regenerate it (`IN_REGENERATE_DB_FIXTURE=1`) only on the old lockfile, on purpose. It is a `*.db`, which `.gitignore` excludes except under `test/fixtures/db/`.
+
 ## Appendix — historical: the pre-launch squash (do NOT run)
 
 Before launch, with no installed databases to upgrade, the accumulated migration history was

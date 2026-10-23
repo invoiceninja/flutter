@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'activity_api_model.dart';
@@ -9,16 +9,14 @@ part of 'activity_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$ActivityLabelApi {
 
- String get label;@JsonKey(name: 'hashed_id') String get hashedId;// Only the `contact` object carries this ('clients' | 'vendors'); it
-// routes a contact link to the right detail screen. Harmless default
-// for every other label object.
-@JsonKey(name: 'contact_entity') String get contactEntity;
+ String get label;@JsonKey(name: 'hashed_id') String get hashedId;@JsonKey(name: 'contact_entity') String get contactEntity;
 /// Create a copy of ActivityLabelApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +29,21 @@ $ActivityLabelApiCopyWith<ActivityLabelApi> get copyWith => _$ActivityLabelApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityLabelApi&&(identical(other.label, label) || other.label == label)&&(identical(other.hashedId, hashedId) || other.hashedId == hashedId)&&(identical(other.contactEntity, contactEntity) || other.contactEntity == contactEntity));
+  final _this = this as ActivityLabelApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityLabelApi&&(identical(other.label, _this.label) || other.label == _this.label)&&(identical(other.hashedId, _this.hashedId) || other.hashedId == _this.hashedId)&&(identical(other.contactEntity, _this.contactEntity) || other.contactEntity == _this.contactEntity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,label,hashedId,contactEntity);
+int get hashCode {
+  final _this = this as ActivityLabelApi;
+  return Object.hash(runtimeType,_this.label,_this.hashedId,_this.contactEntity);
+}
 
 @override
 String toString() {
-  return 'ActivityLabelApi(label: $label, hashedId: $hashedId, contactEntity: $contactEntity)';
+  final _this = this as ActivityLabelApi;
+  return 'ActivityLabelApi(label: ${_this.label}, hashedId: ${_this.hashedId}, contactEntity: ${_this.contactEntity})';
 }
 
 
@@ -69,7 +72,7 @@ class _$ActivityLabelApiCopyWithImpl<$Res>
 /// Create a copy of ActivityLabelApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? label = null,Object? hashedId = null,Object? contactEntity = null,}) {
-  return _then(_self.copyWith(
+  return _then(ActivityLabelApi(
 label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,hashedId: null == hashedId ? _self.hashedId : hashedId // ignore: cast_nullable_to_non_nullable
 as String,contactEntity: null == contactEntity ? _self.contactEntity : contactEntity // ignore: cast_nullable_to_non_nullable
@@ -219,9 +222,6 @@ class _ActivityLabelApi implements ActivityLabelApi {
 
 @override@JsonKey() final  String label;
 @override@JsonKey(name: 'hashed_id') final  String hashedId;
-// Only the `contact` object carries this ('clients' | 'vendors'); it
-// routes a contact link to the right detail screen. Harmless default
-// for every other label object.
 @override@JsonKey(name: 'contact_entity') final  String contactEntity;
 
 /// Create a copy of ActivityLabelApi
@@ -237,16 +237,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityLabelApi&&(identical(other.label, label) || other.label == label)&&(identical(other.hashedId, hashedId) || other.hashedId == hashedId)&&(identical(other.contactEntity, contactEntity) || other.contactEntity == contactEntity));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityLabelApi&&(identical(other.label, label) || other.label == label)&&(identical(other.hashedId, hashedId) || other.hashedId == hashedId)&&(identical(other.contactEntity, contactEntity) || other.contactEntity == contactEntity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,label,hashedId,contactEntity);
+int get hashCode {
+    return Object.hash(runtimeType,label,hashedId,contactEntity);
+}
 
 @override
 String toString() {
-  return 'ActivityLabelApi(label: $label, hashedId: $hashedId, contactEntity: $contactEntity)';
+    return 'ActivityLabelApi(label: $label, hashedId: $hashedId, contactEntity: $contactEntity)';
 }
 
 
@@ -303,16 +305,21 @@ $ActivityApiCopyWith<ActivityApi> get copyWith => _$ActivityApiCopyWithImpl<Acti
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&(identical(other.user, user) || other.user == user)&&(identical(other.client, client) || other.client == client)&&(identical(other.invoice, invoice) || other.invoice == invoice)&&(identical(other.contact, contact) || other.contact == contact)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.payment, payment) || other.payment == payment)&&(identical(other.paymentAmount, paymentAmount) || other.paymentAmount == paymentAmount)&&(identical(other.expense, expense) || other.expense == expense)&&(identical(other.credit, credit) || other.credit == credit)&&(identical(other.task, task) || other.task == task)&&(identical(other.vendor, vendor) || other.vendor == vendor)&&(identical(other.recurringInvoice, recurringInvoice) || other.recurringInvoice == recurringInvoice)&&(identical(other.recurringExpense, recurringExpense) || other.recurringExpense == recurringExpense)&&(identical(other.purchaseOrder, purchaseOrder) || other.purchaseOrder == purchaseOrder)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.adjustment, adjustment) || other.adjustment == adjustment));
+  final _this = this as ActivityApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.activityTypeId, _this.activityTypeId) || other.activityTypeId == _this.activityTypeId)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.ip, _this.ip) || other.ip == _this.ip)&&(identical(other.user, _this.user) || other.user == _this.user)&&(identical(other.client, _this.client) || other.client == _this.client)&&(identical(other.invoice, _this.invoice) || other.invoice == _this.invoice)&&(identical(other.contact, _this.contact) || other.contact == _this.contact)&&(identical(other.quote, _this.quote) || other.quote == _this.quote)&&(identical(other.payment, _this.payment) || other.payment == _this.payment)&&(identical(other.paymentAmount, _this.paymentAmount) || other.paymentAmount == _this.paymentAmount)&&(identical(other.expense, _this.expense) || other.expense == _this.expense)&&(identical(other.credit, _this.credit) || other.credit == _this.credit)&&(identical(other.task, _this.task) || other.task == _this.task)&&(identical(other.vendor, _this.vendor) || other.vendor == _this.vendor)&&(identical(other.recurringInvoice, _this.recurringInvoice) || other.recurringInvoice == _this.recurringInvoice)&&(identical(other.recurringExpense, _this.recurringExpense) || other.recurringExpense == _this.recurringExpense)&&(identical(other.purchaseOrder, _this.purchaseOrder) || other.purchaseOrder == _this.purchaseOrder)&&(identical(other.subscription, _this.subscription) || other.subscription == _this.subscription)&&(identical(other.adjustment, _this.adjustment) || other.adjustment == _this.adjustment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,activityTypeId,notes,createdAt,ip,user,client,invoice,contact,quote,payment,paymentAmount,expense,credit,task,vendor,recurringInvoice,recurringExpense,purchaseOrder,subscription,adjustment]);
+int get hashCode {
+  final _this = this as ActivityApi;
+  return Object.hashAll([runtimeType,_this.id,_this.activityTypeId,_this.notes,_this.createdAt,_this.ip,_this.user,_this.client,_this.invoice,_this.contact,_this.quote,_this.payment,_this.paymentAmount,_this.expense,_this.credit,_this.task,_this.vendor,_this.recurringInvoice,_this.recurringExpense,_this.purchaseOrder,_this.subscription,_this.adjustment]);
+}
 
 @override
 String toString() {
-  return 'ActivityApi(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, user: $user, client: $client, invoice: $invoice, contact: $contact, quote: $quote, payment: $payment, paymentAmount: $paymentAmount, expense: $expense, credit: $credit, task: $task, vendor: $vendor, recurringInvoice: $recurringInvoice, recurringExpense: $recurringExpense, purchaseOrder: $purchaseOrder, subscription: $subscription, adjustment: $adjustment)';
+  final _this = this as ActivityApi;
+  return 'ActivityApi(id: ${_this.id}, activityTypeId: ${_this.activityTypeId}, notes: ${_this.notes}, createdAt: ${_this.createdAt}, ip: ${_this.ip}, user: ${_this.user}, client: ${_this.client}, invoice: ${_this.invoice}, contact: ${_this.contact}, quote: ${_this.quote}, payment: ${_this.payment}, paymentAmount: ${_this.paymentAmount}, expense: ${_this.expense}, credit: ${_this.credit}, task: ${_this.task}, vendor: ${_this.vendor}, recurringInvoice: ${_this.recurringInvoice}, recurringExpense: ${_this.recurringExpense}, purchaseOrder: ${_this.purchaseOrder}, subscription: ${_this.subscription}, adjustment: ${_this.adjustment})';
 }
 
 
@@ -341,7 +348,7 @@ class _$ActivityApiCopyWithImpl<$Res>
 /// Create a copy of ActivityApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? activityTypeId = null,Object? notes = null,Object? createdAt = null,Object? ip = null,Object? user = freezed,Object? client = freezed,Object? invoice = freezed,Object? contact = freezed,Object? quote = freezed,Object? payment = freezed,Object? paymentAmount = freezed,Object? expense = freezed,Object? credit = freezed,Object? task = freezed,Object? vendor = freezed,Object? recurringInvoice = freezed,Object? recurringExpense = freezed,Object? purchaseOrder = freezed,Object? subscription = freezed,Object? adjustment = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ActivityApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,activityTypeId: null == activityTypeId ? _self.activityTypeId : activityTypeId // ignore: cast_nullable_to_non_nullable
 as int,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
@@ -734,16 +741,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&(identical(other.user, user) || other.user == user)&&(identical(other.client, client) || other.client == client)&&(identical(other.invoice, invoice) || other.invoice == invoice)&&(identical(other.contact, contact) || other.contact == contact)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.payment, payment) || other.payment == payment)&&(identical(other.paymentAmount, paymentAmount) || other.paymentAmount == paymentAmount)&&(identical(other.expense, expense) || other.expense == expense)&&(identical(other.credit, credit) || other.credit == credit)&&(identical(other.task, task) || other.task == task)&&(identical(other.vendor, vendor) || other.vendor == vendor)&&(identical(other.recurringInvoice, recurringInvoice) || other.recurringInvoice == recurringInvoice)&&(identical(other.recurringExpense, recurringExpense) || other.recurringExpense == recurringExpense)&&(identical(other.purchaseOrder, purchaseOrder) || other.purchaseOrder == purchaseOrder)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.adjustment, adjustment) || other.adjustment == adjustment));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityApi&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&(identical(other.user, user) || other.user == user)&&(identical(other.client, client) || other.client == client)&&(identical(other.invoice, invoice) || other.invoice == invoice)&&(identical(other.contact, contact) || other.contact == contact)&&(identical(other.quote, quote) || other.quote == quote)&&(identical(other.payment, payment) || other.payment == payment)&&(identical(other.paymentAmount, paymentAmount) || other.paymentAmount == paymentAmount)&&(identical(other.expense, expense) || other.expense == expense)&&(identical(other.credit, credit) || other.credit == credit)&&(identical(other.task, task) || other.task == task)&&(identical(other.vendor, vendor) || other.vendor == vendor)&&(identical(other.recurringInvoice, recurringInvoice) || other.recurringInvoice == recurringInvoice)&&(identical(other.recurringExpense, recurringExpense) || other.recurringExpense == recurringExpense)&&(identical(other.purchaseOrder, purchaseOrder) || other.purchaseOrder == purchaseOrder)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.adjustment, adjustment) || other.adjustment == adjustment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,activityTypeId,notes,createdAt,ip,user,client,invoice,contact,quote,payment,paymentAmount,expense,credit,task,vendor,recurringInvoice,recurringExpense,purchaseOrder,subscription,adjustment]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,activityTypeId,notes,createdAt,ip,user,client,invoice,contact,quote,payment,paymentAmount,expense,credit,task,vendor,recurringInvoice,recurringExpense,purchaseOrder,subscription,adjustment]);
+}
 
 @override
 String toString() {
-  return 'ActivityApi(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, user: $user, client: $client, invoice: $invoice, contact: $contact, quote: $quote, payment: $payment, paymentAmount: $paymentAmount, expense: $expense, credit: $credit, task: $task, vendor: $vendor, recurringInvoice: $recurringInvoice, recurringExpense: $recurringExpense, purchaseOrder: $purchaseOrder, subscription: $subscription, adjustment: $adjustment)';
+    return 'ActivityApi(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, user: $user, client: $client, invoice: $invoice, contact: $contact, quote: $quote, payment: $payment, paymentAmount: $paymentAmount, expense: $expense, credit: $credit, task: $task, vendor: $vendor, recurringInvoice: $recurringInvoice, recurringExpense: $recurringExpense, purchaseOrder: $purchaseOrder, subscription: $subscription, adjustment: $adjustment)';
 }
 
 
@@ -1010,16 +1019,21 @@ $ActivityListApiCopyWith<ActivityListApi> get copyWith => _$ActivityListApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as ActivityListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ActivityListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as ActivityListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'ActivityListApi(data: $data)';
+  final _this = this as ActivityListApi;
+  return 'ActivityListApi(data: ${_this.data})';
 }
 
 
@@ -1048,7 +1062,7 @@ class _$ActivityListApiCopyWithImpl<$Res>
 /// Create a copy of ActivityListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ActivityListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<ActivityApi>,
   ));
@@ -1191,7 +1205,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ActivityListApi implements ActivityListApi {
-  const _ActivityListApi({@JsonKey(fromJson: _activityListData) final  List<ActivityApi> data = const []}): _data = data;
+  const _ActivityListApi({@JsonKey(fromJson: _activityListData)  List<ActivityApi> data = const []}): _data = data;
   factory _ActivityListApi.fromJson(Map<String, dynamic> json) => _$ActivityListApiFromJson(json);
 
  final  List<ActivityApi> _data;
@@ -1215,16 +1229,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'ActivityListApi(data: $data)';
+    return 'ActivityListApi(data: $data)';
 }
 
 

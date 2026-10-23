@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'user_api_model.dart';
@@ -9,6 +9,7 @@ part of 'user_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $UserItemApiCopyWith<UserItemApi> get copyWith => _$UserItemApiCopyWithImpl<User
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as UserItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as UserItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'UserItemApi(data: $data)';
+  final _this = this as UserItemApi;
+  return 'UserItemApi(data: ${_this.data})';
 }
 
 
@@ -66,7 +72,7 @@ class _$UserItemApiCopyWithImpl<$Res>
 /// Create a copy of UserItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(UserItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as UserApi,
   ));
@@ -236,16 +242,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'UserItemApi(data: $data)';
+    return 'UserItemApi(data: $data)';
 }
 
 
@@ -309,16 +317,21 @@ $UserListApiCopyWith<UserListApi> get copyWith => _$UserListApiCopyWithImpl<User
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as UserListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as UserListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'UserListApi(data: $data)';
+  final _this = this as UserListApi;
+  return 'UserListApi(data: ${_this.data})';
 }
 
 
@@ -347,7 +360,7 @@ class _$UserListApiCopyWithImpl<$Res>
 /// Create a copy of UserListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(UserListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<UserApi>,
   ));
@@ -490,7 +503,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _UserListApi implements UserListApi {
-  const _UserListApi({@JsonKey(fromJson: _userListData) final  List<UserApi> data = const <UserApi>[]}): _data = data;
+  const _UserListApi({@JsonKey(fromJson: _userListData)  List<UserApi> data = const <UserApi>[]}): _data = data;
   factory _UserListApi.fromJson(Map<String, dynamic> json) => _$UserListApiFromJson(json);
 
  final  List<UserApi> _data;
@@ -514,16 +527,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'UserListApi(data: $data)';
+    return 'UserListApi(data: $data)';
 }
 
 
@@ -565,10 +580,7 @@ as List<UserApi>,
 /// @nodoc
 mixin _$UserApi {
 
- String get id;@JsonKey(name: 'first_name') String get firstName;@JsonKey(name: 'last_name') String get lastName; String get email; String get phone; String get signature;@JsonKey(name: 'language_id') String get languageId;// -- Connect tab inputs ---------------------------------------------------
-@JsonKey(name: 'oauth_provider_id') String get oauthProviderId;@JsonKey(name: 'oauth_user_token') String get oauthUserToken;@JsonKey(name: 'oauth_user_refresh_token') String get oauthUserRefreshToken;// -- Two-factor / phone -------------------------------------------------
-@JsonKey(name: 'google_2fa_secret', fromJson: _boolFromJson) bool get google2faSecret;@JsonKey(name: 'verified_phone_number', fromJson: _boolFromJson) bool get verifiedPhoneNumber;// -- Misc ---------------------------------------------------------------
-@JsonKey(name: 'has_password') bool get hasPassword;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'email_verified_at') int get emailVerifiedAt;/// The address this user had *before* their last email change, or `''`.
+ String get id;@JsonKey(name: 'first_name') String get firstName;@JsonKey(name: 'last_name') String get lastName; String get email; String get phone; String get signature;@JsonKey(name: 'language_id') String get languageId;@JsonKey(name: 'oauth_provider_id') String get oauthProviderId;@JsonKey(name: 'oauth_user_token') String get oauthUserToken;@JsonKey(name: 'oauth_user_refresh_token') String get oauthUserRefreshToken;@JsonKey(name: 'google_2fa_secret', fromJson: _boolFromJson) bool get google2faSecret;@JsonKey(name: 'verified_phone_number', fromJson: _boolFromJson) bool get verifiedPhoneNumber;@JsonKey(name: 'has_password') bool get hasPassword;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'email_verified_at') int get emailVerifiedAt;/// The address this user had *before* their last email change, or `''`.
 /// `UserController::update` moves the old address here and nulls
 /// `email_verified_at` whenever the email changes, so a non-empty value
 /// means "has confirmed an address at some point, just not this one" —
@@ -576,9 +588,7 @@ mixin _$UserApi {
 /// invite. Read-only server-side (not in `User::$fillable`), but it must
 /// stay in `toJson()` anyway: that is also what produces the Drift
 /// payload (`UserRepository._apiToCompanion`).
-@JsonKey(name: 'last_confirmed_email_address') String get lastConfirmedEmailAddress;@JsonKey(name: 'user_logged_in_notification', fromJson: _boolFromJson) bool get userLoggedInNotification;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;// -- Custom fields (gated on company.custom_fields.user1..4 in the UI) -
-@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;// -- Per-company-user (active company only when ?include=company_user) -
-@JsonKey(name: 'company_user') CompanyUserApi? get companyUser;
+@JsonKey(name: 'last_confirmed_email_address') String get lastConfirmedEmailAddress;@JsonKey(name: 'user_logged_in_notification', fromJson: _boolFromJson) bool get userLoggedInNotification;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'is_deleted') bool get isDeleted;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'company_user') CompanyUserApi? get companyUser;
 /// Create a copy of UserApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -591,16 +601,21 @@ $UserApiCopyWith<UserApi> get copyWith => _$UserApiCopyWithImpl<UserApi>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.google2faSecret, google2faSecret) || other.google2faSecret == google2faSecret)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser));
+  final _this = this as UserApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.signature, _this.signature) || other.signature == _this.signature)&&(identical(other.languageId, _this.languageId) || other.languageId == _this.languageId)&&(identical(other.oauthProviderId, _this.oauthProviderId) || other.oauthProviderId == _this.oauthProviderId)&&(identical(other.oauthUserToken, _this.oauthUserToken) || other.oauthUserToken == _this.oauthUserToken)&&(identical(other.oauthUserRefreshToken, _this.oauthUserRefreshToken) || other.oauthUserRefreshToken == _this.oauthUserRefreshToken)&&(identical(other.google2faSecret, _this.google2faSecret) || other.google2faSecret == _this.google2faSecret)&&(identical(other.verifiedPhoneNumber, _this.verifiedPhoneNumber) || other.verifiedPhoneNumber == _this.verifiedPhoneNumber)&&(identical(other.hasPassword, _this.hasPassword) || other.hasPassword == _this.hasPassword)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.emailVerifiedAt, _this.emailVerifiedAt) || other.emailVerifiedAt == _this.emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, _this.lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == _this.lastConfirmedEmailAddress)&&(identical(other.userLoggedInNotification, _this.userLoggedInNotification) || other.userLoggedInNotification == _this.userLoggedInNotification)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.companyUser, _this.companyUser) || other.companyUser == _this.companyUser));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,google2faSecret,verifiedPhoneNumber,hasPassword,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,userLoggedInNotification,createdAt,updatedAt,archivedAt,isDeleted,customValue1,customValue2,customValue3,customValue4,companyUser]);
+int get hashCode {
+  final _this = this as UserApi;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.signature,_this.languageId,_this.oauthProviderId,_this.oauthUserToken,_this.oauthUserRefreshToken,_this.google2faSecret,_this.verifiedPhoneNumber,_this.hasPassword,_this.lastLogin,_this.emailVerifiedAt,_this.lastConfirmedEmailAddress,_this.userLoggedInNotification,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.companyUser]);
+}
 
 @override
 String toString() {
-  return 'UserApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, google2faSecret: $google2faSecret, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, userLoggedInNotification: $userLoggedInNotification, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, companyUser: $companyUser)';
+  final _this = this as UserApi;
+  return 'UserApi(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, signature: ${_this.signature}, languageId: ${_this.languageId}, oauthProviderId: ${_this.oauthProviderId}, oauthUserToken: ${_this.oauthUserToken}, oauthUserRefreshToken: ${_this.oauthUserRefreshToken}, google2faSecret: ${_this.google2faSecret}, verifiedPhoneNumber: ${_this.verifiedPhoneNumber}, hasPassword: ${_this.hasPassword}, lastLogin: ${_this.lastLogin}, emailVerifiedAt: ${_this.emailVerifiedAt}, lastConfirmedEmailAddress: ${_this.lastConfirmedEmailAddress}, userLoggedInNotification: ${_this.userLoggedInNotification}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, companyUser: ${_this.companyUser})';
 }
 
 
@@ -629,7 +644,7 @@ class _$UserApiCopyWithImpl<$Res>
 /// Create a copy of UserApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? signature = null,Object? languageId = null,Object? oauthProviderId = null,Object? oauthUserToken = null,Object? oauthUserRefreshToken = null,Object? google2faSecret = null,Object? verifiedPhoneNumber = null,Object? hasPassword = null,Object? lastLogin = null,Object? emailVerifiedAt = null,Object? lastConfirmedEmailAddress = null,Object? userLoggedInNotification = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? companyUser = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(UserApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -819,14 +834,11 @@ class _UserApi implements UserApi {
 @override@JsonKey() final  String phone;
 @override@JsonKey() final  String signature;
 @override@JsonKey(name: 'language_id') final  String languageId;
-// -- Connect tab inputs ---------------------------------------------------
 @override@JsonKey(name: 'oauth_provider_id') final  String oauthProviderId;
 @override@JsonKey(name: 'oauth_user_token') final  String oauthUserToken;
 @override@JsonKey(name: 'oauth_user_refresh_token') final  String oauthUserRefreshToken;
-// -- Two-factor / phone -------------------------------------------------
 @override@JsonKey(name: 'google_2fa_secret', fromJson: _boolFromJson) final  bool google2faSecret;
 @override@JsonKey(name: 'verified_phone_number', fromJson: _boolFromJson) final  bool verifiedPhoneNumber;
-// -- Misc ---------------------------------------------------------------
 @override@JsonKey(name: 'has_password') final  bool hasPassword;
 @override@JsonKey(name: 'last_login') final  int lastLogin;
 @override@JsonKey(name: 'email_verified_at') final  int emailVerifiedAt;
@@ -844,12 +856,10 @@ class _UserApi implements UserApi {
 @override@JsonKey(name: 'updated_at') final  int updatedAt;
 @override@JsonKey(name: 'archived_at') final  int archivedAt;
 @override@JsonKey(name: 'is_deleted') final  bool isDeleted;
-// -- Custom fields (gated on company.custom_fields.user1..4 in the UI) -
 @override@JsonKey(name: 'custom_value1') final  String customValue1;
 @override@JsonKey(name: 'custom_value2') final  String customValue2;
 @override@JsonKey(name: 'custom_value3') final  String customValue3;
 @override@JsonKey(name: 'custom_value4') final  String customValue4;
-// -- Per-company-user (active company only when ?include=company_user) -
 @override@JsonKey(name: 'company_user') final  CompanyUserApi? companyUser;
 
 /// Create a copy of UserApi
@@ -865,16 +875,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.google2faSecret, google2faSecret) || other.google2faSecret == google2faSecret)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.signature, signature) || other.signature == signature)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.oauthProviderId, oauthProviderId) || other.oauthProviderId == oauthProviderId)&&(identical(other.oauthUserToken, oauthUserToken) || other.oauthUserToken == oauthUserToken)&&(identical(other.oauthUserRefreshToken, oauthUserRefreshToken) || other.oauthUserRefreshToken == oauthUserRefreshToken)&&(identical(other.google2faSecret, google2faSecret) || other.google2faSecret == google2faSecret)&&(identical(other.verifiedPhoneNumber, verifiedPhoneNumber) || other.verifiedPhoneNumber == verifiedPhoneNumber)&&(identical(other.hasPassword, hasPassword) || other.hasPassword == hasPassword)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.emailVerifiedAt, emailVerifiedAt) || other.emailVerifiedAt == emailVerifiedAt)&&(identical(other.lastConfirmedEmailAddress, lastConfirmedEmailAddress) || other.lastConfirmedEmailAddress == lastConfirmedEmailAddress)&&(identical(other.userLoggedInNotification, userLoggedInNotification) || other.userLoggedInNotification == userLoggedInNotification)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.companyUser, companyUser) || other.companyUser == companyUser));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,google2faSecret,verifiedPhoneNumber,hasPassword,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,userLoggedInNotification,createdAt,updatedAt,archivedAt,isDeleted,customValue1,customValue2,customValue3,customValue4,companyUser]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,signature,languageId,oauthProviderId,oauthUserToken,oauthUserRefreshToken,google2faSecret,verifiedPhoneNumber,hasPassword,lastLogin,emailVerifiedAt,lastConfirmedEmailAddress,userLoggedInNotification,createdAt,updatedAt,archivedAt,isDeleted,customValue1,customValue2,customValue3,customValue4,companyUser]);
+}
 
 @override
 String toString() {
-  return 'UserApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, google2faSecret: $google2faSecret, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, userLoggedInNotification: $userLoggedInNotification, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, companyUser: $companyUser)';
+    return 'UserApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, signature: $signature, languageId: $languageId, oauthProviderId: $oauthProviderId, oauthUserToken: $oauthUserToken, oauthUserRefreshToken: $oauthUserRefreshToken, google2faSecret: $google2faSecret, verifiedPhoneNumber: $verifiedPhoneNumber, hasPassword: $hasPassword, lastLogin: $lastLogin, emailVerifiedAt: $emailVerifiedAt, lastConfirmedEmailAddress: $lastConfirmedEmailAddress, userLoggedInNotification: $userLoggedInNotification, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, companyUser: $companyUser)';
 }
 
 
@@ -966,16 +978,21 @@ $CompanyUserApiCopyWith<CompanyUserApi> get copyWith => _$CompanyUserApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUserApi&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&const DeepCollectionEquality().equals(other.notifications, notifications)&&const DeepCollectionEquality().equals(other.settings, settings));
+  final _this = this as CompanyUserApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyUserApi&&(identical(other.permissions, _this.permissions) || other.permissions == _this.permissions)&&(identical(other.isOwner, _this.isOwner) || other.isOwner == _this.isOwner)&&(identical(other.isAdmin, _this.isAdmin) || other.isAdmin == _this.isAdmin)&&(identical(other.isLocked, _this.isLocked) || other.isLocked == _this.isLocked)&&const DeepCollectionEquality().equals(other.notifications, _this.notifications)&&const DeepCollectionEquality().equals(other.settings, _this.settings));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked,const DeepCollectionEquality().hash(notifications),const DeepCollectionEquality().hash(settings));
+int get hashCode {
+  final _this = this as CompanyUserApi;
+  return Object.hash(runtimeType,_this.permissions,_this.isOwner,_this.isAdmin,_this.isLocked,const DeepCollectionEquality().hash(_this.notifications),const DeepCollectionEquality().hash(_this.settings));
+}
 
 @override
 String toString() {
-  return 'CompanyUserApi(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked, notifications: $notifications, settings: $settings)';
+  final _this = this as CompanyUserApi;
+  return 'CompanyUserApi(permissions: ${_this.permissions}, isOwner: ${_this.isOwner}, isAdmin: ${_this.isAdmin}, isLocked: ${_this.isLocked}, notifications: ${_this.notifications}, settings: ${_this.settings})';
 }
 
 
@@ -1004,7 +1021,7 @@ class _$CompanyUserApiCopyWithImpl<$Res>
 /// Create a copy of CompanyUserApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? permissions = null,Object? isOwner = null,Object? isAdmin = null,Object? isLocked = null,Object? notifications = null,Object? settings = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyUserApi(
 permissions: null == permissions ? _self.permissions : permissions // ignore: cast_nullable_to_non_nullable
 as String,isOwner: null == isOwner ? _self.isOwner : isOwner // ignore: cast_nullable_to_non_nullable
 as bool,isAdmin: null == isAdmin ? _self.isAdmin : isAdmin // ignore: cast_nullable_to_non_nullable
@@ -1152,7 +1169,7 @@ return $default(_that.permissions,_that.isOwner,_that.isAdmin,_that.isLocked,_th
 @JsonSerializable()
 
 class _CompanyUserApi implements CompanyUserApi {
-  const _CompanyUserApi({this.permissions = '', @JsonKey(name: 'is_owner') this.isOwner = false, @JsonKey(name: 'is_admin') this.isAdmin = false, @JsonKey(name: 'is_locked') this.isLocked = false, final  Map<String, dynamic> notifications = const <String, dynamic>{}, final  Map<String, dynamic> settings = const <String, dynamic>{}}): _notifications = notifications,_settings = settings;
+  const _CompanyUserApi({this.permissions = '', @JsonKey(name: 'is_owner') this.isOwner = false, @JsonKey(name: 'is_admin') this.isAdmin = false, @JsonKey(name: 'is_locked') this.isLocked = false,  Map<String, dynamic> notifications = const <String, dynamic>{},  Map<String, dynamic> settings = const <String, dynamic>{}}): _notifications = notifications,_settings = settings;
   factory _CompanyUserApi.fromJson(Map<String, dynamic> json) => _$CompanyUserApiFromJson(json);
 
 @override@JsonKey() final  String permissions;
@@ -1187,16 +1204,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUserApi&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&const DeepCollectionEquality().equals(other._notifications, _notifications)&&const DeepCollectionEquality().equals(other._settings, _settings));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyUserApi&&(identical(other.permissions, permissions) || other.permissions == permissions)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&const DeepCollectionEquality().equals(other.notifications, _notifications)&&const DeepCollectionEquality().equals(other.settings, _settings));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked,const DeepCollectionEquality().hash(_notifications),const DeepCollectionEquality().hash(_settings));
+int get hashCode {
+    return Object.hash(runtimeType,permissions,isOwner,isAdmin,isLocked,const DeepCollectionEquality().hash(_notifications),const DeepCollectionEquality().hash(_settings));
+}
 
 @override
 String toString() {
-  return 'CompanyUserApi(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked, notifications: $notifications, settings: $settings)';
+    return 'CompanyUserApi(permissions: $permissions, isOwner: $isOwner, isAdmin: $isAdmin, isLocked: $isLocked, notifications: $notifications, settings: $settings)';
 }
 
 

@@ -33,6 +33,9 @@ class _FakeBilling implements StoreBilling {
   final completed = <StorePurchase>[];
   final bought = <StoreProduct>[];
 
+  /// Thrown by [buyNonConsumable] when set — a purchase that never starts.
+  Object? buyError;
+
   @override
   Future<bool> isAvailable() async => true;
 
@@ -53,8 +56,11 @@ class _FakeBilling implements StoreBilling {
       );
 
   @override
-  Future<void> buyNonConsumable(StoreProduct product) async =>
-      bought.add(product);
+  Future<void> buyNonConsumable(StoreProduct product) async {
+    final error = buyError;
+    if (error != null) throw error;
+    bought.add(product);
+  }
 
   @override
   Future<void> restorePurchases() async {}
@@ -62,6 +68,9 @@ class _FakeBilling implements StoreBilling {
   @override
   Future<void> completePurchase(StorePurchase purchase) async =>
       completed.add(purchase);
+
+  @override
+  Future<bool> showManageSubscriptions() async => false;
 }
 
 class _FakeApi implements ApiClient {
@@ -216,6 +225,20 @@ void main() {
       expect(api.posts, isEmpty);
       expect(billing.bought.single.id, 'pro_plan');
     });
+
+    test(
+      'a purchase that never starts clears busy instead of throwing',
+      () async {
+        // StoreKit throws `storekit_duplicate_product_object` for a product that
+        // still has an unfinished transaction; no stream event follows.
+        billing.buyError = Exception('storekit_duplicate_product_object');
+
+        await svc.buy(svc.products.value.single);
+
+        expect(svc.busy.value, isFalse);
+        expect(billing.bought, isEmpty);
+      },
+    );
   });
 
   group('appleOriginalTransactionId', () {

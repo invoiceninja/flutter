@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'design_api_model.dart';
@@ -9,6 +9,7 @@ part of 'design_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $DesignTemplateApiCopyWith<DesignTemplateApi> get copyWith => _$DesignTemplateAp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DesignTemplateApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignTemplateApi&&(identical(other.body, _this.body) || other.body == _this.body)&&(identical(other.header, _this.header) || other.header == _this.header)&&(identical(other.footer, _this.footer) || other.footer == _this.footer)&&(identical(other.includes, _this.includes) || other.includes == _this.includes)&&(identical(other.product, _this.product) || other.product == _this.product)&&(identical(other.task, _this.task) || other.task == _this.task)&&const DeepCollectionEquality().equals(other.blocks, _this.blocks)&&(identical(other.documentSettings, _this.documentSettings) || other.documentSettings == _this.documentSettings)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(blocks),documentSettings,const DeepCollectionEquality().hash(extra));
+int get hashCode {
+  final _this = this as DesignTemplateApi;
+  return Object.hash(runtimeType,_this.body,_this.header,_this.footer,_this.includes,_this.product,_this.task,const DeepCollectionEquality().hash(_this.blocks),_this.documentSettings,const DeepCollectionEquality().hash(_this.extra));
+}
 
 @override
 String toString() {
-  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
+  final _this = this as DesignTemplateApi;
+  return 'DesignTemplateApi(body: ${_this.body}, header: ${_this.header}, footer: ${_this.footer}, includes: ${_this.includes}, product: ${_this.product}, task: ${_this.task}, blocks: ${_this.blocks}, documentSettings: ${_this.documentSettings}, extra: ${_this.extra})';
 }
 
 
@@ -66,7 +72,7 @@ class _$DesignTemplateApiCopyWithImpl<$Res>
 /// Create a copy of DesignTemplateApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? body = null,Object? header = null,Object? footer = null,Object? includes = null,Object? product = null,Object? task = null,Object? blocks = null,Object? documentSettings = freezed,Object? extra = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DesignTemplateApi(
 body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
 as String,header: null == header ? _self.header : header // ignore: cast_nullable_to_non_nullable
 as String,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
@@ -229,7 +235,7 @@ return $default(_that.body,_that.header,_that.footer,_that.includes,_that.produc
 @JsonSerializable()
 
 class _DesignTemplateApi implements DesignTemplateApi {
-  const _DesignTemplateApi({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '', final  List<DesignBlockApi> blocks = const <DesignBlockApi>[], @JsonKey(includeIfNull: false) this.documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _blocks = blocks,_extra = extra;
+  const _DesignTemplateApi({this.body = '', this.header = '', this.footer = '', this.includes = '', this.product = '', this.task = '',  List<DesignBlockApi> blocks = const <DesignBlockApi>[], @JsonKey(includeIfNull: false) this.documentSettings, @JsonKey(name: kDesignExtraKey, readValue: _readTemplateExtra, includeIfNull: false)  Map<String, dynamic>? extra}): _blocks = blocks,_extra = extra;
   factory _DesignTemplateApi.fromJson(Map<String, dynamic> json) => _$DesignTemplateApiFromJson(json);
 
 @override@JsonKey() final  String body;
@@ -269,16 +275,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other._blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignTemplateApi&&(identical(other.body, body) || other.body == body)&&(identical(other.header, header) || other.header == header)&&(identical(other.footer, footer) || other.footer == footer)&&(identical(other.includes, includes) || other.includes == includes)&&(identical(other.product, product) || other.product == product)&&(identical(other.task, task) || other.task == task)&&const DeepCollectionEquality().equals(other.blocks, _blocks)&&(identical(other.documentSettings, documentSettings) || other.documentSettings == documentSettings)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
+int get hashCode {
+    return Object.hash(runtimeType,body,header,footer,includes,product,task,const DeepCollectionEquality().hash(_blocks),documentSettings,const DeepCollectionEquality().hash(_extra));
+}
 
 @override
 String toString() {
-  return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
+    return 'DesignTemplateApi(body: $body, header: $header, footer: $footer, includes: $includes, product: $product, task: $task, blocks: $blocks, documentSettings: $documentSettings, extra: $extra)';
 }
 
 
@@ -353,16 +361,21 @@ $DesignBlockApiCopyWith<DesignBlockApi> get copyWith => _$DesignBlockApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DesignBlockApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignBlockApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.gridPosition, _this.gridPosition) || other.gridPosition == _this.gridPosition)&&const DeepCollectionEquality().equals(other.properties, _this.properties)&&(identical(other.locked, _this.locked) || other.locked == _this.locked)&&(identical(other.rowAlign, _this.rowAlign) || other.rowAlign == _this.rowAlign)&&(identical(other.rowWidth, _this.rowWidth) || other.rowWidth == _this.rowWidth)&&(identical(other.colStart, _this.colStart) || other.colStart == _this.colStart)&&(identical(other.colSpan, _this.colSpan) || other.colSpan == _this.colSpan)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(properties),locked,rowAlign,rowWidth,colStart,colSpan,const DeepCollectionEquality().hash(extra));
+int get hashCode {
+  final _this = this as DesignBlockApi;
+  return Object.hash(runtimeType,_this.id,_this.type,_this.gridPosition,const DeepCollectionEquality().hash(_this.properties),_this.locked,_this.rowAlign,_this.rowWidth,_this.colStart,_this.colSpan,const DeepCollectionEquality().hash(_this.extra));
+}
 
 @override
 String toString() {
-  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan, extra: $extra)';
+  final _this = this as DesignBlockApi;
+  return 'DesignBlockApi(id: ${_this.id}, type: ${_this.type}, gridPosition: ${_this.gridPosition}, properties: ${_this.properties}, locked: ${_this.locked}, rowAlign: ${_this.rowAlign}, rowWidth: ${_this.rowWidth}, colStart: ${_this.colStart}, colSpan: ${_this.colSpan}, extra: ${_this.extra})';
 }
 
 
@@ -391,7 +404,7 @@ class _$DesignBlockApiCopyWithImpl<$Res>
 /// Create a copy of DesignBlockApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? gridPosition = null,Object? properties = freezed,Object? locked = freezed,Object? rowAlign = freezed,Object? rowWidth = freezed,Object? colStart = freezed,Object? colSpan = freezed,Object? extra = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DesignBlockApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as String,gridPosition: null == gridPosition ? _self.gridPosition : gridPosition // ignore: cast_nullable_to_non_nullable
@@ -552,7 +565,7 @@ return $default(_that.id,_that.type,_that.gridPosition,_that.properties,_that.lo
 @JsonSerializable()
 
 class _DesignBlockApi implements DesignBlockApi {
-  const _DesignBlockApi({this.id = '', this.type = '', this.gridPosition = const GridPositionApi(), @JsonKey(includeIfNull: false, fromJson: _blockProperties) final  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false) this.locked, @JsonKey(includeIfNull: false) this.rowAlign, @JsonKey(includeIfNull: false) this.rowWidth, @JsonKey(includeIfNull: false) this.colStart, @JsonKey(includeIfNull: false) this.colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _properties = properties,_extra = extra;
+  const _DesignBlockApi({this.id = '', this.type = '', this.gridPosition = const GridPositionApi(), @JsonKey(includeIfNull: false, fromJson: _blockProperties)  Map<String, dynamic>? properties, @JsonKey(includeIfNull: false) this.locked, @JsonKey(includeIfNull: false) this.rowAlign, @JsonKey(includeIfNull: false) this.rowWidth, @JsonKey(includeIfNull: false) this.colStart, @JsonKey(includeIfNull: false) this.colSpan, @JsonKey(name: kDesignExtraKey, readValue: _readBlockExtra, includeIfNull: false)  Map<String, dynamic>? extra}): _properties = properties,_extra = extra;
   factory _DesignBlockApi.fromJson(Map<String, dynamic> json) => _$DesignBlockApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -595,16 +608,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other._properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignBlockApi&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.gridPosition, gridPosition) || other.gridPosition == gridPosition)&&const DeepCollectionEquality().equals(other.properties, _properties)&&(identical(other.locked, locked) || other.locked == locked)&&(identical(other.rowAlign, rowAlign) || other.rowAlign == rowAlign)&&(identical(other.rowWidth, rowWidth) || other.rowWidth == rowWidth)&&(identical(other.colStart, colStart) || other.colStart == colStart)&&(identical(other.colSpan, colSpan) || other.colSpan == colSpan)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,rowAlign,rowWidth,colStart,colSpan,const DeepCollectionEquality().hash(_extra));
+int get hashCode {
+    return Object.hash(runtimeType,id,type,gridPosition,const DeepCollectionEquality().hash(_properties),locked,rowAlign,rowWidth,colStart,colSpan,const DeepCollectionEquality().hash(_extra));
+}
 
 @override
 String toString() {
-  return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan, extra: $extra)';
+    return 'DesignBlockApi(id: $id, type: $type, gridPosition: $gridPosition, properties: $properties, locked: $locked, rowAlign: $rowAlign, rowWidth: $rowWidth, colStart: $colStart, colSpan: $colSpan, extra: $extra)';
 }
 
 
@@ -677,16 +692,21 @@ $GridPositionApiCopyWith<GridPositionApi> get copyWith => _$GridPositionApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridPositionApi&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+  final _this = this as GridPositionApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GridPositionApi&&(identical(other.x, _this.x) || other.x == _this.x)&&(identical(other.y, _this.y) || other.y == _this.y)&&(identical(other.w, _this.w) || other.w == _this.w)&&(identical(other.h, _this.h) || other.h == _this.h));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,x,y,w,h);
+int get hashCode {
+  final _this = this as GridPositionApi;
+  return Object.hash(runtimeType,_this.x,_this.y,_this.w,_this.h);
+}
 
 @override
 String toString() {
-  return 'GridPositionApi(x: $x, y: $y, w: $w, h: $h)';
+  final _this = this as GridPositionApi;
+  return 'GridPositionApi(x: ${_this.x}, y: ${_this.y}, w: ${_this.w}, h: ${_this.h})';
 }
 
 
@@ -715,7 +735,7 @@ class _$GridPositionApiCopyWithImpl<$Res>
 /// Create a copy of GridPositionApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? x = null,Object? y = null,Object? w = null,Object? h = null,}) {
-  return _then(_self.copyWith(
+  return _then(GridPositionApi(
 x: null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
 as int,y: null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
 as int,w: null == w ? _self.w : w // ignore: cast_nullable_to_non_nullable
@@ -882,16 +902,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridPositionApi&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GridPositionApi&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,x,y,w,h);
+int get hashCode {
+    return Object.hash(runtimeType,x,y,w,h);
+}
 
 @override
 String toString() {
-  return 'GridPositionApi(x: $x, y: $y, w: $w, h: $h)';
+    return 'GridPositionApi(x: $x, y: $y, w: $w, h: $h)';
 }
 
 
@@ -949,16 +971,21 @@ $DocumentSettingsApiCopyWith<DocumentSettingsApi> get copyWith => _$DocumentSett
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, extra));
+  final _this = this as DocumentSettingsApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentSettingsApi&&(identical(other.pageLayout, _this.pageLayout) || other.pageLayout == _this.pageLayout)&&(identical(other.pageSize, _this.pageSize) || other.pageSize == _this.pageSize)&&(identical(other.globalFontSize, _this.globalFontSize) || other.globalFontSize == _this.globalFontSize)&&(identical(other.primaryFont, _this.primaryFont) || other.primaryFont == _this.primaryFont)&&(identical(other.secondaryFont, _this.secondaryFont) || other.secondaryFont == _this.secondaryFont)&&(identical(other.showPaidStamp, _this.showPaidStamp) || other.showPaidStamp == _this.showPaidStamp)&&(identical(other.showShippingAddress, _this.showShippingAddress) || other.showShippingAddress == _this.showShippingAddress)&&(identical(other.embedDocuments, _this.embedDocuments) || other.embedDocuments == _this.embedDocuments)&&(identical(other.hideEmptyColumns, _this.hideEmptyColumns) || other.hideEmptyColumns == _this.hideEmptyColumns)&&(identical(other.pageNumbering, _this.pageNumbering) || other.pageNumbering == _this.pageNumbering)&&(identical(other.pageMarginTop, _this.pageMarginTop) || other.pageMarginTop == _this.pageMarginTop)&&(identical(other.pageMarginRight, _this.pageMarginRight) || other.pageMarginRight == _this.pageMarginRight)&&(identical(other.pageMarginBottom, _this.pageMarginBottom) || other.pageMarginBottom == _this.pageMarginBottom)&&(identical(other.pageMarginLeft, _this.pageMarginLeft) || other.pageMarginLeft == _this.pageMarginLeft)&&(identical(other.pagePaddingTop, _this.pagePaddingTop) || other.pagePaddingTop == _this.pagePaddingTop)&&(identical(other.pagePaddingRight, _this.pagePaddingRight) || other.pagePaddingRight == _this.pagePaddingRight)&&(identical(other.pagePaddingBottom, _this.pagePaddingBottom) || other.pagePaddingBottom == _this.pagePaddingBottom)&&(identical(other.pagePaddingLeft, _this.pagePaddingLeft) || other.pagePaddingLeft == _this.pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(extra)]);
+int get hashCode {
+  final _this = this as DocumentSettingsApi;
+  return Object.hashAll([runtimeType,_this.pageLayout,_this.pageSize,_this.globalFontSize,_this.primaryFont,_this.secondaryFont,_this.showPaidStamp,_this.showShippingAddress,_this.embedDocuments,_this.hideEmptyColumns,_this.pageNumbering,_this.pageMarginTop,_this.pageMarginRight,_this.pageMarginBottom,_this.pageMarginLeft,_this.pagePaddingTop,_this.pagePaddingRight,_this.pagePaddingBottom,_this.pagePaddingLeft,const DeepCollectionEquality().hash(_this.extra)]);
+}
 
 @override
 String toString() {
-  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
+  final _this = this as DocumentSettingsApi;
+  return 'DocumentSettingsApi(pageLayout: ${_this.pageLayout}, pageSize: ${_this.pageSize}, globalFontSize: ${_this.globalFontSize}, primaryFont: ${_this.primaryFont}, secondaryFont: ${_this.secondaryFont}, showPaidStamp: ${_this.showPaidStamp}, showShippingAddress: ${_this.showShippingAddress}, embedDocuments: ${_this.embedDocuments}, hideEmptyColumns: ${_this.hideEmptyColumns}, pageNumbering: ${_this.pageNumbering}, pageMarginTop: ${_this.pageMarginTop}, pageMarginRight: ${_this.pageMarginRight}, pageMarginBottom: ${_this.pageMarginBottom}, pageMarginLeft: ${_this.pageMarginLeft}, pagePaddingTop: ${_this.pagePaddingTop}, pagePaddingRight: ${_this.pagePaddingRight}, pagePaddingBottom: ${_this.pagePaddingBottom}, pagePaddingLeft: ${_this.pagePaddingLeft}, extra: ${_this.extra})';
 }
 
 
@@ -987,7 +1014,7 @@ class _$DocumentSettingsApiCopyWithImpl<$Res>
 /// Create a copy of DocumentSettingsApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? pageLayout = null,Object? pageSize = null,Object? globalFontSize = null,Object? primaryFont = null,Object? secondaryFont = null,Object? showPaidStamp = null,Object? showShippingAddress = null,Object? embedDocuments = null,Object? hideEmptyColumns = null,Object? pageNumbering = null,Object? pageMarginTop = null,Object? pageMarginRight = null,Object? pageMarginBottom = null,Object? pageMarginLeft = null,Object? pagePaddingTop = null,Object? pagePaddingRight = null,Object? pagePaddingBottom = null,Object? pagePaddingLeft = null,Object? extra = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentSettingsApi(
 pageLayout: null == pageLayout ? _self.pageLayout : pageLayout // ignore: cast_nullable_to_non_nullable
 as String,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as String,globalFontSize: null == globalFontSize ? _self.globalFontSize : globalFontSize // ignore: cast_nullable_to_non_nullable
@@ -1148,7 +1175,7 @@ return $default(_that.pageLayout,_that.pageSize,_that.globalFontSize,_that.prima
 @JsonSerializable()
 
 class _DocumentSettingsApi implements DocumentSettingsApi {
-  const _DocumentSettingsApi({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false) final  Map<String, dynamic>? extra}): _extra = extra;
+  const _DocumentSettingsApi({this.pageLayout = 'portrait', this.pageSize = 'A4', this.globalFontSize = 16, this.primaryFont = 'Roboto', this.secondaryFont = 'Roboto', this.showPaidStamp = false, this.showShippingAddress = false, this.embedDocuments = false, this.hideEmptyColumns = false, this.pageNumbering = false, this.pageMarginTop = 0, this.pageMarginRight = 0, this.pageMarginBottom = 0, this.pageMarginLeft = 0, this.pagePaddingTop = 30, this.pagePaddingRight = 30, this.pagePaddingBottom = 30, this.pagePaddingLeft = 30, @JsonKey(name: kDesignExtraKey, readValue: _readDocumentSettingsExtra, includeIfNull: false)  Map<String, dynamic>? extra}): _extra = extra;
   factory _DocumentSettingsApi.fromJson(Map<String, dynamic> json) => _$DocumentSettingsApiFromJson(json);
 
 @override@JsonKey() final  String pageLayout;
@@ -1192,16 +1219,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other._extra, _extra));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentSettingsApi&&(identical(other.pageLayout, pageLayout) || other.pageLayout == pageLayout)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.globalFontSize, globalFontSize) || other.globalFontSize == globalFontSize)&&(identical(other.primaryFont, primaryFont) || other.primaryFont == primaryFont)&&(identical(other.secondaryFont, secondaryFont) || other.secondaryFont == secondaryFont)&&(identical(other.showPaidStamp, showPaidStamp) || other.showPaidStamp == showPaidStamp)&&(identical(other.showShippingAddress, showShippingAddress) || other.showShippingAddress == showShippingAddress)&&(identical(other.embedDocuments, embedDocuments) || other.embedDocuments == embedDocuments)&&(identical(other.hideEmptyColumns, hideEmptyColumns) || other.hideEmptyColumns == hideEmptyColumns)&&(identical(other.pageNumbering, pageNumbering) || other.pageNumbering == pageNumbering)&&(identical(other.pageMarginTop, pageMarginTop) || other.pageMarginTop == pageMarginTop)&&(identical(other.pageMarginRight, pageMarginRight) || other.pageMarginRight == pageMarginRight)&&(identical(other.pageMarginBottom, pageMarginBottom) || other.pageMarginBottom == pageMarginBottom)&&(identical(other.pageMarginLeft, pageMarginLeft) || other.pageMarginLeft == pageMarginLeft)&&(identical(other.pagePaddingTop, pagePaddingTop) || other.pagePaddingTop == pagePaddingTop)&&(identical(other.pagePaddingRight, pagePaddingRight) || other.pagePaddingRight == pagePaddingRight)&&(identical(other.pagePaddingBottom, pagePaddingBottom) || other.pagePaddingBottom == pagePaddingBottom)&&(identical(other.pagePaddingLeft, pagePaddingLeft) || other.pagePaddingLeft == pagePaddingLeft)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,pageLayout,pageSize,globalFontSize,primaryFont,secondaryFont,showPaidStamp,showShippingAddress,embedDocuments,hideEmptyColumns,pageNumbering,pageMarginTop,pageMarginRight,pageMarginBottom,pageMarginLeft,pagePaddingTop,pagePaddingRight,pagePaddingBottom,pagePaddingLeft,const DeepCollectionEquality().hash(_extra)]);
+}
 
 @override
 String toString() {
-  return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
+    return 'DocumentSettingsApi(pageLayout: $pageLayout, pageSize: $pageSize, globalFontSize: $globalFontSize, primaryFont: $primaryFont, secondaryFont: $secondaryFont, showPaidStamp: $showPaidStamp, showShippingAddress: $showShippingAddress, embedDocuments: $embedDocuments, hideEmptyColumns: $hideEmptyColumns, pageNumbering: $pageNumbering, pageMarginTop: $pageMarginTop, pageMarginRight: $pageMarginRight, pageMarginBottom: $pageMarginBottom, pageMarginLeft: $pageMarginLeft, pagePaddingTop: $pagePaddingTop, pagePaddingRight: $pagePaddingRight, pagePaddingBottom: $pagePaddingBottom, pagePaddingLeft: $pagePaddingLeft, extra: $extra)';
 }
 
 
@@ -1274,16 +1303,21 @@ $DesignApiCopyWith<DesignApi> get copyWith => _$DesignApiCopyWithImpl<DesignApi>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&(identical(other.entities, entities) || other.entities == entities)&&(identical(other.design, design) || other.design == design)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as DesignApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.isCustom, _this.isCustom) || other.isCustom == _this.isCustom)&&(identical(other.isActive, _this.isActive) || other.isActive == _this.isActive)&&(identical(other.isTemplate, _this.isTemplate) || other.isTemplate == _this.isTemplate)&&(identical(other.isFree, _this.isFree) || other.isFree == _this.isFree)&&(identical(other.entities, _this.entities) || other.entities == _this.entities)&&(identical(other.design, _this.design) || other.design == _this.design)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,entities,design,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+  final _this = this as DesignApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.isCustom,_this.isActive,_this.isTemplate,_this.isFree,_this.entities,_this.design,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted);
+}
 
 @override
 String toString() {
-  return 'DesignApi(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, design: $design, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as DesignApi;
+  return 'DesignApi(id: ${_this.id}, name: ${_this.name}, isCustom: ${_this.isCustom}, isActive: ${_this.isActive}, isTemplate: ${_this.isTemplate}, isFree: ${_this.isFree}, entities: ${_this.entities}, design: ${_this.design}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -1312,7 +1346,7 @@ class _$DesignApiCopyWithImpl<$Res>
 /// Create a copy of DesignApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? isCustom = null,Object? isActive = null,Object? isTemplate = null,Object? isFree = null,Object? entities = null,Object? design = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(DesignApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,isCustom: null == isCustom ? _self.isCustom : isCustom // ignore: cast_nullable_to_non_nullable
@@ -1504,16 +1538,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&(identical(other.entities, entities) || other.entities == entities)&&(identical(other.design, design) || other.design == design)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isCustom, isCustom) || other.isCustom == isCustom)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.isTemplate, isTemplate) || other.isTemplate == isTemplate)&&(identical(other.isFree, isFree) || other.isFree == isFree)&&(identical(other.entities, entities) || other.entities == entities)&&(identical(other.design, design) || other.design == design)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,entities,design,createdAt,updatedAt,archivedAt,isDeleted);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,isCustom,isActive,isTemplate,isFree,entities,design,createdAt,updatedAt,archivedAt,isDeleted);
+}
 
 @override
 String toString() {
-  return 'DesignApi(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, design: $design, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'DesignApi(id: $id, name: $name, isCustom: $isCustom, isActive: $isActive, isTemplate: $isTemplate, isFree: $isFree, entities: $entities, design: $design, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -1588,16 +1624,21 @@ $DesignListApiCopyWith<DesignListApi> get copyWith => _$DesignListApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as DesignListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as DesignListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'DesignListApi(data: $data)';
+  final _this = this as DesignListApi;
+  return 'DesignListApi(data: ${_this.data})';
 }
 
 
@@ -1626,7 +1667,7 @@ class _$DesignListApiCopyWithImpl<$Res>
 /// Create a copy of DesignListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(DesignListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<DesignApi>,
   ));
@@ -1769,7 +1810,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _DesignListApi implements DesignListApi {
-  const _DesignListApi({@JsonKey(fromJson: _designListData) final  List<DesignApi> data = const <DesignApi>[]}): _data = data;
+  const _DesignListApi({@JsonKey(fromJson: _designListData)  List<DesignApi> data = const <DesignApi>[]}): _data = data;
   factory _DesignListApi.fromJson(Map<String, dynamic> json) => _$DesignListApiFromJson(json);
 
  final  List<DesignApi> _data;
@@ -1793,16 +1834,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'DesignListApi(data: $data)';
+    return 'DesignListApi(data: $data)';
 }
 
 
@@ -1857,16 +1900,21 @@ $DesignItemApiCopyWith<DesignItemApi> get copyWith => _$DesignItemApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as DesignItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DesignItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as DesignItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'DesignItemApi(data: $data)';
+  final _this = this as DesignItemApi;
+  return 'DesignItemApi(data: ${_this.data})';
 }
 
 
@@ -1895,7 +1943,7 @@ class _$DesignItemApiCopyWithImpl<$Res>
 /// Create a copy of DesignItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(DesignItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as DesignApi,
   ));
@@ -2065,16 +2113,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DesignItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'DesignItemApi(data: $data)';
+    return 'DesignItemApi(data: $data)';
 }
 
 

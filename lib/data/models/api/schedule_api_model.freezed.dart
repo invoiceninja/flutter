@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'schedule_api_model.dart';
@@ -9,6 +9,7 @@ part of 'schedule_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $ScheduleApiCopyWith<ScheduleApi> get copyWith => _$ScheduleApiCopyWithImpl<Sche
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.template, template) || other.template == template)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.nextRun, nextRun) || other.nextRun == nextRun)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&const DeepCollectionEquality().equals(other.parameters, parameters)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId));
+  final _this = this as ScheduleApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.template, _this.template) || other.template == _this.template)&&(identical(other.frequencyId, _this.frequencyId) || other.frequencyId == _this.frequencyId)&&(identical(other.nextRun, _this.nextRun) || other.nextRun == _this.nextRun)&&(identical(other.isPaused, _this.isPaused) || other.isPaused == _this.isPaused)&&(identical(other.remainingCycles, _this.remainingCycles) || other.remainingCycles == _this.remainingCycles)&&const DeepCollectionEquality().equals(other.parameters, _this.parameters)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,template,frequencyId,nextRun,isPaused,remainingCycles,const DeepCollectionEquality().hash(parameters),createdAt,updatedAt,archivedAt,isDeleted,userId,assignedUserId);
+int get hashCode {
+  final _this = this as ScheduleApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.template,_this.frequencyId,_this.nextRun,_this.isPaused,_this.remainingCycles,const DeepCollectionEquality().hash(_this.parameters),_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted,_this.userId,_this.assignedUserId);
+}
 
 @override
 String toString() {
-  return 'ScheduleApi(id: $id, name: $name, template: $template, frequencyId: $frequencyId, nextRun: $nextRun, isPaused: $isPaused, remainingCycles: $remainingCycles, parameters: $parameters, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, userId: $userId, assignedUserId: $assignedUserId)';
+  final _this = this as ScheduleApi;
+  return 'ScheduleApi(id: ${_this.id}, name: ${_this.name}, template: ${_this.template}, frequencyId: ${_this.frequencyId}, nextRun: ${_this.nextRun}, isPaused: ${_this.isPaused}, remainingCycles: ${_this.remainingCycles}, parameters: ${_this.parameters}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId})';
 }
 
 
@@ -66,7 +72,7 @@ class _$ScheduleApiCopyWithImpl<$Res>
 /// Create a copy of ScheduleApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? template = null,Object? frequencyId = null,Object? nextRun = null,Object? isPaused = null,Object? remainingCycles = null,Object? parameters = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,Object? userId = null,Object? assignedUserId = null,}) {
-  return _then(_self.copyWith(
+  return _then(ScheduleApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,template: null == template ? _self.template : template // ignore: cast_nullable_to_non_nullable
@@ -222,7 +228,7 @@ return $default(_that.id,_that.name,_that.template,_that.frequencyId,_that.nextR
 @JsonSerializable()
 
 class _ScheduleApi implements ScheduleApi {
-  const _ScheduleApi({this.id = '', this.name = '', this.template = '', @JsonKey(name: 'frequency_id') this.frequencyId = '', @JsonKey(name: 'next_run') this.nextRun = '', @JsonKey(name: 'is_paused') this.isPaused = false, @JsonKey(name: 'remaining_cycles') this.remainingCycles = -1, final  Map<String, dynamic> parameters = const <String, dynamic>{}, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = ''}): _parameters = parameters;
+  const _ScheduleApi({this.id = '', this.name = '', this.template = '', @JsonKey(name: 'frequency_id') this.frequencyId = '', @JsonKey(name: 'next_run') this.nextRun = '', @JsonKey(name: 'is_paused') this.isPaused = false, @JsonKey(name: 'remaining_cycles') this.remainingCycles = -1,  Map<String, dynamic> parameters = const <String, dynamic>{}, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = ''}): _parameters = parameters;
   factory _ScheduleApi.fromJson(Map<String, dynamic> json) => _$ScheduleApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -259,16 +265,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.template, template) || other.template == template)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.nextRun, nextRun) || other.nextRun == nextRun)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&const DeepCollectionEquality().equals(other._parameters, _parameters)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.template, template) || other.template == template)&&(identical(other.frequencyId, frequencyId) || other.frequencyId == frequencyId)&&(identical(other.nextRun, nextRun) || other.nextRun == nextRun)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.remainingCycles, remainingCycles) || other.remainingCycles == remainingCycles)&&const DeepCollectionEquality().equals(other.parameters, _parameters)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,template,frequencyId,nextRun,isPaused,remainingCycles,const DeepCollectionEquality().hash(_parameters),createdAt,updatedAt,archivedAt,isDeleted,userId,assignedUserId);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,template,frequencyId,nextRun,isPaused,remainingCycles,const DeepCollectionEquality().hash(_parameters),createdAt,updatedAt,archivedAt,isDeleted,userId,assignedUserId);
+}
 
 @override
 String toString() {
-  return 'ScheduleApi(id: $id, name: $name, template: $template, frequencyId: $frequencyId, nextRun: $nextRun, isPaused: $isPaused, remainingCycles: $remainingCycles, parameters: $parameters, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, userId: $userId, assignedUserId: $assignedUserId)';
+    return 'ScheduleApi(id: $id, name: $name, template: $template, frequencyId: $frequencyId, nextRun: $nextRun, isPaused: $isPaused, remainingCycles: $remainingCycles, parameters: $parameters, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted, userId: $userId, assignedUserId: $assignedUserId)';
 }
 
 
@@ -336,16 +344,21 @@ $ScheduleListApiCopyWith<ScheduleListApi> get copyWith => _$ScheduleListApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as ScheduleListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as ScheduleListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'ScheduleListApi(data: $data)';
+  final _this = this as ScheduleListApi;
+  return 'ScheduleListApi(data: ${_this.data})';
 }
 
 
@@ -374,7 +387,7 @@ class _$ScheduleListApiCopyWithImpl<$Res>
 /// Create a copy of ScheduleListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ScheduleListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<ScheduleApi>,
   ));
@@ -517,7 +530,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ScheduleListApi implements ScheduleListApi {
-  const _ScheduleListApi({@JsonKey(fromJson: _scheduleListData) final  List<ScheduleApi> data = const []}): _data = data;
+  const _ScheduleListApi({@JsonKey(fromJson: _scheduleListData)  List<ScheduleApi> data = const []}): _data = data;
   factory _ScheduleListApi.fromJson(Map<String, dynamic> json) => _$ScheduleListApiFromJson(json);
 
  final  List<ScheduleApi> _data;
@@ -541,16 +554,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'ScheduleListApi(data: $data)';
+    return 'ScheduleListApi(data: $data)';
 }
 
 
@@ -605,16 +620,21 @@ $ScheduleItemApiCopyWith<ScheduleItemApi> get copyWith => _$ScheduleItemApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as ScheduleItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ScheduleItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as ScheduleItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'ScheduleItemApi(data: $data)';
+  final _this = this as ScheduleItemApi;
+  return 'ScheduleItemApi(data: ${_this.data})';
 }
 
 
@@ -643,7 +663,7 @@ class _$ScheduleItemApiCopyWithImpl<$Res>
 /// Create a copy of ScheduleItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(ScheduleItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as ScheduleApi,
   ));
@@ -813,16 +833,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ScheduleItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'ScheduleItemApi(data: $data)';
+    return 'ScheduleItemApi(data: $data)';
 }
 
 

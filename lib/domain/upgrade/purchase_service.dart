@@ -96,7 +96,16 @@ class PurchaseService {
 
   Future<void> buy(StoreProduct product) async {
     busy.value = true;
-    await _iap.buyNonConsumable(product);
+    try {
+      await _iap.buyNonConsumable(product);
+    } catch (e) {
+      // A purchase that never started sends no purchase-stream event to clear
+      // [busy], so the sheet would stay disabled. StoreKit refuses a product
+      // that still has an unfinished transaction this way
+      // (`storekit_duplicate_product_object`, in_app_purchase_storekit 0.4.10).
+      busy.value = false;
+      _log.warning('buyNonConsumable: $e');
+    }
   }
 
   Future<void> restore() => _iap.restorePurchases();

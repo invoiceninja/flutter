@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'bank_account_api_model.dart';
@@ -9,6 +9,7 @@ part of 'bank_account_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $BankAccountApiCopyWith<BankAccountApi> get copyWith => _$BankAccountApiCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountApi&&(identical(other.id, id) || other.id == id)&&(identical(other.bankAccountName, bankAccountName) || other.bankAccountName == bankAccountName)&&(identical(other.bankAccountStatus, bankAccountStatus) || other.bankAccountStatus == bankAccountStatus)&&(identical(other.bankAccountType, bankAccountType) || other.bankAccountType == bankAccountType)&&(identical(other.providerName, providerName) || other.providerName == providerName)&&const DeepCollectionEquality().equals(other.balance, balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+  final _this = this as BankAccountApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.bankAccountName, _this.bankAccountName) || other.bankAccountName == _this.bankAccountName)&&(identical(other.bankAccountStatus, _this.bankAccountStatus) || other.bankAccountStatus == _this.bankAccountStatus)&&(identical(other.bankAccountType, _this.bankAccountType) || other.bankAccountType == _this.bankAccountType)&&(identical(other.providerName, _this.providerName) || other.providerName == _this.providerName)&&const DeepCollectionEquality().equals(other.balance, _this.balance)&&(identical(other.currency, _this.currency) || other.currency == _this.currency)&&(identical(other.fromDate, _this.fromDate) || other.fromDate == _this.fromDate)&&(identical(other.autoSync, _this.autoSync) || other.autoSync == _this.autoSync)&&(identical(other.disabledUpstream, _this.disabledUpstream) || other.disabledUpstream == _this.disabledUpstream)&&(identical(other.integrationType, _this.integrationType) || other.integrationType == _this.integrationType)&&(identical(other.nordigenInstitutionId, _this.nordigenInstitutionId) || other.nordigenInstitutionId == _this.nordigenInstitutionId)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,bankAccountName,bankAccountStatus,bankAccountType,providerName,const DeepCollectionEquality().hash(balance),currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+  final _this = this as BankAccountApi;
+  return Object.hash(runtimeType,_this.id,_this.bankAccountName,_this.bankAccountStatus,_this.bankAccountType,_this.providerName,const DeepCollectionEquality().hash(_this.balance),_this.currency,_this.fromDate,_this.autoSync,_this.disabledUpstream,_this.integrationType,_this.nordigenInstitutionId,_this.isDeleted,_this.createdAt,_this.updatedAt,_this.archivedAt);
+}
 
 @override
 String toString() {
-  return 'BankAccountApi(id: $id, bankAccountName: $bankAccountName, bankAccountStatus: $bankAccountStatus, bankAccountType: $bankAccountType, providerName: $providerName, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+  final _this = this as BankAccountApi;
+  return 'BankAccountApi(id: ${_this.id}, bankAccountName: ${_this.bankAccountName}, bankAccountStatus: ${_this.bankAccountStatus}, bankAccountType: ${_this.bankAccountType}, providerName: ${_this.providerName}, balance: ${_this.balance}, currency: ${_this.currency}, fromDate: ${_this.fromDate}, autoSync: ${_this.autoSync}, disabledUpstream: ${_this.disabledUpstream}, integrationType: ${_this.integrationType}, nordigenInstitutionId: ${_this.nordigenInstitutionId}, isDeleted: ${_this.isDeleted}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$BankAccountApiCopyWithImpl<$Res>
 /// Create a copy of BankAccountApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? bankAccountName = null,Object? bankAccountStatus = null,Object? bankAccountType = null,Object? providerName = null,Object? balance = null,Object? currency = null,Object? fromDate = null,Object? autoSync = null,Object? disabledUpstream = null,Object? integrationType = null,Object? nordigenInstitutionId = null,Object? isDeleted = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankAccountApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,bankAccountName: null == bankAccountName ? _self.bankAccountName : bankAccountName // ignore: cast_nullable_to_non_nullable
 as String,bankAccountStatus: null == bankAccountStatus ? _self.bankAccountStatus : bankAccountStatus // ignore: cast_nullable_to_non_nullable
@@ -256,16 +262,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountApi&&(identical(other.id, id) || other.id == id)&&(identical(other.bankAccountName, bankAccountName) || other.bankAccountName == bankAccountName)&&(identical(other.bankAccountStatus, bankAccountStatus) || other.bankAccountStatus == bankAccountStatus)&&(identical(other.bankAccountType, bankAccountType) || other.bankAccountType == bankAccountType)&&(identical(other.providerName, providerName) || other.providerName == providerName)&&const DeepCollectionEquality().equals(other.balance, balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountApi&&(identical(other.id, id) || other.id == id)&&(identical(other.bankAccountName, bankAccountName) || other.bankAccountName == bankAccountName)&&(identical(other.bankAccountStatus, bankAccountStatus) || other.bankAccountStatus == bankAccountStatus)&&(identical(other.bankAccountType, bankAccountType) || other.bankAccountType == bankAccountType)&&(identical(other.providerName, providerName) || other.providerName == providerName)&&const DeepCollectionEquality().equals(other.balance, balance)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.fromDate, fromDate) || other.fromDate == fromDate)&&(identical(other.autoSync, autoSync) || other.autoSync == autoSync)&&(identical(other.disabledUpstream, disabledUpstream) || other.disabledUpstream == disabledUpstream)&&(identical(other.integrationType, integrationType) || other.integrationType == integrationType)&&(identical(other.nordigenInstitutionId, nordigenInstitutionId) || other.nordigenInstitutionId == nordigenInstitutionId)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,bankAccountName,bankAccountStatus,bankAccountType,providerName,const DeepCollectionEquality().hash(balance),currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,createdAt,updatedAt,archivedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,bankAccountName,bankAccountStatus,bankAccountType,providerName,const DeepCollectionEquality().hash(balance),currency,fromDate,autoSync,disabledUpstream,integrationType,nordigenInstitutionId,isDeleted,createdAt,updatedAt,archivedAt);
+}
 
 @override
 String toString() {
-  return 'BankAccountApi(id: $id, bankAccountName: $bankAccountName, bankAccountStatus: $bankAccountStatus, bankAccountType: $bankAccountType, providerName: $providerName, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
+    return 'BankAccountApi(id: $id, bankAccountName: $bankAccountName, bankAccountStatus: $bankAccountStatus, bankAccountType: $bankAccountType, providerName: $providerName, balance: $balance, currency: $currency, fromDate: $fromDate, autoSync: $autoSync, disabledUpstream: $disabledUpstream, integrationType: $integrationType, nordigenInstitutionId: $nordigenInstitutionId, isDeleted: $isDeleted, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt)';
 }
 
 
@@ -334,16 +342,21 @@ $BankAccountListApiCopyWith<BankAccountListApi> get copyWith => _$BankAccountLis
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as BankAccountListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as BankAccountListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'BankAccountListApi(data: $data)';
+  final _this = this as BankAccountListApi;
+  return 'BankAccountListApi(data: ${_this.data})';
 }
 
 
@@ -372,7 +385,7 @@ class _$BankAccountListApiCopyWithImpl<$Res>
 /// Create a copy of BankAccountListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankAccountListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<BankAccountApi>,
   ));
@@ -515,7 +528,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _BankAccountListApi implements BankAccountListApi {
-  const _BankAccountListApi({@JsonKey(fromJson: _bankAccountListData) final  List<BankAccountApi> data = const []}): _data = data;
+  const _BankAccountListApi({@JsonKey(fromJson: _bankAccountListData)  List<BankAccountApi> data = const []}): _data = data;
   factory _BankAccountListApi.fromJson(Map<String, dynamic> json) => _$BankAccountListApiFromJson(json);
 
  final  List<BankAccountApi> _data;
@@ -539,16 +552,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'BankAccountListApi(data: $data)';
+    return 'BankAccountListApi(data: $data)';
 }
 
 
@@ -603,16 +618,21 @@ $BankAccountItemApiCopyWith<BankAccountItemApi> get copyWith => _$BankAccountIte
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as BankAccountItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BankAccountItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as BankAccountItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'BankAccountItemApi(data: $data)';
+  final _this = this as BankAccountItemApi;
+  return 'BankAccountItemApi(data: ${_this.data})';
 }
 
 
@@ -641,7 +661,7 @@ class _$BankAccountItemApiCopyWithImpl<$Res>
 /// Create a copy of BankAccountItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(BankAccountItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as BankAccountApi,
   ));
@@ -811,16 +831,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BankAccountItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'BankAccountItemApi(data: $data)';
+    return 'BankAccountItemApi(data: $data)';
 }
 
 

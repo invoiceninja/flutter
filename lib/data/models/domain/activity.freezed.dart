@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'activity.dart';
@@ -9,18 +9,13 @@ part of 'activity.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Activity {
 
- String get id; int get activityTypeId; String get notes; DateTime get createdAt; String get ip;// Related-entity references keyed by the template token name
-// (`user`, `client`, `invoice`, `contact`, `quote`, `payment`,
-// `payment_amount`, `expense`, `credit`, `task`, `vendor`,
-// `recurring_invoice`, `recurring_expense`, `purchase_order`,
-// `subscription`, `adjustment`). Only the keys the server populated
-// are present.
- Map<String, ActivityRef> get refs;
+ String get id; int get activityTypeId; String get notes; DateTime get createdAt; String get ip; Map<String, ActivityRef> get refs;
 /// Create a copy of Activity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +26,21 @@ $ActivityCopyWith<Activity> get copyWith => _$ActivityCopyWithImpl<Activity>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Activity&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&const DeepCollectionEquality().equals(other.refs, refs));
+  final _this = this as Activity;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Activity&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.activityTypeId, _this.activityTypeId) || other.activityTypeId == _this.activityTypeId)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.ip, _this.ip) || other.ip == _this.ip)&&const DeepCollectionEquality().equals(other.refs, _this.refs));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,activityTypeId,notes,createdAt,ip,const DeepCollectionEquality().hash(refs));
+int get hashCode {
+  final _this = this as Activity;
+  return Object.hash(runtimeType,_this.id,_this.activityTypeId,_this.notes,_this.createdAt,_this.ip,const DeepCollectionEquality().hash(_this.refs));
+}
 
 @override
 String toString() {
-  return 'Activity(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, refs: $refs)';
+  final _this = this as Activity;
+  return 'Activity(id: ${_this.id}, activityTypeId: ${_this.activityTypeId}, notes: ${_this.notes}, createdAt: ${_this.createdAt}, ip: ${_this.ip}, refs: ${_this.refs})';
 }
 
 
@@ -69,7 +69,7 @@ class _$ActivityCopyWithImpl<$Res>
 /// Create a copy of Activity
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? activityTypeId = null,Object? notes = null,Object? createdAt = null,Object? ip = null,Object? refs = null,}) {
-  return _then(_self.copyWith(
+  return _then(Activity(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,activityTypeId: null == activityTypeId ? _self.activityTypeId : activityTypeId // ignore: cast_nullable_to_non_nullable
 as int,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
@@ -217,7 +217,7 @@ return $default(_that.id,_that.activityTypeId,_that.notes,_that.createdAt,_that.
 
 
 class _Activity extends Activity {
-  const _Activity({required this.id, required this.activityTypeId, required this.notes, required this.createdAt, required this.ip, final  Map<String, ActivityRef> refs = const <String, ActivityRef>{}}): _refs = refs,super._();
+  const _Activity({required this.id, required this.activityTypeId, required this.notes, required this.createdAt, required this.ip,  Map<String, ActivityRef> refs = const <String, ActivityRef>{}}): _refs = refs,super._();
   
 
 @override final  String id;
@@ -225,19 +225,7 @@ class _Activity extends Activity {
 @override final  String notes;
 @override final  DateTime createdAt;
 @override final  String ip;
-// Related-entity references keyed by the template token name
-// (`user`, `client`, `invoice`, `contact`, `quote`, `payment`,
-// `payment_amount`, `expense`, `credit`, `task`, `vendor`,
-// `recurring_invoice`, `recurring_expense`, `purchase_order`,
-// `subscription`, `adjustment`). Only the keys the server populated
-// are present.
  final  Map<String, ActivityRef> _refs;
-// Related-entity references keyed by the template token name
-// (`user`, `client`, `invoice`, `contact`, `quote`, `payment`,
-// `payment_amount`, `expense`, `credit`, `task`, `vendor`,
-// `recurring_invoice`, `recurring_expense`, `purchase_order`,
-// `subscription`, `adjustment`). Only the keys the server populated
-// are present.
 @override@JsonKey() Map<String, ActivityRef> get refs {
   if (_refs is EqualUnmodifiableMapView) return _refs;
   // ignore: implicit_dynamic_type
@@ -255,16 +243,18 @@ _$ActivityCopyWith<_Activity> get copyWith => __$ActivityCopyWithImpl<_Activity>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Activity&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&const DeepCollectionEquality().equals(other._refs, _refs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Activity&&(identical(other.id, id) || other.id == id)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.ip, ip) || other.ip == ip)&&const DeepCollectionEquality().equals(other.refs, _refs));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,activityTypeId,notes,createdAt,ip,const DeepCollectionEquality().hash(_refs));
+int get hashCode {
+    return Object.hash(runtimeType,id,activityTypeId,notes,createdAt,ip,const DeepCollectionEquality().hash(_refs));
+}
 
 @override
 String toString() {
-  return 'Activity(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, refs: $refs)';
+    return 'Activity(id: $id, activityTypeId: $activityTypeId, notes: $notes, createdAt: $createdAt, ip: $ip, refs: $refs)';
 }
 
 

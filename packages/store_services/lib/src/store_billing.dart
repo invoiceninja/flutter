@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 
@@ -142,5 +143,21 @@ class StoreBilling {
       throw StateError('completePurchase needs a purchase from purchaseStream');
     }
     await _iap.completePurchase(details);
+  }
+
+  /// Presents Apple's own manage-subscriptions sheet over the app (StoreKit 2,
+  /// iOS 15+). False when it was not shown — any other platform (StoreKit has
+  /// no such sheet on macOS), or a StoreKit refusal such as no key window
+  /// scene — so the caller can fall back to the subscriptions page.
+  Future<bool> showManageSubscriptions() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return false;
+    try {
+      await _iap
+          .getPlatformAddition<InAppPurchaseStoreKitPlatformAddition>()
+          .showManageSubscriptions();
+      return true;
+    } on Exception {
+      return false;
+    }
   }
 }

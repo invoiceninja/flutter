@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'document_version.dart';
@@ -9,6 +9,7 @@ part of 'document_version.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -38,16 +39,21 @@ $DocumentVersionCopyWith<DocumentVersion> get copyWith => _$DocumentVersionCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersion&&(identical(other.activityId, activityId) || other.activityId == activityId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem));
+  final _this = this as DocumentVersion;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentVersion&&(identical(other.activityId, _this.activityId) || other.activityId == _this.activityId)&&(identical(other.amount, _this.amount) || other.amount == _this.amount)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.activityTypeId, _this.activityTypeId) || other.activityTypeId == _this.activityTypeId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.contactId, _this.contactId) || other.contactId == _this.contactId)&&(identical(other.isSystem, _this.isSystem) || other.isSystem == _this.isSystem));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,activityId,amount,createdAt,activityTypeId,userId,contactId,isSystem);
+int get hashCode {
+  final _this = this as DocumentVersion;
+  return Object.hash(runtimeType,_this.activityId,_this.amount,_this.createdAt,_this.activityTypeId,_this.userId,_this.contactId,_this.isSystem);
+}
 
 @override
 String toString() {
-  return 'DocumentVersion(activityId: $activityId, amount: $amount, createdAt: $createdAt, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem)';
+  final _this = this as DocumentVersion;
+  return 'DocumentVersion(activityId: ${_this.activityId}, amount: ${_this.amount}, createdAt: ${_this.createdAt}, activityTypeId: ${_this.activityTypeId}, userId: ${_this.userId}, contactId: ${_this.contactId}, isSystem: ${_this.isSystem})';
 }
 
 
@@ -76,7 +82,7 @@ class _$DocumentVersionCopyWithImpl<$Res>
 /// Create a copy of DocumentVersion
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? activityId = null,Object? amount = null,Object? createdAt = null,Object? activityTypeId = null,Object? userId = null,Object? contactId = null,Object? isSystem = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentVersion(
 activityId: null == activityId ? _self.activityId : activityId // ignore: cast_nullable_to_non_nullable
 as String,amount: null == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as Decimal,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -259,16 +265,18 @@ _$DocumentVersionCopyWith<_DocumentVersion> get copyWith => __$DocumentVersionCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersion&&(identical(other.activityId, activityId) || other.activityId == activityId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentVersion&&(identical(other.activityId, activityId) || other.activityId == activityId)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.activityTypeId, activityTypeId) || other.activityTypeId == activityTypeId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.contactId, contactId) || other.contactId == contactId)&&(identical(other.isSystem, isSystem) || other.isSystem == isSystem));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,activityId,amount,createdAt,activityTypeId,userId,contactId,isSystem);
+int get hashCode {
+    return Object.hash(runtimeType,activityId,amount,createdAt,activityTypeId,userId,contactId,isSystem);
+}
 
 @override
 String toString() {
-  return 'DocumentVersion(activityId: $activityId, amount: $amount, createdAt: $createdAt, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem)';
+    return 'DocumentVersion(activityId: $activityId, amount: $amount, createdAt: $createdAt, activityTypeId: $activityTypeId, userId: $userId, contactId: $contactId, isSystem: $isSystem)';
 }
 
 

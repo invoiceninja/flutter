@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:decimal/decimal.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
@@ -24,6 +21,7 @@ import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -491,17 +489,9 @@ class PurchaseOrderActions {
           // Save arbitrary (non-PDF) bytes via the same FilePicker path the
           // CSV / JSON exports use — `Printing.sharePdf` is PDF-typed. Web:
           // the shim downloads via a Blob; native: write defensively.
-          final path = await FilePicker.saveFile(
-            fileName: fileName,
-            bytes: bytes,
-          );
-          if (path == null) return;
-          if (!kIsWeb) {
-            final file = File(path);
-            if (!await file.exists() || await file.length() == 0) {
-              await file.writeAsBytes(bytes);
-            }
-          }
+          final saved = await saveBytesFile(fileName: fileName, bytes: bytes);
+          // A cancel; or a browser download, which shows its own.
+          if (saved == null || saved.isBrowserDownload) return;
           if (!context.mounted) return;
           Notify.success(context, context.tr('exported'));
         } catch (e) {

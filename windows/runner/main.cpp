@@ -8,11 +8,17 @@
 
 // Forward an incoming deep link (invoiceninja:// protocol activation, see
 // pubspec msix_config.protocol_activation) to an already-running instance —
-// the app_links Windows example verbatim. Returning true when a window exists
+// the app_links 6 Windows example. Returning true when a window exists
 // deliberately makes the app SINGLE-INSTANCE even for a plain second launch:
 // two processes over the same Drift SQLite file would corrupt each other, so
 // focusing the existing window is the correct behavior either way.
-bool SendAppLinkToInstance(const std::wstring& title) {
+//
+// Not app_links 7's own exported `SendAppLinkToInstance()`, on purpose: that
+// one returns false when the hand-off fails (a hung or elevated target), which
+// starts a second process that can only reach the store-lock screen. The
+// plugin's 7.x fixes (cold-start link, WM_COPYDATA validation) are on the
+// receiving side and apply either way.
+bool ForwardToRunningInstance(const std::wstring& title) {
   // Find our exact window.
   HWND hwnd = ::FindWindow(L"FLUTTER_RUNNER_WIN32_WINDOW", title.c_str());
 
@@ -51,7 +57,7 @@ bool SendAppLinkToInstance(const std::wstring& title) {
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Must match the title passed to window.Create below.
-  if (SendAppLinkToInstance(L"Invoice Ninja")) {
+  if (ForwardToRunningInstance(L"Invoice Ninja")) {
     return EXIT_SUCCESS;
   }
 

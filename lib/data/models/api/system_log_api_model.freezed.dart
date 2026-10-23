@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'system_log_api_model.dart';
@@ -9,6 +9,7 @@ part of 'system_log_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $SystemLogApiCopyWith<SystemLogApi> get copyWith => _$SystemLogApiCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemLogApi&&(identical(other.id, id) || other.id == id)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.log, log) || other.log == log)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  final _this = this as SystemLogApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemLogApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.companyId, _this.companyId) || other.companyId == _this.companyId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.eventId, _this.eventId) || other.eventId == _this.eventId)&&(identical(other.categoryId, _this.categoryId) || other.categoryId == _this.categoryId)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.log, _this.log) || other.log == _this.log)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,companyId,userId,clientId,eventId,categoryId,typeId,log,createdAt,updatedAt);
+int get hashCode {
+  final _this = this as SystemLogApi;
+  return Object.hash(runtimeType,_this.id,_this.companyId,_this.userId,_this.clientId,_this.eventId,_this.categoryId,_this.typeId,_this.log,_this.createdAt,_this.updatedAt);
+}
 
 @override
 String toString() {
-  return 'SystemLogApi(id: $id, companyId: $companyId, userId: $userId, clientId: $clientId, eventId: $eventId, categoryId: $categoryId, typeId: $typeId, log: $log, createdAt: $createdAt, updatedAt: $updatedAt)';
+  final _this = this as SystemLogApi;
+  return 'SystemLogApi(id: ${_this.id}, companyId: ${_this.companyId}, userId: ${_this.userId}, clientId: ${_this.clientId}, eventId: ${_this.eventId}, categoryId: ${_this.categoryId}, typeId: ${_this.typeId}, log: ${_this.log}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt})';
 }
 
 
@@ -66,7 +72,7 @@ class _$SystemLogApiCopyWithImpl<$Res>
 /// Create a copy of SystemLogApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? companyId = null,Object? userId = null,Object? clientId = null,Object? eventId = null,Object? categoryId = null,Object? typeId = null,Object? log = null,Object? createdAt = null,Object? updatedAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(SystemLogApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,companyId: null == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
 as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
@@ -245,16 +251,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemLogApi&&(identical(other.id, id) || other.id == id)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.log, log) || other.log == log)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemLogApi&&(identical(other.id, id) || other.id == id)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.eventId, eventId) || other.eventId == eventId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.log, log) || other.log == log)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,companyId,userId,clientId,eventId,categoryId,typeId,log,createdAt,updatedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,companyId,userId,clientId,eventId,categoryId,typeId,log,createdAt,updatedAt);
+}
 
 @override
 String toString() {
-  return 'SystemLogApi(id: $id, companyId: $companyId, userId: $userId, clientId: $clientId, eventId: $eventId, categoryId: $categoryId, typeId: $typeId, log: $log, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'SystemLogApi(id: $id, companyId: $companyId, userId: $userId, clientId: $clientId, eventId: $eventId, categoryId: $categoryId, typeId: $typeId, log: $log, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -318,16 +326,21 @@ $SystemLogListApiCopyWith<SystemLogListApi> get copyWith => _$SystemLogListApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemLogListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as SystemLogListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemLogListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as SystemLogListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'SystemLogListApi(data: $data)';
+  final _this = this as SystemLogListApi;
+  return 'SystemLogListApi(data: ${_this.data})';
 }
 
 
@@ -356,7 +369,7 @@ class _$SystemLogListApiCopyWithImpl<$Res>
 /// Create a copy of SystemLogListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(SystemLogListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<SystemLogApi>,
   ));
@@ -499,7 +512,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _SystemLogListApi implements SystemLogListApi {
-  const _SystemLogListApi({@JsonKey(fromJson: _systemLogListData) final  List<SystemLogApi> data = const []}): _data = data;
+  const _SystemLogListApi({@JsonKey(fromJson: _systemLogListData)  List<SystemLogApi> data = const []}): _data = data;
   factory _SystemLogListApi.fromJson(Map<String, dynamic> json) => _$SystemLogListApiFromJson(json);
 
  final  List<SystemLogApi> _data;
@@ -523,16 +536,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemLogListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemLogListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'SystemLogListApi(data: $data)';
+    return 'SystemLogListApi(data: $data)';
 }
 
 

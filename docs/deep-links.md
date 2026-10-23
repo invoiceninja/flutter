@@ -34,8 +34,8 @@ capability, the Play fingerprints, the deploy order — are in `APP_LINKS.md`.
 
 ## Flutter's own deep linking must stay off
 
-**Flutter's own deep linking must stay off, and turning it off costs iOS its
-cold start unless the shim stays too.** Both flags default to **on** when absent
+**Flutter's own deep linking must stay off, and on iOS the `app_links` plugin's
+own scene delegate (7.x) is what still delivers the cold start.** Both flags default to **on** when absent
 (`FlutterActivityLaunchConfigs.deepLinkEnabled`,
 `FlutterSharedApplication.isFlutterDeepLinkingEnabled`), and the engine then
 pushes the raw URI at go_router *as well as* `DeepLinkRouter` — bypassing
@@ -48,14 +48,17 @@ default is set, so a cold-start link overrides the restored route. Hence
 reads `ActivityInfo.metaData`, so an `<application>` entry is silently ignored)
 and `FlutterDeepLinkingEnabled` `<false/>` in the iOS plist only, since the macOS
 embedder has no built-in deep linking for the key to disable. With it off,
-`ios/Runner/SceneDelegate.swift` is what keeps cold starts alive: under the scene
-lifecycle UIKit delivers the launch URL only in `connectionOptions`, the engine
-converts that to `application:didFinishLaunchingWithOptions:`, and `app_links`
-implements only `openURL` and `continueUserActivity`. macOS needs its own shim
+under the scene lifecycle UIKit delivers the launch URL only in
+`connectionOptions`. Until `app_links` 7 the plugin registered only as an app
+delegate, so a hand-written `ios/Runner/SceneDelegate.swift` shim passed that URL
+over; 7.x registers `addSceneDelegate` and reads `connectionOptions` itself, so
+the shim was removed (2026-10-23, `app_links` 7.2.2, cold start re-verified on
+the iOS 26.4 simulator). An `app_links` downgrade or a plugin that drops its
+scene registration brings the zero-delivery cold start back. macOS needs a shim
 for a different reason — `app_links` ships its macOS universal-link handler
-commented out. Both are logged in `docs/upstream-workarounds.md`, and
-`test/lint/universal_links_test.dart` fails the build if either goes missing,
-along with the claim, the prefix and the flags.
+commented out. It is logged in `docs/upstream-workarounds.md`, and
+`test/lint/universal_links_test.dart` fails the build if it goes missing (or if
+the iOS shim comes back), along with the claim, the prefix and the flags.
 
 ## Android delivers a link to a trampoline, never to MainActivity
 
@@ -140,15 +143,15 @@ Four pieces, deliberately split:
 
 Five things fail silently if you change this:
 
-1. **Every platform delivers a cold-start link twice — except iOS, which used to
-   deliver it not at all.** macOS and Windows replay the cached `initialLink`
-   into the stream on `onListen` *and* return it from `getInitialLink()`, and
-   the bridge subscribes to both (Android did too, until links moved to the
-   trampoline: the pull hands each over once). iOS under the scene
-   lifecycle delivered **zero** times until `SceneDelegate` started handing the
-   launch URL over by hand (see above), which is also why cold-start links there
-   were being handled by Flutter's built-in deep linking rather than by this
-   class — with no validation, no company switch and no biometric hold.
+1. **Every platform delivers a cold-start link twice.** iOS, macOS and
+   Windows replay the cached `initialLink` into the stream on `onListen` *and*
+   return it from `getInitialLink()`, and the bridge subscribes to both
+   (measured on iOS with `app_links` 7.2.2: two `DeepLinkRouter` arrivals 20 ms
+   apart). Android did too, until links moved to the trampoline: the pull hands
+   each over once. iOS under the scene lifecycle once delivered **zero** times,
+   which is why cold-start links there were handled by Flutter's built-in deep
+   linking rather than by this class — with no validation, no company switch
+   and no biometric hold (see above).
    Harmless for the calendar return; for a record link it means two
    unsaved-changes prompts and two pending-outbox prompts. `_pending` de-dups
    and `_inFlight` serialises two *different* links arriving mid-dialog. Scope

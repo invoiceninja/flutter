@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'document_api_model.dart';
@@ -9,23 +9,14 @@ part of 'document_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$DocumentApi {
 
- String get id; String get name; String get hash; String get type; String get url; int get size;// Pixel dimensions of an image; 0 for anything else.
- int get width; int get height;// Owner and assignee. `PUT` / `DELETE /documents/{id}` authorize against
-// these (`EntityPolicy::edit`), not against the record the file hangs off.
-@JsonKey(name: 'user_id', fromJson: jsonScalarToStringOrEmpty) String get userId;@JsonKey(name: 'assigned_user_id', fromJson: jsonScalarToStringOrEmpty) String get assignedUserId;@JsonKey(name: 'is_default') bool get isDefault;@JsonKey(name: 'is_public') bool get isPublic;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;// `deleted_at` on the server, which a document never sets: archive and
-// restore are no-ops (`DocumentRepository::archive`) and delete is a
-// hard `forceDelete`. Modeled so a server that starts archiving is read
-// honestly rather than silently.
-@JsonKey(name: 'archived_at') int get archivedAt;// The record the file is attached to. `DocumentTransformer` sends these
-// from invoiceninja/invoiceninja#13365 (BACKEND.md § Documents list); an
-// older server omits both, so they're nullable and read tolerantly.
-@JsonKey(name: 'documentable_type', fromJson: jsonScalarToString) String? get documentableType;@JsonKey(name: 'documentable_id', fromJson: jsonScalarToString) String? get documentableId;
+ String get id; String get name; String get hash; String get type; String get url; int get size; int get width; int get height;@JsonKey(name: 'user_id', fromJson: jsonScalarToStringOrEmpty) String get userId;@JsonKey(name: 'assigned_user_id', fromJson: jsonScalarToStringOrEmpty) String get assignedUserId;@JsonKey(name: 'is_default') bool get isDefault;@JsonKey(name: 'is_public') bool get isPublic;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'documentable_type', fromJson: jsonScalarToString) String? get documentableType;@JsonKey(name: 'documentable_id', fromJson: jsonScalarToString) String? get documentableId;
 /// Create a copy of DocumentApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -38,16 +29,21 @@ $DocumentApiCopyWith<DocumentApi> get copyWith => _$DocumentApiCopyWithImpl<Docu
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.documentableType, documentableType) || other.documentableType == documentableType)&&(identical(other.documentableId, documentableId) || other.documentableId == documentableId));
+  final _this = this as DocumentApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.hash, _this.hash) || other.hash == _this.hash)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.width, _this.width) || other.width == _this.width)&&(identical(other.height, _this.height) || other.height == _this.height)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.isDefault, _this.isDefault) || other.isDefault == _this.isDefault)&&(identical(other.isPublic, _this.isPublic) || other.isPublic == _this.isPublic)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.documentableType, _this.documentableType) || other.documentableType == _this.documentableType)&&(identical(other.documentableId, _this.documentableId) || other.documentableId == _this.documentableId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,hash,type,url,size,width,height,userId,assignedUserId,isDefault,isPublic,createdAt,updatedAt,archivedAt,documentableType,documentableId);
+int get hashCode {
+  final _this = this as DocumentApi;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.hash,_this.type,_this.url,_this.size,_this.width,_this.height,_this.userId,_this.assignedUserId,_this.isDefault,_this.isPublic,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.documentableType,_this.documentableId);
+}
 
 @override
 String toString() {
-  return 'DocumentApi(id: $id, name: $name, hash: $hash, type: $type, url: $url, size: $size, width: $width, height: $height, userId: $userId, assignedUserId: $assignedUserId, isDefault: $isDefault, isPublic: $isPublic, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documentableType: $documentableType, documentableId: $documentableId)';
+  final _this = this as DocumentApi;
+  return 'DocumentApi(id: ${_this.id}, name: ${_this.name}, hash: ${_this.hash}, type: ${_this.type}, url: ${_this.url}, size: ${_this.size}, width: ${_this.width}, height: ${_this.height}, userId: ${_this.userId}, assignedUserId: ${_this.assignedUserId}, isDefault: ${_this.isDefault}, isPublic: ${_this.isPublic}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, documentableType: ${_this.documentableType}, documentableId: ${_this.documentableId})';
 }
 
 
@@ -76,7 +72,7 @@ class _$DocumentApiCopyWithImpl<$Res>
 /// Create a copy of DocumentApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? hash = null,Object? type = null,Object? url = null,Object? size = null,Object? width = null,Object? height = null,Object? userId = null,Object? assignedUserId = null,Object? isDefault = null,Object? isPublic = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? documentableType = freezed,Object? documentableId = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,hash: null == hash ? _self.hash : hash // ignore: cast_nullable_to_non_nullable
@@ -244,25 +240,15 @@ class _DocumentApi implements DocumentApi {
 @override@JsonKey() final  String type;
 @override@JsonKey() final  String url;
 @override@JsonKey() final  int size;
-// Pixel dimensions of an image; 0 for anything else.
 @override@JsonKey() final  int width;
 @override@JsonKey() final  int height;
-// Owner and assignee. `PUT` / `DELETE /documents/{id}` authorize against
-// these (`EntityPolicy::edit`), not against the record the file hangs off.
 @override@JsonKey(name: 'user_id', fromJson: jsonScalarToStringOrEmpty) final  String userId;
 @override@JsonKey(name: 'assigned_user_id', fromJson: jsonScalarToStringOrEmpty) final  String assignedUserId;
 @override@JsonKey(name: 'is_default') final  bool isDefault;
 @override@JsonKey(name: 'is_public') final  bool isPublic;
 @override@JsonKey(name: 'created_at') final  int createdAt;
 @override@JsonKey(name: 'updated_at') final  int updatedAt;
-// `deleted_at` on the server, which a document never sets: archive and
-// restore are no-ops (`DocumentRepository::archive`) and delete is a
-// hard `forceDelete`. Modeled so a server that starts archiving is read
-// honestly rather than silently.
 @override@JsonKey(name: 'archived_at') final  int archivedAt;
-// The record the file is attached to. `DocumentTransformer` sends these
-// from invoiceninja/invoiceninja#13365 (BACKEND.md § Documents list); an
-// older server omits both, so they're nullable and read tolerantly.
 @override@JsonKey(name: 'documentable_type', fromJson: jsonScalarToString) final  String? documentableType;
 @override@JsonKey(name: 'documentable_id', fromJson: jsonScalarToString) final  String? documentableId;
 
@@ -279,16 +265,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.documentableType, documentableType) || other.documentableType == documentableType)&&(identical(other.documentableId, documentableId) || other.documentableId == documentableId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.hash, hash) || other.hash == hash)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.size, size) || other.size == size)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.isDefault, isDefault) || other.isDefault == isDefault)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.documentableType, documentableType) || other.documentableType == documentableType)&&(identical(other.documentableId, documentableId) || other.documentableId == documentableId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,hash,type,url,size,width,height,userId,assignedUserId,isDefault,isPublic,createdAt,updatedAt,archivedAt,documentableType,documentableId);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,hash,type,url,size,width,height,userId,assignedUserId,isDefault,isPublic,createdAt,updatedAt,archivedAt,documentableType,documentableId);
+}
 
 @override
 String toString() {
-  return 'DocumentApi(id: $id, name: $name, hash: $hash, type: $type, url: $url, size: $size, width: $width, height: $height, userId: $userId, assignedUserId: $assignedUserId, isDefault: $isDefault, isPublic: $isPublic, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documentableType: $documentableType, documentableId: $documentableId)';
+    return 'DocumentApi(id: $id, name: $name, hash: $hash, type: $type, url: $url, size: $size, width: $width, height: $height, userId: $userId, assignedUserId: $assignedUserId, isDefault: $isDefault, isPublic: $isPublic, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, documentableType: $documentableType, documentableId: $documentableId)';
 }
 
 
@@ -359,16 +347,21 @@ $DocumentListApiCopyWith<DocumentListApi> get copyWith => _$DocumentListApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as DocumentListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as DocumentListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'DocumentListApi(data: $data)';
+  final _this = this as DocumentListApi;
+  return 'DocumentListApi(data: ${_this.data})';
 }
 
 
@@ -397,7 +390,7 @@ class _$DocumentListApiCopyWithImpl<$Res>
 /// Create a copy of DocumentListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<DocumentApi>,
   ));
@@ -540,7 +533,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _DocumentListApi implements DocumentListApi {
-  const _DocumentListApi({@JsonKey(fromJson: _documentListData) final  List<DocumentApi> data = const <DocumentApi>[]}): _data = data;
+  const _DocumentListApi({@JsonKey(fromJson: _documentListData)  List<DocumentApi> data = const <DocumentApi>[]}): _data = data;
   factory _DocumentListApi.fromJson(Map<String, dynamic> json) => _$DocumentListApiFromJson(json);
 
  final  List<DocumentApi> _data;
@@ -564,16 +557,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'DocumentListApi(data: $data)';
+    return 'DocumentListApi(data: $data)';
 }
 
 
@@ -628,16 +623,21 @@ $DocumentItemApiCopyWith<DocumentItemApi> get copyWith => _$DocumentItemApiCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as DocumentItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as DocumentItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'DocumentItemApi(data: $data)';
+  final _this = this as DocumentItemApi;
+  return 'DocumentItemApi(data: ${_this.data})';
 }
 
 
@@ -666,7 +666,7 @@ class _$DocumentItemApiCopyWithImpl<$Res>
 /// Create a copy of DocumentItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(DocumentItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as DocumentApi,
   ));
@@ -836,16 +836,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'DocumentItemApi(data: $data)';
+    return 'DocumentItemApi(data: $data)';
 }
 
 

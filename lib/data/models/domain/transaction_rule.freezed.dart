@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'transaction_rule.dart';
@@ -9,6 +9,7 @@ part of 'transaction_rule.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $RuleCriterionCopyWith<RuleCriterion> get copyWith => _$RuleCriterionCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleCriterion&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
+  final _this = this as RuleCriterion;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleCriterion&&(identical(other.searchKey, _this.searchKey) || other.searchKey == _this.searchKey)&&(identical(other.operator, _this.operator) || other.operator == _this.operator)&&(identical(other.value, _this.value) || other.value == _this.value));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,searchKey,operator,value);
+int get hashCode {
+  final _this = this as RuleCriterion;
+  return Object.hash(runtimeType,_this.searchKey,_this.operator,_this.value);
+}
 
 @override
 String toString() {
-  return 'RuleCriterion(searchKey: $searchKey, operator: $operator, value: $value)';
+  final _this = this as RuleCriterion;
+  return 'RuleCriterion(searchKey: ${_this.searchKey}, operator: ${_this.operator}, value: ${_this.value})';
 }
 
 
@@ -63,7 +69,7 @@ class _$RuleCriterionCopyWithImpl<$Res>
 /// Create a copy of RuleCriterion
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? searchKey = null,Object? operator = null,Object? value = null,}) {
-  return _then(_self.copyWith(
+  return _then(RuleCriterion(
 searchKey: null == searchKey ? _self.searchKey : searchKey // ignore: cast_nullable_to_non_nullable
 as String,operator: null == operator ? _self.operator : operator // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
@@ -225,16 +231,18 @@ _$RuleCriterionCopyWith<_RuleCriterion> get copyWith => __$RuleCriterionCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RuleCriterion&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RuleCriterion&&(identical(other.searchKey, searchKey) || other.searchKey == searchKey)&&(identical(other.operator, operator) || other.operator == operator)&&(identical(other.value, value) || other.value == value));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,searchKey,operator,value);
+int get hashCode {
+    return Object.hash(runtimeType,searchKey,operator,value);
+}
 
 @override
 String toString() {
-  return 'RuleCriterion(searchKey: $searchKey, operator: $operator, value: $value)';
+    return 'RuleCriterion(searchKey: $searchKey, operator: $operator, value: $value)';
 }
 
 
@@ -288,16 +296,21 @@ $TransactionRuleCopyWith<TransactionRule> get copyWith => _$TransactionRuleCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRule&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other.rules, rules)&&(identical(other.vendorName, vendorName) || other.vendorName == vendorName)&&(identical(other.categoryName, categoryName) || other.categoryName == categoryName)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  final _this = this as TransactionRule;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TransactionRule&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.appliesTo, _this.appliesTo) || other.appliesTo == _this.appliesTo)&&(identical(other.matchesOnAll, _this.matchesOnAll) || other.matchesOnAll == _this.matchesOnAll)&&(identical(other.autoConvert, _this.autoConvert) || other.autoConvert == _this.autoConvert)&&(identical(other.vendorId, _this.vendorId) || other.vendorId == _this.vendorId)&&(identical(other.categoryId, _this.categoryId) || other.categoryId == _this.categoryId)&&const DeepCollectionEquality().equals(other.rules, _this.rules)&&(identical(other.vendorName, _this.vendorName) || other.vendorName == _this.vendorName)&&(identical(other.categoryName, _this.categoryName) || other.categoryName == _this.categoryName)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDirty, _this.isDirty) || other.isDirty == _this.isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(rules),vendorName,categoryName,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+  final _this = this as TransactionRule;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.appliesTo,_this.matchesOnAll,_this.autoConvert,_this.vendorId,_this.categoryId,const DeepCollectionEquality().hash(_this.rules),_this.vendorName,_this.categoryName,_this.isDeleted,_this.updatedAt,_this.createdAt,_this.archivedAt,_this.isDirty);
+}
 
 @override
 String toString() {
-  return 'TransactionRule(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendorName: $vendorName, categoryName: $categoryName, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+  final _this = this as TransactionRule;
+  return 'TransactionRule(id: ${_this.id}, name: ${_this.name}, appliesTo: ${_this.appliesTo}, matchesOnAll: ${_this.matchesOnAll}, autoConvert: ${_this.autoConvert}, vendorId: ${_this.vendorId}, categoryId: ${_this.categoryId}, rules: ${_this.rules}, vendorName: ${_this.vendorName}, categoryName: ${_this.categoryName}, isDeleted: ${_this.isDeleted}, updatedAt: ${_this.updatedAt}, createdAt: ${_this.createdAt}, archivedAt: ${_this.archivedAt}, isDirty: ${_this.isDirty})';
 }
 
 
@@ -326,7 +339,7 @@ class _$TransactionRuleCopyWithImpl<$Res>
 /// Create a copy of TransactionRule
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? appliesTo = null,Object? matchesOnAll = null,Object? autoConvert = null,Object? vendorId = null,Object? categoryId = null,Object? rules = null,Object? vendorName = null,Object? categoryName = null,Object? isDeleted = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDirty = null,}) {
-  return _then(_self.copyWith(
+  return _then(TransactionRule(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,appliesTo: null == appliesTo ? _self.appliesTo : appliesTo // ignore: cast_nullable_to_non_nullable
@@ -483,7 +496,7 @@ return $default(_that.id,_that.name,_that.appliesTo,_that.matchesOnAll,_that.aut
 
 
 class _TransactionRule extends TransactionRule {
-  const _TransactionRule({required this.id, required this.name, required this.appliesTo, required this.matchesOnAll, required this.autoConvert, required this.vendorId, required this.categoryId, final  List<RuleCriterion> rules = const <RuleCriterion>[], this.vendorName = '', this.categoryName = '', required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, this.isDirty = false}): _rules = rules,super._();
+  const _TransactionRule({required this.id, required this.name, required this.appliesTo, required this.matchesOnAll, required this.autoConvert, required this.vendorId, required this.categoryId,  List<RuleCriterion> rules = const <RuleCriterion>[], this.vendorName = '', this.categoryName = '', required this.isDeleted, required this.updatedAt, required this.createdAt, required this.archivedAt, this.isDirty = false}): _rules = rules,super._();
   
 
 @override final  String id;
@@ -518,16 +531,18 @@ _$TransactionRuleCopyWith<_TransactionRule> get copyWith => __$TransactionRuleCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRule&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other._rules, _rules)&&(identical(other.vendorName, vendorName) || other.vendorName == vendorName)&&(identical(other.categoryName, categoryName) || other.categoryName == categoryName)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TransactionRule&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.appliesTo, appliesTo) || other.appliesTo == appliesTo)&&(identical(other.matchesOnAll, matchesOnAll) || other.matchesOnAll == matchesOnAll)&&(identical(other.autoConvert, autoConvert) || other.autoConvert == autoConvert)&&(identical(other.vendorId, vendorId) || other.vendorId == vendorId)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&const DeepCollectionEquality().equals(other.rules, _rules)&&(identical(other.vendorName, vendorName) || other.vendorName == vendorName)&&(identical(other.categoryName, categoryName) || other.categoryName == categoryName)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(_rules),vendorName,categoryName,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,appliesTo,matchesOnAll,autoConvert,vendorId,categoryId,const DeepCollectionEquality().hash(_rules),vendorName,categoryName,isDeleted,updatedAt,createdAt,archivedAt,isDirty);
+}
 
 @override
 String toString() {
-  return 'TransactionRule(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendorName: $vendorName, categoryName: $categoryName, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
+    return 'TransactionRule(id: $id, name: $name, appliesTo: $appliesTo, matchesOnAll: $matchesOnAll, autoConvert: $autoConvert, vendorId: $vendorId, categoryId: $categoryId, rules: $rules, vendorName: $vendorName, categoryName: $categoryName, isDeleted: $isDeleted, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDirty: $isDirty)';
 }
 
 

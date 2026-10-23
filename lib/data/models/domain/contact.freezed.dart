@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'contact.dart';
@@ -9,33 +9,13 @@ part of 'contact.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Contact {
 
- String get id; String get firstName; String get lastName; String get email; String get phone; bool get isPrimary; bool get sendEmail; bool get ccOnly; bool get isLocked;// "Authorized to sign" — portal e-signature permission. Editable when the
-// company has the relevant module enabled (React parity).
- bool get canSign; String get password;// The address the **server** minted for a contact that had none (see
-// [isPortalPlaceholderEmail]) — stripped out of [email] on the way in so
-// nothing renders it, kept here so [ContactCopy.toApiJson] can put it back.
-// Clearing it instead would be a write the user never asked for, on an
-// unrelated save, to the field the portal guard authenticates this contact
-// by — and it would never settle, since the next portal visit mints a
-// different address. Empty for every contact whose address is real, which
-// is what keeps a genuine "user cleared their email" edit going out as ''.
-//
-// Deliberately not a Drift column: it is re-derived by [Contact.fromApi] on
-// every read, because a local save's stored payload *is* `toApiJson`'s
-// output and that re-emits the raw value. Omitting the key there instead
-// would look equivalent on the wire but round-trip to '' through
-// `_domainToCompanion` → `_fromRow`, so the second offline save would clear
-// the server's value after all.
- String get portalPlaceholderEmail; DateTime get updatedAt; bool get isDeleted; String get link;// Server-assigned stable identifier for the contact. Read-only; echoed
-// back on save so the server can match existing portal credentials.
- String get contactKey;// Last portal login (read-only); null when the contact has never signed
-// in. Display-only — not written back.
- DateTime? get lastLogin; String get customValue1; String get customValue2; String get customValue3; String get customValue4;
+ String get id; String get firstName; String get lastName; String get email; String get phone; bool get isPrimary; bool get sendEmail; bool get ccOnly; bool get isLocked; bool get canSign; String get password; String get portalPlaceholderEmail; DateTime get updatedAt; bool get isDeleted; String get link; String get contactKey; DateTime? get lastLogin; String get customValue1; String get customValue2; String get customValue3; String get customValue4;
 /// Create a copy of Contact
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -46,16 +26,21 @@ $ContactCopyWith<Contact> get copyWith => _$ContactCopyWithImpl<Contact>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Contact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.link, link) || other.link == link)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4));
+  final _this = this as Contact;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Contact&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.isPrimary, _this.isPrimary) || other.isPrimary == _this.isPrimary)&&(identical(other.sendEmail, _this.sendEmail) || other.sendEmail == _this.sendEmail)&&(identical(other.ccOnly, _this.ccOnly) || other.ccOnly == _this.ccOnly)&&(identical(other.isLocked, _this.isLocked) || other.isLocked == _this.isLocked)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign)&&(identical(other.password, _this.password) || other.password == _this.password)&&(identical(other.portalPlaceholderEmail, _this.portalPlaceholderEmail) || other.portalPlaceholderEmail == _this.portalPlaceholderEmail)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.contactKey, _this.contactKey) || other.contactKey == _this.contactKey)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,portalPlaceholderEmail,updatedAt,isDeleted,link,contactKey,lastLogin,customValue1,customValue2,customValue3,customValue4]);
+int get hashCode {
+  final _this = this as Contact;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.isPrimary,_this.sendEmail,_this.ccOnly,_this.isLocked,_this.canSign,_this.password,_this.portalPlaceholderEmail,_this.updatedAt,_this.isDeleted,_this.link,_this.contactKey,_this.lastLogin,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4]);
+}
 
 @override
 String toString() {
-  return 'Contact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, updatedAt: $updatedAt, isDeleted: $isDeleted, link: $link, contactKey: $contactKey, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4)';
+  final _this = this as Contact;
+  return 'Contact(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, isPrimary: ${_this.isPrimary}, sendEmail: ${_this.sendEmail}, ccOnly: ${_this.ccOnly}, isLocked: ${_this.isLocked}, canSign: ${_this.canSign}, password: ${_this.password}, portalPlaceholderEmail: ${_this.portalPlaceholderEmail}, updatedAt: ${_this.updatedAt}, isDeleted: ${_this.isDeleted}, link: ${_this.link}, contactKey: ${_this.contactKey}, lastLogin: ${_this.lastLogin}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4})';
 }
 
 
@@ -84,7 +69,7 @@ class _$ContactCopyWithImpl<$Res>
 /// Create a copy of Contact
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? isPrimary = null,Object? sendEmail = null,Object? ccOnly = null,Object? isLocked = null,Object? canSign = null,Object? password = null,Object? portalPlaceholderEmail = null,Object? updatedAt = null,Object? isDeleted = null,Object? link = null,Object? contactKey = null,Object? lastLogin = freezed,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,}) {
-  return _then(_self.copyWith(
+  return _then(Contact(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -259,34 +244,13 @@ class _Contact implements Contact {
 @override final  bool sendEmail;
 @override@JsonKey() final  bool ccOnly;
 @override@JsonKey() final  bool isLocked;
-// "Authorized to sign" — portal e-signature permission. Editable when the
-// company has the relevant module enabled (React parity).
 @override@JsonKey() final  bool canSign;
 @override@JsonKey() final  String password;
-// The address the **server** minted for a contact that had none (see
-// [isPortalPlaceholderEmail]) — stripped out of [email] on the way in so
-// nothing renders it, kept here so [ContactCopy.toApiJson] can put it back.
-// Clearing it instead would be a write the user never asked for, on an
-// unrelated save, to the field the portal guard authenticates this contact
-// by — and it would never settle, since the next portal visit mints a
-// different address. Empty for every contact whose address is real, which
-// is what keeps a genuine "user cleared their email" edit going out as ''.
-//
-// Deliberately not a Drift column: it is re-derived by [Contact.fromApi] on
-// every read, because a local save's stored payload *is* `toApiJson`'s
-// output and that re-emits the raw value. Omitting the key there instead
-// would look equivalent on the wire but round-trip to '' through
-// `_domainToCompanion` → `_fromRow`, so the second offline save would clear
-// the server's value after all.
 @override@JsonKey() final  String portalPlaceholderEmail;
 @override final  DateTime updatedAt;
 @override final  bool isDeleted;
 @override@JsonKey() final  String link;
-// Server-assigned stable identifier for the contact. Read-only; echoed
-// back on save so the server can match existing portal credentials.
 @override@JsonKey() final  String contactKey;
-// Last portal login (read-only); null when the contact has never signed
-// in. Display-only — not written back.
 @override final  DateTime? lastLogin;
 @override@JsonKey() final  String customValue1;
 @override@JsonKey() final  String customValue2;
@@ -303,16 +267,18 @@ _$ContactCopyWith<_Contact> get copyWith => __$ContactCopyWithImpl<_Contact>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Contact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.link, link) || other.link == link)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Contact&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isLocked, isLocked) || other.isLocked == isLocked)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.password, password) || other.password == password)&&(identical(other.portalPlaceholderEmail, portalPlaceholderEmail) || other.portalPlaceholderEmail == portalPlaceholderEmail)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.link, link) || other.link == link)&&(identical(other.contactKey, contactKey) || other.contactKey == contactKey)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,portalPlaceholderEmail,updatedAt,isDeleted,link,contactKey,lastLogin,customValue1,customValue2,customValue3,customValue4]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,isPrimary,sendEmail,ccOnly,isLocked,canSign,password,portalPlaceholderEmail,updatedAt,isDeleted,link,contactKey,lastLogin,customValue1,customValue2,customValue3,customValue4]);
+}
 
 @override
 String toString() {
-  return 'Contact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, updatedAt: $updatedAt, isDeleted: $isDeleted, link: $link, contactKey: $contactKey, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4)';
+    return 'Contact(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, isPrimary: $isPrimary, sendEmail: $sendEmail, ccOnly: $ccOnly, isLocked: $isLocked, canSign: $canSign, password: $password, portalPlaceholderEmail: $portalPlaceholderEmail, updatedAt: $updatedAt, isDeleted: $isDeleted, link: $link, contactKey: $contactKey, lastLogin: $lastLogin, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4)';
 }
 
 

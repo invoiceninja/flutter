@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'company_gateway_api_model.dart';
@@ -9,6 +9,7 @@ part of 'company_gateway_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -28,16 +29,21 @@ $FeesAndLimitsApiCopyWith<FeesAndLimitsApi> get copyWith => _$FeesAndLimitsApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeesAndLimitsApi&&(identical(other.minLimit, minLimit) || other.minLimit == minLimit)&&(identical(other.maxLimit, maxLimit) || other.maxLimit == maxLimit)&&(identical(other.feeAmount, feeAmount) || other.feeAmount == feeAmount)&&(identical(other.feePercent, feePercent) || other.feePercent == feePercent)&&(identical(other.feeCap, feeCap) || other.feeCap == feeCap)&&(identical(other.feeTaxRate1, feeTaxRate1) || other.feeTaxRate1 == feeTaxRate1)&&(identical(other.feeTaxName1, feeTaxName1) || other.feeTaxName1 == feeTaxName1)&&(identical(other.feeTaxRate2, feeTaxRate2) || other.feeTaxRate2 == feeTaxRate2)&&(identical(other.feeTaxName2, feeTaxName2) || other.feeTaxName2 == feeTaxName2)&&(identical(other.feeTaxRate3, feeTaxRate3) || other.feeTaxRate3 == feeTaxRate3)&&(identical(other.feeTaxName3, feeTaxName3) || other.feeTaxName3 == feeTaxName3)&&(identical(other.adjustFeePercent, adjustFeePercent) || other.adjustFeePercent == adjustFeePercent)&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled));
+  final _this = this as FeesAndLimitsApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeesAndLimitsApi&&(identical(other.minLimit, _this.minLimit) || other.minLimit == _this.minLimit)&&(identical(other.maxLimit, _this.maxLimit) || other.maxLimit == _this.maxLimit)&&(identical(other.feeAmount, _this.feeAmount) || other.feeAmount == _this.feeAmount)&&(identical(other.feePercent, _this.feePercent) || other.feePercent == _this.feePercent)&&(identical(other.feeCap, _this.feeCap) || other.feeCap == _this.feeCap)&&(identical(other.feeTaxRate1, _this.feeTaxRate1) || other.feeTaxRate1 == _this.feeTaxRate1)&&(identical(other.feeTaxName1, _this.feeTaxName1) || other.feeTaxName1 == _this.feeTaxName1)&&(identical(other.feeTaxRate2, _this.feeTaxRate2) || other.feeTaxRate2 == _this.feeTaxRate2)&&(identical(other.feeTaxName2, _this.feeTaxName2) || other.feeTaxName2 == _this.feeTaxName2)&&(identical(other.feeTaxRate3, _this.feeTaxRate3) || other.feeTaxRate3 == _this.feeTaxRate3)&&(identical(other.feeTaxName3, _this.feeTaxName3) || other.feeTaxName3 == _this.feeTaxName3)&&(identical(other.adjustFeePercent, _this.adjustFeePercent) || other.adjustFeePercent == _this.adjustFeePercent)&&(identical(other.isEnabled, _this.isEnabled) || other.isEnabled == _this.isEnabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,minLimit,maxLimit,feeAmount,feePercent,feeCap,feeTaxRate1,feeTaxName1,feeTaxRate2,feeTaxName2,feeTaxRate3,feeTaxName3,adjustFeePercent,isEnabled);
+int get hashCode {
+  final _this = this as FeesAndLimitsApi;
+  return Object.hash(runtimeType,_this.minLimit,_this.maxLimit,_this.feeAmount,_this.feePercent,_this.feeCap,_this.feeTaxRate1,_this.feeTaxName1,_this.feeTaxRate2,_this.feeTaxName2,_this.feeTaxRate3,_this.feeTaxName3,_this.adjustFeePercent,_this.isEnabled);
+}
 
 @override
 String toString() {
-  return 'FeesAndLimitsApi(minLimit: $minLimit, maxLimit: $maxLimit, feeAmount: $feeAmount, feePercent: $feePercent, feeCap: $feeCap, feeTaxRate1: $feeTaxRate1, feeTaxName1: $feeTaxName1, feeTaxRate2: $feeTaxRate2, feeTaxName2: $feeTaxName2, feeTaxRate3: $feeTaxRate3, feeTaxName3: $feeTaxName3, adjustFeePercent: $adjustFeePercent, isEnabled: $isEnabled)';
+  final _this = this as FeesAndLimitsApi;
+  return 'FeesAndLimitsApi(minLimit: ${_this.minLimit}, maxLimit: ${_this.maxLimit}, feeAmount: ${_this.feeAmount}, feePercent: ${_this.feePercent}, feeCap: ${_this.feeCap}, feeTaxRate1: ${_this.feeTaxRate1}, feeTaxName1: ${_this.feeTaxName1}, feeTaxRate2: ${_this.feeTaxRate2}, feeTaxName2: ${_this.feeTaxName2}, feeTaxRate3: ${_this.feeTaxRate3}, feeTaxName3: ${_this.feeTaxName3}, adjustFeePercent: ${_this.adjustFeePercent}, isEnabled: ${_this.isEnabled})';
 }
 
 
@@ -66,7 +72,7 @@ class _$FeesAndLimitsApiCopyWithImpl<$Res>
 /// Create a copy of FeesAndLimitsApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? minLimit = null,Object? maxLimit = null,Object? feeAmount = null,Object? feePercent = null,Object? feeCap = null,Object? feeTaxRate1 = null,Object? feeTaxName1 = null,Object? feeTaxRate2 = null,Object? feeTaxName2 = null,Object? feeTaxRate3 = null,Object? feeTaxName3 = null,Object? adjustFeePercent = null,Object? isEnabled = null,}) {
-  return _then(_self.copyWith(
+  return _then(FeesAndLimitsApi(
 minLimit: null == minLimit ? _self.minLimit : minLimit // ignore: cast_nullable_to_non_nullable
 as double,maxLimit: null == maxLimit ? _self.maxLimit : maxLimit // ignore: cast_nullable_to_non_nullable
 as double,feeAmount: null == feeAmount ? _self.feeAmount : feeAmount // ignore: cast_nullable_to_non_nullable
@@ -251,16 +257,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeesAndLimitsApi&&(identical(other.minLimit, minLimit) || other.minLimit == minLimit)&&(identical(other.maxLimit, maxLimit) || other.maxLimit == maxLimit)&&(identical(other.feeAmount, feeAmount) || other.feeAmount == feeAmount)&&(identical(other.feePercent, feePercent) || other.feePercent == feePercent)&&(identical(other.feeCap, feeCap) || other.feeCap == feeCap)&&(identical(other.feeTaxRate1, feeTaxRate1) || other.feeTaxRate1 == feeTaxRate1)&&(identical(other.feeTaxName1, feeTaxName1) || other.feeTaxName1 == feeTaxName1)&&(identical(other.feeTaxRate2, feeTaxRate2) || other.feeTaxRate2 == feeTaxRate2)&&(identical(other.feeTaxName2, feeTaxName2) || other.feeTaxName2 == feeTaxName2)&&(identical(other.feeTaxRate3, feeTaxRate3) || other.feeTaxRate3 == feeTaxRate3)&&(identical(other.feeTaxName3, feeTaxName3) || other.feeTaxName3 == feeTaxName3)&&(identical(other.adjustFeePercent, adjustFeePercent) || other.adjustFeePercent == adjustFeePercent)&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeesAndLimitsApi&&(identical(other.minLimit, minLimit) || other.minLimit == minLimit)&&(identical(other.maxLimit, maxLimit) || other.maxLimit == maxLimit)&&(identical(other.feeAmount, feeAmount) || other.feeAmount == feeAmount)&&(identical(other.feePercent, feePercent) || other.feePercent == feePercent)&&(identical(other.feeCap, feeCap) || other.feeCap == feeCap)&&(identical(other.feeTaxRate1, feeTaxRate1) || other.feeTaxRate1 == feeTaxRate1)&&(identical(other.feeTaxName1, feeTaxName1) || other.feeTaxName1 == feeTaxName1)&&(identical(other.feeTaxRate2, feeTaxRate2) || other.feeTaxRate2 == feeTaxRate2)&&(identical(other.feeTaxName2, feeTaxName2) || other.feeTaxName2 == feeTaxName2)&&(identical(other.feeTaxRate3, feeTaxRate3) || other.feeTaxRate3 == feeTaxRate3)&&(identical(other.feeTaxName3, feeTaxName3) || other.feeTaxName3 == feeTaxName3)&&(identical(other.adjustFeePercent, adjustFeePercent) || other.adjustFeePercent == adjustFeePercent)&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,minLimit,maxLimit,feeAmount,feePercent,feeCap,feeTaxRate1,feeTaxName1,feeTaxRate2,feeTaxName2,feeTaxRate3,feeTaxName3,adjustFeePercent,isEnabled);
+int get hashCode {
+    return Object.hash(runtimeType,minLimit,maxLimit,feeAmount,feePercent,feeCap,feeTaxRate1,feeTaxName1,feeTaxRate2,feeTaxName2,feeTaxRate3,feeTaxName3,adjustFeePercent,isEnabled);
+}
 
 @override
 String toString() {
-  return 'FeesAndLimitsApi(minLimit: $minLimit, maxLimit: $maxLimit, feeAmount: $feeAmount, feePercent: $feePercent, feeCap: $feeCap, feeTaxRate1: $feeTaxRate1, feeTaxName1: $feeTaxName1, feeTaxRate2: $feeTaxRate2, feeTaxName2: $feeTaxName2, feeTaxRate3: $feeTaxRate3, feeTaxName3: $feeTaxName3, adjustFeePercent: $adjustFeePercent, isEnabled: $isEnabled)';
+    return 'FeesAndLimitsApi(minLimit: $minLimit, maxLimit: $maxLimit, feeAmount: $feeAmount, feePercent: $feePercent, feeCap: $feeCap, feeTaxRate1: $feeTaxRate1, feeTaxName1: $feeTaxName1, feeTaxRate2: $feeTaxRate2, feeTaxName2: $feeTaxName2, feeTaxRate3: $feeTaxRate3, feeTaxName3: $feeTaxName3, adjustFeePercent: $adjustFeePercent, isEnabled: $isEnabled)';
 }
 
 
@@ -327,16 +335,21 @@ $CompanyGatewayApiCopyWith<CompanyGatewayApi> get copyWith => _$CompanyGatewayAp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayApi&&(identical(other.id, id) || other.id == id)&&(identical(other.gatewayKey, gatewayKey) || other.gatewayKey == gatewayKey)&&(identical(other.acceptedCreditCards, acceptedCreditCards) || other.acceptedCreditCards == acceptedCreditCards)&&(identical(other.requireCvv, requireCvv) || other.requireCvv == requireCvv)&&(identical(other.requireBillingAddress, requireBillingAddress) || other.requireBillingAddress == requireBillingAddress)&&(identical(other.requireShippingAddress, requireShippingAddress) || other.requireShippingAddress == requireShippingAddress)&&(identical(other.requireClientName, requireClientName) || other.requireClientName == requireClientName)&&(identical(other.requireClientPhone, requireClientPhone) || other.requireClientPhone == requireClientPhone)&&(identical(other.requireContactName, requireContactName) || other.requireContactName == requireContactName)&&(identical(other.requireContactEmail, requireContactEmail) || other.requireContactEmail == requireContactEmail)&&(identical(other.requirePostalCode, requirePostalCode) || other.requirePostalCode == requirePostalCode)&&(identical(other.requireCustomValue1, requireCustomValue1) || other.requireCustomValue1 == requireCustomValue1)&&(identical(other.requireCustomValue2, requireCustomValue2) || other.requireCustomValue2 == requireCustomValue2)&&(identical(other.requireCustomValue3, requireCustomValue3) || other.requireCustomValue3 == requireCustomValue3)&&(identical(other.requireCustomValue4, requireCustomValue4) || other.requireCustomValue4 == requireCustomValue4)&&(identical(other.updateDetails, updateDetails) || other.updateDetails == updateDetails)&&(identical(other.alwaysShowRequiredFields, alwaysShowRequiredFields) || other.alwaysShowRequiredFields == alwaysShowRequiredFields)&&(identical(other.tokenBilling, tokenBilling) || other.tokenBilling == tokenBilling)&&(identical(other.label, label) || other.label == label)&&(identical(other.config, config) || other.config == config)&&const DeepCollectionEquality().equals(other.feesAndLimits, feesAndLimits)&&(identical(other.testMode, testMode) || other.testMode == testMode)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as CompanyGatewayApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.gatewayKey, _this.gatewayKey) || other.gatewayKey == _this.gatewayKey)&&(identical(other.acceptedCreditCards, _this.acceptedCreditCards) || other.acceptedCreditCards == _this.acceptedCreditCards)&&(identical(other.requireCvv, _this.requireCvv) || other.requireCvv == _this.requireCvv)&&(identical(other.requireBillingAddress, _this.requireBillingAddress) || other.requireBillingAddress == _this.requireBillingAddress)&&(identical(other.requireShippingAddress, _this.requireShippingAddress) || other.requireShippingAddress == _this.requireShippingAddress)&&(identical(other.requireClientName, _this.requireClientName) || other.requireClientName == _this.requireClientName)&&(identical(other.requireClientPhone, _this.requireClientPhone) || other.requireClientPhone == _this.requireClientPhone)&&(identical(other.requireContactName, _this.requireContactName) || other.requireContactName == _this.requireContactName)&&(identical(other.requireContactEmail, _this.requireContactEmail) || other.requireContactEmail == _this.requireContactEmail)&&(identical(other.requirePostalCode, _this.requirePostalCode) || other.requirePostalCode == _this.requirePostalCode)&&(identical(other.requireCustomValue1, _this.requireCustomValue1) || other.requireCustomValue1 == _this.requireCustomValue1)&&(identical(other.requireCustomValue2, _this.requireCustomValue2) || other.requireCustomValue2 == _this.requireCustomValue2)&&(identical(other.requireCustomValue3, _this.requireCustomValue3) || other.requireCustomValue3 == _this.requireCustomValue3)&&(identical(other.requireCustomValue4, _this.requireCustomValue4) || other.requireCustomValue4 == _this.requireCustomValue4)&&(identical(other.updateDetails, _this.updateDetails) || other.updateDetails == _this.updateDetails)&&(identical(other.alwaysShowRequiredFields, _this.alwaysShowRequiredFields) || other.alwaysShowRequiredFields == _this.alwaysShowRequiredFields)&&(identical(other.tokenBilling, _this.tokenBilling) || other.tokenBilling == _this.tokenBilling)&&(identical(other.label, _this.label) || other.label == _this.label)&&(identical(other.config, _this.config) || other.config == _this.config)&&const DeepCollectionEquality().equals(other.feesAndLimits, _this.feesAndLimits)&&(identical(other.testMode, _this.testMode) || other.testMode == _this.testMode)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,gatewayKey,acceptedCreditCards,requireCvv,requireBillingAddress,requireShippingAddress,requireClientName,requireClientPhone,requireContactName,requireContactEmail,requirePostalCode,requireCustomValue1,requireCustomValue2,requireCustomValue3,requireCustomValue4,updateDetails,alwaysShowRequiredFields,tokenBilling,label,config,const DeepCollectionEquality().hash(feesAndLimits),testMode,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+  final _this = this as CompanyGatewayApi;
+  return Object.hashAll([runtimeType,_this.id,_this.gatewayKey,_this.acceptedCreditCards,_this.requireCvv,_this.requireBillingAddress,_this.requireShippingAddress,_this.requireClientName,_this.requireClientPhone,_this.requireContactName,_this.requireContactEmail,_this.requirePostalCode,_this.requireCustomValue1,_this.requireCustomValue2,_this.requireCustomValue3,_this.requireCustomValue4,_this.updateDetails,_this.alwaysShowRequiredFields,_this.tokenBilling,_this.label,_this.config,const DeepCollectionEquality().hash(_this.feesAndLimits),_this.testMode,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.isDeleted]);
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayApi(id: $id, gatewayKey: $gatewayKey, acceptedCreditCards: $acceptedCreditCards, requireCvv: $requireCvv, requireBillingAddress: $requireBillingAddress, requireShippingAddress: $requireShippingAddress, requireClientName: $requireClientName, requireClientPhone: $requireClientPhone, requireContactName: $requireContactName, requireContactEmail: $requireContactEmail, requirePostalCode: $requirePostalCode, requireCustomValue1: $requireCustomValue1, requireCustomValue2: $requireCustomValue2, requireCustomValue3: $requireCustomValue3, requireCustomValue4: $requireCustomValue4, updateDetails: $updateDetails, alwaysShowRequiredFields: $alwaysShowRequiredFields, tokenBilling: $tokenBilling, label: $label, config: $config, feesAndLimits: $feesAndLimits, testMode: $testMode, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+  final _this = this as CompanyGatewayApi;
+  return 'CompanyGatewayApi(id: ${_this.id}, gatewayKey: ${_this.gatewayKey}, acceptedCreditCards: ${_this.acceptedCreditCards}, requireCvv: ${_this.requireCvv}, requireBillingAddress: ${_this.requireBillingAddress}, requireShippingAddress: ${_this.requireShippingAddress}, requireClientName: ${_this.requireClientName}, requireClientPhone: ${_this.requireClientPhone}, requireContactName: ${_this.requireContactName}, requireContactEmail: ${_this.requireContactEmail}, requirePostalCode: ${_this.requirePostalCode}, requireCustomValue1: ${_this.requireCustomValue1}, requireCustomValue2: ${_this.requireCustomValue2}, requireCustomValue3: ${_this.requireCustomValue3}, requireCustomValue4: ${_this.requireCustomValue4}, updateDetails: ${_this.updateDetails}, alwaysShowRequiredFields: ${_this.alwaysShowRequiredFields}, tokenBilling: ${_this.tokenBilling}, label: ${_this.label}, config: ${_this.config}, feesAndLimits: ${_this.feesAndLimits}, testMode: ${_this.testMode}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -365,7 +378,7 @@ class _$CompanyGatewayApiCopyWithImpl<$Res>
 /// Create a copy of CompanyGatewayApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? gatewayKey = null,Object? acceptedCreditCards = null,Object? requireCvv = null,Object? requireBillingAddress = null,Object? requireShippingAddress = null,Object? requireClientName = null,Object? requireClientPhone = null,Object? requireContactName = null,Object? requireContactEmail = null,Object? requirePostalCode = null,Object? requireCustomValue1 = null,Object? requireCustomValue2 = null,Object? requireCustomValue3 = null,Object? requireCustomValue4 = null,Object? updateDetails = null,Object? alwaysShowRequiredFields = null,Object? tokenBilling = null,Object? label = null,Object? config = null,Object? feesAndLimits = null,Object? testMode = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyGatewayApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,gatewayKey: null == gatewayKey ? _self.gatewayKey : gatewayKey // ignore: cast_nullable_to_non_nullable
 as String,acceptedCreditCards: null == acceptedCreditCards ? _self.acceptedCreditCards : acceptedCreditCards // ignore: cast_nullable_to_non_nullable
@@ -533,7 +546,7 @@ return $default(_that.id,_that.gatewayKey,_that.acceptedCreditCards,_that.requir
 
 @JsonSerializable(includeIfNull: false)
 class _CompanyGatewayApi implements CompanyGatewayApi {
-  const _CompanyGatewayApi({this.id = '', @JsonKey(name: 'gateway_key') this.gatewayKey = '', @JsonKey(name: 'accepted_credit_cards') this.acceptedCreditCards = 0, @JsonKey(name: 'require_cvv') this.requireCvv = false, @JsonKey(name: 'require_billing_address') this.requireBillingAddress = false, @JsonKey(name: 'require_shipping_address') this.requireShippingAddress = false, @JsonKey(name: 'require_client_name') this.requireClientName = false, @JsonKey(name: 'require_client_phone') this.requireClientPhone = false, @JsonKey(name: 'require_contact_name') this.requireContactName = false, @JsonKey(name: 'require_contact_email') this.requireContactEmail = true, @JsonKey(name: 'require_postal_code') this.requirePostalCode = true, @JsonKey(name: 'require_custom_value1') this.requireCustomValue1 = false, @JsonKey(name: 'require_custom_value2') this.requireCustomValue2 = false, @JsonKey(name: 'require_custom_value3') this.requireCustomValue3 = false, @JsonKey(name: 'require_custom_value4') this.requireCustomValue4 = false, @JsonKey(name: 'update_details') this.updateDetails = false, @JsonKey(name: 'always_show_required_fields') this.alwaysShowRequiredFields = true, @JsonKey(name: 'token_billing') this.tokenBilling = 'off', this.label = '', this.config = '', @JsonKey(name: 'fees_and_limits', fromJson: _feesAndLimitsFromJson) final  Map<String, FeesAndLimitsApi> feesAndLimits = const <String, FeesAndLimitsApi>{}, @JsonKey(name: 'test_mode') this.testMode = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false}): _feesAndLimits = feesAndLimits;
+  const _CompanyGatewayApi({this.id = '', @JsonKey(name: 'gateway_key') this.gatewayKey = '', @JsonKey(name: 'accepted_credit_cards') this.acceptedCreditCards = 0, @JsonKey(name: 'require_cvv') this.requireCvv = false, @JsonKey(name: 'require_billing_address') this.requireBillingAddress = false, @JsonKey(name: 'require_shipping_address') this.requireShippingAddress = false, @JsonKey(name: 'require_client_name') this.requireClientName = false, @JsonKey(name: 'require_client_phone') this.requireClientPhone = false, @JsonKey(name: 'require_contact_name') this.requireContactName = false, @JsonKey(name: 'require_contact_email') this.requireContactEmail = true, @JsonKey(name: 'require_postal_code') this.requirePostalCode = true, @JsonKey(name: 'require_custom_value1') this.requireCustomValue1 = false, @JsonKey(name: 'require_custom_value2') this.requireCustomValue2 = false, @JsonKey(name: 'require_custom_value3') this.requireCustomValue3 = false, @JsonKey(name: 'require_custom_value4') this.requireCustomValue4 = false, @JsonKey(name: 'update_details') this.updateDetails = false, @JsonKey(name: 'always_show_required_fields') this.alwaysShowRequiredFields = true, @JsonKey(name: 'token_billing') this.tokenBilling = 'off', this.label = '', this.config = '', @JsonKey(name: 'fees_and_limits', fromJson: _feesAndLimitsFromJson)  Map<String, FeesAndLimitsApi> feesAndLimits = const <String, FeesAndLimitsApi>{}, @JsonKey(name: 'test_mode') this.testMode = false, @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false}): _feesAndLimits = feesAndLimits;
   factory _CompanyGatewayApi.fromJson(Map<String, dynamic> json) => _$CompanyGatewayApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -582,16 +595,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayApi&&(identical(other.id, id) || other.id == id)&&(identical(other.gatewayKey, gatewayKey) || other.gatewayKey == gatewayKey)&&(identical(other.acceptedCreditCards, acceptedCreditCards) || other.acceptedCreditCards == acceptedCreditCards)&&(identical(other.requireCvv, requireCvv) || other.requireCvv == requireCvv)&&(identical(other.requireBillingAddress, requireBillingAddress) || other.requireBillingAddress == requireBillingAddress)&&(identical(other.requireShippingAddress, requireShippingAddress) || other.requireShippingAddress == requireShippingAddress)&&(identical(other.requireClientName, requireClientName) || other.requireClientName == requireClientName)&&(identical(other.requireClientPhone, requireClientPhone) || other.requireClientPhone == requireClientPhone)&&(identical(other.requireContactName, requireContactName) || other.requireContactName == requireContactName)&&(identical(other.requireContactEmail, requireContactEmail) || other.requireContactEmail == requireContactEmail)&&(identical(other.requirePostalCode, requirePostalCode) || other.requirePostalCode == requirePostalCode)&&(identical(other.requireCustomValue1, requireCustomValue1) || other.requireCustomValue1 == requireCustomValue1)&&(identical(other.requireCustomValue2, requireCustomValue2) || other.requireCustomValue2 == requireCustomValue2)&&(identical(other.requireCustomValue3, requireCustomValue3) || other.requireCustomValue3 == requireCustomValue3)&&(identical(other.requireCustomValue4, requireCustomValue4) || other.requireCustomValue4 == requireCustomValue4)&&(identical(other.updateDetails, updateDetails) || other.updateDetails == updateDetails)&&(identical(other.alwaysShowRequiredFields, alwaysShowRequiredFields) || other.alwaysShowRequiredFields == alwaysShowRequiredFields)&&(identical(other.tokenBilling, tokenBilling) || other.tokenBilling == tokenBilling)&&(identical(other.label, label) || other.label == label)&&(identical(other.config, config) || other.config == config)&&const DeepCollectionEquality().equals(other._feesAndLimits, _feesAndLimits)&&(identical(other.testMode, testMode) || other.testMode == testMode)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayApi&&(identical(other.id, id) || other.id == id)&&(identical(other.gatewayKey, gatewayKey) || other.gatewayKey == gatewayKey)&&(identical(other.acceptedCreditCards, acceptedCreditCards) || other.acceptedCreditCards == acceptedCreditCards)&&(identical(other.requireCvv, requireCvv) || other.requireCvv == requireCvv)&&(identical(other.requireBillingAddress, requireBillingAddress) || other.requireBillingAddress == requireBillingAddress)&&(identical(other.requireShippingAddress, requireShippingAddress) || other.requireShippingAddress == requireShippingAddress)&&(identical(other.requireClientName, requireClientName) || other.requireClientName == requireClientName)&&(identical(other.requireClientPhone, requireClientPhone) || other.requireClientPhone == requireClientPhone)&&(identical(other.requireContactName, requireContactName) || other.requireContactName == requireContactName)&&(identical(other.requireContactEmail, requireContactEmail) || other.requireContactEmail == requireContactEmail)&&(identical(other.requirePostalCode, requirePostalCode) || other.requirePostalCode == requirePostalCode)&&(identical(other.requireCustomValue1, requireCustomValue1) || other.requireCustomValue1 == requireCustomValue1)&&(identical(other.requireCustomValue2, requireCustomValue2) || other.requireCustomValue2 == requireCustomValue2)&&(identical(other.requireCustomValue3, requireCustomValue3) || other.requireCustomValue3 == requireCustomValue3)&&(identical(other.requireCustomValue4, requireCustomValue4) || other.requireCustomValue4 == requireCustomValue4)&&(identical(other.updateDetails, updateDetails) || other.updateDetails == updateDetails)&&(identical(other.alwaysShowRequiredFields, alwaysShowRequiredFields) || other.alwaysShowRequiredFields == alwaysShowRequiredFields)&&(identical(other.tokenBilling, tokenBilling) || other.tokenBilling == tokenBilling)&&(identical(other.label, label) || other.label == label)&&(identical(other.config, config) || other.config == config)&&const DeepCollectionEquality().equals(other.feesAndLimits, _feesAndLimits)&&(identical(other.testMode, testMode) || other.testMode == testMode)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,gatewayKey,acceptedCreditCards,requireCvv,requireBillingAddress,requireShippingAddress,requireClientName,requireClientPhone,requireContactName,requireContactEmail,requirePostalCode,requireCustomValue1,requireCustomValue2,requireCustomValue3,requireCustomValue4,updateDetails,alwaysShowRequiredFields,tokenBilling,label,config,const DeepCollectionEquality().hash(_feesAndLimits),testMode,createdAt,updatedAt,archivedAt,isDeleted]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,gatewayKey,acceptedCreditCards,requireCvv,requireBillingAddress,requireShippingAddress,requireClientName,requireClientPhone,requireContactName,requireContactEmail,requirePostalCode,requireCustomValue1,requireCustomValue2,requireCustomValue3,requireCustomValue4,updateDetails,alwaysShowRequiredFields,tokenBilling,label,config,const DeepCollectionEquality().hash(_feesAndLimits),testMode,createdAt,updatedAt,archivedAt,isDeleted]);
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayApi(id: $id, gatewayKey: $gatewayKey, acceptedCreditCards: $acceptedCreditCards, requireCvv: $requireCvv, requireBillingAddress: $requireBillingAddress, requireShippingAddress: $requireShippingAddress, requireClientName: $requireClientName, requireClientPhone: $requireClientPhone, requireContactName: $requireContactName, requireContactEmail: $requireContactEmail, requirePostalCode: $requirePostalCode, requireCustomValue1: $requireCustomValue1, requireCustomValue2: $requireCustomValue2, requireCustomValue3: $requireCustomValue3, requireCustomValue4: $requireCustomValue4, updateDetails: $updateDetails, alwaysShowRequiredFields: $alwaysShowRequiredFields, tokenBilling: $tokenBilling, label: $label, config: $config, feesAndLimits: $feesAndLimits, testMode: $testMode, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
+    return 'CompanyGatewayApi(id: $id, gatewayKey: $gatewayKey, acceptedCreditCards: $acceptedCreditCards, requireCvv: $requireCvv, requireBillingAddress: $requireBillingAddress, requireShippingAddress: $requireShippingAddress, requireClientName: $requireClientName, requireClientPhone: $requireClientPhone, requireContactName: $requireContactName, requireContactEmail: $requireContactEmail, requirePostalCode: $requirePostalCode, requireCustomValue1: $requireCustomValue1, requireCustomValue2: $requireCustomValue2, requireCustomValue3: $requireCustomValue3, requireCustomValue4: $requireCustomValue4, updateDetails: $updateDetails, alwaysShowRequiredFields: $alwaysShowRequiredFields, tokenBilling: $tokenBilling, label: $label, config: $config, feesAndLimits: $feesAndLimits, testMode: $testMode, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, isDeleted: $isDeleted)';
 }
 
 
@@ -671,16 +686,21 @@ $CompanyGatewayListApiCopyWith<CompanyGatewayListApi> get copyWith => _$CompanyG
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as CompanyGatewayListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as CompanyGatewayListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayListApi(data: $data)';
+  final _this = this as CompanyGatewayListApi;
+  return 'CompanyGatewayListApi(data: ${_this.data})';
 }
 
 
@@ -709,7 +729,7 @@ class _$CompanyGatewayListApiCopyWithImpl<$Res>
 /// Create a copy of CompanyGatewayListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyGatewayListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<CompanyGatewayApi>,
   ));
@@ -852,7 +872,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _CompanyGatewayListApi implements CompanyGatewayListApi {
-  const _CompanyGatewayListApi({@JsonKey(fromJson: _companyGatewayListData) final  List<CompanyGatewayApi> data = const []}): _data = data;
+  const _CompanyGatewayListApi({@JsonKey(fromJson: _companyGatewayListData)  List<CompanyGatewayApi> data = const []}): _data = data;
   factory _CompanyGatewayListApi.fromJson(Map<String, dynamic> json) => _$CompanyGatewayListApiFromJson(json);
 
  final  List<CompanyGatewayApi> _data;
@@ -876,16 +896,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayListApi(data: $data)';
+    return 'CompanyGatewayListApi(data: $data)';
 }
 
 
@@ -940,16 +962,21 @@ $CompanyGatewayItemApiCopyWith<CompanyGatewayItemApi> get copyWith => _$CompanyG
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as CompanyGatewayItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CompanyGatewayItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as CompanyGatewayItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayItemApi(data: $data)';
+  final _this = this as CompanyGatewayItemApi;
+  return 'CompanyGatewayItemApi(data: ${_this.data})';
 }
 
 
@@ -978,7 +1005,7 @@ class _$CompanyGatewayItemApiCopyWithImpl<$Res>
 /// Create a copy of CompanyGatewayItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(CompanyGatewayItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as CompanyGatewayApi,
   ));
@@ -1148,16 +1175,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _CompanyGatewayItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'CompanyGatewayItemApi(data: $data)';
+    return 'CompanyGatewayItemApi(data: $data)';
 }
 
 

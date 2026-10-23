@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'vendor_api_model.dart';
@@ -9,19 +9,14 @@ part of 'vendor_api_model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$VendorApi {
 
- String get id; String get name; String get number;@JsonKey(name: 'id_number') String get idNumber;@JsonKey(name: 'vat_number') String get vatNumber; String get website; String get phone; String get address1; String get address2; String get city; String get state;@JsonKey(name: 'postal_code') String get postalCode;@JsonKey(name: 'country_id') String get countryId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'language_id') String get languageId; String get classification;@JsonKey(name: 'is_tax_exempt') bool get isTaxExempt;@JsonKey(name: 'routing_id') String get routingId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'is_deleted') bool get isDeleted; List<VendorContactApi> get contacts;// Nullable on purpose: the IN list endpoint omits `documents` unless
-// `?include=documents` is requested. Distinguishing "key missing"
-// (→ null) from "key present, array empty" (→ `const []`) lets
-// `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on
-// responses that did. See `VendorRepository._apiToCompanion`.
- List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
+ String get id; String get name; String get number;@JsonKey(name: 'id_number') String get idNumber;@JsonKey(name: 'vat_number') String get vatNumber; String get website; String get phone; String get address1; String get address2; String get city; String get state;@JsonKey(name: 'postal_code') String get postalCode;@JsonKey(name: 'country_id') String get countryId;@JsonKey(name: 'currency_id') String get currencyId;@JsonKey(name: 'language_id') String get languageId; String get classification;@JsonKey(name: 'is_tax_exempt') bool get isTaxExempt;@JsonKey(name: 'routing_id') String get routingId;@JsonKey(name: 'private_notes') String get privateNotes;@JsonKey(name: 'public_notes') String get publicNotes;@JsonKey(name: 'custom_value1') String get customValue1;@JsonKey(name: 'custom_value2') String get customValue2;@JsonKey(name: 'custom_value3') String get customValue3;@JsonKey(name: 'custom_value4') String get customValue4;@JsonKey(name: 'assigned_user_id') String get assignedUserId;@JsonKey(name: 'user_id') String get userId;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'archived_at') int get archivedAt;@JsonKey(name: 'last_login') int get lastLogin;@JsonKey(name: 'is_deleted') bool get isDeleted; List<VendorContactApi> get contacts; List<DocumentApi>? get documents;@JsonKey(name: 'tags')@EmbeddedTagsConverter() List<TagRefApi> get tags;
 /// Create a copy of VendorApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -34,16 +29,21 @@ $VendorApiCopyWith<VendorApi> get copyWith => _$VendorApiCopyWithImpl<VendorApi>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.contacts, contacts)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tags, tags));
+  final _this = this as VendorApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.number, _this.number) || other.number == _this.number)&&(identical(other.idNumber, _this.idNumber) || other.idNumber == _this.idNumber)&&(identical(other.vatNumber, _this.vatNumber) || other.vatNumber == _this.vatNumber)&&(identical(other.website, _this.website) || other.website == _this.website)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.address1, _this.address1) || other.address1 == _this.address1)&&(identical(other.address2, _this.address2) || other.address2 == _this.address2)&&(identical(other.city, _this.city) || other.city == _this.city)&&(identical(other.state, _this.state) || other.state == _this.state)&&(identical(other.postalCode, _this.postalCode) || other.postalCode == _this.postalCode)&&(identical(other.countryId, _this.countryId) || other.countryId == _this.countryId)&&(identical(other.currencyId, _this.currencyId) || other.currencyId == _this.currencyId)&&(identical(other.languageId, _this.languageId) || other.languageId == _this.languageId)&&(identical(other.classification, _this.classification) || other.classification == _this.classification)&&(identical(other.isTaxExempt, _this.isTaxExempt) || other.isTaxExempt == _this.isTaxExempt)&&(identical(other.routingId, _this.routingId) || other.routingId == _this.routingId)&&(identical(other.privateNotes, _this.privateNotes) || other.privateNotes == _this.privateNotes)&&(identical(other.publicNotes, _this.publicNotes) || other.publicNotes == _this.publicNotes)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.assignedUserId, _this.assignedUserId) || other.assignedUserId == _this.assignedUserId)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted)&&const DeepCollectionEquality().equals(other.contacts, _this.contacts)&&const DeepCollectionEquality().equals(other.documents, _this.documents)&&const DeepCollectionEquality().equals(other.tags, _this.tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,number,idNumber,vatNumber,website,phone,address1,address2,city,state,postalCode,countryId,currencyId,languageId,classification,isTaxExempt,routingId,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,assignedUserId,userId,createdAt,updatedAt,archivedAt,lastLogin,isDeleted,const DeepCollectionEquality().hash(contacts),const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tags)]);
+int get hashCode {
+  final _this = this as VendorApi;
+  return Object.hashAll([runtimeType,_this.id,_this.name,_this.number,_this.idNumber,_this.vatNumber,_this.website,_this.phone,_this.address1,_this.address2,_this.city,_this.state,_this.postalCode,_this.countryId,_this.currencyId,_this.languageId,_this.classification,_this.isTaxExempt,_this.routingId,_this.privateNotes,_this.publicNotes,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.assignedUserId,_this.userId,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.lastLogin,_this.isDeleted,const DeepCollectionEquality().hash(_this.contacts),const DeepCollectionEquality().hash(_this.documents),const DeepCollectionEquality().hash(_this.tags)]);
+}
 
 @override
 String toString() {
-  return 'VendorApi(id: $id, name: $name, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, currencyId: $currencyId, languageId: $languageId, classification: $classification, isTaxExempt: $isTaxExempt, routingId: $routingId, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, assignedUserId: $assignedUserId, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted, contacts: $contacts, documents: $documents, tags: $tags)';
+  final _this = this as VendorApi;
+  return 'VendorApi(id: ${_this.id}, name: ${_this.name}, number: ${_this.number}, idNumber: ${_this.idNumber}, vatNumber: ${_this.vatNumber}, website: ${_this.website}, phone: ${_this.phone}, address1: ${_this.address1}, address2: ${_this.address2}, city: ${_this.city}, state: ${_this.state}, postalCode: ${_this.postalCode}, countryId: ${_this.countryId}, currencyId: ${_this.currencyId}, languageId: ${_this.languageId}, classification: ${_this.classification}, isTaxExempt: ${_this.isTaxExempt}, routingId: ${_this.routingId}, privateNotes: ${_this.privateNotes}, publicNotes: ${_this.publicNotes}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, assignedUserId: ${_this.assignedUserId}, userId: ${_this.userId}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, lastLogin: ${_this.lastLogin}, isDeleted: ${_this.isDeleted}, contacts: ${_this.contacts}, documents: ${_this.documents}, tags: ${_this.tags})';
 }
 
 
@@ -72,7 +72,7 @@ class _$VendorApiCopyWithImpl<$Res>
 /// Create a copy of VendorApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? number = null,Object? idNumber = null,Object? vatNumber = null,Object? website = null,Object? phone = null,Object? address1 = null,Object? address2 = null,Object? city = null,Object? state = null,Object? postalCode = null,Object? countryId = null,Object? currencyId = null,Object? languageId = null,Object? classification = null,Object? isTaxExempt = null,Object? routingId = null,Object? privateNotes = null,Object? publicNotes = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? assignedUserId = null,Object? userId = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? lastLogin = null,Object? isDeleted = null,Object? contacts = null,Object? documents = freezed,Object? tags = null,}) {
-  return _then(_self.copyWith(
+  return _then(VendorApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
@@ -248,7 +248,7 @@ return $default(_that.id,_that.name,_that.number,_that.idNumber,_that.vatNumber,
 @JsonSerializable()
 
 class _VendorApi implements VendorApi {
-  const _VendorApi({this.id = '', this.name = '', this.number = '', @JsonKey(name: 'id_number') this.idNumber = '', @JsonKey(name: 'vat_number') this.vatNumber = '', this.website = '', this.phone = '', this.address1 = '', this.address2 = '', this.city = '', this.state = '', @JsonKey(name: 'postal_code') this.postalCode = '', @JsonKey(name: 'country_id') this.countryId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'language_id') this.languageId = '', this.classification = '', @JsonKey(name: 'is_tax_exempt') this.isTaxExempt = false, @JsonKey(name: 'routing_id') this.routingId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'last_login') this.lastLogin = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false, final  List<VendorContactApi> contacts = const <VendorContactApi>[], final  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter() final  List<TagRefApi> tags = const <TagRefApi>[]}): _contacts = contacts,_documents = documents,_tags = tags;
+  const _VendorApi({this.id = '', this.name = '', this.number = '', @JsonKey(name: 'id_number') this.idNumber = '', @JsonKey(name: 'vat_number') this.vatNumber = '', this.website = '', this.phone = '', this.address1 = '', this.address2 = '', this.city = '', this.state = '', @JsonKey(name: 'postal_code') this.postalCode = '', @JsonKey(name: 'country_id') this.countryId = '', @JsonKey(name: 'currency_id') this.currencyId = '', @JsonKey(name: 'language_id') this.languageId = '', this.classification = '', @JsonKey(name: 'is_tax_exempt') this.isTaxExempt = false, @JsonKey(name: 'routing_id') this.routingId = '', @JsonKey(name: 'private_notes') this.privateNotes = '', @JsonKey(name: 'public_notes') this.publicNotes = '', @JsonKey(name: 'custom_value1') this.customValue1 = '', @JsonKey(name: 'custom_value2') this.customValue2 = '', @JsonKey(name: 'custom_value3') this.customValue3 = '', @JsonKey(name: 'custom_value4') this.customValue4 = '', @JsonKey(name: 'assigned_user_id') this.assignedUserId = '', @JsonKey(name: 'user_id') this.userId = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'archived_at') this.archivedAt = 0, @JsonKey(name: 'last_login') this.lastLogin = 0, @JsonKey(name: 'is_deleted') this.isDeleted = false,  List<VendorContactApi> contacts = const <VendorContactApi>[],  List<DocumentApi>? documents, @JsonKey(name: 'tags')@EmbeddedTagsConverter()  List<TagRefApi> tags = const <TagRefApi>[]}): _contacts = contacts,_documents = documents,_tags = tags;
   factory _VendorApi.fromJson(Map<String, dynamic> json) => _$VendorApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -289,19 +289,7 @@ class _VendorApi implements VendorApi {
   return EqualUnmodifiableListView(_contacts);
 }
 
-// Nullable on purpose: the IN list endpoint omits `documents` unless
-// `?include=documents` is requested. Distinguishing "key missing"
-// (→ null) from "key present, array empty" (→ `const []`) lets
-// `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on
-// responses that did. See `VendorRepository._apiToCompanion`.
  final  List<DocumentApi>? _documents;
-// Nullable on purpose: the IN list endpoint omits `documents` unless
-// `?include=documents` is requested. Distinguishing "key missing"
-// (→ null) from "key present, array empty" (→ `const []`) lets
-// `_apiToCompanion` preserve local docs on responses that didn't
-// include them while still propagating server-side deletes on
-// responses that did. See `VendorRepository._apiToCompanion`.
 @override List<DocumentApi>? get documents {
   final value = _documents;
   if (value == null) return null;
@@ -331,16 +319,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._contacts, _contacts)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tags, _tags));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorApi&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.number, number) || other.number == number)&&(identical(other.idNumber, idNumber) || other.idNumber == idNumber)&&(identical(other.vatNumber, vatNumber) || other.vatNumber == vatNumber)&&(identical(other.website, website) || other.website == website)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.address1, address1) || other.address1 == address1)&&(identical(other.address2, address2) || other.address2 == address2)&&(identical(other.city, city) || other.city == city)&&(identical(other.state, state) || other.state == state)&&(identical(other.postalCode, postalCode) || other.postalCode == postalCode)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.currencyId, currencyId) || other.currencyId == currencyId)&&(identical(other.languageId, languageId) || other.languageId == languageId)&&(identical(other.classification, classification) || other.classification == classification)&&(identical(other.isTaxExempt, isTaxExempt) || other.isTaxExempt == isTaxExempt)&&(identical(other.routingId, routingId) || other.routingId == routingId)&&(identical(other.privateNotes, privateNotes) || other.privateNotes == privateNotes)&&(identical(other.publicNotes, publicNotes) || other.publicNotes == publicNotes)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.contacts, _contacts)&&const DeepCollectionEquality().equals(other.documents, _documents)&&const DeepCollectionEquality().equals(other.tags, _tags));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,name,number,idNumber,vatNumber,website,phone,address1,address2,city,state,postalCode,countryId,currencyId,languageId,classification,isTaxExempt,routingId,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,assignedUserId,userId,createdAt,updatedAt,archivedAt,lastLogin,isDeleted,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,name,number,idNumber,vatNumber,website,phone,address1,address2,city,state,postalCode,countryId,currencyId,languageId,classification,isTaxExempt,routingId,privateNotes,publicNotes,customValue1,customValue2,customValue3,customValue4,assignedUserId,userId,createdAt,updatedAt,archivedAt,lastLogin,isDeleted,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tags)]);
+}
 
 @override
 String toString() {
-  return 'VendorApi(id: $id, name: $name, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, currencyId: $currencyId, languageId: $languageId, classification: $classification, isTaxExempt: $isTaxExempt, routingId: $routingId, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, assignedUserId: $assignedUserId, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted, contacts: $contacts, documents: $documents, tags: $tags)';
+    return 'VendorApi(id: $id, name: $name, number: $number, idNumber: $idNumber, vatNumber: $vatNumber, website: $website, phone: $phone, address1: $address1, address2: $address2, city: $city, state: $state, postalCode: $postalCode, countryId: $countryId, currencyId: $currencyId, languageId: $languageId, classification: $classification, isTaxExempt: $isTaxExempt, routingId: $routingId, privateNotes: $privateNotes, publicNotes: $publicNotes, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, assignedUserId: $assignedUserId, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted, contacts: $contacts, documents: $documents, tags: $tags)';
 }
 
 
@@ -428,16 +418,21 @@ $VendorContactApiCopyWith<VendorContactApi> get copyWith => _$VendorContactApiCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+  final _this = this as VendorContactApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorContactApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.firstName, _this.firstName) || other.firstName == _this.firstName)&&(identical(other.lastName, _this.lastName) || other.lastName == _this.lastName)&&(identical(other.email, _this.email) || other.email == _this.email)&&(identical(other.phone, _this.phone) || other.phone == _this.phone)&&(identical(other.password, _this.password) || other.password == _this.password)&&(identical(other.sendEmail, _this.sendEmail) || other.sendEmail == _this.sendEmail)&&(identical(other.ccOnly, _this.ccOnly) || other.ccOnly == _this.ccOnly)&&(identical(other.isPrimary, _this.isPrimary) || other.isPrimary == _this.isPrimary)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archivedAt, _this.archivedAt) || other.archivedAt == _this.archivedAt)&&(identical(other.lastLogin, _this.lastLogin) || other.lastLogin == _this.lastLogin)&&(identical(other.isDeleted, _this.isDeleted) || other.isDeleted == _this.isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,lastLogin,isDeleted]);
+int get hashCode {
+  final _this = this as VendorContactApi;
+  return Object.hashAll([runtimeType,_this.id,_this.firstName,_this.lastName,_this.email,_this.phone,_this.password,_this.sendEmail,_this.ccOnly,_this.isPrimary,_this.canSign,_this.link,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.createdAt,_this.updatedAt,_this.archivedAt,_this.lastLogin,_this.isDeleted]);
+}
 
 @override
 String toString() {
-  return 'VendorContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted)';
+  final _this = this as VendorContactApi;
+  return 'VendorContactApi(id: ${_this.id}, firstName: ${_this.firstName}, lastName: ${_this.lastName}, email: ${_this.email}, phone: ${_this.phone}, password: ${_this.password}, sendEmail: ${_this.sendEmail}, ccOnly: ${_this.ccOnly}, isPrimary: ${_this.isPrimary}, canSign: ${_this.canSign}, link: ${_this.link}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, archivedAt: ${_this.archivedAt}, lastLogin: ${_this.lastLogin}, isDeleted: ${_this.isDeleted})';
 }
 
 
@@ -466,7 +461,7 @@ class _$VendorContactApiCopyWithImpl<$Res>
 /// Create a copy of VendorContactApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? firstName = null,Object? lastName = null,Object? email = null,Object? phone = null,Object? password = null,Object? sendEmail = null,Object? ccOnly = null,Object? isPrimary = null,Object? canSign = null,Object? link = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? createdAt = null,Object? updatedAt = null,Object? archivedAt = null,Object? lastLogin = null,Object? isDeleted = null,}) {
-  return _then(_self.copyWith(
+  return _then(VendorContactApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
@@ -665,16 +660,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorContactApi&&(identical(other.id, id) || other.id == id)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.password, password) || other.password == password)&&(identical(other.sendEmail, sendEmail) || other.sendEmail == sendEmail)&&(identical(other.ccOnly, ccOnly) || other.ccOnly == ccOnly)&&(identical(other.isPrimary, isPrimary) || other.isPrimary == isPrimary)&&(identical(other.canSign, canSign) || other.canSign == canSign)&&(identical(other.link, link) || other.link == link)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.lastLogin, lastLogin) || other.lastLogin == lastLogin)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,lastLogin,isDeleted]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,firstName,lastName,email,phone,password,sendEmail,ccOnly,isPrimary,canSign,link,customValue1,customValue2,customValue3,customValue4,createdAt,updatedAt,archivedAt,lastLogin,isDeleted]);
+}
 
 @override
 String toString() {
-  return 'VendorContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted)';
+    return 'VendorContactApi(id: $id, firstName: $firstName, lastName: $lastName, email: $email, phone: $phone, password: $password, sendEmail: $sendEmail, ccOnly: $ccOnly, isPrimary: $isPrimary, canSign: $canSign, link: $link, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, createdAt: $createdAt, updatedAt: $updatedAt, archivedAt: $archivedAt, lastLogin: $lastLogin, isDeleted: $isDeleted)';
 }
 
 
@@ -748,16 +745,21 @@ $VendorListApiCopyWith<VendorListApi> get copyWith => _$VendorListApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorListApi&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as VendorListApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorListApi&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as VendorListApi;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'VendorListApi(data: $data)';
+  final _this = this as VendorListApi;
+  return 'VendorListApi(data: ${_this.data})';
 }
 
 
@@ -786,7 +788,7 @@ class _$VendorListApiCopyWithImpl<$Res>
 /// Create a copy of VendorListApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(VendorListApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as List<VendorApi>,
   ));
@@ -929,7 +931,7 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _VendorListApi implements VendorListApi {
-  const _VendorListApi({@JsonKey(fromJson: _vendorListData) final  List<VendorApi> data = const <VendorApi>[]}): _data = data;
+  const _VendorListApi({@JsonKey(fromJson: _vendorListData)  List<VendorApi> data = const <VendorApi>[]}): _data = data;
   factory _VendorListApi.fromJson(Map<String, dynamic> json) => _$VendorListApiFromJson(json);
 
  final  List<VendorApi> _data;
@@ -953,16 +955,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorListApi&&const DeepCollectionEquality().equals(other._data, _data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorListApi&&const DeepCollectionEquality().equals(other.data, _data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+}
 
 @override
 String toString() {
-  return 'VendorListApi(data: $data)';
+    return 'VendorListApi(data: $data)';
 }
 
 
@@ -1017,16 +1021,21 @@ $VendorItemApiCopyWith<VendorItemApi> get copyWith => _$VendorItemApiCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorItemApi&&(identical(other.data, data) || other.data == data));
+  final _this = this as VendorItemApi;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is VendorItemApi&&(identical(other.data, _this.data) || other.data == _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+  final _this = this as VendorItemApi;
+  return Object.hash(runtimeType,_this.data);
+}
 
 @override
 String toString() {
-  return 'VendorItemApi(data: $data)';
+  final _this = this as VendorItemApi;
+  return 'VendorItemApi(data: ${_this.data})';
 }
 
 
@@ -1055,7 +1064,7 @@ class _$VendorItemApiCopyWithImpl<$Res>
 /// Create a copy of VendorItemApi
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? data = null,}) {
-  return _then(_self.copyWith(
+  return _then(VendorItemApi(
 data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as VendorApi,
   ));
@@ -1225,16 +1234,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorItemApi&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _VendorItemApi&&(identical(other.data, data) || other.data == data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,data);
+int get hashCode {
+    return Object.hash(runtimeType,data);
+}
 
 @override
 String toString() {
-  return 'VendorItemApi(data: $data)';
+    return 'VendorItemApi(data: $data)';
 }
 
 

@@ -56,12 +56,11 @@ class DeepLinkRouter {
 
   /// URIs currently queued on [_inFlight] or being handled.
   ///
-  /// Every native plugin hands a cold-start link over **twice** — Android,
-  /// macOS and Windows all replay the cached `initialLink` into the event
-  /// stream on `onListen` *and* return it from `getInitialLink()`, and the
-  /// bridge subscribes to both. (iOS delivers it once, and only because
-  /// `SceneDelegate` hands the launch URL to the plugin by hand: under the
-  /// scene lifecycle UIKit routes it somewhere app_links does not listen.)
+  /// Every native plugin hands a cold-start link over **twice** — iOS, macOS
+  /// and Windows all replay the cached `initialLink` into the event stream on
+  /// `onListen` *and* return it from `getInitialLink()`, and the bridge
+  /// subscribes to both. (Android did too, until links moved to the
+  /// trampoline.)
   ///
   /// A duplicate `go()` was harmless for the calendar return, but a record link
   /// can switch company, and running that twice means two unsaved-changes

@@ -25,8 +25,8 @@
 /// into the letter — a stacked mark is drawn by whatever the font does with it,
 /// and the letter is what every other value uses.
 String serbianToLatin(String input) => serbianCyrillicToLatin(
-      input,
-    ).replaceAll('c\u0301', '\u0107').replaceAll('C\u0301', '\u0106');
+  input,
+).replaceAll('c\u0301', '\u0107').replaceAll('C\u0301', '\u0106');
 
 String serbianCyrillicToLatin(String input) {
   if (!containsCyrillic(input)) return input;

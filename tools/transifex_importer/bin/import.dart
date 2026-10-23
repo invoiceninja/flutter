@@ -197,11 +197,11 @@ bool _sameSet(Set<String> a, Set<String> b) =>
 /// `kLocalePlaceholderPattern` (not glued to a word, a `/` or another `:`, so
 /// `https://` and `9:00` are not tokens).
 Set<String> _placeholders(String s) => {
-      for (final m in RegExp(
-        r'(?<![A-Za-z0-9_/:]):([a-z][a-z0-9_]*)',
-      ).allMatches(s))
-        m.group(1)!,
-    };
+  for (final m in RegExp(
+    r'(?<![A-Za-z0-9_/:]):([a-z][a-z0-9_]*)',
+  ).allMatches(s))
+    m.group(1)!,
+};
 
 /// PHP `$lang = array('k' => 'v', ...)` parser. Kept in sync with
 /// `lib/l10n/transifex_php_parser.dart` (which is unit-tested).

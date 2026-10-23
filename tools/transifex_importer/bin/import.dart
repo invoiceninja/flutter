@@ -18,7 +18,10 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:transifex_importer/serbian_latin.dart';
+// Relative, not `package:transifex_importer/…`: CI runs `pub get` only at the
+// repo root, so this package's own name never resolves there and the root
+// `flutter analyze` fails on it. The root test imports it the same way.
+import '../lib/serbian_latin.dart';
 
 const Map<String, String> _kTransifexFileNames = {
   'en': 'textsphp-en.php',

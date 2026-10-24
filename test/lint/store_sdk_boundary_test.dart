@@ -211,6 +211,55 @@ void main() {
       );
     }
   });
+
+  // ML Kit (receipt OCR, docs/receipt-ocr.md) is a Gradle artifact, not a
+  // pub package, so the import and lockfile checks above can't see it.
+  group('ML Kit stays in the store package\'s Android plugin', () {
+    test('no other Gradle file names it', () {
+      final offenders = <String>[];
+      for (final dir in ['android', 'packages']) {
+        for (final f in Directory(dir).listSync(recursive: true)) {
+          if (f is! File) continue;
+          final name = f.uri.pathSegments.last;
+          if (!name.startsWith('build.gradle')) continue;
+          if (f.path.startsWith('packages/store_services/android/')) continue;
+          if (f.readAsStringSync().contains('com.google.mlkit')) {
+            offenders.add(f.path);
+          }
+        }
+      }
+      expect(offenders, isEmpty);
+      expect(
+        File('packages/store_services/android/build.gradle').readAsStringSync(),
+        contains('com.google.mlkit'),
+        reason: 'the one place it belongs',
+      );
+    });
+
+    test('the FOSS twin has no Android plugin', () {
+      expect(
+        Directory('packages/store_services_foss/android').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('packages/store_services_foss/pubspec.yaml').readAsStringSync(),
+        isNot(contains('plugin:')),
+      );
+    });
+
+    test('prepare_foss.sh deletes it before F-Droid\'s scan, and its '
+        'snapshot brings it back', () {
+      final script = File('tools/prepare_foss.sh').readAsStringSync();
+      expect(script, contains('rm -rf packages/store_services/android'));
+      expect(
+        RegExp(
+          r'store_files\(\)[\s\S]*?packages/store_services/android',
+        ).hasMatch(script),
+        isTrue,
+        reason: 'the --restore snapshot must carry the deleted folder',
+      );
+    });
+  });
 }
 
 /// The children of a top-level YAML mapping [key], each mapped to its body

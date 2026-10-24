@@ -1553,5 +1553,13 @@
   "camera_unavailable": "Không có máy ảnh nào trên thiết bị này.",
   "photo_source_camera": "Máy ảnh",
   "photo_source_photos": "Ảnh",
-  "photo_source_files": "Tệp"
+  "photo_source_files": "Tệp",
+  "read_receipt": "Đọc biên lai",
+  "reading_receipt": "Đang đọc biên lai…",
+  "receipt_filled": "Đã điền từ biên lai",
+  "receipt_not_readable": "Không đọc được biên lai này",
+  "from_receipt": "Từ biên lai",
+  "from_receipt_check": "Từ biên lai — kiểm tra",
+  "on_receipt": "Trên biên lai: :name",
+  "receipt_number_note": "Biên lai số :number"
 }

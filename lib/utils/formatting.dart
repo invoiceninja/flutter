@@ -1214,6 +1214,16 @@ class Formatter {
   /// See [kDateFormatSampleIso] for why a *fixed* date and why that one.
   String get dateExample => date(kDateFormatSampleIso);
 
+  /// [value] (ISO) with the month as a word, in the company's locale —
+  /// `12 Mar 2026`, `Mar 12, 2026`. For where a day/month mix-up has to be
+  /// visible: the company's numeric format would hide a swapped `03/04`.
+  String dateWithMonthName(String? value) {
+    final parsed = value == null ? null : DateTime.tryParse(value);
+    if (parsed == null) return '';
+    final locale = settings.locale.isEmpty ? null : settings.locale;
+    return DateFormat.yMMMd(locale).format(parsed);
+  }
+
   /// `MMM d - MMM d, yyyy` range, year suppressed for the current year.
   String dateRange(String startIso, String endIso) {
     final start = DateTime.tryParse(startIso)?.toLocal();

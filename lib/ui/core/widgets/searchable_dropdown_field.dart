@@ -59,6 +59,7 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
     required this.onChanged,
     this.emptyHintKey,
     this.errorText,
+    this.helper,
     this.maxResults = 50,
     this.idleResults = 20,
     this.footerBuilder,
@@ -92,6 +93,10 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
   /// Server-side validation error to surface beneath the field (e.g. a 422
   /// from `host.fieldErrors[apiKey]`). `null` hides the slot.
   final String? errorText;
+
+  /// Shown under the field where its helper text goes — a "From receipt"
+  /// marker (`ReceiptFieldMarker`), say. Hidden while [errorText] shows.
+  final Widget? helper;
 
   /// Maximum items shown while filtering.
   final int maxResults;
@@ -847,6 +852,7 @@ class _SearchableDropdownFieldState<T extends Object>
                         decoration: InputDecoration(
                           labelText: widget.label,
                           errorText: widget.errorText,
+                          helper: widget.helper,
                           labelStyle: theme.textTheme.bodyMedium?.copyWith(
                             color: tokens.ink3,
                           ),

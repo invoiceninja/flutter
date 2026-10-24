@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "main.cpp"
+  "receipt_ocr.cpp"
   "spell_checker.cpp"
   "utils.cpp"
   "win32_window.cpp"
@@ -37,6 +38,9 @@ target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # ISpellChecker is COM (CoCreateInstance / CoTaskMemFree): spell_checker.cpp.
 target_link_libraries(${BINARY_NAME} PRIVATE "ole32.lib")
+# Windows.Media.Ocr through the WinRT ABI (RoGetActivationFactory, HSTRINGs)
+# and the stream bridges: receipt_ocr.cpp.
+target_link_libraries(${BINARY_NAME} PRIVATE "runtimeobject.lib" "shcore.lib" "shlwapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.

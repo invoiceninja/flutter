@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Šajā ierīcē nav pieejamas kameras.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotoattēli",
-  "photo_source_files": "Faili"
+  "photo_source_files": "Faili",
+  "read_receipt": "Nolasīt čeku",
+  "reading_receipt": "Nolasa čeku…",
+  "receipt_filled": "Aizpildīts no čeka",
+  "receipt_not_readable": "Šo čeku neizdevās nolasīt",
+  "from_receipt": "No čeka",
+  "from_receipt_check": "No čeka — pārbaudiet",
+  "on_receipt": "Čekā: :name",
+  "receipt_number_note": "Čeks Nr. :number"
 }

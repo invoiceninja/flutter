@@ -1585,5 +1585,13 @@
   "camera_unavailable": "لا تتوفر كاميرا على هذا الجهاز.",
   "photo_source_camera": "الكاميرا",
   "photo_source_photos": "الصور",
-  "photo_source_files": "الملفات"
+  "photo_source_files": "الملفات",
+  "read_receipt": "قراءة الإيصال",
+  "reading_receipt": "جارٍ قراءة الإيصال…",
+  "receipt_filled": "تمت التعبئة من الإيصال",
+  "receipt_not_readable": "تعذّرت قراءة هذا الإيصال",
+  "from_receipt": "من الإيصال",
+  "from_receipt_check": "من الإيصال — تحقق منه",
+  "on_receipt": "في الإيصال: :name",
+  "receipt_number_note": "إيصال رقم :number"
 }

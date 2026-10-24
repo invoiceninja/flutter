@@ -1638,5 +1638,13 @@
   "camera_unavailable": "На овој уред нема достапна камера.",
   "photo_source_camera": "Камера",
   "photo_source_photos": "Фотографии",
-  "photo_source_files": "Датотеки"
+  "photo_source_files": "Датотеки",
+  "read_receipt": "Прочитај сметка",
+  "reading_receipt": "Се чита сметката…",
+  "receipt_filled": "Пополнето од сметката",
+  "receipt_not_readable": "Сметката не можеше да се прочита",
+  "from_receipt": "Од сметката",
+  "from_receipt_check": "Од сметката — проверете",
+  "on_receipt": "На сметката: :name",
+  "receipt_number_note": "Сметка бр. :number"
 }

@@ -1605,5 +1605,13 @@
   "camera_unavailable": "Šiame įrenginyje nėra pasiekiamos kameros.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Nuotraukos",
-  "photo_source_files": "Failai"
+  "photo_source_files": "Failai",
+  "read_receipt": "Nuskaityti kvitą",
+  "reading_receipt": "Skaitomas kvitas…",
+  "receipt_filled": "Užpildyta iš kvito",
+  "receipt_not_readable": "Šio kvito nepavyko nuskaityti",
+  "from_receipt": "Iš kvito",
+  "from_receipt_check": "Iš kvito — patikrinkite",
+  "on_receipt": "Kvite: :name",
+  "receipt_number_note": "Kvitas Nr. :number"
 }

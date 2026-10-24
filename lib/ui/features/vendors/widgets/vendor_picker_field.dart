@@ -22,12 +22,17 @@ class VendorPickerField extends StatelessWidget {
     required this.selectedId,
     required this.onChanged,
     this.errorText,
+    this.helper,
   });
 
   final String companyId;
   final String selectedId;
   final ValueChanged<Vendor?> onChanged;
   final String? errorText;
+
+  /// Shown under the field where its helper text goes — a "From receipt"
+  /// marker (`ReceiptFieldMarker`), say. Hidden while [errorText] shows.
+  final Widget? helper;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +57,7 @@ class VendorPickerField extends StatelessWidget {
           : null,
       onChanged: onChanged,
       errorText: errorText,
+      helper: helper,
     );
   }
 }

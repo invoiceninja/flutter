@@ -50,6 +50,7 @@ import 'package:admin/app/theme_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/local_data_disposer.dart';
@@ -120,6 +121,8 @@ import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/refresh_scheduler.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/search_api.dart';
+import 'package:admin/data/services/pdf_raster.dart';
+import 'package:admin/data/services/receipt_text_recognizer.dart';
 import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/smtp_api.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -137,6 +140,8 @@ import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/expenses/receipt_parser.dart';
+import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
@@ -893,6 +898,29 @@ class Services implements SidebarBadgeContext {
   /// The app-owned copies of files shared into the app from other ones, and
   /// the only code that deletes them.
   final SharedIntakeFiles sharedIntakeFiles;
+
+  /// Reads a receipt photo or PDF into New Expense's fields, on the device
+  /// (`docs/receipt-ocr.md`). Provided at the root as `ReceiptScanner?` —
+  /// read it that way, never through `Services`, so a screen's tests run
+  /// without one.
+  late final ReceiptScanner receiptScanner = ReceiptScanner(
+    recognizer: ChannelReceiptTextRecognizer(),
+    contextFor: (companyId) async {
+      final f = await formatterFor(companyId);
+      return ReceiptParseContext(
+        today: Date.today(),
+        dateOrder: dateOrderOf(f.dateFormats[f.settings.dateFormatId]?.format),
+        currencies: f.currencies.values.toList(),
+        companyCurrency: f.currencies[f.settings.currencyId],
+      );
+    },
+    vendorsFor: (companyId) =>
+        vendors.watchActiveNames(companyId: companyId).first,
+    vendorCurrencyFor: (companyId, vendorId) async =>
+        (await vendors.watch(companyId: companyId, id: vendorId).first)
+            ?.currencyId,
+    rasterizePdf: rasterizeReceiptPdf,
+  );
 
   /// What a file shared into the app from another one does: open New Expense
   /// with it attached (invoiceninja/flutter#173). Fed by `AppShareIntake`;

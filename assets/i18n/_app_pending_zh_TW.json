@@ -1586,5 +1586,13 @@
   "camera_unavailable": "此裝置上沒有可用的相機。",
   "photo_source_camera": "相機",
   "photo_source_photos": "照片",
-  "photo_source_files": "檔案"
+  "photo_source_files": "檔案",
+  "read_receipt": "讀取收據",
+  "reading_receipt": "正在讀取收據…",
+  "receipt_filled": "已從收據填寫",
+  "receipt_not_readable": "無法讀取此收據",
+  "from_receipt": "來自收據",
+  "from_receipt_check": "來自收據 — 請核對",
+  "on_receipt": "收據上：:name",
+  "receipt_number_note": "收據號碼 :number"
 }

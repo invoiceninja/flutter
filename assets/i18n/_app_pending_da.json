@@ -1590,5 +1590,13 @@
   "camera_unavailable": "Der er intet kamera tilgængeligt på denne enhed.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotos",
-  "photo_source_files": "Filer"
+  "photo_source_files": "Filer",
+  "read_receipt": "Læs kvittering",
+  "reading_receipt": "Læser kvittering…",
+  "receipt_filled": "Udfyldt fra kvittering",
+  "receipt_not_readable": "Kvitteringen kunne ikke læses",
+  "from_receipt": "Fra kvittering",
+  "from_receipt_check": "Fra kvittering — kontrollér",
+  "on_receipt": "På kvittering: :name",
+  "receipt_number_note": "Kvittering nr. :number"
 }

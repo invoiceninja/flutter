@@ -1638,5 +1638,13 @@
   "camera_unavailable": "ไม่มีกล้องที่ใช้งานได้ในอุปกรณ์นี้",
   "photo_source_camera": "กล้อง",
   "photo_source_photos": "รูปภาพ",
-  "photo_source_files": "ไฟล์"
+  "photo_source_files": "ไฟล์",
+  "read_receipt": "อ่านใบเสร็จ",
+  "reading_receipt": "กำลังอ่านใบเสร็จ…",
+  "receipt_filled": "กรอกจากใบเสร็จแล้ว",
+  "receipt_not_readable": "อ่านใบเสร็จนี้ไม่ได้",
+  "from_receipt": "จากใบเสร็จ",
+  "from_receipt_check": "จากใบเสร็จ — โปรดตรวจสอบ",
+  "on_receipt": "บนใบเสร็จ: :name",
+  "receipt_number_note": "ใบเสร็จเลขที่ :number"
 }

@@ -11,7 +11,7 @@
 #                                    regenerate tools/foss/pubspec.lock after
 #                                    pubspec.lock changes; touches nothing else.
 #
-# Three steps:
+# Four steps:
 #   1. `store_services` → its FOSS twin, via a root pubspec_overrides.yaml
 #      (no Google Sign-In / Play Billing / Sentry in the dependency graph).
 #   2. SQLite compiled from source instead of the hook's prebuilt download:
@@ -21,6 +21,8 @@
 #   3. `flutter pub get --enforce-lockfile` against tools/foss/pubspec.lock,
 #      the committed lock of the FOSS graph, then fail if a non-free package is
 #      in it, or if any package is pinned differently from the store build's lock.
+#   4. Delete packages/store_services/android — the store package's ML Kit
+#      plugin, whose build.gradle F-Droid's scan would read (docs/fdroid.md).
 #
 # Needs network for the sqlite3mc download and pub get — run it where F-Droid
 # runs `prebuild`. Set FLUTTER to the SDK's flutter binary if it isn't on PATH.
@@ -135,13 +137,15 @@ sqlite3mc_present() {
 
 store_files() {
   local f
-  for f in pubspec.yaml pubspec.lock \
+  # The store package's Android plugin (ML Kit) — step 4 deletes it, so the
+  # snapshot carries it back, uncommitted edits included.
+  for f in pubspec.yaml pubspec.lock packages/store_services/android \
     macos/Flutter/GeneratedPluginRegistrant.swift \
     {linux,windows}/flutter/generated_plugin_registrant.{cc,h} \
     {linux,windows}/flutter/generated_plugins.cmake \
     {ios,macos}/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved \
     {ios,macos}/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; do
-    [[ -f "$f" ]] && echo "$f"
+    [[ -e "$f" ]] && echo "$f"
   done
   return 0
 }
@@ -150,7 +154,8 @@ if [[ "${1:-}" == "--restore" ]]; then
   if [[ ! -f "$BACKUP" ]]; then
     echo "No $BACKUP — nothing to restore (was .dart_tool cleaned?)." >&2
     echo "Recover with: rm -f pubspec_overrides.yaml && git checkout -- \\" >&2
-    echo "  pubspec.yaml pubspec.lock && $FLUTTER pub get" >&2
+    echo "  pubspec.yaml pubspec.lock packages/store_services/android \\" >&2
+    echo "  && $FLUTTER pub get" >&2
     exit 1
   fi
   # The snapshot is byte-exact, so it would silently drop anything added to
@@ -258,5 +263,12 @@ fi
 tar -xOf "$BACKUP" pubspec.lock >.dart_tool/foss_store_pubspec.lock
 check_foss_lock pubspec.lock .dart_tool/foss_store_pubspec.lock
 rm -f .dart_tool/foss_store_pubspec.lock
+
+# 4. The store package's Android plugin names ML Kit — a non-free Gradle
+# dependency — and F-Droid's scan reads every build.gradle in the tree, used
+# or not. The twin replaced the package above, so nothing builds it; delete
+# it (docs/fdroid.md). --restore brings it back from the snapshot.
+rm -rf packages/store_services/android
+echo "Removed packages/store_services/android (ML Kit) from the FOSS tree."
 
 echo "FOSS build prepared. Next: $FLUTTER build apk --release"

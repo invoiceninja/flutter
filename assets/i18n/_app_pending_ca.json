@@ -1586,5 +1586,13 @@
   "camera_unavailable": "No hi ha cap càmera disponible en aquest dispositiu.",
   "photo_source_camera": "Càmera",
   "photo_source_photos": "Fotos",
-  "photo_source_files": "Fitxers"
+  "photo_source_files": "Fitxers",
+  "read_receipt": "Llegeix el rebut",
+  "reading_receipt": "Llegint el rebut…",
+  "receipt_filled": "Omplert des del rebut",
+  "receipt_not_readable": "No s'ha pogut llegir aquest rebut",
+  "from_receipt": "Del rebut",
+  "from_receipt_check": "Del rebut — comprova-ho",
+  "on_receipt": "Al rebut: :name",
+  "receipt_number_note": "Rebut núm. :number"
 }

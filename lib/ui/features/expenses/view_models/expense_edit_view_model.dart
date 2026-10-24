@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart' show VoidCallback;
 
@@ -10,6 +11,9 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/expenses/receipt_fill.dart';
+import 'package:admin/domain/expenses/receipt_parser.dart';
+import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -32,8 +36,12 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
       bool Function(List<UploadSource>) attach,
     )?
     registerShareTarget,
+    ReceiptScanner? receiptScanner,
+    Future<ReceiptFillContext> Function()? receiptFillContext,
   }) : _documents = existing == null ? [...initialDocuments] : [],
        _discardFiles = discardFiles,
+       _receiptScanner = existing == null ? receiptScanner : null,
+       _receiptFillContext = receiptFillContext,
        super(
          initialDraft: cloneFrom ?? existing ?? emptyExpense(),
          original: existing,
@@ -46,6 +54,16 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
       _unregisterShareTarget = registerShareTarget?.call(
         companyId,
         addDocuments,
+      );
+    }
+    final scanner = _receiptScanner;
+    if (scanner != null) {
+      unawaited(
+        scanner.isSupported().then((ok) {
+          if (!ok || isDisposed) return;
+          _receiptSupported = true;
+          notifyListeners();
+        }),
       );
     }
   }
@@ -97,15 +115,361 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   bool addDocuments(Iterable<UploadSource> sources) {
     if (!acceptsDocuments) return false;
     if (sources.isEmpty) return true;
-    _documents.addAll(sources);
+    final added = List<UploadSource>.of(sources);
+    _documents.addAll(added);
     notifyListeners();
+    unawaited(autoReadReceipt(added));
     return true;
   }
 
   void removeDocument(UploadSource source) {
     if (!_documents.remove(source)) return;
+    if (_readingSource == source) cancelReceiptRead();
     _discard([source]);
     notifyListeners();
+  }
+
+  // ── Receipt reading (docs/receipt-ocr.md) ───────────────────────────
+
+  final ReceiptScanner? _receiptScanner;
+  final Future<ReceiptFillContext> Function()? _receiptFillContext;
+  bool _receiptSupported = false;
+
+  /// Bumped by every new read, cancel, reset and dispose. Native OCR can't
+  /// be stopped, so a result whose generation is stale is dropped instead.
+  int _receiptGeneration = 0;
+  UploadSource? _readingSource;
+  bool _autoReadPending = false;
+  bool _receiptFailed = false;
+
+  /// Bumped as each save starts: a read that began before one never lands.
+  int _saveCount = 0;
+
+  /// Every read that changed the form, oldest first. Undo takes back the
+  /// newest only; the markers come from whichever read filled a field.
+  final List<_AppliedReceiptRead> _reads = [];
+  bool _receiptBannerVisible = false;
+
+  /// Fields the user has focus in — a half-typed value isn't in the draft
+  /// yet, so a read must leave it alone ([noteReceiptFieldFocus]).
+  final Set<ReceiptFillField> _focused = {};
+
+  /// Whether this form can read receipts: a device with an engine, a new
+  /// expense, and a form not locked by a save.
+  bool get canReadReceipt =>
+      _receiptSupported && isCreate && !isSaving && acceptsDocuments;
+
+  /// The file being read now, if any.
+  UploadSource? get readingReceipt => _readingSource;
+  bool get isReadingReceipt => _readingSource != null;
+
+  /// Whether [source] has been read into the form (its row's Read button
+  /// hides; Undo brings it back).
+  bool receiptWasRead(UploadSource source) =>
+      _reads.any((r) => r.source == source);
+
+  /// Identifies the read the strip is about, so a screen reader hears each
+  /// state of each read once.
+  int get receiptReadId => _receiptGeneration;
+
+  /// What the strip above the form says, if anything. Gone once the form
+  /// can no longer take a receipt (saved, or the record already exists).
+  ReceiptBannerState get receiptBannerState {
+    if (!acceptsDocuments) return ReceiptBannerState.none;
+    if (_readingSource != null) return ReceiptBannerState.reading;
+    if (_receiptFailed) return ReceiptBannerState.failed;
+    final last = _reads.lastOrNull;
+    if (!_receiptBannerVisible || last == null) return ReceiptBannerState.none;
+    return last.filled.isEmpty
+        ? ReceiptBannerState.vendorOnly
+        : ReceiptBannerState.filled;
+  }
+
+  bool get showsReceiptBanner => receiptBannerState != ReceiptBannerState.none;
+  bool get receiptReadFailed => receiptBannerState == ReceiptBannerState.failed;
+
+  /// The newest read, while the strip shows it.
+  ReceiptRead? get lastReceiptRead =>
+      showsReceiptBanner && !isReadingReceipt ? _reads.lastOrNull?.read : null;
+
+  /// What the newest read filled, and the form as that read left it — the
+  /// strip shows these, not the live draft the user may have changed since.
+  Map<ReceiptFillField, ReceiptConfidence> get receiptFilledFields =>
+      _reads.lastOrNull?.filled ?? const {};
+  Expense? get receiptFilledDraft => _reads.lastOrNull?.after;
+
+  /// The receipt's vendor line when it matched none of the company's
+  /// vendors — offered as a create at the vendor field until one is picked.
+  String? get unmatchedReceiptVendor {
+    if (!acceptsDocuments) return null;
+    final read = _reads.lastOrNull?.read;
+    final name = read?.scan.vendorName;
+    if (name == null || read?.vendorId != null) return null;
+    return draft.vendorId.isEmpty ? name : null;
+  }
+
+  /// "From receipt" on [field] while it still holds what the read put there
+  /// (or the user is still in it), with how sure the read was.
+  ReceiptConfidence? receiptMarker(ReceiptFillField field) {
+    if (!acceptsDocuments) return null;
+    final read = _reads.lastWhereOrNull((r) => r.filled.containsKey(field));
+    if (read == null) return null;
+    final confidence = read.filled[field];
+    if (_focused.contains(field)) return confidence;
+    return _value(draft, field) == _value(read.after, field)
+        ? confidence
+        : null;
+  }
+
+  static Object? _value(Expense e, ReceiptFillField f) => switch (f) {
+    ReceiptFillField.amount => e.amount,
+    ReceiptFillField.date => e.date,
+    ReceiptFillField.vendor => e.vendorId,
+    ReceiptFillField.currency => e.currencyId,
+    ReceiptFillField.tax1 => (e.taxName1, e.taxRate1, e.taxAmount1),
+    ReceiptFillField.tax2 => (e.taxName2, e.taxRate2, e.taxAmount2),
+    ReceiptFillField.tax3 => (e.taxName3, e.taxRate3, e.taxAmount3),
+    ReceiptFillField.notes => e.privateNotes,
+  };
+
+  /// A field gained or lost focus. A read leaves a focused field alone, and
+  /// its marker stays until the user leaves it — so the form doesn't shift
+  /// under a finger mid-edit.
+  void noteReceiptFieldFocus(ReceiptFillField field, bool focused) {
+    final changed = focused ? _focused.add(field) : _focused.remove(field);
+    if (changed && !focused && _reads.any((r) => r.filled.containsKey(field))) {
+      notifyListeners();
+    }
+  }
+
+  /// Whether the engine still answers; a later "unsupported" (no OCR
+  /// language after all) hides the Read buttons.
+  Future<bool> _engineReady(ReceiptScanner scanner) async {
+    final ok = await scanner.isSupported();
+    if (isDisposed) return false;
+    if (ok != _receiptSupported) {
+      _receiptSupported = ok;
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Read the first readable file of [added] when nobody has typed into the
+  /// form yet — however the file arrived (Scan Receipt, a share, a drop, the
+  /// tiles). A form already holding the user's content, a clone, a prefilled
+  /// draft, or one that has read a receipt already waits for the Read button.
+  Future<void> autoReadReceipt(Iterable<UploadSource> added) async {
+    final scanner = _receiptScanner;
+    if (scanner == null || _autoReadPending) return;
+    // Two batches arriving together (a share and a drop) read one file, not
+    // two racing each other into the same blank fields.
+    _autoReadPending = true;
+    try {
+      // The engine's answer may not be in yet when the form opens with a file.
+      if (!await _engineReady(scanner)) return;
+      bool pristine() =>
+          !isDisposed &&
+          canReadReceipt &&
+          _readingSource == null &&
+          _reads.isEmpty &&
+          !prefilled &&
+          draft == createBaseline;
+      if (!pristine()) return;
+      for (final source in added) {
+        if (await ReceiptScanner.isReadable(source)) {
+          if (!pristine() || !_documents.contains(source)) return;
+          await readReceipt(source);
+          return;
+        }
+      }
+    } finally {
+      _autoReadPending = false;
+    }
+  }
+
+  /// Read [source] and fill the form's blank, untouched fields from it.
+  Future<void> readReceipt(UploadSource source) async {
+    final scanner = _receiptScanner;
+    if (scanner == null || !await _engineReady(scanner)) return;
+    if (!canReadReceipt) return;
+    final generation = ++_receiptGeneration;
+    final saves = _saveCount;
+    _readingSource = source;
+    _receiptFailed = false;
+    // The strip is about this read now, not the one before it.
+    _receiptBannerVisible = false;
+    notifyListeners();
+    final read = await scanner.scan(source, companyId);
+    ReceiptFillContext? ctx;
+    if (read != null) {
+      try {
+        ctx = await _receiptFillContext?.call();
+      } catch (_) {
+        ctx = null;
+      }
+    }
+    if (generation != _receiptGeneration || isDisposed) return;
+    _readingSource = null;
+    // The form moved on while the engine read: a save started (or is done),
+    // the record turned out to exist, the file was removed. Nothing lands.
+    if (isSaving ||
+        _saveCount != saves ||
+        !acceptsDocuments ||
+        !_documents.contains(source)) {
+      notifyListeners();
+      return;
+    }
+    if (read == null || ctx == null) {
+      // A read that found nothing may be the engine latching off.
+      if (read == null) await _engineReady(scanner);
+      if (generation != _receiptGeneration || isDisposed) return;
+      _receiptFailed = true;
+      notifyListeners();
+      return;
+    }
+    final before = draft;
+    final result = fillExpenseFromReceipt(
+      draft: before,
+      baseline: createBaseline,
+      prefilled: prefilled,
+      read: read,
+      ctx: ctx,
+      paymentDateFollowsDate: _paymentDateFollowsDate,
+      userChoseInclusive: _userTouchedInclusive,
+      busy: _focused,
+    );
+    if (result.filled.isEmpty && _unmatchedVendorOf(read, before) == null) {
+      _receiptFailed = true;
+      notifyListeners();
+      return;
+    }
+    _reads.add(
+      _AppliedReceiptRead(
+        source: source,
+        read: read,
+        filled: result.filled,
+        before: before,
+        after: result.draft,
+        inclusiveTouchedBefore: _userTouchedInclusive,
+      ),
+    );
+    _receiptBannerVisible = true;
+    if (result.draft != before) {
+      // Through updateDraft, not seedCreateDefault: what a receipt says is
+      // the user's content, and makes the form dirty.
+      updateDraft(result.draft);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// The vendor line [read] offers to create on [d], if any.
+  static String? _unmatchedVendorOf(ReceiptRead read, Expense d) =>
+      read.vendorId == null && d.vendorId.isEmpty ? read.scan.vendorName : null;
+
+  /// Stop waiting for the read in progress; its result will be dropped.
+  void cancelReceiptRead() {
+    _receiptGeneration++;
+    _readingSource = null;
+    notifyListeners();
+  }
+
+  /// Close the strip; the fields keep their values and markers.
+  void dismissReceiptBanner() {
+    _receiptBannerVisible = false;
+    _receiptFailed = false;
+    notifyListeners();
+  }
+
+  /// Put back what the newest read changed — each field only while it still
+  /// holds the read's value, so an edit made since is kept — together with
+  /// what came with it (tax mode, the inclusive switch, the exchange rate,
+  /// a payment date that followed the date). An earlier read stays.
+  void undoReceiptRead() {
+    if (isSaving || _reads.isEmpty) return;
+    final r = _reads.removeLast();
+    final before = r.before;
+    final after = r.after;
+    var d = draft;
+    bool same(ReceiptFillField f) =>
+        r.filled.containsKey(f) && _value(d, f) == _value(after, f);
+    if (same(ReceiptFillField.amount)) {
+      d = d.copyWith(amount: before.amount);
+      if (d.invoiceCurrencyId.isNotEmpty) {
+        d = d.copyWith(foreignAmount: d.amount * d.exchangeRate);
+      }
+    }
+    if (same(ReceiptFillField.date)) {
+      d = d.copyWith(date: before.date);
+      if (d.paymentDate == after.paymentDate) {
+        d = d.copyWith(paymentDate: before.paymentDate);
+      }
+    }
+    if (same(ReceiptFillField.vendor)) {
+      d = d.copyWith(vendorId: before.vendorId);
+    }
+    if (same(ReceiptFillField.currency)) {
+      d = d.copyWith(currencyId: before.currencyId);
+      // The rate the read moved goes back only if nobody set one since; the
+      // converted amount follows whatever amount the form holds now.
+      if (d.exchangeRate == after.exchangeRate) {
+        d = d.copyWith(exchangeRate: before.exchangeRate);
+      }
+      if (d.invoiceCurrencyId.isNotEmpty) {
+        d = d.copyWith(foreignAmount: d.amount * d.exchangeRate);
+      }
+    }
+    final taxSlots = [
+      ReceiptFillField.tax1,
+      ReceiptFillField.tax2,
+      ReceiptFillField.tax3,
+    ].where(r.filled.containsKey).toList();
+    if (taxSlots.isNotEmpty) {
+      // Every slot the read filled still as it left it: the whole tax block
+      // goes back, mode and switch with it. One slot edited since: only the
+      // untouched slots clear, and the mode the user is working in stays.
+      final untouched = taxSlots.where(same).toList();
+      for (final slot in untouched) {
+        d = switch (slot) {
+          ReceiptFillField.tax1 => d.copyWith(
+            taxName1: before.taxName1,
+            taxRate1: before.taxRate1,
+            taxAmount1: before.taxAmount1,
+          ),
+          ReceiptFillField.tax2 => d.copyWith(
+            taxName2: before.taxName2,
+            taxRate2: before.taxRate2,
+            taxAmount2: before.taxAmount2,
+          ),
+          _ => d.copyWith(
+            taxName3: before.taxName3,
+            taxRate3: before.taxRate3,
+            taxAmount3: before.taxAmount3,
+          ),
+        };
+      }
+      if (untouched.length == taxSlots.length) {
+        if (d.calculateTaxByAmount == after.calculateTaxByAmount) {
+          d = d.copyWith(calculateTaxByAmount: before.calculateTaxByAmount);
+        }
+        if (_userTouchedInclusive == r.inclusiveTouchedBefore &&
+            d.usesInclusiveTaxes == after.usesInclusiveTaxes) {
+          d = d.copyWith(usesInclusiveTaxes: before.usesInclusiveTaxes);
+        }
+      }
+    }
+    if (same(ReceiptFillField.notes)) {
+      d = d.copyWith(privateNotes: before.privateNotes);
+    }
+    _receiptBannerVisible = false;
+    _receiptFailed = false;
+    updateDraft(d);
+  }
+
+  void _clearReceiptRead() {
+    _reads.clear();
+    _receiptBannerVisible = false;
+    _receiptFailed = false;
   }
 
   void _discard(Iterable<UploadSource> sources) {
@@ -125,6 +489,7 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   /// was never queued at all.
   @override
   Future<Expense?> save() async {
+    _saveCount++;
     final saved = await super.save();
     final batch = _attemptBatch;
     final tempId = _attemptTempId;
@@ -151,6 +516,7 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
 
   @override
   void dispose() {
+    _receiptGeneration++;
     _unregisterShareTarget?.call();
     // Left without saving: copies nothing queued belong to no record. Not
     // mid-save — the rows being written would name them; the boot sweep
@@ -227,6 +593,9 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   @override
   void reset({required Expense emptyDraft}) {
     _userTouchedInclusive = false;
+    _receiptGeneration++;
+    _readingSource = null;
+    _clearReceiptRead();
     // As in [dispose]: a save in flight is writing rows that name them.
     if (!isSaving) _discard(_documents);
     _documents.clear();
@@ -561,3 +930,41 @@ Expense emptyExpense() => Expense(
   createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
   archivedAt: null,
 );
+
+/// What the strip above New Expense says about a receipt read.
+enum ReceiptBannerState {
+  none,
+  reading,
+
+  /// The read filled fields.
+  filled,
+
+  /// The read filled nothing but found a vendor the company doesn't have.
+  vendorOnly,
+
+  /// Nothing could be read.
+  failed,
+}
+
+/// One read that changed the form: what it filled, and the form either side
+/// of it, for the markers, the strip and Undo.
+class _AppliedReceiptRead {
+  _AppliedReceiptRead({
+    required this.source,
+    required this.read,
+    required this.filled,
+    required this.before,
+    required this.after,
+    required this.inclusiveTouchedBefore,
+  });
+
+  final UploadSource source;
+  final ReceiptRead read;
+  final Map<ReceiptFillField, ReceiptConfidence> filled;
+  final Expense before;
+  final Expense after;
+
+  /// Whether the user had set the inclusive switch when the read landed —
+  /// a change since means Undo leaves the switch alone.
+  final bool inclusiveTouchedBefore;
+}

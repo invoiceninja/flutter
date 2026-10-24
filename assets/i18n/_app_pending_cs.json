@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Na tomto zařízení není k dispozici žádný fotoaparát.",
   "photo_source_camera": "Fotoaparát",
   "photo_source_photos": "Fotky",
-  "photo_source_files": "Soubory"
+  "photo_source_files": "Soubory",
+  "read_receipt": "Přečíst účtenku",
+  "reading_receipt": "Čtení účtenky…",
+  "receipt_filled": "Vyplněno z účtenky",
+  "receipt_not_readable": "Účtenku se nepodařilo přečíst",
+  "from_receipt": "Z účtenky",
+  "from_receipt_check": "Z účtenky — zkontrolujte",
+  "on_receipt": "Na účtence: :name",
+  "receipt_number_note": "Účtenka č. :number"
 }

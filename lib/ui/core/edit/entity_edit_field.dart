@@ -28,6 +28,7 @@ class EntityEditField extends StatefulWidget {
     this.autofocus = false,
     this.keyboardType,
     this.errorText,
+    this.helper,
     this.hintText,
     this.readOnly = false,
     this.prefixText,
@@ -100,6 +101,10 @@ class EntityEditField extends StatefulWidget {
   /// When non-null, the field renders in its error state and displays this
   /// message beneath. Pass `vm.fieldErrorFor('name')` etc.
   final String? errorText;
+
+  /// Shown under the field where its helper text goes — a "From receipt"
+  /// marker (`ReceiptFieldMarker`), say. Hidden while [errorText] shows.
+  final Widget? helper;
 
   /// Placeholder shown inside an empty field once its label has floated —
   /// i.e. while it has focus. `tr('auto_generated')` on a number the server
@@ -211,6 +216,7 @@ class _EntityEditFieldState extends State<EntityEditField> {
         decoration: InputDecoration(
           labelText: widget.label,
           hintText: widget.hintText,
+          helper: widget.helper,
           prefixText: widget.prefixText,
           // Reveal toggle — a bare IconButton, matching `AuthPasswordField`.
           // Deliberately NOT wrapped in `Focus(canRequestFocus: false)`:

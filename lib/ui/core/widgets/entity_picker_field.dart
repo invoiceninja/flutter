@@ -44,6 +44,7 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
     required this.onChanged,
     this.cacheKey,
     this.errorText,
+    this.helper,
     this.emptyHintKey,
     this.idleResults,
     this.optionLeadingBuilder,
@@ -79,6 +80,10 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
   final Object? cacheKey;
 
   final String? errorText;
+
+  /// Shown under the field where its helper text goes — a "From receipt"
+  /// marker (`ReceiptFieldMarker`), say. Hidden while [errorText] shows.
+  final Widget? helper;
   final String? emptyHintKey;
 
   /// Rows offered for an empty query. Forwarded to
@@ -260,6 +265,7 @@ class _EntityPickerFieldState<T extends Object>
           idOf: widget.idOf,
           onChanged: widget.onChanged,
           errorText: widget.errorText,
+          helper: widget.helper,
           // Suppressed until the stream has actually spoken. `emptyHintKey` is
           // for "this company has none" — a permanent state — and
           // `SearchableDropdownField` shows it whenever `items` is empty, which

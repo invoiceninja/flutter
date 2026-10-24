@@ -1638,5 +1638,13 @@
   "camera_unavailable": "На этом устройстве нет доступной камеры.",
   "photo_source_camera": "Камера",
   "photo_source_photos": "Фото",
-  "photo_source_files": "Файлы"
+  "photo_source_files": "Файлы",
+  "read_receipt": "Прочитать чек",
+  "reading_receipt": "Чтение чека…",
+  "receipt_filled": "Заполнено из чека",
+  "receipt_not_readable": "Не удалось прочитать чек",
+  "from_receipt": "Из чека",
+  "from_receipt_check": "Из чека — проверьте",
+  "on_receipt": "В чеке: :name",
+  "receipt_number_note": "Чек № :number"
 }

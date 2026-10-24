@@ -581,6 +581,7 @@ the honest default.
 | Expense (and every record's Documents tab, Company Details → Documents) — on a phone or tablet, take a photo or pick from the photo library: Camera / Photos / Files; a photo survives until an offline upload is sent (v1's library picker was iOS-only) | — | ✅ | ✅ | | |
 | Expense — attach documents while creating (queued with the form, uploaded on save; works offline) — flutter#173 | — | — | ✅ | | |
 | Expense — Scan Receipt in the dashboard's create menu: camera, then New Expense with the photo attached (phone / tablet) | — | — | ✅ | | |
+| Expense — read a receipt photo or PDF into New Expense on the device (amount, date, tax, vendor match, currency; Undo; iOS, Android store builds, macOS, Windows) | — | — | ✅ | | |
 | Expense — comments | ✅ | ✅ | ✅ | ✅ | |
 | Expense — activities | ✅ | ✅ | ✅ | ✅ | |
 | Expense — custom fields | ✅ | ✅ | ✅ | ✅ | |

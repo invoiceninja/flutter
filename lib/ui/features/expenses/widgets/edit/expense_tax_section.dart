@@ -54,6 +54,8 @@ class ExpenseTaxSection extends StatefulWidget {
     required this.onTaxAmountChanged,
     required this.onUsesInclusiveTaxesChanged,
     required this.onCalculateByAmountChanged,
+    this.amountHelper,
+    this.taxHelpers = const [null, null, null],
   });
 
   final String companyId;
@@ -81,6 +83,12 @@ class ExpenseTaxSection extends StatefulWidget {
   final TaxSlotSetter onTaxAmountChanged;
   final ValueChanged<bool> onUsesInclusiveTaxesChanged;
   final ValueChanged<bool> onCalculateByAmountChanged;
+
+  /// Under the amount and under each tax tier (index 0 → slot 1): a "From
+  /// receipt" marker on New Expense (`ReceiptFieldMarker`). Recurring Expense
+  /// passes none.
+  final Widget? amountHelper;
+  final List<Widget?> taxHelpers;
 
   @override
   State<ExpenseTaxSection> createState() => _ExpenseTaxSectionState();
@@ -166,6 +174,7 @@ class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
                   signed: true,
                 ),
                 errorText: widget.amountError,
+                helper: widget.amountHelper,
               ),
               if (visible == 0)
                 _TaxDisabledHint()
@@ -346,6 +355,7 @@ class _RatePickerSlot extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                helper: w.taxHelpers[i],
               ),
             ),
           ],
@@ -383,6 +393,7 @@ class _RatePickerSlot extends StatelessWidget {
         initialValue: selected,
         displayString: (r) => '${r.name} (${r.rate}%)',
         idOf: (r) => '${r.name}|${r.rate}',
+        helper: w.taxHelpers[i],
         onChanged: (r) {
           w.onTaxNameChanged(slot, r?.name ?? '');
           w.onTaxRateChanged(slot, r == null ? '0' : r.rate.toString());
@@ -429,6 +440,7 @@ class _AmountSlot extends StatelessWidget {
                 decimal: true,
                 signed: true,
               ),
+              helper: w.taxHelpers[i],
             ),
           ),
         ],

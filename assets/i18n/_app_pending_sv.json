@@ -1634,5 +1634,13 @@
   "camera_unavailable": "Ingen kamera finns tillgänglig på den här enheten.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Bilder",
-  "photo_source_files": "Filer"
+  "photo_source_files": "Filer",
+  "read_receipt": "Läs kvitto",
+  "reading_receipt": "Läser kvitto…",
+  "receipt_filled": "Ifyllt från kvitto",
+  "receipt_not_readable": "Kvittot kunde inte läsas",
+  "from_receipt": "Från kvitto",
+  "from_receipt_check": "Från kvitto — kontrollera",
+  "on_receipt": "På kvittot: :name",
+  "receipt_number_note": "Kvitto nr :number"
 }

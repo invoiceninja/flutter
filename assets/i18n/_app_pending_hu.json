@@ -1606,5 +1606,13 @@
   "camera_unavailable": "Ezen az eszközön nem érhető el kamera.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotók",
-  "photo_source_files": "Fájlok"
+  "photo_source_files": "Fájlok",
+  "read_receipt": "Nyugta kiolvasása",
+  "reading_receipt": "Nyugta kiolvasása…",
+  "receipt_filled": "Kitöltve a nyugtáról",
+  "receipt_not_readable": "A nyugtát nem sikerült kiolvasni",
+  "from_receipt": "A nyugtáról",
+  "from_receipt_check": "A nyugtáról — ellenőrizze",
+  "on_receipt": "A nyugtán: :name",
+  "receipt_number_note": "Nyugta sz. :number"
 }

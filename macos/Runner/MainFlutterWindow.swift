@@ -1,5 +1,7 @@
 import Cocoa
 import FlutterMacOS
+import ImageIO
+import Vision
 
 /// Resolved theme snapshot the native chrome renders. Sourced from
 /// `UserDefaults` (mirror written by Flutter) when available, falling back to
@@ -67,6 +69,7 @@ class MainFlutterWindow: NSWindow {
   private var windowControlChannel: FlutterMethodChannel?
   private var splashChannel: FlutterMethodChannel?
   private var spellChecker: NinjaSpellChecker?
+  private var receiptOcr: NinjaReceiptOcr?
   private var splashView: NSView?
   private var splashLogoLayer: CALayer?
   private var splashStartTime: CFTimeInterval = 0
@@ -218,6 +221,9 @@ class MainFlutterWindow: NSWindow {
     self.windowControlChannel = windowControlChannel
 
     self.spellChecker = NinjaSpellChecker(
+      messenger: flutterViewController.engine.binaryMessenger)
+
+    self.receiptOcr = NinjaReceiptOcr(
       messenger: flutterViewController.engine.binaryMessenger)
 
     NSApp.addObserver(self,
@@ -725,5 +731,135 @@ final class NinjaSpellChecker {
     if available.contains(underscored) { return underscored }
     let base = String(underscored.split(separator: "_").first ?? "")
     return available.contains(base) ? base : nil
+  }
+}
+
+/// The macOS half of `invoice_ninja/receipt_ocr` (`ReceiptTextRecognizer`,
+/// docs/receipt-ocr.md): Apple Vision, the same code as iOS's `ReceiptOcr`.
+/// Off the main thread; replies on it.
+final class NinjaReceiptOcr {
+  private let channel: FlutterMethodChannel
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "invoice_ninja/receipt_ocr", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in NinjaReceiptOcr.handle(call, result) }
+  }
+
+  private static let queue = DispatchQueue(label: "receipt_ocr", qos: .userInitiated)
+
+  /// The longest side Vision is handed. A 48 MP photo decoded whole is
+  /// ~190 MB; a receipt reads fine at this size.
+  private static let maxPixelSize = 3000
+
+  /// `[{text, x, y, w, h}]` in normalised top-left coordinates, or a
+  /// `FlutterError` whose code says why (`unsupported_image`, `failed`).
+  /// Never the recognised text in an error: a receipt is personal data.
+  static func recognize(path: String?, bytes: Data?) -> Any {
+    let source: CGImageSource?
+    if let path = path {
+      source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil)
+    } else if let bytes = bytes {
+      source = CGImageSourceCreateWithData(bytes as CFData, nil)
+    } else {
+      source = nil
+    }
+    // The thumbnail path applies the photo's EXIF orientation and downsamples
+    // in one step — a portrait receipt is read upright.
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+    ]
+    // The primary image, not index 0: a HEIC's first image can be a
+    // thumbnail or a depth map.
+    guard let source = source,
+          let image = CGImageSourceCreateThumbnailAtIndex(
+            source, CGImageSourceGetPrimaryImageIndex(source), options as CFDictionary)
+    else {
+      return FlutterError(code: "unsupported_image", message: nil, details: nil)
+    }
+    func read(languages: [String]?) -> VNRecognizeTextRequest? {
+      let request = VNRecognizeTextRequest()
+      request.recognitionLevel = .accurate
+      request.usesLanguageCorrection = true
+      if let languages = languages {
+        request.recognitionLanguages = languages
+      } else if #available(iOS 16.0, macOS 13.0, *) {
+        request.automaticallyDetectsLanguage = true
+      }
+      do {
+        try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+        return request
+      } catch {
+        return nil
+      }
+    }
+    var languages: [String]? = nil
+    if #unavailable(iOS 16.0, macOS 13.0) {
+      languages = visionLanguages()
+    }
+    // A language list Vision turns down after all fails the whole request:
+    // once more in English before giving up.
+    guard let request = read(languages: languages)
+            ?? (languages == nil ? nil : read(languages: ["en-US"]))
+    else {
+      return FlutterError(code: "failed", message: nil, details: nil)
+    }
+    return (request.results ?? []).compactMap { observation -> [String: Any]? in
+      guard let top = observation.topCandidates(1).first else { return nil }
+      let box = observation.boundingBox  // normalised, bottom-left origin
+      return [
+        "text": top.string,
+        "x": Double(box.minX), "y": Double(1 - box.maxY),
+        "w": Double(box.width), "h": Double(box.height),
+      ]
+    }
+  }
+
+  /// The user's languages as Vision names them, for an OS that can't
+  /// detect the language itself. Matched by language, not by exact tag — a
+  /// French-Canadian device prefers `fr-CA`, Vision has `fr-FR` — and for
+  /// Chinese by script. English last, always.
+  private static func visionLanguages() -> [String] {
+    let supported =
+      (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? ["en-US"]
+    func match(_ preferred: String) -> String? {
+      if supported.contains(preferred) { return preferred }
+      let parts = preferred.split(separator: "-").map(String.init)
+      guard let language = parts.first else { return nil }
+      if language == "zh" {
+        let traditional = parts.contains("Hant") || parts.contains("TW")
+          || parts.contains("HK") || parts.contains("MO")
+        let tag = traditional ? "zh-Hant" : "zh-Hans"
+        return supported.contains(tag) ? tag : nil
+      }
+      return supported.first { $0.split(separator: "-").first.map(String.init) == language }
+    }
+    var out: [String] = []
+    for tag in Locale.preferredLanguages.compactMap(match) + ["en-US"]
+    where !out.contains(tag) && supported.contains(tag) {
+      out.append(tag)
+    }
+    return out.isEmpty ? ["en-US"] : out
+  }
+
+  fileprivate static func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    switch call.method {
+    case "isAvailable":
+      result(true)
+    case "recognize":
+      let args = call.arguments as? [String: Any]
+      let path = args?["path"] as? String
+      let bytes = (args?["bytes"] as? FlutterStandardTypedData)?.data
+      queue.async {
+        // Each read's decoded image and Vision buffers go when it does, not
+        // when the queue's thread next drains.
+        let outcome = autoreleasepool { recognize(path: path, bytes: bytes) }
+        DispatchQueue.main.async { result(outcome) }
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
   }
 }

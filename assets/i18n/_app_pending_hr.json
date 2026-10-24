@@ -1586,5 +1586,13 @@
   "camera_unavailable": "Na ovom uređaju nije dostupna kamera.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotografije",
-  "photo_source_files": "Datoteke"
+  "photo_source_files": "Datoteke",
+  "read_receipt": "Pročitaj račun",
+  "reading_receipt": "Čitanje računa…",
+  "receipt_filled": "Popunjeno iz računa",
+  "receipt_not_readable": "Račun nije moguće pročitati",
+  "from_receipt": "Iz računa",
+  "from_receipt_check": "Iz računa — provjerite",
+  "on_receipt": "Na računu: :name",
+  "receipt_number_note": "Račun br. :number"
 }

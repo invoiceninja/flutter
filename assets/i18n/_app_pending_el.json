@@ -1586,5 +1586,13 @@
   "camera_unavailable": "Δεν υπάρχει διαθέσιμη κάμερα σε αυτή τη συσκευή.",
   "photo_source_camera": "Κάμερα",
   "photo_source_photos": "Φωτογραφίες",
-  "photo_source_files": "Αρχεία"
+  "photo_source_files": "Αρχεία",
+  "read_receipt": "Ανάγνωση απόδειξης",
+  "reading_receipt": "Ανάγνωση απόδειξης…",
+  "receipt_filled": "Συμπληρώθηκε από την απόδειξη",
+  "receipt_not_readable": "Δεν ήταν δυνατή η ανάγνωση της απόδειξης",
+  "from_receipt": "Από την απόδειξη",
+  "from_receipt_check": "Από την απόδειξη — ελέγξτε",
+  "on_receipt": "Στην απόδειξη: :name",
+  "receipt_number_note": "Απόδειξη αρ. :number"
 }

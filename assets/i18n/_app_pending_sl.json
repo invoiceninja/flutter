@@ -1638,5 +1638,13 @@
   "camera_unavailable": "V tej napravi ni na voljo nobene kamere.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotografije",
-  "photo_source_files": "Datoteke"
+  "photo_source_files": "Datoteke",
+  "read_receipt": "Preberi potrdilo",
+  "reading_receipt": "Branje potrdila…",
+  "receipt_filled": "Izpolnjeno iz potrdila",
+  "receipt_not_readable": "Potrdila ni bilo mogoče prebrati",
+  "from_receipt": "Iz potrdila",
+  "from_receipt_check": "Iz potrdila — preverite",
+  "on_receipt": "Na potrdilu: :name",
+  "receipt_number_note": "Potrdilo št. :number"
 }

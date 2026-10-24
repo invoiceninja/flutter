@@ -26,6 +26,9 @@
     "expenses.list_first_page": {
       "budgetMs": 5.9
     },
+    "expenses.receipt_parse": {
+      "budgetMs": 1.0
+    },
     "invoices.badge_counts": {
       "budgetMs": 16
     },

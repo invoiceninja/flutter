@@ -1638,5 +1638,13 @@
   "camera_unavailable": "このデバイスでは使用できるカメラがありません。",
   "photo_source_camera": "カメラ",
   "photo_source_photos": "写真",
-  "photo_source_files": "ファイル"
+  "photo_source_files": "ファイル",
+  "read_receipt": "領収書を読み取る",
+  "reading_receipt": "領収書を読み取り中…",
+  "receipt_filled": "領収書から入力しました",
+  "receipt_not_readable": "この領収書は読み取れませんでした",
+  "from_receipt": "領収書から",
+  "from_receipt_check": "領収書から — 確認してください",
+  "on_receipt": "領収書の記載: :name",
+  "receipt_number_note": "領収書番号 :number"
 }

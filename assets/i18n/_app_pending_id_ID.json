@@ -1587,5 +1587,13 @@
   "camera_unavailable": "Tidak ada kamera yang tersedia di perangkat ini.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Foto",
-  "photo_source_files": "File"
+  "photo_source_files": "File",
+  "read_receipt": "Baca struk",
+  "reading_receipt": "Membaca struk…",
+  "receipt_filled": "Diisi dari struk",
+  "receipt_not_readable": "Struk ini tidak dapat dibaca",
+  "from_receipt": "Dari struk",
+  "from_receipt_check": "Dari struk — periksa",
+  "on_receipt": "Di struk: :name",
+  "receipt_number_note": "Struk #:number"
 }

@@ -50,6 +50,7 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
     required this.titleBuilder,
     required this.titleWhileLoading,
     required this.bodyBuilder,
+    this.bannerBuilder,
     required this.resetToEmpty,
     required this.onSaved,
     required this.entityIdOf,
@@ -98,6 +99,11 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
   final String Function(BuildContext context) titleWhileLoading;
 
   final Widget Function(BuildContext context, VM vm) bodyBuilder;
+
+  /// An entity's own strip under the save-failed banner, above the form —
+  /// full width in both layouts, put in place without scrolling (New
+  /// Expense's receipt reading, `ReceiptReadBanner`).
+  final Widget Function(BuildContext context, VM vm)? bannerBuilder;
 
   /// Called by the discard guard. Typically `(vm) => vm.resetToEmpty()`.
   final void Function(VM vm) resetToEmpty;
@@ -529,6 +535,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
                   FormSaveScope.maybeOf(bannerContext)?.trySubmit(),
             ),
           ),
+          if (widget.bannerBuilder case final banner?) banner(context, vm),
         ],
       ),
       resetToEmpty: () => widget.resetToEmpty(vm),

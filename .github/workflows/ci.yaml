@@ -204,12 +204,17 @@ jobs:
       - name: Build Android APK (FOSS, --release)
         run: flutter build apk --release
 
+      # prepare_foss.sh deletes the store package's Android plugin (ML Kit),
+      # which F-Droid's scan would otherwise read.
+      - name: No ML Kit sources in the FOSS tree
+        run: test ! -e packages/store_services/android
+
       - name: No non-free artifacts on the release runtime classpath
         working-directory: android
         run: |
           ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath > deps.txt
           grep -q 'project :' deps.txt || { echo "no dependency tree parsed"; exit 1; }
-          if grep -nE 'com\.google\.android\.gms|com\.android\.billingclient|com\.google\.firebase|io\.sentry|com\.google\.android\.play' deps.txt; then
+          if grep -nE 'com\.google\.android\.gms|com\.android\.billingclient|com\.google\.firebase|io\.sentry|com\.google\.android\.play|com\.google\.mlkit|com\.google\.android\.datatransport' deps.txt; then
             echo "::error::Non-free artifacts on the FOSS classpath (above)."
             exit 1
           fi

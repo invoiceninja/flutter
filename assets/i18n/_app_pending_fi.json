@@ -1587,5 +1587,13 @@
   "camera_unavailable": "Tässä laitteessa ei ole käytettävissä kameraa.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Kuvat",
-  "photo_source_files": "Tiedostot"
+  "photo_source_files": "Tiedostot",
+  "read_receipt": "Lue kuitti",
+  "reading_receipt": "Luetaan kuittia…",
+  "receipt_filled": "Täytetty kuitista",
+  "receipt_not_readable": "Kuittia ei voitu lukea",
+  "from_receipt": "Kuitista",
+  "from_receipt_check": "Kuitista — tarkista",
+  "on_receipt": "Kuitissa: :name",
+  "receipt_number_note": "Kuitti nro :number"
 }

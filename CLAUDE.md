@@ -99,7 +99,8 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **CI runs in UTC; the dev machines here don't.** A fixture whose expectation depends on a calendar day or wall-clock time sits in the ~11:00–13:00 UTC band (the same local day from UTC−11 to UTC+10); `DateTime.toLocal()` is the trap and task time-log grouping (`_isoDay`, `lib/domain/tasks/task_invoice_notes.dart`) the live example. Check with `TZ=UTC flutter test <file>` before pushing.
 - **Don't run integration tests locally unless the user explicitly asks** — they take over the foreground app and interrupt the session. Never run them proactively or as incidental verification; let CI run them. On-request procedure: `docs/integration-tests.md`.
 - **`FEATURES.md` is the parity tracker — keep it current, by hand.** It compares React (`/Users/hillel/Code/react`), Flutter v1 (`/Users/hillel/Code/admin-portal`) and this rebuild; a PR that finishes a feature flips its Flutter v2 cell in the same PR (no precedent: `—` / `—` / `✅`; scaffolded: 🟡). Legend: ✅ done, 🟡 partial, ❌ not implemented, — N/A.
-- **Store SDKs (Google Sign-In, in-app purchase, Sentry) are imported only from `packages/store_services`, never from `lib/` or the root pubspec — the F-Droid build swaps that package for its FOSS twin.** → `docs/fdroid.md`
+- **Store SDKs (Google Sign-In, in-app purchase, Sentry, ML Kit) are imported only from `packages/store_services`, never from `lib/` or the root pubspec — the F-Droid build swaps that package for its FOSS twin.** → `docs/fdroid.md`
+- **ML Kit lives only in `packages/store_services/android`, which `prepare_foss.sh` removes before F-Droid's scan.** → `docs/receipt-ocr.md`
 - **The F-Droid APK is built only by `fdroid build` running `tools/foss/com.invoiceninja.admin.yml` in F-Droid's digest-pinned image, signed only by the dedicated F-Droid key, and published only after a varied rebuild matches it.** → `docs/fdroid.md`
 - **The mobile-app promo never shows Android or Google Play on native macOS, never gates anything, and never carries purchase copy.** → `docs/mobile-app-promo.md`
 - **Pub packages are fine (`pubspec.yaml` + `flutter pub get`); npm / pip / brew / gem / cargo / system installers need explicit approval first.**
@@ -305,6 +306,10 @@ Single dates and times go through `InDateField` / `InTimeField` (`lib/ui/core/wi
 - **The placeholder is a worked example, never a format pattern.** → `docs/form-fields.md`
 
 **Don't use `showDatePicker` / `showTimePicker` for form fields** — only one-tap *range* filters (`DateRangePickerButton`) still do.
+
+### Receipt OCR
+
+- **Receipt OCR fills only fields that are unedited and blank, never creates or guesses a vendor, and writes the receipt's number to private notes — never Number or transaction reference.** → `docs/receipt-ocr.md`
 
 ## Settings screens
 

@@ -36,6 +36,7 @@ class InDateField extends StatefulWidget {
     this.semanticLabel,
     this.errorText,
     this.helperText,
+    this.helper,
   });
 
   /// The currently-set date (calendar date — any time-of-day is ignored
@@ -110,6 +111,10 @@ class InDateField extends StatefulWidget {
   /// A line under the field — what a blank value will become (the billing
   /// due date's "Net 30"). An [errorText] takes its place.
   final String? helperText;
+
+  /// A widget in the helper's place, over [helperText] — a "From receipt"
+  /// marker (`ReceiptFieldMarker`), say.
+  final Widget? helper;
 
   @override
   State<InDateField> createState() => _InDateFieldState();
@@ -298,7 +303,8 @@ class _InDateFieldState extends State<InDateField> {
         labelText: widget.labelText,
         hintText: _hint(),
         errorText: widget.errorText,
-        helperText: widget.helperText,
+        helperText: widget.helper == null ? widget.helperText : null,
+        helper: widget.helper,
         contentPadding: dense
             ? const EdgeInsets.all(8)
             : EdgeInsets.symmetric(

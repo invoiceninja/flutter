@@ -141,6 +141,8 @@ bool FlutterWindow::OnCreate() {
 
   spell_checker_ =
       std::make_unique<SpellChecker>(flutter_controller_->engine()->messenger());
+  receipt_ocr_ = std::make_unique<ReceiptOcr>(
+      flutter_controller_->engine()->messenger(), GetHandle());
 
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
@@ -198,6 +200,8 @@ void FlutterWindow::OnDestroy() {
   window_channel_ = nullptr;
   theme_channel_ = nullptr;
   spell_checker_ = nullptr;
+  // Joins its worker, so nothing is posted to this window after it's gone.
+  receipt_ocr_ = nullptr;
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
@@ -218,6 +222,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  // A registered message, so an `if`: a case label needs a constant.
+  if (message == ReceiptOcr::DoneMessage()) {
+    if (receipt_ocr_) receipt_ocr_->Drain();
+    return 0;
   }
 
   switch (message) {

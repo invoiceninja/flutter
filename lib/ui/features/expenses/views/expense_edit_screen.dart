@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense.dart';
+import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/expenses/receipt_fill.dart';
+import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
@@ -13,6 +16,7 @@ import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_layout.dart';
+import 'package:admin/ui/features/expenses/widgets/edit/receipt_read_banner.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_actions.dart';
 
 /// Edit + Create form for an Expense.
@@ -54,7 +58,10 @@ class ExpenseEditScreen extends StatelessWidget {
             : (existing == null
                   ? services.takeCreateSeed<Expense>('/expenses')
                   : null);
-        final clone = seed?.draft;
+        final clone = stagedExpenseDraft(seed?.draft, isClone: seed?.isClone);
+        // Captured now: the fill context is built after an await, when this
+        // context may be gone.
+        final localization = Localization.of(ctx);
         final vm = ExpenseEditViewModel(
           repo: services.expenses,
           companyId: companyId,
@@ -74,6 +81,30 @@ class ExpenseEditScreen extends StatelessWidget {
           discardFiles: services.sharedIntakeFiles.delete,
           // While this New Expense is open, a share joins it.
           registerShareTarget: services.sharedFiles.registerAttachTarget,
+          // Reads a receipt photo or PDF into the form (docs/receipt-ocr.md).
+          // Read as nullable: a test without one gets a form without it.
+          receiptScanner: ctx.read<ReceiptScanner?>(),
+          receiptFillContext: () async {
+            final company = await services.company
+                .watchCompany(companyId)
+                .first;
+            final rates = await services.taxRates
+                .watchAll(companyId: companyId)
+                .first;
+            return ReceiptFillContext(
+              enabledTaxTiers: company?.enabledExpenseTaxRates ?? 0,
+              taxRates: [
+                for (final r in rates)
+                  (name: r.name, rate: numToDecimal(r.rate)),
+              ],
+              currencies: services.statics.currencies,
+              receiptNote: (number) =>
+                  localization?.lookup('receipt_number_note', {
+                    'number': number,
+                  }) ??
+                  'Receipt #$number',
+            );
+          },
         );
         // Embedded Project → Expenses-tab "New" stages a draft with a projectId
         // but no client; resolve the project to set clientId. Actions that bake
@@ -111,6 +142,10 @@ class ExpenseEditScreen extends StatelessWidget {
                   .then((company) {
                     if (company == null || vm.isDisposed) return;
                     vm.seedCompanyDefaults(company);
+                    // After the defaults, so a read's amount and tax decide
+                    // the tax mode, not the other way round. A file the form
+                    // opened with (Scan Receipt, a share) is read at once.
+                    unawaited(vm.autoReadReceipt(vm.documents));
                   })
                   .catchError((Object _) {}),
             );
@@ -126,6 +161,7 @@ class ExpenseEditScreen extends StatelessWidget {
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
       bodyBuilder: (ctx, vm) => ExpenseEditLayout(vm: vm),
+      bannerBuilder: (ctx, vm) => ReceiptReadBanner(vm: vm),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (e) => e.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>
@@ -155,4 +191,18 @@ class ExpenseEditScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The draft a New Expense should open on from a staged seed — or null for
+/// a blank form.
+///
+/// Files shared in or captured by Scan Receipt arrive with a blank draft
+/// staged beside them (`SharedFileIntake` → `stageCreateDraft`). That is not
+/// a prefilled form: opening it as one stopped the receipt being read and its
+/// date filled (docs/receipt-ocr.md). The documents keep the form dirty.
+@visibleForTesting
+Expense? stagedExpenseDraft(Expense? staged, {bool? isClone}) {
+  if (staged == null) return null;
+  if (isClone ?? false) return staged;
+  return staged == emptyExpense().copyWith(date: staged.date) ? null : staged;
 }

@@ -1635,5 +1635,13 @@
   "camera_unavailable": "Nu există nicio cameră disponibilă pe acest dispozitiv.",
   "photo_source_camera": "Cameră",
   "photo_source_photos": "Fotografii",
-  "photo_source_files": "Fișiere"
+  "photo_source_files": "Fișiere",
+  "read_receipt": "Citește bonul",
+  "reading_receipt": "Se citește bonul…",
+  "receipt_filled": "Completat din bon",
+  "receipt_not_readable": "Bonul nu a putut fi citit",
+  "from_receipt": "Din bon",
+  "from_receipt_check": "Din bon — verifică",
+  "on_receipt": "Pe bon: :name",
+  "receipt_number_note": "Bon nr. :number"
 }

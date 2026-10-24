@@ -1586,5 +1586,13 @@
   "camera_unavailable": "На това устройство няма налична камера.",
   "photo_source_camera": "Камера",
   "photo_source_photos": "Снимки",
-  "photo_source_files": "Файлове"
+  "photo_source_files": "Файлове",
+  "read_receipt": "Прочети касовата бележка",
+  "reading_receipt": "Касовата бележка се чете…",
+  "receipt_filled": "Попълнено от касовата бележка",
+  "receipt_not_readable": "Касовата бележка не можа да бъде прочетена",
+  "from_receipt": "От касовата бележка",
+  "from_receipt_check": "От касовата бележка — проверете",
+  "on_receipt": "В касовата бележка: :name",
+  "receipt_number_note": "Касова бележка №:number"
 }

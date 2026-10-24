@@ -1638,5 +1638,13 @@
   "camera_unavailable": "هیچ دوربینی در این دستگاه در دسترس نیست.",
   "photo_source_camera": "دوربین",
   "photo_source_photos": "عکس‌ها",
-  "photo_source_files": "فایل‌ها"
+  "photo_source_files": "فایل‌ها",
+  "read_receipt": "خواندن رسید",
+  "reading_receipt": "در حال خواندن رسید…",
+  "receipt_filled": "از رسید پر شد",
+  "receipt_not_readable": "این رسید خوانده نشد",
+  "from_receipt": "از رسید",
+  "from_receipt_check": "از رسید — بررسی کنید",
+  "on_receipt": "روی رسید: :name",
+  "receipt_number_note": "رسید شماره :number"
 }

@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
@@ -69,6 +70,17 @@ class ExpenseEditDocumentsSection extends StatelessWidget {
               key: ObjectKey(source),
               source: source,
               onRemove: locked ? null : () => vm.removeDocument(source),
+              // Receipt reading (docs/receipt-ocr.md): offered while the form
+              // can read one, this file hasn't been read, and nothing else is
+              // being read; a spinner while this one is.
+              reading: vm.readingReceipt == source,
+              onRead:
+                  !locked &&
+                      vm.canReadReceipt &&
+                      !vm.isReadingReceipt &&
+                      !vm.receiptWasRead(source)
+                  ? () => vm.readReceipt(source)
+                  : null,
             ),
           ],
           if (documents.isNotEmpty) ...[
@@ -103,12 +115,25 @@ class ExpenseEditDocumentsSection extends StatelessWidget {
 }
 
 class _PendingDocumentRow extends StatefulWidget {
-  const _PendingDocumentRow({super.key, required this.source, this.onRemove});
+  const _PendingDocumentRow({
+    super.key,
+    required this.source,
+    this.onRemove,
+    this.onRead,
+    this.reading = false,
+  });
 
   final UploadSource source;
 
   /// Null while a save is in flight (the ✕ shows disabled).
   final VoidCallback? onRemove;
+
+  /// Read this file as a receipt; null when it can't be read now. Shown
+  /// only for a file that is a receipt image or PDF by its first bytes.
+  final VoidCallback? onRead;
+
+  /// This file is being read as a receipt.
+  final bool reading;
 
   @override
   State<_PendingDocumentRow> createState() => _PendingDocumentRowState();
@@ -133,6 +158,16 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
 
   // Once per file, not per build: the form rebuilds on every keystroke.
   late final Future<int> _length = widget.source.length();
+
+  /// Whether this file is something a receipt can be read from — by its
+  /// first bytes ([ReceiptScanner.isReadable]).
+  late final Future<bool> _readable = ReceiptScanner.isReadable(widget.source);
+
+  /// Row widths below which the size gives way to the Read button, and the
+  /// button to its icon — measured on the row, not the window, which a
+  /// sidebar or a two-column form shares.
+  static const double _hideSizeBelow = 420;
+  static const double _iconOnlyBelow = 340;
 
   /// A thumbnail of a photo — what lets someone who just took one see it was
   /// the right shot — or the file-type icon for anything else, and whenever
@@ -187,39 +222,85 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
         border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r2),
       ),
-      child: Row(
-        children: [
-          _leading(tokens, ext),
-          SizedBox(width: InSpacing.md(context)),
-          Expanded(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: tokens.ink),
-            ),
+      child: LayoutBuilder(
+        builder: (context, constraints) =>
+            _row(context, tokens, name, ext, constraints.maxWidth),
+      ),
+    );
+  }
+
+  Widget _row(
+    BuildContext context,
+    InTheme tokens,
+    String name,
+    String ext,
+    double width,
+  ) {
+    final offersRead = widget.onRead != null || widget.reading;
+    return Row(
+      children: [
+        _leading(tokens, ext),
+        SizedBox(width: InSpacing.md(context)),
+        Expanded(
+          child: Text(
+            name,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: tokens.ink),
           ),
-          FutureBuilder<int>(
-            future: _length,
+        ),
+        FutureBuilder<int>(
+          future: _length,
+          builder: (context, snapshot) {
+            final size = snapshot.data ?? 0;
+            if (size <= 0) return const SizedBox.shrink();
+            // A narrow row with the Read button can't spare it.
+            if (width < _hideSizeBelow && offersRead) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsetsDirectional.only(start: InSpacing.sm),
+              child: Text(
+                formatSize(size),
+                style: TextStyle(color: tokens.ink3),
+              ),
+            );
+          },
+        ),
+        if (widget.reading)
+          const Padding(
+            padding: EdgeInsetsDirectional.symmetric(horizontal: 12),
+            child: SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (widget.onRead != null)
+          FutureBuilder<bool>(
+            future: _readable,
             builder: (context, snapshot) {
-              final size = snapshot.data ?? 0;
-              if (size <= 0) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsetsDirectional.only(start: InSpacing.sm),
-                child: Text(
-                  formatSize(size),
-                  style: TextStyle(color: tokens.ink3),
-                ),
+              if (snapshot.data != true) return const SizedBox.shrink();
+              const icon = Icon(Icons.document_scanner_outlined, size: 18);
+              if (width < _iconOnlyBelow) {
+                return IconButton(
+                  tooltip: context.tr('read_receipt'),
+                  icon: icon,
+                  onPressed: widget.onRead,
+                );
+              }
+              return TextButton.icon(
+                onPressed: widget.onRead,
+                icon: icon,
+                label: Text(context.tr('read_receipt')),
               );
             },
           ),
-          IconButton(
-            tooltip: context.tr('remove'),
-            icon: const Icon(Icons.close),
-            // Null while a save is in flight: disabled, not hidden.
-            onPressed: widget.onRemove,
-          ),
-        ],
-      ),
+        IconButton(
+          tooltip: context.tr('remove'),
+          icon: const Icon(Icons.close),
+          // Null while a save is in flight: disabled, not hidden.
+          onPressed: widget.onRemove,
+        ),
+      ],
     );
   }
 }

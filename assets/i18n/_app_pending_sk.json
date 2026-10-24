@@ -1586,5 +1586,13 @@
   "camera_unavailable": "V tomto zariadení nie je k dispozícii žiadny fotoaparát.",
   "photo_source_camera": "Fotoaparát",
   "photo_source_photos": "Fotky",
-  "photo_source_files": "Súbory"
+  "photo_source_files": "Súbory",
+  "read_receipt": "Prečítať bloček",
+  "reading_receipt": "Čítanie bločku…",
+  "receipt_filled": "Vyplnené z bločku",
+  "receipt_not_readable": "Bloček sa nepodarilo prečítať",
+  "from_receipt": "Z bločku",
+  "from_receipt_check": "Z bločku — skontrolujte",
+  "on_receipt": "Na bločku: :name",
+  "receipt_number_note": "Bloček č. :number"
 }

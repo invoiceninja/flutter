@@ -1585,5 +1585,13 @@
   "camera_unavailable": "មិនមានកាមេរ៉ានៅលើឧបករណ៍នេះទេ។",
   "photo_source_camera": "កាមេរ៉ា",
   "photo_source_photos": "រូបថត",
-  "photo_source_files": "ឯកសារ"
+  "photo_source_files": "ឯកសារ",
+  "read_receipt": "អានបង្កាន់ដៃ",
+  "reading_receipt": "កំពុងអានបង្កាន់ដៃ…",
+  "receipt_filled": "បានបំពេញពីបង្កាន់ដៃ",
+  "receipt_not_readable": "មិនអាចអានបង្កាន់ដៃនេះបានទេ",
+  "from_receipt": "ពីបង្កាន់ដៃ",
+  "from_receipt_check": "ពីបង្កាន់ដៃ — សូមពិនិត្យ",
+  "on_receipt": "នៅលើបង្កាន់ដៃ: :name",
+  "receipt_number_note": "បង្កាន់ដៃលេខ :number"
 }

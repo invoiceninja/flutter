@@ -1586,5 +1586,13 @@
   "camera_unavailable": "Selles seadmes pole kaamerat saadaval.",
   "photo_source_camera": "Kaamera",
   "photo_source_photos": "Fotod",
-  "photo_source_files": "Failid"
+  "photo_source_files": "Failid",
+  "read_receipt": "Loe kviitung",
+  "reading_receipt": "Kviitungi lugemine…",
+  "receipt_filled": "Täidetud kviitungilt",
+  "receipt_not_readable": "Seda kviitungit ei õnnestunud lugeda",
+  "from_receipt": "Kviitungilt",
+  "from_receipt_check": "Kviitungilt — kontrolli",
+  "on_receipt": "Kviitungil: :name",
+  "receipt_number_note": "Kviitung nr :number"
 }

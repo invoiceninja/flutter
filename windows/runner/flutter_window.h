@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "receipt_ocr.h"
 #include "spell_checker.h"
 #include "win32_window.h"
 
@@ -46,6 +47,10 @@ class FlutterWindow : public Win32Window {
 
   // Answers the line-item fields' spell checks (invoice_ninja/spell_check).
   std::unique_ptr<SpellChecker> spell_checker_;
+
+  // Reads receipts on a worker thread (invoice_ninja/receipt_ocr); its
+  // replies come back through ReceiptOcr::DoneMessage().
+  std::unique_ptr<ReceiptOcr> receipt_ocr_;
 
   // The payload behind both the `windowChrome` pull and the
   // `windowChromeChanged` push, so the two can never disagree.

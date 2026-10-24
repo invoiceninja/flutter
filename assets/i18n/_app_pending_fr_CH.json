@@ -1587,5 +1587,13 @@
   "camera_unavailable": "Aucun appareil photo n'est disponible sur cet appareil.",
   "photo_source_camera": "Appareil photo",
   "photo_source_photos": "Photos",
-  "photo_source_files": "Fichiers"
+  "photo_source_files": "Fichiers",
+  "read_receipt": "Lire le reçu",
+  "reading_receipt": "Lecture du reçu…",
+  "receipt_filled": "Rempli d'après le reçu",
+  "receipt_not_readable": "Impossible de lire ce reçu",
+  "from_receipt": "D'après le reçu",
+  "from_receipt_check": "D'après le reçu — à vérifier",
+  "on_receipt": "Sur le reçu : :name",
+  "receipt_number_note": "Reçu n° :number"
 }

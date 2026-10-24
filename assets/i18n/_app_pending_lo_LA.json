@@ -1638,5 +1638,13 @@
   "camera_unavailable": "ບໍ່ມີກ້ອງຢູ່ໃນອຸປະກອນນີ້.",
   "photo_source_camera": "ກ້ອງ",
   "photo_source_photos": "ຮູບພາບ",
-  "photo_source_files": "ໄຟລ໌"
+  "photo_source_files": "ໄຟລ໌",
+  "read_receipt": "ອ່ານໃບຮັບເງິນ",
+  "reading_receipt": "ກຳລັງອ່ານໃບຮັບເງິນ…",
+  "receipt_filled": "ຕື່ມຈາກໃບຮັບເງິນແລ້ວ",
+  "receipt_not_readable": "ບໍ່ສາມາດອ່ານໃບຮັບເງິນນີ້ໄດ້",
+  "from_receipt": "ຈາກໃບຮັບເງິນ",
+  "from_receipt_check": "ຈາກໃບຮັບເງິນ — ກະລຸນາກວດສອບ",
+  "on_receipt": "ໃນໃບຮັບເງິນ: :name",
+  "receipt_number_note": "ໃບຮັບເງິນເລກທີ :number"
 }

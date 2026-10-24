@@ -1585,5 +1585,13 @@
   "camera_unavailable": "Na ovom uređaju nije dostupna kamera.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotografije",
-  "photo_source_files": "Datoteke"
+  "photo_source_files": "Datoteke",
+  "read_receipt": "Pročitaj račun",
+  "reading_receipt": "Čitanje računa…",
+  "receipt_filled": "Popunjeno sa fiskalnog računa",
+  "receipt_not_readable": "Fiskalni račun nije moguće pročitati",
+  "from_receipt": "Sa fiskalnog računa",
+  "from_receipt_check": "Sa fiskalnog računa — proverite",
+  "on_receipt": "Na fiskalnom računu: :name",
+  "receipt_number_note": "Fiskalni račun br. :number"
 }

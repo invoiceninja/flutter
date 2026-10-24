@@ -1638,5 +1638,13 @@
   "camera_unavailable": "此设备上没有可用的相机。",
   "photo_source_camera": "相机",
   "photo_source_photos": "照片",
-  "photo_source_files": "文件"
+  "photo_source_files": "文件",
+  "read_receipt": "读取收据",
+  "reading_receipt": "正在读取收据…",
+  "receipt_filled": "已从收据填写",
+  "receipt_not_readable": "无法读取此收据",
+  "from_receipt": "来自收据",
+  "from_receipt_check": "来自收据 — 请核对",
+  "on_receipt": "收据上：:name",
+  "receipt_number_note": "收据号 :number"
 }

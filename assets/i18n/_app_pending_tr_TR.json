@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Bu cihazda kullanılabilir kamera yok.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotoğraflar",
-  "photo_source_files": "Dosyalar"
+  "photo_source_files": "Dosyalar",
+  "read_receipt": "Fişi oku",
+  "reading_receipt": "Fiş okunuyor…",
+  "receipt_filled": "Fişten dolduruldu",
+  "receipt_not_readable": "Bu fiş okunamadı",
+  "from_receipt": "Fişten",
+  "from_receipt_check": "Fişten — kontrol edin",
+  "on_receipt": "Fişte: :name",
+  "receipt_number_note": "Fiş no. :number"
 }

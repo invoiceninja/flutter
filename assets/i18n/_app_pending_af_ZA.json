@@ -1586,5 +1586,13 @@
   "camera_unavailable": "Geen kamera is op hierdie toestel beskikbaar nie.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Foto's",
-  "photo_source_files": "Lêers"
+  "photo_source_files": "Lêers",
+  "read_receipt": "Lees kwitansie",
+  "reading_receipt": "Lees kwitansie…",
+  "receipt_filled": "Ingevul uit kwitansie",
+  "receipt_not_readable": "Kon nie hierdie kwitansie lees nie",
+  "from_receipt": "Uit kwitansie",
+  "from_receipt_check": "Uit kwitansie — kontroleer",
+  "on_receipt": "Op kwitansie: :name",
+  "receipt_number_note": "Kwitansie #:number"
 }

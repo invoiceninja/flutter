@@ -76,6 +76,7 @@ Measured by scanning every Android plugin's `build.gradle` (2026-09):
 | `in_app_purchase` | `com.android.billingclient:billing` | Play Billing |
 | `in_app_purchase_storekit` | none (iOS only) | rides with `in_app_purchase` |
 | `sentry_flutter` | sentry-android (MIT) | Free, but F-Droid tags it with the *Tracking* anti-feature, and it is inert anyway without the `IN_SENTRY_DSN` define |
+| `store_services`' own Android plugin | `com.google.mlkit:text-recognition` (+ `datatransport` telemetry) | Google's proprietary OCR — receipt reading (`docs/receipt-ocr.md`) |
 
 Everything else is androidx, Kotlin, Tink (`flutter_secure_storage`) or Apache Tika
 (`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 13
@@ -89,6 +90,19 @@ packages no longer depended on. `tools/foss/pubspec.lock` is the store lock with
 2. Expose it through a plain API there.
 3. Add the same declarations, as stubs, to `packages/store_services_foss`.
 4. Call it from `lib/` through `package:store_services`.
+
+**A native-only (Gradle) SDK** — ML Kit — goes in `packages/store_services/android`, the package's
+Android plugin, and answers a method channel the app owns (`invoice_ninja/receipt_ocr`); the twin
+is no plugin at all, so the FOSS build gets a `MissingPluginException` and hides the feature. The
+pub-level checks can't see a Gradle artifact, so three others do:
+
+- **`prepare_foss.sh` deletes `packages/store_services/android`** once the twin is in place (step
+  4) — F-Droid's scanner reads every `build.gradle` in the tree, built or not. The `--restore`
+  snapshot carries the folder back, uncommitted edits included.
+- **CI's classpath grep** names `com.google.mlkit` and `com.google.android.datatransport`, and a
+  step fails if the folder survived prepare.
+- **`store_sdk_boundary_test`** fails a `com.google.mlkit` line in any other `build.gradle*`, an
+  `android/` folder in the twin, or a prepare script that stops deleting (or snapshotting) it.
 
 The lint test compares the two packages' public declarations. CI's `build-android-foss` job
 compiles the app against the twin.

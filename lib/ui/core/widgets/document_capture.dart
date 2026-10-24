@@ -14,6 +14,7 @@ import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/utils/file_type.dart';
 
 /// The picker behind [captureDocumentPhoto] / [pickGalleryPhotos]. A widget
 /// test swaps in a fake, so no platform channel is needed.
@@ -165,7 +166,7 @@ Future<List<UploadSource>> _pickAndKeep(
       // The content decides the extension. Android keeps the original name on
       // the JPEG it re-encoded (`IMG_1.heic`), and returns the original
       // untouched when it can't decode it — a HEIC the server would refuse.
-      final ext = _imageExtension(await _head(file));
+      final ext = imageExtensionOf(await _head(file));
       if (ext == null) {
         refused = true;
         continue;
@@ -208,27 +209,6 @@ Future<Uint8List> _head(XFile file) async {
       return Uint8List(0);
     }
   }
-}
-
-/// `jpg` / `png` / `gif` / `webp` from a file's first bytes, or null for
-/// anything else — the four image types the server's upload rule takes.
-@visibleForTesting
-String? imageExtensionOf(Uint8List head) => _imageExtension(head);
-
-String? _imageExtension(Uint8List b) {
-  bool at(int offset, List<int> bytes) {
-    if (b.length < offset + bytes.length) return false;
-    for (var i = 0; i < bytes.length; i++) {
-      if (b[offset + i] != bytes[i]) return false;
-    }
-    return true;
-  }
-
-  if (at(0, const [0xFF, 0xD8, 0xFF])) return 'jpg';
-  if (at(0, const [0x89, 0x50, 0x4E, 0x47])) return 'png';
-  if (at(0, 'GIF8'.codeUnits)) return 'gif';
-  if (at(0, 'RIFF'.codeUnits) && at(8, 'WEBP'.codeUnits)) return 'webp';
-  return null;
 }
 
 /// `IMG_20261024_085700.jpg` — the camera's own convention, and the same in

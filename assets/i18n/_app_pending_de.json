@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Auf diesem Gerät ist keine Kamera verfügbar.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotos",
-  "photo_source_files": "Dateien"
+  "photo_source_files": "Dateien",
+  "read_receipt": "Beleg auslesen",
+  "reading_receipt": "Beleg wird ausgelesen…",
+  "receipt_filled": "Aus dem Beleg ausgefüllt",
+  "receipt_not_readable": "Dieser Beleg konnte nicht gelesen werden",
+  "from_receipt": "Aus dem Beleg",
+  "from_receipt_check": "Aus dem Beleg — prüfen",
+  "on_receipt": "Auf dem Beleg: :name",
+  "receipt_number_note": "Beleg-Nr. :number"
 }

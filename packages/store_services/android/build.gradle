@@ -1,0 +1,37 @@
+// The store build's Android-only half of store_services: on-device receipt
+// OCR with Google ML Kit (docs/receipt-ocr.md). ML Kit is non-free, so this
+// folder must never reach the F-Droid build — tools/prepare_foss.sh deletes
+// it before F-Droid's scan, and the FOSS twin has no android/ at all.
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
+group = 'com.invoiceninja.store_services'
+version = '1.0'
+
+android {
+    namespace = 'com.invoiceninja.store_services'
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    // Bundled model: works offline on first use, no Play Services download.
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    implementation 'androidx.exifinterface:exifinterface:1.4.1'
+}

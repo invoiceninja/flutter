@@ -7,11 +7,15 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/expenses/receipt_fill.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/entity_name_dialog.dart';
+import 'package:admin/ui/core/utils/session_permissions.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/entity_picker_field.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
@@ -19,6 +23,8 @@ import 'package:admin/ui/features/clients/widgets/client_picker_field_with_creat
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expense_categories/widgets/expense_category_picker_field.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
+import 'package:admin/ui/features/expenses/widgets/edit/receipt_read_banner.dart';
+import 'package:admin/ui/features/vendors/widgets/vendor_inline_create.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_picker_field.dart';
 
 /// Identity & links section — date, number, vendor, client, project (narrowed
@@ -99,14 +105,19 @@ class _DateFieldState extends State<_DateField> with FormatterHostMixin {
     final vm = widget.vm;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
-      child: InDateField(
-        labelText: context.tr('date'),
-        value: vm.draft.date?.toDateTime(),
-        formatter: formatter,
-        onChanged: (picked) {
-          if (picked == null) return;
-          vm.setDate(Date(picked.year, picked.month, picked.day));
-        },
+      child: ReceiptFieldFocus(
+        vm: vm,
+        fields: const [ReceiptFillField.date],
+        child: InDateField(
+          labelText: context.tr('date'),
+          value: vm.draft.date?.toDateTime(),
+          formatter: formatter,
+          helper: ReceiptFieldMarker.of(vm, ReceiptFillField.date),
+          onChanged: (picked) {
+            if (picked == null) return;
+            vm.setDate(Date(picked.year, picked.month, picked.day));
+          },
+        ),
       ),
     );
   }
@@ -118,9 +129,10 @@ class _VendorPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return VendorPickerField(
+    final picker = VendorPickerField(
       companyId: vm.companyId,
       selectedId: vm.draft.vendorId,
+      helper: ReceiptFieldMarker.of(vm, ReceiptFillField.vendor),
       onChanged: (v) {
         // Don't auto-clear the client when the vendor changes — per
         // the UX spec a user routinely logs the same expense against
@@ -135,6 +147,75 @@ class _VendorPicker extends StatelessWidget {
         }
       },
       errorText: vm.fieldErrorFor('vendor_id'),
+    );
+    final onReceipt = vm.unmatchedReceiptVendor;
+    // Always the same Column: swapping the picker for a Column when the line
+    // appears would rebuild it, and lose a vendor query being typed.
+    return ReceiptFieldFocus(
+      vm: vm,
+      fields: const [ReceiptFillField.vendor],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          picker,
+          if (onReceipt != null)
+            _UnmatchedReceiptVendor(vm: vm, name: onReceipt),
+        ],
+      ),
+    );
+  }
+}
+
+/// Under the vendor field when a receipt names a vendor the company doesn't
+/// have: what the receipt says, and a create that lets the user fix the
+/// name first (a till prints `Wholefds Mkt`) — never one made on its own.
+class _UnmatchedReceiptVendor extends StatelessWidget {
+  const _UnmatchedReceiptVendor({required this.vm, required this.name});
+
+  final ExpenseEditViewModel vm;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: InSpacing.xs),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        spacing: InSpacing.sm,
+        children: [
+          Text(
+            context.tr('on_receipt', {'name': name}),
+            style: TextStyle(color: tokens.ink3, fontSize: 12),
+          ),
+          // The picker's own rule: only a user who may create vendors.
+          if (sessionCan(context, 'create_vendor'))
+            FieldActionButton(
+              icon: Icons.add,
+              label: context.tr('create_vendor'),
+              onPressed: () async {
+                final edited = await showEntityNameDialog(
+                  context,
+                  titleKey: 'new_vendor',
+                  initialName: name,
+                );
+                if (edited == null || !context.mounted) return;
+                final vendor = await createVendorInline(
+                  context,
+                  companyId: vm.companyId,
+                  query: edited,
+                );
+                if (vendor == null || vm.isDisposed) return;
+                vm.setVendorId(vendor.id);
+                if (vm.draft.currencyId.isEmpty) {
+                  vm.setCurrencyId(vendor.currencyId);
+                }
+              },
+            ),
+        ],
+      ),
     );
   }
 }
@@ -269,14 +350,19 @@ class _CurrencyPicker extends StatelessWidget {
         break;
       }
     }
-    return SearchableDropdownField<Currency>(
-      label: context.tr('currency'),
-      items: currencies,
-      initialValue: selected,
-      displayString: (c) => '${c.code} · ${c.name}',
-      idOf: (c) => c.id,
-      onChanged: (c) => vm.setCurrencyId(c?.id ?? ''),
-      errorText: vm.fieldErrorFor('currency_id'),
+    return ReceiptFieldFocus(
+      vm: vm,
+      fields: const [ReceiptFillField.currency],
+      child: SearchableDropdownField<Currency>(
+        label: context.tr('currency'),
+        items: currencies,
+        initialValue: selected,
+        displayString: (c) => '${c.code} · ${c.name}',
+        idOf: (c) => c.id,
+        onChanged: (c) => vm.setCurrencyId(c?.id ?? ''),
+        errorText: vm.fieldErrorFor('currency_id'),
+        helper: ReceiptFieldMarker.of(vm, ReceiptFillField.currency),
+      ),
     );
   }
 }

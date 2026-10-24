@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Nuk ka asnjë kamerë të disponueshme në këtë pajisje.",
   "photo_source_camera": "Kamera",
   "photo_source_photos": "Fotot",
-  "photo_source_files": "Skedarët"
+  "photo_source_files": "Skedarët",
+  "read_receipt": "Lexo kuponin",
+  "reading_receipt": "Duke lexuar kuponin…",
+  "receipt_filled": "Plotësuar nga kuponi",
+  "receipt_not_readable": "Ky kupon nuk mund të lexohej",
+  "from_receipt": "Nga kuponi",
+  "from_receipt_check": "Nga kuponi — kontrollo",
+  "on_receipt": "Në kupon: :name",
+  "receipt_number_note": "Kupon nr. :number"
 }

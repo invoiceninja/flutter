@@ -44,6 +44,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/data/services/tls/certificate_trust_seam.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
+import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
@@ -843,6 +844,9 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         ChangeNotifierProvider<SpellCheckController>.value(
           value: widget.services.spellCheck,
         ),
+        // New Expense reads receipts with it, as `ReceiptScanner?`: a screen
+        // and its tests work without one (docs/receipt-ocr.md).
+        Provider<ReceiptScanner>.value(value: widget.services.receiptScanner),
       ],
       child: ListenableBuilder(
         listenable: Listenable.merge([

@@ -16,6 +16,7 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
+import 'package:admin/utils/file_type.dart';
 
 import '../../../_localization_helper.dart';
 

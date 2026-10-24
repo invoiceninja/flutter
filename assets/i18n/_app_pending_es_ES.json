@@ -1586,5 +1586,13 @@
   "camera_unavailable": "No hay ninguna cámara disponible en este dispositivo.",
   "photo_source_camera": "Cámara",
   "photo_source_photos": "Fotos",
-  "photo_source_files": "Archivos"
+  "photo_source_files": "Archivos",
+  "read_receipt": "Leer recibo",
+  "reading_receipt": "Leyendo el recibo…",
+  "receipt_filled": "Rellenado desde el recibo",
+  "receipt_not_readable": "No se pudo leer este recibo",
+  "from_receipt": "Del recibo",
+  "from_receipt_check": "Del recibo — revíselo",
+  "on_receipt": "En el recibo: :name",
+  "receipt_number_note": "Recibo n.º :number"
 }

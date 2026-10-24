@@ -1585,5 +1585,13 @@
   "camera_unavailable": "אין מצלמה זמינה במכשיר זה.",
   "photo_source_camera": "מצלמה",
   "photo_source_photos": "תמונות",
-  "photo_source_files": "קבצים"
+  "photo_source_files": "קבצים",
+  "read_receipt": "קריאת קבלה",
+  "reading_receipt": "קריאת הקבלה…",
+  "receipt_filled": "מולא מהקבלה",
+  "receipt_not_readable": "לא ניתן היה לקרוא את הקבלה",
+  "from_receipt": "מהקבלה",
+  "from_receipt_check": "מהקבלה — יש לבדוק",
+  "on_receipt": "בקבלה: :name",
+  "receipt_number_note": "קבלה מס׳ :number"
 }

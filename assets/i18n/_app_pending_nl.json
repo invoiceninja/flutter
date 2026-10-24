@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Er is geen camera beschikbaar op dit apparaat.",
   "photo_source_camera": "Camera",
   "photo_source_photos": "Foto's",
-  "photo_source_files": "Bestanden"
+  "photo_source_files": "Bestanden",
+  "read_receipt": "Bon uitlezen",
+  "reading_receipt": "Bon wordt uitgelezen…",
+  "receipt_filled": "Ingevuld op basis van de bon",
+  "receipt_not_readable": "Deze bon kon niet worden gelezen",
+  "from_receipt": "Van de bon",
+  "from_receipt_check": "Van de bon — controleer dit",
+  "on_receipt": "Op de bon: :name",
+  "receipt_number_note": "Bon nr. :number"
 }

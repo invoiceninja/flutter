@@ -4,6 +4,7 @@
 // docs/performance-tracking.md. Run through `dart tools/perf/main.dart run`.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,6 +12,7 @@ import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/domain/expenses/receipt_parser.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/task_items_source.dart';
@@ -132,6 +134,36 @@ void main() {
     },
     batch: 2,
     run: () => LoginResponseApi.fromJson(delta).data.length,
+  );
+
+  // A receipt read waits on this after the engine: the slowest real-world
+  // shape — a German supermarket bon, rows rebuilt from Vision's fragments.
+  late List<OcrFragment> receipt;
+  const receiptContext = ReceiptParseContext(
+    today: Date(2026, 10, 25),
+    dateOrder: DateOrder.dmy,
+  );
+  benchmark(
+    'expenses.receipt_parse',
+    title: 'Receipt OCR — rows rebuilt and parsed from one engine read',
+    setUp: () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/receipts/vision/de_supermarket.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      receipt = [
+        for (final f in fixture['fragments'] as List) ?OcrFragment.fromMap(f),
+      ];
+      expect(
+        parseReceiptText(receipt, receiptContext).total?.value.toString(),
+        '23.47',
+      );
+    },
+    batch: 20,
+    run: () => parseReceiptText(receipt, receiptContext).taxes.length,
   );
 
   late Map<String, dynamic> page;

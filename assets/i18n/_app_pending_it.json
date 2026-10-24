@@ -1638,5 +1638,13 @@
   "camera_unavailable": "Nessuna fotocamera disponibile su questo dispositivo.",
   "photo_source_camera": "Fotocamera",
   "photo_source_photos": "Foto",
-  "photo_source_files": "File"
+  "photo_source_files": "File",
+  "read_receipt": "Leggi ricevuta",
+  "reading_receipt": "Lettura della ricevuta…",
+  "receipt_filled": "Compilato dalla ricevuta",
+  "receipt_not_readable": "Impossibile leggere questa ricevuta",
+  "from_receipt": "Dalla ricevuta",
+  "from_receipt_check": "Dalla ricevuta — controlla",
+  "on_receipt": "Sulla ricevuta: :name",
+  "receipt_number_note": "Ricevuta n. :number"
 }

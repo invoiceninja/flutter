@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count 位客戶",
   "client_count_plural": ":count 位客戶",
   "row_count_singular": ":count 列",
-  "row_count_plural": ":count 列"
+  "row_count_plural": ":count 列",
+  "scan_receipt": "掃描收據",
+  "camera_access_denied": "相機或照片存取權已關閉。請在設定中允許存取以新增圖片。",
+  "camera_unavailable": "此裝置上沒有可用的相機。",
+  "photo_source_camera": "相機",
+  "photo_source_photos": "照片",
+  "photo_source_files": "檔案"
 }

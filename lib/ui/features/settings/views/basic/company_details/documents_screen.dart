@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +10,7 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/document_open_actions.dart';
 import 'package:admin/ui/core/widgets/document_type_icon.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/company_details_view_model.dart';
@@ -74,6 +77,7 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
             FileDropZone(
               allowedExtensions: kDocumentAllowedExtensions,
               allowMultiple: true,
+              allowPhotos: true,
               onFiles: (sources) =>
                   _validateAndUpload(context, services, vm, sources),
             ),
@@ -104,8 +108,15 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
     List<UploadSource> sources,
   ) async {
     if (sources.isEmpty) return;
+    // A photo taken here sits in the app's own folder until its upload is
+    // sent; one that never reaches the outbox is handed straight back.
+    final intake = intakeOf(context);
     final batch = await validateDocumentSources(sources);
-    if (!context.mounted) return;
+    unawaited(releaseCapturedPhotos(intake, batch.rejected));
+    if (!context.mounted) {
+      unawaited(releaseCapturedPhotos(intake, batch.accepted));
+      return;
+    }
     for (final notice in batch.rejectNotices) {
       Notify.warning(context, context.tr(notice.key, notice.params));
     }
@@ -121,6 +132,8 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
       if (!context.mounted) return;
       Notify.success(context, context.tr('uploaded_document'));
     } catch (e) {
+      // Whatever was queued is protected by its row; the rest goes back.
+      unawaited(releaseCapturedPhotos(intake, good));
       if (!context.mounted) return;
       Notify.error(context, context.tr('error_uploading_document'), error: e);
     }

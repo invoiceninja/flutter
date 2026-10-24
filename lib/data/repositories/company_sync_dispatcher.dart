@@ -30,6 +30,8 @@ class CompanySyncDispatcher implements SyncDispatcher {
     required this.repo,
     required this.documentsApi,
     this.documentMirror,
+    this.onDocumentUploaded,
+    this.resolveDocumentSource,
   });
 
   final CompaniesApi api;
@@ -43,6 +45,16 @@ class CompanySyncDispatcher implements SyncDispatcher {
   /// The company-wide Documents list, told about a company file deleted from
   /// Company Details once the server confirms it. Null in tests.
   final DocumentMirror? documentMirror;
+
+  /// After a company document upload succeeds — deletes the app-owned copy of
+  /// a photo taken or picked on a phone (`SharedIntakeFiles.deleteUploaded`).
+  /// Null in tests.
+  final Future<void> Function(UploadSource source)? onDocumentUploaded;
+
+  /// Before it is sent — re-finds that copy when an iOS update moved the data
+  /// container under the queued path (`SharedIntakeFiles.resolve`).
+  final Future<UploadSource> Function(UploadSource source)?
+  resolveDocumentSource;
 
   /// Decode the JSON payload defensively. A corrupt row would otherwise
   /// throw to the catch-all in `SyncRepository._attempt` and burn 5 retries
@@ -158,7 +170,9 @@ class CompanySyncDispatcher implements SyncDispatcher {
       return;
     }
     if (action == 'upload_document') {
-      final source = UploadSource.fromPayload(payload);
+      var source = UploadSource.fromPayload(payload);
+      final resolve = resolveDocumentSource;
+      if (resolve != null) source = await resolve(source);
       if (!await source.exists()) {
         _log.warning(
           'Document upload failed: source ${source.fileName} '
@@ -175,6 +189,13 @@ class CompanySyncDispatcher implements SyncDispatcher {
         companyId: row.companyId,
         serverResponse: response.data,
       );
+      // Only once the row is done: a file deleted before a failed apply would
+      // leave the row naming nothing. Best-effort, like
+      // `documentMutationHandlers` — a file that won't delete must not fail an
+      // upload that succeeded.
+      try {
+        await onDocumentUploaded?.call(source);
+      } catch (_) {}
       return;
     }
     if (action == 'remove_e_invoice_certificate') {

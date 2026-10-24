@@ -1632,5 +1632,11 @@
   "client_count_singular": "ລູກຄ້າ :count ຄົນ",
   "client_count_plural": "ລູກຄ້າ :count ຄົນ",
   "row_count_singular": ":count ແຖວ",
-  "row_count_plural": ":count ແຖວ"
+  "row_count_plural": ":count ແຖວ",
+  "scan_receipt": "ສະແກນໃບຮັບເງິນ",
+  "camera_access_denied": "ການເຂົ້າເຖິງກ້ອງ ຫຼື ຮູບພາບຖືກປິດຢູ່. ອະນຸຍາດໃນການຕັ້ງຄ່າເພື່ອເພີ່ມຮູບພາບ.",
+  "camera_unavailable": "ບໍ່ມີກ້ອງຢູ່ໃນອຸປະກອນນີ້.",
+  "photo_source_camera": "ກ້ອງ",
+  "photo_source_photos": "ຮູບພາບ",
+  "photo_source_files": "ໄຟລ໌"
 }

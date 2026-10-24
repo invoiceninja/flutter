@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count klijent",
   "client_count_plural": ":count klijenata",
   "row_count_singular": ":count redak",
-  "row_count_plural": ":count redaka"
+  "row_count_plural": ":count redaka",
+  "scan_receipt": "Skeniraj fiskalni račun",
+  "camera_access_denied": "Pristup kameri ili fotografijama je isključen. Dopustite ga u Postavkama da biste dodali sliku.",
+  "camera_unavailable": "Na ovom uređaju nije dostupna kamera.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotografije",
+  "photo_source_files": "Datoteke"
 }

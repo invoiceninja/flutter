@@ -58,7 +58,13 @@ and older versions, and the FOSS manifest had lost `${applicationName}`, `taskAf
 to `pubspec.yaml`.
 
 This app needs **no manifest or Gradle variant**. The manifest carries no Google meta-data, and
-there is no google-services plugin.
+there is no google-services plugin. One plugin tries to add some: `image_picker_android` (the
+phone's Camera / Photos tiles) declares a disabled
+`com.google.android.gms.metadata.ModuleDependencies` service that asks Play to install the
+backported photo picker. Our manifest strips it with `tools:node="remove"` in every build, so the
+merged manifest stays clean and both builds share it. The app opts in to the photo picker
+(`useAndroidPhotoPicker`); the strip only costs an Android 11 or 12 device whose system updates lack
+it, which gets the file chooser for the Photos tile instead of the grid.
 
 ### What is non-free, and why
 

@@ -1599,5 +1599,11 @@
   "client_count_singular": ":count klientas",
   "client_count_plural": "klientų: :count",
   "row_count_singular": ":count eilutė",
-  "row_count_plural": "eilučių: :count"
+  "row_count_plural": "eilučių: :count",
+  "scan_receipt": "Nuskenuoti kvitą",
+  "camera_access_denied": "Prieiga prie kameros ar nuotraukų išjungta. Leiskite ją nustatymuose, kad pridėtumėte vaizdą.",
+  "camera_unavailable": "Šiame įrenginyje nėra pasiekiamos kameros.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Nuotraukos",
+  "photo_source_files": "Failai"
 }

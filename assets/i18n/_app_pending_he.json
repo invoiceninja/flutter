@@ -1579,5 +1579,11 @@
   "client_count_singular": ":count לקוח",
   "client_count_plural": ":count לקוחות",
   "row_count_singular": ":count שורה",
-  "row_count_plural": ":count שורות"
+  "row_count_plural": ":count שורות",
+  "scan_receipt": "סריקת קבלה",
+  "camera_access_denied": "הגישה למצלמה או לתמונות כבויה. יש לאפשר אותה בהגדרות כדי להוסיף תמונה.",
+  "camera_unavailable": "אין מצלמה זמינה במכשיר זה.",
+  "photo_source_camera": "מצלמה",
+  "photo_source_photos": "תמונות",
+  "photo_source_files": "קבצים"
 }

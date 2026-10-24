@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count cliente",
   "client_count_plural": ":count clienti",
   "row_count_singular": ":count riga",
-  "row_count_plural": ":count righe"
+  "row_count_plural": ":count righe",
+  "scan_receipt": "Scansiona Ricevuta",
+  "camera_access_denied": "L'accesso alla fotocamera o alle foto è disattivato. Consentilo nelle Impostazioni per aggiungere un'immagine.",
+  "camera_unavailable": "Nessuna fotocamera disponibile su questo dispositivo.",
+  "photo_source_camera": "Fotocamera",
+  "photo_source_photos": "Foto",
+  "photo_source_files": "File"
 }

@@ -1581,5 +1581,11 @@
   "client_count_singular": ":count asiakas",
   "client_count_plural": ":count asiakasta",
   "row_count_singular": ":count rivi",
-  "row_count_plural": ":count riviä"
+  "row_count_plural": ":count riviä",
+  "scan_receipt": "Skannaa kuitti",
+  "camera_access_denied": "Kameran tai kuvien käyttö on estetty. Salli se Asetuksissa lisätäksesi kuvan.",
+  "camera_unavailable": "Tässä laitteessa ei ole käytettävissä kameraa.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Kuvat",
+  "photo_source_files": "Tiedostot"
 }

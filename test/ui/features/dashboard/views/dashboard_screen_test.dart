@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/shared_file_intake.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
@@ -19,11 +23,13 @@ import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_strip.dart';
@@ -129,13 +135,15 @@ class _FakeServices implements Services {
   @override
   Formatter? formatterIfReady(String companyId) => null;
 
-  /// Invoices and clients only: the dashboard offers to create what the
-  /// registry can route to, so these two are all it ever offers here.
+  /// Invoices, expenses and clients only: the dashboard offers to create
+  /// what the registry can route to, so these are all it ever offers here
+  /// (expenses only with their module on, which most tests leave off).
   @override
   final EntityRegistry entityRegistry = EntityRegistry({
     for (final (type, path) in const [
       (EntityType.client, '/clients'),
       (EntityType.invoice, '/invoices'),
+      (EntityType.expense, '/expenses'),
     ])
       type: EntityHandlers(
         type: type,
@@ -150,6 +158,22 @@ class _FakeServices implements Services {
   @override
   final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
 
+  /// Where Scan Receipt keeps its photo. Set by the test that takes one.
+  SharedIntakeFiles? intakeFiles;
+  @override
+  SharedIntakeFiles get sharedIntakeFiles =>
+      intakeFiles ?? (throw UnimplementedError('sharedIntakeFiles'));
+
+  /// What Scan Receipt handed to the share intake, one list per hand-off,
+  /// and the `joinOpenForm` each was handed with.
+  final received = <List<SharedFile>>[];
+  final joinOpenForm = <bool>[];
+  @override
+  late final SharedFileIntake sharedFiles = _RecordingSharedFiles(
+    received,
+    joinOpenForm,
+  );
+
   /// Every `stageCreateDraft` call, as `(basePath, draft)`.
   final staged = <(String, Object?)>[];
 
@@ -160,6 +184,25 @@ class _FakeServices implements Services {
     bool isClone = false,
     List<UploadSource> attachments = const [],
   }) => staged.add((basePath, draft));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _RecordingSharedFiles implements SharedFileIntake {
+  _RecordingSharedFiles(this.received, this.joinOpenForm);
+  final List<List<SharedFile>> received;
+  final List<bool> joinOpenForm;
+
+  @override
+  Future<void> receive(
+    List<SharedFile> files, {
+    bool joinOpenForm = true,
+  }) async {
+    received.add(files);
+    this.joinOpenForm.add(joinOpenForm);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -196,9 +239,10 @@ AuthSession _session({
   int enabledModules = 0,
   bool isAdmin = true,
   String permissions = '',
+  bool isHosted = false,
 }) => AuthSession(
   baseUrl: 'https://example.test',
-  isHosted: false,
+  isHosted: isHosted,
   accountId: 'acct',
   companies: [
     AuthCompany(
@@ -473,6 +517,139 @@ void main() {
       ]);
     });
 
+    // The receipt flow: a photo, then New Expense with it attached. Only
+    // where there is a camera, and only where the photo can come along.
+    testWidgets(
+      'a phone offers Scan Receipt right after Enter Expense',
+      (tester) async {
+        session.value = _session(
+          enabledModules: EnabledModule.expenses.bitmask,
+        );
+        await pumpScreen(tester, window: 400);
+
+        final fab = tester.widget<DashboardCreateFab>(
+          find.byType(DashboardCreateFab),
+        );
+        expect(fab.options.map((o) => (o.type, o.action)), const [
+          (EntityType.expense, null),
+          (EntityType.expense, QuickCreateAction.scanReceipt),
+          (EntityType.client, null),
+        ]);
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.iOS,
+        TargetPlatform.android,
+      }),
+    );
+
+    bool scanReceiptOffered(WidgetTester tester) => tester
+        .widget<DashboardCreateFab>(find.byType(DashboardCreateFab))
+        .options
+        .any((o) => o.action == QuickCreateAction.scanReceipt);
+
+    testWidgets('no Scan Receipt on a desktop', (tester) async {
+      session.value = _session(enabledModules: EnabledModule.expenses.bitmask);
+      await pumpScreen(tester, window: 400);
+      expect(scanReceiptOffered(tester), isFalse);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('no Scan Receipt without the expenses module', (tester) async {
+      session.value = _session();
+      await pumpScreen(tester, window: 400);
+      expect(scanReceiptOffered(tester), isFalse);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('no Scan Receipt on a hosted plan that takes no attachments', (
+      tester,
+    ) async {
+      session.value = _session(
+        enabledModules: EnabledModule.expenses.bitmask,
+        isHosted: true,
+      );
+      await pumpScreen(tester, window: 400);
+      expect(scanReceiptOffered(tester), isFalse);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    // Asked after the camera, "Keep editing" threw away the photo just taken.
+    testWidgets(
+      'Scan Receipt asks about unsaved changes before the camera opens',
+      (tester) async {
+        final picker = _OnePhotoPicker(XFile('/never/read.jpg'));
+        imagePickerFactory = () => picker;
+        addTearDown(() => imagePickerFactory = ImagePicker.new);
+        final source = ValueNotifier(0);
+        addTearDown(source.dispose);
+        addTearDown(
+          services.unsavedChangesGuard.register(
+            isDirty: () => true,
+            source: source,
+          ),
+        );
+        session.value = _session(
+          enabledModules: EnabledModule.expenses.bitmask,
+        );
+        await pumpScreen(tester, window: 400);
+
+        tester
+            .widget<DashboardCreateFab>(find.byType(DashboardCreateFab))
+            .onCreate(const QuickCreateOption.scanReceipt());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Discard changes?'), findsOneWidget);
+        expect(picker.calls, 0, reason: 'no camera before the answer');
+        await tester.tap(find.text('Keep editing'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(picker.calls, 0);
+        expect(services.received, isEmpty);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    // It goes the way a receipt shared in from another app does, so every rule
+    // that flow keeps (gates, the unsaved-changes prompt, an open New Expense)
+    // is the intake's, not repeated here.
+    testWidgets(
+      'Scan Receipt hands the app\'s own copy of the photo to the share intake',
+      (tester) async {
+        final dir = Directory.systemTemp.createTempSync('scan_receipt');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final support = Directory(p.join(dir.path, 'support'))..createSync();
+        final shot = File(p.join(dir.path, 'image_picker_1.jpg'))
+          ..writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        services.intakeFiles = SharedIntakeFiles(
+          supportDirectory: () async => support,
+        );
+        imagePickerFactory = () => _OnePhotoPicker(XFile(shot.path));
+        addTearDown(() => imagePickerFactory = ImagePicker.new);
+        session.value = _session(
+          enabledModules: EnabledModule.expenses.bitmask,
+        );
+        await pumpScreen(tester, window: 400);
+
+        tester
+            .widget<DashboardCreateFab>(find.byType(DashboardCreateFab))
+            .onCreate(const QuickCreateOption.scanReceipt());
+        // The move into the app's folder is real file IO.
+        for (var i = 0; i < 50 && services.received.isEmpty; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+
+        final file = services.received.single.single;
+        // A fresh expense, never one already open.
+        expect(services.joinOpenForm, [false]);
+        expect(file.name, matches(RegExp(r'^IMG_\d{8}_\d{6}\.jpg$')));
+        expect(await services.sharedIntakeFiles.owns(file.path), isTrue);
+        expect(shot.existsSync(), isFalse, reason: 'moved out of the cache');
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
     testWidgets('a user who may create nothing gets no FAB', (tester) async {
       session.value = _session(isAdmin: false, permissions: 'view_all');
       await pumpScreen(tester, window: 400);
@@ -644,4 +821,23 @@ void main() {
       });
     });
   });
+}
+
+class _OnePhotoPicker extends Fake implements ImagePicker {
+  _OnePhotoPicker(this.photo);
+  final XFile photo;
+  var calls = 0;
+
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) async {
+    calls++;
+    return source == ImageSource.camera ? photo : null;
+  }
 }

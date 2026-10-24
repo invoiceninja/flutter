@@ -1547,5 +1547,11 @@
   "client_count_singular": ":count khách hàng",
   "client_count_plural": ":count khách hàng",
   "row_count_singular": ":count hàng",
-  "row_count_plural": ":count hàng"
+  "row_count_plural": ":count hàng",
+  "scan_receipt": "Quét biên lai",
+  "camera_access_denied": "Quyền truy cập máy ảnh hoặc ảnh đang tắt. Hãy cho phép trong Cài đặt để thêm ảnh.",
+  "camera_unavailable": "Không có máy ảnh nào trên thiết bị này.",
+  "photo_source_camera": "Máy ảnh",
+  "photo_source_photos": "Ảnh",
+  "photo_source_files": "Tệp"
 }

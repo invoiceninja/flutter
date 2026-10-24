@@ -1629,5 +1629,11 @@
   "client_count_singular": ":count client",
   "client_count_plural": ":count clienți",
   "row_count_singular": ":count rând",
-  "row_count_plural": ":count rânduri"
+  "row_count_plural": ":count rânduri",
+  "scan_receipt": "Scanează bonul",
+  "camera_access_denied": "Accesul la cameră sau la fotografii este dezactivat. Permite-l din Setări pentru a adăuga o imagine.",
+  "camera_unavailable": "Nu există nicio cameră disponibilă pe acest dispozitiv.",
+  "photo_source_camera": "Cameră",
+  "photo_source_photos": "Fotografii",
+  "photo_source_files": "Fișiere"
 }

@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count клиент",
   "client_count_plural": "Клиентов: :count",
   "row_count_singular": ":count строка",
-  "row_count_plural": "Строк: :count"
+  "row_count_plural": "Строк: :count",
+  "scan_receipt": "Сканировать чек",
+  "camera_access_denied": "Доступ к камере или фото отключён. Разрешите его в Настройках, чтобы добавить изображение.",
+  "camera_unavailable": "На этом устройстве нет доступной камеры.",
+  "photo_source_camera": "Камера",
+  "photo_source_photos": "Фото",
+  "photo_source_files": "Файлы"
 }

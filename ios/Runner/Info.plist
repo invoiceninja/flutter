@@ -29,13 +29,13 @@
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
-		<string>The camera is used to upload documents</string>
+		<string>Invoice Ninja uses the camera to photograph receipts and documents you attach to expenses and other records.</string>
 		<key>NSContactsUsageDescription</key>
 		<string>Your contacts are used to quickly create clients.</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Face ID is used to unlock the app without re-entering your password.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>The photo library is used to upload documents</string>
+		<string>Invoice Ninja uses your photo library to attach receipts and documents to expenses and other records.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

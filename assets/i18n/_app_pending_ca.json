@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count client",
   "client_count_plural": ":count clients",
   "row_count_singular": ":count fila",
-  "row_count_plural": ":count files"
+  "row_count_plural": ":count files",
+  "scan_receipt": "Escaneja el rebut",
+  "camera_access_denied": "L'accés a la càmera o a les fotos està desactivat. Permet-lo als ajustos del dispositiu per afegir una imatge.",
+  "camera_unavailable": "No hi ha cap càmera disponible en aquest dispositiu.",
+  "photo_source_camera": "Càmera",
+  "photo_source_photos": "Fotos",
+  "photo_source_files": "Fitxers"
 }

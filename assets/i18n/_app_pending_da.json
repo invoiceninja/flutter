@@ -1584,5 +1584,11 @@
   "client_count_singular": ":count kunde",
   "client_count_plural": ":count kunder",
   "row_count_singular": ":count række",
-  "row_count_plural": ":count rækker"
+  "row_count_plural": ":count rækker",
+  "scan_receipt": "Scan kvittering",
+  "camera_access_denied": "Adgang til kamera eller fotos er slået fra. Tillad det i Indstillinger for at tilføje et billede.",
+  "camera_unavailable": "Der er intet kamera tilgængeligt på denne enhed.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotos",
+  "photo_source_files": "Filer"
 }

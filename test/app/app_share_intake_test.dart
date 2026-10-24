@@ -14,7 +14,10 @@ class _RecordingIntake implements SharedFileIntake {
   final received = <List<SharedFile>>[];
 
   @override
-  Future<void> receive(List<SharedFile> files) async => received.add(files);
+  Future<void> receive(
+    List<SharedFile> files, {
+    bool joinOpenForm = true,
+  }) async => received.add(files);
 
   @override
   Object? noSuchMethod(Invocation invocation) =>

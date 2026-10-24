@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count klient",
   "client_count_plural": ":count klientů",
   "row_count_singular": ":count řádek",
-  "row_count_plural": ":count řádků"
+  "row_count_plural": ":count řádků",
+  "scan_receipt": "Naskenovat účtenku",
+  "camera_access_denied": "Přístup k fotoaparátu nebo fotkám je vypnutý. Povolte ho v Nastavení, abyste mohli přidat obrázek.",
+  "camera_unavailable": "Na tomto zařízení není k dispozici žádný fotoaparát.",
+  "photo_source_camera": "Fotoaparát",
+  "photo_source_photos": "Fotky",
+  "photo_source_files": "Soubory"
 }

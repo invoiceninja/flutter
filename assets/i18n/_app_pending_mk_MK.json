@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count клиент",
   "client_count_plural": ":count клиенти",
   "row_count_singular": ":count ред",
-  "row_count_plural": ":count реда"
+  "row_count_plural": ":count реда",
+  "scan_receipt": "Скенирај Сметка",
+  "camera_access_denied": "Пристапот до камерата или фотографиите е исклучен. Дозволете го во поставките на уредот за да додадете слика.",
+  "camera_unavailable": "На овој уред нема достапна камера.",
+  "photo_source_camera": "Камера",
+  "photo_source_photos": "Фотографии",
+  "photo_source_files": "Датотеки"
 }

@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/shared_file_intake.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
@@ -14,6 +16,7 @@ import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/list_status_tabs.dart' show kBadgeModeFilterKey;
 import 'package:admin/domain/quick_create.dart';
@@ -24,6 +27,7 @@ import 'package:admin/ui/core/detail/entity_quick_actions.dart'
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/utils/fab_clearance.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
@@ -229,16 +233,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// [creatable] as sheet entries, each with the icon its sidebar row wears.
-  List<QuickCreateOption> _createOptions(List<EntityType> creatable) => [
-    for (final type in creatable)
-      QuickCreateOption(
-        type: type,
-        // Non-null: `_creatableEntities` only returns types that have a
-        // registry entry with a create route.
-        icon: _services.entityRegistry[type]!.effectiveOutlinedIcon,
-      ),
-  ];
+  /// [creatable] as sheet entries, each with the icon its sidebar row wears,
+  /// and Scan Receipt right after Enter Expense where it can work: a phone or
+  /// tablet (a camera; never web or desktop) on a plan that takes attachments
+  /// — without them the photo would be dropped, leaving a plain New Expense.
+  List<QuickCreateOption> _createOptions(List<EntityType> creatable) {
+    final scanReceipt =
+        Env.isMobile &&
+        (_services.auth.session.value?.canAttachDocuments ?? false);
+    return [
+      for (final type in creatable) ...[
+        QuickCreateOption(
+          type: type,
+          // Non-null: `_creatableEntities` only returns types that have a
+          // registry entry with a create route.
+          icon: _services.entityRegistry[type]!.effectiveOutlinedIcon,
+        ),
+        if (type == EntityType.expense && scanReceipt)
+          const QuickCreateOption.scanReceipt(),
+      ],
+    ];
+  }
+
+  /// Runs a picked create entry: a blank create screen, or an action.
+  Future<void> _onCreateOption(QuickCreateOption option) =>
+      switch (option.action) {
+        QuickCreateAction.scanReceipt => _scanReceipt(),
+        null => _create(option.type),
+      };
+
+  /// Scan Receipt: a photo, then a fresh New Expense with it attached.
+  ///
+  /// The unsaved-changes prompt comes first, as for every other create here —
+  /// asked after the camera, a "keep editing" would throw away the photo just
+  /// taken. The photo then goes the way a receipt shared in from another app
+  /// does (`SharedFileIntake.receive`), so it inherits every rule that flow
+  /// keeps: the create / module / plan gates, and deleting the file on every
+  /// path that doesn't attach it — except joining a New Expense already open,
+  /// which this entry, unlike a share, never does. That flow takes only the
+  /// app's own copies, which is what `captureDocumentPhoto` leaves on a phone.
+  Future<void> _scanReceipt() async {
+    if (!await _services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    if (!mounted) return;
+    final shots = await captureDocumentPhoto(context);
+    if (shots.isEmpty) return;
+    final files = [
+      for (final shot in shots)
+        if (SharedIntakeFiles.localPathOf(shot) case final path?)
+          SharedFile(path: path, name: shot.fileName),
+    ];
+    if (files.isEmpty) {
+      // No app folder to keep it in — nothing the intake can take.
+      if (mounted) Notify.error(context, context.tr('an_error_occurred'));
+      return;
+    }
+    // Not gated on `mounted`: the intake works from the root navigator, and a
+    // dashboard rebuilt while the camera was up must not strand the photo.
+    await _services.sharedFiles.receive(files, joinOpenForm: false);
+  }
 
   /// Opens a blank create screen for [type]. Both the `+` sheet and the wide
   /// bar's New Invoice button end up here.
@@ -558,7 +610,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ? null
                   : DashboardCreateFab(
                       options: createOptions,
-                      onCreate: (type) => unawaited(_create(type)),
+                      onCreate: (option) => unawaited(_onCreateOption(option)),
                     ),
               body: SafeArea(
                 child: Column(
@@ -579,7 +631,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           companyName: _resolveCompanyName(context),
                           onRefresh: () => unawaited(_refreshWithFeedback()),
                           createOptions: createOptions,
-                          onCreate: (type) => unawaited(_create(type)),
+                          onCreate: (option) =>
+                              unawaited(_onCreateOption(option)),
                         ),
                       ),
                     Expanded(

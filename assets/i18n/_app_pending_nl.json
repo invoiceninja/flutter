@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count klant",
   "client_count_plural": ":count klanten",
   "row_count_singular": ":count rij",
-  "row_count_plural": ":count rijen"
+  "row_count_plural": ":count rijen",
+  "scan_receipt": "Bon scannen",
+  "camera_access_denied": "Toegang tot camera of foto's staat uit. Sta het toe in Instellingen om een afbeelding toe te voegen.",
+  "camera_unavailable": "Er is geen camera beschikbaar op dit apparaat.",
+  "photo_source_camera": "Camera",
+  "photo_source_photos": "Foto's",
+  "photo_source_files": "Bestanden"
 }

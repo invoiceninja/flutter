@@ -1579,5 +1579,11 @@
   "client_count_singular": ":count عميل",
   "client_count_plural": ":count عملاء",
   "row_count_singular": ":count صف",
-  "row_count_plural": ":count صفوف"
+  "row_count_plural": ":count صفوف",
+  "scan_receipt": "مسح الإيصال ضوئيًا",
+  "camera_access_denied": "الوصول إلى الكاميرا أو الصور متوقف. اسمح به من الإعدادات لإضافة صورة.",
+  "camera_unavailable": "لا تتوفر كاميرا على هذا الجهاز.",
+  "photo_source_camera": "الكاميرا",
+  "photo_source_photos": "الصور",
+  "photo_source_files": "الملفات"
 }

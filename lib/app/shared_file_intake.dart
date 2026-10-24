@@ -163,6 +163,15 @@ class SharedFileIntake {
   /// while waiting is appended: both were the user's.
   final _held = <SharedFile>[];
 
+  /// The [_held] files that came in with `joinOpenForm: false` (Scan
+  /// Receipt), so a replay still opens a fresh New Expense for them.
+  final _heldFresh = Set<SharedFile>.identity();
+
+  void _hold(Iterable<SharedFile> files, {required bool joinOpenForm}) {
+    _held.addAll(files);
+    if (!joinOpenForm) _heldFresh.addAll(files);
+  }
+
   /// The copies [_held] owns — what a wipe of the local data must spare. A file
   /// shared while signed out and followed by a sign-in as someone new triggers
   /// the identity-change wipe; that share belongs to the sign-in, not to the
@@ -210,34 +219,43 @@ class SharedFileIntake {
 
   /// Handle one share. Never throws — a problem is reported to the user, not
   /// to the caller.
-  Future<void> receive(List<SharedFile> files) {
+  ///
+  /// [joinOpenForm] false always starts a fresh New Expense, never adding the
+  /// files to one already open: the dashboard's Scan Receipt, where the user
+  /// asked for a new expense in so many words. A share from another app
+  /// joins the open form — share, back to the app, keep typing.
+  Future<void> receive(List<SharedFile> files, {bool joinOpenForm = true}) {
     if (files.isEmpty) return _inFlight;
     final generation = _generation;
     return _inFlight = _inFlight
         .then((_) {
           if (generation != _generation) return _deleteAll(files);
-          return _receive(files, generation);
+          return _receive(files, generation, joinOpenForm: joinOpenForm);
         })
         .catchError((Object e, StackTrace st) {
           _log.warning('shared files failed', e, st);
         });
   }
 
-  Future<void> _receive(List<SharedFile> files, int generation) async {
+  Future<void> _receive(
+    List<SharedFile> files,
+    int generation, {
+    bool joinOpenForm = true,
+  }) async {
     // Not yet able to act: no router, signed out / locked / in setup, or no
     // frame yet to put a prompt or a toast on.
     if (_go == null) {
-      _held.addAll(files);
+      _hold(files, joinOpenForm: joinOpenForm);
       return;
     }
     if (!_gate.isOpen) {
-      _held.addAll(files);
+      _hold(files, joinOpenForm: joinOpenForm);
       _gate.notifyWhenOpen(_replayHeld);
       return;
     }
     final context = _contextOf?.call();
     if (context == null) {
-      _held.addAll(files);
+      _hold(files, joinOpenForm: joinOpenForm);
       WidgetsBinding.instance.addPostFrameCallback((_) => _replayHeld());
       return;
     }
@@ -270,7 +288,7 @@ class SharedFileIntake {
 
     // A New Expense is already open, in this company, and can take them: the
     // files join it.
-    final target = _attachTarget;
+    final target = joinOpenForm ? _attachTarget : null;
     if (target != null &&
         target.companyId == _currentCompanyId() &&
         (attachments.isEmpty || target.attach(attachments))) {
@@ -300,11 +318,11 @@ class SharedFileIntake {
       if (!_gate.isOpen) {
         // The prompt went because the app locked, not because the user said
         // no: hold the share for the unlock, as one that arrived then would be.
-        _held.addAll([
+        _hold([
           for (final s in attachments)
             if (SharedIntakeFiles.localPathOf(s) case final path?)
               SharedFile(path: path, name: s.fileName),
-        ]);
+        ], joinOpenForm: joinOpenForm);
         _gate.notifyWhenOpen(_replayHeld);
         return;
       }
@@ -361,9 +379,18 @@ class SharedFileIntake {
 
   void _replayHeld() {
     if (_held.isEmpty) return;
-    final files = List<SharedFile>.of(_held);
+    final join = [
+      for (final f in _held)
+        if (!_heldFresh.contains(f)) f,
+    ];
+    final fresh = [
+      for (final f in _held)
+        if (_heldFresh.contains(f)) f,
+    ];
     _held.clear();
-    unawaited(receive(files));
+    _heldFresh.clear();
+    if (join.isNotEmpty) unawaited(receive(join));
+    if (fresh.isNotEmpty) unawaited(receive(fresh, joinOpenForm: false));
   }
 
   Iterable<String> _pathsOf(Iterable<UploadSource> sources) =>
@@ -404,6 +431,7 @@ class SharedFileIntake {
   void dropHeld() {
     final files = List<SharedFile>.of(_held);
     _held.clear();
+    _heldFresh.clear();
     _gate.cancel();
     unawaited(_deleteAll(files));
   }
@@ -411,6 +439,7 @@ class SharedFileIntake {
   void dispose() {
     _generation++;
     _held.clear();
+    _heldFresh.clear();
     _gate.cancel();
   }
 }

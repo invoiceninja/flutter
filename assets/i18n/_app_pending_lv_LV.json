@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count klients",
   "client_count_plural": ":count klienti",
   "row_count_singular": ":count rinda",
-  "row_count_plural": ":count rindas"
+  "row_count_plural": ":count rindas",
+  "scan_receipt": "Skenēt čeku",
+  "camera_access_denied": "Piekļuve kamerai vai fotoattēliem ir izslēgta. Atļaujiet to iestatījumos, lai pievienotu attēlu.",
+  "camera_unavailable": "Šajā ierīcē nav pieejamas kameras.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotoattēli",
+  "photo_source_files": "Faili"
 }

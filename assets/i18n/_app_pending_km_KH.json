@@ -1579,5 +1579,11 @@
   "client_count_singular": "អតិថិជន :count នាក់",
   "client_count_plural": "អតិថិជន :count នាក់",
   "row_count_singular": ":count ជួរ",
-  "row_count_plural": ":count ជួរ"
+  "row_count_plural": ":count ជួរ",
+  "scan_receipt": "ស្កេនបង្កាន់ដៃ",
+  "camera_access_denied": "ការចូលប្រើកាមេរ៉ា ឬរូបថតត្រូវបានបិទ។ សូមអនុញ្ញាតវានៅក្នុងការកំណត់ ដើម្បីបន្ថែមរូបភាព។",
+  "camera_unavailable": "មិនមានកាមេរ៉ានៅលើឧបករណ៍នេះទេ។",
+  "photo_source_camera": "កាមេរ៉ា",
+  "photo_source_photos": "រូបថត",
+  "photo_source_files": "ឯកសារ"
 }

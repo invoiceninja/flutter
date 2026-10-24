@@ -403,6 +403,7 @@ class _BulkUpdateDialogState extends State<_BulkUpdateDialog> {
               services.projects.watch(companyId: widget.companyId, id: id),
           displayString: (p) => p.name.isEmpty ? p.id : p.name,
           idOf: (p) => p.id,
+          emptyHintKey: 'no_records_found',
           onChanged: (p) => setState(() {
             _value = p?.id ?? '';
             _projectClientId = p?.clientId;

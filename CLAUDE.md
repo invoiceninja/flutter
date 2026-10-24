@@ -656,6 +656,7 @@ invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq     <- fallback, still 
 - **On web nothing delivers the link — it *is* the page URL, so `?company=` is honoured once at boot and stripped before it can persist.** → `docs/deep-links.md`
 - **On Android a share or a link reaches MainActivity only through an engine-free trampoline carrying a one-time token, and MainActivity strips every extra before Flutter reads one.** → `docs/deep-links.md`
 - **A shared file reaches Flutter only as a native copy in `shared_intake/`, and only `SharedIntakeFiles` deletes one.** → `docs/sharing-files-into-the-app.md`
+- **A camera or gallery capture is adopted into `shared_intake/` before it reaches `onFiles` — a temp path dies before an offline upload is sent.** → `docs/sharing-files-into-the-app.md`
 
 **Adding an entity?** `test/lint/entity_copy_link_coverage_test.dart` fails the
 build unless its action enum declares `copyLink` — nothing in the type system

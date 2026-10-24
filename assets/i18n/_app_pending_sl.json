@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count stranka",
   "client_count_plural": "Stranke: :count",
   "row_count_singular": ":count vrstica",
-  "row_count_plural": "Vrstice: :count"
+  "row_count_plural": "Vrstice: :count",
+  "scan_receipt": "Skeniraj potrdilo",
+  "camera_access_denied": "Dostop do kamere ali fotografij je izklopljen. Dovolite ga v Nastavitvah, da dodate sliko.",
+  "camera_unavailable": "V tej napravi ni na voljo nobene kamere.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotografije",
+  "photo_source_files": "Datoteke"
 }

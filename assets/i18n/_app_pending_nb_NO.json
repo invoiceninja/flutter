@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count kunde",
   "client_count_plural": ":count kunder",
   "row_count_singular": ":count rad",
-  "row_count_plural": ":count rader"
+  "row_count_plural": ":count rader",
+  "scan_receipt": "Skann kvittering",
+  "camera_access_denied": "Tilgang til kamera eller bilder er slått av. Tillat det i Innstillinger for å legge til et bilde.",
+  "camera_unavailable": "Ingen kamera er tilgjengelig på denne enheten.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Bilder",
+  "photo_source_files": "Filer"
 }

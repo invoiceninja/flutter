@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count Kunde",
   "client_count_plural": ":count Kunden",
   "row_count_singular": ":count Zeile",
-  "row_count_plural": ":count Zeilen"
+  "row_count_plural": ":count Zeilen",
+  "scan_receipt": "Beleg scannen",
+  "camera_access_denied": "Der Zugriff auf Kamera oder Fotos ist deaktiviert. Erlauben Sie ihn in den Einstellungen, um ein Bild hinzuzufügen.",
+  "camera_unavailable": "Auf diesem Gerät ist keine Kamera verfügbar.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotos",
+  "photo_source_files": "Dateien"
 }

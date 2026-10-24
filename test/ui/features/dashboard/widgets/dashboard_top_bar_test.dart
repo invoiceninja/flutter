@@ -97,7 +97,7 @@ void main() {
     VoidCallback? onRefresh,
     DashboardDateRange? range,
     List<QuickCreateOption> creates = const [],
-    ValueChanged<EntityType>? onCreate,
+    ValueChanged<QuickCreateOption>? onCreate,
   }) async {
     if (range != null) await vm.setDateRange(range);
     // A real surface of this width: a `SizedBox` wider than the default
@@ -187,7 +187,7 @@ void main() {
   // The create buttons.
 
   testWidgets('holds the create buttons, first one filled', (tester) async {
-    final picked = <EntityType>[];
+    final picked = <QuickCreateOption>[];
     await pumpBar(
       tester,
       width: 1400,
@@ -204,7 +204,7 @@ void main() {
 
     await tester.tap(find.descendant(of: strip, matching: find.text('Quote')));
     await tester.pump(const Duration(milliseconds: 10));
-    expect(picked, [EntityType.quote]);
+    expect(picked.map((o) => o.type), [EntityType.quote]);
   });
 
   testWidgets('nothing creatable draws no create buttons', (tester) async {
@@ -255,7 +255,7 @@ void main() {
     tester.view.physicalSize = const Size(600, 600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final picked = <EntityType>[];
+    final picked = <QuickCreateOption>[];
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: kTestLocalizationsDelegates,
@@ -279,7 +279,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('New Invoice'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(picked, [EntityType.invoice]);
+    expect(picked.map((o) => o.type), [EntityType.invoice]);
   });
 
   testWidgets('tapping refresh fires the callback', (tester) async {

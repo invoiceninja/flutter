@@ -1632,5 +1632,11 @@
   "client_count_singular": "ลูกค้า :count ราย",
   "client_count_plural": "ลูกค้า :count ราย",
   "row_count_singular": ":count แถว",
-  "row_count_plural": ":count แถว"
+  "row_count_plural": ":count แถว",
+  "scan_receipt": "สแกนใบเสร็จ",
+  "camera_access_denied": "การเข้าถึงกล้องหรือรูปภาพปิดอยู่ อนุญาตในการตั้งค่าเพื่อเพิ่มรูปภาพ",
+  "camera_unavailable": "ไม่มีกล้องที่ใช้งานได้ในอุปกรณ์นี้",
+  "photo_source_camera": "กล้อง",
+  "photo_source_photos": "รูปภาพ",
+  "photo_source_files": "ไฟล์"
 }

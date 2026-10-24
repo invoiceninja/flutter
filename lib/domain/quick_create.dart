@@ -16,6 +16,10 @@ import 'package:admin/domain/permissions.dart';
 /// the two creates the dashboard's quick-action tiles used to carry — Expense
 /// and Client — so the six most-used entries fill the sheet's first two rows on
 /// a phone. The rest follow in rough order of how often a user starts one.
+/// On a phone or tablet the dashboard also inserts Scan Receipt right after
+/// Expense (`DashboardScreen._createOptions`) — a receipt is a main reason to
+/// open the app there — which moves Client to the third row; it is an action,
+/// not an entity, so it is not in this list.
 ///
 /// Membership is not free to edit: it must equal `kCreateShortcutEntities`, the
 /// app's other list of entities that can be created from anywhere

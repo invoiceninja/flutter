@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io' show FileSystemException;
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -11,6 +13,7 @@ import 'package:admin/data/repositories/company_sync_dispatcher.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/data/services/documents_api.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
 /// First coverage for `CompanySyncDispatcher` — one of only three dispatchers
@@ -94,6 +97,18 @@ class _RecordingCompaniesApi implements CompaniesApi {
     if (entity == failSetDefaultForEntity) {
       throw const ServerException(400, 'unknown design');
     }
+  }
+
+  final List<String> uploadedDocuments = [];
+
+  @override
+  Future<CompanyItemApi> uploadDocument({
+    required String companyId,
+    required UploadSource source,
+    required String idempotencyKey,
+  }) async {
+    uploadedDocuments.add(source.fileName);
+    return canonical;
   }
 
   @override
@@ -329,6 +344,77 @@ void main() {
   });
 
   group('delete + documents', () {
+    // A photo taken on a phone is the app's own copy (`SharedIntakeFiles`);
+    // like an entity's upload, the company's re-finds it before sending and
+    // deletes it after.
+    test('upload_document resolves the source, uploads, applies, then hands '
+        'it to the cleanup hook', () async {
+      final resolved = <String>[];
+      final cleaned = <String>[];
+      final hooked = CompanySyncDispatcher(
+        api: api,
+        repo: CompanyRepository(db: db, api: api),
+        documentsApi: documentsApi,
+        resolveDocumentSource: (source) async {
+          resolved.add(source.fileName);
+          return source;
+        },
+        onDocumentUploaded: (source) async {
+          expect(api.uploadedDocuments, [source.fileName]);
+          // Only once the row is done: the server's echo is already applied,
+          // so a failed apply can't leave the row naming a deleted file.
+          final row = await db.companiesDao.byId('co');
+          expect(jsonDecode(row!.settings), {'currency_id': '3'});
+          cleaned.add(source.fileName);
+        },
+      );
+      final kind = MutationKind.update;
+      await hooked.dispatch(
+        row: rowFor(
+          kind,
+          payload: {
+            '_action': 'upload_document',
+            ...BytesUploadSource(
+              Uint8List.fromList([1, 2]),
+              'IMG_1.jpg',
+            ).toPayload(),
+          },
+        ),
+        kind: kind,
+      );
+
+      expect(resolved, ['IMG_1.jpg']);
+      expect(api.uploadedDocuments, ['IMG_1.jpg']);
+      expect(cleaned, ['IMG_1.jpg']);
+    });
+
+    test(
+      'a cleanup that throws does not fail an upload that succeeded',
+      () async {
+        final hooked = CompanySyncDispatcher(
+          api: api,
+          repo: CompanyRepository(db: db, api: api),
+          documentsApi: documentsApi,
+          onDocumentUploaded: (_) async => throw const FileSystemException('x'),
+        );
+        final kind = MutationKind.update;
+        await hooked.dispatch(
+          row: rowFor(
+            kind,
+            payload: {
+              '_action': 'upload_document',
+              ...BytesUploadSource(
+                Uint8List.fromList([1]),
+                'a.jpg',
+              ).toPayload(),
+            },
+          ),
+          kind: kind,
+        );
+        expect(api.uploadedDocuments, ['a.jpg']);
+      },
+    );
+
     test('delete routes to deleteWithBody', () async {
       await dispatch(MutationKind.delete, payload: {'password': 'p'});
 

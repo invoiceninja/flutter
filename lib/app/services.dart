@@ -1645,6 +1645,12 @@ class Services implements SidebarBadgeContext {
     final emailsApi = EmailsApi(apiClient);
     final searchApi = SearchApi(apiClient);
     final documentsApi = DocumentsApi(apiClient);
+    // Once an upload is sent, the app-owned copy behind it (a share, or a
+    // photo taken or picked on a phone) has done its job.
+    Future<void> onDocumentUploaded(UploadSource source) async {
+      final path = SharedIntakeFiles.localPathOf(source);
+      if (path != null) await sharedIntakeFiles.deleteUploaded(path);
+    }
 
     // Build every CRUD-list entity (api + repository + sync dispatcher
     // registration). One block per entity lives in services_entity_wiring.dart
@@ -1659,10 +1665,7 @@ class Services implements SidebarBadgeContext {
         emailsApi: emailsApi,
         kickDrain: kickDrain,
         dispatchers: dispatchers,
-        onDocumentUploaded: (source) async {
-          final path = SharedIntakeFiles.localPathOf(source);
-          if (path != null) await sharedIntakeFiles.deleteUploaded(path);
-        },
+        onDocumentUploaded: onDocumentUploaded,
         resolveDocumentSource: sharedIntakeFiles.resolve,
       ),
     );
@@ -1819,6 +1822,8 @@ class Services implements SidebarBadgeContext {
         repo: companyRepo,
         documentsApi: documentsApi,
         documentMirror: entities.documents,
+        onDocumentUploaded: onDocumentUploaded,
+        resolveDocumentSource: sharedIntakeFiles.resolve,
       ),
     );
     handlers[EntityType.user] = EntityHandlers(

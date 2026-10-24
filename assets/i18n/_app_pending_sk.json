@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count zákazník",
   "client_count_plural": "zákazníci (:count)",
   "row_count_singular": ":count riadok",
-  "row_count_plural": "Riadky: :count"
+  "row_count_plural": "Riadky: :count",
+  "scan_receipt": "Naskenovať bloček",
+  "camera_access_denied": "Prístup k fotoaparátu alebo fotkám je vypnutý. Povoľte ho v Nastaveniach, aby ste mohli pridať obrázok.",
+  "camera_unavailable": "V tomto zariadení nie je k dispozícii žiadny fotoaparát.",
+  "photo_source_camera": "Fotoaparát",
+  "photo_source_photos": "Fotky",
+  "photo_source_files": "Súbory"
 }

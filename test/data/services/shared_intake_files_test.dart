@@ -27,10 +27,12 @@ void main() {
   SharedIntakeFiles store({
     DateTime Function()? now,
     Set<String> referenced = const {},
+    bool canAdopt = true,
   }) => SharedIntakeFiles(
     supportDirectory: () async => support,
     referencedPaths: () async => referenced,
     now: now,
+    canAdopt: () => canAdopt,
   );
 
   /// A share: `shared_intake/<folder>/<name>`.
@@ -197,5 +199,88 @@ void main() {
     );
     expect(SharedIntakeFiles.intakeKey('/a/b/other/r.pdf'), isNull);
     expect(SharedIntakeFiles.intakeKey('/a/shared_intake'), isNull);
+  });
+
+  group('adopt', () {
+    // A photo the camera or the photo library handed over sits in the
+    // plugin's temp folder, which the OS may empty before an offline upload
+    // is sent.
+    test('moves the picker\'s copy into its own folder, named as asked, and '
+        'the result is one of ours', () async {
+      final temp = Directory.systemTemp.createTempSync('picker_tmp');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final shot = File(p.join(temp.path, 'image_picker_123.jpg'))
+        ..writeAsBytesSync([1, 2, 3]);
+
+      final kept = await store().adopt(
+        shot.path,
+        name: 'IMG_20261024_120000.jpg',
+      );
+
+      expect(kept, isNotNull);
+      expect(p.basename(kept!), 'IMG_20261024_120000.jpg');
+      expect(p.isWithin(root.path, kept), isTrue);
+      expect(File(kept).readAsBytesSync(), [1, 2, 3]);
+      expect(shot.existsSync(), isFalse, reason: 'moved, not copied');
+      expect(await store().owns(kept), isTrue);
+      // The upload handler's cleanup then takes it, folder and all.
+      await store().deleteUploaded(kept);
+      expect(Directory(p.dirname(kept)).existsSync(), isFalse);
+    });
+
+    test('two photos with the same name do not collide', () async {
+      final temp = Directory.systemTemp.createTempSync('picker_tmp');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final a = File(p.join(temp.path, 'a.jpg'))..writeAsStringSync('a');
+      final b = File(p.join(temp.path, 'b.jpg'))..writeAsStringSync('b');
+
+      final keptA = await store().adopt(a.path, name: 'receipt.jpg');
+      final keptB = await store().adopt(b.path, name: 'receipt.jpg');
+
+      expect(keptA, isNot(keptB));
+      expect(File(keptA!).readAsStringSync(), 'a');
+      expect(File(keptB!).readAsStringSync(), 'b');
+    });
+
+    test('a name cannot climb out of the folder', () async {
+      final temp = Directory.systemTemp.createTempSync('picker_tmp');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final shot = File(p.join(temp.path, 'x.jpg'))..writeAsStringSync('x');
+
+      final kept = await store().adopt(shot.path, name: '../../escape.jpg');
+
+      expect(p.isWithin(root.path, kept!), isTrue);
+    });
+
+    // On macOS, Windows and Linux the photo picker returns the user's own
+    // file, not a copy — moving it would take it from them.
+    test('off Android and iOS it adopts nothing and leaves the file', () async {
+      final mine = File(p.join(support.path, 'holiday.jpg'))
+        ..writeAsStringSync('x');
+
+      expect(
+        await store(canAdopt: false).adopt(mine.path, name: 'IMG_1.jpg'),
+        isNull,
+      );
+      expect(mine.existsSync(), isTrue);
+      expect(root.existsSync(), isFalse);
+    });
+
+    test('null when there is nowhere to keep it, or nothing to keep', () async {
+      final none = SharedIntakeFiles(
+        supportDirectory: () async => throw const FileSystemException('none'),
+        canAdopt: () => true,
+      );
+      expect(await none.adopt('/nope.jpg', name: 'a.jpg'), isNull);
+      expect(
+        await store().adopt(p.join(support.path, 'missing.jpg'), name: 'a.jpg'),
+        isNull,
+      );
+      expect(
+        root.existsSync() ? root.listSync() : const <FileSystemEntity>[],
+        isEmpty,
+        reason: 'a failed adopt leaves no empty folder behind',
+      );
+    });
   });
 }

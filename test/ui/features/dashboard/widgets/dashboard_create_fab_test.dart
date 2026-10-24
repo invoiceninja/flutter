@@ -35,7 +35,7 @@ void main() {
   Future<void> pumpFab(
     WidgetTester tester, {
     List<QuickCreateOption>? options,
-    ValueChanged<EntityType>? onCreate,
+    ValueChanged<QuickCreateOption>? onCreate,
     Size size = const Size(360, 640),
     double textScale = 1,
     bool nested = false,
@@ -156,19 +156,43 @@ void main() {
   });
 
   testWidgets('a pick closes the sheet and reports the entity', (tester) async {
-    final picked = <EntityType>[];
+    final picked = <QuickCreateOption>[];
     await pumpFab(tester, onCreate: picked.add);
     await openSheet(tester);
 
     await tester.tap(find.text('Enter Payment'));
     await tester.pumpAndSettle();
 
-    expect(picked, [EntityType.payment]);
+    expect(picked.map((o) => o.type), [EntityType.payment]);
     expect(find.byType(BottomSheet), findsNothing);
   });
 
+  testWidgets('Scan Receipt is a tile like the rest, and a pick reports the '
+      'action', (tester) async {
+    final picked = <QuickCreateOption>[];
+    await pumpFab(
+      tester,
+      options: [
+        const QuickCreateOption(
+          type: EntityType.expense,
+          icon: Icons.circle_outlined,
+        ),
+        const QuickCreateOption.scanReceipt(),
+      ],
+      onCreate: picked.add,
+    );
+    await openSheet(tester);
+
+    expect(find.text('Enter Expense'), findsOneWidget);
+    await tester.tap(find.text('Scan Receipt'));
+    await tester.pumpAndSettle();
+
+    expect(picked.single.action, QuickCreateAction.scanReceipt);
+    expect(picked.single.type, EntityType.expense);
+  });
+
   testWidgets('dismissing the sheet reports nothing', (tester) async {
-    final picked = <EntityType>[];
+    final picked = <QuickCreateOption>[];
     await pumpFab(tester, onCreate: picked.add);
     await openSheet(tester);
 
@@ -183,7 +207,7 @@ void main() {
   // The sheet is a route, so Android's back closes it without the wiring a
   // `MenuAnchor` needs (`docs/popup-dismissal.md`).
   testWidgets('Android back closes the sheet without a pick', (tester) async {
-    final picked = <EntityType>[];
+    final picked = <QuickCreateOption>[];
     await pumpFab(tester, onCreate: picked.add);
     await openSheet(tester);
 

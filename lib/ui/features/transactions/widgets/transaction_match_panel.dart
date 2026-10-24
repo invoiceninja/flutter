@@ -670,6 +670,7 @@ class _DebitCreateTabState extends State<_DebitCreateTab> {
                 services.projects.watch(companyId: companyId, id: id),
             displayString: (p) => p.name.isEmpty ? p.id : p.name,
             idOf: (p) => p.id,
+            emptyHintKey: 'no_records_found',
             onChanged: (p) => setState(() {
               _projectId = p?.id ?? '';
               if (p != null) _clientId = p.clientId;

@@ -120,6 +120,69 @@ void main() {
     expect(find.text('receipt.pdf'), findsNothing);
   });
 
+  // Someone who just took a photo of a receipt sees it was the right shot.
+  testWidgets('a photo shows a thumbnail, any other file its type icon', (
+    tester,
+  ) async {
+    final vm = ExpenseEditViewModel(
+      repo: repo,
+      companyId: 'co',
+      initialDocuments: [
+        BytesUploadSource(Uint8List.fromList(_onePixelPng), 'IMG_1.png'),
+        BytesUploadSource(Uint8List(10), 'receipt.pdf'),
+      ],
+    );
+    addTearDown(vm.dispose);
+    await pump(tester, vm);
+
+    final thumb = find.byWidgetPredicate(
+      (w) =>
+          w is Image &&
+          w.image is ResizeImage &&
+          (w.image as ResizeImage).imageProvider is MemoryImage,
+    );
+    expect(thumb, findsOneWidget);
+    expect(tester.getSize(thumb), const Size(32, 32));
+    expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+  });
+
+  // A photo taken on the phone is a file in the app's own folder by the time
+  // it reaches the card — the thumbnail must read it from there.
+  testWidgets('a photo on disk is drawn from its file', (tester) async {
+    final vm = ExpenseEditViewModel(
+      repo: repo,
+      companyId: 'co',
+      initialDocuments: [
+        fileUploadSource('/support/shared_intake/u1/IMG_20261024_120000.jpg'),
+      ],
+    );
+    addTearDown(vm.dispose);
+    await pump(tester, vm);
+
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = (image.image as ResizeImage).imageProvider;
+    expect(provider, isA<FileImage>());
+    expect(
+      (provider as FileImage).file.path,
+      '/support/shared_intake/u1/IMG_20261024_120000.jpg',
+    );
+  });
+
+  testWidgets('on a phone the card offers Camera / Photos / Files', (
+    tester,
+  ) async {
+    final vm = ExpenseEditViewModel(repo: repo, companyId: 'co');
+    addTearDown(vm.dispose);
+    await pump(tester, vm);
+    for (final label in ['Camera', 'Photos', 'Files']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(
+      tester.widget<FileDropZone>(find.byType(FileDropZone)).allowPhotos,
+      isTrue,
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
   testWidgets('no files: just the drop zone, no hint', (tester) async {
     final vm = ExpenseEditViewModel(repo: repo, companyId: 'co');
     addTearDown(vm.dispose);
@@ -197,3 +260,77 @@ void main() {
     });
   });
 }
+
+/// A 1×1 PNG.
+const _onePixelPng = <int>[
+  137,
+  80,
+  78,
+  71,
+  13,
+  10,
+  26,
+  10,
+  0,
+  0,
+  0,
+  13,
+  73,
+  72,
+  68,
+  82,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  8,
+  6,
+  0,
+  0,
+  0,
+  31,
+  21,
+  196,
+  137,
+  0,
+  0,
+  0,
+  13,
+  73,
+  68,
+  65,
+  84,
+  120,
+  218,
+  99,
+  100,
+  248,
+  207,
+  80,
+  15,
+  0,
+  3,
+  134,
+  1,
+  128,
+  90,
+  52,
+  125,
+  107,
+  0,
+  0,
+  0,
+  0,
+  73,
+  69,
+  78,
+  68,
+  174,
+  66,
+  96,
+  130,
+];

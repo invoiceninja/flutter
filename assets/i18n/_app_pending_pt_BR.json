@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count cliente",
   "client_count_plural": ":count clientes",
   "row_count_singular": ":count linha",
-  "row_count_plural": ":count linhas"
+  "row_count_plural": ":count linhas",
+  "scan_receipt": "Digitalizar recibo",
+  "camera_access_denied": "O acesso à câmera ou às fotos está desativado. Permita nas configurações do aparelho para adicionar uma imagem.",
+  "camera_unavailable": "Nenhuma câmera disponível neste aparelho.",
+  "photo_source_camera": "Câmera",
+  "photo_source_photos": "Fotos",
+  "photo_source_files": "Arquivos"
 }

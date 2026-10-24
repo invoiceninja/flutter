@@ -1581,5 +1581,11 @@
   "client_count_singular": ":count klien",
   "client_count_plural": ":count klien",
   "row_count_singular": ":count baris",
-  "row_count_plural": ":count baris"
+  "row_count_plural": ":count baris",
+  "scan_receipt": "Pindai Struk",
+  "camera_access_denied": "Akses kamera atau foto dinonaktifkan. Izinkan di Pengaturan untuk menambahkan gambar.",
+  "camera_unavailable": "Tidak ada kamera yang tersedia di perangkat ini.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Foto",
+  "photo_source_files": "File"
 }

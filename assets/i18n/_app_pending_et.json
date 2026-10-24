@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count klient",
   "client_count_plural": ":count klienti",
   "row_count_singular": ":count rida",
-  "row_count_plural": ":count rida"
+  "row_count_plural": ":count rida",
+  "scan_receipt": "Skanni Kviitung",
+  "camera_access_denied": "Juurdepääs kaamerale või fotodele on välja lülitatud. Pildi lisamiseks luba see seadetes.",
+  "camera_unavailable": "Selles seadmes pole kaamerat saadaval.",
+  "photo_source_camera": "Kaamera",
+  "photo_source_photos": "Fotod",
+  "photo_source_files": "Failid"
 }

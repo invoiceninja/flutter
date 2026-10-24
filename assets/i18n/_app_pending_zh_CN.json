@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count 个客户",
   "client_count_plural": ":count 个客户",
   "row_count_singular": ":count 行",
-  "row_count_plural": ":count 行"
+  "row_count_plural": ":count 行",
+  "scan_receipt": "扫描收据",
+  "camera_access_denied": "相机或照片访问已关闭。请在设置中允许访问以添加图片。",
+  "camera_unavailable": "此设备上没有可用的相机。",
+  "photo_source_camera": "相机",
+  "photo_source_photos": "照片",
+  "photo_source_files": "文件"
 }

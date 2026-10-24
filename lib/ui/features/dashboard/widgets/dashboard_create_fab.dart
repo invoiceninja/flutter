@@ -6,16 +6,47 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/icon_label_tile.dart';
+
+/// A create entry that is more than a blank form.
+enum QuickCreateAction {
+  /// Take a photo, then open New Expense with it attached — the receipt flow,
+  /// on a phone only (`DashboardScreen._createOptions`).
+  scanReceipt,
+}
 
 /// One entry in the dashboard's create sheet: an entity the user may start,
-/// and the icon its sidebar row wears. `DashboardScreen` resolves these
-/// against the registry, so nothing in this file needs `Services`.
+/// and the icon its sidebar row wears — or an [action] that ends in one.
+/// `DashboardScreen` resolves these against the registry, so nothing in this
+/// file needs `Services`.
 @immutable
 class QuickCreateOption {
-  const QuickCreateOption({required this.type, required this.icon});
+  const QuickCreateOption({required this.type, required this.icon})
+    : action = null;
 
+  /// Scan Receipt: the entity it creates is an expense.
+  const QuickCreateOption.scanReceipt()
+    : type = EntityType.expense,
+      icon = Icons.receipt_long_outlined,
+      action = QuickCreateAction.scanReceipt;
+
+  /// The entity this entry creates.
   final EntityType type;
   final IconData icon;
+
+  /// Null for a plain create screen.
+  final QuickCreateAction? action;
+
+  /// The full phrase — a sheet tile, a menu row, a screen reader: "New
+  /// Invoice", "Enter Payment", "Scan Receipt".
+  String get labelKey => switch (action) {
+    QuickCreateAction.scanReceipt => 'scan_receipt',
+    null => quickCreateLabelKey(type),
+  };
+
+  /// What a create button beside a `+` reads ([quickCreateNounKey]). An
+  /// action has no noun, so it keeps its phrase.
+  String get nounKey => action == null ? quickCreateNounKey(type) : labelKey;
 }
 
 /// The narrow dashboard's `+` (invoiceninja/flutter#164). It is the same
@@ -39,10 +70,10 @@ class DashboardCreateFab extends StatelessWidget {
 
   final List<QuickCreateOption> options;
 
-  /// Called with the picked entity after the sheet has closed, never while it
-  /// is still on screen, so the navigation it starts has no modal route in its
-  /// way.
-  final ValueChanged<EntityType> onCreate;
+  /// Called with the picked entry after the sheet has closed, never while it
+  /// is still on screen, so the navigation (or camera) it starts has no modal
+  /// route in its way.
+  final ValueChanged<QuickCreateOption> onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +95,7 @@ class DashboardCreateFab extends StatelessWidget {
   }
 }
 
-/// Shows the create sheet. Resolves to the picked entity, or null if the sheet
+/// Shows the create sheet. Resolves to the picked entry, or null if the sheet
 /// was dismissed.
 ///
 /// A bottom sheet rather than a menu anchored to the button:
@@ -81,11 +112,11 @@ class DashboardCreateFab extends StatelessWidget {
 /// It opens on the ROOT navigator because the shell paints the running-timer
 /// pill above the branch navigator. A sheet mounted there would have the pill
 /// floating over its bottom rows.
-Future<EntityType?> showQuickCreateSheet(
+Future<QuickCreateOption?> showQuickCreateSheet(
   BuildContext context, {
   required List<QuickCreateOption> options,
 }) {
-  return showModalBottomSheet<EntityType>(
+  return showModalBottomSheet<QuickCreateOption>(
     context: context,
     useRootNavigator: true,
     useSafeArea: true,
@@ -93,7 +124,7 @@ Future<EntityType?> showQuickCreateSheet(
     showDragHandle: true,
     builder: (sheetContext) => QuickCreateSheet(
       options: options,
-      onSelected: (type) => Navigator.of(sheetContext).pop(type),
+      onSelected: (option) => Navigator.of(sheetContext).pop(option),
     ),
   );
 }
@@ -110,7 +141,7 @@ class QuickCreateSheet extends StatelessWidget {
   });
 
   final List<QuickCreateOption> options;
-  final ValueChanged<EntityType> onSelected;
+  final ValueChanged<QuickCreateOption> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -144,10 +175,10 @@ class QuickCreateSheet extends StatelessWidget {
                 child: QuickCreateGrid(
                   tiles: [
                     for (final option in options)
-                      _QuickCreateTile(
+                      IconLabelTile(
                         icon: option.icon,
-                        label: context.tr(quickCreateLabelKey(option.type)),
-                        onTap: () => onSelected(option.type),
+                        label: context.tr(option.labelKey),
+                        onTap: () => onSelected(option),
                       ),
                   ],
                 ),
@@ -248,70 +279,6 @@ class QuickCreateGrid extends StatelessWidget {
           children: runs,
         );
       },
-    );
-  }
-}
-
-/// An icon above a label, in the tile style the sidebar's grid layout uses.
-/// It is larger here because this is a touch surface with a single job.
-class _QuickCreateTile extends StatelessWidget {
-  const _QuickCreateTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final radius = BorderRadius.circular(InRadii.r2);
-    // The fill is on the Material and the border is on a transparent
-    // Container inside the InkWell, so the ripple paints over the fill and
-    // stays visible. This is the idiom `no_ink_widget_test.dart` enforces.
-    return Material(
-      color: tokens.surface,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          // A floor, not a fixed height: the label must be able to grow with
-          // the text scale.
-          constraints: const BoxConstraints(minHeight: InSizes.touchTarget),
-          decoration: BoxDecoration(
-            border: Border.all(color: tokens.border),
-            borderRadius: radius,
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: InSpacing.xs,
-            vertical: InSpacing.md(context),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 22, color: tokens.ink2),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  height: 1.2,
-                  color: tokens.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

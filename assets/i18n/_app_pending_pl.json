@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count klient",
   "client_count_plural": "Klienci: :count",
   "row_count_singular": ":count wiersz",
-  "row_count_plural": "Wiersze: :count"
+  "row_count_plural": "Wiersze: :count",
+  "scan_receipt": "Zeskanuj paragon",
+  "camera_access_denied": "Dostęp do aparatu lub zdjęć jest wyłączony. Zezwól na niego w Ustawieniach, aby dodać obraz.",
+  "camera_unavailable": "Na tym urządzeniu nie ma dostępnego aparatu.",
+  "photo_source_camera": "Aparat",
+  "photo_source_photos": "Zdjęcia",
+  "photo_source_files": "Pliki"
 }

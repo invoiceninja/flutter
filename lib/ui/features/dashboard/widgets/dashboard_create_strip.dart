@@ -3,8 +3,6 @@ import 'package:overflow_view/overflow_view.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
-import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
@@ -43,7 +41,7 @@ class DashboardCreateStrip extends StatelessWidget {
   /// its order. The first is drawn as the primary.
   final List<QuickCreateOption> options;
 
-  final ValueChanged<EntityType> onCreate;
+  final ValueChanged<QuickCreateOption> onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +57,7 @@ class DashboardCreateStrip extends StatelessWidget {
             _CreateButton(
               option: options[i],
               primary: i == 0,
-              onTap: () => onCreate(options[i].type),
+              onTap: () => onCreate(options[i]),
             ),
         ],
         builder: (context, remaining) {
@@ -97,9 +95,13 @@ class _CreateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = Size(64, _stripButtonHeight());
-    const icon = Icon(Icons.add, size: 16);
+    // An action (Scan Receipt) wears its own icon: it is not a `+ <noun>`.
+    final icon = Icon(
+      option.action == null ? Icons.add : option.icon,
+      size: 16,
+    );
     final label = Text(
-      context.tr(quickCreateNounKey(option.type)),
+      context.tr(option.nounKey),
       maxLines: 1,
       softWrap: false,
     );
@@ -130,7 +132,7 @@ class _CreateButton extends StatelessWidget {
     // drops the button's own.
     return Semantics(
       button: true,
-      label: context.tr(quickCreateLabelKey(option.type)),
+      label: context.tr(option.labelKey),
       onTap: onTap,
       excludeSemantics: true,
       child: button,
@@ -148,7 +150,7 @@ class _MoreCreates extends StatelessWidget {
   });
 
   final List<QuickCreateOption> options;
-  final ValueChanged<EntityType> onCreate;
+  final ValueChanged<QuickCreateOption> onCreate;
 
   /// A square filled `+` instead of a labelled "More" — the whole strip in one
   /// button, for a slot too tight for anything else.
@@ -163,8 +165,8 @@ class _MoreCreates extends StatelessWidget {
         for (final option in options)
           MenuItemButton(
             leadingIcon: Icon(option.icon, size: 18),
-            onPressed: () => onCreate(option.type),
-            child: Text(context.tr(quickCreateLabelKey(option.type))),
+            onPressed: () => onCreate(option),
+            child: Text(context.tr(option.labelKey)),
           ),
       ],
       builder: (context, controller, _) {
@@ -215,7 +217,7 @@ class DashboardCreateMenuButton extends StatelessWidget {
   });
 
   final List<QuickCreateOption> options;
-  final ValueChanged<EntityType> onCreate;
+  final ValueChanged<QuickCreateOption> onCreate;
 
   @override
   Widget build(BuildContext context) {

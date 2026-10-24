@@ -1579,5 +1579,11 @@
   "client_count_singular": ":count klijent",
   "client_count_plural": "Klijenata: :count",
   "row_count_singular": ":count red",
-  "row_count_plural": "Redova: :count"
+  "row_count_plural": "Redova: :count",
+  "scan_receipt": "Skeniraj fiskalni račun",
+  "camera_access_denied": "Pristup kameri ili fotografijama je isključen. Dozvolite ga u Podešavanjima da biste dodali sliku.",
+  "camera_unavailable": "Na ovom uređaju nije dostupna kamera.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotografije",
+  "photo_source_files": "Datoteke"
 }

@@ -43,6 +43,15 @@ dependencies:
   go_router: ^17.5.0
   google_fonts: ^8.2.1
   http: ^1.5.0
+  # Camera and photo-library picks on a phone's document surfaces (Camera /
+  # Photos tiles, Scan Receipt). First-party and androidx-only, so the F-Droid
+  # build needs no swap; its one Play Services manifest hint is stripped in
+  # AndroidManifest.xml (docs/fdroid.md).
+  image_picker: ^1.2.4
+  # Direct only to switch on Android's photo picker
+  # (`ImagePickerAndroid.useAndroidPhotoPicker`, document_capture.dart).
+  image_picker_android: ^0.8.13+25
+  image_picker_platform_interface: ^2.11.2
   # integration_test lives here (not dev_dependencies) as a workaround for
   # flutter/flutter#186800 + #169336: on Flutter 3.44–3.47 the dev-dependency
   # plugin is dropped from the release native classpath but still emitted into

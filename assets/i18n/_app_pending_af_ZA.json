@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count kliënt",
   "client_count_plural": ":count kliënte",
   "row_count_singular": ":count ry",
-  "row_count_plural": ":count rye"
+  "row_count_plural": ":count rye",
+  "scan_receipt": "Skandeer Kwitansie",
+  "camera_access_denied": "Kamera- of fototoegang is af. Laat dit in Instellings toe om 'n prent by te voeg.",
+  "camera_unavailable": "Geen kamera is op hierdie toestel beskikbaar nie.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Foto's",
+  "photo_source_files": "Lêers"
 }

@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count klient",
   "client_count_plural": ":count klientë",
   "row_count_singular": ":count rresht",
-  "row_count_plural": ":count rreshta"
+  "row_count_plural": ":count rreshta",
+  "scan_receipt": "Skano kuponin",
+  "camera_access_denied": "Qasja te kamera ose fotot është e çaktivizuar. Lejoje te cilësimet e pajisjes për të shtuar një imazh.",
+  "camera_unavailable": "Nuk ka asnjë kamerë të disponueshme në këtë pajisje.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotot",
+  "photo_source_files": "Skedarët"
 }

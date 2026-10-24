@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -53,6 +59,7 @@ class ExpenseEditDocumentsSection extends StatelessWidget {
           FileDropZone(
             allowedExtensions: kDocumentAllowedExtensions,
             allowMultiple: true,
+            allowPhotos: true,
             enabled: !locked,
             onFiles: (sources) => _add(context, sources),
           ),
@@ -77,12 +84,21 @@ class ExpenseEditDocumentsSection extends StatelessWidget {
   }
 
   Future<void> _add(BuildContext context, List<UploadSource> sources) async {
+    // A photo taken here sits in the app's own folder; one the form doesn't
+    // keep is handed straight back. Kept ones are the view model's to release.
+    final intake = intakeOf(context);
     final batch = await validateDocumentSources(sources);
-    if (!context.mounted) return;
+    unawaited(releaseCapturedPhotos(intake, batch.rejected));
+    if (!context.mounted) {
+      unawaited(releaseCapturedPhotos(intake, batch.accepted));
+      return;
+    }
     for (final notice in batch.rejectNotices) {
       Notify.warning(context, context.tr(notice.key, notice.params));
     }
-    vm.addDocuments(batch.accepted);
+    if (!vm.addDocuments(batch.accepted)) {
+      unawaited(releaseCapturedPhotos(intake, batch.accepted));
+    }
   }
 }
 
@@ -109,8 +125,55 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
     'svg',
   };
 
+  /// What a thumbnail can be drawn from — the types every engine decodes.
+  static const _thumbnailExts = {'png', 'jpg', 'jpeg', 'gif', 'webp'};
+
+  /// Logical size of the thumbnail; decoded at 3× so it stays sharp.
+  static const double _thumbnailSize = 32;
+
   // Once per file, not per build: the form rebuilds on every keystroke.
   late final Future<int> _length = widget.source.length();
+
+  /// A thumbnail of a photo — what lets someone who just took one see it was
+  /// the right shot — or the file-type icon for anything else, and whenever
+  /// the image can't be read.
+  Widget _leading(InTheme tokens, String ext) {
+    // In the thumbnail's box either way, so every row's name starts at the
+    // same x.
+    final icon = SizedBox.square(
+      dimension: _thumbnailSize,
+      child: Center(
+        child: Icon(
+          _imageExts.contains(ext)
+              ? Icons.image_outlined
+              : Icons.description_outlined,
+          size: 20,
+          color: tokens.ink2,
+        ),
+      ),
+    );
+    if (!_thumbnailExts.contains(ext)) return icon;
+    final source = widget.source;
+    final path = kIsWeb ? null : SharedIntakeFiles.localPathOf(source);
+    final ImageProvider? image = source is BytesUploadSource
+        ? MemoryImage(source.bytes)
+        : path != null
+        ? FileImage(File(path))
+        : null;
+    if (image == null) return icon;
+    const decoded = (_thumbnailSize * 3) ~/ 1;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(InRadii.r1),
+      child: Image(
+        image: ResizeImage(image, width: decoded, allowUpscaling: false),
+        width: _thumbnailSize,
+        height: _thumbnailSize,
+        fit: BoxFit.cover,
+        excludeFromSemantics: true,
+        errorBuilder: (_, _, _) => icon,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,13 +189,7 @@ class _PendingDocumentRowState extends State<_PendingDocumentRow> {
       ),
       child: Row(
         children: [
-          Icon(
-            _imageExts.contains(ext)
-                ? Icons.image_outlined
-                : Icons.description_outlined,
-            size: 20,
-            color: tokens.ink2,
-          ),
+          _leading(tokens, ext),
           SizedBox(width: InSpacing.md(context)),
           Expanded(
             child: Text(

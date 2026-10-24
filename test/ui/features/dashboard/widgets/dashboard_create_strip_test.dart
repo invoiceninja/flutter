@@ -28,7 +28,7 @@ void main() {
   Future<void> pumpStrip(
     WidgetTester tester, {
     List<QuickCreateOption>? options,
-    ValueChanged<EntityType>? onCreate,
+    ValueChanged<QuickCreateOption>? onCreate,
     double width = 600,
     double textScale = 1,
   }) async {
@@ -156,20 +156,49 @@ void main() {
   });
 
   testWidgets('a tap on a button creates that entity', (tester) async {
-    final created = <EntityType>[];
+    final created = <QuickCreateOption>[];
     await pumpStrip(tester, onCreate: created.add);
     await tester.tap(find.text('Quote'));
-    expect(created, [EntityType.quote]);
+    expect(created.map((o) => o.type), [EntityType.quote]);
+  });
+
+  // An action is not `+ <noun>`: it wears its own icon and its phrase.
+  testWidgets('Scan Receipt reads as itself, not as "+ Expense"', (
+    tester,
+  ) async {
+    final created = <QuickCreateOption>[];
+    await pumpStrip(
+      tester,
+      options: const [
+        QuickCreateOption(type: EntityType.invoice, icon: Icons.circle),
+        QuickCreateOption.scanReceipt(),
+      ],
+      onCreate: created.add,
+    );
+    final button = find.ancestor(
+      of: find.text('Scan Receipt'),
+      matching: find.byType(OutlinedButton),
+    );
+    expect(button, findsOneWidget);
+    expect(
+      find.descendant(
+        of: button,
+        matching: find.byIcon(Icons.receipt_long_outlined),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(button);
+    expect(created.single.action, QuickCreateAction.scanReceipt);
   });
 
   testWidgets('a pick from More creates that entity', (tester) async {
-    final created = <EntityType>[];
+    final created = <QuickCreateOption>[];
     await pumpStrip(tester, width: 420, onCreate: created.add);
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(MenuItemButton).last);
     await tester.pumpAndSettle();
-    expect(created, [kQuickCreateEntities.last]);
+    expect(created.map((o) => o.type), [kQuickCreateEntities.last]);
   });
 
   testWidgets('with everything fitting there is no More', (tester) async {
@@ -189,7 +218,7 @@ void main() {
     tester,
   ) async {
     final handle = tester.ensureSemantics();
-    final created = <EntityType>[];
+    final created = <QuickCreateOption>[];
     await pumpStrip(tester, onCreate: created.add);
     // "Enter Payment", not the bare noun on the button.
     final payment = find.bySemanticsLabel('Enter Payment');

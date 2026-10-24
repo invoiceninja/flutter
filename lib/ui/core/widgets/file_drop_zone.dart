@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -6,8 +7,11 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
+import 'package:admin/ui/core/widgets/icon_label_tile.dart';
 
 /// Whether the running platform supports OS file drag-and-drop. Web and mobile
 /// fall back to click-to-select only (the box stays tappable, just no drop).
@@ -75,6 +79,11 @@ Future<List<UploadSource>> uploadSourcesFromDrop(
 /// that does the site-specific validation / upload; this widget owns only the
 /// picker invocation, the drag-over visuals, and the file → [UploadSource]
 /// conversion, so every upload site looks and behaves identically.
+///
+/// A documents surface sets [allowPhotos]: on a phone or tablet the box then
+/// becomes three tiles — Camera, Photos, Files — since there is nothing to
+/// drop there and the document picker behind "click" can't reach Photos on
+/// iOS. Each tile ends in the same [onFiles].
 class FileDropZone extends StatefulWidget {
   const FileDropZone({
     super.key,
@@ -84,6 +93,7 @@ class FileDropZone extends StatefulWidget {
     this.preview,
     this.enabled = true,
     this.idleLabelKey,
+    this.allowPhotos = false,
   });
 
   /// Extension allowlist (no leading dot) passed to the picker and — on web —
@@ -107,6 +117,11 @@ class FileDropZone extends StatefulWidget {
   /// ("Drop files or click to upload").
   final String? idleLabelKey;
 
+  /// Offer Camera and Photos beside Files on a native phone or tablet
+  /// ([Env.isMobile]); ignored everywhere else. For the document surfaces —
+  /// a logo, a certificate or an import file has no business being a photo.
+  final bool allowPhotos;
+
   @override
   State<FileDropZone> createState() => _FileDropZoneState();
 }
@@ -114,7 +129,48 @@ class FileDropZone extends StatefulWidget {
 class _FileDropZoneState extends State<FileDropZone> {
   bool _dragOver = false;
 
-  Future<void> _pick() async {
+  /// A picker is open. A second tap would stack another one over it.
+  bool _picking = false;
+
+  /// Which tile's work is under way (`_photoTiles`), for its spinner: the
+  /// picker, then the photo's processing and [FileDropZone.onFiles] — a big
+  /// photo from iCloud or a re-encode can take seconds after the picker
+  /// closes.
+  _Source? _active;
+
+  Future<void> _run(
+    Future<List<UploadSource>> Function() pick, {
+    _Source? source,
+  }) async {
+    if (_picking) return;
+    // Read now: once the zone is gone there is no context to read it from.
+    final intake = intakeOf(context);
+    setState(() {
+      _picking = true;
+      _active = source;
+    });
+    try {
+      final sources = await pick();
+      if (sources.isEmpty) return;
+      if (!mounted) {
+        // Left the screen with the camera open: nothing will take the photo.
+        await releaseCapturedPhotos(intake, sources);
+        return;
+      }
+      await widget.onFiles(sources);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _picking = false;
+          _active = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _pick() => _run(_pickFiles, source: _Source.files);
+
+  Future<List<UploadSource>> _pickFiles() async {
     // `pickFile` is the single-select entry point; `pickFiles` implies multiple.
     // Bytes are pulled on demand in uploadSourcesFromPicked (no eager withData).
     final List<PlatformFile> files;
@@ -129,12 +185,10 @@ class _FileDropZoneState extends State<FileDropZone> {
         type: FileType.custom,
         allowedExtensions: widget.allowedExtensions,
       );
-      if (picked == null) return;
+      if (picked == null) return const [];
       files = [picked];
     }
-    final sources = await uploadSourcesFromPicked(files);
-    if (sources.isEmpty) return;
-    await widget.onFiles(sources);
+    return uploadSourcesFromPicked(files);
   }
 
   Future<void> _onDrop(DropDoneDetails details) async {
@@ -144,8 +198,58 @@ class _FileDropZoneState extends State<FileDropZone> {
     await widget.onFiles(sources);
   }
 
+  /// Camera / Photos / Files, side by side — the touch replacement for the
+  /// box, in the create sheet's tile style. Capped in width: on a tablet's
+  /// wide pane three stretched tiles read as a banner, not as buttons.
+  Widget _photoTiles(BuildContext context) {
+    final live = widget.enabled && !_picking;
+    Widget tile(_Source source, IconData icon, String labelKey) =>
+        IconLabelTile(
+          icon: icon,
+          label: context.tr(labelKey),
+          busy: _active == source,
+          onTap: live ? () => _start(source) : null,
+        );
+    final tiles = [
+      tile(_Source.camera, Icons.photo_camera_outlined, 'photo_source_camera'),
+      tile(_Source.photos, Icons.photo_library_outlined, 'photo_source_photos'),
+      tile(
+        _Source.files,
+        Icons.insert_drive_file_outlined,
+        'photo_source_files',
+      ),
+    ];
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kPhotoTilesMaxWidth),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < tiles.length; i++) ...[
+                if (i > 0) const SizedBox(width: InSpacing.sm),
+                Expanded(child: tiles[i]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _start(_Source source) => unawaited(switch (source) {
+    _Source.camera => _run(() => captureDocumentPhoto(context), source: source),
+    _Source.photos => _run(
+      () => pickGalleryPhotos(context, multiple: widget.allowMultiple),
+      source: source,
+    ),
+    _Source.files => _pick(),
+  });
+
   @override
   Widget build(BuildContext context) {
+    if (widget.allowPhotos && Env.isMobile) return _photoTiles(context);
     final tokens = context.inTheme;
     final over = _dragOver && widget.enabled;
     final idleLabel = context.tr(
@@ -207,3 +311,10 @@ class _FileDropZoneState extends State<FileDropZone> {
     );
   }
 }
+
+/// The three tiles of `_photoTiles`.
+enum _Source { camera, photos, files }
+
+/// Three tiles of ~150 px — wide enough for every locale's label on two
+/// lines, narrow enough to read as buttons on a tablet.
+const double _kPhotoTilesMaxWidth = 480;

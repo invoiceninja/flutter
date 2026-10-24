@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
@@ -171,6 +172,19 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- image_picker_android declares a disabled Play Services service
+             whose only job is to make Google Play install the backported
+             photo picker on devices without one. Stripped in every build: it
+             puts Google meta-data in the merged manifest, which the F-Droid
+             build must not carry (docs/fdroid.md), and one manifest serves
+             both builds. The cost: an Android 11 or 12 device whose system
+             updates lack the photo picker gets the file chooser for the
+             Photos tile instead of the grid (the app opts in to the photo
+             picker, document_capture.dart). -->
+        <service
+            android:name="com.google.android.gms.metadata.ModuleDependencies"
+            tools:node="remove" />
     </application>
     <!-- Android 11 (API 30) package visibility hides every app we don't declare
          here from PackageManager queries. See
@@ -239,6 +253,16 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="mailto"/>
+        </intent>
+
+        <!-- The Camera tile and Scan Receipt (image_picker). The plugin grants
+             the camera app write access to its output file by listing the
+             apps that handle IMAGE_CAPTURE, which package visibility hides
+             without this. Android also grants it through the intent's
+             ClipData, so this is belt-and-braces for cameras that read only
+             the first. See docs/sharing-files-into-the-app.md. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
     </queries>
 </manifest>

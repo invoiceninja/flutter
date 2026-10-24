@@ -1635,5 +1635,11 @@
   "client_count_singular": ":count client",
   "client_count_plural": ":count clients",
   "row_count_singular": ":count row",
-  "row_count_plural": ":count rows"
+  "row_count_plural": ":count rows",
+  "scan_receipt": "Scan Receipt",
+  "camera_access_denied": "Camera or photo access is off. Allow it in Settings to add a picture.",
+  "camera_unavailable": "No camera is available on this device.",
+  "photo_source_camera": "Camera",
+  "photo_source_photos": "Photos",
+  "photo_source_files": "Files"
 }

@@ -470,6 +470,54 @@ void main() {
     expect(onForm, hasLength(1), reason: 'unregistered');
   });
 
+  // The dashboard's Scan Receipt: the user asked for a new expense, so the
+  // photo must not slip into a different one that happens to be open.
+  testWidgets('joinOpenForm: false passes an open New Expense by — a fresh '
+      'one is staged', (tester) async {
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+    await h.mountContext(tester);
+    final onForm = <UploadSource>[];
+    h.intake.registerAttachTarget('co1', (files) {
+      onForm.addAll(files);
+      return true;
+    });
+
+    await tester.runAsync(
+      () => h.intake.receive([h.file('IMG_1.jpg')], joinOpenForm: false),
+    );
+
+    expect(onForm, isEmpty);
+    expect(h.staged.single.map((s) => s.fileName), ['IMG_1.jpg']);
+    expect(h.navigations, [SharedFileIntake.kTarget]);
+  });
+
+  // Held behind the lock and replayed on the unlock, a Scan Receipt photo is
+  // still the new expense the user asked for — not one for an open form.
+  testWidgets('a held joinOpenForm: false batch keeps it on the replay', (
+    tester,
+  ) async {
+    final h = _Harness(locked: true)..attach();
+    addTearDown(h.dispose);
+    await h.mountContext(tester);
+    final onForm = <UploadSource>[];
+    h.intake.registerAttachTarget('co1', (files) {
+      onForm.addAll(files);
+      return true;
+    });
+
+    await tester.runAsync(
+      () => h.intake.receive([h.file('IMG_1.jpg')], joinOpenForm: false),
+    );
+    expect(h.intake.heldPaths, hasLength(1));
+
+    h.locked.value = false;
+    await _settleUntil(tester, () => h.navigations.isNotEmpty);
+
+    expect(onForm, isEmpty);
+    expect(h.staged.single.map((s) => s.fileName), ['IMG_1.jpg']);
+  });
+
   testWidgets('a New Expense left open in another company is not used — the '
       'share opens a fresh one in the active company', (tester) async {
     // The create screen binds its company once, at mount, and a company

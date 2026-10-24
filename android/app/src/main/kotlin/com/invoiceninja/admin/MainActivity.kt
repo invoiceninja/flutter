@@ -1,7 +1,9 @@
 package com.invoiceninja.admin
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -40,12 +42,16 @@ class MainActivity : FlutterFragmentActivity() {
     /** Same name as `AppDeepLinks.kChannel`. */
     const val LINK_CHANNEL = "invoice_ninja/deep_links"
 
+    /** Same name as `appSettingsChannel` (`document_capture.dart`). */
+    const val APP_SETTINGS_CHANNEL = "invoice_ninja/app_settings"
+
     /** Same folder as `ShareReceiverActivity` / `SharedIntakeFiles.kFolderName`. */
     const val INTAKE_FOLDER = "shared_intake"
   }
 
   private var shareChannel: MethodChannel? = null
   private var linkChannel: MethodChannel? = null
+  private var appSettingsChannel: MethodChannel? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val token = sanitize(intent)
@@ -79,6 +85,29 @@ class MainActivity : FlutterFragmentActivity() {
             }
           }
         }
+    // A camera permission refused for good ("Don't ask again") can only be
+    // switched back on from this app's page in the system settings, and no URL
+    // reaches it — the toast's Settings action lands here.
+    appSettingsChannel =
+        MethodChannel(messenger, APP_SETTINGS_CHANNEL).apply {
+          setMethodCallHandler { call, result ->
+            when (call.method) {
+              "openAppSettings" ->
+                  try {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null),
+                        ),
+                    )
+                    result.success(null)
+                  } catch (e: android.content.ActivityNotFoundException) {
+                    result.error("unavailable", e.message, null)
+                  }
+              else -> result.notImplemented()
+            }
+          }
+        }
   }
 
   override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -86,6 +115,8 @@ class MainActivity : FlutterFragmentActivity() {
     shareChannel = null
     linkChannel?.setMethodCallHandler(null)
     linkChannel = null
+    appSettingsChannel?.setMethodCallHandler(null)
+    appSettingsChannel = null
     super.cleanUpFlutterEngine(flutterEngine)
   }
 

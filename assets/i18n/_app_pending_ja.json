@@ -1632,5 +1632,11 @@
   "client_count_singular": "顧客 :count 件",
   "client_count_plural": "顧客 :count 件",
   "row_count_singular": ":count 行",
-  "row_count_plural": ":count 行"
+  "row_count_plural": ":count 行",
+  "scan_receipt": "領収書をスキャン",
+  "camera_access_denied": "カメラまたは写真へのアクセスがオフになっています。画像を追加するには、設定で許可してください。",
+  "camera_unavailable": "このデバイスでは使用できるカメラがありません。",
+  "photo_source_camera": "カメラ",
+  "photo_source_photos": "写真",
+  "photo_source_files": "ファイル"
 }

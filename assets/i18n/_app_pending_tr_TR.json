@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count müşteri",
   "client_count_plural": ":count müşteri",
   "row_count_singular": ":count satır",
-  "row_count_plural": ":count satır"
+  "row_count_plural": ":count satır",
+  "scan_receipt": "Fiş Tara",
+  "camera_access_denied": "Kamera veya fotoğraf erişimi kapalı. Resim eklemek için Ayarlar'dan izin verin.",
+  "camera_unavailable": "Bu cihazda kullanılabilir kamera yok.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotoğraflar",
+  "photo_source_files": "Dosyalar"
 }

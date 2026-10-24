@@ -1600,5 +1600,11 @@
   "client_count_singular": ":count ügyfél",
   "client_count_plural": ":count ügyfél",
   "row_count_singular": ":count sor",
-  "row_count_plural": ":count sor"
+  "row_count_plural": ":count sor",
+  "scan_receipt": "Nyugta beolvasása",
+  "camera_access_denied": "A kamera vagy a fotók elérése ki van kapcsolva. Engedélyezze a Beállításokban egy kép hozzáadásához.",
+  "camera_unavailable": "Ezen az eszközön nem érhető el kamera.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Fotók",
+  "photo_source_files": "Fájlok"
 }

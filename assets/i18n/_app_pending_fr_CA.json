@@ -1549,5 +1549,11 @@
   "client_count_singular": ":count client",
   "client_count_plural": ":count clients",
   "row_count_singular": ":count rangée",
-  "row_count_plural": ":count rangées"
+  "row_count_plural": ":count rangées",
+  "scan_receipt": "Numériser un reçu",
+  "camera_access_denied": "L'accès à l'appareil photo ou aux photos est désactivé. Autorisez-le dans les réglages de l'appareil pour ajouter une image.",
+  "camera_unavailable": "Aucun appareil photo n'est disponible sur cet appareil.",
+  "photo_source_camera": "Appareil photo",
+  "photo_source_photos": "Photos",
+  "photo_source_files": "Fichiers"
 }

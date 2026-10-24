@@ -1628,5 +1628,11 @@
   "client_count_singular": ":count kund",
   "client_count_plural": ":count kunder",
   "row_count_singular": ":count rad",
-  "row_count_plural": ":count rader"
+  "row_count_plural": ":count rader",
+  "scan_receipt": "Skanna kvitto",
+  "camera_access_denied": "Åtkomst till kamera eller bilder är avstängd. Tillåt det i Inställningar för att lägga till en bild.",
+  "camera_unavailable": "Ingen kamera finns tillgänglig på den här enheten.",
+  "photo_source_camera": "Kamera",
+  "photo_source_photos": "Bilder",
+  "photo_source_files": "Filer"
 }

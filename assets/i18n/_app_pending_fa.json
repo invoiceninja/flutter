@@ -1632,5 +1632,11 @@
   "client_count_singular": ":count مشتری",
   "client_count_plural": ":count مشتری",
   "row_count_singular": ":count ردیف",
-  "row_count_plural": ":count ردیف"
+  "row_count_plural": ":count ردیف",
+  "scan_receipt": "اسکن رسید",
+  "camera_access_denied": "دسترسی به دوربین یا عکس‌ها خاموش است. برای افزودن تصویر، آن را در تنظیمات مجاز کنید.",
+  "camera_unavailable": "هیچ دوربینی در این دستگاه در دسترس نیست.",
+  "photo_source_camera": "دوربین",
+  "photo_source_photos": "عکس‌ها",
+  "photo_source_files": "فایل‌ها"
 }

@@ -578,7 +578,9 @@ the honest default.
 | Expense — bulk invoice / add to invoice from the list (one client, billable + uninvoiced only; skipped rows and missing currency conversions reported) | ✅ | ✅ | ✅ | | |
 | Expense — run template | ✅ | ✅ | ✅ | ✅ | |
 | Expense — documents / receipts attachment | ✅ | ✅ | ✅ | ✅ | |
+| Expense (and every record's Documents tab, Company Details → Documents) — on a phone or tablet, take a photo or pick from the photo library: Camera / Photos / Files; a photo survives until an offline upload is sent (v1's library picker was iOS-only) | — | ✅ | ✅ | | |
 | Expense — attach documents while creating (queued with the form, uploaded on save; works offline) — flutter#173 | — | — | ✅ | | |
+| Expense — Scan Receipt in the dashboard's create menu: camera, then New Expense with the photo attached (phone / tablet) | — | — | ✅ | | |
 | Expense — comments | ✅ | ✅ | ✅ | ✅ | |
 | Expense — activities | ✅ | ✅ | ✅ | ✅ | |
 | Expense — custom fields | ✅ | ✅ | ✅ | ✅ | |

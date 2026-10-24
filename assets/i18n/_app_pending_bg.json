@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count клиент",
   "client_count_plural": ":count клиенти",
   "row_count_singular": ":count ред",
-  "row_count_plural": ":count реда"
+  "row_count_plural": ":count реда",
+  "scan_receipt": "Сканиране на касова бележка",
+  "camera_access_denied": "Достъпът до камерата или снимките е изключен. Разрешете го в Настройки, за да добавите снимка.",
+  "camera_unavailable": "На това устройство няма налична камера.",
+  "photo_source_camera": "Камера",
+  "photo_source_photos": "Снимки",
+  "photo_source_files": "Файлове"
 }

@@ -1580,5 +1580,11 @@
   "client_count_singular": ":count πελάτης",
   "client_count_plural": ":count πελάτες",
   "row_count_singular": ":count γραμμή",
-  "row_count_plural": ":count γραμμές"
+  "row_count_plural": ":count γραμμές",
+  "scan_receipt": "Σάρωση Απόδειξης",
+  "camera_access_denied": "Η πρόσβαση στην κάμερα ή στις φωτογραφίες είναι απενεργοποιημένη. Επιτρέψτε την από τις Ρυθμίσεις για να προσθέσετε μια εικόνα.",
+  "camera_unavailable": "Δεν υπάρχει διαθέσιμη κάμερα σε αυτή τη συσκευή.",
+  "photo_source_camera": "Κάμερα",
+  "photo_source_photos": "Φωτογραφίες",
+  "photo_source_files": "Αρχεία"
 }

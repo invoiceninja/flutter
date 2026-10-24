@@ -5,11 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:admin/data/services/upload_source.dart';
 
 /// The app-owned copies of files shared into the app from other apps
-/// (invoiceninja/flutter#173), and the only code that deletes them.
+/// (invoiceninja/flutter#173) — and of photos taken or picked on a phone's
+/// document surfaces ([adopt]) — and the only code that deletes them.
 ///
 /// A shared file arrives as a grant that dies with the activity / extension
 /// that received it, so the native side copies it at once into
@@ -22,7 +24,10 @@ import 'package:admin/data/services/upload_source.dart';
 ///
 /// Three invariants, each kept here rather than at every caller:
 /// - **Never outside the folder.** Every deletion is confined to [root]: a
-///   file the user picked from their own storage is never touched.
+///   file the user picked from their own storage is never touched. The one
+///   file this class takes from outside is the photo picker plugin's own
+///   temp copy, which [adopt] moves in — on Android and iOS only, where that
+///   copy is all the plugin returns.
 /// - **Never one an outbox row names.** [delete] skips any copy a row still
 ///   points at ([referencedPaths]) — the row may yet be sent, or re-sent from
 ///   the Outbox. Only [deleteUploaded], for the row being sent right now, and
@@ -38,9 +43,19 @@ class SharedIntakeFiles {
     Future<Directory> Function()? supportDirectory,
     Future<Set<String>> Function()? referencedPaths,
     DateTime Function()? now,
+    bool Function()? canAdopt,
   }) : _supportDirectory = supportDirectory ?? getApplicationSupportDirectory,
        _referencedPaths = referencedPaths,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _canAdopt = canAdopt ?? _pickerReturnsItsOwnCopy;
+
+  /// Android and iOS: the only platforms where the photo picker hands back a
+  /// copy of its own. On macOS, Windows and Linux it returns the user's file,
+  /// which [adopt] must never move.
+  static bool _pickerReturnsItsOwnCopy() =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   /// The folder under application support. The native sides hard-code the
   /// same name (`ShareReceiverActivity.kt`, `MainActivity.kt`,
@@ -59,6 +74,7 @@ class SharedIntakeFiles {
   /// alone: nothing is then held back by a row.
   final Future<Set<String>> Function()? _referencedPaths;
   final DateTime Function() _now;
+  final bool Function() _canAdopt;
   final _log = Logger('SharedIntakeFiles');
 
   Future<Directory?>? _root;
@@ -129,6 +145,44 @@ class SharedIntakeFiles {
     } catch (e) {
       _log.warning('Could not resolve shared file $path', e);
       return source;
+    }
+  }
+
+  /// Moves a photo the camera or the photo library just handed over
+  /// (`document_capture.dart`) into `<root>/<uuid>/<name>` and returns that
+  /// path — or null off Android / iOS or with no [root], when the caller
+  /// keeps the original.
+  ///
+  /// The picker's copy sits in iOS `tmp/` or the Android cache, which the OS
+  /// may empty before an offline upload is sent; this folder outlives the
+  /// form until the upload row is, and the same three invariants then delete
+  /// it. Only ever for the picker plugin's own copy — a file the user picked
+  /// from their storage is theirs, and moving it would take it from them.
+  Future<String?> adopt(String tempPath, {required String name}) async {
+    if (!_canAdopt()) return null;
+    final dir = await root();
+    if (dir == null) return null;
+    final target = Directory(p.join(dir.path, const Uuid().v4()));
+    try {
+      await target.create(recursive: true);
+      final dest = p.join(target.path, p.basename(name));
+      final source = File(tempPath);
+      try {
+        await source.rename(dest);
+      } on FileSystemException {
+        // A different volume: copy, then drop the picker's temp copy.
+        await source.copy(dest);
+        try {
+          await source.delete();
+        } catch (_) {}
+      }
+      return dest;
+    } catch (e) {
+      _log.warning('Could not keep picked photo $tempPath', e);
+      try {
+        if (await target.exists()) await target.delete(recursive: true);
+      } catch (_) {}
+      return null;
     }
   }
 

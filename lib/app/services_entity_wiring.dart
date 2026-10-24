@@ -129,13 +129,15 @@ class EntityWiringContext {
   final Map<EntityType, SyncDispatcher> dispatchers;
 
   /// After a document upload succeeds — deletes the app-owned copy of a file
-  /// shared into the app (`SharedIntakeFiles.deleteUploaded`). Wired for
-  /// expenses, the one entity whose create form takes shared files.
+  /// shared into the app or taken with the camera / picked from the gallery
+  /// (`SharedIntakeFiles.deleteUploaded`). Wired for every document-bearing
+  /// entity: any Documents tab can take a photo, and a path outside the
+  /// folder is never touched.
   final Future<void> Function(UploadSource source)? onDocumentUploaded;
 
   /// Before a document upload is sent — re-finds the app-owned copy of a file
   /// shared into the app when its queued path has moved
-  /// (`SharedIntakeFiles.resolve`). Wired for expenses, as above.
+  /// (`SharedIntakeFiles.resolve`). Wired for every entity, as above.
   final Future<UploadSource> Function(UploadSource source)?
   resolveDocumentSource;
 }
@@ -680,6 +682,8 @@ List<DocumentParentSlice> _documentParentSlices(
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.client,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: clientsApi.uploadDocument,
         applyChanged: clientRepo.applyDocumentChanged,
         applyDeleted: clientRepo.applyDocumentDeleted,
@@ -706,6 +710,8 @@ List<DocumentParentSlice> _documentParentSlices(
       documentsApi: reg.ctx.documentsApi,
       mirror: reg.documents,
       parentType: EntityType.product,
+      onUploaded: reg.ctx.onDocumentUploaded,
+      resolveSource: reg.ctx.resolveDocumentSource,
       upload: productsApi.uploadDocument,
       applyChanged: productRepo.applyDocumentChanged,
       applyDeleted: productRepo.applyDocumentDeleted,
@@ -766,6 +772,8 @@ List<DocumentParentSlice> _documentParentSlices(
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.task,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: tasksApi.uploadDocument,
         applyChanged: taskRepo.applyDocumentChanged,
         applyDeleted: taskRepo.applyDocumentDeleted,
@@ -805,6 +813,8 @@ List<DocumentParentSlice> _documentParentSlices(
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.project,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: projectsApi.uploadDocument,
         applyChanged: projectRepo.applyDocumentChanged,
         applyDeleted: projectRepo.applyDocumentDeleted,
@@ -863,6 +873,8 @@ List<DocumentParentSlice> _documentParentSlices(
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.vendor,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: vendorsApi.uploadDocument,
         applyChanged: vendorRepo.applyDocumentChanged,
         applyDeleted: vendorRepo.applyDocumentDeleted,
@@ -964,6 +976,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.recurringExpense,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: recurringExpensesApi.uploadDocument,
         applyChanged: recurringExpenseRepo.applyDocumentChanged,
         applyDeleted: recurringExpenseRepo.applyDocumentDeleted,
@@ -1183,6 +1197,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.group,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: groupSettingsApi.uploadDocument,
         applyChanged: groupSettingRepo.applyDocumentChanged,
         applyDeleted: groupSettingRepo.applyDocumentDeleted,
@@ -1378,6 +1394,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.invoice,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: invoicesApi.uploadDocument,
         applyChanged: invoiceRepo.applyDocumentChanged,
         applyDeleted: invoiceRepo.applyDocumentDeleted,
@@ -1499,6 +1517,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.quote,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: quotesApi.uploadDocument,
         applyChanged: quoteRepo.applyDocumentChanged,
         applyDeleted: quoteRepo.applyDocumentDeleted,
@@ -1775,6 +1795,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.credit,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: creditsApi.uploadDocument,
         applyChanged: creditRepo.applyDocumentChanged,
         applyDeleted: creditRepo.applyDocumentDeleted,
@@ -1879,6 +1901,8 @@ _wireRecurringExpense(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.purchaseOrder,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: purchaseOrdersApi.uploadDocument,
         applyChanged: purchaseOrderRepo.applyDocumentChanged,
         applyDeleted: purchaseOrderRepo.applyDocumentDeleted,
@@ -1974,6 +1998,8 @@ _wireRecurringInvoice(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.recurringInvoice,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: recurringInvoicesApi.uploadDocument,
         applyChanged: recurringInvoiceRepo.applyDocumentChanged,
         applyDeleted: recurringInvoiceRepo.applyDocumentDeleted,
@@ -2034,6 +2060,8 @@ _wireRecurringInvoice(_EntityWiring reg) {
         documentsApi: reg.ctx.documentsApi,
         mirror: reg.documents,
         parentType: EntityType.payment,
+        onUploaded: reg.ctx.onDocumentUploaded,
+        resolveSource: reg.ctx.resolveDocumentSource,
         upload: paymentsApi.uploadDocument,
         applyChanged: paymentRepo.applyDocumentChanged,
         applyDeleted: paymentRepo.applyDocumentDeleted,

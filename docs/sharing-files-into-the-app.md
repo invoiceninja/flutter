@@ -265,19 +265,102 @@ invariants live in `SharedIntakeFiles`, not in its callers:
 - **Never one an outbox row names.** `delete` checks `OutboxDao.referencedLocalPaths` (any state
   — a dead row can still be re-sent) and skips those copies, so a form, a discard or an intake
   exit can hand back whatever it held without having to know what was queued.
-- **Gone once uploaded.** `deleteUploaded` runs from the expense upload handler
-  (`documentMutationHandlers`' `onUploaded`) right after a successful upload — a receipt is
-  personal data, and otherwise lingered until a later sweep. It skips the row check: the row naming
-  it is the one completing.
+- **Gone once uploaded.** `deleteUploaded` runs from every document upload handler
+  (`documentMutationHandlers`' `onUploaded`, and `CompanySyncDispatcher`'s for Company Details →
+  Documents) right after a successful upload — a receipt is personal data, and otherwise lingered
+  until a later sweep. It skips the row check: the row naming it is the one completing. It was
+  wired for expenses only while shares were the folder's only tenant; a photo taken on any
+  record's Documents tab made that a leak.
 - **Matched by `<uuid>/<name>`**, not by absolute path: a row's `local_path` is absolute, and the
   prefix can move under it (an iOS data container on an app update; `/var` vs `/private/var`).
-  The upload itself goes through the same key: `SharedIntakeFiles.resolve` (the expense upload
+  The upload itself goes through the same key: `SharedIntakeFiles.resolve` (every upload
   handler's `resolveSource`) re-finds a copy whose queued path no longer exists under today's
   root, so a receipt queued offline survives an App Store update.
 - `sweep` runs once per launch (`main.dart`) and deletes `<uuid>` folders older than 24 h that no
   row references. 24 h is safe because a `/x/new` form is never restored across launches.
 - `purgeAll` runs on `LocalDataDisposer.wipeAll`, after the rows are gone (a shared receipt is the
   account's data), sparing `SharedFileIntake.heldPaths` — see the gate section.
+
+## A camera or gallery capture is adopted into `shared_intake/` before it reaches `onFiles`
+
+A phone's or tablet's documents surfaces (`FileDropZone.allowPhotos`: New Expense's Documents
+card, every detail Documents tab, Company Details → Documents) offer Camera / Photos / Files tiles
+(app-local `photo_source_*` keys — the Transifex `camera` / `gallery` / `files` values are blank or
+wrong in a dozen locales) in place of the drop-or-click box, and the dashboard's create sheet offers **Scan Receipt** — the old app's
+`DocumentGrid` camera button, back. Every photo goes through `document_capture.dart`:
+
+- **A temp path dies before an offline upload is sent.** `image_picker` writes its copy into iOS
+  `tmp/` or the Android cache, which the OS may empty; an outbox upload row keeps only
+  `local_path`, so a receipt photographed with no signal would dead-letter as "no longer
+  available". `SharedIntakeFiles.adopt` moves the copy into `shared_intake/<uuid>/<name>` (rename,
+  else copy + delete) and every invariant above then applies to it. Only the plugin's own copy is
+  adopted, and only on Android and iOS (`canAdopt`) — on a desktop the picker returns the user's
+  own file, and a `file_picker` pick may be too, which this folder never touches. With no folder
+  (an IO failure) the photo is kept as bytes, which travel inside the outbox row.
+- **A photo nobody keeps goes straight back.** The folder is looked up before the picker opens
+  and the photo is always adopted, even when the screen closed while the camera was up — it must
+  leave the plugin's temp folder either way. A reject from `validateDocumentSources`, a batch New
+  Expense refuses, a failed enqueue, or a zone no longer mounted: each host passes it to
+  `releaseCapturedPhotos`, i.e. `SharedIntakeFiles.delete`, which skips anything
+  outside the folder and anything a row names. Otherwise a receipt waited a day for the sweep.
+  Every upload handler — all fourteen `documentMutationHandlers` and the company's — runs the
+  `deleteUploaded` / `resolve` hooks, which `document_upload_hooks_wiring_test.dart` pins.
+- **The content names the file, not the plugin.** iOS re-encodes every library pick that isn't
+  JPEG / PNG / GIF to JPEG on its own (`FLTImagePickerMetaDataUtil`: an unknown type falls through
+  to `.jpg`). On Android it is the resize every pick asks for (`maxWidth` 2560, `imageQuality` 85)
+  that makes the plugin re-encode — and it **keeps the original name** (`ImageResizer`), and hands
+  back the untouched HEIC when it can't decode it. So the extension
+  comes from the first bytes (`imageExtensionOf`: JPEG / PNG / GIF / WebP — what the server's rule
+  takes) and anything else is refused with the invalid-type toast. **Every pick is named
+  `IMG_<yyyyMMdd>_<HHmmss>[_n].<ext>`**, library photos included: the plugins' names are their own
+  temp names — iOS re-saves every library pick as `image_picker_<GUID>.jpg`
+  (`FLTImagePickerPhotoAssetUtil.m`), Android as `cache/scaled_<name>` (`ImageResizer`) — and the
+  name reaches the server and the client portal. Android's fixed `scaled_<name>` also means two
+  picks sharing a display name come back as **one path holding the second image**; the batch is
+  de-duplicated by path and each file is handled on its own, so one unreadable file skips rather
+  than failing the pick.
+- **One picker at a time, app-wide.** A second request while one is open returns nothing:
+  Android refuses it (`already_active`) and iOS cancels the first (`multiple_request`), and the
+  tablet's Scan Receipt button has no `FileDropZone` guard of its own. Those two codes are
+  silent; `no_available_camera` (an Android device with no camera app) has its own toast. iOS
+  never sends it: with no camera it shows its own English "Camera not available." alert and
+  returns nothing.
+- **A refused permission has a way back on both platforms.** `…_access_denied` and iOS's
+  `…_access_restricted` (Screen Time, a managed device) show the access warning with a **Settings**
+  action: iOS opens `app-settings:`, Android asks `MainActivity` over `invoice_ninja/app_settings`
+  for `ACTION_APPLICATION_DETAILS_SETTINGS` (no URL reaches that page) — after "Don't ask again" it
+  is the only way back, as it was in the old app (`openAppSettings`).
+- **Android's photo grid is opted in.** The plugin uses the system photo picker only on Android
+  16+ unless `ImagePickerAndroid.useAndroidPhotoPicker` is set, which `document_capture.dart` does
+  (hence `image_picker_android` as a direct dependency). A device without a photo picker falls back
+  to the file chooser by itself.
+- **The tapped tile shows a spinner** for the whole of its work — the picker, the photo's
+  processing (an iCloud download, a re-encode) and `onFiles` — the dimmed row alone read as the
+  locked state.
+- **Scan Receipt is a share — that never joins an open form.** The unsaved-changes prompt comes
+  *before* the camera, as for every other create on the dashboard; asked after it, "Keep editing"
+  threw away the photo just taken. The adopted photo then goes to `SharedFileIntake.receive` with
+  `joinOpenForm: false`, so the create / module / plan gates and the cleanup on every other exit
+  are that flow's, but a New Expense already open is passed by: the user asked for a new expense.
+  A share from another app still joins one. A batch held behind the gate keeps the flag
+  (`_heldFresh`), so the replay after an unlock still starts a fresh expense. Offered only on a native phone or tablet
+  (`Env.isMobile`) on a plan that takes attachments, right after Enter Expense.
+- **Android needs two manifest lines.** An `IMAGE_CAPTURE` entry in `<queries>`, so the plugin's
+  `grantUriPermissions` can see the camera app on Android 11+ (Android's ClipData grant covers
+  most cameras anyway); and `tools:node="remove"` on the plugin's Play Services
+  `ModuleDependencies` service, which only asks Play to install the backported photo picker and
+  would put Google meta-data in the F-Droid build (`docs/fdroid.md`). Its cost: an Android 11 or
+  12 device whose system updates lack the photo picker gets the file chooser instead of the grid.
+- A refused permission is a warning toast; on iOS it carries a Settings action
+  (`app-settings:`). The Info.plist usage strings and Android's `CAMERA` permission predate this —
+  `image_picker` requests the permission itself because the manifest declares it.
+
+Tests: `document_capture_test.dart` (tiles per platform, naming, duplicates, HEIC refusal, single
+flight, each error code, the Settings action, the spinner, semantics, large text, adoption, release
+after unmount), `shared_intake_files_test.dart` § adopt, `entity_documents_tab_test.dart` (a reject
+released), `shared_file_intake_test.dart` (`joinOpenForm`, held and replayed),
+`dashboard_screen_test.dart` (Scan Receipt gating, prompt first, hand-off),
+`document_upload_hooks_wiring_test.dart`.
 
 ## Uploads queue against the `tmp_` id — and the form's list is the truth
 
@@ -373,6 +456,18 @@ validation rejects an extension whose version differs from the app's.
   it if it is ever missing.
 - **A picked file's pending upload can still lose its file across an iOS update** — `resolve`
   only re-finds the shared-intake copies.
+- **A photo is lost if Android kills the app while the camera is open** (common on low-memory
+  phones). `image_picker` keeps it for `retrieveLostData()`, which nothing calls: after a restart
+  the surface that asked for it is unknown, and New Expense is never restored anyway.
+- **Android leaves the full-size original of a library pick in its own cache**
+  (`cache/<uuid>/<name>`; it deletes the original only for camera shots). Outside our folder; the OS
+  clears its cache.
+- **A HEIC Android can't decode is refused with the generic** "You can't upload files of this
+  type." — right after the user picked a photo.
+- **The iOS permission prompt is English-only** — there is no `InfoPlist.strings`.
+- **Photos keep their EXIF metadata, location included** — iOS copies the original's metadata onto
+  a library pick and Android's `ExifDataCopier` copies the GPS tags — as files picked from Files
+  always have. Documents are public by default (`documents_public_by_default`).
 - **A held share is lost on process death.** Dart empties the native queue when it pulls; a share
   then held behind the gate (signed out, locked, `/setup`) lives only in that isolate. The same is
   true of a held deep link.

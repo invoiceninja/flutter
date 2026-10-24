@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_create_strip.dart';
@@ -46,7 +45,7 @@ class DashboardTopBar extends StatelessWidget {
   /// `quickCreateEntities` — the same list the narrow layout's `+` sheet
   /// offers. Empty draws no create buttons at all.
   final List<QuickCreateOption> createOptions;
-  final ValueChanged<EntityType>? onCreate;
+  final ValueChanged<QuickCreateOption>? onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +173,7 @@ class _CreateSlot extends StatelessWidget {
 
   final double gap;
   final List<QuickCreateOption> options;
-  final ValueChanged<EntityType> onCreate;
+  final ValueChanged<QuickCreateOption> onCreate;
 
   @override
   Widget build(BuildContext context) {

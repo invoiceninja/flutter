@@ -215,6 +215,92 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.20',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.receipt_outlined,
+        title: 'Read a receipt',
+        body: 'Attach a receipt to a new expense and its fields fill in.',
+        target: ReleaseHighlightRoute(
+          '/expenses/new',
+          module: EntityType.expense,
+          permission: 'create_expense',
+        ),
+        major: true,
+      ),
+      ReleaseHighlight(
+        icon: Icons.language_outlined,
+        title: '36 more languages',
+        body: 'Every language Invoice Ninja offers, including right-to-left.',
+        major: true,
+      ),
+      ReleaseHighlight(
+        icon: Icons.dashboard_outlined,
+        title: 'Your dashboard, everywhere',
+        body: 'Its cards and layout follow you to other devices.',
+        target: ReleaseHighlightRoute(
+          '/dashboard',
+          permission: 'view_dashboard',
+        ),
+      ),
+      ReleaseHighlight(
+        icon: Icons.add_circle_outline,
+        title: 'Create from a picker',
+        body: 'Add a vendor, category or client without leaving the form.',
+      ),
+      ReleaseHighlight(
+        icon: Icons.bar_chart_outlined,
+        title: 'Three new reports',
+        body: 'Credit Items, Recurring Expenses and Transactions.',
+        target: ReleaseHighlightRoute('/reports', permission: 'view_reports'),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Receipt reading. A photo or PDF attached to a new expense '
+        'fills in its amount, date, vendor, currency and taxes, read on the '
+        'device, with Undo. Not available on web or Linux.',
+      ),
+      ReleaseNoteItem(
+        'Added: On a phone or tablet, documents can be added from the camera '
+        'or Photos, and Scan Receipt in the create menu takes a photo straight '
+        'into a new expense.',
+      ),
+      ReleaseNoteItem(
+        'Added: 36 more languages, so the app now speaks every language '
+        'Invoice Ninja offers. Arabic, Hebrew and Persian lay out '
+        'right-to-left.',
+      ),
+      ReleaseNoteItem(
+        'Added: Create a vendor, expense category or client right from its '
+        'picker, without leaving the form.',
+      ),
+      ReleaseNoteItem(
+        'Added: Credit Items, Recurring Expenses and Transactions reports, and '
+        'right-click a chart bar or point to see its rows or copy its value.',
+      ),
+      ReleaseNoteItem(
+        'Added: Spell check on line item names and descriptions, with a switch '
+        'in Device Settings.',
+      ),
+      ReleaseNoteItem(
+        "Updated: The dashboard's cards, chart grouping and panel arrangement "
+        'now follow you to your other devices and the web app.',
+      ),
+      ReleaseNoteItem(
+        'Updated: New invoices, quotes, credits, purchase orders and recurring '
+        'invoices start with the default tax rates, and show the default '
+        'terms, footer and payment terms '
+        '[#178](https://github.com/invoiceninja/flutter/issues/178)',
+      ),
+      ReleaseNoteItem(
+        'Fixed: A notes field low in a form scrolls clear of the phone '
+        "keyboard, Activity's Load more no longer gets stuck, and a blank "
+        "client or group setting no longer hides the company's terms.",
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.19',
     highlights: [
       ReleaseHighlight(

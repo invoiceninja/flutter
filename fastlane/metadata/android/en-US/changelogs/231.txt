@@ -1,0 +1,7 @@
+- Read a receipt photo or PDF into a new expense
+- Add documents from the camera or Photos, and Scan Receipt
+- 36 more languages, with right-to-left Arabic, Hebrew and Persian
+- Create a vendor, category or client from its picker
+- Credit Items, Recurring Expenses and Transactions reports
+- The dashboard layout follows you across devices
+- New documents start with the default tax rates

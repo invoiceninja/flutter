@@ -242,7 +242,7 @@ void main() {
     };
     expect(roots, isNotEmpty, reason: 'run `flutter pub get` first');
 
-    // fdroidserver/scanner.py `allowed_repos` (fdroidserver 5806784d).
+    // fdroidserver/scanner.py `allowed_repos` (fdroidserver 2d1e622f).
     const allowed = [
       'repo1.maven.org/maven2',
       'jitpack.io',

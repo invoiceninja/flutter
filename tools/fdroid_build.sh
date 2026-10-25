@@ -35,9 +35,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Pins — bumped together (docs/fdroid.md § Bumping the F-Droid toolchain).
-IMAGE="registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie@sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8"
-FDROIDSERVER_COMMIT=5806784d0d43bed7b938fd4b327162da68927060
-FDROIDDATA_COMMIT=971da25ed6f9d099eb9b07124916e57cbafc1675
+IMAGE="registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie@sha256:1ea8bef1820bff06c2974e31b4fc4c79c364cd24231b86e71fa4b926797e0dac"
+FDROIDSERVER_COMMIT=2d1e622fbbce7eec379453983435e5b14bea22b5
+FDROIDDATA_COMMIT=dbd57558e5e687a018116b4242c42dd52d00124a
 # apksigner < 35 has no --alignment-preserved; >= 35 without it re-pads every
 # entry, and the signature no longer copies onto F-Droid's unsigned build.
 BUILD_TOOLS=35.0.0

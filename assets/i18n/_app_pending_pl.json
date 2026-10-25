@@ -1594,5 +1594,6 @@
   "from_receipt": "Z paragonu",
   "from_receipt_check": "Z paragonu — sprawdź",
   "on_receipt": "Na paragonie: :name",
-  "receipt_number_note": "Paragon nr :number"
+  "receipt_number_note": "Paragon nr :number",
+  "add_text": "Dodaj tekst"
 }

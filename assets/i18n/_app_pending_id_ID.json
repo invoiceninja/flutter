@@ -1595,5 +1595,6 @@
   "from_receipt": "Dari struk",
   "from_receipt_check": "Dari struk — periksa",
   "on_receipt": "Di struk: :name",
-  "receipt_number_note": "Struk #:number"
+  "receipt_number_note": "Struk #:number",
+  "add_text": "Tambah Teks"
 }

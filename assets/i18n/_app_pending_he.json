@@ -1593,5 +1593,6 @@
   "from_receipt": "מהקבלה",
   "from_receipt_check": "מהקבלה — יש לבדוק",
   "on_receipt": "בקבלה: :name",
-  "receipt_number_note": "קבלה מס׳ :number"
+  "receipt_number_note": "קבלה מס׳ :number",
+  "add_text": "הוסף טקסט"
 }

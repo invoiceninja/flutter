@@ -1646,5 +1646,6 @@
   "from_receipt": "Из чека",
   "from_receipt_check": "Из чека — проверьте",
   "on_receipt": "В чеке: :name",
-  "receipt_number_note": "Чек № :number"
+  "receipt_number_note": "Чек № :number",
+  "add_text": "Добавить текст"
 }

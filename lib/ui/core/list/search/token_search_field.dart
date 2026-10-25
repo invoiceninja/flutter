@@ -1163,14 +1163,29 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                         ),
                       ),
                     ),
-                  // `hasActiveFilters` treats `{active}` as "no state filter"
-                  // (and ignores a changed sort — sort isn't a filter), so the
-                  // clear button hides when the lifecycle default is the only
-                  // thing applied, regardless of sort. Since #126 that agrees
-                  // with the chips: a key at its default renders none, so there
-                  // is nothing on screen for the missing button to contradict.
-                  if (widget.vm.hasActiveFilters ||
-                      _controller.text.text.isNotEmpty)
+                  // Erase what is typed, and the search it was applying, but
+                  // no chip. The funnel below was the only way to empty the
+                  // box, and users did not read it as one: they deleted the
+                  // text a key at a time. Focus goes back to the input, since
+                  // clearing a search is nearly always the start of another.
+                  if (_controller.text.text.isNotEmpty)
+                    _boxButton(
+                      tooltip: context.tr('clear'),
+                      icon: Icons.close,
+                      onPressed: () {
+                        _controller.dropBoxText();
+                        _controller.focus.requestFocus();
+                      },
+                    ),
+                  // `hasActiveNonSearchFilters` treats `{active}` as "no
+                  // state filter" (and ignores a changed sort — sort isn't a
+                  // filter), so the clear button hides when the lifecycle
+                  // default is the only thing applied, regardless of sort.
+                  // Since #126 that agrees with the chips: a key at its default
+                  // renders none, so there is nothing on screen for the missing
+                  // button to contradict. A search alone has its own ✕ — the
+                  // one above, or its chip's.
+                  if (widget.vm.hasActiveNonSearchFilters)
                     _boxButton(
                       tooltip: context.tr('clear_filters'),
                       // Distinct from the per-chip `Icons.close` so "clear all

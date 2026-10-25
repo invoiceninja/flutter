@@ -1646,5 +1646,6 @@
   "from_receipt": "No čeka",
   "from_receipt_check": "No čeka — pārbaudiet",
   "on_receipt": "Čekā: :name",
-  "receipt_number_note": "Čeks Nr. :number"
+  "receipt_number_note": "Čeks Nr. :number",
+  "add_text": "Pievienot tekstu"
 }

@@ -1613,5 +1613,6 @@
   "from_receipt": "Iš kvito",
   "from_receipt_check": "Iš kvito — patikrinkite",
   "on_receipt": "Kvite: :name",
-  "receipt_number_note": "Kvitas Nr. :number"
+  "receipt_number_note": "Kvitas Nr. :number",
+  "add_text": "Pridėti tekstą"
 }

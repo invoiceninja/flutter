@@ -54,6 +54,7 @@ class LineItemPickerBody extends StatefulWidget {
     this.showStockQuantity = false,
     this.partyTaxExempt = false,
     this.maxHeight,
+    this.filterAtBottom = false,
   });
 
   final String companyId;
@@ -84,6 +85,13 @@ class LineItemPickerBody extends StatefulWidget {
   /// modal honors the standard 0.85·screen cap; null inside a Dialog whose
   /// outer SizedBox already enforces a height.
   final double? maxHeight;
+
+  /// Puts the filter above the footer instead of under the header — the
+  /// phone sheet's layout. The sheet is bottom-anchored and sizes to its
+  /// content, so a top filter sat out of thumb reach *and* slid down the
+  /// screen with every keystroke that shrank the list; at the bottom it stays
+  /// put, just above the keyboard. The wide dialog keeps the desktop order.
+  final bool filterAtBottom;
 
   @override
   State<LineItemPickerBody> createState() => _LineItemPickerBodyState();
@@ -689,6 +697,48 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
 
     final activeTab = _tabs[_tabCtl.index.clamp(0, _tabs.length - 1)];
 
+    final filterField = Padding(
+      // Above the footer, the footer's own padding supplies the gap below.
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.lg(context),
+        InSpacing.md(context),
+        InSpacing.lg(context),
+        widget.filterAtBottom ? 0 : InSpacing.md(context),
+      ),
+      child: TextField(
+        controller: _filterCtl,
+        // Wide-window only: dialog opens with the filter focused so
+        // the user can start typing to narrow the list immediately.
+        // Skipped on mobile so the on-screen keyboard doesn't pop
+        // up uninvited when the sheet slides into view.
+        autofocus: MediaQuery.of(context).size.width >= 720,
+        // Search queries are names and numbers, not prose — iOS
+        // autocorrecting "Acme" to "Acne" mid-search is the failure.
+        autocorrect: false,
+        enableSuggestions: false,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => _onFilterSubmitted(),
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search, size: 20),
+          hintText: context.tr('filter'),
+          // `isDense: true` (was) → ~40 px tall, below the Material
+          // 3 48 px touch-target. Explicit contentPadding gives a
+          // ~52 px tap area without bloating the modal chrome.
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
+          border: const OutlineInputBorder(),
+          suffixIcon: _filter.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => _filterCtl.clear(),
+                ),
+        ),
+      ),
+    );
+
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Column(
@@ -696,46 +746,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         children: [
           _Header(onClose: () => Navigator.of(context).pop(), tokens: tokens),
           Divider(height: 1, color: tokens.border),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              InSpacing.lg(context),
-              InSpacing.md(context),
-              InSpacing.lg(context),
-              InSpacing.md(context),
-            ),
-            child: TextField(
-              controller: _filterCtl,
-              // Wide-window only: dialog opens with the filter focused so
-              // the user can start typing to narrow the list immediately.
-              // Skipped on mobile so the on-screen keyboard doesn't pop
-              // up uninvited when the sheet slides into view.
-              autofocus: MediaQuery.of(context).size.width >= 720,
-              // Search queries are names and numbers, not prose — iOS
-              // autocorrecting "Acme" to "Acne" mid-search is the failure.
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _onFilterSubmitted(),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search, size: 20),
-                hintText: context.tr('filter'),
-                // `isDense: true` (was) → ~40 px tall, below the Material
-                // 3 48 px touch-target. Explicit contentPadding gives a
-                // ~52 px tap area without bloating the modal chrome.
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                border: const OutlineInputBorder(),
-                suffixIcon: _filter.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => _filterCtl.clear(),
-                      ),
-              ),
-            ),
-          ),
+          if (!widget.filterAtBottom) filterField,
           if (_tabs.length > 1) ...[
             _TabsBar(
               controller: _tabCtl,
@@ -755,6 +766,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
           // automatically when the user taps a tab label.
           _tabBody(activeTab, maxListHeight),
           Divider(height: 1, color: tokens.border),
+          if (widget.filterAtBottom) filterField,
           _Footer(
             tokens: tokens,
             count: count,

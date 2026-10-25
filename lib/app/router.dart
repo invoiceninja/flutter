@@ -372,9 +372,18 @@ ShellRoute buildEntityRouteBlock({
         routes: [
           GoRoute(
             path: 'edit',
-            builder: (context, state) => KeyedSubtree(
-              key: ValueKey('edit:$basePath:${state.pathParameters['id']}'),
-              child: edit(context, state),
+            // The one page this Navigator pushes over another (the detail),
+            // and nothing inside it paints a background — the pane's bg sits
+            // *behind* the Navigator. Without its own opaque surface the edit
+            // form slides in see-through and the two screens' text overlaps
+            // for the length of the push / pop. A `Material`, not a
+            // `ColoredBox`, so ink splashes paint above it, not under it.
+            builder: (context, state) => Material(
+              color: context.inTheme.bg,
+              child: KeyedSubtree(
+                key: ValueKey('edit:$basePath:${state.pathParameters['id']}'),
+                child: edit(context, state),
+              ),
             ),
             onExit: _confirmExitIfDirty,
           ),

@@ -1598,5 +1598,6 @@
   "from_receipt": "Fra kvittering",
   "from_receipt_check": "Fra kvittering — kontrollér",
   "on_receipt": "På kvittering: :name",
-  "receipt_number_note": "Kvittering nr. :number"
+  "receipt_number_note": "Kvittering nr. :number",
+  "add_text": "Tilføj tekst"
 }

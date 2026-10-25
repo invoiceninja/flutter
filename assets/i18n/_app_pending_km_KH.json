@@ -1593,5 +1593,6 @@
   "from_receipt": "ពីបង្កាន់ដៃ",
   "from_receipt_check": "ពីបង្កាន់ដៃ — សូមពិនិត្យ",
   "on_receipt": "នៅលើបង្កាន់ដៃ: :name",
-  "receipt_number_note": "បង្កាន់ដៃលេខ :number"
+  "receipt_number_note": "បង្កាន់ដៃលេខ :number",
+  "add_text": "បន្ថែមអត្ថបទ"
 }

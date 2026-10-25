@@ -680,7 +680,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// a filter is applied or whether a list is empty, so it isn't an "active
   /// filter" (and the clear button shouldn't appear for a sort-only change).
   /// `clearAllFilters` still resets sort via its own independent check.
-  bool get hasActiveFilters {
+  bool get hasActiveFilters => hasActiveNonSearchFilters || _search.isNotEmpty;
+
+  /// [hasActiveFilters] without the search — what the search field's Clear
+  /// filters button stands for, since the search has its own ✕.
+  bool get hasActiveNonSearchFilters {
     // `{active}` is "no state filter" — it's the default, and the clear
     // button correctly hides itself there. This used to be guarded by
     // `_states.isNotEmpty &&`, which is worse than redundant: `{}` means
@@ -698,7 +702,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     for (final values in _extraFilters.values) {
       if (values.isNotEmpty) return true;
     }
-    return _search.isNotEmpty;
+    return false;
   }
 
   // ── Internals ───────────────────────────────────────────────────────

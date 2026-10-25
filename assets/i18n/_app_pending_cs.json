@@ -1646,5 +1646,6 @@
   "from_receipt": "Z účtenky",
   "from_receipt_check": "Z účtenky — zkontrolujte",
   "on_receipt": "Na účtence: :name",
-  "receipt_number_note": "Účtenka č. :number"
+  "receipt_number_note": "Účtenka č. :number",
+  "add_text": "Přidat text"
 }

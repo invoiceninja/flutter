@@ -1646,5 +1646,6 @@
   "from_receipt": "来自收据",
   "from_receipt_check": "来自收据 — 请核对",
   "on_receipt": "收据上：:name",
-  "receipt_number_note": "收据号 :number"
+  "receipt_number_note": "收据号 :number",
+  "add_text": "添加文本"
 }

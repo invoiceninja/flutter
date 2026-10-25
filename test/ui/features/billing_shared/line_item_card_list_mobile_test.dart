@@ -1,3 +1,5 @@
+import 'package:decimal/decimal.dart';
+
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
@@ -47,6 +49,7 @@ void main() {
     bool withPicker = true,
     double minHeight = 0,
     Map<int, Map<String, String>>? rowErrors,
+    LineItemColumnConfig config = const LineItemColumnConfig(),
   }) {
     return tester.pumpWidget(
       MaterialApp(
@@ -65,7 +68,7 @@ void main() {
                     items: items,
                     onChanged: (next) => setState(() => items = next),
                     newItemFactory: emptyLineItem,
-                    config: const LineItemColumnConfig(),
+                    config: config,
                     currencyId: '1',
                     onPickItems: withPicker ? () => pickerTaps++ : null,
                     rowErrors: rowErrors,
@@ -81,6 +84,7 @@ void main() {
 
   Finder addLine() => find.widgetWithText(OutlinedButton, 'Add Line');
   Finder addItems() => find.widgetWithText(OutlinedButton, 'Add Items');
+  Finder addText() => find.widgetWithText(OutlinedButton, 'Add Text');
 
   group('the two doors', () {
     testWidgets('the empty state offers a blank row as well as the picker', (
@@ -109,15 +113,15 @@ void main() {
       expect(items, hasLength(1), reason: 'the picker adds nothing by itself');
     });
 
-    testWidgets('both are outlined in both states', (tester) async {
+    testWidgets('all three are outlined in both states', (tester) async {
       // The populated footer used to be a borderless TextButton, which read as
       // a tertiary link beside the empty state's outlined pair.
       await pump(tester);
-      expect(find.byType(OutlinedButton), findsNWidgets(2));
+      expect(find.byType(OutlinedButton), findsNWidgets(3));
 
       items = [emptyLineItem().copyWith(notes: 'existing')];
       await pump(tester);
-      expect(find.byType(OutlinedButton), findsNWidgets(2));
+      expect(find.byType(OutlinedButton), findsNWidgets(3));
     });
 
     testWidgets('the picker button opens the picker', (tester) async {
@@ -255,5 +259,140 @@ void main() {
       find.descendant(of: card.first, matching: find.text('First')),
       findsNothing,
     );
+  });
+
+  // A customer was adding a blank item, typing into the three-line
+  // Description and zeroing its quantity by hand to put a paragraph on the PDF.
+  group('Add Text', () {
+    testWidgets('appends a line with no product, cost or quantity', (
+      tester,
+    ) async {
+      items = [emptyLineItem().copyWith(productKey: 'SC2')];
+      await pump(tester);
+
+      await tester.tap(addText());
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AlertDialog, 'Add Text'), findsOneWidget);
+      expect(items, hasLength(1), reason: 'nothing until the user confirms');
+
+      await tester.enterText(find.byType(TextField), 'Diagnosed the fan.');
+      await tester.pump(); // Add enables on the rebuild the text triggers.
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      expect(items, hasLength(2));
+      final line = items.last;
+      expect(line.notes, 'Diagnosed the fan.');
+      expect(line.isTextOnly, isTrue);
+      expect(
+        line.quantity,
+        Decimal.zero,
+        reason: 'a quantity of 1 prints \$0.00 1 \$0.00 on the PDF',
+      );
+      expect(pickerTaps, 0);
+    });
+
+    testWidgets('can\'t add an empty one', (tester) async {
+      await pump(tester);
+      await tester.tap(addText());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+      expect(items, isEmpty);
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('on a phone the box fills the screen', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(tester);
+
+      await tester.tap(addText());
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        tester.getSize(find.byType(TextField)).height,
+        greaterThan(500),
+        reason: 'the point is to see what you are writing',
+      );
+    });
+
+    testWidgets('closing with text typed asks before throwing it away', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(addText());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'A paragraph');
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Keep editing'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(find.text('A paragraph'), findsOneWidget);
+      expect(items, isEmpty);
+    });
+
+    testWidgets('the Tasks table offers no text line', (tester) async {
+      // Its new rows are hourly (`type_id` 2); a text line is a product row
+      // and would jump out of the tab.
+      await pump(tester, config: const LineItemColumnConfig(isTaskTable: true));
+      expect(addLine(), findsOneWidget);
+      expect(addText(), findsNothing);
+    });
+
+    testWidgets('a text card shows its text, not \$0.00 × 0', (tester) async {
+      items = [textLineItem().copyWith(notes: 'First line\nSecond line')];
+      await pump(tester);
+
+      expect(find.text('First line\nSecond line'), findsOneWidget);
+      expect(find.textContaining('× 0'), findsNothing);
+      expect(find.textContaining('0.00'), findsNothing);
+    });
+
+    testWidgets('tapping a text card opens the text editor', (tester) async {
+      items = [textLineItem().copyWith(notes: 'Old')];
+      await pump(tester);
+
+      await tester.tap(find.text('Old'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'New');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(items.single.notes, 'New');
+      expect(items.single.isTextOnly, isTrue);
+    });
+
+    testWidgets('More Fields hands the edited text to the full editor', (
+      tester,
+    ) async {
+      items = [textLineItem().copyWith(notes: 'Old')];
+      await pump(tester);
+
+      await tester.tap(find.text('Old'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Edited');
+      await tester.tap(find.text('More Fields'));
+      await tester.pumpAndSettle();
+
+      // The full editor: Product, Description, Cost, Quantity…
+      expect(find.byType(TextField), findsAtLeastNWidgets(4));
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Edited'),
+        ),
+        findsOneWidget,
+      );
+      // Cancel there keeps the text, which was already committed.
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(items.single.notes, 'Edited');
+    });
   });
 }

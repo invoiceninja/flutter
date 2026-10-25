@@ -1594,5 +1594,6 @@
   "from_receipt": "Del recibo",
   "from_receipt_check": "Del recibo — revíselo",
   "on_receipt": "En el recibo: :name",
-  "receipt_number_note": "Recibo n.º :number"
+  "receipt_number_note": "Recibo n.º :number",
+  "add_text": "Añadir texto"
 }

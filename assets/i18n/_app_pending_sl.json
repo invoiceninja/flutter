@@ -1646,5 +1646,6 @@
   "from_receipt": "Iz potrdila",
   "from_receipt_check": "Iz potrdila — preverite",
   "on_receipt": "Na potrdilu: :name",
-  "receipt_number_note": "Potrdilo št. :number"
+  "receipt_number_note": "Potrdilo št. :number",
+  "add_text": "Dodaj besedilo"
 }

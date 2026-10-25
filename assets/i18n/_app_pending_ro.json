@@ -1643,5 +1643,6 @@
   "from_receipt": "Din bon",
   "from_receipt_check": "Din bon — verifică",
   "on_receipt": "Pe bon: :name",
-  "receipt_number_note": "Bon nr. :number"
+  "receipt_number_note": "Bon nr. :number",
+  "add_text": "Adăugați text"
 }

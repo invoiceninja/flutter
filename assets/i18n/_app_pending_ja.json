@@ -1646,5 +1646,6 @@
   "from_receipt": "領収書から",
   "from_receipt_check": "領収書から — 確認してください",
   "on_receipt": "領収書の記載: :name",
-  "receipt_number_note": "領収書番号 :number"
+  "receipt_number_note": "領収書番号 :number",
+  "add_text": "テキストを追加"
 }

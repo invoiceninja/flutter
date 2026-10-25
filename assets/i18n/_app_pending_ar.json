@@ -1593,5 +1593,6 @@
   "from_receipt": "من الإيصال",
   "from_receipt_check": "من الإيصال — تحقق منه",
   "on_receipt": "في الإيصال: :name",
-  "receipt_number_note": "إيصال رقم :number"
+  "receipt_number_note": "إيصال رقم :number",
+  "add_text": "إضافة نص"
 }

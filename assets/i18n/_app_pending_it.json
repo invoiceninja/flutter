@@ -1646,5 +1646,6 @@
   "from_receipt": "Dalla ricevuta",
   "from_receipt_check": "Dalla ricevuta — controlla",
   "on_receipt": "Sulla ricevuta: :name",
-  "receipt_number_note": "Ricevuta n. :number"
+  "receipt_number_note": "Ricevuta n. :number",
+  "add_text": "Aggiungi testo"
 }

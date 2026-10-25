@@ -1595,5 +1595,6 @@
   "from_receipt": "Kuitista",
   "from_receipt_check": "Kuitista — tarkista",
   "on_receipt": "Kuitissa: :name",
-  "receipt_number_note": "Kuitti nro :number"
+  "receipt_number_note": "Kuitti nro :number",
+  "add_text": "Lisää teksti"
 }

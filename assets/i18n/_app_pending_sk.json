@@ -1594,5 +1594,6 @@
   "from_receipt": "Z bločku",
   "from_receipt_check": "Z bločku — skontrolujte",
   "on_receipt": "Na bločku: :name",
-  "receipt_number_note": "Bloček č. :number"
+  "receipt_number_note": "Bloček č. :number",
+  "add_text": "Pridať text"
 }

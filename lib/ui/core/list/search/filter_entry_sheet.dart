@@ -517,6 +517,11 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                           const SizedBox(width: 6),
                         ],
                         Expanded(
+                          // Keyed: the pending chip can appear in front of it
+                          // in the same frame as the ✕ behind it, and an
+                          // unkeyed input would then be rebuilt — dropping the
+                          // keyboard's connection mid-entry.
+                          key: const ValueKey('input'),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(minWidth: 80),
                             child: Focus(
@@ -591,6 +596,28 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                             ),
                           ),
                         ),
+                        // Erase what is typed — the wide field's ✕. Clear all
+                        // in the app bar takes the chips too.
+                        if (_controller.text.text.isNotEmpty)
+                          IconButton(
+                            tooltip: context.tr('clear'),
+                            iconSize: 18,
+                            padding: EdgeInsets.zero,
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            // The wide box button's touch size: a full 44 would
+                            // grow the line the moment the first key is typed.
+                            constraints: const BoxConstraints.tightFor(
+                              width: 40,
+                              height: 34,
+                            ),
+                            onPressed: () {
+                              _controller.dropBoxText();
+                              _controller.focus.requestFocus();
+                            },
+                            icon: Icon(Icons.close, color: tokens.ink3),
+                          ),
                       ],
                     ),
                   ),

@@ -12,6 +12,7 @@ import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
+import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_text_dialog.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 
@@ -85,12 +86,29 @@ class LineItemCardListMobile extends StatelessWidget {
   /// stays: the picker adds real linked lines.
   final bool allowNewRows;
 
+  /// A text line opens the text editor, whose `More Fields` hands over to
+  /// the full one — committing the text first, so a Cancel there keeps it.
   Future<void> _openEditor(BuildContext context, int index) async {
+    var initial = items[index];
+    var current = items;
+    if (initial.isTextOnly) {
+      final text = await showLineItemTextDialog(
+        context,
+        initial: initial,
+        label: _descriptionLabel(context),
+        offerMoreFields: true,
+      );
+      if (text == null || !context.mounted) return;
+      current = List<LineItem>.from(items)..[index] = text.item;
+      onChanged(current);
+      if (!text.moreFields) return;
+      initial = text.item;
+    }
     final fmt = context.read<Services>().formatterIfReady(companyId);
     final useComma = fmt?.settings.useCommaAsDecimalPlace ?? false;
     final result = await showLineItemEditDialog(
       context,
-      initial: items[index],
+      initial: initial,
       config: config,
       useComma: useComma,
       formatter: fmt,
@@ -100,9 +118,12 @@ class LineItemCardListMobile extends StatelessWidget {
     // switch, or the record closing. `onChanged` writes into the edit VM,
     // which asserts once disposed.
     if (!context.mounted) return;
-    final next = List<LineItem>.from(items)..[index] = result;
+    final next = List<LineItem>.from(current)..[index] = result;
     onChanged(next);
   }
+
+  String _descriptionLabel(BuildContext context) =>
+      context.tr(config.labelKey('description'));
 
   void _remove(int index) {
     final next = List<LineItem>.from(items)..removeAt(index);
@@ -139,6 +160,24 @@ class LineItemCardListMobile extends StatelessWidget {
     onChanged(List<LineItem>.from(items)..add(result));
   }
 
+  /// A line that is only a description. Users were adding a blank item, typing into the editor's three-line Description and
+  /// zeroing its quantity by hand to get one onto the PDF.
+  Future<void> _addText(BuildContext context) async {
+    final result = await showLineItemTextDialog(
+      context,
+      initial: textLineItem(),
+      label: _descriptionLabel(context),
+      titleKey: 'add_text',
+      actionKey: 'add',
+    );
+    if (result == null || !context.mounted) return;
+    onChanged(List<LineItem>.from(items)..add(result.item));
+  }
+
+  /// Text lines are product-table rows (`type_id` 1), so the hourly Tasks
+  /// tab, whose new rows are `type_id` 2, doesn't offer them.
+  bool get _allowsText => allowNewRows && !config.isTaskTable;
+
   void _onReorder(int oldIndex, int newIndex) {
     final next = List<LineItem>.from(items);
     final row = next.removeAt(oldIndex);
@@ -168,6 +207,7 @@ class LineItemCardListMobile extends StatelessWidget {
               alignment: WrapAlignment.center,
               onAdd: allowNewRows ? () => _add(context) : null,
               onPickItems: onPickItems,
+              onAddText: _allowsText ? () => _addText(context) : null,
             ),
           ),
         ),
@@ -184,6 +224,7 @@ class LineItemCardListMobile extends StatelessWidget {
             alignment: WrapAlignment.start,
             onAdd: allowNewRows ? () => _add(context) : null,
             onPickItems: onPickItems,
+            onAddText: _allowsText ? () => _addText(context) : null,
           ),
         ),
       ],
@@ -210,8 +251,11 @@ class LineItemCardListMobile extends StatelessWidget {
           onTap: () => _openEditor(context, index),
           onRemove: () => _remove(index),
           // A row that already IS a task can't be scheduled again.
+          // Nor is a line of text work to schedule.
           onCreateTask:
-              onCreateTaskFromLineItem == null || (item.taskId ?? '').isNotEmpty
+              onCreateTaskFromLineItem == null ||
+                  (item.taskId ?? '').isNotEmpty ||
+                  item.isTextOnly
               ? null
               : () => onCreateTaskFromLineItem!(item),
         );
@@ -220,7 +264,7 @@ class LineItemCardListMobile extends StatelessWidget {
   }
 }
 
-/// The two add affordances, rendered identically in the empty state and under
+/// The add affordances, rendered identically in the empty state and under
 /// a populated list so they cannot drift apart.
 ///
 /// Two doors, because they do different things: the picker only offers rows
@@ -231,6 +275,9 @@ class LineItemCardListMobile extends StatelessWidget {
 /// row existed, and with the FAB gone from this branch that left the picker
 /// unreachable on a phone.
 ///
+/// `Add Text` is the third: a line with no product, cost or quantity, which
+/// the PDF prints as a row of text (see `LineItem.isTextOnly`).
+///
 /// `Wrap`, not `Row` — two labelled buttons take a second run on a 320 px
 /// phone or past ~1.2x text scale, and a `Row` would overflow instead.
 /// `minimumSize: Size(64, 40)` on each, or `theme.dart`'s
@@ -240,6 +287,7 @@ class _AddItemActions extends StatelessWidget {
     required this.alignment,
     required this.onAdd,
     required this.onPickItems,
+    required this.onAddText,
   });
 
   /// Centred under the empty state's icon + title; leading under a list, where
@@ -251,6 +299,9 @@ class _AddItemActions extends StatelessWidget {
 
   /// Null hides the picker button — see [LineItemCardListMobile.onPickItems].
   final VoidCallback? onPickItems;
+
+  /// Null hides `Add Text` — see [LineItemCardListMobile._allowsText].
+  final VoidCallback? onAddText;
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +327,13 @@ class _AddItemActions extends StatelessWidget {
             icon: const Icon(Icons.list_alt_outlined),
             label: Text(context.tr('add_items')),
             onPressed: onPickItems,
+          ),
+        if (onAddText != null)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            icon: const Icon(Icons.notes),
+            label: Text(context.tr('add_text')),
+            onPressed: onAddText,
           ),
       ],
     );
@@ -353,7 +411,12 @@ class _ItemCard extends StatelessWidget {
     // task-generated note opens with the PDF's `<div class="project-header">…`
     // wrapper, so the raw first line is a tag and nothing else.
     final summary = lineItemNotesSummary(item.notes);
-    final identity = item.productKey.isEmpty
+    // A text line has nothing to show but its text, so it gets three lines of
+    // it and no `$0.00 × 0` / `$0.00` under and beside them.
+    final textOnly = item.isTextOnly;
+    final identity = textOnly
+        ? lineItemNotesPlainText(item.notes)
+        : item.productKey.isEmpty
         ? (summary.isEmpty ? context.tr('untitled') : summary)
         : item.productKey;
     final detail = '${fmt(item.cost)} × ${item.quantity}';
@@ -403,11 +466,11 @@ class _ItemCard extends StatelessWidget {
                   children: [
                     Text(
                       identity,
-                      maxLines: 1,
+                      maxLines: textOnly ? 3 : 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: tokens.ink,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: textOnly ? null : FontWeight.w500,
                       ),
                     ),
                     if (customSummary.isNotEmpty) ...[
@@ -419,13 +482,15 @@ class _ItemCard extends StatelessWidget {
                         style: TextStyle(color: tokens.ink2, fontSize: 12),
                       ),
                     ],
-                    const SizedBox(height: 2),
-                    Text(
-                      detail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: tokens.ink3, fontSize: 12),
-                    ),
+                    if (!textOnly) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: tokens.ink3, fontSize: 12),
+                      ),
+                    ],
                     if (errorText != null) ...[
                       const SizedBox(height: 2),
                       Text(
@@ -439,7 +504,8 @@ class _ItemCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              LtrText(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
+              if (!textOnly)
+                LtrText(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
               if (onCreateTask != null)
                 IconButton(
                   icon: const Icon(Icons.more_time, size: 20),

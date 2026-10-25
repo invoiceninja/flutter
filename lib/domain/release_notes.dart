@@ -284,6 +284,11 @@ const List<ReleaseNotes> kReleaseNotes = [
         'in Device Settings.',
       ),
       ReleaseNoteItem(
+        'Added: On a phone, Add Text puts a line of plain text (no price or '
+        'quantity) on an invoice, quote or other document, written in a '
+        'full-screen editor.',
+      ),
+      ReleaseNoteItem(
         "Updated: The dashboard's cards, chart grouping and panel arrangement "
         'now follow you to your other devices and the web app.',
       ),
@@ -294,9 +299,15 @@ const List<ReleaseNotes> kReleaseNotes = [
         '[#178](https://github.com/invoiceninja/flutter/issues/178)',
       ),
       ReleaseNoteItem(
+        'Updated: The list search box has a button to clear what is typed, the '
+        "product picker's filter sits just above the phone keyboard, and a line "
+        "item's description grows as you type.",
+      ),
+      ReleaseNoteItem(
         'Fixed: A notes field low in a form scrolls clear of the phone '
-        "keyboard, Activity's Load more no longer gets stuck, and a blank "
-        "client or group setting no longer hides the company's terms.",
+        "keyboard, Activity's Load more no longer gets stuck, a blank client "
+        "or group setting no longer hides the company's terms, and an edit "
+        'screen no longer shows the record through it as it slides in.',
       ),
     ],
   ),

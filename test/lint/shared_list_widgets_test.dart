@@ -156,11 +156,11 @@ void main() {
     if (!vm.contains('hasUnappliedFundsOnly')) return; // flag retired: fine
 
     expect(
-      vm.contains('bool get hasActiveFilters'),
+      vm.contains('bool get hasActiveNonSearchFilters'),
       isTrue,
       reason:
           'PaymentListViewModel must fold hasUnappliedFundsOnly into '
-          'hasActiveFilters, or the first-run "No payments yet" copy shows '
+          'hasActiveNonSearchFilters (and so hasActiveFilters), or the first-run "No payments yet" copy shows '
           'over a filtered empty list',
     );
     expect(

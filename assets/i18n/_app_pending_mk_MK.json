@@ -1646,5 +1646,6 @@
   "from_receipt": "Од сметката",
   "from_receipt_check": "Од сметката — проверете",
   "on_receipt": "На сметката: :name",
-  "receipt_number_note": "Сметка бр. :number"
+  "receipt_number_note": "Сметка бр. :number",
+  "add_text": "Додај текст"
 }

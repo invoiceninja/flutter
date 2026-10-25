@@ -110,6 +110,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
               showStockQuantity: showStockQuantity,
               partyTaxExempt: partyTaxExempt,
               maxHeight: maxHeight,
+              filterAtBottom: true,
             ),
           ),
         ),

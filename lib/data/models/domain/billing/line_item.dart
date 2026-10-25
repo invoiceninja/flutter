@@ -111,6 +111,19 @@ extension LineItemAccessors on LineItem {
       customValue4.isEmpty &&
       taskId == null &&
       expenseId == null;
+
+  /// A row of text on the PDF: no product, cost or quantity, so the server
+  /// prints its description with the money columns blank
+  /// (`MakesInvoiceValues::transformLineItems` blanks them only when both
+  /// `quantity` and `cost` are 0). The phone edits one in
+  /// `showLineItemTextDialog` and draws its card without the money.
+  bool get isTextOnly =>
+      typeId == LineItemType.standard &&
+      productKey.isEmpty &&
+      cost == Decimal.zero &&
+      quantity == Decimal.zero &&
+      taskId == null &&
+      expenseId == null;
 }
 
 /// Empty line item — quantity defaults to 1, everything else zero/empty.
@@ -138,6 +151,10 @@ LineItem emptyLineItem() => LineItem(
   taxCategoryId: '',
   createdAt: null,
 );
+
+/// A fresh text line (see [LineItemAccessors.isTextOnly]) — [emptyLineItem]
+/// with no quantity, since a quantity of 1 makes the PDF print `$0.00 1 $0.00`.
+LineItem textLineItem() => emptyLineItem().copyWith(quantity: Decimal.zero);
 
 /// Build or merge a billing line item from a product, mirroring React's
 /// `useHandleProductChange` so every product-fill path agrees:

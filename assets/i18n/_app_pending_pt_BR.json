@@ -1646,5 +1646,6 @@
   "from_receipt": "Do recibo",
   "from_receipt_check": "Do recibo — verifique",
   "on_receipt": "No recibo: :name",
-  "receipt_number_note": "Recibo nº :number"
+  "receipt_number_note": "Recibo nº :number",
+  "add_text": "Adicionar texto"
 }

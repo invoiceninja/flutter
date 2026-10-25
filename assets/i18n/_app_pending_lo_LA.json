@@ -1646,5 +1646,6 @@
   "from_receipt": "ຈາກໃບຮັບເງິນ",
   "from_receipt_check": "ຈາກໃບຮັບເງິນ — ກະລຸນາກວດສອບ",
   "on_receipt": "ໃນໃບຮັບເງິນ: :name",
-  "receipt_number_note": "ໃບຮັບເງິນເລກທີ :number"
+  "receipt_number_note": "ໃບຮັບເງິນເລກທີ :number",
+  "add_text": "ເພີ່ມຂໍ້ຄວາມ"
 }

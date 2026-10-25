@@ -1646,5 +1646,6 @@
   "from_receipt": "D'après le reçu",
   "from_receipt_check": "D'après le reçu — à vérifier",
   "on_receipt": "Sur le reçu : :name",
-  "receipt_number_note": "Reçu n° :number"
+  "receipt_number_note": "Reçu n° :number",
+  "add_text": "Ajouter du texte"
 }

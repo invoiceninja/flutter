@@ -212,8 +212,11 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                 builder: (context, config) => TextField(
                   controller: _notes,
                   decoration: InputDecoration(labelText: label('description')),
-                  maxLines: 3,
-                  minLines: 2,
+                  // Grows with the text up to eight lines, then scrolls — three
+                  // left a paragraph mostly out of sight while typing it.
+                  maxLines: 8,
+                  minLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
                   spellCheckConfiguration: config,
                   contextMenuBuilder: spellCheckContextMenuBuilder,
                 ),

@@ -1649,5 +1649,6 @@
   "from_receipt": "From receipt",
   "from_receipt_check": "From receipt — check",
   "on_receipt": "On receipt: :name",
-  "receipt_number_note": "Receipt #:number"
+  "receipt_number_note": "Receipt #:number",
+  "add_text": "Add Text"
 }

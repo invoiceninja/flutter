@@ -1646,5 +1646,6 @@
   "from_receipt": "Nga kuponi",
   "from_receipt_check": "Nga kuponi — kontrollo",
   "on_receipt": "Në kupon: :name",
-  "receipt_number_note": "Kupon nr. :number"
+  "receipt_number_note": "Kupon nr. :number",
+  "add_text": "Shto tekst"
 }

@@ -1593,5 +1593,6 @@
   "from_receipt": "Sa fiskalnog računa",
   "from_receipt_check": "Sa fiskalnog računa — proverite",
   "on_receipt": "Na fiskalnom računu: :name",
-  "receipt_number_note": "Fiskalni račun br. :number"
+  "receipt_number_note": "Fiskalni račun br. :number",
+  "add_text": "Dodaj tekst"
 }

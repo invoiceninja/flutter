@@ -51,8 +51,11 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
   /// the escape-hatch comment in `EntityListScreenScaffold`), so overriding
   /// them restores the behaviour *and* makes the toggle count as a filter
   /// everywhere else — the scaffold's own Clear-filters escape included.
+  /// Overridden at `hasActiveNonSearchFilters`, which `hasActiveFilters`
+  /// derives from, so the search field's Clear filters button counts it too.
   @override
-  bool get hasActiveFilters => _hasUnappliedFundsOnly || super.hasActiveFilters;
+  bool get hasActiveNonSearchFilters =>
+      _hasUnappliedFundsOnly || super.hasActiveNonSearchFilters;
 
   @override
   Future<void> clearAllFilters() async {

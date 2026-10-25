@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_notes.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 import 'package:admin/utils/formatting.dart';
@@ -42,6 +43,7 @@ class BillingDocOverview extends StatefulWidget {
     this.formatter,
     this.currencyId,
     this.trailing = const <Widget>[],
+    this.onEditLineItem,
   });
 
   final BillingTotalsInput totalsInput;
@@ -62,6 +64,10 @@ class BillingDocOverview extends StatefulWidget {
   /// Entity-specific sections appended after the totals (e.g. the invoice's
   /// applied-payments list and reminders summary).
   final List<Widget> trailing;
+
+  /// Open the edit screen on the line at this index of the document's line
+  /// items — see [LineItemsReadonlyTable.onTapItem]. Null leaves them inert.
+  final ValueChanged<int>? onEditLineItem;
 
   @override
   State<BillingDocOverview> createState() => _BillingDocOverviewState();
@@ -137,6 +143,7 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
           currencyId: currencyId,
           discountIsAmount: totalsInput.isAmountDiscount,
           customFields: company?.customFields,
+          onTapItem: widget.onEditLineItem,
         ),
         SizedBox(height: gap),
         LayoutBuilder(
@@ -196,6 +203,8 @@ class BillingDocOverviewOf extends StatelessWidget {
     this.paidToDate,
     this.showBalance = false,
     this.trailing,
+    this.isReadOnly,
+    this.editLineItem,
   });
 
   final BillingDocType type;
@@ -212,6 +221,28 @@ class BillingDocOverviewOf extends StatelessWidget {
   /// applied payments and its reminders.
   final List<Widget> Function(BuildContext context, String? currencyId)?
   trailing;
+
+  /// The record screen's `E`-shortcut rule — deleted, or not this user's to
+  /// edit. While it holds, the line items are inert; it is asked again on the
+  /// tap, so a permission lost since the last build opens nothing. Null (the
+  /// default) leaves them inert too.
+  final bool Function()? isReadOnly;
+
+  /// Open the edit screen on the line at this index. Defaults to
+  /// [goEditBillingDocLineItem]; the invoice passes its own, which runs the
+  /// lock check its Edit action does first.
+  final ValueChanged<int>? editLineItem;
+
+  ValueChanged<int>? _onEditLineItem(BuildContext context) {
+    final readOnly = isReadOnly;
+    if (readOnly == null || readOnly()) return null;
+    return (index) {
+      if (readOnly()) return;
+      final edit = editLineItem;
+      if (edit != null) return edit(index);
+      goEditBillingDocLineItem(context, type: type, id: doc.id, index: index);
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +269,7 @@ class BillingDocOverviewOf extends StatelessWidget {
           balance: showBalance ? doc.balance : null,
           formatter: formatter,
           currencyId: currencyId,
+          onEditLineItem: _onEditLineItem(context),
           trailing: [
             // Straight under the totals, as on the page. And ahead of the
             // host's sections, not after: those hide themselves when they

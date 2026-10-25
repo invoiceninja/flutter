@@ -533,12 +533,22 @@ void goEntityFullDetail(BuildContext context, String basePath, String id) {
 /// a full-screen edit; a slide-over view becomes a slide-over edit.
 /// ([goEntity]'s same-entity branch does not re-add `?view`, so the
 /// mode must be carried explicitly here.)
-void goEntityEdit(BuildContext context, String basePath, String id) {
+///
+/// [extra] rides the route, not the URL, so it is a one-shot: a restored or
+/// history-replayed edit route opens without it. The billing documents'
+/// tap-a-line-item-to-edit (`OpenLineItemRequest`) is the one user today.
+void goEntityEdit(
+  BuildContext context,
+  String basePath,
+  String id, {
+  Object? extra,
+}) {
   final isFull =
       GoRouterState.of(context).uri.queryParameters['view'] == 'full';
-  GoRouter.of(
-    context,
-  ).go(isFull ? '$basePath/$id/edit?view=full' : '$basePath/$id/edit');
+  GoRouter.of(context).go(
+    isFull ? '$basePath/$id/edit?view=full' : '$basePath/$id/edit',
+    extra: extra,
+  );
 }
 
 /// Navigate to an **existing** record's edit screen with [draft] as the seed,

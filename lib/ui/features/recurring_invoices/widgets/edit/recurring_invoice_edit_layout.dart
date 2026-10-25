@@ -11,6 +11,7 @@ import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
@@ -34,6 +35,7 @@ class RecurringInvoiceEditLayout extends StatelessWidget {
     super.key,
     required this.vm,
     this.showPdfTab = true,
+    this.openLineItem,
   });
 
   final RecurringInvoiceEditViewModel vm;
@@ -42,11 +44,15 @@ class RecurringInvoiceEditLayout extends StatelessWidget {
   /// [BillingDocEditLayout.showPdfTab] (invoiceninja/flutter#140).
   final bool showPdfTab;
 
+  /// See [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
+
   @override
   Widget build(BuildContext context) => BillingDocEditLayout<RecurringInvoice>(
     type: BillingDocType.recurringInvoice,
     vm: vm,
     showPdfTab: showPdfTab,
+    openLineItem: openLineItem,
     slots: BillingDocEditSlots(
       pdfFetcher: (context) => _draftPdfFetcher(context, vm),
       scheduleCard: (context) => _ScheduleCardDesktop(vm: vm),

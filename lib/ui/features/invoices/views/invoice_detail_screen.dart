@@ -35,6 +35,7 @@ import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
@@ -156,6 +157,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     super.dispose();
   }
 
+  /// The `E` shortcut's rule (see `isReadOnly` below), and a tapped line
+  /// item's: neither may open an editor the menu does not offer.
+  bool _isReadOnly(Invoice invoice) =>
+      invoice.isDeleted ||
+      !mayEditInvoice(_services.auth.session.value, invoice);
+
   void _dispatch(Invoice invoice, InvoiceAction action) =>
       InvoiceActions.dispatch(context, _services, _companyId, invoice, action);
 
@@ -187,9 +194,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
       // A deleted invoice is read-only until restored, and so is one this
       // user may not edit — `E` must not open an editor the menu hides.
       // The session is read when the key is pressed, not at build.
-      isReadOnly: (invoice) =>
-          invoice.isDeleted ||
-          !mayEditInvoice(_services.auth.session.value, invoice),
+      isReadOnly: _isReadOnly,
       // Through the Edit action, so a locked invoice gets its dialog
       // instead of an editor that mounts only to back out.
       onEdit: (invoice) => _dispatch(invoice, InvoiceAction.edit),
@@ -317,6 +322,15 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
                 bodyBuilder: (_) => BillingDocOverviewOf(
                   type: BillingDocType.invoice,
                   doc: invoice,
+                  isReadOnly: () => _isReadOnly(invoice),
+                  // Through the lock check, as the Edit action goes.
+                  editLineItem: (index) => InvoiceActions.edit(
+                    context,
+                    _services,
+                    _companyId,
+                    invoice,
+                    openLineItem: OpenLineItemRequest(index),
+                  ),
                   formatter: formatter,
                   paidToDate: invoice.paidToDate,
                   showBalance: true,

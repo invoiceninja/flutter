@@ -117,6 +117,36 @@ bool _isTaskLine(LineItem li) =>
     ((li.taskId ?? '').isNotEmpty || li.typeId == LineItemType.task);
 bool _isProductLine(LineItem li) => !_isExpenseLine(li) && !_isTaskLine(li);
 
+/// What a client document's line editor *wants* to show, before
+/// `LineItemColumnConfig.forCompany` narrows it to what the company enables.
+///
+/// One tax column, not zero: this is also what renders for the frame before
+/// the company arrives, and starting at zero would pop the column in a beat
+/// later. Same "keep the host's config until we know better" rule the
+/// discount column has always used.
+LineItemColumnConfig _hostConfig({required bool isTaskTable}) =>
+    LineItemColumnConfig(
+      showDiscount: true,
+      taxColumnCount: 1,
+      isTaskTable: isTaskTable,
+    );
+
+/// The tab holding [line], as `vm.itemsTab` names it — set before this widget
+/// mounts, it opens on that tab (the first rule of `_initialKind`). The record
+/// screen's tap-to-edit sets it, so a tapped hourly line's edit is not left
+/// hidden behind Products when its dialog closes.
+String billingItemsTabFor(LineItem line) => _isExpenseLine(line)
+    ? _LineKind.expenses.name
+    : _isTaskLine(line)
+    ? _LineKind.tasks.name
+    : _LineKind.products.name;
+
+/// The config the tab holding [line] edits it with — for an editor opened on
+/// one line outside the tabs (the record screen's tap-to-edit), so that line
+/// gets the fields, and the Service / Rate / Hours labels, its tab would give.
+LineItemColumnConfig billingLineItemColumnConfigFor(LineItem line) =>
+    _hostConfig(isTaskTable: _isTaskLine(line));
+
 bool _predicate(_LineKind kind, LineItem li) {
   switch (kind) {
     case _LineKind.products:
@@ -483,16 +513,7 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       // discount column, so the tax count rides that read rather than opening
       // another subscription per editor (invoiceninja/flutter#85). The tabs'
       // own read above is a different question — which tabs exist — asked once.
-      //
-      // One tax column, not zero: this is also what renders for the frame
-      // before the company arrives, and starting at zero would pop the column
-      // in a beat later. Same "keep the host's config until we know better"
-      // rule the discount column has always used.
-      config: LineItemColumnConfig(
-        showDiscount: true,
-        taxColumnCount: 1,
-        isTaskTable: kind == _LineKind.tasks,
-      ),
+      config: _hostConfig(isTaskTable: kind == _LineKind.tasks),
       controller: _controllerFor(kind),
       // Stock count is a product-selection affordance — only the products
       // tab's typeahead surfaces it (and only on invoices, via the host).

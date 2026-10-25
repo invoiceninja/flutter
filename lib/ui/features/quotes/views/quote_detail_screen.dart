@@ -128,6 +128,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
     super.dispose();
   }
 
+  /// The `E` shortcut's rule (see `isReadOnly` below), and a tapped line
+  /// item's: neither may open an editor the menu does not offer.
+  bool _isReadOnly(Quote quote) =>
+      quote.isDeleted || !mayEditQuote(_services.auth.session.value, quote);
+
   void _dispatch(Quote quote, QuoteAction action) =>
       QuoteActions.dispatch(context, _services, _companyId, quote, action);
 
@@ -157,8 +162,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
       // A deleted quote is read-only until restored, and so is one this
       // user may not edit — `E` must not open an editor the menu hides.
       // The session is read when the key is pressed, not at build.
-      isReadOnly: (quote) =>
-          quote.isDeleted || !mayEditQuote(_services.auth.session.value, quote),
+      isReadOnly: _isReadOnly,
       onRefresh: _record.refresh,
       bannerForItem: (context, quote) => recordStateBanner<QuoteAction>(
         context,
@@ -270,6 +274,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
               bodyBuilder: (_) => BillingDocOverviewOf(
                 type: BillingDocType.quote,
                 doc: quote,
+                isReadOnly: () => _isReadOnly(quote),
                 formatter: formatter,
               ),
             ),

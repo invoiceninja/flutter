@@ -290,6 +290,56 @@ void main() {
         expect(find.textContaining('Color'), findsNothing);
       });
     });
+
+    // Tap a line to edit it (admin-portal parity). The index handed back is
+    // the line's place in `items` — blank lines counted though not drawn —
+    // since that is how the edit view model's draft holds them.
+    for (final width in [800.0, 320.0]) {
+      testWidgets('a tapped line reports its index in items ($width px)', (
+        tester,
+      ) async {
+        final tapped = <int>[];
+        await pump(
+          tester,
+          Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: LineItemsReadonlyTable(
+                items: [
+                  _item(),
+                  emptyLineItem(),
+                  _item(productKey: 'Gadget'),
+                ],
+                formatter: _usdFormatter(),
+                currencyId: '1',
+                onTapItem: tapped.add,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.text('Gadget'));
+        await tester.tap(find.text('Widget'));
+        expect(tapped, [2, 0]);
+      });
+    }
+
+    testWidgets('without onTapItem the lines are not tap targets', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LineItemsReadonlyTable(
+          items: [_item()],
+          formatter: _usdFormatter(),
+          currencyId: '1',
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(InkWell), findsNothing);
+    });
   });
 
   group('BillingDocOverview', () {

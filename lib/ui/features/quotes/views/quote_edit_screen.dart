@@ -15,6 +15,7 @@ import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/billing_shared/seed_client_invitations.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_edit_view_model.dart';
@@ -22,7 +23,12 @@ import 'package:admin/ui/features/quotes/widgets/edit/quote_edit_layout.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
 
 class QuoteEditScreen extends StatelessWidget {
-  const QuoteEditScreen({this.existingId, this.cloneFrom, super.key});
+  const QuoteEditScreen({
+    this.existingId,
+    this.cloneFrom,
+    this.openLineItem,
+    super.key,
+  });
 
   final String? existingId;
 
@@ -30,6 +36,10 @@ class QuoteEditScreen extends StatelessWidget {
   /// edit (uses the fetched record) and for create (which reads the staged
   /// draft via `Services.takeCreateDraft`).
   final Quote? cloneFrom;
+
+  /// A line tapped on the record screen, to open the editor on — see
+  /// [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +153,11 @@ class QuoteEditScreen extends StatelessWidget {
           : (vm.draft.number.isNotEmpty
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
-      bodyBuilder: (ctx, vm) => QuoteEditLayout(vm: vm, showPdfTab: !narrow),
+      bodyBuilder: (ctx, vm) => QuoteEditLayout(
+        vm: vm,
+        showPdfTab: !narrow,
+        openLineItem: openLineItem,
+      ),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (q) => q.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>

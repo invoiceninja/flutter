@@ -12,6 +12,7 @@ import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/billing_shared/seed_client_invitations.dart';
 import 'package:admin/ui/features/credits/view_models/credit_edit_view_model.dart';
@@ -19,7 +20,12 @@ import 'package:admin/ui/features/credits/widgets/edit/credit_edit_layout.dart';
 import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
 
 class CreditEditScreen extends StatelessWidget {
-  const CreditEditScreen({this.existingId, this.cloneFrom, super.key});
+  const CreditEditScreen({
+    this.existingId,
+    this.cloneFrom,
+    this.openLineItem,
+    super.key,
+  });
 
   final String? existingId;
 
@@ -27,6 +33,10 @@ class CreditEditScreen extends StatelessWidget {
   /// edit (uses the fetched record) and for create (which reads the staged
   /// draft via `Services.takeCreateDraft`).
   final Credit? cloneFrom;
+
+  /// A line tapped on the record screen, to open the editor on — see
+  /// [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +114,11 @@ class CreditEditScreen extends StatelessWidget {
           : (vm.draft.number.isNotEmpty
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
-      bodyBuilder: (ctx, vm) => CreditEditLayout(vm: vm, showPdfTab: !narrow),
+      bodyBuilder: (ctx, vm) => CreditEditLayout(
+        vm: vm,
+        showPdfTab: !narrow,
+        openLineItem: openLineItem,
+      ),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (c) => c.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>

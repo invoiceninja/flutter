@@ -12,13 +12,19 @@ import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/edit/purchase_order_edit_layout.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
 
 class PurchaseOrderEditScreen extends StatelessWidget {
-  const PurchaseOrderEditScreen({this.existingId, this.cloneFrom, super.key});
+  const PurchaseOrderEditScreen({
+    this.existingId,
+    this.cloneFrom,
+    this.openLineItem,
+    super.key,
+  });
 
   final String? existingId;
 
@@ -26,6 +32,10 @@ class PurchaseOrderEditScreen extends StatelessWidget {
   /// edit (uses the fetched record) and for create (which reads the staged
   /// draft via `Services.takeCreateDraft`).
   final PurchaseOrder? cloneFrom;
+
+  /// A line tapped on the record screen, to open the editor on — see
+  /// [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
 
   @override
   Widget build(BuildContext context) {
@@ -94,8 +104,11 @@ class PurchaseOrderEditScreen extends StatelessWidget {
           : (vm.draft.number.isNotEmpty
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
-      bodyBuilder: (ctx, vm) =>
-          PurchaseOrderEditLayout(vm: vm, showPdfTab: !narrow),
+      bodyBuilder: (ctx, vm) => PurchaseOrderEditLayout(
+        vm: vm,
+        showPdfTab: !narrow,
+        openLineItem: openLineItem,
+      ),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (p) => p.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>

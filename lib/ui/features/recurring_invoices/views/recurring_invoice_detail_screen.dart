@@ -120,6 +120,12 @@ class _RecurringInvoiceDetailScreenState
     super.dispose();
   }
 
+  /// The `E` shortcut's rule (see `isReadOnly` below), and a tapped line
+  /// item's: neither may open an editor the menu does not offer.
+  bool _isReadOnly(RecurringInvoice ri) =>
+      ri.isDeleted ||
+      !mayEditRecurringInvoice(_services.auth.session.value, ri);
+
   void _dispatch(RecurringInvoice ri, RecurringInvoiceAction action) =>
       RecurringInvoiceActions.dispatch(
         context,
@@ -158,9 +164,7 @@ class _RecurringInvoiceDetailScreenState
       // A deleted recurring invoice is read-only until restored, and so is one
       // this user may not edit — `E` must not open an editor the menu hides.
       // The session is read when the key is pressed, not at build.
-      isReadOnly: (ri) =>
-          ri.isDeleted ||
-          !mayEditRecurringInvoice(_services.auth.session.value, ri),
+      isReadOnly: _isReadOnly,
       onRefresh: _record.refresh,
       bannerForItem: (context, ri) => recordStateBanner<RecurringInvoiceAction>(
         context,
@@ -266,6 +270,7 @@ class _RecurringInvoiceDetailScreenState
               bodyBuilder: (_) => BillingDocOverviewOf(
                 type: BillingDocType.recurringInvoice,
                 doc: ri,
+                isReadOnly: () => _isReadOnly(ri),
                 formatter: formatter,
               ),
             ),

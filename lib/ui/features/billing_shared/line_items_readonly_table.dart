@@ -38,6 +38,10 @@ const double _kGap = 10;
 /// than as columns: product and hourly lines share this table but label their
 /// four values from different company fields (`product1..4` / `task1..4`), so
 /// no single header could name a slot.
+///
+/// With [onTapItem], each line is one tap target into the edit screen with
+/// that line's editor open — admin-portal's tap-a-line-to-edit, which the
+/// rebuild had lost to Edit → Items → tap the line.
 class LineItemsReadonlyTable extends StatelessWidget {
   const LineItemsReadonlyTable({
     super.key,
@@ -46,6 +50,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
     this.currencyId,
     this.discountIsAmount = false,
     this.customFields,
+    this.onTapItem,
   });
 
   final List<LineItem> items;
@@ -60,10 +65,21 @@ class LineItemsReadonlyTable extends StatelessWidget {
   /// values. Null (company not loaded yet) shows none.
   final Map<String, String>? customFields;
 
+  /// Edit the line at this index of [items] — blank lines counted, though
+  /// they are not drawn. Null (a deleted record, a user who may not edit it)
+  /// leaves the rows inert.
+  final ValueChanged<int>? onTapItem;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final rows = items.where((it) => !it.isBlank).toList(growable: false);
+    // Each drawn line keeps its index in [items], which is what [onTapItem]
+    // hands back: the edit view model's draft holds the blank lines too.
+    final indexes = [
+      for (var i = 0; i < items.length; i++)
+        if (!items[i].isBlank) i,
+    ];
+    final rows = [for (final i in indexes) items[i]];
     if (rows.isEmpty) return _empty(context, tokens);
 
     final showTax = rows.any(_hasTax);
@@ -91,12 +107,15 @@ class LineItemsReadonlyTable extends StatelessWidget {
             return Column(
               children: [
                 for (var i = 0; i < rows.length; i++)
-                  _stackedRow(
-                    context,
-                    rows[i],
-                    isLast: i == rows.length - 1,
-                    showTax: showTax,
-                    showDiscount: showDiscount,
+                  _tappable(
+                    indexes[i],
+                    _stackedRow(
+                      context,
+                      rows[i],
+                      isLast: i == rows.length - 1,
+                      showTax: showTax,
+                      showDiscount: showDiscount,
+                    ),
                   ),
               ],
             );
@@ -105,16 +124,35 @@ class LineItemsReadonlyTable extends StatelessWidget {
             children: [
               _headerRow(context, showTax: showTax, showDiscount: showDiscount),
               for (var i = 0; i < rows.length; i++)
-                _dataRow(
-                  context,
-                  rows[i],
-                  isLast: i == rows.length - 1,
-                  showTax: showTax,
-                  showDiscount: showDiscount,
+                _tappable(
+                  indexes[i],
+                  _dataRow(
+                    context,
+                    rows[i],
+                    isLast: i == rows.length - 1,
+                    showTax: showTax,
+                    showDiscount: showDiscount,
+                  ),
                 ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// [row] as one tap target when the rows are editable. The ink goes on a
+  /// local transparent `Material`, above the table's own surface colour —
+  /// splashed onto a `Material` further up it would paint under that colour
+  /// and never show.
+  Widget _tappable(int index, Widget row) {
+    final onTap = onTapItem;
+    if (onTap == null) return row;
+    return Material(
+      type: MaterialType.transparency,
+      child: Semantics(
+        button: true,
+        child: InkWell(onTap: () => onTap(index), child: row),
       ),
     );
   }

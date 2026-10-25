@@ -214,6 +214,7 @@ the honest default.
 | Invoice — edit (line items, dates, totals) | ✅ | ✅ | ✅ | ✅ | |
 | Line item — free-text row on phone (not only picked Products / Tasks / Expenses) | ✅ | ✅ | ✅ | ✅ | |
 | Line item — text-only row on phone (`Add Text`: description with no product / cost / quantity, full-screen spell-checked editor; the card shows the text, not `$0.00 × 0`) | — | — | ✅ | | |
+| Line item — tap a line on the record screen (invoice / quote / credit / purchase order / recurring invoice Overview) to open the edit screen with that line's editor up; inert for a deleted record or one the user may not edit, and a locked invoice gets its dialog | — | ✅ | ✅ | | |
 | Billing-doc edit — Products / Tasks line-item tabs: Settings → Task Settings → Show Tasks Table keeps Tasks on offer before any hourly line (invoice / quote / recurring); new Tasks rows are hourly (`type_id` 2, the PDF task table) with Service / Rate / Hours columns, and Hours takes `1:30` / `90m` | ✅ | ✅ | ✅ | | |
 | Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
 | Line item — spell check underlines the item name and description (iOS / Android; macOS also flags grammar; Windows), right-click suggestions on the desktop, Device Settings switch | ✅ | ❌ | ✅ | | |

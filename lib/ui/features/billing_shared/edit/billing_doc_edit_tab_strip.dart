@@ -37,6 +37,7 @@ class BillingDocEditTabStrip extends StatefulWidget {
     super.key,
     required this.tabs,
     this.excludeInactiveFocus = false,
+    this.initialIndex = 0,
   });
 
   /// The tabs, in order. The list's **length** drives the controller, so a
@@ -54,6 +55,10 @@ class BillingDocEditTabStrip extends StatefulWidget {
   /// is not free, since keeping `excluding:` current costs a rebuild of the
   /// whole view on every tab change.
   final bool excludeInactiveFocus;
+
+  /// The tab the strip opens on — Items when the record screen asked for a
+  /// line (`OpenLineItemRequest`). Read once, at mount.
+  final int initialIndex;
 
   @override
   State<BillingDocEditTabStrip> createState() => _BillingDocEditTabStripState();
@@ -74,7 +79,9 @@ class _BillingDocEditTabStripState extends State<BillingDocEditTabStrip>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: widget.tabs.length, vsync: this);
+    final last = widget.tabs.length - 1;
+    _tab = TabController(length: widget.tabs.length, vsync: this)
+      ..index = widget.initialIndex.clamp(0, last);
   }
 
   /// Rebuild the controller when the tab COUNT changes.

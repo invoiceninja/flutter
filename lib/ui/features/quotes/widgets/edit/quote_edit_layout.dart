@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_edit_view_model.dart';
@@ -14,7 +15,12 @@ import 'package:admin/ui/features/quotes/view_models/quote_edit_view_model.dart'
 /// fetcher. No E-Invoice tab: PEPPOL submission applies to invoices, credits
 /// and recurring invoices only.
 class QuoteEditLayout extends StatelessWidget {
-  const QuoteEditLayout({super.key, required this.vm, this.showPdfTab = true});
+  const QuoteEditLayout({
+    super.key,
+    required this.vm,
+    this.showPdfTab = true,
+    this.openLineItem,
+  });
 
   final QuoteEditViewModel vm;
 
@@ -22,11 +28,15 @@ class QuoteEditLayout extends StatelessWidget {
   /// [BillingDocEditLayout.showPdfTab] (invoiceninja/flutter#140).
   final bool showPdfTab;
 
+  /// See [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
+
   @override
   Widget build(BuildContext context) => BillingDocEditLayout<Quote>(
     type: BillingDocType.quote,
     vm: vm,
     showPdfTab: showPdfTab,
+    openLineItem: openLineItem,
     slots: BillingDocEditSlots(
       pdfFetcher: (context) => _draftPdfFetcher(context, vm),
     ),

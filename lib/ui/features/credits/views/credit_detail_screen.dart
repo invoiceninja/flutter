@@ -114,6 +114,11 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
     super.dispose();
   }
 
+  /// The `E` shortcut's rule (see `isReadOnly` below), and a tapped line
+  /// item's: neither may open an editor the menu does not offer.
+  bool _isReadOnly(Credit credit) =>
+      credit.isDeleted || !mayEditCredit(_services.auth.session.value, credit);
+
   void _dispatch(Credit credit, CreditAction action) =>
       CreditActions.dispatch(context, _services, _companyId, credit, action);
 
@@ -151,9 +156,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
       // A deleted credit is read-only until restored, and so is one this
       // user may not edit — `E` must not open an editor the menu hides.
       // The session is read when the key is pressed, not at build.
-      isReadOnly: (credit) =>
-          credit.isDeleted ||
-          !mayEditCredit(_services.auth.session.value, credit),
+      isReadOnly: _isReadOnly,
       onRefresh: _record.refresh,
       bannerForItem: (context, credit) => recordStateBanner<CreditAction>(
         context,
@@ -265,6 +268,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
               bodyBuilder: (_) => BillingDocOverviewOf(
                 type: BillingDocType.credit,
                 doc: credit,
+                isReadOnly: () => _isReadOnly(credit),
                 formatter: formatter,
                 paidToDate: credit.paidToDate,
                 showBalance: true,

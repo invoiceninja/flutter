@@ -30,8 +30,11 @@ import 'package:admin/ui/features/billing_shared/edit/billing_doc_vendor_picker.
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_tab_gate.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/edit/save_default_helper.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
+import 'package:admin/ui/features/billing_shared/line_item_editor/edit_line_item_flow.dart';
+import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_editor.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
@@ -121,6 +124,7 @@ class BillingDocEditLayout<T extends BillingDocFields> extends StatefulWidget {
     required this.vm,
     required this.slots,
     this.showPdfTab = true,
+    this.openLineItem,
   });
 
   final BillingDocType type;
@@ -138,6 +142,10 @@ class BillingDocEditLayout<T extends BillingDocFields> extends StatefulWidget {
   /// layout, which has no tab strip at all.
   final bool showPdfTab;
 
+  /// A line tapped on the record screen: open on the narrow Items tab with
+  /// that line's editor already up. Acted on once, at mount.
+  final OpenLineItemRequest? openLineItem;
+
   @override
   State<BillingDocEditLayout<T>> createState() =>
       _BillingDocEditLayoutState<T>();
@@ -153,6 +161,12 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   /// Hidden until the settings cascade answers — see
   /// [resolveEInvoiceTabVisible].
   bool _showEInvoice = false;
+
+  /// Open the narrow strip on Items — for [BillingDocEditLayout.openLineItem],
+  /// and only on the strip's first mount: cleared once the line's editor is
+  /// up, so a strip mounted later (a desktop window narrowed past 1024)
+  /// opens on Details as usual.
+  late bool _openOnItems = widget.openLineItem != null;
 
   BillingDocType get _type => widget.type;
   BillingDocEditViewModel<T> get _vm => widget.vm;
@@ -180,6 +194,22 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   void initState() {
     super.initState();
     if (widget.slots.eInvoiceTab != null) unawaited(_resolveEInvoiceGate());
+    final openLineItem = widget.openLineItem;
+    if (openLineItem != null) {
+      final items = _vm.draft.lineItems;
+      final index = openLineItem.index;
+      // Before the Items tabs mount, which read it once: open on the
+      // Products / Tasks / Expenses tab that holds the line.
+      if (_type.party == BillingDocParty.client &&
+          index >= 0 &&
+          index < items.length) {
+        _vm.itemsTab = billingItemsTabFor(items[index]);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openOnItems = false;
+        if (mounted) unawaited(_editLineItem(index));
+      });
+    }
     if (_type.party == BillingDocParty.client) {
       // Best-effort async fetch of any existing task/expense line items'
       // source clientIds so the cross-client save validator catches drift
@@ -194,6 +224,37 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
         );
       });
     }
+  }
+
+  /// The record screen's tap-to-edit: the same dialog a tap on the line's card
+  /// opens, at every width — the desktop table edits inline, but a dialog on
+  /// the one line asked for is what the tap promised.
+  ///
+  /// The config is the one the line's own editor uses (its Items tab's, or the
+  /// vendor editor's), narrowed by the company as `LineItemEditor` narrows it.
+  /// A blank line, or an index the draft no longer has, opens nothing.
+  Future<void> _editLineItem(int index) async {
+    final vm = _vm;
+    // Awaited, not `peek`ed: `peek` is only ever a stream's first-frame seed.
+    final company = await context
+        .read<Services>()
+        .company
+        .watchCompany(vm.companyId)
+        .first;
+    if (!mounted) return;
+    final items = vm.draft.lineItems;
+    if (index < 0 || index >= items.length || items[index].isBlank) return;
+    final config = _type.party == BillingDocParty.vendor
+        ? LineItemColumnConfig.minimal
+        : billingLineItemColumnConfigFor(items[index]);
+    await editLineItemAt(
+      context,
+      companyId: vm.companyId,
+      items: items,
+      index: index,
+      config: config.forCompany(company),
+      onChanged: vm.replaceLineItems,
+    );
   }
 
   /// Reveal the E-Invoice tab if this company files them. The strip resizes
@@ -326,6 +387,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
           Expanded(
             child: BillingDocEditTabStrip(
               excludeInactiveFocus: _type.excludesInactiveTabFocus,
+              initialIndex: _openOnItems ? _tabKeys.indexOf(_Tab.items) : 0,
               tabs: [for (final key in _tabKeys) _tabFor(context, key)],
             ),
           ),

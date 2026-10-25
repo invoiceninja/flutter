@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
@@ -18,6 +19,7 @@ class PurchaseOrderEditLayout extends StatelessWidget {
     super.key,
     required this.vm,
     this.showPdfTab = true,
+    this.openLineItem,
   });
 
   final PurchaseOrderEditViewModel vm;
@@ -26,11 +28,15 @@ class PurchaseOrderEditLayout extends StatelessWidget {
   /// [BillingDocEditLayout.showPdfTab] (invoiceninja/flutter#140).
   final bool showPdfTab;
 
+  /// See [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
+
   @override
   Widget build(BuildContext context) => BillingDocEditLayout<PurchaseOrder>(
     type: BillingDocType.purchaseOrder,
     vm: vm,
     showPdfTab: showPdfTab,
+    openLineItem: openLineItem,
     slots: BillingDocEditSlots(
       pdfFetcher: (context) => _draftPdfFetcher(context, vm),
     ),

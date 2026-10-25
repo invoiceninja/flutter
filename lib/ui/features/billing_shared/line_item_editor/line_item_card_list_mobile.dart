@@ -10,6 +10,7 @@ import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/features/billing_shared/line_item_editor/edit_line_item_flow.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_text_dialog.dart';
@@ -86,41 +87,14 @@ class LineItemCardListMobile extends StatelessWidget {
   /// stays: the picker adds real linked lines.
   final bool allowNewRows;
 
-  /// A text line opens the text editor, whose `More Fields` hands over to
-  /// the full one — committing the text first, so a Cancel there keeps it.
-  Future<void> _openEditor(BuildContext context, int index) async {
-    var initial = items[index];
-    var current = items;
-    if (initial.isTextOnly) {
-      final text = await showLineItemTextDialog(
-        context,
-        initial: initial,
-        label: _descriptionLabel(context),
-        offerMoreFields: true,
-      );
-      if (text == null || !context.mounted) return;
-      current = List<LineItem>.from(items)..[index] = text.item;
-      onChanged(current);
-      if (!text.moreFields) return;
-      initial = text.item;
-    }
-    final fmt = context.read<Services>().formatterIfReady(companyId);
-    final useComma = fmt?.settings.useCommaAsDecimalPlace ?? false;
-    final result = await showLineItemEditDialog(
-      context,
-      initial: initial,
-      config: config,
-      useComma: useComma,
-      formatter: fmt,
-    );
-    if (result == null) return;
-    // The dialog is a route, so the host can go away under it — a company
-    // switch, or the record closing. `onChanged` writes into the edit VM,
-    // which asserts once disposed.
-    if (!context.mounted) return;
-    final next = List<LineItem>.from(current)..[index] = result;
-    onChanged(next);
-  }
+  Future<void> _openEditor(BuildContext context, int index) => editLineItemAt(
+    context,
+    companyId: companyId,
+    items: items,
+    index: index,
+    config: config,
+    onChanged: onChanged,
+  );
 
   String _descriptionLabel(BuildContext context) =>
       context.tr(config.labelKey('description'));

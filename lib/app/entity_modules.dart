@@ -50,6 +50,7 @@ import 'package:admin/ui/features/recurring_invoices/views/recurring_invoice_edi
 import 'package:admin/ui/features/recurring_invoices/views/recurring_invoice_list_screen.dart';
 import 'package:admin/ui/features/recurring_invoices/views/recurring_invoice_pdf_route_screen.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_route_screen.dart';
 import 'package:admin/ui/features/products/views/product_detail_screen.dart';
 import 'package:admin/ui/features/products/views/product_edit_screen.dart';
@@ -534,6 +535,8 @@ final kWiredEntityModules = <EntityModuleSpec>[
       // before the normal update mutation. Normal edit navigation passes
       // no extra → behaves exactly as before.
       cloneFrom: state.extra is Invoice ? state.extra as Invoice : null,
+      // A line tapped on the record screen (`InvoiceActions.edit`).
+      openLineItem: OpenLineItemRequest.of(state.extra),
     ),
     extraChildRoutes: [
       GoRoute(
@@ -592,8 +595,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     createBuilder: (context, state) => const QuoteEditScreen(),
     detailBuilder: (context, state) =>
         QuoteDetailScreen(id: state.pathParameters['id']!),
-    editBuilder: (context, state) =>
-        QuoteEditScreen(existingId: state.pathParameters['id']),
+    editBuilder: (context, state) => QuoteEditScreen(
+      existingId: state.pathParameters['id'],
+      openLineItem: OpenLineItemRequest.of(state.extra),
+    ),
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
@@ -645,8 +650,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     createBuilder: (context, state) => const CreditEditScreen(),
     detailBuilder: (context, state) =>
         CreditDetailScreen(id: state.pathParameters['id']!),
-    editBuilder: (context, state) =>
-        CreditEditScreen(existingId: state.pathParameters['id']),
+    editBuilder: (context, state) => CreditEditScreen(
+      existingId: state.pathParameters['id'],
+      openLineItem: OpenLineItemRequest.of(state.extra),
+    ),
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
@@ -697,8 +704,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     createBuilder: (context, state) => const PurchaseOrderEditScreen(),
     detailBuilder: (context, state) =>
         PurchaseOrderDetailScreen(id: state.pathParameters['id']!),
-    editBuilder: (context, state) =>
-        PurchaseOrderEditScreen(existingId: state.pathParameters['id']),
+    editBuilder: (context, state) => PurchaseOrderEditScreen(
+      existingId: state.pathParameters['id'],
+      openLineItem: OpenLineItemRequest.of(state.extra),
+    ),
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
@@ -752,8 +761,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     createBuilder: (context, state) => const RecurringInvoiceEditScreen(),
     detailBuilder: (context, state) =>
         RecurringInvoiceDetailScreen(id: state.pathParameters['id']!),
-    editBuilder: (context, state) =>
-        RecurringInvoiceEditScreen(existingId: state.pathParameters['id']),
+    editBuilder: (context, state) => RecurringInvoiceEditScreen(
+      existingId: state.pathParameters['id'],
+      openLineItem: OpenLineItemRequest.of(state.extra),
+    ),
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',

@@ -122,6 +122,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
     super.dispose();
   }
 
+  /// The `E` shortcut's rule (see `isReadOnly` below), and a tapped line
+  /// item's: neither may open an editor the menu does not offer.
+  bool _isReadOnly(PurchaseOrder po) =>
+      po.isDeleted || !mayEditPurchaseOrder(_services.auth.session.value, po);
+
   void _dispatch(PurchaseOrder po, PurchaseOrderAction action) =>
       PurchaseOrderActions.dispatch(context, _services, _companyId, po, action);
 
@@ -164,9 +169,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
       // A deleted purchase order is read-only until restored, and so is one
       // this user may not edit — `E` must not open an editor the menu hides.
       // The session is read when the key is pressed, not at build.
-      isReadOnly: (po) =>
-          po.isDeleted ||
-          !mayEditPurchaseOrder(_services.auth.session.value, po),
+      isReadOnly: _isReadOnly,
       onRefresh: _record.refresh,
       bannerForItem: (context, po) => recordStateBanner<PurchaseOrderAction>(
         context,
@@ -276,6 +279,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
               bodyBuilder: (_) => BillingDocOverviewOf(
                 type: BillingDocType.purchaseOrder,
                 doc: po,
+                isReadOnly: () => _isReadOnly(po),
                 formatter: formatter,
               ),
             ),

@@ -16,6 +16,7 @@ import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/billing_shared/seed_client_invitations.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
@@ -31,7 +32,12 @@ import 'package:admin/ui/features/invoices/widgets/invoice_locked_dialog.dart';
 /// `InvoiceEditLayout.showPdfTab` and the E-Invoice gate), and a hardcoded
 /// list in a second file is the thing that goes stale.
 class InvoiceEditScreen extends StatelessWidget {
-  const InvoiceEditScreen({this.existingId, this.cloneFrom, super.key});
+  const InvoiceEditScreen({
+    this.existingId,
+    this.cloneFrom,
+    this.openLineItem,
+    super.key,
+  });
 
   final String? existingId;
 
@@ -40,6 +46,10 @@ class InvoiceEditScreen extends StatelessWidget {
   /// item as `extra` for review before saving. Null for a normal edit (uses the
   /// fetched record) and for create (which reads the staged draft instead).
   final Invoice? cloneFrom;
+
+  /// A line tapped on the record screen, to open the editor on — see
+  /// [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +204,11 @@ class InvoiceEditScreen extends StatelessWidget {
           : (vm.draft.number.isNotEmpty
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
-      bodyBuilder: (ctx, vm) => InvoiceEditLayout(vm: vm, showPdfTab: !narrow),
+      bodyBuilder: (ctx, vm) => InvoiceEditLayout(
+        vm: vm,
+        showPdfTab: !narrow,
+        openLineItem: openLineItem,
+      ),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (i) => i.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>

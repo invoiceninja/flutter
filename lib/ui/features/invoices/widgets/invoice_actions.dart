@@ -31,6 +31,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/billing_shared/convert_to_purchase_order_action.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/einvoice_validation_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/mark_paid_confirm_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
@@ -573,6 +574,36 @@ class InvoiceActions {
     ];
   }
 
+  /// Open [invoice]'s edit screen — on the line [openLineItem] names, when a
+  /// line was tapped on the record screen.
+  ///
+  /// Hard-blocks editing a locked invoice (admin-portal parity). tmp_ rows
+  /// are offline-created drafts — never locked, and there's no persisted
+  /// cascade to resolve yet. Reason-specific dialog; the editor never opens.
+  /// Other actions stay usable.
+  static Future<void> edit(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Invoice invoice, {
+    OpenLineItemRequest? openLineItem,
+  }) async {
+    if (!invoice.id.startsWith('tmp_')) {
+      final reason = await resolveInvoiceLockReason(
+        settings: services.settings,
+        companyId: companyId,
+        invoice: invoice,
+      );
+      if (reason != InvoiceLockReason.none) {
+        if (!context.mounted) return;
+        await showInvoiceLockedDialog(context, reason);
+        return;
+      }
+    }
+    if (!context.mounted) return;
+    goEntityEdit(context, '/invoices', invoice.id, extra: openLineItem);
+  }
+
   static Future<void> dispatch(
     BuildContext context,
     Services services,
@@ -586,24 +617,7 @@ class InvoiceActions {
 
     switch (action) {
       case InvoiceAction.edit:
-        // Hard-block editing a locked invoice (admin-portal parity). tmp_
-        // rows are offline-created drafts — never locked, and there's no
-        // persisted cascade to resolve yet. Reason-specific dialog; the
-        // editor never opens. Other actions stay usable.
-        if (!invoice.id.startsWith('tmp_')) {
-          final reason = await resolveInvoiceLockReason(
-            settings: services.settings,
-            companyId: companyId,
-            invoice: invoice,
-          );
-          if (reason != InvoiceLockReason.none) {
-            if (!context.mounted) return;
-            await showInvoiceLockedDialog(context, reason);
-            return;
-          }
-        }
-        if (!context.mounted) return;
-        goEntityEdit(context, '/invoices', invoice.id);
+        await edit(context, services, companyId, invoice);
 
       case InvoiceAction.pdfGroup:
         break; // Submenu parent — never dispatched; children carry the action.

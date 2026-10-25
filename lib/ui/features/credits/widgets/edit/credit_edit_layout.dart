@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
 import 'package:admin/ui/features/billing_shared/edit/credit_billing_reference_field.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
@@ -15,7 +16,12 @@ import 'package:admin/ui/features/credits/view_models/credit_edit_view_model.dar
 /// the dates on a phone — plus its PDF fetcher and its E-Invoice tab, which
 /// leads with the reference to the invoice being credited.
 class CreditEditLayout extends StatelessWidget {
-  const CreditEditLayout({super.key, required this.vm, this.showPdfTab = true});
+  const CreditEditLayout({
+    super.key,
+    required this.vm,
+    this.showPdfTab = true,
+    this.openLineItem,
+  });
 
   final CreditEditViewModel vm;
 
@@ -23,11 +29,15 @@ class CreditEditLayout extends StatelessWidget {
   /// [BillingDocEditLayout.showPdfTab] (invoiceninja/flutter#140).
   final bool showPdfTab;
 
+  /// See [BillingDocEditLayout.openLineItem].
+  final OpenLineItemRequest? openLineItem;
+
   @override
   Widget build(BuildContext context) => BillingDocEditLayout<Credit>(
     type: BillingDocType.credit,
     vm: vm,
     showPdfTab: showPdfTab,
+    openLineItem: openLineItem,
     slots: BillingDocEditSlots(
       pdfFetcher: (context) => _draftPdfFetcher(context, vm),
       eInvoiceTab: (context) {

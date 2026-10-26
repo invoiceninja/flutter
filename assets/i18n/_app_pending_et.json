@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Kviitungilt — kontrolli",
   "on_receipt": "Kviitungil: :name",
   "receipt_number_note": "Kviitung nr :number",
-  "add_text": "Lisa tekst"
+  "add_text": "Lisa tekst",
+  "show_seconds": "Näita sekundeid",
+  "show_seconds_help": "Näita sekundeid ülesannete kaartidel ja ajakannetes"
 }

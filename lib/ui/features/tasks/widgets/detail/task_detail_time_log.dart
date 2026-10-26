@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
@@ -81,6 +82,7 @@ class _TimeEntryRow extends StatelessWidget {
     final tokens = context.inTheme;
     final start = entry.start;
     final stop = entry.stop;
+    final seconds = watchShowSeconds(context);
 
     // A booking — a stopped entry that ends in the future — is a plan, not
     // logged time. This is where the difference is most visible, and the two
@@ -95,7 +97,7 @@ class _TimeEntryRow extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            _when(start, stop),
+            _when(start, stop, seconds: seconds),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -131,6 +133,7 @@ class _TimeEntryRow extends StatelessWidget {
         ? RunningDurationLabel(
             start: start,
             precision: const Duration(seconds: 1),
+            secondsPastDay: true,
           )
         : Text(
             formatDuration(
@@ -138,6 +141,7 @@ class _TimeEntryRow extends StatelessWidget {
                   ? Duration.zero
                   : stop.difference(start),
               compactDays: true,
+              secondsPastDay: seconds,
             ),
             style: TextStyle(
               color: booked ? tokens.ink3 : tokens.ink,
@@ -212,22 +216,24 @@ class _TimeEntryRow extends StatelessWidget {
   /// "14 May 2026 09:00 – 11:30" — the day the entry started, and the window.
   /// A running entry has no end yet; one that ends on another day keeps the
   /// start alone rather than implying it ended the day it began.
-  String _when(DateTime? start, DateTime? stop) {
+  String _when(DateTime? start, DateTime? stop, {required bool seconds}) {
     if (start == null) return '—';
     final from = start.toLocal();
     final day = _date(from);
     final to = stop?.toLocal();
     if (to == null || !DateUtils.isSameDay(from, to)) {
-      return '$day ${_time(from)}';
+      return '$day ${_time(from, seconds: seconds)}';
     }
-    return '$day ${_time(from)} – ${_time(to)}';
+    return '$day ${_time(from, seconds: seconds)} – '
+        '${_time(to, seconds: seconds)}';
   }
 
   // [d] is already local; honor military time without a further conversion.
-  String _time(DateTime d) => formatTimeOfDay(
+  String _time(DateTime d, {required bool seconds}) => formatTimeOfDay(
     d.hour,
     d.minute,
     military: formatter?.settings.enableMilitaryTime ?? true,
+    second: seconds ? d.second : null,
   );
 
   String _date(DateTime d) {

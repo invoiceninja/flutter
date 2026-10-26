@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Iz računa — provjerite",
   "on_receipt": "Na računu: :name",
   "receipt_number_note": "Račun br. :number",
-  "add_text": "Dodaj tekst"
+  "add_text": "Dodaj tekst",
+  "show_seconds": "Prikaži sekunde",
+  "show_seconds_help": "Prikaži sekunde na karticama zadataka i u vremenskim unosima"
 }

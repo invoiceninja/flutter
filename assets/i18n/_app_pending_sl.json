@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Iz potrdila — preverite",
   "on_receipt": "Na potrdilu: :name",
   "receipt_number_note": "Potrdilo št. :number",
-  "add_text": "Dodaj besedilo"
+  "add_text": "Dodaj besedilo",
+  "show_seconds": "Prikaži sekunde",
+  "show_seconds_help": "Prikaži sekunde na karticah opravil in v časovnih vnosih"
 }

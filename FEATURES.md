@@ -1238,6 +1238,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Theme (light / dark / system, local) | — | ✅ | ✅ | ✅ | |
 | Font Size (text scale, local) | — | ✅ | ✅ | ✅ | |
 | List density — Normal / Compact rows and list chrome, for more records on screen (local; Device Settings only) | — | — | ✅ | | |
+| Show seconds — adds seconds to the kanban cards' timers, durations past a day and time-entry start / end times (local, off by default; running timers always tick seconds) | — | — | ✅ | | |
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |

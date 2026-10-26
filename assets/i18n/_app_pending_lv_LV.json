@@ -1647,5 +1647,7 @@
   "from_receipt_check": "No čeka — pārbaudiet",
   "on_receipt": "Čekā: :name",
   "receipt_number_note": "Čeks Nr. :number",
-  "add_text": "Pievienot tekstu"
+  "add_text": "Pievienot tekstu",
+  "show_seconds": "Rādīt sekundes",
+  "show_seconds_help": "Rādīt sekundes uzdevumu kartītēs un laika ierakstos"
 }

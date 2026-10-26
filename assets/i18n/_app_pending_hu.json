@@ -1615,5 +1615,7 @@
   "from_receipt_check": "A nyugtáról — ellenőrizze",
   "on_receipt": "A nyugtán: :name",
   "receipt_number_note": "Nyugta sz. :number",
-  "add_text": "Szöveg hozzáadása"
+  "add_text": "Szöveg hozzáadása",
+  "show_seconds": "Másodpercek megjelenítése",
+  "show_seconds_help": "Másodpercek megjelenítése a feladatkártyákon és az időbejegyzéseknél"
 }

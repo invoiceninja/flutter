@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Ticking duration label for the currently-running entry of a task.
@@ -21,6 +22,7 @@ class RunningDurationLabel extends StatefulWidget {
     this.precision = const Duration(seconds: 1),
     this.showDot = true,
     this.compactDays = true,
+    this.secondsPastDay = false,
     this.style,
     this.dotSize = 8,
   });
@@ -37,7 +39,8 @@ class RunningDurationLabel extends StatefulWidget {
   final Duration base;
 
   /// How often the label refreshes. 1s for the edit screen, 1min for the
-  /// kanban cards (the human eye doesn't follow seconds on a card).
+  /// kanban cards (the human eye doesn't follow seconds on a card). The
+  /// device's Show Seconds preference overrides a coarser one with 1s.
   final Duration precision;
 
   /// Render the pulsing accent dot before the label.
@@ -46,6 +49,12 @@ class RunningDurationLabel extends StatefulWidget {
   /// When elapsed exceeds 24h, format as `Xd HHh MMm` instead of
   /// `HH:MM:SS` (which gets unreadable past 24 hours).
   final bool compactDays;
+
+  /// Add seconds to the `Xd HHh MMm` form while the device's Show Seconds
+  /// preference is on. Only a caller with room for the longer text opts in —
+  /// the narrow list row, the wide table's 120 px column and the shell pill
+  /// do not.
+  final bool secondsPastDay;
 
   /// Override the label text style. Defaults to the screen's body small.
   final TextStyle? style;
@@ -73,11 +82,20 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
   /// disproportionately expensive.
   late final ValueNotifier<String> _label;
 
+  /// The device's Show Seconds preference, read in [didChangeDependencies]
+  /// so a flip re-ticks the label without rebuilding it from the outside.
+  bool _secondsPref = false;
+
+  Duration get _precision =>
+      _secondsPref && widget.precision > const Duration(seconds: 1)
+      ? const Duration(seconds: 1)
+      : widget.precision;
+
   String _compute() {
     // When the ticker fires less often than once a second, the seconds
     // field would freeze for ~60s at a time — looks like a bug. Drop
     // seconds from the rendered text in that case (kanban cards opt in).
-    final showSeconds = widget.precision < const Duration(minutes: 1);
+    final showSeconds = _precision < const Duration(minutes: 1);
     // Clamped at zero. `TimeEntryX.durationUpTo` already clamps, so nothing
     // this app writes can get here negative — but a foreign client can store a
     // running entry whose start is in the future, and `formatDuration` renders
@@ -88,24 +106,41 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
       widget.base + (elapsed.isNegative ? Duration.zero : elapsed),
       compactDays: widget.compactDays,
       showSeconds: showSeconds,
+      secondsPastDay: _secondsPref && widget.secondsPastDay,
     );
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(_precision, (_) {
+      if (!mounted) return;
+      final next = _compute();
+      if (next != _label.value) _label.value = next;
+    });
   }
 
   @override
   void initState() {
     super.initState();
     _label = ValueNotifier<String>(_compute());
-    _ticker = Timer.periodic(widget.precision, (_) {
-      if (!mounted) return;
-      final next = _compute();
-      if (next != _label.value) _label.value = next;
-    });
+    _startTicker();
     if (widget.showDot) {
       _pulse = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 1000),
       )..repeat(reverse: true);
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pref = watchShowSeconds(context);
+    if (pref == _secondsPref) return;
+    final before = _precision;
+    _secondsPref = pref;
+    _label.value = _compute();
+    if (_precision != before) _startTicker();
   }
 
   @override
@@ -127,14 +162,7 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
     if (oldWidget.start != widget.start ||
         oldWidget.precision != widget.precision) {
       _label.value = _compute();
-      if (oldWidget.precision != widget.precision) {
-        _ticker?.cancel();
-        _ticker = Timer.periodic(widget.precision, (_) {
-          if (!mounted) return;
-          final next = _compute();
-          if (next != _label.value) _label.value = next;
-        });
-      }
+      if (oldWidget.precision != widget.precision) _startTicker();
     }
   }
 

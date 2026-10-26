@@ -1596,5 +1596,7 @@
   "from_receipt_check": "Dari struk — periksa",
   "on_receipt": "Di struk: :name",
   "receipt_number_note": "Struk #:number",
-  "add_text": "Tambah Teks"
+  "add_text": "Tambah Teks",
+  "show_seconds": "Tampilkan detik",
+  "show_seconds_help": "Tampilkan detik pada kartu tugas dan entri waktu"
 }

@@ -545,6 +545,26 @@ void main() {
         '1:02',
       );
     });
+
+    test('compact day form leaves seconds out unless asked', () {
+      const d = Duration(days: 1, hours: 3, minutes: 12, seconds: 5);
+      expect(formatDuration(d, compactDays: true), '1d 03h 12m');
+      expect(
+        formatDuration(d, compactDays: true, secondsPastDay: true),
+        '1d 03h 12m 05s',
+      );
+    });
+
+    test('secondsPastDay changes nothing under a day', () {
+      expect(
+        formatDuration(
+          const Duration(hours: 1, minutes: 2, seconds: 3),
+          compactDays: true,
+          secondsPastDay: true,
+        ),
+        '1:02:03',
+      );
+    });
   });
 
   group('parseDurationInput', () {
@@ -1033,6 +1053,14 @@ void main() {
       expect(formatTimeOfDay(12, 0, military: false), '12:00 PM');
       expect(formatTimeOfDay(13, 30, military: false), '1:30 PM');
       expect(formatTimeOfDay(23, 59, military: false), '11:59 PM');
+    });
+
+    test('a second appends :SS before the AM / PM', () {
+      expect(formatTimeOfDay(9, 5, military: true, second: 7), '09:05:07');
+      expect(
+        formatTimeOfDay(13, 30, military: false, second: 45),
+        '1:30:45 PM',
+      );
     });
   });
 }

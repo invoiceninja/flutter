@@ -5,6 +5,7 @@ import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -48,6 +49,7 @@ class TimeEntryRow extends StatelessWidget {
     final tokens = context.inTheme;
     final start = entry.start;
     final stop = entry.stop;
+    final seconds = watchShowSeconds(context);
     // A booking is a plan, not logged time — and since `loggedDuration` now
     // excludes it, an unmarked row here would sit under a total that doesn't
     // add up. The detail screen's Time Log card marks it the same way.
@@ -59,18 +61,19 @@ class TimeEntryRow extends StatelessWidget {
     final dateLabel = start == null
         ? '—'
         : '${_formatDate(start.toLocal())} '
-              '${_hhmm(start.toLocal())}'
-              '${stop == null ? '' : ' – ${_hhmm(stop.toLocal())}'}'
+              '${_hhmm(start.toLocal(), seconds: seconds)}'
+              '${stop == null ? '' : ' – ${_hhmm(stop.toLocal(), seconds: seconds)}'}'
               '${booked ? ' · ${context.tr('booked')}' : ''}';
 
     Widget durationWidget() => entry.isRunning && entry.start != null
-        ? RunningDurationLabel(start: entry.start!)
+        ? RunningDurationLabel(start: entry.start!, secondsPastDay: true)
         : Text(
             formatDuration(
               start != null && stop != null
                   ? stop.difference(start)
                   : Duration.zero,
               compactDays: true,
+              secondsPastDay: seconds,
             ),
             style: TextStyle(
               color: tokens.ink,
@@ -183,10 +186,11 @@ class TimeEntryRow extends StatelessWidget {
 
   // [d] is already local wall-clock (callers pass `.toLocal()`), so format the
   // fields directly — honoring military time, no further tz conversion.
-  String _hhmm(DateTime d) => formatTimeOfDay(
+  String _hhmm(DateTime d, {required bool seconds}) => formatTimeOfDay(
     d.hour,
     d.minute,
     military: formatter?.settings.enableMilitaryTime ?? true,
+    second: seconds ? d.second : null,
   );
 
   String _formatDate(DateTime d) {

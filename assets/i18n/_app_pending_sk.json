@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Z bločku — skontrolujte",
   "on_receipt": "Na bločku: :name",
   "receipt_number_note": "Bloček č. :number",
-  "add_text": "Pridať text"
+  "add_text": "Pridať text",
+  "show_seconds": "Zobraziť sekundy",
+  "show_seconds_help": "Zobraziť sekundy na kartách úloh a pri časových záznamoch"
 }

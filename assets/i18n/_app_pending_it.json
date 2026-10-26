@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Dalla ricevuta — controlla",
   "on_receipt": "Sulla ricevuta: :name",
   "receipt_number_note": "Ricevuta n. :number",
-  "add_text": "Aggiungi testo"
+  "add_text": "Aggiungi testo",
+  "show_seconds": "Mostra i secondi",
+  "show_seconds_help": "Mostra i secondi nelle schede delle attività e nelle registrazioni del tempo"
 }

@@ -261,6 +261,16 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// Show seconds on the Tasks surfaces that leave them out by default — the
+  /// kanban cards, a timer past a day, a time entry's start and end
+  /// (docs/tasks-views.md). How the app reads on this device, like
+  /// [listDensity], so it stays with the device.
+  static const showSeconds = PrefKey<bool>(
+    'show_seconds',
+    PrefCodec.boolean,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -289,6 +299,7 @@ abstract final class DevicePrefKeys {
     mobileAppPromo,
     whatsNew,
     spellCheck,
+    showSeconds,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

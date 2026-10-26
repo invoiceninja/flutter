@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Aus dem Beleg — prüfen",
   "on_receipt": "Auf dem Beleg: :name",
   "receipt_number_note": "Beleg-Nr. :number",
-  "add_text": "Text hinzufügen"
+  "add_text": "Text hinzufügen",
+  "show_seconds": "Sekunden anzeigen",
+  "show_seconds_help": "Sekunden auf Aufgabenkarten und bei Zeiteinträgen anzeigen"
 }

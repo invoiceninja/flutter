@@ -1647,5 +1647,7 @@
   "from_receipt_check": "ຈາກໃບຮັບເງິນ — ກະລຸນາກວດສອບ",
   "on_receipt": "ໃນໃບຮັບເງິນ: :name",
   "receipt_number_note": "ໃບຮັບເງິນເລກທີ :number",
-  "add_text": "ເພີ່ມຂໍ້ຄວາມ"
+  "add_text": "ເພີ່ມຂໍ້ຄວາມ",
+  "show_seconds": "ສະແດງວິນາທີ",
+  "show_seconds_help": "ສະແດງວິນາທີໃນບັດວຽກ ແລະ ການບັນທຶກເວລາ"
 }

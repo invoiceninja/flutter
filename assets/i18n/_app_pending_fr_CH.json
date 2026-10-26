@@ -1596,5 +1596,7 @@
   "from_receipt_check": "D'après le reçu — à vérifier",
   "on_receipt": "Sur le reçu : :name",
   "receipt_number_note": "Reçu n° :number",
-  "add_text": "Ajouter du texte"
+  "add_text": "Ajouter du texte",
+  "show_seconds": "Afficher les secondes",
+  "show_seconds_help": "Afficher les secondes sur les cartes de tâches et les entrées de temps"
 }

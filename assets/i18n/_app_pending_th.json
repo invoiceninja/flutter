@@ -1647,5 +1647,7 @@
   "from_receipt_check": "จากใบเสร็จ — โปรดตรวจสอบ",
   "on_receipt": "บนใบเสร็จ: :name",
   "receipt_number_note": "ใบเสร็จเลขที่ :number",
-  "add_text": "เพิ่มข้อความ"
+  "add_text": "เพิ่มข้อความ",
+  "show_seconds": "แสดงวินาที",
+  "show_seconds_help": "แสดงวินาทีบนการ์ดงานและรายการบันทึกเวลา"
 }

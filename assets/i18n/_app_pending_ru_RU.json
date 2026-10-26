@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Из чека — проверьте",
   "on_receipt": "В чеке: :name",
   "receipt_number_note": "Чек № :number",
-  "add_text": "Добавить текст"
+  "add_text": "Добавить текст",
+  "show_seconds": "Показывать секунды",
+  "show_seconds_help": "Показывать секунды на карточках задач и в записях времени"
 }

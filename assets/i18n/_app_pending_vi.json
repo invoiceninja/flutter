@@ -1561,5 +1561,7 @@
   "from_receipt": "Từ biên lai",
   "from_receipt_check": "Từ biên lai — kiểm tra",
   "on_receipt": "Trên biên lai: :name",
-  "receipt_number_note": "Biên lai số :number"
+  "receipt_number_note": "Biên lai số :number",
+  "show_seconds": "Hiển thị giây",
+  "show_seconds_help": "Hiển thị giây trên thẻ công việc và các mục thời gian"
 }

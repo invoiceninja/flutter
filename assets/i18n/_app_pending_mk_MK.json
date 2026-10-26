@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Од сметката — проверете",
   "on_receipt": "На сметката: :name",
   "receipt_number_note": "Сметка бр. :number",
-  "add_text": "Додај текст"
+  "add_text": "Додај текст",
+  "show_seconds": "Прикажи секунди",
+  "show_seconds_help": "Прикажи секунди на картичките на задачите и во записите за време"
 }

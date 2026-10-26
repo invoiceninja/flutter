@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Do recibo — verifique",
   "on_receipt": "No recibo: :name",
   "receipt_number_note": "Recibo nº :number",
-  "add_text": "Adicionar texto"
+  "add_text": "Adicionar texto",
+  "show_seconds": "Mostrar segundos",
+  "show_seconds_help": "Mostrar os segundos nos cartões de tarefas e nos registros de tempo"
 }

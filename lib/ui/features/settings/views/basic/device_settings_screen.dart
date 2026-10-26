@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/list_density_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/show_seconds_controller.dart';
 import 'package:admin/app/spell_check_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/data/models/domain/company.dart';
@@ -62,6 +63,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'default_tab',
   'spell_check',
   'hide_peppol_sent_status',
+  'show_seconds',
   ...kDashboardPanelsSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarMenuSearchKeys,
@@ -158,6 +160,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Beside its sibling: what the invoice and credit lists show.
               // Only for a PEPPOL company — nobody else ever sees the mark.
               const _PeppolStatusSection(),
+              // Also what a list shows — the task timers and times that leave
+              // seconds out (the kanban cards, a time entry's start and end).
+              const _ShowSecondsSection(),
               // Dashboard chrome, ahead of the list / rail trio so it doesn't
               // split them — and, like the card above, well clear of Sidebar
               // counters: its default is for phones, where that is a long way
@@ -232,6 +237,36 @@ class _SpellCheckSection extends StatelessWidget {
             secondary: const Icon(Icons.spellcheck_outlined),
             title: Text(context.tr('spell_check')),
             subtitle: Text(context.tr('spell_check_help')),
+            value: enabled,
+            onChanged: controller.set,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Show Seconds": add seconds where the Tasks surfaces leave them out — the
+/// kanban cards, a timer past a day, a time entry's start and end
+/// (docs/tasks-views.md). Running timers tick seconds either way.
+class _ShowSecondsSection extends StatelessWidget {
+  const _ShowSecondsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.read<ShowSecondsController?>();
+    if (controller == null) return const SizedBox.shrink();
+    return FormSection(
+      title: context.tr('tasks'),
+      spacing: 0,
+      children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: controller,
+          builder: (context, enabled, _) => SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.timer_outlined),
+            title: Text(context.tr('show_seconds')),
+            subtitle: Text(context.tr('show_seconds_help')),
             value: enabled,
             onChanged: controller.set,
           ),

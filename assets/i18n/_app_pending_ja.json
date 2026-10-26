@@ -1647,5 +1647,7 @@
   "from_receipt_check": "領収書から — 確認してください",
   "on_receipt": "領収書の記載: :name",
   "receipt_number_note": "領収書番号 :number",
-  "add_text": "テキストを追加"
+  "add_text": "テキストを追加",
+  "show_seconds": "秒を表示",
+  "show_seconds_help": "タスクカードと時間記録に秒を表示します"
 }

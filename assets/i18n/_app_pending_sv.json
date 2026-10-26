@@ -1643,5 +1643,7 @@
   "from_receipt_check": "Från kvitto — kontrollera",
   "on_receipt": "På kvittot: :name",
   "receipt_number_note": "Kvitto nr :number",
-  "add_text": "Lägg till text"
+  "add_text": "Lägg till text",
+  "show_seconds": "Visa sekunder",
+  "show_seconds_help": "Visa sekunder på uppgiftskort och tidsposter"
 }

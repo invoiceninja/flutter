@@ -1650,5 +1650,7 @@
   "from_receipt_check": "From receipt — check",
   "on_receipt": "On receipt: :name",
   "receipt_number_note": "Receipt #:number",
-  "add_text": "Add Text"
+  "add_text": "Add Text",
+  "show_seconds": "Show Seconds",
+  "show_seconds_help": "Show seconds on task cards and time entry times"
 }

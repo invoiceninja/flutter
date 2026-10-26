@@ -37,6 +37,7 @@ void main() {
     'mobile_app_promo_json': PrefScope.device,
     'whats_new_json': PrefScope.device,
     'spell_check': PrefScope.device,
+    'show_seconds': PrefScope.device,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

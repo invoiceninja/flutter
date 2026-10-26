@@ -507,6 +507,7 @@ Five layouts (list / daily / weekly / calendar / kanban). **`?view=` on the URL 
 - **`stripTransientQuery`'s carve-out for a non-`full` `view` must stay** → `docs/tasks-views.md`
 - **The kanban board is the one Tasks view with no create FAB, and the gate that makes that safe is not the one it looks like.** → `docs/tasks-views.md`
 - **A booked block and a finished session are the same four wire slots, so "start the timer" is a decision, not an append.** → `docs/task-scheduling.md`
+- **Seconds are an opt-in device preference read through `watchShowSeconds`, a running timer's day form gains them only where its caller passes `secondsPastDay`, and the editable start / end fields stay minute-grained.** → `docs/tasks-views.md`
 
 ## Dashboard panels
 

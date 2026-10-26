@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/task_schedule_slot.dart';
@@ -88,6 +89,7 @@ class KanbanCard extends StatelessWidget {
                   RunningDurationLabel(
                     start: task.timeLog.last.start!,
                     precision: const Duration(minutes: 1),
+                    secondsPastDay: true,
                     dotSize: 6,
                     style: TextStyle(
                       fontSize: 11,
@@ -101,12 +103,14 @@ class KanbanCard extends StatelessWidget {
                   Builder(
                     builder: (context) {
                       final slot = taskScheduleSlot(context, task);
+                      final seconds = watchShowSeconds(context);
                       return Text(
                         slot?.text ??
                             formatDuration(
                               task.loggedDuration(),
                               compactDays: true,
-                              showSeconds: false,
+                              showSeconds: seconds,
+                              secondsPastDay: seconds,
                             ),
                         style: TextStyle(
                           fontSize: 11,

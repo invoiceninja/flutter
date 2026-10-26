@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Uit kwitansie — kontroleer",
   "on_receipt": "Op kwitansie: :name",
   "receipt_number_note": "Kwitansie #:number",
-  "add_text": "Voeg teks by"
+  "add_text": "Voeg teks by",
+  "show_seconds": "Wys sekondes",
+  "show_seconds_help": "Wys sekondes op taakkaarte en tydinskrywings"
 }

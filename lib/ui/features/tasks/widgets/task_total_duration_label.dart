@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Live-updating total for the entire task — sum of every `TimeEntry` in
@@ -62,7 +63,11 @@ class _TaskTotalDurationLabelState extends State<TaskTotalDurationLabel> {
     return Tooltip(
       message: context.tr('total_duration'),
       child: Text(
-        formatDuration(total, compactDays: true),
+        formatDuration(
+          total,
+          compactDays: true,
+          secondsPastDay: watchShowSeconds(context),
+        ),
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,

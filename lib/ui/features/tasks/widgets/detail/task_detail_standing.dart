@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_rate_context.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Where a task stands: the time worked on it, and what that time comes to.
@@ -119,7 +120,11 @@ class _TaskDetailStandingState extends State<TaskDetailStanding> {
             primary: [
               StandingFigure(
                 label: context.tr('duration'),
-                value: formatDuration(worked, compactDays: true),
+                value: formatDuration(
+                  worked,
+                  compactDays: true,
+                  secondsPastDay: watchShowSeconds(context),
+                ),
                 valueColor: t.isRunning ? tokens.accent : null,
                 onTap: () => widget.onOpenTab(DetailTabIds.timeLog),
                 semanticsHint: context.tr('time_log'),

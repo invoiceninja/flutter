@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Nga kuponi — kontrollo",
   "on_receipt": "Në kupon: :name",
   "receipt_number_note": "Kupon nr. :number",
-  "add_text": "Shto tekst"
+  "add_text": "Shto tekst",
+  "show_seconds": "Shfaq sekondat",
+  "show_seconds_help": "Shfaq sekondat në kartat e detyrave dhe në regjistrimet e kohës"
 }

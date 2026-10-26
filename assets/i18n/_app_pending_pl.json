@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Z paragonu — sprawdź",
   "on_receipt": "Na paragonie: :name",
   "receipt_number_note": "Paragon nr :number",
-  "add_text": "Dodaj tekst"
+  "add_text": "Dodaj tekst",
+  "show_seconds": "Pokaż sekundy",
+  "show_seconds_help": "Pokaż sekundy na kartach zadań i we wpisach czasu"
 }

@@ -1596,5 +1596,7 @@
   "from_receipt_check": "Kuitista — tarkista",
   "on_receipt": "Kuitissa: :name",
   "receipt_number_note": "Kuitti nro :number",
-  "add_text": "Lisää teksti"
+  "add_text": "Lisää teksti",
+  "show_seconds": "Näytä sekunnit",
+  "show_seconds_help": "Näytä sekunnit tehtäväkorteissa ja aikakirjauksissa"
 }

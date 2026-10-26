@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -32,10 +33,15 @@ class TaskDailyEntryRow extends StatelessWidget {
   final String companyId;
   final Formatter? formatter;
 
-  String _clock(DateTime? utc, bool military) {
+  String _clock(DateTime? utc, bool military, {required bool seconds}) {
     if (utc == null) return '';
     final local = utc.toLocal();
-    return formatTimeOfDay(local.hour, local.minute, military: military);
+    return formatTimeOfDay(
+      local.hour,
+      local.minute,
+      military: military,
+      second: seconds ? local.second : null,
+    );
   }
 
   @override
@@ -43,6 +49,7 @@ class TaskDailyEntryRow extends StatelessWidget {
     final tokens = context.inTheme;
     final services = context.read<Services>();
     final military = formatter?.settings.enableMilitaryTime ?? true;
+    final seconds = watchShowSeconds(context);
     // Per-entry running state drives the duration label / time-range text only.
     final running = entry.isRunning;
     // The toggle button reflects the TASK's running state, because
@@ -52,9 +59,10 @@ class TaskDailyEntryRow extends StatelessWidget {
     final taskRunning = task.isRunning;
     final secondaryStyle = TextStyle(fontSize: 12, color: tokens.ink3);
 
+    String clock(DateTime? utc) => _clock(utc, military, seconds: seconds);
     final timeRange = running
-        ? '${_clock(entry.start, military)} · ${context.tr('running')}'
-        : '${_clock(entry.start, military)} – ${_clock(entry.stop, military)}';
+        ? '${clock(entry.start)} · ${context.tr('running')}'
+        : '${clock(entry.start)} – ${clock(entry.stop)}';
 
     // The shared gate, not a fourth hand-rolled copy: this one was missing
     // `isDeleted`, so a soft-deleted task's row still offered a timer that
@@ -100,7 +108,17 @@ class TaskDailyEntryRow extends StatelessWidget {
                         ),
                       if (task.projectId.isNotEmpty || task.clientId.isNotEmpty)
                         Text('  ·  ', style: secondaryStyle),
-                      Text(timeRange, style: secondaryStyle),
+                      // Flexible: with Show Seconds on a 12-hour range is
+                      // ~40% wider, enough to overflow beside a project name.
+                      Flexible(
+                        child: Text(
+                          timeRange,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: secondaryStyle,
+                        ),
+                      ),
                     ],
                   ),
                 ],

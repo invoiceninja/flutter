@@ -31,6 +31,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/sentry_gate.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/sign_out_notice.dart';
+import 'package:admin/app/show_seconds_controller.dart';
 import 'package:admin/app/spell_check_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
@@ -843,6 +844,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // same reason.
         ChangeNotifierProvider<SpellCheckController>.value(
           value: widget.services.spellCheck,
+        ),
+        // For the Tasks surfaces that show seconds on request and their
+        // Device Settings switch, read through `watchShowSeconds(context)`
+        // for the same reason.
+        ChangeNotifierProvider<ShowSecondsController>.value(
+          value: widget.services.showSeconds,
         ),
         // New Expense reads receipts with it, as `ReceiptScanner?`: a screen
         // and its tests work without one (docs/receipt-ocr.md).

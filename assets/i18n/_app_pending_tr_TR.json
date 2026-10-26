@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Fişten — kontrol edin",
   "on_receipt": "Fişte: :name",
   "receipt_number_note": "Fiş no. :number",
-  "add_text": "Metin Ekle"
+  "add_text": "Metin Ekle",
+  "show_seconds": "Saniyeleri göster",
+  "show_seconds_help": "Görev kartlarında ve zaman kayıtlarında saniyeleri göster"
 }

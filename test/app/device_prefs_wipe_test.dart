@@ -170,6 +170,11 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.spellCheck.set(false),
     (s) => s.spellCheck.value,
   ),
+  // How the Tasks surfaces read on this screen, like list density.
+  DevicePrefKeys.showSeconds: _Probe(
+    (s) => s.showSeconds.set(true),
+    (s) => !s.showSeconds.value,
+  ),
 };
 
 final _certificate = CertificateFacts(

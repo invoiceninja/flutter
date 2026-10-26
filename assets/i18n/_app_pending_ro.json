@@ -1644,5 +1644,7 @@
   "from_receipt_check": "Din bon — verifică",
   "on_receipt": "Pe bon: :name",
   "receipt_number_note": "Bon nr. :number",
-  "add_text": "Adăugați text"
+  "add_text": "Adăugați text",
+  "show_seconds": "Afișează secundele",
+  "show_seconds_help": "Afișează secundele pe cardurile de sarcini și în înregistrările de timp"
 }

@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Van de bon — controleer dit",
   "on_receipt": "Op de bon: :name",
   "receipt_number_note": "Bon nr. :number",
-  "add_text": "Tekst toevoegen"
+  "add_text": "Tekst toevoegen",
+  "show_seconds": "Seconden tonen",
+  "show_seconds_help": "Seconden tonen op taakkaarten en bij tijdregistraties"
 }

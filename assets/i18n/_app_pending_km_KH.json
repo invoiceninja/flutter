@@ -1594,5 +1594,7 @@
   "from_receipt_check": "ពីបង្កាន់ដៃ — សូមពិនិត្យ",
   "on_receipt": "នៅលើបង្កាន់ដៃ: :name",
   "receipt_number_note": "បង្កាន់ដៃលេខ :number",
-  "add_text": "បន្ថែមអត្ថបទ"
+  "add_text": "បន្ថែមអត្ថបទ",
+  "show_seconds": "បង្ហាញវិនាទី",
+  "show_seconds_help": "បង្ហាញវិនាទីលើកាតភារកិច្ច និងកំណត់ត្រាពេលវេលា"
 }

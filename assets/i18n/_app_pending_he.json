@@ -1594,5 +1594,7 @@
   "from_receipt_check": "מהקבלה — יש לבדוק",
   "on_receipt": "בקבלה: :name",
   "receipt_number_note": "קבלה מס׳ :number",
-  "add_text": "הוסף טקסט"
+  "add_text": "הוסף טקסט",
+  "show_seconds": "הצג שניות",
+  "show_seconds_help": "הצג שניות בכרטיסי משימות וברישומי זמן"
 }

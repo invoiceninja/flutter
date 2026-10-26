@@ -1647,5 +1647,7 @@
   "from_receipt_check": "Z účtenky — zkontrolujte",
   "on_receipt": "Na účtence: :name",
   "receipt_number_note": "Účtenka č. :number",
-  "add_text": "Přidat text"
+  "add_text": "Přidat text",
+  "show_seconds": "Zobrazit sekundy",
+  "show_seconds_help": "Zobrazit sekundy na kartách úkolů a u časových záznamů"
 }

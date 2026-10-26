@@ -1599,5 +1599,7 @@
   "from_receipt_check": "Fra kvittering — kontrollér",
   "on_receipt": "På kvittering: :name",
   "receipt_number_note": "Kvittering nr. :number",
-  "add_text": "Tilføj tekst"
+  "add_text": "Tilføj tekst",
+  "show_seconds": "Vis sekunder",
+  "show_seconds_help": "Vis sekunder på opgavekort og tidsregistreringer"
 }

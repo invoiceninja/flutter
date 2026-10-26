@@ -1647,5 +1647,7 @@
   "from_receipt_check": "来自收据 — 请核对",
   "on_receipt": "收据上：:name",
   "receipt_number_note": "收据号 :number",
-  "add_text": "添加文本"
+  "add_text": "添加文本",
+  "show_seconds": "显示秒数",
+  "show_seconds_help": "在任务卡片和时间记录中显示秒数"
 }

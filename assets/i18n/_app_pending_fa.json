@@ -1647,5 +1647,7 @@
   "from_receipt_check": "از رسید — بررسی کنید",
   "on_receipt": "روی رسید: :name",
   "receipt_number_note": "رسید شماره :number",
-  "add_text": "افزودن متن"
+  "add_text": "افزودن متن",
+  "show_seconds": "نمایش ثانیه‌ها",
+  "show_seconds_help": "نمایش ثانیه‌ها در کارت‌های وظیفه و زمان‌های ثبت‌شده"
 }

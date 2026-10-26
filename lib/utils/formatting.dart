@@ -305,8 +305,17 @@ TimeOfDay convertDateTimeToTimeOfDay(DateTime? dateTime) =>
 /// server-UTC timestamp string, use `Formatter.date(value, showTime: true)`
 /// instead — it does the UTC→local shift. Single source of truth for the
 /// military-time choice across `InTimeField` and the task time-of-day displays.
-String formatTimeOfDay(int hour, int minute, {required bool military}) {
-  final mm = minute.toString().padLeft(2, '0');
+///
+/// A non-null [second] appends `:SS` — the read-only task times pass it when
+/// the device's Show Seconds preference is on (`watchShowSeconds`).
+String formatTimeOfDay(
+  int hour,
+  int minute, {
+  required bool military,
+  int? second,
+}) {
+  var mm = minute.toString().padLeft(2, '0');
+  if (second != null) mm = '$mm:${second.toString().padLeft(2, '0')}';
   if (military) return '${hour.toString().padLeft(2, '0')}:$mm';
   final isPm = hour >= 12;
   final hour12 = hour % 12 == 0 ? 12 : hour % 12;
@@ -394,18 +403,25 @@ String formatRelativeTime(BuildContext context, Duration elapsed) {
 /// `showSeconds: false` truncates to `H:MM`. `compactDays: true` switches to
 /// `Xd HHh MMm` once the elapsed time exceeds 24h — keeps the running label
 /// readable on long-running tasks instead of `123:45:67`.
+/// `secondsPastDay: true` adds `SSs` to that compact form; it is separate
+/// from [showSeconds] because the duration *fields* seed themselves with the
+/// compact form and must keep the shape they parse.
 String formatDuration(
   Duration? duration, {
   bool showSeconds = true,
   bool compactDays = false,
+  bool secondsPastDay = false,
 }) {
   final d = duration ?? Duration.zero;
   if (compactDays && d.inHours >= 24) {
     final days = d.inDays;
     final hours = d.inHours % 24;
     final minutes = d.inMinutes % 60;
-    return '${days}d ${hours.toString().padLeft(2, '0')}h '
+    final compact =
+        '${days}d ${hours.toString().padLeft(2, '0')}h '
         '${minutes.toString().padLeft(2, '0')}m';
+    if (!secondsPastDay) return compact;
+    return '$compact ${(d.inSeconds % 60).toString().padLeft(2, '0')}s';
   }
   final time = d.toString().split('.').first;
   if (showSeconds) return time;

@@ -1595,5 +1595,7 @@
   "from_receipt_check": "Del rebut — comprova-ho",
   "on_receipt": "Al rebut: :name",
   "receipt_number_note": "Rebut núm. :number",
-  "add_text": "Afegeix text"
+  "add_text": "Afegeix text",
+  "show_seconds": "Mostra els segons",
+  "show_seconds_help": "Mostra els segons a les targetes de tasques i a les entrades de temps"
 }

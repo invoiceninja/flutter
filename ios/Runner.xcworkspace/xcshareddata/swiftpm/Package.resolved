@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/app-check.git",
       "state" : {
-        "revision" : "61b85103a1aeed8218f17c794687781505fbbef5",
-        "version" : "11.2.0"
+        "revision" : "97f7d74dd0e8f3d0fe5fc75cc8957aa73bdc948a",
+        "version" : "11.3.2"
       }
     },
     {
@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/openid/AppAuth-iOS.git",
       "state" : {
-        "revision" : "145104f5ea9d58ae21b60add007c33c1cc0c948e",
-        "version" : "2.0.0"
+        "revision" : "a7caeda164dc5108bf4649472b28a5af65dc6f33",
+        "version" : "2.1.0"
       }
     },
     {
@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleSignIn-iOS.git",
       "state" : {
-        "revision" : "913b4005ea26aebe1c97d54e35ad82a515924c71",
-        "version" : "9.1.0"
+        "revision" : "08d8dcecafb575f98879ffdbb8302c1b9ad65d19",
+        "version" : "9.2.0"
       }
     },
     {
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleUtilities.git",
       "state" : {
-        "revision" : "60da361632d0de02786f709bdc0c4df340f7613e",
-        "version" : "8.1.0"
+        "revision" : "5459ee5603def3db0fe14ca522185f42c48d978e",
+        "version" : "8.1.5"
       }
     },
     {
@@ -55,12 +55,21 @@
       }
     },
     {
+      "identity" : "interop-ios-for-google-sdks",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/google/interop-ios-for-google-sdks.git",
+      "state" : {
+        "revision" : "040d087ac2267d2ddd4cca36c757d1c6a05fdbfe",
+        "version" : "101.0.0"
+      }
+    },
+    {
       "identity" : "promises",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/promises.git",
       "state" : {
-        "revision" : "540318ecedd63d883069ae7f1ed811a2df00b6ac",
-        "version" : "2.4.0"
+        "revision" : "f4a19a3c313dc2616c70bb49d29a799fb16be837",
+        "version" : "2.4.1"
       }
     },
     {

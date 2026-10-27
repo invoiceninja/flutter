@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Jagage üks arve ajastatud osamakseteks.",
   "pct_of_budget": ":pct% eelarvest",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "See eelvaade ei sisalda teie viimaseid muudatusi",
   "pending_jobs": "Ootel tööd",
   "pending_migrations_help": "On ootel migratsioone, käivitage `php artisan migrate`",
   "pending_outbox_rows": "Ootel saatmisjärjekorra read",

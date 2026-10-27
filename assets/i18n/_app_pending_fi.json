@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Jaa yksi lasku aikataulutettuihin eriin.",
   "pct_of_budget": ":pct% budjetista",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Tämä esikatselu ei sisällä viimeisimpiä muutoksiasi",
   "pending_jobs": "Odottavat työt",
   "pending_migrations_help": "Odottavia migraatioita on, suorita `php artisan migrate`",
   "pending_outbox_rows": "Odottavat synkronointijonon rivit",

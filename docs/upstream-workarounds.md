@@ -189,6 +189,17 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: drop the `mv`/`pushd`/`popd` lines and the `/build` lines of `sudo:` from all three blocks, and the matching test assertions. Then prove it by building one commit at two paths and comparing (`docs/fdroid.md` § The F-Droid APK is built by F-Droid's own tooling). Keep `PUB_CACHE` inside the project either way: F-Droid's scanner only sees a pub cache that lives in the build directory.
 - Recheck trigger: a Flutter bump — check whether `strings` of a release `libapp.so` still shows a `file://` path to the project.
 
+## 14. printing: `PdfPreview` drops a re-raster requested while one is running
+
+- Issue / waiting on: <https://github.com/DavBfr/dart_pdf> — none filed as of 2026-10-27. `PdfPreviewRaster._raster` begins `if (_rastering) return;` and nothing re-queues the skipped request (`lib/src/preview/raster.dart:97-101`). • Found: 2026-10-27 • printing: 5.15.1
+- Symptom: a PDF preview keeps showing the previous document after new bytes arrived. `PdfPreviewCustom.didUpdateWidget` re-rasters whenever the `build` callback changes identity (`custom.dart:157-166`), 300 ms later; if a raster of the old bytes is still running then (a multi-page document, slow Android, web pdf.js), the new one is skipped and never retried.
+- Root cause: a single-flight guard with no "dirty" flag to run again once the in-flight raster ends.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart` — **KEEP**: `_build`, the callback handed to `PdfPreview.build`, is created only where `_bytes` is assigned. The view used to pass `(_) => bytes` from `build()`, so the scrim's own `setState` and every parent rebuild queued a raster of the *old* bytes just ahead of the new ones. A stable callback is right regardless of the bug (it also stops each rebuild resetting the preview's zoom); it narrows the race to two real byte changes inside one raster, which is what remains open. Pinned by "PdfPreview gets a new build callback only with new bytes" in `test/ui/features/billing_shared/billing_doc_pdf_view_test.dart`. See `docs/pdf-preview-refresh.md`.
+- Revert: nothing to revert when upstream fixes it — keep the stable callback; delete this entry.
+- Recheck trigger: a `printing` bump — check `_raster` for a pending/dirty re-run after the in-flight raster completes.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

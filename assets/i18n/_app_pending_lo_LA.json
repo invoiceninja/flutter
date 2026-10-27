@@ -901,6 +901,7 @@
   "payment_schedule_hint": "ແບ່ງໃບແຈ້ງໜີ້ດຽວອອກເປັນງວດຜ່ອນຊຳລະຕາມກຳນົດ.",
   "pct_of_budget": ":pct% ຂອງງົບປະມານ",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "ຕົວຢ່າງນີ້ບໍ່ລວມເອົາການປ່ຽນແປງຫຼ້າສຸດຂອງທ່ານ",
   "pending_jobs": "ວຽກທີ່ລໍຖ້າ",
   "pending_migrations_help": "ມີ migration ທີ່ລໍຖ້າຢູ່, ແລ່ນ `php artisan migrate`",
   "pending_outbox_rows": "ແຖວກ່ອງຂາອອກທີ່ລໍຖ້າ",

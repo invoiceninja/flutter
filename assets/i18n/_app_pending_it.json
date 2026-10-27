@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Suddividi una singola fattura in rate pianificate.",
   "pct_of_budget": ":pct% del budget",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Questa anteprima non include le tue ultime modifiche",
   "pending_jobs": "Job in attesa",
   "pending_migrations_help": "Ci sono migrazioni in sospeso, esegui `php artisan migrate`",
   "pending_outbox_rows": "Voci in attesa nella coda di invio",

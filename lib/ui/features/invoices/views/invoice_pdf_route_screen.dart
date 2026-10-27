@@ -79,7 +79,8 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
           // A frozen version render has no delivery-note variant.
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
-          autoRefreshDebounce: Duration.zero,
+          contentRevision: activityId == null ? invoice : null,
+          hasUnsyncedChanges: invoice.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,

@@ -150,6 +150,7 @@ class _BillingDocEmailRouteScreenState
       required bool deliveryNote,
     })
     pdfFetcher,
+    required Object pdfRevision,
   }) => BillingDocEmailScreen(
     services: _services,
     companyId: _companyId,
@@ -169,6 +170,7 @@ class _BillingDocEmailRouteScreenState
     onSchedule: onSchedule,
     onReactivate: onReactivate,
     pdfFetcher: pdfFetcher,
+    pdfRevision: pdfRevision,
     initialTemplate: widget.initialTemplate,
   );
 
@@ -181,6 +183,7 @@ class _BillingDocEmailRouteScreenState
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
+        pdfRevision: e,
         invitations: e.invitations,
         isDirty: e.isDirty,
         clientId: e.clientId,
@@ -231,6 +234,7 @@ class _BillingDocEmailRouteScreenState
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
+        pdfRevision: e,
         invitations: e.invitations,
         isDirty: e.isDirty,
         clientId: e.clientId,
@@ -280,6 +284,7 @@ class _BillingDocEmailRouteScreenState
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
+        pdfRevision: e,
         invitations: e.invitations,
         isDirty: e.isDirty,
         clientId: e.clientId,
@@ -329,6 +334,7 @@ class _BillingDocEmailRouteScreenState
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
+        pdfRevision: e,
         invitations: e.invitations,
         isDirty: e.isDirty,
         clientId: '',

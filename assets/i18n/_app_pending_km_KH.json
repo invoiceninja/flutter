@@ -869,6 +869,7 @@
   "payment_schedule_hint": "បំបែកវិក្កយបត្រមួយទៅជាការបង់រំលស់តាមកាលវិភាគ។",
   "pct_of_budget": ":pct% នៃថវិកា",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "ការមើលជាមុននេះមិនរួមបញ្ចូលការផ្លាស់ប្តូរចុងក្រោយរបស់អ្នកទេ",
   "pending_jobs": "ការងារកំពុងរង់ចាំ",
   "pending_migrations_help": "មានការផ្ទេរកំពុងរង់ចាំ សូមដំណើរការ `php artisan migrate`",
   "pending_outbox_rows": "ជួរប្រអប់ចេញកំពុងរង់ចាំ",

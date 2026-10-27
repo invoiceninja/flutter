@@ -901,6 +901,7 @@
   "payment_schedule_hint": "En račun razdelite na načrtovane obroke.",
   "pct_of_budget": ":pct% proračuna",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Ta predogled ne vključuje vaših zadnjih sprememb",
   "pending_jobs": "Čakajoči posli",
   "pending_migrations_help": "Obstajajo čakajoče migracije, zaženite `php artisan migrate`",
   "pending_outbox_rows": "Čakajoče vrstice čakalne vrste",

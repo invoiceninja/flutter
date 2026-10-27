@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Divida una factura en cuotas programadas.",
   "pct_of_budget": ":pct% del presupuesto",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Esta vista previa no incluye sus últimos cambios",
   "pending_jobs": "Trabajos pendientes",
   "pending_migrations_help": "Hay migraciones pendientes, ejecute `php artisan migrate`",
   "pending_outbox_rows": "Filas pendientes de la bandeja de salida",

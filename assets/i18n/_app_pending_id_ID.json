@@ -871,6 +871,7 @@
   "payment_schedule_hint": "Bagi satu faktur menjadi cicilan terjadwal.",
   "pct_of_budget": ":pct% dari anggaran",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Pratinjau ini tidak menyertakan perubahan terbaru Anda",
   "pending_jobs": "Pekerjaan Tertunda",
   "pending_migrations_help": "Ada migrasi yang tertunda, jalankan `php artisan migrate`",
   "pending_outbox_rows": "Baris kotak keluar tertunda",

@@ -72,7 +72,8 @@ class _PurchaseOrderPdfRouteScreenState
           // A frozen version render has no delivery-note variant.
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
-          autoRefreshDebounce: Duration.zero,
+          contentRevision: activityId == null ? po : null,
+          hasUnsyncedChanges: po.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,

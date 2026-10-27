@@ -1621,13 +1621,19 @@ class _PdfTab<T extends BillingDocFields> extends StatelessWidget {
         ? BillingDocPdfView(
             entity: type,
             entityNumber: vm.draft.number,
-            revision: vm.draft,
+            contentRevision: vm.draft,
+            // The form is ahead of the server's saved copy, which is all the
+            // delivery note can render.
+            hasUnsyncedChanges: vm.isDirty || vm.draft.isDirty,
             fetcher: slots.pdfFetcher(context),
           )
         : BillingDocPdfView(
             entity: type,
             entityNumber: vm.draft.number,
-            revision: vm.draft,
+            contentRevision: vm.draft,
+            // The form is ahead of the server's saved copy, which is all the
+            // delivery note can render.
+            hasUnsyncedChanges: vm.isDirty || vm.draft.isDirty,
             deliveryNoteAvailable: deliveryNoteAvailable(),
             fetcher: slots.pdfFetcher(context),
           );

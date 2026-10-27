@@ -466,6 +466,45 @@ void main() {
       // the strip has somewhere to pin.
       size: const Size(1320, 420),
     );
+
+    final pdfServer = DocServer(_path)
+      ..record = docJson()
+      ..answerPdfs = true;
+    _screenTest(
+      'the pane follows the record: a save re-renders it, an unchanged row '
+      'does not',
+      docJson(),
+      (tester, screen) async {
+        await screen.until(() => pdfServer.pdfAsks.isNotEmpty, 'the PDF');
+        await screen.quiet();
+        final opened = pdfServer.pdfAsks.length;
+
+        // The row written again, unchanged (the open re-check does the same).
+        await screen.services.invoices.applyUpdateResponse(
+          companyId: 'co1',
+          serverResponse: InvoiceApi.fromJson(docJson()),
+        );
+        await screen.quiet();
+        expect(pdfServer.pdfAsks, hasLength(opened));
+
+        // A save's echo: the pane stayed mounted under the editor, and used
+        // to keep the document as first opened until the record was reopened.
+        await screen.services.invoices.applyUpdateResponse(
+          companyId: 'co1',
+          serverResponse: InvoiceApi.fromJson(
+            docJson(po: 'PO-9000', updatedAt: 1700000009),
+          ),
+        );
+        await screen.until(
+          () => pdfServer.pdfAsks.length > opened,
+          'the re-rendered PDF',
+        );
+        expect(pdfServer.pdfAsks.last.path, endsWith('/download'));
+      },
+      server: pdfServer,
+      online: true,
+      size: const Size(1320, 900),
+    );
   });
 
   group('refresh', () {

@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Разделете една фактура на планирани вноски.",
   "pct_of_budget": ":pct% от бюджета",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Този преглед не включва последните ви промени",
   "pending_jobs": "Чакащи задания",
   "pending_migrations_help": "Има чакащи миграции, изпълнете `php artisan migrate`",
   "pending_outbox_rows": "Чакащи записи в опашката",

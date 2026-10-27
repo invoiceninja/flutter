@@ -156,9 +156,19 @@ class DocServer {
   /// empty state rather than the offline fixture's failed-to-load.
   bool emptyActivity = false;
 
+  /// Answer the document's PDF — its stored render and `live_preview` — with
+  /// a minimal PDF, so a PDF pane mounts instead of showing its error.
+  bool answerPdfs = false;
+
   final List<Uri> requests = [];
 
   Iterable<Uri> get recordAsks => requests.where((u) => u.path == recordPath);
+
+  /// Every PDF the app asked for, in order.
+  Iterable<Uri> get pdfAsks => requests.where(_isPdf);
+
+  static bool _isPdf(Uri u) =>
+      u.path.endsWith('/download') || u.path == '/api/v1/live_preview';
 
   http.Client get client => MockClient((request) async {
     final record = this.record;
@@ -170,6 +180,14 @@ class DocServer {
         jsonEncode({'data': record}),
         200,
         headers: {'content-type': 'application/json'},
+      );
+    }
+    if (answerPdfs && _isPdf(request.url)) {
+      requests.add(request.url);
+      return http.Response.bytes(
+        '%PDF-1.4\n%%EOF\n'.codeUnits,
+        200,
+        headers: {'content-type': 'application/pdf'},
       );
     }
     if (emptyActivity && request.url.path == '/api/v1/activities/entity') {

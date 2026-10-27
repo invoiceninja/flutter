@@ -869,6 +869,7 @@
   "payment_schedule_hint": "פצל חשבונית אחת לתשלומים מתוזמנים.",
   "pct_of_budget": ":pct% מהתקציב",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "תצוגה מקדימה זו אינה כוללת את השינויים האחרונים שלך",
   "pending_jobs": "משימות רקע ממתינות",
   "pending_migrations_help": "יש מיגרציות ממתינות, הרץ `php artisan migrate`",
   "pending_outbox_rows": "שורות ממתינות בתור השליחה",

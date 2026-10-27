@@ -899,6 +899,7 @@
   "payment_schedule_hint": "Dela upp en faktura i schemalagda delbetalningar.",
   "pct_of_budget": ":pct% av budgeten",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Den här förhandsgranskningen innehåller inte dina senaste ändringar",
   "pending_jobs": "Väntande jobb",
   "pending_migrations_help": "Det finns väntande migreringar, kör `php artisan migrate`",
   "pending_outbox_rows": "Väntande rader i utkorgen",

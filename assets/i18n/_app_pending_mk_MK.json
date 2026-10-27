@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Поделете една фактура на закажани рати.",
   "pct_of_budget": ":pct% од буџетот",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Овој преглед не ги вклучува вашите најнови промени",
   "pending_jobs": "Задачи на чекање",
   "pending_migrations_help": "Има миграции на чекање, извршете `php artisan migrate`",
   "pending_outbox_rows": "Записи на чекање во редот за праќање",

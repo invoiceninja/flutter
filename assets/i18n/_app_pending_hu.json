@@ -878,6 +878,7 @@
   "payment_schedule_hint": "Egyetlen számla felosztása ütemezett részletekre.",
   "pct_of_budget": "A költségkeret :pct%-a",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Ez az előnézet nem tartalmazza a legutóbbi módosításait",
   "pending_jobs": "Függő feladatok",
   "pending_migrations_help": "Függő migrációk vannak, futtassa a `php artisan migrate` parancsot",
   "pending_outbox_rows": "Függő kimenő tételek",

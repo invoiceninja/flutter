@@ -858,6 +858,7 @@
   "payment_schedule_hint": "Fractionnez une facture en versements planifiés.",
   "pct_of_budget": ":pct % du budget",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Cet aperçu n'inclut pas vos dernières modifications",
   "pending_jobs": "Travaux en attente",
   "pending_migrations_help": "Des migrations sont en attente, exécutez `php artisan migrate`",
   "pending_outbox_rows": "Éléments en attente de la file d'envoi",

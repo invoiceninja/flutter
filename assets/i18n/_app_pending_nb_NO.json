@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Del én faktura opp i planlagte avdrag.",
   "pct_of_budget": ":pct% av budsjettet",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Denne forhåndsvisningen inkluderer ikke de siste endringene dine",
   "pending_jobs": "Ventende jobber",
   "pending_migrations_help": "Det finnes ventende migreringer, kjør `php artisan migrate`",
   "pending_outbox_rows": "Ventende utboksrader",

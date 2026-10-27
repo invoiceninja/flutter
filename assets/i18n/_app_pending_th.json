@@ -901,6 +901,7 @@
   "payment_schedule_hint": "แบ่งใบแจ้งหนี้ใบเดียวเป็นงวดผ่อนชำระตามกำหนด",
   "pct_of_budget": ":pct% ของงบประมาณ",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "ตัวอย่างนี้ไม่มีการเปลี่ยนแปลงล่าสุดของคุณ",
   "pending_jobs": "งานที่รอดำเนินการ",
   "pending_migrations_help": "มีการย้ายข้อมูลที่รอดำเนินการ ให้เรียกใช้ `php artisan migrate`",
   "pending_outbox_rows": "รายการในกล่องขาออกที่รอดำเนินการ",

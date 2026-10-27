@@ -871,6 +871,7 @@
   "payment_schedule_hint": "Opdel en enkelt faktura i planlagte rater.",
   "pct_of_budget": ":pct% af budgettet",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Denne forhåndsvisning indeholder ikke dine seneste ændringer",
   "pending_jobs": "Ventende jobs",
   "pending_migrations_help": "Der er ventende migreringer, kør `php artisan migrate`",
   "pending_outbox_rows": "Ventende rækker i udbakken",

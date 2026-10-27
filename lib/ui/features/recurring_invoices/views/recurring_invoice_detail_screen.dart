@@ -607,6 +607,8 @@ class _PdfPane extends StatelessWidget {
       api: services.documentVersions,
       basePath: services.recurringInvoices.api.basePath,
       entityId: recurringInvoice.id,
+      liveRevision: recurringInvoice,
+      hasUnsyncedChanges: recurringInvoice.isDirty,
       formatter: formatter,
       liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.recurringInvoices.api.downloadPdf(

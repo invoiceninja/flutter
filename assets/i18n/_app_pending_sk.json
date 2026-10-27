@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Rozdeliť jednu faktúru na naplánované splátky.",
   "pct_of_budget": ":pct% rozpočtu",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Tento náhľad neobsahuje vaše najnovšie zmeny",
   "pending_jobs": "Čakajúce úlohy",
   "pending_migrations_help": "Existujú čakajúce migrácie, spustite `php artisan migrate`",
   "pending_outbox_rows": "Čakajúce položky frontu odosielania",

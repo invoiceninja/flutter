@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Χωρίστε ένα τιμολόγιο σε προγραμματισμένες δόσεις.",
   "pct_of_budget": ":pct% του προϋπολογισμού",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Αυτή η προεπισκόπηση δεν περιλαμβάνει τις τελευταίες αλλαγές σας",
   "pending_jobs": "Εκκρεμείς εργασίες",
   "pending_migrations_help": "Υπάρχουν εκκρεμείς migrations, εκτελέστε `php artisan migrate`",
   "pending_outbox_rows": "Εκκρεμείς εγγραφές εξερχομένων",

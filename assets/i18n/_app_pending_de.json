@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Eine einzelne Rechnung in geplante Raten aufteilen.",
   "pct_of_budget": ":pct% des Budgets",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Diese Vorschau enthält Ihre letzten Änderungen nicht",
   "pending_jobs": "Ausstehende Jobs",
   "pending_migrations_help": "Es gibt ausstehende Migrationen, führen Sie `php artisan migrate` aus",
   "pending_outbox_rows": "Ausstehende Postausgang-Einträge",

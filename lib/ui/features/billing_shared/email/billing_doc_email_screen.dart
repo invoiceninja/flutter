@@ -91,6 +91,7 @@ class BillingDocEmailScreen extends StatefulWidget {
     required this.onSchedule,
     required this.onReactivate,
     required this.pdfFetcher,
+    this.pdfRevision,
     this.initialTemplate,
   });
 
@@ -109,7 +110,7 @@ class BillingDocEmailScreen extends StatefulWidget {
   final List<Invitation> invitations;
 
   /// Forwarded to the History pane's [BillingDocSendsTab] — see its `isDirty`
-  /// doc. Nothing on this screen reads it.
+  /// doc — and to the PDF tab's [BillingDocPdfView.hasUnsyncedChanges].
   final bool isDirty;
 
   /// Exactly one of [clientId] / [vendorId] is non-empty — names the entity
@@ -140,6 +141,11 @@ class BillingDocEmailScreen extends StatefulWidget {
     required bool deliveryNote,
   })
   pdfFetcher;
+
+  /// The watched document, forwarded to
+  /// [BillingDocPdfView.contentRevision] so the PDF tab follows a sync that
+  /// lands while this screen is open.
+  final Object? pdfRevision;
 
   @override
   State<BillingDocEmailScreen> createState() => _BillingDocEmailScreenState();
@@ -875,6 +881,8 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     entity: widget.type,
     entityNumber: widget.entityNumber,
     fetcher: widget.pdfFetcher,
+    contentRevision: widget.pdfRevision,
+    hasUnsyncedChanges: widget.isDirty,
   );
 
   Widget _historyView() => SingleChildScrollView(

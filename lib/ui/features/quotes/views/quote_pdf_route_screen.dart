@@ -62,7 +62,8 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
           // A frozen version render has no delivery-note variant.
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
-          autoRefreshDebounce: Duration.zero,
+          contentRevision: activityId == null ? quote : null,
+          hasUnsyncedChanges: quote.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,

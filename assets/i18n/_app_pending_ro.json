@@ -899,6 +899,7 @@
   "payment_schedule_hint": "Împărțiți o singură factură în rate programate.",
   "pct_of_budget": ":pct% din buget",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Această previzualizare nu include cele mai recente modificări",
   "pending_jobs": "Joburi în așteptare",
   "pending_migrations_help": "Există migrări în așteptare, rulați `php artisan migrate`",
   "pending_outbox_rows": "Rânduri în așteptare în coada de trimitere",

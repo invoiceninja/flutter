@@ -443,6 +443,8 @@ class _PdfPane extends StatelessWidget {
       api: services.documentVersions,
       basePath: services.credits.api.basePath,
       entityId: credit.id,
+      liveRevision: credit,
+      hasUnsyncedChanges: credit.isDirty,
       formatter: formatter,
       liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.credits.api.downloadPdf(

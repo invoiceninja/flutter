@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Podijelite jedan račun na zakazane obroke.",
   "pct_of_budget": ":pct% proračuna",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Ovaj pregled ne uključuje vaše najnovije promjene",
   "pending_jobs": "Poslovi na čekanju",
   "pending_migrations_help": "Postoje migracije na čekanju, pokrenite `php artisan migrate`",
   "pending_outbox_rows": "Retci izlaznog spremnika na čekanju",

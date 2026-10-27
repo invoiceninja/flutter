@@ -870,6 +870,7 @@
   "payment_schedule_hint": "將一張發票拆分為排定的分期付款。",
   "pct_of_budget": "預算的 :pct%",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "此預覽不包含您的最新變更",
   "pending_jobs": "待處理工作",
   "pending_migrations_help": "有待執行的遷移，請執行 `php artisan migrate`",
   "pending_outbox_rows": "待處理的同步佇列項目",

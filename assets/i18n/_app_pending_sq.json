@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Ndani një faturë të vetme në këste të planifikuara.",
   "pct_of_budget": ":pct% e buxhetit",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Ky parapamje nuk përfshin ndryshimet tuaja më të fundit",
   "pending_jobs": "Punët në pritje",
   "pending_migrations_help": "Ka migrime në pritje, ekzekutoni `php artisan migrate`",
   "pending_outbox_rows": "Rreshta në pritje në radhën e dërgimit",

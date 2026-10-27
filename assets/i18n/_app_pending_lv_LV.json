@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Sadaliet vienu rēķinu ieplānotos maksājumos pa daļām.",
   "pct_of_budget": ":pct% no budžeta",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Šajā priekšskatījumā nav iekļautas jūsu jaunākās izmaiņas",
   "pending_jobs": "Gaidošie uzdevumi",
   "pending_migrations_help": "Ir neizpildītas migrācijas, palaidiet `php artisan migrate`",
   "pending_outbox_rows": "Gaidošās izsūtnes rindas",

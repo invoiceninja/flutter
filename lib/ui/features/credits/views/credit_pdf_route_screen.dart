@@ -62,7 +62,8 @@ class _CreditPdfRouteScreenState extends State<CreditPdfRouteScreen>
           // A frozen version render has no delivery-note variant.
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
-          autoRefreshDebounce: Duration.zero,
+          contentRevision: activityId == null ? credit : null,
+          hasUnsyncedChanges: credit.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,

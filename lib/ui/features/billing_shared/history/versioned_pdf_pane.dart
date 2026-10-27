@@ -30,6 +30,8 @@ class VersionedPdfPane extends StatefulWidget {
     required this.basePath,
     required this.entityId,
     required this.liveFetcher,
+    required this.liveRevision,
+    required this.hasUnsyncedChanges,
     this.formatter,
   });
 
@@ -51,6 +53,17 @@ class VersionedPdfPane extends StatefulWidget {
     required bool deliveryNote,
   })
   liveFetcher;
+
+  /// The live document's content — the watched record itself. The pane
+  /// stays mounted under the editor and across every save, so this is what
+  /// re-renders the PDF when the record changes
+  /// ([BillingDocPdfView.contentRevision]). Required so no record screen can
+  /// leave its pane on the document as first opened.
+  final Object? liveRevision;
+
+  /// Forwarded to [BillingDocPdfView.hasUnsyncedChanges] — the record's
+  /// `isDirty`.
+  final bool hasUnsyncedChanges;
 
   @override
   State<VersionedPdfPane> createState() => _VersionedPdfPaneState();
@@ -139,11 +152,15 @@ class _VersionedPdfPaneState extends State<VersionedPdfPane> {
                     : '${widget.entityNumber}_$label',
                 // A frozen render has no design or delivery-note variant.
                 deliveryNoteAvailable: activityId == null,
-                // `revision` + a zero debounce, not a `ValueKey` remount —
-                // see the Column note above. The existing generation guard
-                // handles the race.
+                // `revision`, not a `ValueKey` remount — see the Column note
+                // above. The existing generation guard handles the race.
                 revision: activityId,
-                autoRefreshDebounce: Duration.zero,
+                // A frozen render never changes; the live one follows the
+                // record.
+                contentRevision: activityId == null
+                    ? widget.liveRevision
+                    : null,
+                hasUnsyncedChanges: widget.hasUnsyncedChanges,
                 // The pane is part of the window; the `/pdf` route is all of
                 // it, on the version the pane is showing.
                 onOpenFullSize: (deliveryNote) => openBillingDocPdf(

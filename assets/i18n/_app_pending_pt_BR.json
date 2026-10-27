@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Divida uma única fatura em parcelas agendadas.",
   "pct_of_budget": ":pct% do orçamento",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Esta visualização não inclui suas alterações mais recentes",
   "pending_jobs": "Jobs Pendentes",
   "pending_migrations_help": "Há migrações pendentes, execute `php artisan migrate`",
   "pending_outbox_rows": "Linhas pendentes na caixa de saída",

@@ -903,6 +903,7 @@
   "payment_schedule_hint": "Split a single invoice into scheduled installments.",
   "pct_of_budget": ":pct% of budget",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "This preview doesn't include your latest changes",
   "pending_jobs": "Pending Jobs",
   "pending_migrations_help": "There are pending migrations, run `php artisan migrate`",
   "pending_outbox_rows": "Pending outbox rows",

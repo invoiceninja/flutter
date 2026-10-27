@@ -20,10 +20,12 @@ import 'package:admin/utils/pdf_bytes_guard.dart';
 ///
 /// State machine:
 ///   * First load → full-pane spinner.
-///   * Subsequent reloads (design change, delivery-note toggle) → keep the
+///   * A different document ([revision], the delivery-note toggle) → keep the
 ///     last-good PDF visible behind a translucent overlay so the user
-///     doesn't see a blink.
-///   * Error → [ErrorView] with retry.
+///     doesn't see a blink; an error drops it for [ErrorView] with retry.
+///   * Newer content of the same document ([contentRevision]) → a quiet
+///     refresh: the last-good PDF stays usable under a thin progress bar,
+///     and an error keeps it, marked stale, with a retry.
 ///
 /// `entity` decides what extra controls render (only [BillingDocType.invoice]
 /// gets the delivery-note toggle today).
@@ -36,6 +38,8 @@ class BillingDocPdfView extends StatefulWidget {
     this.initialDeliveryNote = false,
     this.deliveryNoteAvailable = true,
     this.revision,
+    this.contentRevision,
+    this.hasUnsyncedChanges = false,
     this.autoRefreshDebounce = const Duration(milliseconds: 600),
     this.onOpenFullSize,
   });
@@ -47,13 +51,28 @@ class BillingDocPdfView extends StatefulWidget {
   /// opens on the same document.
   final ValueChanged<bool>? onOpenFullSize;
 
-  /// When non-null and it changes by `==`, the preview re-fetches after
-  /// [autoRefreshDebounce]. Edit screens pass the freezed draft (value
-  /// equality, so any field change re-renders); detail / pdf-route screens
-  /// leave it null → fetch-once, no auto-refresh.
+  /// Which document this is. A change by `==` re-fetches at once, behind the
+  /// scrim, and an error drops the last-good PDF — showing it under the next
+  /// document's title would be a lie. The history version seam passes the
+  /// selected activity id.
   final Object? revision;
 
-  /// Quiet period after a [revision] change before the refetch fires.
+  /// The document's content. A change by `==` re-fetches after
+  /// [autoRefreshDebounce] without blocking the pane, and an error keeps the
+  /// last-good PDF, marked stale. Every caller showing a live document passes
+  /// the freezed record (deep equality, so a re-emit of an unchanged row does
+  /// not re-fetch) — the edit screens their draft, the record screens and
+  /// `/pdf` routes the watched row, so a save lands in the preview without
+  /// reopening the record. See docs/pdf-preview-refresh.md.
+  final Object? contentRevision;
+
+  /// The document carries a local edit the server has not seen yet. Only the
+  /// delivery note reads it: that variant is the server's saved copy, so it
+  /// cannot show the edit, and the view says so instead of passing it off as
+  /// current.
+  final bool hasUnsyncedChanges;
+
+  /// Quiet period after a [contentRevision] change before the refetch fires.
   final Duration autoRefreshDebounce;
 
   /// Whether the first render requests the delivery-note variant (and the
@@ -90,12 +109,32 @@ class BillingDocPdfView extends StatefulWidget {
 
 class _BillingDocPdfViewState extends State<BillingDocPdfView> {
   Uint8List? _bytes;
+
+  /// Handed to [PdfPreview.build], and replaced only where [_bytes] is.
+  /// `PdfPreview` re-rasters whenever this closure changes identity, and its
+  /// raster skips — never retries — a request that lands while one is still
+  /// running (upstream-workarounds.md #14). A closure rebuilt on every build
+  /// re-rastered the old bytes on each scrim toggle, and new bytes arriving
+  /// mid-raster were dropped: the same stale page this view exists to fix.
+  LayoutCallback? _build;
   Object? _error;
   bool _loading = true;
+
+  /// A quiet ([BillingDocPdfView.contentRevision]) refresh is in flight.
+  bool _refreshing = false;
+
+  /// The progress bar for [_refreshing], held back so a fast refresh draws
+  /// nothing at all.
+  bool _showProgress = false;
+
+  /// The last quiet refresh failed, so the PDF on screen predates the
+  /// document's latest content.
+  bool _stale = false;
   late bool _deliveryNote = widget.initialDeliveryNote;
   String? _designId;
   int _generation = 0;
   Timer? _debounce;
+  Timer? _progressDelay;
 
   @override
   void initState() {
@@ -106,10 +145,17 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
   @override
   void didUpdateWidget(BillingDocPdfView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // A different document wins over newer content in the same rebuild:
+    // switching back to the live document changes both.
     if (widget.revision != oldWidget.revision) {
       _debounce?.cancel();
-      _debounce = Timer(widget.autoRefreshDebounce, () {
+      _debounce = Timer(Duration.zero, () {
         if (mounted) _load();
+      });
+    } else if (widget.contentRevision != oldWidget.contentRevision) {
+      _debounce?.cancel();
+      _debounce = Timer(widget.autoRefreshDebounce, () {
+        if (mounted) _load(quiet: true);
       });
     }
   }
@@ -117,14 +163,30 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _progressDelay?.cancel();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool quiet = false}) async {
+    // A quiet refresh needs a PDF to keep on screen; from the spinner or the
+    // error view it is an ordinary load. So is one that lands while a full
+    // load (a version switch, the delivery-note toggle) is still pending: the
+    // bytes on screen are then the *previous* document's, and keeping them
+    // would put one document under another's title.
+    final keep = quiet && _bytes != null && !_loading;
+    _debounce?.cancel();
+    _progressDelay?.cancel();
     setState(() {
-      _loading = true;
+      _loading = !keep;
+      _refreshing = keep;
+      _showProgress = false;
       _error = null;
     });
+    if (keep) {
+      _progressDelay = Timer(const Duration(milliseconds: 300), () {
+        if (mounted && _refreshing) setState(() => _showProgress = true);
+      });
+    }
     final myGen = ++_generation;
     try {
       final bytes = await widget.fetcher(
@@ -134,11 +196,26 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
       if (!mounted || myGen != _generation) return;
       setState(() {
         _bytes = bytes;
+        _build = (_) => bytes;
         _loading = false;
+        _refreshing = false;
+        _showProgress = false;
+        _stale = false;
       });
     } catch (e) {
       if (!mounted || myGen != _generation) return;
       setState(() {
+        _loading = false;
+        _refreshing = false;
+        _showProgress = false;
+        if (keep) {
+          // Newer content of the same document failed to render — offline,
+          // most often, since `live_preview` is a POST. The PDF on screen is
+          // still this document, so it stays, marked stale; the outbox's
+          // echo changes the row again and refreshes it without a tap.
+          _stale = true;
+          return;
+        }
         _error = e;
         // Drop the last-good bytes. The "keep the previous page visible"
         // behaviour above is for the *loading* window only — holding them
@@ -151,7 +228,8 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
         // so picking it would otherwise leave the *live* document on screen
         // under that version's title.
         _bytes = null;
-        _loading = false;
+        _build = null;
+        _stale = false;
       });
     }
   }
@@ -159,6 +237,7 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
   @override
   Widget build(BuildContext context) {
     final bytes = _bytes;
+    final build = _build;
     final err = _error;
     if (bytes == null && _loading && err == null) {
       return const Center(child: CircularProgressIndicator());
@@ -174,7 +253,7 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
         onRetry: _load,
       );
     }
-    if (bytes == null) {
+    if (bytes == null || build == null) {
       return EmptyState(
         icon: Icons.picture_as_pdf_outlined,
         title: context.tr('view_pdf'),
@@ -188,14 +267,13 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
         title: context.tr('view_pdf'),
       );
     }
-    // Sanitized here rather than at each producer: `entityNumber` arrives
-    // carrying a company-configured document number (`INV/2026/0001` is an
-    // ordinary European pattern) and, on the History tab, a saved-version
-    // timestamp rendered through the company's `date_format_id` — which is `/`
-    // separated on the server's own default and colon-separated on all of them.
-    // `printing` hands this straight to the native share, which concatenates it
-    // onto a temp path and swallows the write error, so an illegal character was
-    // a Share/Download button that silently did nothing. See [sanitizeFileName].
+    final showToggle =
+        widget.entity.supportsDeliveryNote && widget.deliveryNoteAvailable;
+    // The delivery note is the server's saved copy, so an unsynced edit is
+    // missing from it however often it is re-fetched.
+    final unsyncedNote =
+        showToggle && _deliveryNote && widget.hasUnsyncedChanges;
+    final stale = _stale || unsyncedNote;
     final previewName = '${widget.entity.wireName}_preview';
     final rawName = widget.entityNumber.isEmpty
         ? previewName
@@ -206,7 +284,11 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
       children: [
         Positioned.fill(
           child: PdfPreview(
-            build: (_) => bytes,
+            build: build,
+            // Printing or sharing a stale render would send out a document
+            // that no longer matches the record.
+            allowPrinting: !stale,
+            allowSharing: !stale,
             canChangePageFormat: false,
             canChangeOrientation: false,
             canDebug: false,
@@ -222,17 +304,47 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
             ],
           ),
         ),
-        if (widget.entity.supportsDeliveryNote && widget.deliveryNoteAvailable)
+        if (stale || showToggle)
           PositionedDirectional(
             top: InSpacing.md(context),
+            start: InSpacing.md(context),
             end: InSpacing.md(context),
-            child: _DeliveryNoteToggle(
-              value: _deliveryNote,
-              onChanged: (v) {
-                setState(() => _deliveryNote = v);
-                _load();
-              },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Empty space here passes taps through to the PDF: neither
+                // `Align` nor `Row` hit-tests itself.
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.topStart,
+                    child: stale
+                        ? _StaleNotice(
+                            // Only a failed fetch is worth retrying; the
+                            // delivery note can't show the edit at all.
+                            onRetry: _stale ? () => _load(quiet: true) : null,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                if (showToggle) ...[
+                  SizedBox(width: InSpacing.md(context)),
+                  _DeliveryNoteToggle(
+                    value: _deliveryNote,
+                    onChanged: (v) {
+                      setState(() => _deliveryNote = v);
+                      _load();
+                    },
+                  ),
+                ],
+              ],
             ),
+          ),
+        if (_showProgress)
+          const PositionedDirectional(
+            top: 0,
+            start: 0,
+            end: 0,
+            child: LinearProgressIndicator(minHeight: 2),
           ),
         if (_loading)
           Positioned.fill(
@@ -247,6 +359,59 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
     // detail bodies) would otherwise capture the PdfPreview's drag-to-pan /
     // scroll gestures. No-op where there's no SelectionArea (edit layouts).
     return SelectionContainer.disabled(child: preview);
+  }
+}
+
+/// Says the PDF on screen predates the document's latest content, so it is
+/// never passed off as current. A floating card like [_DeliveryNoteToggle],
+/// over the PDF rather than above it: a slot that comes and goes above the
+/// preview would resize it and re-raster every page.
+class _StaleNotice extends StatelessWidget {
+  const _StaleNotice({required this.onRetry});
+
+  /// Null when retrying cannot help (the delivery note of a document with an
+  /// unsynced edit).
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.inTheme;
+    final retry = onRetry;
+    return Material(
+      color: t.warningSoft,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(InRadii.r2),
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: InSpacing.md(context),
+          end: retry == null ? InSpacing.md(context) : 4,
+          top: 4,
+          bottom: 4,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sync_problem_outlined, size: 16, color: t.warning),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  context.tr('pdf_preview_out_of_date'),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: t.ink),
+                ),
+              ),
+            ),
+            if (retry != null) ...[
+              const SizedBox(width: 4),
+              TextButton(onPressed: retry, child: Text(context.tr('retry'))),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

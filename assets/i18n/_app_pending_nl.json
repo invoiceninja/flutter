@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Splits één factuur in geplande termijnen.",
   "pct_of_budget": ":pct% van budget",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Dit voorbeeld bevat je laatste wijzigingen niet",
   "pending_jobs": "Wachtende jobs",
   "pending_migrations_help": "Er zijn openstaande migraties, voer `php artisan migrate` uit",
   "pending_outbox_rows": "Openstaande wachtrij-items",

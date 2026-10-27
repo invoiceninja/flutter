@@ -460,6 +460,8 @@ class _PdfPane extends StatelessWidget {
       api: services.documentVersions,
       basePath: services.quotes.api.basePath,
       entityId: quote.id,
+      liveRevision: quote,
+      hasUnsyncedChanges: quote.isDirty,
       formatter: formatter,
       liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.quotes.api.downloadPdf(

@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Podziel jedną fakturę na zaplanowane raty.",
   "pct_of_budget": ":pct% budżetu",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Ten podgląd nie zawiera najnowszych zmian",
   "pending_jobs": "Oczekujące zadania kolejki",
   "pending_migrations_help": "Istnieją oczekujące migracje, uruchom `php artisan migrate`",
   "pending_outbox_rows": "Oczekujące wpisy kolejki wysyłania",

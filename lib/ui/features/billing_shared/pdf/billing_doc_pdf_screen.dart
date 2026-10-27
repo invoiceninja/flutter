@@ -25,7 +25,8 @@ class BillingDocPdfScreen extends StatelessWidget {
     this.initialDeliveryNote = false,
     this.deliveryNoteAvailable = true,
     this.revision,
-    this.autoRefreshDebounce,
+    this.contentRevision,
+    this.hasUnsyncedChanges = false,
     this.versions = const [],
     this.selectedActivityId,
     this.onVersionChanged,
@@ -59,9 +60,13 @@ class BillingDocPdfScreen extends StatelessWidget {
   /// its item callback runs, so the dismissal bookkeeping would never fire).
   final Object? revision;
 
-  /// Forwarded to [BillingDocPdfView.autoRefreshDebounce]. A version switch
-  /// passes [Duration.zero]; an edit-screen live preview wants the default.
-  final Duration? autoRefreshDebounce;
+  /// Forwarded to [BillingDocPdfView.contentRevision] — the watched record
+  /// while the live document is showing, so a sync landing while this screen
+  /// is open re-renders it; null on a frozen version.
+  final Object? contentRevision;
+
+  /// Forwarded to [BillingDocPdfView.hasUnsyncedChanges].
+  final bool hasUnsyncedChanges;
 
   /// Selectable versions, newest first. Empty hides the picker.
   final List<DocumentVersion> versions;
@@ -116,8 +121,8 @@ class BillingDocPdfScreen extends StatelessWidget {
         initialDeliveryNote: initialDeliveryNote,
         deliveryNoteAvailable: deliveryNoteAvailable,
         revision: revision,
-        autoRefreshDebounce:
-            autoRefreshDebounce ?? const Duration(milliseconds: 600),
+        contentRevision: contentRevision,
+        hasUnsyncedChanges: hasUnsyncedChanges,
       ),
     );
   }

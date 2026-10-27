@@ -710,6 +710,8 @@ class _PdfPane extends StatelessWidget {
       api: services.documentVersions,
       basePath: services.invoices.api.basePath,
       entityId: invoice.id,
+      liveRevision: invoice,
+      hasUnsyncedChanges: invoice.isDirty,
       formatter: formatter,
       liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.invoices.api.downloadPdf(

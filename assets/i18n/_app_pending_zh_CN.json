@@ -901,6 +901,7 @@
   "payment_schedule_hint": "将一张账单拆分为按计划的分期付款。",
   "pct_of_budget": "预算的 :pct%",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "此预览不包含您的最新更改",
   "pending_jobs": "待处理任务",
   "pending_migrations_help": "有待执行的迁移，请运行 `php artisan migrate`",
   "pending_outbox_rows": "待处理的发件箱条目",

@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Divideix una factura en terminis programats.",
   "pct_of_budget": ":pct% del pressupost",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Aquesta previsualització no inclou els darrers canvis",
   "pending_jobs": "Treballs pendents",
   "pending_migrations_help": "Hi ha migracions pendents, executeu `php artisan migrate`",
   "pending_outbox_rows": "Files pendents de la cua de sortida",

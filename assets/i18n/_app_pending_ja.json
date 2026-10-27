@@ -901,6 +901,7 @@
   "payment_schedule_hint": "1 件の請求書を予定された分割払いに分けます。",
   "pct_of_budget": "予算の :pct%",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "このプレビューには最新の変更が反映されていません",
   "pending_jobs": "保留中のジョブ",
   "pending_migrations_help": "保留中のマイグレーションがあります。`php artisan migrate` を実行してください",
   "pending_outbox_rows": "保留中の送信トレイの行",

@@ -869,6 +869,7 @@
   "payment_schedule_hint": "تقسيم فاتورة واحدة إلى أقساط مجدولة.",
   "pct_of_budget": ":pct% من الميزانية",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "لا تتضمن هذه المعاينة أحدث تغييراتك",
   "pending_jobs": "الوظائف المعلّقة",
   "pending_migrations_help": "توجد عمليات ترحيل معلّقة، شغّل `php artisan migrate`",
   "pending_outbox_rows": "صفوف صندوق الصادر المعلّقة",

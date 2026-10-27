@@ -193,9 +193,11 @@ Two things about the route that are easy to get wrong:
 `AppBar` + body, so a remount tears down the picker the user just tapped — and `MenuAnchor` closes
 *after* its item callback runs, so `BackDismissibleMenuAnchor._release()` would never un-register
 the back dispatcher. It also discards the deliberate "keep the last-good PDF behind a translucent
-overlay" behaviour for a full-pane spinner at zoom 1. The seam is `revision:` plus
-`autoRefreshDebounce: Duration.zero`, both already constructor params on `BillingDocPdfView`, whose
-generation counter handles the race.
+overlay" behaviour for a full-pane spinner at zoom 1. The seam is `revision:` on
+`BillingDocPdfView` — a change there re-fetches at once, and its generation counter handles the
+race. The live document's *content* rides the separate `contentRevision:` seam, which the pane and
+the route both clear while a version is selected, since a frozen render never changes
+(`docs/pdf-preview-refresh.md`).
 
 **Selection is local state seeded from `?activity_id=`, not written back to the URL.** That is the
 same contract the delivery-note toggle beside it already has (`?delivery_note=true` seeds

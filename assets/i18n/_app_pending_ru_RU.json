@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Разделите один счёт на платежи по графику.",
   "pct_of_budget": ":pct% бюджета",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Этот предпросмотр не содержит ваших последних изменений",
   "pending_jobs": "Ожидающие задания",
   "pending_migrations_help": "Есть невыполненные миграции, запустите `php artisan migrate`",
   "pending_outbox_rows": "Ожидающие записи очереди",

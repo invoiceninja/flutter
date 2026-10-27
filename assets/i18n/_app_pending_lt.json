@@ -877,6 +877,7 @@
   "payment_schedule_hint": "Padalykite vieną sąskaitą faktūrą į suplanuotus dalinius mokėjimus.",
   "pct_of_budget": ":pct% biudžeto",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Šioje peržiūroje nėra naujausių jūsų pakeitimų",
   "pending_jobs": "Laukiančios užduotys",
   "pending_migrations_help": "Yra neįvykdytų migracijų, paleiskite `php artisan migrate`",
   "pending_outbox_rows": "Laukiantys siunčiamųjų eilės įrašai",

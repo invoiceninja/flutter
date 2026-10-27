@@ -901,6 +901,7 @@
   "payment_schedule_hint": "Tek bir faturayı planlı taksitlere bölün.",
   "pct_of_budget": "Bütçenin %:pct kadarı",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Bu önizleme en son değişikliklerinizi içermiyor",
   "pending_jobs": "Bekleyen İşler",
   "pending_migrations_help": "Bekleyen taşımalar var, `php artisan migrate` komutunu çalıştırın",
   "pending_outbox_rows": "Bekleyen giden kutusu satırları",

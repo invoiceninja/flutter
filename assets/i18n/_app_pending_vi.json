@@ -857,6 +857,7 @@
   "payment_schedule_hint": "Chia một hóa đơn thành các đợt trả góp theo lịch.",
   "pct_of_budget": ":pct% ngân sách",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Bản xem trước này chưa có các thay đổi mới nhất của bạn",
   "pending_jobs": "Tác vụ đang chờ",
   "pending_migrations_help": "Có migration đang chờ, hãy chạy `php artisan migrate`",
   "pending_outbox_rows": "Mục hộp thư đi đang chờ",

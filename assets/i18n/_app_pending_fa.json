@@ -901,6 +901,7 @@
   "payment_schedule_hint": "یک فاکتور را به اقساط زمان‌بندی‌شده تقسیم کنید.",
   "pct_of_budget": ":pct% از بودجه",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "این پیش‌نمایش آخرین تغییرات شما را شامل نمی‌شود",
   "pending_jobs": "کارهای در انتظار صف",
   "pending_migrations_help": "مهاجرت‌های پایگاه داده در انتظار وجود دارند، `php artisan migrate` را اجرا کنید",
   "pending_outbox_rows": "ردیف‌های در انتظار صف ارسال",

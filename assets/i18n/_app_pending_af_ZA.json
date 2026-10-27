@@ -870,6 +870,7 @@
   "payment_schedule_hint": "Verdeel 'n enkele faktuur in geskeduleerde paaiemente.",
   "pct_of_budget": ":pct% van begroting",
   "pdf_engine": "PDF",
+  "pdf_preview_out_of_date": "Hierdie voorskou bevat nie jou jongste veranderinge nie",
   "pending_jobs": "Hangende agtergrondtake",
   "pending_migrations_help": "Daar is hangende migrasies, voer `php artisan migrate` uit",
   "pending_outbox_rows": "Hangende uitkassie-rye",

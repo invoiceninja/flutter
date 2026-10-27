@@ -26,6 +26,7 @@ class QuoteFieldIds {
   static const String projectId = 'project_id';
   static const String date = 'date';
   static const String dueDate = 'due_date';
+  static const String lastSentDate = 'last_sent_date';
   static const String amount = 'amount';
   static const String balance = 'balance';
   static const String poNumber = 'po_number';
@@ -334,6 +335,8 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
         return e.date;
       case QuoteFieldIds.dueDate:
         return e.dueDate;
+      case QuoteFieldIds.lastSentDate:
+        return e.lastSentDate;
       case QuoteFieldIds.amount:
         return e.amount.cast<double>();
       case QuoteFieldIds.balance:

@@ -30340,6 +30340,18 @@ class $InvoicesTable extends Invoices
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _lastSentDateMeta = const VerificationMeta(
+    'lastSentDate',
+  );
+  @override
+  late final GeneratedColumn<String> lastSentDate = GeneratedColumn<String>(
+    'last_sent_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _amountMeta = const VerificationMeta('amount');
   @override
   late final GeneratedColumn<String> amount = GeneratedColumn<String>(
@@ -30473,6 +30485,7 @@ class $InvoicesTable extends Invoices
     date,
     dueDate,
     partialDueDate,
+    lastSentDate,
     amount,
     balance,
     paidToDate,
@@ -30656,6 +30669,15 @@ class $InvoicesTable extends Invoices
         ),
       );
     }
+    if (data.containsKey('last_sent_date')) {
+      context.handle(
+        _lastSentDateMeta,
+        lastSentDate.isAcceptableOrUnknown(
+          data['last_sent_date']!,
+          _lastSentDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('amount')) {
       context.handle(
         _amountMeta,
@@ -30817,6 +30839,10 @@ class $InvoicesTable extends Invoices
         DriftSqlType.string,
         data['${effectivePrefix}partial_due_date'],
       )!,
+      lastSentDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_sent_date'],
+      )!,
       amount: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}amount'],
@@ -30903,6 +30929,12 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
   /// non-zero `partial` amount).
   final String partialDueDate;
 
+  /// `YYYY-MM-DD` the invoice was last emailed or marked sent — server-stamped
+  /// and read-only (`toApiJson` leaves it off the wire), so this column, not
+  /// the payload, is what a local save keeps and the list sorts by. Empty
+  /// until it is first sent. v18; backfilled from the payload on upgrade.
+  final String lastSentDate;
+
   /// Decimal stored as TEXT. Round-trips precisely.
   final String amount;
   final String balance;
@@ -30950,6 +30982,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
     required this.date,
     required this.dueDate,
     required this.partialDueDate,
+    required this.lastSentDate,
     required this.amount,
     required this.balance,
     required this.paidToDate,
@@ -30992,6 +31025,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
     map['date'] = Variable<String>(date);
     map['due_date'] = Variable<String>(dueDate);
     map['partial_due_date'] = Variable<String>(partialDueDate);
+    map['last_sent_date'] = Variable<String>(lastSentDate);
     map['amount'] = Variable<String>(amount);
     map['balance'] = Variable<String>(balance);
     map['paid_to_date'] = Variable<String>(paidToDate);
@@ -31037,6 +31071,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
       date: Value(date),
       dueDate: Value(dueDate),
       partialDueDate: Value(partialDueDate),
+      lastSentDate: Value(lastSentDate),
       amount: Value(amount),
       balance: Value(balance),
       paidToDate: Value(paidToDate),
@@ -31080,6 +31115,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
       date: serializer.fromJson<String>(json['date']),
       dueDate: serializer.fromJson<String>(json['dueDate']),
       partialDueDate: serializer.fromJson<String>(json['partialDueDate']),
+      lastSentDate: serializer.fromJson<String>(json['lastSentDate']),
       amount: serializer.fromJson<String>(json['amount']),
       balance: serializer.fromJson<String>(json['balance']),
       paidToDate: serializer.fromJson<String>(json['paidToDate']),
@@ -31118,6 +31154,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
       'date': serializer.toJson<String>(date),
       'dueDate': serializer.toJson<String>(dueDate),
       'partialDueDate': serializer.toJson<String>(partialDueDate),
+      'lastSentDate': serializer.toJson<String>(lastSentDate),
       'amount': serializer.toJson<String>(amount),
       'balance': serializer.toJson<String>(balance),
       'paidToDate': serializer.toJson<String>(paidToDate),
@@ -31154,6 +31191,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
     String? date,
     String? dueDate,
     String? partialDueDate,
+    String? lastSentDate,
     String? amount,
     String? balance,
     String? paidToDate,
@@ -31187,6 +31225,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
     date: date ?? this.date,
     dueDate: dueDate ?? this.dueDate,
     partialDueDate: partialDueDate ?? this.partialDueDate,
+    lastSentDate: lastSentDate ?? this.lastSentDate,
     amount: amount ?? this.amount,
     balance: balance ?? this.balance,
     paidToDate: paidToDate ?? this.paidToDate,
@@ -31236,6 +31275,9 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
       partialDueDate: data.partialDueDate.present
           ? data.partialDueDate.value
           : this.partialDueDate,
+      lastSentDate: data.lastSentDate.present
+          ? data.lastSentDate.value
+          : this.lastSentDate,
       amount: data.amount.present ? data.amount.value : this.amount,
       balance: data.balance.present ? data.balance.value : this.balance,
       paidToDate: data.paidToDate.present
@@ -31278,6 +31320,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
           ..write('date: $date, ')
           ..write('dueDate: $dueDate, ')
           ..write('partialDueDate: $partialDueDate, ')
+          ..write('lastSentDate: $lastSentDate, ')
           ..write('amount: $amount, ')
           ..write('balance: $balance, ')
           ..write('paidToDate: $paidToDate, ')
@@ -31316,6 +31359,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
     date,
     dueDate,
     partialDueDate,
+    lastSentDate,
     amount,
     balance,
     paidToDate,
@@ -31353,6 +31397,7 @@ class InvoiceRow extends DataClass implements Insertable<InvoiceRow> {
           other.date == this.date &&
           other.dueDate == this.dueDate &&
           other.partialDueDate == this.partialDueDate &&
+          other.lastSentDate == this.lastSentDate &&
           other.amount == this.amount &&
           other.balance == this.balance &&
           other.paidToDate == this.paidToDate &&
@@ -31388,6 +31433,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
   final Value<String> date;
   final Value<String> dueDate;
   final Value<String> partialDueDate;
+  final Value<String> lastSentDate;
   final Value<String> amount;
   final Value<String> balance;
   final Value<String> paidToDate;
@@ -31422,6 +31468,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
     this.date = const Value.absent(),
     this.dueDate = const Value.absent(),
     this.partialDueDate = const Value.absent(),
+    this.lastSentDate = const Value.absent(),
     this.amount = const Value.absent(),
     this.balance = const Value.absent(),
     this.paidToDate = const Value.absent(),
@@ -31457,6 +31504,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
     this.date = const Value.absent(),
     this.dueDate = const Value.absent(),
     this.partialDueDate = const Value.absent(),
+    this.lastSentDate = const Value.absent(),
     this.amount = const Value.absent(),
     this.balance = const Value.absent(),
     this.paidToDate = const Value.absent(),
@@ -31495,6 +31543,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
     Expression<String>? date,
     Expression<String>? dueDate,
     Expression<String>? partialDueDate,
+    Expression<String>? lastSentDate,
     Expression<String>? amount,
     Expression<String>? balance,
     Expression<String>? paidToDate,
@@ -31530,6 +31579,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
       if (date != null) 'date': date,
       if (dueDate != null) 'due_date': dueDate,
       if (partialDueDate != null) 'partial_due_date': partialDueDate,
+      if (lastSentDate != null) 'last_sent_date': lastSentDate,
       if (amount != null) 'amount': amount,
       if (balance != null) 'balance': balance,
       if (paidToDate != null) 'paid_to_date': paidToDate,
@@ -31567,6 +31617,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
     Value<String>? date,
     Value<String>? dueDate,
     Value<String>? partialDueDate,
+    Value<String>? lastSentDate,
     Value<String>? amount,
     Value<String>? balance,
     Value<String>? paidToDate,
@@ -31602,6 +31653,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
       date: date ?? this.date,
       dueDate: dueDate ?? this.dueDate,
       partialDueDate: partialDueDate ?? this.partialDueDate,
+      lastSentDate: lastSentDate ?? this.lastSentDate,
       amount: amount ?? this.amount,
       balance: balance ?? this.balance,
       paidToDate: paidToDate ?? this.paidToDate,
@@ -31687,6 +31739,9 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
     if (partialDueDate.present) {
       map['partial_due_date'] = Variable<String>(partialDueDate.value);
     }
+    if (lastSentDate.present) {
+      map['last_sent_date'] = Variable<String>(lastSentDate.value);
+    }
     if (amount.present) {
       map['amount'] = Variable<String>(amount.value);
     }
@@ -31746,6 +31801,7 @@ class InvoicesCompanion extends UpdateCompanion<InvoiceRow> {
           ..write('date: $date, ')
           ..write('dueDate: $dueDate, ')
           ..write('partialDueDate: $partialDueDate, ')
+          ..write('lastSentDate: $lastSentDate, ')
           ..write('amount: $amount, ')
           ..write('balance: $balance, ')
           ..write('paidToDate: $paidToDate, ')
@@ -32009,6 +32065,18 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, QuoteRow> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _lastSentDateMeta = const VerificationMeta(
+    'lastSentDate',
+  );
+  @override
+  late final GeneratedColumn<String> lastSentDate = GeneratedColumn<String>(
+    'last_sent_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _amountMeta = const VerificationMeta('amount');
   @override
   late final GeneratedColumn<String> amount = GeneratedColumn<String>(
@@ -32102,6 +32170,7 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, QuoteRow> {
     projectId,
     date,
     dueDate,
+    lastSentDate,
     amount,
     balance,
     poNumber,
@@ -32264,6 +32333,15 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, QuoteRow> {
         dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
       );
     }
+    if (data.containsKey('last_sent_date')) {
+      context.handle(
+        _lastSentDateMeta,
+        lastSentDate.isAcceptableOrUnknown(
+          data['last_sent_date']!,
+          _lastSentDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('amount')) {
       context.handle(
         _amountMeta,
@@ -32396,6 +32474,10 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, QuoteRow> {
         DriftSqlType.string,
         data['${effectivePrefix}due_date'],
       )!,
+      lastSentDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_sent_date'],
+      )!,
       amount: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}amount'],
@@ -32451,6 +32533,12 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
   final String projectId;
   final String date;
   final String dueDate;
+
+  /// `YYYY-MM-DD` the quote was last emailed or marked sent — server-stamped
+  /// and read-only (`toApiJson` leaves it off the wire), so this column, not
+  /// the payload, is what a local save keeps and the list sorts by. Empty
+  /// until it is first sent. v18; backfilled from the payload on upgrade.
+  final String lastSentDate;
   final String amount;
   final String balance;
   final String poNumber;
@@ -32479,6 +32567,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
     required this.projectId,
     required this.date,
     required this.dueDate,
+    required this.lastSentDate,
     required this.amount,
     required this.balance,
     required this.poNumber,
@@ -32516,6 +32605,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
     map['project_id'] = Variable<String>(projectId);
     map['date'] = Variable<String>(date);
     map['due_date'] = Variable<String>(dueDate);
+    map['last_sent_date'] = Variable<String>(lastSentDate);
     map['amount'] = Variable<String>(amount);
     map['balance'] = Variable<String>(balance);
     map['po_number'] = Variable<String>(poNumber);
@@ -32554,6 +32644,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
       projectId: Value(projectId),
       date: Value(date),
       dueDate: Value(dueDate),
+      lastSentDate: Value(lastSentDate),
       amount: Value(amount),
       balance: Value(balance),
       poNumber: Value(poNumber),
@@ -32590,6 +32681,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
       projectId: serializer.fromJson<String>(json['projectId']),
       date: serializer.fromJson<String>(json['date']),
       dueDate: serializer.fromJson<String>(json['dueDate']),
+      lastSentDate: serializer.fromJson<String>(json['lastSentDate']),
       amount: serializer.fromJson<String>(json['amount']),
       balance: serializer.fromJson<String>(json['balance']),
       poNumber: serializer.fromJson<String>(json['poNumber']),
@@ -32623,6 +32715,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
       'projectId': serializer.toJson<String>(projectId),
       'date': serializer.toJson<String>(date),
       'dueDate': serializer.toJson<String>(dueDate),
+      'lastSentDate': serializer.toJson<String>(lastSentDate),
       'amount': serializer.toJson<String>(amount),
       'balance': serializer.toJson<String>(balance),
       'poNumber': serializer.toJson<String>(poNumber),
@@ -32654,6 +32747,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
     String? projectId,
     String? date,
     String? dueDate,
+    String? lastSentDate,
     String? amount,
     String? balance,
     String? poNumber,
@@ -32682,6 +32776,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
     projectId: projectId ?? this.projectId,
     date: date ?? this.date,
     dueDate: dueDate ?? this.dueDate,
+    lastSentDate: lastSentDate ?? this.lastSentDate,
     amount: amount ?? this.amount,
     balance: balance ?? this.balance,
     poNumber: poNumber ?? this.poNumber,
@@ -32722,6 +32817,9 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       date: data.date.present ? data.date.value : this.date,
       dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      lastSentDate: data.lastSentDate.present
+          ? data.lastSentDate.value
+          : this.lastSentDate,
       amount: data.amount.present ? data.amount.value : this.amount,
       balance: data.balance.present ? data.balance.value : this.balance,
       poNumber: data.poNumber.present ? data.poNumber.value : this.poNumber,
@@ -32757,6 +32855,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
           ..write('projectId: $projectId, ')
           ..write('date: $date, ')
           ..write('dueDate: $dueDate, ')
+          ..write('lastSentDate: $lastSentDate, ')
           ..write('amount: $amount, ')
           ..write('balance: $balance, ')
           ..write('poNumber: $poNumber, ')
@@ -32790,6 +32889,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
     projectId,
     date,
     dueDate,
+    lastSentDate,
     amount,
     balance,
     poNumber,
@@ -32822,6 +32922,7 @@ class QuoteRow extends DataClass implements Insertable<QuoteRow> {
           other.projectId == this.projectId &&
           other.date == this.date &&
           other.dueDate == this.dueDate &&
+          other.lastSentDate == this.lastSentDate &&
           other.amount == this.amount &&
           other.balance == this.balance &&
           other.poNumber == this.poNumber &&
@@ -32852,6 +32953,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
   final Value<String> projectId;
   final Value<String> date;
   final Value<String> dueDate;
+  final Value<String> lastSentDate;
   final Value<String> amount;
   final Value<String> balance;
   final Value<String> poNumber;
@@ -32881,6 +32983,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
     this.projectId = const Value.absent(),
     this.date = const Value.absent(),
     this.dueDate = const Value.absent(),
+    this.lastSentDate = const Value.absent(),
     this.amount = const Value.absent(),
     this.balance = const Value.absent(),
     this.poNumber = const Value.absent(),
@@ -32911,6 +33014,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
     this.projectId = const Value.absent(),
     this.date = const Value.absent(),
     this.dueDate = const Value.absent(),
+    this.lastSentDate = const Value.absent(),
     this.amount = const Value.absent(),
     this.balance = const Value.absent(),
     this.poNumber = const Value.absent(),
@@ -32944,6 +33048,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
     Expression<String>? projectId,
     Expression<String>? date,
     Expression<String>? dueDate,
+    Expression<String>? lastSentDate,
     Expression<String>? amount,
     Expression<String>? balance,
     Expression<String>? poNumber,
@@ -32974,6 +33079,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
       if (projectId != null) 'project_id': projectId,
       if (date != null) 'date': date,
       if (dueDate != null) 'due_date': dueDate,
+      if (lastSentDate != null) 'last_sent_date': lastSentDate,
       if (amount != null) 'amount': amount,
       if (balance != null) 'balance': balance,
       if (poNumber != null) 'po_number': poNumber,
@@ -33006,6 +33112,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
     Value<String>? projectId,
     Value<String>? date,
     Value<String>? dueDate,
+    Value<String>? lastSentDate,
     Value<String>? amount,
     Value<String>? balance,
     Value<String>? poNumber,
@@ -33036,6 +33143,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
       projectId: projectId ?? this.projectId,
       date: date ?? this.date,
       dueDate: dueDate ?? this.dueDate,
+      lastSentDate: lastSentDate ?? this.lastSentDate,
       amount: amount ?? this.amount,
       balance: balance ?? this.balance,
       poNumber: poNumber ?? this.poNumber,
@@ -33112,6 +33220,9 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
     if (dueDate.present) {
       map['due_date'] = Variable<String>(dueDate.value);
     }
+    if (lastSentDate.present) {
+      map['last_sent_date'] = Variable<String>(lastSentDate.value);
+    }
     if (amount.present) {
       map['amount'] = Variable<String>(amount.value);
     }
@@ -33160,6 +33271,7 @@ class QuotesCompanion extends UpdateCompanion<QuoteRow> {
           ..write('projectId: $projectId, ')
           ..write('date: $date, ')
           ..write('dueDate: $dueDate, ')
+          ..write('lastSentDate: $lastSentDate, ')
           ..write('amount: $amount, ')
           ..write('balance: $balance, ')
           ..write('poNumber: $poNumber, ')
@@ -60584,6 +60696,7 @@ typedef $$InvoicesTableCreateCompanionBuilder =
       Value<String> date,
       Value<String> dueDate,
       Value<String> partialDueDate,
+      Value<String> lastSentDate,
       Value<String> amount,
       Value<String> balance,
       Value<String> paidToDate,
@@ -60620,6 +60733,7 @@ typedef $$InvoicesTableUpdateCompanionBuilder =
       Value<String> date,
       Value<String> dueDate,
       Value<String> partialDueDate,
+      Value<String> lastSentDate,
       Value<String> amount,
       Value<String> balance,
       Value<String> paidToDate,
@@ -60753,6 +60867,11 @@ class $$InvoicesTableFilterComposer
 
   ColumnFilters<String> get partialDueDate => $composableBuilder(
     column: $table.partialDueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -60926,6 +61045,11 @@ class $$InvoicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get amount => $composableBuilder(
     column: $table.amount,
     builder: (column) => ColumnOrderings(column),
@@ -61064,6 +61188,11 @@ class $$InvoicesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
 
@@ -61150,6 +61279,7 @@ class $$InvoicesTableTableManager
                 Value<String> date = const Value.absent(),
                 Value<String> dueDate = const Value.absent(),
                 Value<String> partialDueDate = const Value.absent(),
+                Value<String> lastSentDate = const Value.absent(),
                 Value<String> amount = const Value.absent(),
                 Value<String> balance = const Value.absent(),
                 Value<String> paidToDate = const Value.absent(),
@@ -61184,6 +61314,7 @@ class $$InvoicesTableTableManager
                 date: date,
                 dueDate: dueDate,
                 partialDueDate: partialDueDate,
+                lastSentDate: lastSentDate,
                 amount: amount,
                 balance: balance,
                 paidToDate: paidToDate,
@@ -61220,6 +61351,7 @@ class $$InvoicesTableTableManager
                 Value<String> date = const Value.absent(),
                 Value<String> dueDate = const Value.absent(),
                 Value<String> partialDueDate = const Value.absent(),
+                Value<String> lastSentDate = const Value.absent(),
                 Value<String> amount = const Value.absent(),
                 Value<String> balance = const Value.absent(),
                 Value<String> paidToDate = const Value.absent(),
@@ -61254,6 +61386,7 @@ class $$InvoicesTableTableManager
                 date: date,
                 dueDate: dueDate,
                 partialDueDate: partialDueDate,
+                lastSentDate: lastSentDate,
                 amount: amount,
                 balance: balance,
                 paidToDate: paidToDate,
@@ -61319,6 +61452,7 @@ typedef $$QuotesTableCreateCompanionBuilder =
       Value<String> projectId,
       Value<String> date,
       Value<String> dueDate,
+      Value<String> lastSentDate,
       Value<String> amount,
       Value<String> balance,
       Value<String> poNumber,
@@ -61350,6 +61484,7 @@ typedef $$QuotesTableUpdateCompanionBuilder =
       Value<String> projectId,
       Value<String> date,
       Value<String> dueDate,
+      Value<String> lastSentDate,
       Value<String> amount,
       Value<String> balance,
       Value<String> poNumber,
@@ -61470,6 +61605,11 @@ class $$QuotesTableFilterComposer
 
   ColumnFilters<String> get dueDate => $composableBuilder(
     column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -61618,6 +61758,11 @@ class $$QuotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get amount => $composableBuilder(
     column: $table.amount,
     builder: (column) => ColumnOrderings(column),
@@ -61731,6 +61876,11 @@ class $$QuotesTableAnnotationComposer
   GeneratedColumn<String> get dueDate =>
       $composableBuilder(column: $table.dueDate, builder: (column) => column);
 
+  GeneratedColumn<String> get lastSentDate => $composableBuilder(
+    column: $table.lastSentDate,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
 
@@ -61801,6 +61951,7 @@ class $$QuotesTableTableManager
                 Value<String> projectId = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> dueDate = const Value.absent(),
+                Value<String> lastSentDate = const Value.absent(),
                 Value<String> amount = const Value.absent(),
                 Value<String> balance = const Value.absent(),
                 Value<String> poNumber = const Value.absent(),
@@ -61830,6 +61981,7 @@ class $$QuotesTableTableManager
                 projectId: projectId,
                 date: date,
                 dueDate: dueDate,
+                lastSentDate: lastSentDate,
                 amount: amount,
                 balance: balance,
                 poNumber: poNumber,
@@ -61861,6 +62013,7 @@ class $$QuotesTableTableManager
                 Value<String> projectId = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> dueDate = const Value.absent(),
+                Value<String> lastSentDate = const Value.absent(),
                 Value<String> amount = const Value.absent(),
                 Value<String> balance = const Value.absent(),
                 Value<String> poNumber = const Value.absent(),
@@ -61890,6 +62043,7 @@ class $$QuotesTableTableManager
                 projectId: projectId,
                 date: date,
                 dueDate: dueDate,
+                lastSentDate: lastSentDate,
                 amount: amount,
                 balance: balance,
                 poNumber: poNumber,

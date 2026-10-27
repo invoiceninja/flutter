@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/last_sent_date_backfill.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:crypto/crypto.dart';
@@ -19,6 +20,7 @@ import '../../generated/schema_v13.dart' as v13;
 import '../../generated/schema_v14.dart' as v14;
 import '../../generated/schema_v15.dart' as v15;
 import '../../generated/schema_v16.dart' as v16;
+import '../../generated/schema_v17.dart' as v17;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -65,6 +67,7 @@ void main() {
     15: 'a9e25a73d3eeb9b00cc83e412a95a8d20f1069609eccfbdd2e25ea2015e63269',
     16: '9db7061812c29fe2531ca892746b82dd7f1171e87704c1cab2c08fd94054b66d',
     17: 'fc839ef1872bf0bf3ece4ad76159967f3ae1de090aa90297793b55e9f3443d35',
+    18: '4546009b7caa31e5d5686629d84ab439ab9d8e3c7e5ec95229b0f217f89b7ada',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -271,6 +274,7 @@ void main() {
         'mobile_app_promo_json',
         'whats_new_json',
         'spell_check',
+        'show_seconds',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {
@@ -502,6 +506,51 @@ void main() {
       final row = await db.userSettingsDao.get('co');
       expect(row!.tableColumnsJson, '{"k":["a"]}');
       expect(row.reactSettingsJson, isNull);
+      await db.close();
+    });
+
+    test('v17 → v18 backfills last_sent_date from the payload — a sent row '
+        'gets its date, an unsent or unreadable one stays blank', () async {
+      final schema = await verifier.schemaAt(17);
+      final old = v17.DatabaseAtV17(schema.newConnection());
+      for (final (table, id, payload) in [
+        ('invoices', 'sent', '{"last_sent_date":"2026-10-01"}'),
+        ('invoices', 'unsent', '{"last_sent_date":""}'),
+        ('invoices', 'absent', '{}'),
+        ('invoices', 'broken', 'not json'),
+        ('quotes', 'sent', '{"last_sent_date":"2026-09-15"}'),
+      ]) {
+        await old.customStatement(
+          'INSERT INTO $table (id, company_id, updated_at, payload) '
+          "VALUES (?, 'co', 1, ?)",
+          [id, payload],
+        );
+      }
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      Future<Map<String, String>> lastSent(String table) async => {
+        for (final r
+            in await db
+                .customSelect('SELECT id, last_sent_date FROM $table')
+                .get())
+          r.data['id'] as String: r.data['last_sent_date'] as String,
+      };
+      expect(await lastSent('invoices'), {
+        'sent': '2026-10-01',
+        'unsent': '',
+        'absent': '',
+        'broken': '',
+      });
+      expect(await lastSent('quotes'), {'sent': '2026-09-15'});
+
+      // A re-run (commit-then-kill) never overwrites a filled column.
+      await db.customStatement(
+        "UPDATE invoices SET last_sent_date = '2026-10-20' WHERE id = 'sent'",
+      );
+      await backfillLastSentDates(db);
+      expect((await lastSent('invoices'))['sent'], '2026-10-20');
       await db.close();
     });
 

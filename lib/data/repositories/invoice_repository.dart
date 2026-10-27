@@ -934,6 +934,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       date: Value(a.date),
       dueDate: Value(a.dueDate),
       partialDueDate: Value(a.partialDueDate),
+      lastSentDate: Value(a.lastSentDate),
       amount: Value(moneyString(a.amount)),
       balance: Value(moneyString(a.balance)),
       paidToDate: Value(moneyString(a.paidToDate)),
@@ -981,6 +982,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       date: Value(i.date?.toIso() ?? ''),
       dueDate: Value(i.dueDate?.toIso() ?? ''),
       partialDueDate: Value(i.partialDueDate?.toIso() ?? ''),
+      lastSentDate: Value(i.lastSentDate?.toIso() ?? ''),
       amount: Value(i.amount.toString()),
       balance: Value(i.balance.toString()),
       paidToDate: Value(i.paidToDate.toString()),
@@ -1048,6 +1050,8 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       // Same story as documents: `toApiJson` omits the read-only
       // `schedule[]` projection, so overlay it from its dedicated column.
       schedule: decodeScheduleColumn(row.schedule),
+      // Likewise the server's sent stamp, which `toApiJson` omits.
+      lastSentDate: Date.tryParse(row.lastSentDate),
     );
   }
 

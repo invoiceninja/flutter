@@ -100,6 +100,16 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
         : cellDate(i.dueDate!.toDateTime(), ctx),
     valueBuilder: (i) => i.dueDate?.toIso(),
   ),
+  // Server-stamped when the document is emailed or marked sent.
+  InvoiceColumn(
+    id: InvoiceFieldIds.lastSentDate,
+    labelKey: 'last_sent_date',
+    width: 130,
+    cellBuilder: (i, ctx) => i.lastSentDate == null
+        ? cellEmpty()
+        : cellDate(i.lastSentDate!.toDateTime(), ctx),
+    valueBuilder: (i) => i.lastSentDate?.toIso(),
+  ),
   InvoiceColumn(
     id: InvoiceFieldIds.amount,
     labelKey: 'amount',

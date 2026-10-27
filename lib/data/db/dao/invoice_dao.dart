@@ -27,6 +27,7 @@ class InvoiceFieldIds {
   static const String projectId = 'project_id';
   static const String date = 'date';
   static const String dueDate = 'due_date';
+  static const String lastSentDate = 'last_sent_date';
   static const String partialDueDate = 'partial_due_date';
   static const String amount = 'amount';
   static const String balance = 'balance';
@@ -322,6 +323,8 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
         return e.date;
       case InvoiceFieldIds.dueDate:
         return e.dueDate;
+      case InvoiceFieldIds.lastSentDate:
+        return e.lastSentDate;
       case InvoiceFieldIds.partialDueDate:
         return e.partialDueDate;
       case InvoiceFieldIds.amount:

@@ -31,6 +31,13 @@ class Quotes extends Table
   TextColumn get date => text().named('date').withDefault(const Constant(''))();
   TextColumn get dueDate =>
       text().named('due_date').withDefault(const Constant(''))();
+
+  /// `YYYY-MM-DD` the quote was last emailed or marked sent — server-stamped
+  /// and read-only (`toApiJson` leaves it off the wire), so this column, not
+  /// the payload, is what a local save keeps and the list sorts by. Empty
+  /// until it is first sent. v18; backfilled from the payload on upgrade.
+  TextColumn get lastSentDate =>
+      text().named('last_sent_date').withDefault(const Constant(''))();
   TextColumn get amount =>
       text().named('amount').withDefault(const Constant('0'))();
   TextColumn get balance =>

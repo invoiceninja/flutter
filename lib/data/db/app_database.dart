@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/last_sent_date_backfill.dart';
 import 'package:admin/data/db/nav_state_prefs_carry.dart';
 import 'package:admin/data/db/open_failure.dart';
 import 'package:admin/data/db/salvage.dart';
@@ -208,7 +209,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -329,6 +330,12 @@ class AppDatabase extends _$AppDatabase {
     // folding is Dart work over every payload, too slow to hold the open for,
     // so `fillContactSearch` fills the old rows after a company activates and
     // the search reads a NULL row's payload until then.
+    //
+    // v17 → v18: add `invoices.last_sent_date` and `quotes.last_sent_date` —
+    // the server's sent stamp, which `toApiJson` leaves off and so a local
+    // save used to drop, for the Last Sent Date list column to show and sort
+    // by. Backfilled here from the payload: one SQL `json_extract` pass, no
+    // Dart work, and the `= ''` guard makes a re-run a no-op.
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -419,6 +426,11 @@ class AppDatabase extends _$AppDatabase {
               userSettings.reactSettingsJson,
             );
           }
+          if (from < 18) {
+            await _addColumnIfMissing(m, invoices, invoices.lastSentDate);
+            await _addColumnIfMissing(m, quotes, quotes.lastSentDate);
+            await backfillLastSentDates(this);
+          }
           // Create any declared table this database is missing, before the
           // index pass below touches it.
           //
@@ -488,6 +500,19 @@ class AppDatabase extends _$AppDatabase {
                   'Copying the nav_state preferences after the repair failed',
                   carryError,
                   carrySt,
+                );
+              }
+            }
+            // Likewise the v18 column, added empty. A cache column, so a
+            // failure only leaves it blank until the cursor-reset re-download.
+            if (from < 18) {
+              try {
+                await backfillLastSentDates(this);
+              } catch (fillError, fillSt) {
+                _log.warning(
+                  'Backfilling last_sent_date after the repair failed',
+                  fillError,
+                  fillSt,
                 );
               }
             }

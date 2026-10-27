@@ -270,6 +270,7 @@ the honest default.
 | Invoice — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Invoice — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
+| Invoice — Last Sent Date list column (sortable) | ✅ | ✅ | ✅ | | |
 
 ---
 
@@ -304,6 +305,7 @@ the honest default.
 | Quote — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Quote — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Quote — list columns for private notes + vendor | ✅ | ✅ | ✅ | | |
+| Quote — Last Sent Date list column (sortable) | ✅ | ✅ | ✅ | | |
 | Quote — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---

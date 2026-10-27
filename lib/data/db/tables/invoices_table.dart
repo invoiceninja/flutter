@@ -11,9 +11,9 @@ import 'package:admin/data/db/tables/_entity_table_mixin.dart';
 ///
 /// Denormalized columns are the ones the list filters, searches, and
 /// sorts by: `number`, `status_id`, `client_id`, `vendor_id`, `project_id`,
-/// `subscription_id`, `date`, `due_date`, `partial_due_date`, `amount`,
-/// `balance`, `paid_to_date`, `partial`, `po_number`, `design_id`,
-/// `assigned_user_id`.
+/// `subscription_id`, `date`, `due_date`, `partial_due_date`,
+/// `last_sent_date`, `amount`, `balance`, `paid_to_date`, `partial`,
+/// `po_number`, `design_id`, `assigned_user_id`.
 /// Money columns are TEXT for Decimal precision; sort them numerically via
 /// `CAST(amount AS REAL)` in the DAO.
 @DataClassName('InvoiceRow')
@@ -59,6 +59,13 @@ class Invoices extends Table
   /// non-zero `partial` amount).
   TextColumn get partialDueDate =>
       text().named('partial_due_date').withDefault(const Constant(''))();
+
+  /// `YYYY-MM-DD` the invoice was last emailed or marked sent — server-stamped
+  /// and read-only (`toApiJson` leaves it off the wire), so this column, not
+  /// the payload, is what a local save keeps and the list sorts by. Empty
+  /// until it is first sent. v18; backfilled from the payload on upgrade.
+  TextColumn get lastSentDate =>
+      text().named('last_sent_date').withDefault(const Constant(''))();
 
   /// Decimal stored as TEXT. Round-trips precisely.
   TextColumn get amount =>

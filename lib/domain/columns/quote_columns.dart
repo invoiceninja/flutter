@@ -75,6 +75,16 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
         : cellDate(q.dueDate!.toDateTime(), ctx),
     valueBuilder: (q) => q.dueDate?.toIso(),
   ),
+  // Server-stamped when the document is emailed or marked sent.
+  QuoteColumn(
+    id: QuoteFieldIds.lastSentDate,
+    labelKey: 'last_sent_date',
+    width: 130,
+    cellBuilder: (q, ctx) => q.lastSentDate == null
+        ? cellEmpty()
+        : cellDate(q.lastSentDate!.toDateTime(), ctx),
+    valueBuilder: (q) => q.lastSentDate?.toIso(),
+  ),
   QuoteColumn(
     id: QuoteFieldIds.amount,
     labelKey: 'amount',

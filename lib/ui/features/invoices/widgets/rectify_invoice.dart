@@ -76,6 +76,8 @@ Invoice rectifiedDraft(Invoice invoice, String reason) {
     // corrective invoice's own. Carried, the draft listed as "sent over
     // PEPPOL" and wore the source's `F1` chip.
     backup: null,
+    // Never sent: the draft listed under the source's Last Sent Date.
+    lastSentDate: null,
     archivedAt: null,
     isDeleted: false,
     isDirty: false,

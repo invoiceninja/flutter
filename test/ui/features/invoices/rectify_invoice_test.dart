@@ -209,5 +209,11 @@ void main() {
       );
       expect(rectifiedDraft(source, 'r').backup, isNull);
     });
+
+    // Carried, the unsent draft listed under the source's Last Sent Date.
+    test("drops the source's sent date", () {
+      final source = _invoice().copyWith(lastSentDate: Date(2026, 10, 1));
+      expect(rectifiedDraft(source, 'r').lastSentDate, isNull);
+    });
   });
 }

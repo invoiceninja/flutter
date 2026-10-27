@@ -618,6 +618,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
       projectId: Value(a.projectId),
       date: Value(a.date),
       dueDate: Value(a.dueDate),
+      lastSentDate: Value(a.lastSentDate),
       amount: Value(moneyString(a.amount)),
       balance: Value(moneyString(a.balance)),
       poNumber: Value(a.poNumber),
@@ -655,6 +656,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
       projectId: Value(q.projectId),
       date: Value(q.date?.toIso() ?? ''),
       dueDate: Value(q.dueDate?.toIso() ?? ''),
+      lastSentDate: Value(q.lastSentDate?.toIso() ?? ''),
       amount: Value(q.amount.toString()),
       balance: Value(q.balance.toString()),
       poNumber: Value(q.poNumber),
@@ -699,6 +701,9 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
       createdAt: epochSecondsToUtc(row.createdAt),
       updatedAt: epochSecondsToUtc(row.updatedAt),
       documents: decodeDocumentsColumn(row.documents),
+      // Server-stamped and omitted by `toApiJson` — read from its column so
+      // a locally edited quote doesn't read back as never sent.
+      lastSentDate: Date.tryParse(row.lastSentDate),
     );
   }
 

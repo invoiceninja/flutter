@@ -9,9 +9,8 @@ import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_vi
 
 /// Drives the Credit edit + create screen. The shared fields, setters and
 /// bridges come from [BillingDocEditViewModel] through [_creditWriter]; what
-/// is the credit's own lives here — its repository calls, [validate] (a
-/// credit's total may be negative) and the balance rule in
-/// [copyWithStampedTotals].
+/// is the credit's own lives here — its repository calls, [validate] and the
+/// balance rule in [copyWithStampedTotals].
 class CreditEditViewModel extends BillingDocEditViewModel<Credit>
     with BillingDocPartialSetters<Credit> {
   CreditEditViewModel({
@@ -50,17 +49,7 @@ class CreditEditViewModel extends BillingDocEditViewModel<Credit>
   @override
   Map<String, List<String>> validate() => {
     if (draft.clientId.isEmpty) 'client_id': [clientRequiredMessage],
-    // Partial deposit must sit within [0, total]; uses the fallback-precision
-    // total — adequate for an inequality guard (mirrors InvoiceEditViewModel).
-    // Unlike invoices/quotes, a Credit's total can be NEGATIVE — the
-    // supported negative-credit / receivable flow that `markPaid` targets
-    // (credit_actions.dart gates markPaid on `amount < 0`; the server's
-    // Credit MarkPaid requires a negative value). So only enforce the
-    // `partial <= total` upper bound for non-negative totals; otherwise a
-    // default-zero `partial` (0 > negativeTotal) spuriously blocks the save.
-    if (draft.partial < Decimal.zero ||
-        (totals.total >= Decimal.zero && draft.partial > totals.total))
-      'partial': [partialInvalidMessage],
+    ...validatePartial(partialInvalidMessage),
     ...validateCrossClient(crossClientLineItemsMessage),
   };
 

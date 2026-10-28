@@ -71,11 +71,7 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
         _enforcesValidUntil()) {
       errors['due_date'] = [validUntilPastMessage];
     }
-    // Deposit/partial must sit within [0, total] — mirrors the invoice rule.
-    final partial = draft.partial;
-    if (partial < Decimal.zero || partial > totals.total) {
-      errors['partial'] = [partialInvalidMessage];
-    }
+    errors.addAll(validatePartial(partialInvalidMessage));
     return errors;
   }
 

@@ -1084,4 +1084,28 @@ mixin BillingDocPartialSetters<T extends BillingDocPartialFields>
   void setPartial(String input) => setDec(partialWriter, input);
   void setPartialDueDate(Date? d) =>
       updateDraft(partialDueDateWriter(draft, d));
+
+  /// Returns `{'partial': [message]}` unless the deposit sits within
+  /// `[0, total]` — and a negative total takes no deposit at all, so only the
+  /// default zero passes. A total can be negative (a credit-note-style
+  /// invoice, a retainer invoice opened at `-20 h` and logged up toward zero,
+  /// a receivable credit), and there `0 > total` must not block the save.
+  ///
+  /// This check is the only guard on an update: the server clamps `partial`
+  /// into `[0, balance]` on create alone (`InvoiceSum`), and its update
+  /// requests take any number, so a deposit on a negative total would ship.
+  /// Uses the fallback-precision total, adequate for an inequality.
+  Map<String, List<String>> validatePartial(String message) {
+    final partial = draft.partial;
+    final total = totals.total;
+    final outOfRange = total < Decimal.zero
+        ? partial != Decimal.zero
+        : partial < Decimal.zero || partial > total;
+    if (outOfRange) {
+      return {
+        'partial': [message],
+      };
+    }
+    return const {};
+  }
 }

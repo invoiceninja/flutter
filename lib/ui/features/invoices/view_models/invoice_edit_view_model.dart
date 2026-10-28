@@ -54,18 +54,11 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
 
   @override
   Map<String, List<String>> validate() {
-    final errors = <String, List<String>>{
+    return {
       if (draft.clientId.isEmpty) 'client_id': [clientRequiredMessage],
       ...validateCrossClient(crossClientLineItemsMessage),
+      ...validatePartial(partialInvalidMessage),
     };
-    // Partial-payment amount must sit within (0, total]. v1 rejects negative
-    // and partial > total; zero (no partial payment) is fine. Uses the
-    // fallback-precision total — adequate for an inequality guard.
-    final partial = draft.partial;
-    if (partial < Decimal.zero || partial > totals.total) {
-      errors['partial'] = [partialInvalidMessage];
-    }
-    return errors;
   }
 
   @override

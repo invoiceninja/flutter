@@ -137,11 +137,21 @@ extension ExpenseStatus on Expense {
 
   /// Paid is asserted from `payment_date` / `transaction_reference` only —
   /// matches the server's `client_status` list filter
-  /// (`ExpenseFilters::clientStatus`), so the local status badge and the
-  /// "Paid"/"Unpaid" list filter agree with the server. `payment_type_id`
-  /// alone does NOT mark an expense paid server-side; the edit "mark paid"
-  /// toggle still surfaces the type field via its own triple check.
+  /// (`ExpenseFilters::clientStatus`), so the local "Paid"/"Unpaid" list
+  /// filter agrees with the server. `payment_type_id`
+  /// alone does NOT mark an expense paid server-side; the status badge and the
+  /// edit "mark paid" toggle read the wider [hasPaymentDetails].
   bool get isPaid => (paymentDate != null) || transactionReference.isNotEmpty;
+
+  /// Whether the status badge reads "Paid": any of the three payment fields,
+  /// `payment_type_id` included — admin-portal's `isPaid`, React's
+  /// `ExpenseStatus.tsx` and this app's own "Mark paid" toggle all count it.
+  /// Wider than [isPaid] on purpose: an expense generated from a recurring
+  /// expense carries its `payment_type_id` but never a `payment_date` (the
+  /// line is commented out in the server's `RecurringExpenseToExpenseFactory`),
+  /// and the badge read "Logged" for every one of them. The list filters and
+  /// the `is_paid` column stay on [isPaid], which is what the server filters.
+  bool get hasPaymentDetails => isPaid || paymentTypeId.isNotEmpty;
 
   /// "Pending" = scheduled for invoicing but not yet invoiced.
   bool get isPending => !isInvoiced && shouldBeInvoiced;
@@ -150,7 +160,7 @@ extension ExpenseStatus on Expense {
   /// `expense_model.dart:837-845` and React `ExpenseStatus.tsx`:
   ///   * Invoiced → '3' (any invoiced expense, paid or not)
   ///   * Pending  → '2' (flagged should-be-invoiced, not yet invoiced)
-  ///   * Paid     → '5'
+  ///   * Paid     → '5' (any payment field — [hasPaymentDetails])
   ///   * Logged   → '1' (default)
   ///
   /// Both references always show "Invoiced" for an invoiced expense and never
@@ -159,7 +169,7 @@ extension ExpenseStatus on Expense {
   String get calculatedStatusId {
     if (isInvoiced) return kExpenseStatusInvoiced;
     if (isPending) return kExpenseStatusPending;
-    if (isPaid) return kExpenseStatusPaid;
+    if (hasPaymentDetails) return kExpenseStatusPaid;
     return kExpenseStatusLogged;
   }
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
@@ -55,10 +56,7 @@ class _ExpenseEditPaymentSectionState extends State<ExpenseEditPaymentSection>
     );
   }
 
-  bool get _isPaid =>
-      widget.vm.draft.paymentDate != null ||
-      widget.vm.draft.paymentTypeId.isNotEmpty ||
-      widget.vm.draft.transactionReference.isNotEmpty;
+  bool get _isPaid => widget.vm.draft.hasPaymentDetails;
 
   void _onMarkPaidToggled(bool next) {
     final vm = widget.vm;

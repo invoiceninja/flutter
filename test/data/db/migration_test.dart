@@ -275,6 +275,7 @@ void main() {
         'whats_new_json',
         'spell_check',
         'show_seconds',
+        'downloads_folder',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

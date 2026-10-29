@@ -48,6 +48,21 @@ void main() {
     });
   });
 
+  group('parsePercent', () {
+    test('reads a percentage as a share', () {
+      expect(parsePercent('65%'), 0.65);
+      expect(parsePercent(' 100 %'), 1.0);
+    });
+    test('is null for px, bare numbers and junk', () {
+      expect(parsePercent('150px'), isNull);
+      expect(parsePercent('65'), isNull);
+      expect(parsePercent(65), isNull);
+      expect(parsePercent('%'), isNull);
+      expect(parsePercent('-5%'), isNull);
+      expect(parsePercent(null), isNull);
+    });
+  });
+
   group('parseTextAlign / parseAlignment', () {
     test('parseTextAlign maps the four keys', () {
       expect(parseTextAlign('left'), TextAlign.left);

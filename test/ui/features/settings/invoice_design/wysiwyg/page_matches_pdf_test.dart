@@ -463,6 +463,34 @@ void main() {
       expect(find.textContaining('data:'), findsNothing);
     });
 
+    testWidgets('a percentage max width is a share of the block', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SizedBox(
+            width: 400,
+            child: ImageBlock(
+              block: DesignBlock(
+                id: 'logo',
+                type: 'logo',
+                gridPosition: const GridPosition(x: 0, y: 0, w: 6, h: 2),
+                properties: {'source': dataUrl, 'maxWidth': '50%'},
+              ),
+              sample: DesignerSampleData.fallback,
+            ),
+          ),
+        ),
+      );
+      // `max-width: 50%` of a 400px column: the image may take 200.
+      expect(tester.getSize(find.byType(FractionallySizedBox)).width, 200);
+    });
+
+    test('a new logo is sized like the stock designs\' logo', () {
+      final logo = kBlockLibrary.firstWhere((s) => s.type == 'logo');
+      expect(logo.defaultProperties['maxWidth'], '65%');
+    });
+
     testWidgets('leaves the address field empty in the panel', (tester) async {
       final vm = vmWith('image');
       final block = vm.blocks.single;

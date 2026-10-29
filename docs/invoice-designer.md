@@ -124,6 +124,19 @@ so a task line (type 2) is printed by no block. `BlockSpec.printed` keeps the
 block out of the palette and marks one already on a design. Flip it when the
 server gains the renderer (`BACKEND.md`).
 
+### A logo's max width is a share of its column
+
+`JsonToSectionsAdapter` prints an image block as an `<img>` with no width and
+`max-width: <maxWidth>` (default `100%`), under `body { zoom: 80% }`. The logo
+used to be seeded with `150px`, so it printed at about 120px whatever its
+column — a third of the stock designs, which size it as `max-width:
+$company_logo_size` (`65%` by default) of theirs (invoiceninja/flutter#179).
+A new logo block is seeded with `65%`. `ImageBlock` draws a percentage as a
+`FractionallySizedBox` of the block's width, with the image at its own size
+inside it, and Max Width's `PxInput` takes `allowPercent` (0–100, a px/% menu
+in place of the unit label). An image block still defaults to `200px`, and a
+saved design keeps whatever it stored.
+
 ### Page sizes are the server's list
 
 `kDesignerPageSizes` is `cssSizeFor`'s allow-list minus the poster sizes. A

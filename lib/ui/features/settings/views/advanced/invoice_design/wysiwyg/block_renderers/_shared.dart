@@ -62,6 +62,16 @@ double? parsePx(Object? value) {
   return null;
 }
 
+/// `'65%'` → `0.65`. Null for anything that is not a percentage — a px
+/// length goes through [parsePx].
+double? parsePercent(Object? value) {
+  if (value is! String) return null;
+  final s = value.trim();
+  if (!s.endsWith('%')) return null;
+  final n = double.tryParse(s.substring(0, s.length - 1).trim());
+  return n == null || n < 0 ? null : n / 100;
+}
+
 /// `'left'` / `'center'` / `'right'` / `'justify'` → `TextAlign`. Defaults
 /// to [TextAlign.left].
 TextAlign parseTextAlign(String? value) {

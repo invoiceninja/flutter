@@ -8,8 +8,9 @@ import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 
 /// Renders `logo` and `image` blocks. Both use the same shape: an
-/// optionally-aligned image with `maxWidth` clamped by a `ConstrainedBox`
-/// and `objectFit` mapped to Flutter's `BoxFit`.
+/// optionally-aligned image with `maxWidth` (px, or a percentage of the
+/// block's width) clamped by a `ConstrainedBox` and `objectFit` mapped to
+/// Flutter's `BoxFit`.
 ///
 /// `logo` defaults `source` to `$company.logo`; `image` uses an empty
 /// string and shows a placeholder when no image is set. Variable
@@ -33,21 +34,31 @@ class ImageBlock extends StatelessWidget {
     final resolvedSource = rawSource.startsWith(r'$')
         ? replaceVariables(rawSource, data: sample)
         : rawSource;
-    final maxWidth = parsePx(props['maxWidth']);
+    final widthShare = parsePercent(props['maxWidth']);
+    final maxWidth = widthShare == null ? parsePx(props['maxWidth']) : null;
     final maxHeight = parsePx(props['maxHeight']);
     final fit = parseObjectFit(props['objectFit'] as String?);
     final alignment = parseAlignment(props['align'] as String?);
 
-    return Align(
-      alignment: alignment,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth ?? double.infinity,
-          maxHeight: maxHeight ?? double.infinity,
-        ),
-        child: _imageOrPlaceholder(context, resolvedSource, fit),
+    Widget image = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: maxWidth ?? double.infinity,
+        maxHeight: maxHeight ?? double.infinity,
       ),
+      child: _imageOrPlaceholder(context, resolvedSource, fit),
     );
+    if (widthShare != null) {
+      // The server prints `max-width: 65%` as a share of the block's column:
+      // the image keeps its own size up to that share, and is placed in it by
+      // `align`.
+      image = FractionallySizedBox(
+        widthFactor: widthShare.clamp(0.0, 1.0),
+        alignment: alignment,
+        child: Align(alignment: alignment, child: image),
+      );
+    }
+
+    return Align(alignment: alignment, child: image);
   }
 
   // Nothing to show — an unset image, a logo the company has not uploaded,

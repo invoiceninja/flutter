@@ -103,7 +103,9 @@ final List<BlockSpec> kBlockLibrary = <BlockSpec>[
     defaultProperties: const {
       'source': r'$company.logo',
       'align': 'left',
-      'maxWidth': '150px',
+      // The stock designs' default `company_logo_size`. A share of the
+      // column, not px: 150px printed a logo at a third of their size.
+      'maxWidth': '65%',
       'objectFit': 'contain',
     },
     category: BlockCategory.branding,

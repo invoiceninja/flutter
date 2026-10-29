@@ -202,6 +202,80 @@ void main() {
     });
   });
 
+  group('PxInput with a percentage', () {
+    testWidgets('shows a stored percentage and keeps its unit', (tester) async {
+      String? captured;
+      await tester.pumpWidget(
+        _wrap(
+          PxInput(
+            labelKey: 'max_width',
+            value: '65%',
+            allowPercent: true,
+            onChanged: (v) => captured = v,
+          ),
+        ),
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '65',
+      );
+      expect(find.text('%'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '80');
+      expect(captured, '80%');
+      // A share of the column tops out at all of it.
+      await tester.enterText(find.byType(TextField), '250');
+      expect(captured, '100%');
+    });
+
+    testWidgets('switching the unit re-sends the number in px', (tester) async {
+      String? captured;
+      await tester.pumpWidget(
+        _wrap(
+          PxInput(
+            labelKey: 'max_width',
+            value: '65%',
+            allowPercent: true,
+            onChanged: (v) => captured = v,
+          ),
+        ),
+      );
+      await tester.tap(find.text('%'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('px').last);
+      await tester.pumpAndSettle();
+      expect(captured, '65px');
+      await tester.enterText(find.byType(TextField), '250');
+      expect(captured, '250px');
+    });
+
+    testWidgets('an empty field is in its empty unit', (tester) async {
+      String? captured;
+      await tester.pumpWidget(
+        _wrap(
+          PxInput(
+            labelKey: 'max_width',
+            value: null,
+            allowPercent: true,
+            percentWhenEmpty: true,
+            onChanged: (v) => captured = v,
+          ),
+        ),
+      );
+      expect(find.text('%'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '40');
+      expect(captured, '40%');
+    });
+
+    testWidgets('a px-only field never offers %', (tester) async {
+      await tester.pumpWidget(
+        _wrap(PxInput(labelKey: 'width', value: '12px', onChanged: (_) {})),
+      );
+      expect(find.text('%'), findsNothing);
+      expect(find.byType(PopupMenuButton<bool>), findsNothing);
+    });
+  });
+
   group('Phase 8d — Total per-item CellTypographyEditor', () {
     testWidgets(
       'expansion renders a CellTypographyEditor sub-card with italic toggle',

@@ -686,6 +686,8 @@ class PxInput extends StatefulWidget {
     this.minPx = 0,
     this.maxPx,
     this.presets = const [],
+    this.allowPercent = false,
+    this.percentWhenEmpty = false,
   });
 
   final String labelKey;
@@ -708,6 +710,13 @@ class PxInput extends StatefulWidget {
   /// Values offered in a menu beside the field.
   final List<String> presets;
 
+  /// Offer `%` beside px, so the value can be a share of the block's width
+  /// (`'65%'`). A percentage is held to 0–100; [minPx] / [maxPx] bound px.
+  final bool allowPercent;
+
+  /// The unit an empty field is in — what [hintText] is measured in.
+  final bool percentWhenEmpty;
+
   @override
   State<PxInput> createState() => _PxInputState();
 }
@@ -715,17 +724,25 @@ class PxInput extends StatefulWidget {
 class _PxInputState extends State<PxInput> {
   late final TextEditingController _controller;
   Object? _lastBoundValue;
+  late bool _percent;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _stringify(widget.value));
     _lastBoundValue = widget.value;
+    _percent = _unitOf(widget.value);
   }
 
   static String _stringify(Object? v) {
     if (v == null) return '';
-    return v.toString().replaceAll('px', '').trim();
+    return v.toString().replaceAll('px', '').replaceAll('%', '').trim();
+  }
+
+  bool _unitOf(Object? v) {
+    if (!widget.allowPercent) return false;
+    if (v == null || _stringify(v).isEmpty) return widget.percentWhenEmpty;
+    return v.toString().trim().endsWith('%');
   }
 
   @override
@@ -733,6 +750,7 @@ class _PxInputState extends State<PxInput> {
     super.didUpdateWidget(old);
     if (widget.value != _lastBoundValue) {
       _lastBoundValue = widget.value;
+      _percent = _unitOf(widget.value);
       final next = _stringify(widget.value);
       if (next != _controller.text) _controller.text = next;
     }
@@ -745,6 +763,7 @@ class _PxInputState extends State<PxInput> {
   }
 
   int _clamp(int v) {
+    if (_percent) return v.clamp(0, 100);
     var out = v;
     if (out < widget.minPx) out = widget.minPx;
     if (widget.maxPx != null && out > widget.maxPx!) out = widget.maxPx!;
@@ -757,9 +776,16 @@ class _PxInputState extends State<PxInput> {
       widget.onChanged(null);
       return;
     }
-    final next = '${_clamp(px)}px';
+    final next = '${_clamp(px)}${_percent ? '%' : 'px'}';
     _lastBoundValue = next;
     widget.onChanged(next);
+  }
+
+  void _setUnit(bool percent) {
+    if (percent == _percent) return;
+    setState(() => _percent = percent);
+    final current = int.tryParse(_controller.text.trim());
+    if (current != null) _emit(current);
   }
 
   void _step(int by) {
@@ -829,7 +855,32 @@ class _PxInputState extends State<PxInput> {
             trailing: true,
           ),
           SizedBox(width: InSpacing.xs),
-          Text('px', style: TextStyle(fontSize: 11, color: tokens.ink3)),
+          if (widget.allowPercent)
+            PopupMenuButton<bool>(
+              tooltip: label,
+              padding: EdgeInsets.zero,
+              initialValue: _percent,
+              onSelected: _setUnit,
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: false, child: Text('px')),
+                PopupMenuItem(value: true, child: Text('%')),
+              ],
+              child: SizedBox(
+                height: 34,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _percent ? '%' : 'px',
+                      style: TextStyle(fontSize: 11, color: tokens.ink2),
+                    ),
+                    Icon(Icons.arrow_drop_down, size: 14, color: tokens.ink3),
+                  ],
+                ),
+              ),
+            )
+          else
+            Text('px', style: TextStyle(fontSize: 11, color: tokens.ink3)),
           if (hasMenu)
             PopupMenuButton<String>(
               tooltip: label,
@@ -848,6 +899,7 @@ class _PxInputState extends State<PxInput> {
               onSelected: (v) {
                 if (v.isEmpty) {
                   _controller.clear();
+                  setState(() => _percent = _unitOf(null));
                   _emit(null);
                 } else {
                   _controller.text = _stringify(v);

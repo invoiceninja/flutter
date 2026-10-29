@@ -171,7 +171,10 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
         PxInput(
           labelKey: 'max_width',
           value: props['maxWidth'],
-          hintText: '150',
+          // Unset, the server prints `max-width: 100%`.
+          hintText: '100',
+          percentWhenEmpty: true,
+          allowPercent: true,
           resettable: true,
           onChanged: (v) => _write('maxWidth', v),
         ),

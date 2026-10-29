@@ -271,6 +271,15 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// The folder a desktop download is written to; empty is the OS Downloads
+  /// folder (docs/file-downloads.md). A path on this machine, so it stays
+  /// with the device.
+  static const downloadsFolder = PrefKey<String>(
+    'downloads_folder',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -300,6 +309,7 @@ abstract final class DevicePrefKeys {
     whatsNew,
     spellCheck,
     showSeconds,
+    downloadsFolder,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

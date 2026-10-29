@@ -163,6 +163,59 @@ void main() {
       "This preview doesn't include your latest changes",
     );
 
+    final download = find.byTooltip('Download PDF');
+    PdfPreview preview(WidgetTester tester) =>
+        tester.widget<PdfPreview>(find.byType(PdfPreview));
+
+    // On Windows / Linux the package's Share only opens a temp copy, so the
+    // pane offers Download instead (docs/file-downloads.md).
+    for (final (platform, shares) in [
+      (TargetPlatform.windows, false),
+      (TargetPlatform.linux, false),
+      (TargetPlatform.macOS, true),
+    ]) {
+      testWidgets(
+        '$platform: Download in the toolbar; Share ${shares ? 'kept' : 'hidden'}',
+        (tester) async {
+          next = () async => pdfA;
+          await mount(tester, contentRevision: 1);
+          await tester.pump(const Duration(milliseconds: 10));
+          expect(download, findsOneWidget);
+          expect(preview(tester).allowSharing, shares);
+
+          // A stale render is not offered for download, like print and share.
+          next = fails;
+          await mount(tester, contentRevision: 2);
+          await tester.pump(const Duration(milliseconds: 60));
+          await tester.pump();
+          expect(notice, findsOneWidget);
+          expect(download, findsNothing);
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+    }
+
+    testWidgets('a phone keeps Share and has no Download button', (
+      tester,
+    ) async {
+      next = () async => pdfA;
+      await mount(tester, contentRevision: 1);
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(download, findsNothing);
+      expect(preview(tester).allowSharing, isTrue);
+    });
+
+    testWidgets('a delivery note downloads under its own name', (tester) async {
+      next = () async => pdfA;
+      await mount(tester, initialDeliveryNote: true);
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(preview(tester).pdfFileName, 'invoice_INV-1_delivery_note.pdf');
+
+      await tester.tap(find.byType(Switch));
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(preview(tester).pdfFileName, 'invoice_INV-1.pdf');
+    });
+
     testWidgets(
       'a failed content refresh keeps the PDF, marked stale, and Retry '
       'clears it',

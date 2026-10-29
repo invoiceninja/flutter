@@ -9,6 +9,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/services/live_design_service.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -246,7 +247,9 @@ class _LivePdfPreviewPaneState extends State<LivePdfPreviewPane> {
       canDebug: false,
       useActions: !widget.embedded,
       allowPrinting: !widget.embedded,
-      allowSharing: !widget.embedded,
+      // On Windows / Linux Share only opens a temp copy
+      // (docs/file-downloads.md).
+      allowSharing: !widget.embedded && !pdfShareOpensTempCopy(),
       maxPageWidth: 800,
       pdfFileName: 'invoice_design_preview.pdf',
     );

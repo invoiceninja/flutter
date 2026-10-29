@@ -38,6 +38,7 @@ void main() {
     'whats_new_json': PrefScope.device,
     'spell_check': PrefScope.device,
     'show_seconds': PrefScope.device,
+    'downloads_folder': PrefScope.device,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
 /// Bulk Print: fetch the server-merged PDF (`*Api.bulkPrintPdf`) and hand it to
@@ -48,7 +49,7 @@ Future<void> bulkPrintBillingDocs(
 ///   `exported_data`. This path is a quick fire-and-forget enqueue (no
 ///   "Processing" toast needed).
 /// * **exactly 1 doc** → the single-doc live-preview path ([singleFetch] →
-///   `Printing.sharePdf`) for an immediate file. This also sidesteps the
+///   `downloadPdf`) for an immediate file. This also sidesteps the
 ///   invoices/credits ">1 required" server gate on `bulk_download`.
 Future<void> bulkDownloadBillingDocs(
   BuildContext context, {
@@ -59,9 +60,10 @@ Future<void> bulkDownloadBillingDocs(
 }) async {
   try {
     if (count == 1) {
+      final download = downloadPdf(context, fileName: singleFileName);
       final bytes = await singleFetch();
       if (!context.mounted) return;
-      await Printing.sharePdf(bytes: bytes, filename: singleFileName);
+      await download(bytes);
       return;
     }
     await bulkDownload();

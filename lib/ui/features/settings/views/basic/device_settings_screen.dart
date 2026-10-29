@@ -24,6 +24,7 @@ import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
+import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
@@ -59,6 +60,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kMobileAppSearchKeys,
+  ...kDownloadsFolderSearchKeys,
   ...kAssignedUsersSearchKeys,
   'default_tab',
   'spell_check',
@@ -143,6 +145,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Its mirror: everywhere *but* a phone, the way to the phone app
               // that does both cards above.
               const MobileAppSection(),
+              // Desktop only: where a download is written. High on the page,
+              // because the report that added it was "I couldn't find it".
+              const DownloadsFolderSection(),
               // Between the phone/contacts pair and the chrome block on
               // purpose: the cards below change chrome, this one changes what a
               // *form* offers. The load-bearing reason to keep it here rather

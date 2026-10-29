@@ -173,7 +173,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
   - `lib/utils/file_names.dart` — **KEEP**: `sanitizeFileName`, which is correct regardless of what `printing` does. Also handles the Win32 reserved device names (`NUL.pdf` cannot be created even though every character is legal), a leading dot, a trailing dot or space, and a length cap.
   - the eleven call sites that interpolate a number or a date into a PDF file name (`lib/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart`, `clients/views/client_statement_screen.dart`, and the download action + bulk-list action for each of invoice / quote / credit / purchase order / recurring invoice) — **KEEP**: route the name through it.
   - `test/lint/pdf_file_name_sanitized_test.dart` — **KEEP**: fails the build on a twelfth interpolated name that skips it.
-- Accepted trade, recorded so it is not rediscovered: the mapping is **lossy**. Every illegal character becomes `-` and runs of `[-\s_]` collapse, so `INV/2026/1` and `INV-2026-1` — two numbers that can legitimately coexist in one company — both produce `invoice_INV-2026-1.pdf`, and two shared PDFs overwrite each other in the download directory. Strictly better than the current "nothing happens at all", and percent-encoding would produce names nobody can read.
+- Accepted trade, recorded so it is not rediscovered: the mapping is **lossy**. Every illegal character becomes `-` and runs of `[-\s_]` collapse, so `INV/2026/1` and `INV-2026-1` — two numbers that can legitimately coexist in one company — both produce `invoice_INV-2026-1.pdf`, and two shared PDFs overwrite each other in the share directory. (A desktop *download* no longer collides: it is written into the downloads folder and a name already taken gets ` (1)` — #15, `docs/file-downloads.md`.) Strictly better than the current "nothing happens at all", and percent-encoding would produce names nobody can read.
 - Revert: nothing to revert even if upstream fixes it — sanitising a file name before handing it to a platform is right either way. If `printing` ever starts *reporting* the failure, the value of the entry is that the silence was the reason this went unnoticed; delete the entry then and keep every change.
 - Recheck trigger: a `printing` bump — check whether `sharePdf` sanitises or at least returns `false` on a write failure. If it reports errors, consider surfacing one instead of relying solely on sanitisation.
 
@@ -199,6 +199,19 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
   - `lib/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart` — **KEEP**: `_build`, the callback handed to `PdfPreview.build`, is created only where `_bytes` is assigned. The view used to pass `(_) => bytes` from `build()`, so the scrim's own `setState` and every parent rebuild queued a raster of the *old* bytes just ahead of the new ones. A stable callback is right regardless of the bug (it also stops each rebuild resetting the preview's zoom); it narrows the race to two real byte changes inside one raster, which is what remains open. Pinned by "PdfPreview gets a new build callback only with new bytes" in `test/ui/features/billing_shared/billing_doc_pdf_view_test.dart`. See `docs/pdf-preview-refresh.md`.
 - Revert: nothing to revert when upstream fixes it — keep the stable callback; delete this entry.
 - Recheck trigger: a `printing` bump — check `_raster` for a pending/dirty re-run after the in-flight raster completes.
+
+## 15. printing: on Windows and Linux `sharePdf` opens a temp copy instead of sharing or saving
+
+- Issue / waiting on: <https://github.com/DavBfr/dart_pdf> — none filed as of 2026-10-29. Windows `print_job.cpp:334-360` writes `%TEMP%\<name>` and `ShellExecute "open"`s it; Linux `linux/print_job.cc:250-264` writes `/tmp/<name>` and `xdg-open`s it. `PdfPreview`'s Share button (`PdfShareAction`, `lib/src/preview/actions.dart`) calls it. • Found: 2026-10-29 (beta report) • printing: 5.15.1
+- Symptom: Download PDF, and the preview's Share, "just launch the PDF" and save nothing the user can find.
+- Root cause: desktop has no share sheet, so the package falls back to opening the file.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/core/utils/save_bytes.dart` / `save_download.dart` — **KEEP**: a desktop download is written into the downloads folder (`bytesSaver`, `downloadPdf`), the old app's behaviour; correct whatever the package does.
+  - `allowSharing: … && !pdfShareOpensTempCopy()` on every `PdfPreview` (`billing_doc_pdf_view.dart`, `client_statement_screen.dart`, `document_viewer.dart`, `design_live_preview_pane.dart`, `live_pdf_preview_pane.dart`, `wysiwyg_preview_sheet.dart`) — **MUST-REVERT** if the package gains a real desktop share: drop the `pdfShareOpensTempCopy()` term (the Download buttons stay).
+  - `test/lint/desktop_downloads_test.dart` — **KEEP** its `sharePdf` check; drop the `PdfPreview` gate check with the revert.
+- Revert: remove the `pdfShareOpensTempCopy()` term at the six sites, `pdfShareOpensTempCopy` itself and the lint's second check.
+- Recheck trigger: a `printing` bump — check `PrintJob::sharePdf` on Windows and `share_pdf` on Linux for anything but write-and-open.
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 

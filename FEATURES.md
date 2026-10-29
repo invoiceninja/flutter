@@ -1241,6 +1241,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Font Size (text scale, local) | — | ✅ | ✅ | ✅ | |
 | List density — Normal / Compact rows and list chrome, for more records on screen (local; Device Settings only) | — | — | ✅ | | |
 | Show seconds — adds seconds to the kanban cards' timers, durations past a day and time-entry start / end times (local, off by default; running timers always tick seconds) | — | — | ✅ | | |
+| Downloads folder — a desktop Download is saved straight into it, with the path and an Open action in the toast; Windows / Linux can choose the folder, macOS shows Downloads read-only (local) | — | ✅ | ✅ | | |
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |

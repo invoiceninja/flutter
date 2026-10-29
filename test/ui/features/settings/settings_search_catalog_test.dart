@@ -5,6 +5,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
+import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
 
 import '../../../_localization_helper.dart';
@@ -310,6 +311,24 @@ void main() {
         );
         debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
         expect(offered(kContactsSyncSearchKeys, _scope()), isEmpty);
+      });
+
+      test('Downloads folder only on desktop, macOS included', () {
+        // macOS shows the card read-only, so it is still a hit there.
+        for (final platform in [
+          TargetPlatform.windows,
+          TargetPlatform.linux,
+          TargetPlatform.macOS,
+        ]) {
+          debugDefaultTargetPlatformOverride = platform;
+          expect(
+            offered(kDownloadsFolderSearchKeys, _scope()),
+            kDownloadsFolderSearchKeys.toSet(),
+            reason: '$platform',
+          );
+        }
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        expect(offered(kDownloadsFolderSearchKeys, _scope()), isEmpty);
       });
 
       test('Mobile App only where the card shows', () {

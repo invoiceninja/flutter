@@ -4,8 +4,14 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/widgets.dart';
+import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
 
+import 'package:admin/app/downloads_folder_controller.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
 /// Saves bytes through the platform's save dialog — the signature of what
@@ -81,17 +87,53 @@ Future<bool> saveBytesAs(
   required Uint8List bytes,
 }) => bytesSaver(context)(fileName: fileName, bytes: bytes);
 
-/// A [BytesSaver] with everything it needs from [context] — the toast host and
-/// the strings — resolved now, for a caller that still has the bytes to fetch.
-/// The fetch can outlive the element that started it, and `context.tr` on a
-/// deactivated element throws. See [saveBytesFile] for the platform rules.
+/// A [BytesSaver] with everything it needs from [context] — the toast host,
+/// the strings and the chosen downloads folder — resolved now, for a caller
+/// that still has the bytes to fetch. The fetch can outlive the element that
+/// started it, and `context.tr` on a deactivated element throws.
+///
+/// On desktop the file goes straight into the downloads folder
+/// ([saveToDownloadsFolder]), as the old app did; the save dialog is the
+/// fallback when there is no usable folder. Elsewhere it is the dialog — see
+/// [saveBytesFile] for the platform rules (docs/file-downloads.md).
 BytesSaver bytesSaver(BuildContext context) {
   final toasts = Notify.capture(context);
   final l10n = Localization.of(context);
+  final chosen = context.read<DownloadsFolderController?>()?.value ?? '';
   String tr(String key, [Map<String, String>? params]) =>
       l10n?.lookup(key, params) ?? key;
 
   return ({required String fileName, required Uint8List bytes}) async {
+    if (Env.isDesktop) {
+      try {
+        final saved = await saveToDownloadsFolder(
+          chosen: chosen,
+          fileName: fileName,
+          bytes: bytes,
+        );
+        if (saved != null) {
+          final path = saved.file.path;
+          toasts?.success(
+            saved.isDefaultFolder
+                ? tr('file_saved_in_downloads_folder')
+                : tr('file_saved_in_path', {'path': saved.folder}),
+            // The name actually written, so a ` (1)` shows: the title is two
+            // lines of a 400 px card, and a full path would lose it.
+            detail: saved.fileName,
+            action: NotifyAction(tr('open'), () async {
+              if (!await launchExternalUri(Uri.file(path))) {
+                toasts.error(tr('an_error_occurred'));
+              }
+            }),
+          );
+          return true;
+        }
+      } on DownloadsFolderMissing catch (e) {
+        toasts?.error(tr('downloads_folder_does_not_exist', {'value': e.path}));
+      } catch (_) {
+        // Fall through to the save dialog.
+      }
+    }
     try {
       final saved = await saveBytesFile(fileName: fileName, bytes: bytes);
       if (saved == null) return false;
@@ -106,4 +148,36 @@ BytesSaver bytesSaver(BuildContext context) {
       return false;
     }
   };
+}
+
+/// The platform PDF share, as `Printing.sharePdf` exposes it.
+typedef PdfShare =
+    Future<bool> Function({required Uint8List bytes, required String filename});
+
+Future<bool> _printingShare({
+  required Uint8List bytes,
+  required String filename,
+}) => Printing.sharePdf(bytes: bytes, filename: filename);
+
+/// Replaced by tests; production always goes through `Printing.sharePdf`.
+@visibleForTesting
+PdfShare pdfShare = _printingShare;
+
+/// Downloads a PDF the caller is about to fetch, with everything taken from
+/// [context] now (like [bytesSaver]): on desktop it is written into the
+/// downloads folder; on mobile it is the share sheet and on web a browser
+/// download, both through `Printing.sharePdf`.
+///
+/// Never call `Printing.sharePdf` for a download anywhere else — on Windows
+/// and Linux it only opens a temp copy (`test/lint/desktop_downloads_test.dart`,
+/// docs/file-downloads.md).
+Future<void> Function(Uint8List bytes) downloadPdf(
+  BuildContext context, {
+  required String fileName,
+}) {
+  if (Env.isDesktop) {
+    final save = bytesSaver(context);
+    return (bytes) => save(fileName: fileName, bytes: bytes);
+  }
+  return (bytes) => pdfShare(bytes: bytes, filename: fileName);
 }

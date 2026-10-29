@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/app/accent_color_controller.dart';
 import 'package:admin/app/app_locale_resolver.dart';
 import 'package:admin/app/company_label_overrides.dart';
+import 'package:admin/app/downloads_folder_controller.dart';
 import 'package:admin/app/script_fonts.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
@@ -377,6 +378,7 @@ class Services implements SidebarBadgeContext {
     required this.whatsNew,
     required this.spellCheck,
     required this.showSeconds,
+    required this.downloadsFolder,
     required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
@@ -810,6 +812,10 @@ class Services implements SidebarBadgeContext {
   /// (docs/tasks-views.md). Read through its root provider, like
   /// [signOutNotice].
   final ShowSecondsController showSeconds;
+
+  /// The folder a desktop download is written to (docs/file-downloads.md).
+  /// Read through its root provider, like [signOutNotice].
+  final DownloadsFolderController downloadsFolder;
 
   /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
   /// and consumed by `CallLogPrompter` on the next resume
@@ -1599,6 +1605,7 @@ class Services implements SidebarBadgeContext {
     final whatsNew = WhatsNewController(prefs: devicePrefs);
     final spellCheck = SpellCheckController(prefs: devicePrefs);
     final showSeconds = ShowSecondsController(prefs: devicePrefs);
+    final downloadsFolder = DownloadsFolderController(prefs: devicePrefs);
     final mobileAppPromo = MobileAppPromoController(
       prefs: devicePrefs,
       promote: mobileAppPromote,
@@ -2362,6 +2369,7 @@ class Services implements SidebarBadgeContext {
       whatsNew: whatsNew,
       spellCheck: spellCheck,
       showSeconds: showSeconds,
+      downloadsFolder: downloadsFolder,
       pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,

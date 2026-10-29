@@ -16,6 +16,7 @@ import 'package:admin/app/boot_log.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:timezone/data/latest_10y.dart' as tz;
 import 'package:admin/app/diagnostics_log.dart';
+import 'package:admin/app/downloads_folder_controller.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
@@ -850,6 +851,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // for the same reason.
         ChangeNotifierProvider<ShowSecondsController>.value(
           value: widget.services.showSeconds,
+        ),
+        // Where a desktop download is written, read as
+        // `DownloadsFolderController?` by `bytesSaver` and its Device
+        // Settings card (docs/file-downloads.md).
+        ChangeNotifierProvider<DownloadsFolderController>.value(
+          value: widget.services.downloadsFolder,
         ),
         // New Expense reads receipts with it, as `ReceiptScanner?`: a screen
         // and its tests work without one (docs/receipt-ocr.md).

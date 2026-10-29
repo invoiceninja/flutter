@@ -465,7 +465,7 @@ class PurchaseOrderActions {
           if (action == PurchaseOrderAction.downloadPdf) {
             final fileName =
                 '${sanitizeFileName('purchase_order_${po.number.isEmpty ? po.id : po.number}')}.pdf';
-            await Printing.sharePdf(bytes: bytes, filename: fileName);
+            await downloadPdf(context, fileName: fileName)(bytes);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);
           }
@@ -478,22 +478,19 @@ class PurchaseOrderActions {
         if (tmpGate()) return;
         final invitationKey = _firstInvitationKey(po);
         if (invitationKey.isEmpty) return;
+        // Captured before the fetch, which can outlive this context. On
+        // desktop it writes into the downloads folder; elsewhere it opens the
+        // save dialog — and it says so either way (docs/file-downloads.md).
+        final save = bytesSaver(context);
         try {
           final bytes = await services.purchaseOrders.api
               .downloadEPurchaseOrder(invitationKey: invitationKey);
           // Sanitised for the same reason the PDF name above is, and it is the
           // same `po.number`: a company numbering `PO/2026/0001` would otherwise
-          // hand `FilePicker.saveFile` a name containing a path separator.
+          // hand the save a name containing a path separator.
           final fileName =
               '${sanitizeFileName('purchase_order_${po.number.isEmpty ? po.id : po.number}')}.xml';
-          // Save arbitrary (non-PDF) bytes via the same FilePicker path the
-          // CSV / JSON exports use — `Printing.sharePdf` is PDF-typed. Web:
-          // the shim downloads via a Blob; native: write defensively.
-          final saved = await saveBytesFile(fileName: fileName, bytes: bytes);
-          // A cancel; or a browser download, which shows its own.
-          if (saved == null || saved.isBrowserDownload) return;
-          if (!context.mounted) return;
-          Notify.success(context, context.tr('exported'));
+          await save(fileName: fileName, bytes: bytes);
         } catch (e) {
           if (!context.mounted) return;
           Notify.error(context, context.tr('error'), error: e);

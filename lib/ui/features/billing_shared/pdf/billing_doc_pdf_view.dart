@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
@@ -275,9 +278,13 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
         showToggle && _deliveryNote && widget.hasUnsyncedChanges;
     final stale = _stale || unsyncedNote;
     final previewName = '${widget.entity.wireName}_preview';
-    final rawName = widget.entityNumber.isEmpty
+    final baseName = widget.entityNumber.isEmpty
         ? previewName
         : '${widget.entity.wireName}_${widget.entityNumber}';
+    // A downloaded delivery note must not take the document's own name.
+    final rawName = showToggle && _deliveryNote
+        ? '${baseName}_delivery_note'
+        : baseName;
     final fileName = '${sanitizeFileName(rawName, fallback: previewName)}.pdf';
     final scrim = Theme.of(context).colorScheme.scrim.withValues(alpha: 0.4);
     final preview = Stack(
@@ -286,15 +293,24 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
           child: PdfPreview(
             build: build,
             // Printing or sharing a stale render would send out a document
-            // that no longer matches the record.
+            // that no longer matches the record. On Windows / Linux the
+            // package's Share only opens a temp copy; Download replaces it
+            // (docs/file-downloads.md).
             allowPrinting: !stale,
-            allowSharing: !stale,
+            allowSharing: !stale && !pdfShareOpensTempCopy(),
             canChangePageFormat: false,
             canChangeOrientation: false,
             canDebug: false,
             maxPageWidth: 800,
             pdfFileName: fileName,
             actions: [
+              if (Env.isDesktop && !stale)
+                IconButton(
+                  icon: const Icon(Icons.download),
+                  tooltip: context.tr('download_pdf'),
+                  onPressed: () =>
+                      downloadPdf(context, fileName: fileName)(bytes),
+                ),
               if (widget.onOpenFullSize case final open?)
                 IconButton(
                   icon: const Icon(Icons.open_in_full),

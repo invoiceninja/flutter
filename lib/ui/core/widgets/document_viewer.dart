@@ -8,6 +8,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -217,6 +218,9 @@ class _DocumentPreviewBodyState extends State<DocumentPreviewBody> {
             canDebug: false,
             maxPageWidth: 800,
             pdfFileName: documentFileName(_doc.name, _doc.type),
+            // On Windows / Linux Share only opens a temp copy; the app bar's
+            // Download is the way to keep the file (docs/file-downloads.md).
+            allowSharing: !pdfShareOpensTempCopy(),
           ),
         );
       case DocumentPreviewKind.image:

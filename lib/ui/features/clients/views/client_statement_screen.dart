@@ -3,9 +3,12 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -177,6 +180,18 @@ class _Body extends StatelessWidget {
             canDebug: false,
             maxPageWidth: 800,
             pdfFileName: fileName,
+            // On Windows / Linux the package's Share only opens a temp copy;
+            // Download replaces it (docs/file-downloads.md).
+            allowSharing: !pdfShareOpensTempCopy(),
+            actions: [
+              if (Env.isDesktop)
+                IconButton(
+                  icon: const Icon(Icons.download),
+                  tooltip: context.tr('download_pdf'),
+                  onPressed: () =>
+                      downloadPdf(context, fileName: fileName)(bytes),
+                ),
+            ],
           ),
         ),
         if (vm.isLoading)

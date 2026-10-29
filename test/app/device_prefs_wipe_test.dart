@@ -175,6 +175,10 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.showSeconds.set(true),
     (s) => !s.showSeconds.value,
   ),
+  DevicePrefKeys.downloadsFolder: _Probe(
+    (s) => s.downloadsFolder.set('/x'),
+    (s) => s.downloadsFolder.value == '',
+  ),
 };
 
 final _certificate = CertificateFacts(

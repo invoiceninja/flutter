@@ -22,6 +22,7 @@ import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -414,7 +415,7 @@ class CreditActions {
           if (action == CreditAction.downloadPdf) {
             final fileName =
                 '${sanitizeFileName('credit_${credit.number.isEmpty ? credit.id : credit.number}')}.pdf';
-            await Printing.sharePdf(bytes: bytes, filename: fileName);
+            await downloadPdf(context, fileName: fileName)(bytes);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);
           }

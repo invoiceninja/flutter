@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/live_design_service.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/features/settings/view_models/design_edit_view_model.dart';
 import 'package:admin/utils/pdf_bytes_guard.dart';
 
@@ -262,6 +263,9 @@ class _WysiwygPreviewSheetState extends State<WysiwygPreviewSheet> {
                       canDebug: false,
                       maxPageWidth: 800,
                       pdfFileName: 'invoice_design_preview.pdf',
+                      // On Windows / Linux Share only opens a temp copy
+                      // (docs/file-downloads.md).
+                      allowSharing: !pdfShareOpensTempCopy(),
                     ),
                     // Phase 8l: free-user watermark. Doesn't block
                     // pointer input — print/share buttons inside the

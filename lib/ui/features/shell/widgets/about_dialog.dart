@@ -8,12 +8,14 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/mobile_app_promo.dart';
+import 'package:admin/domain/self_update.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/shell/widgets/health_check_dialog.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
+import 'package:admin/ui/features/shell/widgets/self_update_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 
 /// Pushes Flutter's bundled `LicensePage`. Modal sub-flow (not page
@@ -42,6 +44,7 @@ Future<void> showAppAboutDialog(BuildContext context) async {
   // unmounts on pop).
   final outerContext = context;
   final whatsNew = whatsNewOnRequest(context);
+  final updateOffer = selfUpdateOffer(session);
   await showDialog<void>(
     context: context,
     builder: (ctx) => _AboutDialog(
@@ -58,6 +61,17 @@ Future<void> showAppAboutDialog(BuildContext context) async {
               }
             }
           : null,
+      // admin-portal's Update App / Force Update button: a newer release,
+      // or a re-download of the current one (never on Docker).
+      selfUpdateLabelKey: updateOffer == SelfUpdateOffer.update
+          ? 'update_app'
+          : 'force_update',
+      onShowSelfUpdate: updateOffer == SelfUpdateOffer.none
+          ? null
+          : () {
+              Navigator.of(ctx).pop();
+              if (outerContext.mounted) showSelfUpdateDialog(outerContext);
+            },
       // Hidden on mobile (iOS/Android): there's no physical keyboard, so the
       // shortcuts never fire and the button is dead UI. Web keeps it — a
       // browser has a keyboard. Null → the action button isn't rendered.
@@ -116,6 +130,8 @@ class _AboutDialog extends StatelessWidget {
     required this.isOwner,
     required this.isAdmin,
     required this.onShowHealthCheck,
+    this.onShowSelfUpdate,
+    this.selfUpdateLabelKey = 'update_app',
     required this.onShowKeyboardShortcuts,
     required this.onShowDebugPanel,
     this.onShowMobileApp,
@@ -129,6 +145,8 @@ class _AboutDialog extends StatelessWidget {
   final bool isOwner;
   final bool isAdmin;
   final VoidCallback? onShowHealthCheck;
+  final VoidCallback? onShowSelfUpdate;
+  final String selfUpdateLabelKey;
   final VoidCallback? onShowKeyboardShortcuts;
   final VoidCallback onShowDebugPanel;
   final VoidCallback? onShowMobileApp;
@@ -282,6 +300,12 @@ class _AboutDialog extends StatelessWidget {
             style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
             onPressed: onShowHealthCheck,
             child: Text(context.tr('health_check')),
+          ),
+        if (onShowSelfUpdate != null)
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            onPressed: onShowSelfUpdate,
+            child: Text(context.tr(selfUpdateLabelKey)),
           ),
         if (onShowKeyboardShortcuts != null)
           OutlinedButton(

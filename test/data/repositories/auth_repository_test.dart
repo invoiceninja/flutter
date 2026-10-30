@@ -126,6 +126,10 @@ LoginResponseApi _envelope({
   Map<String, CompanyEnvelopeApi>? companyOverrideById,
   String eInvoicingToken = '',
   bool reportErrors = false,
+  String currentVersion = '',
+  String latestVersion = '',
+  bool isDocker = false,
+  bool disableAutoUpdate = false,
   Map<String, dynamic> staticData = const <String, dynamic>{},
 }) {
   return LoginResponseApi(
@@ -153,6 +157,10 @@ LoginResponseApi _envelope({
             numTrialDays: 14,
             eInvoicingToken: eInvoicingToken,
             reportErrors: reportErrors,
+            currentVersion: currentVersion,
+            latestVersion: latestVersion,
+            isDocker: isDocker,
+            disableAutoUpdate: disableAutoUpdate,
           ),
         ),
     ],
@@ -783,6 +791,43 @@ void main() {
         expect(repo.session.value!.reportErrors, isFalse);
       },
     );
+
+    test('threads the self-update fields to AuthSession and survives '
+        'restore via the features_json blob', () async {
+      // The sidebar's Update Available card reads these on a cold start,
+      // before any refresh — so restore must rebuild them.
+      authService.queueLogin(
+        _envelope(
+          currentVersion: '5.13.40',
+          latestVersion: '5.13.45',
+          isDocker: true,
+          disableAutoUpdate: true,
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+      void expectFields(AuthSession s) {
+        expect(s.serverCurrentVersion, '5.13.40');
+        expect(s.serverLatestVersion, '5.13.45');
+        expect(s.isDocker, isTrue);
+        expect(s.disableAutoUpdate, isTrue);
+      }
+
+      expectFields(repo.session.value!);
+
+      final restoreRepo = AuthRepository(
+        db: db,
+        authService: _FakeAuthService(),
+        tokenStorage: storage,
+        passwordCache: passwordCache,
+      );
+      await restoreRepo.restore();
+      expectFields(restoreRepo.session.value!);
+    });
   });
 
   group('switchCompany', () {

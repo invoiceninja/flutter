@@ -39,6 +39,7 @@ import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/mobile_app_promo_footer.dart';
 import 'package:admin/ui/features/shell/widgets/plan_expired_footer.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
+import 'package:admin/ui/features/shell/widgets/update_available_footer.dart';
 import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
 
@@ -760,6 +761,14 @@ class _InSidebarState extends State<InSidebar> {
                   // — hosted vs self-hosted — so at most one ever renders.)
                   TrialFooter(compact: collapsed),
                   PlanExpiredFooter(compact: collapsed),
+                  // A newer server release (self-hosted admins). About -> Update
+                  // App is its second home, so it is height-gated like the
+                  // white-label card.
+                  if (showsUpsell)
+                    UpdateAvailableFooter(
+                      compact: collapsed,
+                      onBeforeOpen: widget.onBeforeModal,
+                    ),
                   // The mobile-app promo's way back, below every other card
                   // in rank: it renders only when none of them does, and
                   // only where the upsell would fit. Above the white-label

@@ -12,14 +12,16 @@ import 'package:admin/domain/upgrade/white_label.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/plan_expired_footer.dart';
+import 'package:admin/ui/features/shell/widgets/update_available_footer.dart';
 
 /// "Get the mobile app" — the sidebar's way back to the mobile-app promo
 /// (docs/mobile-app-promo.md), in `WhiteLabelFooter`'s shape.
 ///
 /// The least important card in the footer, so it yields: to a trial, an
-/// expired plan or the white-label offer (one card at a time), to a viewport
-/// too short for optional chrome ([affordable], `sidebarShowsUpsell`), and to
-/// the collapsed rail, where an unlabelled phone glyph would read as "call".
+/// expired plan, an available server update or the white-label offer (one
+/// card at a time), to a viewport too short for optional chrome
+/// ([affordable], `sidebarShowsUpsell`), and to the collapsed rail, where an
+/// unlabelled phone glyph would read as "call".
 /// It goes for good once the user says "Don't show again", takes the app, or
 /// lets every automatic reminder pass — About and Device Settings still open
 /// the promo after that.
@@ -49,7 +51,8 @@ class MobileAppPromoFooter extends StatelessWidget {
       s != null &&
       ((s.isHosted && s.isTrial) ||
           PlanExpiredFooter.shows(s) ||
-          (affordable && shouldNagForWhiteLabel(s)));
+          (affordable &&
+              (shouldNagForWhiteLabel(s) || UpdateAvailableFooter.shows(s))));
 
   @override
   Widget build(BuildContext context) {

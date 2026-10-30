@@ -40,6 +40,7 @@ class _FakeApi implements ApiClient {
     Map<String, String>? query,
     bool readOnly = false,
     bool requiresPassword = false,
+    Duration? timeout,
   }) async {
     posts.add((path, body, RequestScope.current?.companyId));
     return reply;

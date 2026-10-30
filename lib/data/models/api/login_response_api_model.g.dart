@@ -465,6 +465,10 @@ _AccountEnvelopeApi _$AccountEnvelopeApiFromJson(Map<String, dynamic> json) =>
       reportErrors: json['report_errors'] as bool? ?? false,
       isPremium: json['is_premium'] as bool? ?? false,
       key: json['key'] as String? ?? '',
+      currentVersion: json['current_version'] as String? ?? '',
+      latestVersion: json['latest_version'] as String? ?? '',
+      isDocker: json['is_docker'] as bool? ?? false,
+      disableAutoUpdate: json['disable_auto_update'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$AccountEnvelopeApiToJson(_AccountEnvelopeApi instance) =>
@@ -484,4 +488,8 @@ Map<String, dynamic> _$AccountEnvelopeApiToJson(_AccountEnvelopeApi instance) =>
       'report_errors': instance.reportErrors,
       'is_premium': instance.isPremium,
       'key': instance.key,
+      'current_version': instance.currentVersion,
+      'latest_version': instance.latestVersion,
+      'is_docker': instance.isDocker,
+      'disable_auto_update': instance.disableAutoUpdate,
     };

@@ -1790,6 +1790,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | About dialog | ✅ | ✅ | ✅ | ✅ | |
 | What's new dialog after an update (bundled release notes, highlights that open the feature; About and the command palette reopen it) | — | — | ✅ | | |
 | Health check dialog (self-hosted diagnostics) | ✅ | ✅ | ✅ | ✅ | |
+| Self-hosted server update (Update Available card in the sidebar, Update App / Force Update in About, password-confirmed `/self-update`; Docker shows the pull commands) | ✅ | ✅ | ✅ | | |
 | Trial-footer indicator | ✅ | ✅ | ✅ | ✅ | |
 | Cookie / privacy banner | ✅ | — | — |  | |
 | Migration import from competitors (FreshBooks / Wave / CSV) | ✅ | ❌ | ✅ | ✅ | |

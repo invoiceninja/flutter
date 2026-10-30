@@ -78,6 +78,10 @@ class AuthSession {
     this.reportErrors = false,
     this.isPremium = false,
     this.accountKey = '',
+    this.serverCurrentVersion = '',
+    this.serverLatestVersion = '',
+    this.isDocker = false,
+    this.disableAutoUpdate = false,
   });
 
   final String baseUrl;
@@ -213,6 +217,23 @@ class AuthSession {
   /// (`private-user-{accountKey}-{userId}`). Blank until the account envelope
   /// has carried it.
   final String accountKey;
+
+  /// `account.current_version` — the server's installed release, as of the
+  /// last login / refresh. Only read on self-hosted
+  /// (`lib/domain/self_update.dart`); hosted's value lags.
+  final String serverCurrentVersion;
+
+  /// `account.latest_version` — the newest release this self-hosted server
+  /// has seen (its daily version check). Blank until it has checked.
+  final String serverLatestVersion;
+
+  /// `account.is_docker` — a Docker install updates by pulling the image, so
+  /// the app shows the command instead of running `POST /self-update`.
+  final bool isDocker;
+
+  /// `account.disable_auto_update` — the server's `DISABLE_AUTO_UPDATE`; the
+  /// app offers no update at all.
+  final bool disableAutoUpdate;
 
   /// Whether a send-email `cc_email` reaches anyone: the server drops it
   /// unless the install is self-hosted or the hosted account is premium
@@ -520,6 +541,10 @@ class AuthSession {
     reportErrors: reportErrors,
     isPremium: isPremium,
     accountKey: accountKey,
+    serverCurrentVersion: serverCurrentVersion,
+    serverLatestVersion: serverLatestVersion,
+    isDocker: isDocker,
+    disableAutoUpdate: disableAutoUpdate,
   );
 }
 

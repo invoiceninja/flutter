@@ -255,12 +255,16 @@ class ApiClient {
   ///
   /// 401 single-flight, version negotiation, and exception mapping all flow
   /// through `_send` — same contract as [getOne] / [mutate].
+  ///
+  /// [timeout] replaces the client's request timeout for a call the server
+  /// legitimately works on for minutes (`POST /self-update`).
   Future<dynamic> postJson(
     String path, {
     Map<String, dynamic>? body,
     Map<String, String>? query,
     bool readOnly = false,
     bool requiresPassword = false,
+    Duration? timeout,
   }) async {
     if (!readOnly && Env.demoMode) {
       throw const DemoModeException();
@@ -273,6 +277,7 @@ class ApiClient {
       body: body,
       password: credential?.password,
       oauthToken: credential?.oauthToken,
+      timeout: timeout,
     );
     if (raw.isEmpty) return null;
     return _decodeBody(raw);
@@ -670,6 +675,7 @@ class ApiClient {
     String? idempotencyKey,
     String? password,
     String? oauthToken,
+    Duration? timeout,
   }) async {
     final creds = _requireCreds();
     var uri = Uri.parse(creds.baseUrl).resolve(path);
@@ -702,6 +708,7 @@ class ApiClient {
           uri: uri,
           headers: headers,
           body: encoded,
+          timeout: timeout,
         ),
       );
     } catch (e) {
@@ -749,7 +756,9 @@ class ApiClient {
     required Uri uri,
     required Map<String, String> headers,
     String? body,
+    Duration? timeout,
   }) async {
+    final budget = timeout ?? _requestTimeout;
     // Aborted — not merely abandoned — when the budget runs out: `.timeout()`
     // alone stops waiting but leaves the request running, so a write that had
     // "timed out" could still reach the server after its outbox row was
@@ -769,10 +778,8 @@ class ApiClient {
           ..headers.addAll(headers);
     final ticket = _trust?.rejectionSerial ?? 0;
     try {
-      final streamed = await _http.send(request).timeout(_requestTimeout);
-      final response = await http.Response.fromStream(
-        streamed,
-      ).timeout(_requestTimeout);
+      final streamed = await _http.send(request).timeout(budget);
+      final response = await http.Response.fromStream(streamed).timeout(budget);
       if (response.statusCode >= 300 && response.statusCode < 400) {
         // No legitimate Invoice Ninja API endpoint redirects. Either the
         // server is mis-configured or someone is trying to harvest the
@@ -790,7 +797,7 @@ class ApiClient {
       if (!abort.isCompleted) abort.complete();
       throw _transportFailure(
         request,
-        'Request timed out after ${_requestTimeout.inSeconds}s',
+        'Request timed out after ${budget.inSeconds}s',
       );
     } on http.ClientException catch (e) {
       throw _transportFailure(request, e.message);

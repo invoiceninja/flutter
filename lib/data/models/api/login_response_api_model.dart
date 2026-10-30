@@ -691,6 +691,15 @@ abstract class AccountEnvelopeApi with _$AccountEnvelopeApi {
     // (`private-user-{account_key}-{user_id}`) the server pushes
     // download-ready events on.
     @Default('') String key,
+    // Self-hosted update check (`AccountTransformer`): the installed
+    // release, the newest one the server has heard of, and the two install
+    // facts that decide whether the app may run `POST /self-update`.
+    @JsonKey(name: 'current_version') @Default('') String currentVersion,
+    @JsonKey(name: 'latest_version') @Default('') String latestVersion,
+    @JsonKey(name: 'is_docker') @Default(false) bool isDocker,
+    @JsonKey(name: 'disable_auto_update')
+    @Default(false)
+    bool disableAutoUpdate,
   }) = _AccountEnvelopeApi;
 
   factory AccountEnvelopeApi.fromJson(Map<String, dynamic> json) =>

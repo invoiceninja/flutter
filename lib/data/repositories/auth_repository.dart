@@ -1439,6 +1439,10 @@ class AuthRepository {
     var reportErrors = false;
     var isPremium = false;
     var accountKey = '';
+    var serverCurrentVersion = '';
+    var serverLatestVersion = '';
+    var isDocker = false;
+    var disableAutoUpdate = false;
     final featuresRaw = account.featuresJson;
     if (featuresRaw != null && featuresRaw.isNotEmpty) {
       try {
@@ -1465,6 +1469,10 @@ class AuthRepository {
           reportErrors = decoded['report_errors'] == true;
           isPremium = decoded['is_premium'] == true;
           accountKey = asStr(decoded['key']);
+          serverCurrentVersion = asStr(decoded['current_version']);
+          serverLatestVersion = asStr(decoded['latest_version']);
+          isDocker = decoded['is_docker'] == true;
+          disableAutoUpdate = decoded['disable_auto_update'] == true;
         }
       } catch (_) {
         /* fall through to defaults */
@@ -1592,6 +1600,10 @@ class AuthRepository {
       reportErrors: reportErrors,
       isPremium: isPremium,
       accountKey: accountKey,
+      serverCurrentVersion: serverCurrentVersion,
+      serverLatestVersion: serverLatestVersion,
+      isDocker: isDocker,
+      disableAutoUpdate: disableAutoUpdate,
     );
     final storedToken = tokensMap[session.currentCompanyId];
     final String activeToken;
@@ -2444,6 +2456,10 @@ class AuthRepository {
       reportErrors: firstAccount.reportErrors,
       isPremium: firstAccount.isPremium,
       accountKey: firstAccount.key,
+      serverCurrentVersion: firstAccount.currentVersion,
+      serverLatestVersion: firstAccount.latestVersion,
+      isDocker: firstAccount.isDocker,
+      disableAutoUpdate: firstAccount.disableAutoUpdate,
     );
     _credentials.value = ApiCredentials(
       baseUrl: baseUrl,

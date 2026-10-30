@@ -54,6 +54,7 @@ class _CapturingClient extends ApiClient {
     Map<String, String>? query,
     bool readOnly = false,
     bool requiresPassword = false,
+    Duration? timeout,
   }) async {
     posts.add((path: path, body: body, query: query));
     return const {'data': <String, Object?>{}};

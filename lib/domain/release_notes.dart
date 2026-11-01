@@ -215,6 +215,68 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.21',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.edit_outlined,
+        title: 'Tap a line to edit it',
+        body: "A line item on a document's record screen opens its editor.",
+        target: ReleaseHighlightRoute('/invoices', module: EntityType.invoice),
+      ),
+      ReleaseHighlight(
+        icon: Icons.receipt_long_outlined,
+        title: 'Last Sent Date column',
+        body: 'See when each invoice or quote was last sent.',
+        target: ReleaseHighlightRoute('/invoices', module: EntityType.invoice),
+      ),
+      ReleaseHighlight(
+        icon: Icons.picture_as_pdf_outlined,
+        title: 'A PDF that keeps up',
+        body: 'The PDF preview refreshes as soon as the document changes.',
+      ),
+      ReleaseHighlight(
+        icon: Icons.timer_outlined,
+        title: 'Show seconds',
+        body: 'Task timers and time entries can show seconds.',
+        target: ReleaseHighlightRoute('/settings/device_settings'),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: A self-hosted server can be updated from the app. An admin '
+        'sees Update Available in the sidebar when a newer version is out, '
+        'and About offers Update App.',
+      ),
+      ReleaseNoteItem(
+        'Added: Tap a line item on an invoice, quote, credit, purchase order '
+        "or recurring invoice's record screen to edit that line straight away.",
+      ),
+      ReleaseNoteItem(
+        'Added: An optional Last Sent Date column on the invoice and quote '
+        'lists.',
+      ),
+      ReleaseNoteItem(
+        'Added: Show Seconds in Device Settings adds seconds to task timers, '
+        'durations and time entries.',
+      ),
+      ReleaseNoteItem(
+        'Updated: On desktop, downloads save straight to the downloads folder, '
+        'with an Open button. Windows and Linux can choose the folder in '
+        'Device Settings.',
+      ),
+      ReleaseNoteItem(
+        "Fixed: A billing document's PDF preview now refreshes after an edit, "
+        'instead of showing the document as first opened.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: An invoice or quote with a negative total can be saved, an '
+        'expense with only a payment type shows as Paid, and a new logo block '
+        "in the invoice designer starts at the stock designs' size "
+        '[#179](https://github.com/invoiceninja/flutter/issues/179)',
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.20',
     highlights: [
       ReleaseHighlight(

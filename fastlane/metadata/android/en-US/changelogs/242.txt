@@ -1,0 +1,6 @@
+- Update a self-hosted server from the app
+- Tap a line item on a record screen to edit it
+- Last Sent Date column on invoices and quotes
+- Show Seconds setting for task timers
+- The PDF preview refreshes after an edit
+- Negative-total invoices and quotes save

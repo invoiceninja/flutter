@@ -3,6 +3,7 @@ import 'package:admin/data/models/value/dashboard_comparison.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/services/api_client.dart';
+import 'package:admin/domain/entity_state.dart';
 
 /// How many of the most-recent company activity rows one fetch pulls down.
 ///
@@ -198,66 +199,85 @@ class DashboardApi {
     return _unwrap(raw);
   }
 
-  Future<Object?> fetchPastDueInvoices() =>
-      _fetchList('/api/v1/invoices', const {
-        'include': 'client.group_settings',
-        'overdue': 'true',
-        'without_deleted_clients': 'true',
-        'per_page': '$kDashboardListPageSize',
-        'page': '1',
-        'sort': 'due_date|asc',
-      });
+  // Every dashboard list states its lifecycle `status`. The server's
+  // `QueryFilters::apply` ends in `withTrashed()`, so a list that leaves it out
+  // gets archived and deleted records too — and on a soonest-first list an old
+  // deleted one sorts to the top (invoiceninja/flutter#181). React sends it as
+  // well, invisibly: its `DataTable` defaults `status` to `active`.
+  //
+  // Invoices and payments keep archived records: an archived invoice is still
+  // owed and an archived payment still counts, and the Overdue / Outstanding /
+  // Paid KPIs (`ChartQueries`, `is_deleted = 0` only) count both — the lists
+  // must agree with the figures above them. Quotes and recurring invoices are
+  // active-only: an archived recurring invoice never sends (`RecurringInvoicesCron`
+  // skips `deleted_at`), and no figure counts an archived quote.
+  static final String _notDeleted = [
+    EntityState.active,
+    EntityState.archived,
+  ].map((s) => s.serverName).join(',');
+  static final String _activeOnly = EntityState.active.serverName;
 
-  Future<Object?> fetchUpcomingInvoices() =>
-      _fetchList('/api/v1/invoices', const {
-        'include': 'client.group_settings',
-        // `upcoming` filters to sent/partial invoices with a future (or null)
-        // due date and applies its own server-side ordering — matches React.
-        // Do NOT also send `sort`, or it competes with that ordering.
-        'upcoming': 'true',
-        'without_deleted_clients': 'true',
-        'per_page': '$kDashboardListPageSize',
-        'page': '1',
-      });
+  Future<Object?> fetchPastDueInvoices() => _fetchList('/api/v1/invoices', {
+    'include': 'client.group_settings',
+    'overdue': 'true',
+    'without_deleted_clients': 'true',
+    'status': _notDeleted,
+    'per_page': '$kDashboardListPageSize',
+    'page': '1',
+    'sort': 'due_date|asc',
+  });
 
-  Future<Object?> fetchRecentPayments() => _fetchList(
-    '/api/v1/payments',
-    const {
-      'include': 'client',
-      // Most-recent first by payment date (the server otherwise defaults to
-      // id-desc) and exclude payments whose client was deleted — matches React.
-      'sort': 'date|desc',
-      'without_deleted_clients': 'true',
-      'per_page': '$kDashboardListPageSize',
-      'page': '1',
-    },
-  );
+  Future<Object?> fetchUpcomingInvoices() => _fetchList('/api/v1/invoices', {
+    'include': 'client.group_settings',
+    // `upcoming` filters to sent/partial invoices with a future (or null)
+    // due date and applies its own server-side ordering — matches React.
+    // Do NOT also send `sort`, or it competes with that ordering.
+    'upcoming': 'true',
+    'without_deleted_clients': 'true',
+    'status': _notDeleted,
+    'per_page': '$kDashboardListPageSize',
+    'page': '1',
+  });
 
-  Future<Object?> fetchExpiredQuotes() => _fetchList('/api/v1/quotes', const {
+  Future<Object?> fetchRecentPayments() => _fetchList('/api/v1/payments', {
+    'include': 'client',
+    // Most-recent first by payment date (the server otherwise defaults to
+    // id-desc) and exclude payments whose client was deleted — matches React.
+    'sort': 'date|desc',
+    'without_deleted_clients': 'true',
+    'status': _notDeleted,
+    'per_page': '$kDashboardListPageSize',
+    'page': '1',
+  });
+
+  Future<Object?> fetchExpiredQuotes() => _fetchList('/api/v1/quotes', {
     'include': 'client',
     'client_status': 'expired',
     'without_deleted_clients': 'true',
+    'status': _activeOnly,
     'per_page': '$kDashboardListPageSize',
     'page': '1',
     'sort': 'id|desc',
   });
 
-  Future<Object?> fetchUpcomingQuotes() => _fetchList('/api/v1/quotes', const {
+  Future<Object?> fetchUpcomingQuotes() => _fetchList('/api/v1/quotes', {
     'include': 'client',
     // Only sent quotes whose valid-until is today or later — matches React.
     'client_status': 'upcoming',
     'without_deleted_clients': 'true',
+    'status': _activeOnly,
     'per_page': '$kDashboardListPageSize',
     'page': '1',
   });
 
   Future<Object?> fetchUpcomingRecurringInvoices() =>
-      _fetchList('/api/v1/recurring_invoices', const {
+      _fetchList('/api/v1/recurring_invoices', {
         'include': 'client',
         // Only active recurring invoices, soonest next-send first — matches
         // React (the server otherwise returns every status in id-desc order).
         'client_status': 'active',
         'without_deleted_clients': 'true',
+        'status': _activeOnly,
         'per_page': '$kDashboardListPageSize',
         'page': '1',
         'sort': 'next_send_date_client|asc',

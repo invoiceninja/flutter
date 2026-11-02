@@ -79,6 +79,7 @@ void main() {
       'include': 'client.group_settings',
       'overdue': 'true',
       'without_deleted_clients': 'true',
+      'status': 'active,archived',
       'per_page': '50',
       'page': '1',
       'sort': 'due_date|asc',
@@ -93,6 +94,7 @@ void main() {
       'include': 'client.group_settings',
       'upcoming': 'true',
       'without_deleted_clients': 'true',
+      'status': 'active,archived',
       'per_page': '50',
       'page': '1',
     });
@@ -108,6 +110,7 @@ void main() {
       'include': 'client',
       'sort': 'date|desc',
       'without_deleted_clients': 'true',
+      'status': 'active,archived',
       'per_page': '50',
       'page': '1',
     });
@@ -120,6 +123,7 @@ void main() {
       'include': 'client',
       'client_status': 'expired',
       'without_deleted_clients': 'true',
+      'status': 'active',
       'per_page': '50',
       'page': '1',
       'sort': 'id|desc',
@@ -133,11 +137,15 @@ void main() {
       'include': 'client',
       'client_status': 'upcoming',
       'without_deleted_clients': 'true',
+      'status': 'active',
       'per_page': '50',
       'page': '1',
     });
   });
 
+  // invoiceninja/flutter#181: without `status` the server also returns deleted
+  // records, and an old deleted recurring invoice sorted to the top of this
+  // soonest-first panel. Archived ones are left out too: they never send.
   test('upcoming recurring — active, next-send asc', () async {
     await api.fetchUpcomingRecurringInvoices();
     expect(client.gets.single.path, '/api/v1/recurring_invoices');
@@ -145,6 +153,7 @@ void main() {
       'include': 'client',
       'client_status': 'active',
       'without_deleted_clients': 'true',
+      'status': 'active',
       'per_page': '50',
       'page': '1',
       'sort': 'next_send_date_client|asc',

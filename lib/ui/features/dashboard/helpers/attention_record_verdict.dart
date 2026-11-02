@@ -39,9 +39,17 @@ AttentionVerdict invoiceVerdict(Invoice? invoice) {
 
 /// The verdict for a quote awaiting an answer: still worth a reminder only
 /// while it is sent and not yet approved, converted, rejected or cancelled.
+///
+/// An archived quote is resolved too — the dashboard's quote lists are
+/// active-only (`DashboardApi.fetchUpcomingQuotes`), so archiving is how a user
+/// takes one off the band. An archived *invoice* is not: it is still owed, and
+/// the invoice lists keep it.
 AttentionVerdict quoteVerdict(Quote? quote) {
   if (quote == null) return AttentionVerdict.unavailable;
-  if (quote.isDeleted || !quote.isSent || quote.isConverted) {
+  if (quote.isDeleted ||
+      quote.archivedAt != null ||
+      !quote.isSent ||
+      quote.isConverted) {
     return AttentionVerdict.resolved;
   }
   return AttentionVerdict.act;

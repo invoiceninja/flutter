@@ -10,6 +10,7 @@ Invoice _invoice(
   String statusId, {
   double balance = 100,
   bool deleted = false,
+  int archivedAt = 0,
 }) => Invoice.fromApi(
   InvoiceApi(
     id: 'i1',
@@ -17,18 +18,24 @@ Invoice _invoice(
     balance: balance,
     amount: 100,
     isDeleted: deleted,
+    archivedAt: archivedAt,
   ),
 );
 
-Quote _quote(String statusId, {bool deleted = false, String invoiceId = ''}) =>
-    Quote.fromApi(
-      QuoteApi(
-        id: 'q1',
-        statusId: statusId,
-        isDeleted: deleted,
-        invoiceId: invoiceId,
-      ),
-    );
+Quote _quote(
+  String statusId, {
+  bool deleted = false,
+  int archivedAt = 0,
+  String invoiceId = '',
+}) => Quote.fromApi(
+  QuoteApi(
+    id: 'q1',
+    statusId: statusId,
+    isDeleted: deleted,
+    archivedAt: archivedAt,
+    invoiceId: invoiceId,
+  ),
+);
 
 /// A dashboard row is a cached copy of the server's list, so its action runs
 /// on the record as it is *now*. These are the three answers that re-read can
@@ -99,5 +106,21 @@ void main() {
     test('unfetchable is unavailable', () {
       expect(quoteVerdict(null), AttentionVerdict.unavailable);
     });
+
+    // The quote lists are active-only, so archiving takes a quote off the band.
+    test('an archived quote is resolved', () {
+      expect(
+        quoteVerdict(_quote('2', archivedAt: 1700000000)),
+        AttentionVerdict.resolved,
+      );
+    });
+  });
+
+  // An archived invoice is still owed, and the invoice lists keep it.
+  test('an archived invoice still owed is acted on', () {
+    expect(
+      invoiceVerdict(_invoice('2', archivedAt: 1700000000)),
+      AttentionVerdict.act,
+    );
   });
 }

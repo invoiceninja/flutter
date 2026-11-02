@@ -309,7 +309,7 @@ The OS-shown text (gallery names and descriptions, the Edit Widget options, the 
 `Localizable.xcstrings` in all 44 languages, by the device's language. Everything a widget draws
 comes from the snapshot's `strings`, in the app's language.
 
-Signing: the extension needs its own App ID, App Store profile and secret (`docs/store-deployment-setup.md` §3E). Until then the iOS App Store workflow stops at the profile step with that message. Local simulator and Automatic-signing device builds don't need any of that.
+Signing: for the GitHub workflows the extension needs its own App ID (both platforms), App Store profiles and secrets (`docs/store-deployment-setup.md` §3E); until then each App Store workflow stops at the profile step with that message. Local simulator and device builds and an Xcode **Product → Archive** need none of it: Automatic signing registers the App ID and group itself. Open the HomeWidgets target's Signing & Capabilities once before the first archive.
 
 ### macOS
 

@@ -151,17 +151,24 @@ extension CreditCalculation on Credit {
   bool get isPartial => statusId == CreditStatus.partial;
   bool get isApplied => statusId == CreditStatus.applied;
 
-  /// Mirrors the backend `CreditFilters::applicable` gate (React's payment
-  /// credit picker sends `?applicable=true`): only SENT/PARTIAL credits with a
-  /// positive balance and an unelapsed due date can be applied to a payment.
-  /// Drafts (whose `balanceOrAmount` reports the full amount despite a 0
-  /// balance), applied, and past-due credits are silent server-side no-ops, so
-  /// they must not appear as selectable allocation targets.
+  /// Whether the credit can be drawn down by a payment: open (draft, sent or
+  /// partial), something left on it, not archived / deleted, due date not
+  /// passed.
+  ///
+  /// A **draft** qualifies, as in v1 (`isUnpaid` + `balanceOrAmount`): the
+  /// server marks a draft credit sent before checking its balance
+  /// (`ValidCreditsRules`, "Support using draft credits in payments",
+  /// e1863394ef) and again before applying it (`PaymentRepository`) — a status
+  /// change and a balance of its full amount, never an email. Its own
+  /// `balance` is still zero until then, so the open amount is
+  /// [balanceOrAmount]. This is wider than React's `?applicable=true` list
+  /// filter (`CreditFilters::applicable`, Sent / Partial only), which is a
+  /// narrower list, not a limit of the payment endpoint.
   bool get isApplicableForPayment =>
       !isDeleted &&
       archivedAt == null &&
-      (isSent || isPartial) &&
-      balance > Decimal.zero &&
+      (isDraft || isSent || isPartial) &&
+      balanceOrAmount > Decimal.zero &&
       (dueDate == null || dueDate!.compareTo(Date.today()) > 0);
 
   bool get hasViewedInvitation => invitations.any((i) => i.hasBeenViewed);

@@ -123,6 +123,19 @@ void main() {
       expect(enabled(items, CreditAction.applyToInvoice), isTrue);
     });
 
+    // The server keeps a draft's balance at zero until it is marked sent,
+    // which a payment using it does itself — v1 offered Apply here.
+    testWidgets('enabled on a draft, whose balance is still zero', (
+      tester,
+    ) async {
+      final items = await resolveItems(
+        tester,
+        _credit(status: CreditStatus.draft, amount: '80', balance: '0'),
+      );
+
+      expect(enabled(items, CreditAction.applyToInvoice), isTrue);
+    });
+
     testWidgets('disabled once fully applied', (tester) async {
       final items = await resolveItems(
         tester,

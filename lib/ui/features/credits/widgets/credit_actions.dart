@@ -233,7 +233,9 @@ class CreditActions {
           kind: CreditAction.applyToInvoice,
           icon: Icons.price_check_outlined,
           label: context.tr('apply_credit'),
-          enabled: credit.balance > Decimal.zero && !credit.isDeleted,
+          // A draft applies at its full amount: the server marks it sent
+          // first (no email) — see `Credit.isApplicableForPayment`.
+          enabled: credit.balanceOrAmount > Decimal.zero && !credit.isDeleted,
           onTap: () => onTap(CreditAction.applyToInvoice),
         ),
       if (canCreate)
@@ -458,7 +460,7 @@ class CreditActions {
             paymentables: [
               Paymentable(
                 creditId: credit.id,
-                amount: credit.balance,
+                amount: credit.balanceOrAmount,
                 refunded: Decimal.zero,
               ),
             ],

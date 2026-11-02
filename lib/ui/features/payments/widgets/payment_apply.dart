@@ -174,10 +174,12 @@ Future<Invoice?> oldestUnpaidInvoice(
   return null;
 }
 
-/// Drafts and archived invoices are NOT targets: the server's `applyPayment`
-/// calls `markSent()` first, so applying to a draft would silently send AND
-/// pay it. Mirrors the manual picker's filter in
-/// `payment_allocations_section.dart`.
+/// Drafts and archived invoices are NOT targets: this picks "the oldest
+/// unpaid invoice" for the user, and a draft has not been sent to the client,
+/// so it is not yet owed — while the server would mark it sent AND pay it
+/// (`PaymentRepository` calls `markSent()` first). The manual allocation list
+/// (`payment_allocations_section.dart`) deliberately differs on drafts: there
+/// the user chooses the invoice.
 bool _isApplyTarget(Invoice i) =>
     i.balance > Decimal.zero &&
     !i.isDeleted &&

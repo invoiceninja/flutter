@@ -276,12 +276,17 @@ class _LiveSectionState extends State<_LiveSection> {
   }
 }
 
+/// A draft is a target: applying a credit or a payment to an invoice that has
+/// not gone out yet is an ordinary workflow (v1 and React both list drafts),
+/// and the server accepts it up to the draft's amount, marking it sent — a
+/// status change, never an email. Only the one-tap apply
+/// (`payment_apply.dart`) leaves drafts out: it picks the oldest *owed*
+/// invoice for the user, and a draft has not been sent to anyone.
 List<AllocationTarget> _invoiceTargets(List<Invoice> invoices) {
   return invoices
       .where(
         (i) =>
             !i.isDeleted &&
-            !i.isDraft &&
             i.archivedAt == null &&
             i.balanceOrAmount > Decimal.zero,
       )
@@ -303,7 +308,8 @@ List<AllocationTarget> _creditTargets(List<Credit> credits) {
         (c) => AllocationTarget(
           id: c.id,
           number: c.number,
-          balance: c.balance,
+          // A draft credit's open amount — see `isApplicableForPayment`.
+          balance: c.balanceOrAmount,
           partial: Decimal.zero,
         ),
       )

@@ -14,8 +14,10 @@ import 'package:admin/utils/formatting.dart';
 
 /// Start a new payment from an invoice instead of a client (React's "client
 /// *or* invoice"): picking one fills the client and allocates the invoice's
-/// open amount. Lists the unpaid invoices — every client's until one is
-/// chosen, then that client's — newest first.
+/// open amount. Lists the unpaid invoices and the drafts — every client's
+/// until one is chosen, then that client's — newest first. A draft is
+/// payable: the server takes a payment on one up to its amount and marks it
+/// sent (no email), as v1 and React both allow.
 ///
 /// It shows and controls the payment's single invoice, so it is drawn only
 /// while there is at most one: past that the allocations section below is
@@ -37,6 +39,7 @@ class PaymentInvoicePicker extends StatefulWidget {
 class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
   late final Services _services;
   late final Stream<List<Invoice>> _invoices;
+  late final Stream<List<Invoice>> _drafts;
   late final Stream<List<Client>> _clients;
 
   /// The client whose unpaid invoices were last fetched; `''` is everyone's.
@@ -53,6 +56,11 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
       limit: 1000,
       badgeModeId: 'unpaid',
     );
+    _drafts = _services.invoices.watchRecent(
+      companyId: vm.companyId,
+      limit: 1000,
+      badgeModeId: 'draft',
+    );
     // The same query the Client picker runs, which drift shares — here only to
     // name each invoice's client.
     _clients = _services.clients.watchPage(
@@ -68,9 +76,9 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
     _fetch();
   }
 
-  /// A list page doesn't bring every unpaid invoice, so ask the server for
-  /// the first page of them — everyone's, or the chosen client's. Best
-  /// effort: offline, the cached ones are what there is.
+  /// A list page doesn't bring every unpaid invoice or draft, so ask the
+  /// server for the first page of them — everyone's, or the chosen client's.
+  /// Best effort: offline, the cached ones are what there is.
   void _fetch() {
     final clientId = vm.draft.clientId;
     if (clientId == _fetchedFor) return;
@@ -81,7 +89,7 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
             companyId: vm.companyId,
             page: 1,
             extraFilters: const {
-              'client_status': {'unpaid'},
+              'client_status': {'draft', 'unpaid'},
             },
           )
           .ignore();
@@ -92,6 +100,18 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
             clientId: clientId,
           )
           .ignore();
+      if (!clientId.startsWith('tmp_')) {
+        _services.invoices
+            .ensurePageLoaded(
+              companyId: vm.companyId,
+              page: 1,
+              extraFilters: {
+                'client_id': {clientId},
+                'client_status': const {'draft'},
+              },
+            )
+            .ignore();
+      }
     }
   }
 
@@ -101,6 +121,7 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
     final name = client?.displayName ?? '';
     return [
       invoice.number.isEmpty ? context.tr('pending') : '#${invoice.number}',
+      if (invoice.isDraft) context.tr('draft'),
       if (name.isNotEmpty) name,
       f?.money(amount, clientCurrencyId: client?.currencyId) ??
           amount.toString(),
@@ -143,42 +164,65 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
           for (final c in clientSnap.data ?? const <Client>[]) c.id: c,
         };
         return StreamBuilder<List<Invoice>>(
-          stream: _invoices,
-          builder: (context, snap) {
-            final clientId = vm.draft.clientId;
-            final items = [
-              for (final i in snap.data ?? const <Invoice>[])
-                if (!i.id.startsWith('tmp_') &&
-                    i.balanceOrAmount > Decimal.zero &&
-                    (clientId.isEmpty || i.clientId == clientId))
-                  i,
-            ];
-            final allocated = [
-              for (final p in vm.draft.paymentables)
-                if (p.invoiceId.isNotEmpty) p.invoiceId,
-            ];
-            Invoice? selected;
-            if (allocated.length == 1) {
-              for (final i in items) {
-                if (i.id == allocated.single) {
-                  selected = i;
-                  break;
+          stream: _drafts,
+          builder: (context, draftSnap) => StreamBuilder<List<Invoice>>(
+            stream: _invoices,
+            builder: (context, snap) {
+              final clientId = vm.draft.clientId;
+              final items = [
+                for (final i in _newestFirst(
+                  snap.data ?? const <Invoice>[],
+                  draftSnap.data ?? const <Invoice>[],
+                ))
+                  if (!i.id.startsWith('tmp_') &&
+                      i.balanceOrAmount > Decimal.zero &&
+                      (clientId.isEmpty || i.clientId == clientId))
+                    i,
+              ];
+              final allocated = [
+                for (final p in vm.draft.paymentables)
+                  if (p.invoiceId.isNotEmpty) p.invoiceId,
+              ];
+              Invoice? selected;
+              if (allocated.length == 1) {
+                for (final i in items) {
+                  if (i.id == allocated.single) {
+                    selected = i;
+                    break;
+                  }
                 }
               }
-            }
-            return SearchableDropdownField<Invoice>(
-              label: context.tr('invoice'),
-              items: items,
-              initialValue: selected,
-              emptyHintKey: 'no_open_invoices',
-              displayString: (i) => _label(context, i, clientsById[i.clientId]),
-              idOf: (i) => i.id,
-              onChanged: (i) =>
-                  _onPicked(i, i == null ? null : clientsById[i.clientId]),
-            );
-          },
+              return SearchableDropdownField<Invoice>(
+                label: context.tr('invoice'),
+                items: items,
+                initialValue: selected,
+                emptyHintKey: 'no_open_invoices',
+                displayString: (i) =>
+                    _label(context, i, clientsById[i.clientId]),
+                idOf: (i) => i.id,
+                onChanged: (i) =>
+                    _onPicked(i, i == null ? null : clientsById[i.clientId]),
+              );
+            },
+          ),
         );
       },
     );
   }
+}
+
+/// The two local lists as one, newest first — the order each already has
+/// (`watchRecent` sorts by date, then created).
+List<Invoice> _newestFirst(List<Invoice> unpaid, List<Invoice> drafts) {
+  if (drafts.isEmpty) return unpaid;
+  if (unpaid.isEmpty) return drafts;
+  final seen = <String>{};
+  return [
+    for (final i in [...unpaid, ...drafts])
+      if (seen.add(i.id)) i,
+  ]..sort((a, b) {
+    final byDate = (b.date?.toIso() ?? '').compareTo(a.date?.toIso() ?? '');
+    if (byDate != 0) return byDate;
+    return b.createdAt.compareTo(a.createdAt);
+  });
 }

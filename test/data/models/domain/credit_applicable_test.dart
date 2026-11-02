@@ -4,12 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/api/credit_api_model.dart';
 import 'package:admin/data/models/domain/credit.dart';
 
-/// Guards [Credit.isApplicableForPayment] — the client-side mirror of the
-/// backend `CreditFilters::applicable` gate (React sends `?applicable=true`)
-/// used by the payment allocation credit picker. Only SENT/PARTIAL credits
-/// with a positive balance and an unelapsed due date may be applied; drafts,
-/// applied, zero-balance, archived/deleted, and past-due credits must not
-/// appear as selectable targets (the server would apply nothing).
+/// Guards [Credit.isApplicableForPayment] — the gate on the payment
+/// allocation credit picker. Open credits (draft, sent, partial) with
+/// something left on them and an unelapsed due date may be applied; applied,
+/// zero-balance, archived/deleted, and past-due credits must not appear as
+/// selectable targets. A draft qualifies because the server marks it sent
+/// before applying it (`ValidCreditsRules` / `PaymentRepository`).
 void main() {
   Credit credit({
     String statusId = '2', // sent
@@ -41,13 +41,19 @@ void main() {
     expect(credit(statusId: '3', balance: '40').isApplicableForPayment, isTrue);
   });
 
-  test('DRAFT credit (amount > 0, balance 0) is NOT applicable — the bug', () {
-    // `balanceOrAmount` reports the full amount for a draft, which is what let
-    // drafts leak into the picker; the gate must still exclude them because the
-    // server can apply nothing against a zero balance.
+  test('DRAFT credit (amount > 0, balance 0) is applicable at its amount', () {
+    // The server's balance is zero until it marks the draft sent, which it
+    // does itself when a payment uses it (v1 parity; beta feedback).
     final c = credit(statusId: '1', amount: '1000', balance: '0');
-    expect(c.balanceOrAmount > Decimal.zero, isTrue); // reports amount...
-    expect(c.isApplicableForPayment, isFalse); // ...but not applicable
+    expect(c.balanceOrAmount, Decimal.parse('1000'));
+    expect(c.isApplicableForPayment, isTrue);
+  });
+
+  test('DRAFT credit with a zero amount is NOT applicable', () {
+    expect(
+      credit(statusId: '1', amount: '0', balance: '0').isApplicableForPayment,
+      isFalse,
+    );
   });
 
   test('APPLIED credit is NOT applicable', () {

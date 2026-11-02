@@ -41,8 +41,12 @@ class _FakeInvoices implements InvoiceRepository {
     String? badgeModeId,
     Set<EntityState> states = const {EntityState.active},
   }) {
-    expect(badgeModeId, 'unpaid');
-    return Stream.value(rows);
+    expect(badgeModeId, anyOf('unpaid', 'draft'));
+    final drafts = badgeModeId == 'draft';
+    return Stream.value([
+      for (final r in rows)
+        if (r.isDraft == drafts) r,
+    ]);
   }
 
   @override
@@ -54,7 +58,11 @@ class _FakeInvoices implements InvoiceRepository {
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
   }) async {
-    fetches.add('all:${extraFilters['client_status']?.join()}');
+    final clientId = extraFilters['client_id']?.single;
+    final statuses = (extraFilters['client_status']!.toList()..sort()).join(
+      ',',
+    );
+    fetches.add(clientId == null ? 'all:$statuses' : '$statuses:$clientId');
     return false;
   }
 
@@ -115,7 +123,8 @@ Invoice _invoice(
     clientId: clientId,
     statusId: status,
     amount: double.parse(balance),
-    balance: double.parse(balance),
+    // The server leaves a draft's balance at zero until it is marked sent.
+    balance: status == '1' ? 0 : double.parse(balance),
   ),
 );
 
@@ -130,6 +139,7 @@ void main() {
       _invoice('i2', '0002', 'c2', '80'),
       _invoice('i3', '0003', 'c1', '0'), // nothing left to pay
       _invoice('tmp_x', '', 'c1', '50'), // not on the server yet
+      _invoice('d1', '0004', 'c1', '200', status: '1'), // a draft
     ]);
   });
   tearDown(() async => db.close());
@@ -188,7 +198,24 @@ void main() {
     expect(find.text('#0002  ·  Globex  ·  80'), findsOneWidget);
     expect(find.textContaining('#0003'), findsNothing);
     expect(find.textContaining('Pending'), findsNothing);
-    expect(invoices.fetches, ['all:unpaid']);
+    expect(invoices.fetches, ['all:draft,unpaid']);
+  });
+
+  // invoiceninja/flutter beta feedback: a credit could not be applied to a
+  // draft invoice. The server takes a payment on a draft up to its amount.
+  testWidgets('a draft is listed, marked, and allocates its amount', (
+    tester,
+  ) async {
+    final vm = await pump(tester);
+    await openPicker(tester);
+
+    final label = '#0004  ·  Draft  ·  Acme Ltd  ·  200';
+    expect(find.text(label), findsOneWidget);
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+
+    expect(vm.draft.paymentables.single.invoiceId, 'd1');
+    expect(vm.draft.amount, Decimal.parse('200'));
   });
 
   testWidgets('picking one fills the client, currency and allocation', (
@@ -203,8 +230,8 @@ void main() {
     expect(vm.draft.currencyId, '3');
     expect(vm.draft.paymentables.single.invoiceId, 'i1');
     expect(vm.draft.amount, Decimal.parse('120'));
-    // The picked client's own unpaid invoices are fetched next.
-    expect(invoices.fetches.last, 'client:c1');
+    // The picked client's own unpaid invoices and drafts are fetched next.
+    expect(invoices.fetches, containsAll(['client:c1', 'draft:c1']));
   });
 
   testWidgets('with a client chosen, only that client\'s invoices', (
@@ -215,7 +242,7 @@ void main() {
 
     expect(find.textContaining('#0002'), findsOneWidget);
     expect(find.textContaining('#0001'), findsNothing);
-    expect(invoices.fetches, ['client:c2']);
+    expect(invoices.fetches, ['client:c2', 'draft:c2']);
   });
 
   testWidgets('an invoice already allocated shows as the value', (

@@ -261,20 +261,24 @@ class InvoiceActions {
         !invoice.isPaid &&
         !invoice.isCancelled &&
         !invoice.isReversed;
-    // Enter Payment → record a (partial) payment against an unpaid, non-draft
-    // invoice. Promoted to the primary action (demoting Edit to a visible
-    // secondary) when the invoice still owes money — recording payment is the
-    // likely intent on a sent / past-due invoice.
+    // Enter Payment → record a (partial) payment against an unpaid invoice,
+    // a draft included: v1 (`isPayable`) and React (`status_id < 4`) both
+    // offer it, and the server takes a payment on a draft up to its amount
+    // (`ValidPayableInvoicesRule` + `StorePaymentRequest`), marking it sent
+    // on the way — a status change,
+    // no email (`MarkSent`). Promoted to the primary action (demoting Edit to
+    // a visible secondary) once the invoice is sent — recording payment is
+    // the likely intent on a sent / past-due invoice; on a draft, Edit stays.
     final canEnterPayment =
         (me?.can('create_payment') ?? false) &&
         // A deleted invoice is read-only until restored: the server refuses a
         // payment against it, and a filled "Enter Payment" beside the banner
         // saying so was the one thing on the screen that contradicted it.
         !invoice.isDeleted &&
-        !invoice.isDraft &&
         !invoice.isPaid &&
         !invoice.isCancelled &&
         !invoice.isReversed;
+    final paymentLeads = canEnterPayment && !invoice.isDraft;
 
     return [
       if (canEnterPayment)
@@ -283,7 +287,7 @@ class InvoiceActions {
           icon: Icons.payments_outlined,
           label: context.tr('enter_payment'),
           enabled: true,
-          isPrimary: true,
+          isPrimary: paymentLeads,
           onTap: () => onTap(InvoiceAction.enterPayment),
         ),
       if (canEditInvoice)
@@ -291,7 +295,7 @@ class InvoiceActions {
           context: context,
           kind: InvoiceAction.edit,
           onTap: () => onTap(InvoiceAction.edit),
-          isPrimary: !canEnterPayment,
+          isPrimary: !paymentLeads,
         ),
       pdfGroupActionItem(
         context: context,
@@ -564,7 +568,13 @@ class InvoiceActions {
     return [
       // "+ Payment", as on the client screen: the noun is one word in every
       // bundled locale, where the verb phrase will not fit a tile.
-      ?q.pick(InvoiceAction.enterPayment, '+ ${context.tr('payment')}'),
+      // A draft is payable (from the menu), but getting it out is what leads
+      // there, so it spends no tile on a payment.
+      ?q.pick(
+        InvoiceAction.enterPayment,
+        '+ ${context.tr('payment')}',
+        applies: !invoice.isDraft,
+      ),
       ?q.pick(InvoiceAction.markSent, context.tr('mark_sent')),
       ?q.pick(InvoiceAction.sendEmail, context.tr('email')),
       ?q.pick(InvoiceAction.viewPdf, context.tr('pdf'), applies: !hasPdfPane),
@@ -749,7 +759,9 @@ class InvoiceActions {
             paymentables: [
               Paymentable(
                 invoiceId: invoice.id,
-                amount: invoice.balance,
+                // A draft's `balance` is still zero on the server; what is
+                // owed on it is its amount.
+                amount: invoice.balanceOrAmount,
                 refunded: Decimal.zero,
               ),
             ],

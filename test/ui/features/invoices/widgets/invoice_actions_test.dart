@@ -288,8 +288,9 @@ void main() {
   });
 
   // Same caveat as mark paid: no balance term in `canEnterPayment`, only
-  // `!isDraft && !isPaid && !isCancelled && !isReversed` + the permission.
-  group('enter payment — non-draft, unsettled, needs create_payment', () {
+  // `!isPaid && !isCancelled && !isReversed` + the permission. A draft is
+  // payable (v1 / React parity; the server marks it sent, no email).
+  group('enter payment — unsettled, needs create_payment', () {
     testWidgets('is the primary action on a sent invoice', (tester) async {
       final items = await resolveItems(
         tester,
@@ -309,10 +310,13 @@ void main() {
       );
     });
 
-    testWidgets('absent on a draft', (tester) async {
+    testWidgets('offered on a draft, but Edit stays primary', (tester) async {
       final items = await resolveItems(tester, _invoice());
 
-      expect(present(items, InvoiceAction.enterPayment), isFalse);
+      final enterPayment = flattenActionItems(
+        items,
+      ).firstWhere((i) => i.kind == InvoiceAction.enterPayment);
+      expect(enterPayment.isPrimary, isFalse);
       expect(
         flattenActionItems(
           items,

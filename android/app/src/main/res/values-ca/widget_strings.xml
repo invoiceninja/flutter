@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ca translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Resum del negoci</string>
+    <string name="widget_snapshot_description">Consulta el que et deuen, el que està vençut i els pagaments d\'aquest període.</string>
+    <string name="widget_attention_name">Requereix atenció</string>
+    <string name="widget_attention_description">Fes el seguiment de les factures vençudes i mira què venç aquesta setmana. Toca\'n una per obrir-la.</string>
+    <string name="widget_timer_name">Temporitzador en curs</string>
+    <string name="widget_timer_description">Un rellotge en directe per al teu temporitzador en curs. Atura\'l, o inicia una tasca recent, amb un toc.</string>
+
+    <string name="widget_open_to_load">Obre Invoice Ninja per carregar les teves dades</string>
+    <string name="widget_update_app">Actualitza Invoice Ninja per fer servir aquest giny</string>
+    <string name="widget_sign_in">Inicia la sessió a Invoice Ninja</string>
+    <string name="widget_choose_company">Tria una empresa</string>
+    <string name="widget_no_dashboard_permission">El teu rol no pot veure les xifres del tauler</string>
+
+    <string name="widget_outstanding">Pendents</string>
+    <string name="widget_invoices">Factures</string>
+    <string name="widget_payments">Pagaments</string>
+    <string name="widget_expenses">Despeses</string>
+    <string name="widget_past_due">Vençudes</string>
+    <string name="widget_due_soon">Venç aviat</string>
+    <string name="widget_next_due">Proper venciment</string>
+    <string name="widget_unpaid_count">:count impagades</string>
+    <string name="widget_past_due_count">:count vençudes</string>
+    <string name="widget_day_late">:count dia de retard</string>
+    <string name="widget_days_late">:count dies de retard</string>
+    <string name="widget_due_today">venç avui</string>
+    <string name="widget_due_in_days">venç en :count dies</string>
+    <string name="widget_nothing_past_due">Res vençut</string>
+    <string name="widget_updated">Actualitzat</string>
+    <string name="widget_tap_to_refresh">Toca per actualitzar</string>
+    <string name="widget_open_company_to_update">Obre :company per actualitzar</string>
+
+    <string name="widget_stop">Atura</string>
+    <string name="widget_start_a_task">Inicia una tasca</string>
+    <string name="widget_running_count">+:count en curs</string>
+    <string name="widget_running_since">En curs des de :time</string>
+    <string name="widget_stopped_syncs">Aturat :time · se sincronitza quan obris Invoice Ninja</string>
+
+    <string name="widget_this_month">Aquest mes</string>
+    <string name="widget_last_30_days">Últims 30 dies</string>
+    <string name="widget_this_year">Aquest any</string>
+
+    <string name="widget_settings_title">Configuració del giny</string>
+    <string name="widget_settings_company">Empresa</string>
+    <string name="widget_settings_current_company">Empresa actual</string>
+    <string name="widget_settings_period">Període</string>
+    <string name="widget_settings_figure">Xifra (giny petit)</string>
+    <string name="widget_settings_figure_help">Un giny més ample mostra Pendents amb els pagaments d\'aquest període.</string>
+    <string name="widget_settings_hide_amounts">Amaga els imports</string>
+    <string name="widget_settings_hide_auto">Automàtic</string>
+    <string name="widget_settings_on">Activat</string>
+    <string name="widget_settings_off">Desactivat</string>
+    <string name="widget_settings_hide_help">Automàtic amaga els imports mentre el bloqueig de l\'app està activat. Els recomptes, els números de factura i els temporitzadors continuen visibles.</string>
+    <string name="widget_settings_save">Desa</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nova factura</string>
+    <string name="shortcut_new_task">Nova tasca</string>
+    <string name="shortcut_new_expense">Nova despesa</string>
+</resources>

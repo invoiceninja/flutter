@@ -1,0 +1,6 @@
+// The home-screen widget extension's base configuration.
+//
+// Only here for FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER, which Info.plist
+// uses so the extension's version always matches the app's (App Store
+// validation rejects a mismatch) — the same reason as ShareExtension.xcconfig.
+#include? "../Flutter/Generated.xcconfig"

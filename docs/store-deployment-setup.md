@@ -78,6 +78,20 @@ Accounts and **roles** that must exist before any credential can be minted. The 
 > `ios/Runner/Runner.entitlements` will sign, and the extension needs its own
 > App Store profile and secret — §3E steps 1 and 3. Until then every iOS App
 > Store dispatch fails at the profile step.
+>
+> **The home-screen widgets (docs/home-screen-widgets.md) add a third signed
+> iOS target**, `com.invoiceninja.admin.HomeWidgets`, in the same App Group. It
+> needs its own App ID (App Groups enabled), App Store profile and secret
+> (`IOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64`) — §3E steps 1 and
+> 3. Until then every iOS App Store dispatch fails at the profile step.
+>
+> **The macOS widgets add the same on the Mac side:** a team-prefixed App Group
+> `NPC44Y2C98.com.invoiceninja.admin.widgets` on `com.invoiceninja.admin` (which
+> **invalidates the existing Mac App Store profile — regenerate it**), the Mac
+> platform of `com.invoiceninja.admin.HomeWidgets` with App Groups, its Mac App
+> Store profile "Invoice Ninja Home Widgets macOS App Store", and the secret
+> `MACOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64`. Until then every
+> macOS App Store dispatch fails at the profile step.
 
 The Play, Partner Center, and Snap Store **listings already exist** — you are wiring credentials to existing apps, not creating new ones. That matters for Google Play in particular: a brand-new package requires one manual bundle upload in the Console before the API will accept anything, and that is already satisfied here. **Confirm the Apple side yourself** — the iOS and macOS app records must exist on App Store Connect (§3E step 5); unlike Play, ASC then accepts the very first build over the API with no prior manual upload.
 
@@ -147,6 +161,8 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 | `APPLE_DISTRIBUTION_CERT_PASSWORD` | The `.p12` export password | Whatever you set on export |
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile | `base64 -i profile.mobileprovision` |
 | `IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile for the Share Extension (`com.invoiceninja.admin.ShareExtension`) | `base64 -i share-extension.mobileprovision` |
+| `IOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile for the home-screen widgets (`com.invoiceninja.admin.HomeWidgets`) | `base64 -i home-widgets.mobileprovision` |
+| `MACOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64` | Mac App Store profile for the macOS home-screen widgets (`com.invoiceninja.admin.HomeWidgets`) | `base64 -i home-widgets.provisionprofile` |
 | `IN_GOOGLE_IOS_CLIENT_ID` | *Optional.* Google OAuth **iOS** client ID for `com.invoiceninja.admin` | `docs/setup.md` § Google Sign-In client IDs — its reversed form must also be in `ios/Runner/Info.plist`. Unset hides "Sign in with Google" on iOS. |
 
 ### Apple — macOS only
@@ -295,7 +311,9 @@ The App IDs must have the capabilities the entitlements files declare, or `xcode
 |---|---|---|---|
 | iOS | `com.invoiceninja.admin` | **Sign in with Apple**, **Associated Domains** (`APP_LINKS.md`), **App Groups** → `group.com.invoiceninja.admin` | `ios/Runner/Runner.entitlements` |
 | iOS Share Extension | `com.invoiceninja.admin.ShareExtension` | **App Groups** → `group.com.invoiceninja.admin` | `ios/ShareExtension/ShareExtension.entitlements` |
-| macOS | `com.invoiceninja.admin` | **Sign in with Apple**, **App Sandbox**, **Keychain Sharing** | `macos/Runner/Release.entitlements` |
+| iOS home-screen widgets | `com.invoiceninja.admin.HomeWidgets` | **App Groups** → `group.com.invoiceninja.admin` | `ios/HomeWidgets/HomeWidgets.entitlements` |
+| macOS | `com.invoiceninja.admin` | **Sign in with Apple**, **App Sandbox**, **Keychain Sharing**, **App Groups** → `NPC44Y2C98.com.invoiceninja.admin.widgets` | `macos/Runner/Release.entitlements` |
+| macOS home-screen widgets | `com.invoiceninja.admin.HomeWidgets` | **App Sandbox**, **App Groups** → `NPC44Y2C98.com.invoiceninja.admin.widgets` | `macos/HomeWidgets/HomeWidgets.entitlements` |
 
 For the Share Extension (invoiceninja/flutter#173): first register the App Group `group.com.invoiceninja.admin` (Identifiers → App Groups), then create the extension's App ID, then enable App Groups on both iOS App IDs and assign that group. **Do this before merging the Share Extension**, and then regenerate and re-upload **both** existing App Store profiles: changing an App ID's capabilities marks every profile minted against it Invalid, and the macOS app shares the `com.invoiceninja.admin` App ID (`macos/Runner/Configs/AppInfo.xcconfig`). The iOS archive fails outright with the old profile (`Runner.entitlements` now claims App Groups); regenerate the macOS one (`MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64`) too rather than find out at the next macOS release. A developer's first device build with Automatic signing registers the new App ID and group itself — which needs the Admin or App Manager role.
 
@@ -322,11 +340,13 @@ base64 -i certs.p12 | gh secret set MAC_DISTRIBUTION_CERTS_P12_BASE64
 
 #### Step 3 — Provisioning profiles
 
-Create **three** App Store profiles, each embedding the certificate from step 2: **iOS App Store** and **Mac App Store** for `com.invoiceninja.admin`, and **iOS App Store** for `com.invoiceninja.admin.ShareExtension`. Mint them *after* step 1 — a profile carries the capabilities its App ID had at that moment.
+Create **five** App Store profiles, each embedding the certificate from step 2: **iOS App Store** and **Mac App Store** for `com.invoiceninja.admin`, **iOS App Store** for `com.invoiceninja.admin.ShareExtension`, and **iOS App Store** and **Mac App Store** for `com.invoiceninja.admin.HomeWidgets`. Mint them *after* step 1 — a profile carries the capabilities its App ID had at that moment.
 
 ```sh
 base64 -i profile.mobileprovision         | gh secret set IOS_APPSTORE_PROVISIONING_PROFILE_BASE64
 base64 -i share-extension.mobileprovision | gh secret set IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64
+base64 -i home-widgets.mobileprovision    | gh secret set IOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64
+base64 -i home-widgets.provisionprofile   | gh secret set MACOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64
 base64 -i profile.provisionprofile        | gh secret set MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64
 ```
 
@@ -334,10 +354,10 @@ base64 -i profile.provisionprofile        | gh secret set MACOS_APPSTORE_PROVISI
 
 | File / setting | Expects |
 |---|---|
-| `ios/ExportOptions.plist` | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store` |
-| `macos/ExportOptions.plist` | `Invoice Ninja macOS App Store` |
-| `appstore-macos.yml` `PROVISIONING_PROFILE_SPECIFIER` | `Invoice Ninja macOS App Store` |
-| `tools/ci_ios_target_profiles.rb` (run by `appstore-ios.yml`) | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store` |
+| `ios/ExportOptions.plist` | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store`, `Invoice Ninja Home Widgets App Store` |
+| `macos/ExportOptions.plist` | `Invoice Ninja macOS App Store`, `Invoice Ninja Home Widgets macOS App Store` |
+| `tools/ci_macos_target_profiles.rb` (run by `appstore-macos.yml`) | `Invoice Ninja macOS App Store`, `Invoice Ninja Home Widgets macOS App Store` |
+| `tools/ci_ios_target_profiles.rb` (run by `appstore-ios.yml`) | `Invoice Ninja Admin App Store`, `Invoice Ninja Share Extension App Store`, `Invoice Ninja Home Widgets App Store` |
 
 Name the profiles exactly that in the portal, **or** edit those four places to match the names you used.
 
@@ -427,6 +447,7 @@ Two exceptions:
 | `ANDROID_KEYSTORE_BASE64 is empty — cannot produce a Play-signed bundle` | Secret not set. The workflow hard-fails deliberately: without it the build would silently fall back to **debug** signing, which Play rejects on upload. |
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty` / same for macOS | Same deliberate guard. Set the secret. |
 | `IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty` | The embedded Share Extension can't be signed without its own profile. §3E steps 1 and 3. |
+| `IOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty` | The embedded home-screen widget extension can't be signed without its own profile. §3E steps 1 and 3. |
 | Archive: *"…ShareExtension… requires a provisioning profile"* / *"doesn't match the bundle identifier"* / *"doesn't include the App Groups capability"* | The extension's profile is missing, named differently from `tools/ci_ios_target_profiles.rb`, or minted before App Groups was enabled on its App ID — re-issue it after §3E step 1. |
 | Archive: *"Runner… doesn't include the com.apple.security.application-groups entitlement"* (iOS), or the macOS release failing after the Share Extension merged | The app's own profile predates App Groups on the shared `com.invoiceninja.admin` App ID, which invalidated it — regenerate the iOS **and** macOS App Store profiles and re-upload both secrets (§3E step 1). |
 | Play: *"Version code N has already been used"* | You didn't bump. Run `tools/bump_client_version.sh`, commit, re-dispatch. |

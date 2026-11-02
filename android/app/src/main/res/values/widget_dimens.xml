@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ rounds a widget to the launcher's radius
+         (system_app_widget_background_radius, values-v31). -->
+    <dimen name="widget_radius">16dp</dimen>
+    <dimen name="widget_inner_radius">8dp</dimen>
+    <dimen name="widget_padding">14dp</dimen>
+</resources>

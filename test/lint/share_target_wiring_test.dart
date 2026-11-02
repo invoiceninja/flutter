@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/app_share_intake.dart';
+import 'package:admin/data/services/home_widget_bridge.dart';
 import 'package:admin/data/services/shared_intake_files.dart';
 
 /// Sharing files into the app (invoiceninja/flutter#173) — and, on Android,
@@ -175,5 +176,101 @@ void main() {
     final thin = runnerPhases.indexOf('Thin Binary');
     expect(embed, greaterThanOrEqualTo(0));
     expect(embed, lessThan(thin));
+  });
+
+  // ─── Home-screen widgets (docs/home-screen-widgets.md) ───────────────────
+  // The same three-way agreement, for the widgets' snapshot and commands.
+
+  test('the iOS widgets share the one App Group', () {
+    final group = appGroupIn(swiftExtension);
+    // WidgetFiles declares the iOS group in its `#else` branch (macOS has
+    // its own, team-prefixed).
+    final files = read('ios/HomeWidgets/WidgetFiles.swift');
+    final ios = RegExp(
+      r'#else\s+static let appGroup = "([^"]+)"',
+    ).firstMatch(files)?.group(1);
+    expect(ios, group, reason: 'WidgetFiles.appGroup (iOS) must be $group');
+    final xml = read(
+      'ios/HomeWidgets/HomeWidgets.entitlements',
+    ).replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      xml,
+      contains(
+        '<key>com.apple.security.application-groups</key> <array> '
+        '<string>$group</string>',
+      ),
+    );
+  });
+
+  test('both native sides answer the home-widgets channel', () {
+    const name = HomeWidgetBridge.kChannelName;
+    expect(read('ios/Runner/HomeWidgetsBridge.swift'), contains('"$name"'));
+    expect(
+      read(
+        'android/app/src/main/kotlin/com/invoiceninja/admin/homewidgets/'
+        'HomeWidgetsChannel.kt',
+      ),
+      contains('"$name"'),
+    );
+    expect(read(swiftRunner), contains('HomeWidgetsBridge.register'));
+    expect(read(kotlinMain), contains('HomeWidgetsChannel('));
+  });
+
+  test('the Runner embeds the widget extension with the Share Extension', () {
+    final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
+    expect(pbx, contains('com.invoiceninja.admin.HomeWidgets'));
+    final embed = RegExp(
+      r'/\* Embed Foundation Extensions \*/ = \{.*?files = \((.*?)\);',
+      dotAll: true,
+    ).firstMatch(pbx)?.group(1);
+    expect(embed, isNotNull);
+    expect(embed, contains('HomeWidgets.appex'));
+    expect(embed, contains('ShareExtension.appex'));
+  });
+
+  test('the Stop intent is compiled into the widget extension only', () {
+    // In the Runner too, the app would register it, and iOS could run a
+    // widget's Stop in the app's process — starting Flutter for a widget.
+    final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
+    expect(
+      RegExp(r'StopTimerIntent\.swift in Sources \*/ = \{').allMatches(pbx),
+      hasLength(1),
+      reason:
+          'StopTimerIntent.swift must be in exactly one target (HomeWidgets)',
+    );
+  });
+
+  test('macOS: one team-prefixed App Group in the widgets and both Runner '
+      'entitlements', () {
+    final files = read('ios/HomeWidgets/WidgetFiles.swift');
+    final mac = RegExp(
+      r'#if os\(macOS\)\s+static let appGroup = "([^"]+)"',
+    ).firstMatch(files)?.group(1);
+    expect(mac, isNotNull);
+    expect(mac, startsWith('NPC44Y2C98.'), reason: 'team-prefixed below 15');
+    for (final entitlements in [
+      'macos/HomeWidgets/HomeWidgets.entitlements',
+      'macos/Runner/Release.entitlements',
+      'macos/Runner/DebugProfile.entitlements',
+    ]) {
+      final xml = read(entitlements).replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+        xml,
+        contains(
+          '<key>com.apple.security.application-groups</key> <array> '
+          '<string>$mac</string>',
+        ),
+        reason: '$entitlements must claim $mac',
+      );
+    }
+  });
+
+  test('macOS: the Stop intent is in the widget extension only', () {
+    final pbx = read('macos/Runner.xcodeproj/project.pbxproj');
+    expect(
+      RegExp(r'StopTimerIntent\.swift in Sources \*/ = \{').allMatches(pbx),
+      hasLength(1),
+    );
+    expect(pbx, contains('HomeWidgets.appex in Embed App Extensions'));
   });
 }

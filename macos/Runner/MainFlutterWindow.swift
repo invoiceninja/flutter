@@ -121,6 +121,10 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // The home-screen widgets' snapshot and queued commands
+    // (ios/Runner/HomeWidgetsBridge.swift, shared with iOS).
+    HomeWidgetsBridge.register(messenger: flutterViewController.engine.binaryMessenger)
+
     installSplash(
       initial: initial,
       messenger: flutterViewController.engine.binaryMessenger)

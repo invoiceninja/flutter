@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget text the OS shows before the app has written its
+     snapshot (the widget picker, the settings screen, the states), and the
+     English fallback for any key the snapshot's `strings` lacks. Everything
+     else a widget draws comes from the snapshot, in the APP's language.
+     `:name` placeholders are filled by HomeWidgets.fill, as in the app. -->
+<resources>
+    <string name="widget_snapshot_name">Business snapshot</string>
+    <string name="widget_snapshot_description">See what you\'re owed, what\'s past due, and this period\'s payments.</string>
+    <string name="widget_attention_name">Needs attention</string>
+    <string name="widget_attention_description">Chase past-due invoices and see what\'s due this week. Tap one to open it.</string>
+    <string name="widget_timer_name">Running timer</string>
+    <string name="widget_timer_description">A live clock for your running timer. Stop it, or start a recent task, in one tap.</string>
+
+    <string name="widget_open_to_load">Open Invoice Ninja to load your data</string>
+    <string name="widget_update_app">Update Invoice Ninja to use this widget</string>
+    <string name="widget_sign_in">Sign in to Invoice Ninja</string>
+    <string name="widget_choose_company">Choose a company</string>
+    <string name="widget_no_dashboard_permission">Your role can\'t view dashboard figures</string>
+
+    <string name="widget_outstanding">Outstanding</string>
+    <string name="widget_invoices">Invoices</string>
+    <string name="widget_payments">Payments</string>
+    <string name="widget_expenses">Expenses</string>
+    <string name="widget_past_due">Past Due</string>
+    <string name="widget_due_soon">Due soon</string>
+    <string name="widget_next_due">Next due</string>
+    <string name="widget_unpaid_count">:count unpaid</string>
+    <string name="widget_past_due_count">:count past due</string>
+    <string name="widget_day_late">:count day late</string>
+    <string name="widget_days_late">:count days late</string>
+    <string name="widget_due_today">due today</string>
+    <string name="widget_due_in_days">due in :count days</string>
+    <string name="widget_nothing_past_due">Nothing past due</string>
+    <string name="widget_updated">Updated</string>
+    <string name="widget_tap_to_refresh">Tap to refresh</string>
+    <string name="widget_open_company_to_update">Open :company to update</string>
+
+    <string name="widget_stop">Stop</string>
+    <string name="widget_start_a_task">Start a task</string>
+    <string name="widget_running_count">+:count running</string>
+    <string name="widget_running_since">Running since :time</string>
+    <string name="widget_stopped_syncs">Stopped :time · syncs when you open Invoice Ninja</string>
+
+    <string name="widget_this_month">This Month</string>
+    <string name="widget_last_30_days">Last 30 Days</string>
+    <string name="widget_this_year">This Year</string>
+
+    <string name="widget_settings_title">Widget settings</string>
+    <string name="widget_settings_company">Company</string>
+    <string name="widget_settings_current_company">Current company</string>
+    <string name="widget_settings_period">Period</string>
+    <string name="widget_settings_figure">Figure (small widget)</string>
+    <string name="widget_settings_figure_help">A wider widget shows Outstanding with this period\'s payments.</string>
+    <string name="widget_settings_hide_amounts">Hide amounts</string>
+    <string name="widget_settings_hide_auto">Automatic</string>
+    <string name="widget_settings_on">On</string>
+    <string name="widget_settings_off">Off</string>
+    <string name="widget_settings_hide_help">Automatic hides amounts while App Lock is on. Counts, invoice numbers and timers stay visible.</string>
+    <string name="widget_settings_save">Save</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">New Invoice</string>
+    <string name="shortcut_new_task">New Task</string>
+    <string name="shortcut_new_expense">New Expense</string>
+</resources>

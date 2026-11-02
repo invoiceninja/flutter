@@ -225,7 +225,22 @@ void main() {
       // the cold-start link twice. Verified on the iOS simulator with
       // `simctl openurl` against a terminated app (docs/upstream-workarounds.md).
       final ios = read('ios/Runner/SceneDelegate.swift');
-      expect(ios, isNot(contains('AppLinks.shared.handleLink')));
+      // No launch URL handed over: nothing reads `urlContexts` /
+      // `userActivities` here, and `handleLink` appears once — for an
+      // app-icon quick action, which app_links never sees on its own (a
+      // `UIApplicationShortcutItem`, not a URL), so it can't arrive twice.
+      expect(ios, isNot(contains('urlContexts')));
+      expect(ios, isNot(contains('userActivities')));
+      expect(
+        'AppLinks.shared.handleLink'.allMatches(ios),
+        hasLength(1),
+        reason: 'only the quick-action path may hand a link to app_links',
+      );
+      final open = ios.indexOf(
+        'static func open(_ item: UIApplicationShortcutItem)',
+      );
+      expect(open, greaterThanOrEqualTo(0));
+      expect(ios.indexOf('AppLinks.shared.handleLink'), greaterThan(open));
     });
 
     test('the macOS app_links shim is still there', () {

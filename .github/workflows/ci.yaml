@@ -204,6 +204,14 @@ jobs:
       - name: Build Android APK (FOSS, --release)
         run: flutter build apk --release
 
+      # The home-screen widgets' Kotlin decoder against the golden snapshots the
+      # Dart builder writes (test/fixtures/home_widgets/) — one half of the
+      # app/widget contract test (docs/home-screen-widgets.md). JVM only; its
+      # test dependencies are never on the release classpath checked below.
+      - name: Android unit tests (home-screen widgets)
+        working-directory: android
+        run: ./gradlew -q :app:testDebugUnitTest
+
       # prepare_foss.sh deletes the store package's Android plugin (ML Kit),
       # which F-Droid's scan would otherwise read.
       - name: No ML Kit sources in the FOSS tree
@@ -340,6 +348,13 @@ jobs:
 
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
+
+      # The Swift half of the home-screen widgets' app/widget contract test:
+      # the extension's decoder against the golden snapshots the Dart builder
+      # writes (docs/home-screen-widgets.md). Android's half runs in
+      # build-android-foss.
+      - name: Widget snapshot contract (Swift)
+        run: tools/widget_snapshot_contract.sh
 
       - name: Build iOS (no codesign)
         run: flutter build ios --no-codesign

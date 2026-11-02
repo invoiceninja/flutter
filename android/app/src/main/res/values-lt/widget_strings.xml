@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- lt translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Verslo apžvalga</string>
+    <string name="widget_snapshot_description">Matykite, kiek jums skolingi, kas pradelsta, ir šio laikotarpio mokėjimus.</string>
+    <string name="widget_attention_name">Reikia dėmesio</string>
+    <string name="widget_attention_description">Sekite pradelstas sąskaitas ir žiūrėkite, kurių terminas šią savaitę. Bakstelėkite, kad atidarytumėte.</string>
+    <string name="widget_timer_name">Veikiantis laikmatis</string>
+    <string name="widget_timer_description">Tiesioginis laikrodis jūsų veikiančiam laikmačiui. Sustabdykite jį arba pradėkite neseniai dirbtą darbą vienu bakstelėjimu.</string>
+
+    <string name="widget_open_to_load">Atidarykite Invoice Ninja, kad įkeltumėte duomenis</string>
+    <string name="widget_update_app">Atnaujinkite Invoice Ninja, kad galėtumėte naudoti šį valdiklį</string>
+    <string name="widget_sign_in">Prisijunkite prie Invoice Ninja</string>
+    <string name="widget_choose_company">Pasirinkite įmonę</string>
+    <string name="widget_no_dashboard_permission">Jūsų vaidmuo negali matyti prietaisų skydelio skaičių</string>
+
+    <string name="widget_outstanding">Neapmokėta</string>
+    <string name="widget_invoices">Sąskaitos</string>
+    <string name="widget_payments">Mokėjimai</string>
+    <string name="widget_expenses">Išlaidos</string>
+    <string name="widget_past_due">Pradelsta</string>
+    <string name="widget_due_soon">Netrukus terminas</string>
+    <string name="widget_next_due">Artimiausias terminas</string>
+    <string name="widget_unpaid_count">Neapmokėta: :count</string>
+    <string name="widget_past_due_count">Pradelsta: :count</string>
+    <string name="widget_day_late">Vėluojama dienų: :count</string>
+    <string name="widget_days_late">Vėluojama dienų: :count</string>
+    <string name="widget_due_today">terminas šiandien</string>
+    <string name="widget_due_in_days">terminas po :count d.</string>
+    <string name="widget_nothing_past_due">Nėra pradelstų</string>
+    <string name="widget_updated">Atnaujinta</string>
+    <string name="widget_tap_to_refresh">Bakstelėkite, kad atnaujintumėte</string>
+    <string name="widget_open_company_to_update">Atidarykite :company, kad atnaujintumėte</string>
+
+    <string name="widget_stop">Stabdyti</string>
+    <string name="widget_start_a_task">Pradėti darbą</string>
+    <string name="widget_running_count">+:count vykdoma</string>
+    <string name="widget_running_since">Vykdoma nuo :time</string>
+    <string name="widget_stopped_syncs">Sustabdyta :time · bus sinchronizuota atidarius Invoice Ninja</string>
+
+    <string name="widget_this_month">Šį mėnesį</string>
+    <string name="widget_last_30_days">Paskutinės 30 dienų</string>
+    <string name="widget_this_year">Šiais metais</string>
+
+    <string name="widget_settings_title">Valdiklio nustatymai</string>
+    <string name="widget_settings_company">Įmonė</string>
+    <string name="widget_settings_current_company">Dabartinė įmonė</string>
+    <string name="widget_settings_period">Laikotarpis</string>
+    <string name="widget_settings_figure">Rodiklis (mažas valdiklis)</string>
+    <string name="widget_settings_figure_help">Platesnis valdiklis rodo neapmokėtą sumą kartu su šio laikotarpio mokėjimais.</string>
+    <string name="widget_settings_hide_amounts">Slėpti sumas</string>
+    <string name="widget_settings_hide_auto">Automatiškai</string>
+    <string name="widget_settings_on">Įj.</string>
+    <string name="widget_settings_off">Išj.</string>
+    <string name="widget_settings_hide_help">Automatiškai slepia sumas, kol įjungtas programos užraktas. Kiekiai, sąskaitų numeriai ir laikmačiai lieka matomi.</string>
+    <string name="widget_settings_save">Saugoti</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nauja sąskaita</string>
+    <string name="shortcut_new_task">Naujas darbas</string>
+    <string name="shortcut_new_expense">Naujos išlaidos</string>
+</resources>

@@ -20,6 +20,9 @@ import Vision
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ReceiptOcr") {
       ReceiptOcr.register(messenger: registrar.messenger())
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HomeWidgets") {
+      HomeWidgetsBridge.register(messenger: registrar.messenger())
+    }
   }
 }
 

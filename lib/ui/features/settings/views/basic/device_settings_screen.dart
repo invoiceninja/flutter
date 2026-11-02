@@ -28,6 +28,7 @@ import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
+import 'package:admin/ui/features/settings/widgets/home_widgets_section.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
 import 'package:admin/ui/features/settings/widgets/segmented_setting_row.dart';
@@ -60,6 +61,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kMobileAppSearchKeys,
+  ...kHomeWidgetsSearchKeys,
   ...kDownloadsFolderSearchKeys,
   ...kAssignedUsersSearchKeys,
   'default_tab',
@@ -145,6 +147,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Its mirror: everywhere *but* a phone, the way to the phone app
               // that does both cards above.
               const MobileAppSection(),
+              // Phone only, beside the other phone cards: how to add the
+              // home-screen widgets, which nothing else in the app mentions.
+              const HomeWidgetsSection(),
               // Desktop only: where a download is written. High on the page,
               // because the report that added it was "I couldn't find it".
               const DownloadsFolderSection(),

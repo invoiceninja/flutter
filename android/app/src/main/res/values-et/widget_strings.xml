@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- et translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Ärilülevaade</string>
+    <string name="widget_snapshot_description">Vaata, kui palju sulle võlgnetakse, mis on üle tähtaja ja selle perioodi makseid.</string>
+    <string name="widget_attention_name">Vajab tähelepanu</string>
+    <string name="widget_attention_description">Jälgi üle tähtaja arveid ja vaata, mille tähtaeg on sel nädalal. Puuduta avamiseks.</string>
+    <string name="widget_timer_name">Töötav taimer</string>
+    <string name="widget_timer_description">Reaalajas kell sinu töötavale taimerile. Peata see või alusta hiljutist ülesannet ühe puudutusega.</string>
+
+    <string name="widget_open_to_load">Andmete laadimiseks ava Invoice Ninja</string>
+    <string name="widget_update_app">Selle vidina kasutamiseks uuenda Invoice Ninja</string>
+    <string name="widget_sign_in">Logi sisse Invoice Ninja rakendusse</string>
+    <string name="widget_choose_company">Vali ettevõte</string>
+    <string name="widget_no_dashboard_permission">Sinu roll ei saa töölaua näitajaid vaadata</string>
+
+    <string name="widget_outstanding">Tasumata</string>
+    <string name="widget_invoices">Arved</string>
+    <string name="widget_payments">Maksed</string>
+    <string name="widget_expenses">Kulud</string>
+    <string name="widget_past_due">Üle tähtaja</string>
+    <string name="widget_due_soon">Tähtaeg peagi</string>
+    <string name="widget_next_due">Järgmine tähtaeg</string>
+    <string name="widget_unpaid_count">:count maksmata</string>
+    <string name="widget_past_due_count">:count üle tähtaja</string>
+    <string name="widget_day_late">:count päev üle tähtaja</string>
+    <string name="widget_days_late">:count päeva üle tähtaja</string>
+    <string name="widget_due_today">tähtaeg täna</string>
+    <string name="widget_due_in_days">tähtaeg :count päeva pärast</string>
+    <string name="widget_nothing_past_due">Midagi pole üle tähtaja</string>
+    <string name="widget_updated">Uuendatud</string>
+    <string name="widget_tap_to_refresh">Puuduta värskendamiseks</string>
+    <string name="widget_open_company_to_update">Värskendamiseks ava :company</string>
+
+    <string name="widget_stop">Peata</string>
+    <string name="widget_start_a_task">Alusta ülesannet</string>
+    <string name="widget_running_count">+:count käimas</string>
+    <string name="widget_running_since">Käib alates :time</string>
+    <string name="widget_stopped_syncs">Peatatud :time · sünkroonitakse, kui avad Invoice Ninja</string>
+
+    <string name="widget_this_month">See kuu</string>
+    <string name="widget_last_30_days">Viimased 30 päeva</string>
+    <string name="widget_this_year">See aasta</string>
+
+    <string name="widget_settings_title">Vidina seaded</string>
+    <string name="widget_settings_company">Ettevõte</string>
+    <string name="widget_settings_current_company">Praegune ettevõte</string>
+    <string name="widget_settings_period">Periood</string>
+    <string name="widget_settings_figure">Näitaja (väike vidin)</string>
+    <string name="widget_settings_figure_help">Laiem vidin näitab tasumata summat koos selle perioodi maksetega.</string>
+    <string name="widget_settings_hide_amounts">Peida summad</string>
+    <string name="widget_settings_hide_auto">Automaatne</string>
+    <string name="widget_settings_on">Sees</string>
+    <string name="widget_settings_off">Väljas</string>
+    <string name="widget_settings_hide_help">Automaatne peidab summad, kui rakenduse lukk on sees. Arvud, arvenumbrid ja taimerid jäävad nähtavaks.</string>
+    <string name="widget_settings_save">Salvesta</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Uus arve</string>
+    <string name="shortcut_new_task">Uus ülesanne</string>
+    <string name="shortcut_new_expense">Uus kulu</string>
+</resources>

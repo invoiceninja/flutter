@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- de translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Geschäftsübersicht</string>
+    <string name="widget_snapshot_description">Offene Forderungen, Überfälliges und die Zahlungen dieses Zeitraums auf einen Blick.</string>
+    <string name="widget_attention_name">Handlungsbedarf</string>
+    <string name="widget_attention_description">Überfällige Rechnungen nachverfolgen und sehen, was diese Woche fällig ist. Zum Öffnen antippen.</string>
+    <string name="widget_timer_name">Laufender Timer</string>
+    <string name="widget_timer_description">Eine Live-Uhr für Ihren laufenden Timer. Mit einem Tippen anhalten oder eine kürzlich bearbeitete Aufgabe starten.</string>
+
+    <string name="widget_open_to_load">Invoice Ninja öffnen, um die Daten zu laden</string>
+    <string name="widget_update_app">Invoice Ninja aktualisieren, um dieses Widget zu nutzen</string>
+    <string name="widget_sign_in">Bei Invoice Ninja anmelden</string>
+    <string name="widget_choose_company">Firma auswählen</string>
+    <string name="widget_no_dashboard_permission">Ihre Rolle kann keine Dashboard-Zahlen sehen</string>
+
+    <string name="widget_outstanding">Ausstehend</string>
+    <string name="widget_invoices">Rechnungen</string>
+    <string name="widget_payments">Zahlungen</string>
+    <string name="widget_expenses">Ausgaben</string>
+    <string name="widget_past_due">Überfällig</string>
+    <string name="widget_due_soon">Bald fällig</string>
+    <string name="widget_next_due">Nächste Fälligkeit</string>
+    <string name="widget_unpaid_count">:count unbezahlt</string>
+    <string name="widget_past_due_count">:count überfällig</string>
+    <string name="widget_day_late">:count Tag überfällig</string>
+    <string name="widget_days_late">:count Tage überfällig</string>
+    <string name="widget_due_today">heute fällig</string>
+    <string name="widget_due_in_days">fällig in :count Tagen</string>
+    <string name="widget_nothing_past_due">Nichts überfällig</string>
+    <string name="widget_updated">Aktualisiert</string>
+    <string name="widget_tap_to_refresh">Zum Aktualisieren tippen</string>
+    <string name="widget_open_company_to_update">:company zum Aktualisieren öffnen</string>
+
+    <string name="widget_stop">Anhalten</string>
+    <string name="widget_start_a_task">Aufgabe starten</string>
+    <string name="widget_running_count">+:count laufen</string>
+    <string name="widget_running_since">Läuft seit :time</string>
+    <string name="widget_stopped_syncs">Angehalten :time · wird beim Öffnen von Invoice Ninja synchronisiert</string>
+
+    <string name="widget_this_month">Dieser Monat</string>
+    <string name="widget_last_30_days">Letzte 30 Tage</string>
+    <string name="widget_this_year">Dieses Jahr</string>
+
+    <string name="widget_settings_title">Widget-Einstellungen</string>
+    <string name="widget_settings_company">Firma</string>
+    <string name="widget_settings_current_company">Aktuelle Firma</string>
+    <string name="widget_settings_period">Zeitraum</string>
+    <string name="widget_settings_figure">Kennzahl (kleines Widget)</string>
+    <string name="widget_settings_figure_help">Ein breiteres Widget zeigt Ausstehend zusammen mit den Zahlungen dieses Zeitraums.</string>
+    <string name="widget_settings_hide_amounts">Beträge ausblenden</string>
+    <string name="widget_settings_hide_auto">Automatisch</string>
+    <string name="widget_settings_on">An</string>
+    <string name="widget_settings_off">Aus</string>
+    <string name="widget_settings_hide_help">Automatisch blendet Beträge aus, solange die App-Sperre aktiv ist. Anzahlen, Rechnungsnummern und Timer bleiben sichtbar.</string>
+    <string name="widget_settings_save">Speichern</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Neue Rechnung</string>
+    <string name="shortcut_new_task">Neue Aufgabe</string>
+    <string name="shortcut_new_expense">Neue Ausgabe</string>
+</resources>

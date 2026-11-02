@@ -15,4 +15,6 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <!-- A home-screen widget's settings (WidgetConfigureActivity). -->
+    <style name="WidgetConfigTheme" parent="@android:style/Theme.Material.Light.Dialog.MinWidth" />
 </resources>

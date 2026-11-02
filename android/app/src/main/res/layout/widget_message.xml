@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every widget's "nothing of its own to draw" state: never opened, signed
+     out, an app update needed, no company, no dashboard permission. A glyph in
+     the accent and the text in the normal ink, so it reads as the next step,
+     not as an error. BaseWidgetProvider drops the glyph, then the text size,
+     on a widget too short for them. The root is @android:id/background, the
+     view Android 12+ animates the app launch from. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="@dimen/widget_padding">
+
+    <ImageView
+        android:id="@+id/message_glyph"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginBottom="8dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/widget_message_glyph" />
+
+    <TextView
+        android:id="@+id/message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:textColor="@color/widget_ink"
+        android:textSize="14sp" />
+</LinearLayout>

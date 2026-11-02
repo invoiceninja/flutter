@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- th translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">ภาพรวมธุรกิจ</string>
+    <string name="widget_snapshot_description">ดูยอดที่ลูกค้าค้างชำระ รายการที่เกินกำหนด และการชำระเงินในช่วงนี้</string>
+    <string name="widget_attention_name">ต้องดำเนินการ</string>
+    <string name="widget_attention_description">ติดตามใบแจ้งหนี้ที่เกินกำหนดและดูว่ามีอะไรครบกำหนดในสัปดาห์นี้ แตะเพื่อเปิด</string>
+    <string name="widget_timer_name">ตัวจับเวลาที่กำลังทำงาน</string>
+    <string name="widget_timer_description">นาฬิกาแบบสดสำหรับตัวจับเวลาที่กำลังทำงาน หยุด หรือเริ่มงานล่าสุดได้ด้วยการแตะครั้งเดียว</string>
+
+    <string name="widget_open_to_load">เปิด Invoice Ninja เพื่อโหลดข้อมูลของคุณ</string>
+    <string name="widget_update_app">อัปเดต Invoice Ninja เพื่อใช้วิดเจ็ตนี้</string>
+    <string name="widget_sign_in">ลงชื่อเข้าใช้ Invoice Ninja</string>
+    <string name="widget_choose_company">เลือกบริษัท</string>
+    <string name="widget_no_dashboard_permission">บทบาทของคุณไม่สามารถดูตัวเลขบนแดชบอร์ดได้</string>
+
+    <string name="widget_outstanding">ค้างชำระ</string>
+    <string name="widget_invoices">ใบแจ้งหนี้</string>
+    <string name="widget_payments">การชำระเงิน</string>
+    <string name="widget_expenses">ค่าใช้จ่าย</string>
+    <string name="widget_past_due">เกินกำหนด</string>
+    <string name="widget_due_soon">ใกล้ครบกำหนด</string>
+    <string name="widget_next_due">ครบกำหนดถัดไป</string>
+    <string name="widget_unpaid_count">ยังไม่ชำระ :count</string>
+    <string name="widget_past_due_count">เกินกำหนด :count</string>
+    <string name="widget_day_late">ล่าช้า :count วัน</string>
+    <string name="widget_days_late">ล่าช้า :count วัน</string>
+    <string name="widget_due_today">ครบกำหนดวันนี้</string>
+    <string name="widget_due_in_days">ครบกำหนดใน :count วัน</string>
+    <string name="widget_nothing_past_due">ไม่มีรายการเกินกำหนด</string>
+    <string name="widget_updated">อัปเดตแล้ว</string>
+    <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
+    <string name="widget_open_company_to_update">เปิด :company เพื่ออัปเดต</string>
+
+    <string name="widget_stop">หยุด</string>
+    <string name="widget_start_a_task">เริ่มงาน</string>
+    <string name="widget_running_count">+:count กำลังทำงาน</string>
+    <string name="widget_running_since">กำลังทำงานตั้งแต่ :time</string>
+    <string name="widget_stopped_syncs">หยุดแล้ว :time · จะซิงค์เมื่อคุณเปิด Invoice Ninja</string>
+
+    <string name="widget_this_month">เดือนนี้</string>
+    <string name="widget_last_30_days">30 วันล่าสุด</string>
+    <string name="widget_this_year">ปีนี้</string>
+
+    <string name="widget_settings_title">การตั้งค่าวิดเจ็ต</string>
+    <string name="widget_settings_company">บริษัท</string>
+    <string name="widget_settings_current_company">บริษัทปัจจุบัน</string>
+    <string name="widget_settings_period">ช่วงเวลา</string>
+    <string name="widget_settings_figure">ตัวเลข (วิดเจ็ตขนาดเล็ก)</string>
+    <string name="widget_settings_figure_help">วิดเจ็ตที่กว้างกว่าจะแสดงยอดค้างชำระพร้อมการชำระเงินในช่วงนี้</string>
+    <string name="widget_settings_hide_amounts">ซ่อนยอดเงิน</string>
+    <string name="widget_settings_hide_auto">อัตโนมัติ</string>
+    <string name="widget_settings_on">เปิด</string>
+    <string name="widget_settings_off">ปิด</string>
+    <string name="widget_settings_hide_help">อัตโนมัติจะซ่อนยอดเงินขณะที่เปิดการล็อกแอป จำนวน เลขที่ใบแจ้งหนี้ และตัวจับเวลายังคงมองเห็นได้</string>
+    <string name="widget_settings_save">บันทึก</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">ใบแจ้งหนี้ใหม่</string>
+    <string name="shortcut_new_task">งานใหม่</string>
+    <string name="shortcut_new_expense">ค่าใช้จ่ายใหม่</string>
+</resources>

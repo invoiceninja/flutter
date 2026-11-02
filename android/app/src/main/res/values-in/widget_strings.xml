@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- id_ID translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Ringkasan bisnis</string>
+    <string name="widget_snapshot_description">Lihat piutang Anda, yang lewat jatuh tempo, dan pembayaran periode ini.</string>
+    <string name="widget_attention_name">Perlu perhatian</string>
+    <string name="widget_attention_description">Tindak lanjuti faktur yang lewat jatuh tempo dan lihat yang jatuh tempo minggu ini. Ketuk salah satu untuk membukanya.</string>
+    <string name="widget_timer_name">Timer berjalan</string>
+    <string name="widget_timer_description">Jam langsung untuk timer Anda yang sedang berjalan. Hentikan, atau mulai tugas terbaru, dengan sekali ketuk.</string>
+
+    <string name="widget_open_to_load">Buka Invoice Ninja untuk memuat data Anda</string>
+    <string name="widget_update_app">Perbarui Invoice Ninja untuk menggunakan widget ini</string>
+    <string name="widget_sign_in">Masuk ke Invoice Ninja</string>
+    <string name="widget_choose_company">Pilih perusahaan</string>
+    <string name="widget_no_dashboard_permission">Peran Anda tidak dapat melihat angka dasbor</string>
+
+    <string name="widget_outstanding">Belum dibayar</string>
+    <string name="widget_invoices">Faktur</string>
+    <string name="widget_payments">Pembayaran</string>
+    <string name="widget_expenses">Pengeluaran</string>
+    <string name="widget_past_due">Lewat jatuh tempo</string>
+    <string name="widget_due_soon">Segera jatuh tempo</string>
+    <string name="widget_next_due">Jatuh tempo berikutnya</string>
+    <string name="widget_unpaid_count">:count belum dibayar</string>
+    <string name="widget_past_due_count">:count lewat jatuh tempo</string>
+    <string name="widget_day_late">terlambat :count hari</string>
+    <string name="widget_days_late">terlambat :count hari</string>
+    <string name="widget_due_today">jatuh tempo hari ini</string>
+    <string name="widget_due_in_days">jatuh tempo dalam :count hari</string>
+    <string name="widget_nothing_past_due">Tidak ada yang lewat jatuh tempo</string>
+    <string name="widget_updated">Diperbarui</string>
+    <string name="widget_tap_to_refresh">Ketuk untuk memuat ulang</string>
+    <string name="widget_open_company_to_update">Buka :company untuk memperbarui</string>
+
+    <string name="widget_stop">Hentikan</string>
+    <string name="widget_start_a_task">Mulai tugas</string>
+    <string name="widget_running_count">+:count berjalan</string>
+    <string name="widget_running_since">Berjalan sejak :time</string>
+    <string name="widget_stopped_syncs">Dihentikan :time · disinkronkan saat Anda membuka Invoice Ninja</string>
+
+    <string name="widget_this_month">Bulan Ini</string>
+    <string name="widget_last_30_days">30 Hari Terakhir</string>
+    <string name="widget_this_year">Tahun Ini</string>
+
+    <string name="widget_settings_title">Pengaturan widget</string>
+    <string name="widget_settings_company">Perusahaan</string>
+    <string name="widget_settings_current_company">Perusahaan saat ini</string>
+    <string name="widget_settings_period">Periode</string>
+    <string name="widget_settings_figure">Angka (widget kecil)</string>
+    <string name="widget_settings_figure_help">Widget yang lebih lebar menampilkan Belum dibayar bersama pembayaran periode ini.</string>
+    <string name="widget_settings_hide_amounts">Sembunyikan jumlah</string>
+    <string name="widget_settings_hide_auto">Otomatis</string>
+    <string name="widget_settings_on">Aktif</string>
+    <string name="widget_settings_off">Nonaktif</string>
+    <string name="widget_settings_hide_help">Otomatis menyembunyikan jumlah selama kunci aplikasi aktif. Hitungan, nomor faktur, dan timer tetap terlihat.</string>
+    <string name="widget_settings_save">Simpan</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Faktur Baru</string>
+    <string name="shortcut_new_task">Tugas Baru</string>
+    <string name="shortcut_new_expense">Pengeluaran Baru</string>
+</resources>

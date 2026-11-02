@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tr_TR translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">İşletme özeti</string>
+    <string name="widget_snapshot_description">Alacaklarınızı, vadesi geçenleri ve bu dönemin ödemelerini görün.</string>
+    <string name="widget_attention_name">İlgi gerektiriyor</string>
+    <string name="widget_attention_description">Vadesi geçmiş faturaları takip edin ve bu hafta vadesi dolanları görün. Açmak için birine dokunun.</string>
+    <string name="widget_timer_name">Çalışan zamanlayıcı</string>
+    <string name="widget_timer_description">Çalışan zamanlayıcınız için canlı saat. Tek dokunuşla durdurun veya son görevlerden birini başlatın.</string>
+
+    <string name="widget_open_to_load">Verilerinizi yüklemek için Invoice Ninja uygulamasını açın</string>
+    <string name="widget_update_app">Bu widget\'ı kullanmak için Invoice Ninja uygulamasını güncelleyin</string>
+    <string name="widget_sign_in">Invoice Ninja oturumu açın</string>
+    <string name="widget_choose_company">Şirket seçin</string>
+    <string name="widget_no_dashboard_permission">Rolünüz gösterge paneli rakamlarını göremez</string>
+
+    <string name="widget_outstanding">Ödenmemiş</string>
+    <string name="widget_invoices">Faturalar</string>
+    <string name="widget_payments">Ödemeler</string>
+    <string name="widget_expenses">Giderler</string>
+    <string name="widget_past_due">Vadesi geçmiş</string>
+    <string name="widget_due_soon">Vadesi yakında</string>
+    <string name="widget_next_due">Sonraki vade</string>
+    <string name="widget_unpaid_count">:count ödenmemiş</string>
+    <string name="widget_past_due_count">:count vadesi geçmiş</string>
+    <string name="widget_day_late">:count gün gecikmeli</string>
+    <string name="widget_days_late">:count gün gecikmeli</string>
+    <string name="widget_due_today">vadesi bugün</string>
+    <string name="widget_due_in_days">:count gün içinde vadesi doluyor</string>
+    <string name="widget_nothing_past_due">Vadesi geçmiş yok</string>
+    <string name="widget_updated">Güncellendi</string>
+    <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
+    <string name="widget_open_company_to_update">Güncellemek için :company açın</string>
+
+    <string name="widget_stop">Durdur</string>
+    <string name="widget_start_a_task">Görev başlat</string>
+    <string name="widget_running_count">+:count çalışıyor</string>
+    <string name="widget_running_since">:time itibarıyla çalışıyor</string>
+    <string name="widget_stopped_syncs">Durduruldu :time · Invoice Ninja açıldığında eşitlenir</string>
+
+    <string name="widget_this_month">Bu ay</string>
+    <string name="widget_last_30_days">Son 30 gün</string>
+    <string name="widget_this_year">Bu yıl</string>
+
+    <string name="widget_settings_title">Widget ayarları</string>
+    <string name="widget_settings_company">Şirket</string>
+    <string name="widget_settings_current_company">Geçerli şirket</string>
+    <string name="widget_settings_period">Dönem</string>
+    <string name="widget_settings_figure">Rakam (küçük widget)</string>
+    <string name="widget_settings_figure_help">Daha geniş bir widget, ödenmemiş tutarı bu dönemin ödemeleriyle birlikte gösterir.</string>
+    <string name="widget_settings_hide_amounts">Tutarları gizle</string>
+    <string name="widget_settings_hide_auto">Otomatik</string>
+    <string name="widget_settings_on">Açık</string>
+    <string name="widget_settings_off">Kapalı</string>
+    <string name="widget_settings_hide_help">Otomatik, uygulama kilidi açıkken tutarları gizler. Sayılar, fatura numaraları ve zamanlayıcılar görünür kalır.</string>
+    <string name="widget_settings_save">Kaydet</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Yeni Fatura</string>
+    <string name="shortcut_new_task">Yeni Görev</string>
+    <string name="shortcut_new_expense">Yeni Gider</string>
+</resources>

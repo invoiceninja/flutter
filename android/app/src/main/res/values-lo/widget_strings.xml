@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- lo_LA translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">ພາບລວມທຸລະກິດ</string>
+    <string name="widget_snapshot_description">ເບິ່ງຍອດທີ່ຄົນອື່ນຕິດໜີ້ທ່ານ, ລາຍການໝົດກຳນົດ ແລະ ການຈ່າຍເງິນໃນໄລຍະນີ້.</string>
+    <string name="widget_attention_name">ຕ້ອງການຄວາມສົນໃຈ</string>
+    <string name="widget_attention_description">ຕິດຕາມໃບແຈ້ງໜີ້ທີ່ໝົດກຳນົດ ແລະ ເບິ່ງວ່າອັນໃດຄົບກຳນົດອາທິດນີ້. ແຕະໃສ່ອັນໃດອັນໜຶ່ງເພື່ອເປີດ.</string>
+    <string name="widget_timer_name">ໂມງຈັບເວລາທີ່ກຳລັງແລ່ນ</string>
+    <string name="widget_timer_description">ໂມງສົດສຳລັບໂມງຈັບເວລາທີ່ກຳລັງແລ່ນຂອງທ່ານ. ຢຸດມັນ ຫຼື ເລີ່ມໜ້າວຽກຫຼ້າສຸດ ດ້ວຍການແຕະດຽວ.</string>
+
+    <string name="widget_open_to_load">ເປີດ Invoice Ninja ເພື່ອໂຫຼດຂໍ້ມູນຂອງທ່ານ</string>
+    <string name="widget_update_app">ອັບເດດ Invoice Ninja ເພື່ອໃຊ້ວິດເຈັດນີ້</string>
+    <string name="widget_sign_in">ເຂົ້າສູ່ລະບົບ Invoice Ninja</string>
+    <string name="widget_choose_company">ເລືອກບໍລິສັດ</string>
+    <string name="widget_no_dashboard_permission">ບົດບາດຂອງທ່ານບໍ່ສາມາດເບິ່ງຕົວເລກໃນແຜງຄວບຄຸມໄດ້</string>
+
+    <string name="widget_outstanding">ຍັງຄ້າງຊຳລະ</string>
+    <string name="widget_invoices">ໃບແຈ້ງໜີ້</string>
+    <string name="widget_payments">ການຈ່າຍເງິນ</string>
+    <string name="widget_expenses">ຄ່າໃຊ້ຈ່າຍ</string>
+    <string name="widget_past_due">ໝົດກຳນົດ</string>
+    <string name="widget_due_soon">ໃກ້ຄົບກຳນົດ</string>
+    <string name="widget_next_due">ຄົບກຳນົດຖັດໄປ</string>
+    <string name="widget_unpaid_count">ຍັງບໍ່ໄດ້ຈ່າຍ :count</string>
+    <string name="widget_past_due_count">ໝົດກຳນົດ :count</string>
+    <string name="widget_day_late">ຊ້າ :count ມື້</string>
+    <string name="widget_days_late">ຊ້າ :count ມື້</string>
+    <string name="widget_due_today">ຄົບກຳນົດມື້ນີ້</string>
+    <string name="widget_due_in_days">ຄົບກຳນົດໃນ :count ມື້</string>
+    <string name="widget_nothing_past_due">ບໍ່ມີລາຍການໝົດກຳນົດ</string>
+    <string name="widget_updated">ອັບເດດແລ້ວ</string>
+    <string name="widget_tap_to_refresh">ແຕະເພື່ອໂຫຼດຄືນ</string>
+    <string name="widget_open_company_to_update">ເປີດ :company ເພື່ອອັບເດດ</string>
+
+    <string name="widget_stop">ຢຸດ</string>
+    <string name="widget_start_a_task">ເລີ່ມໜ້າວຽກ</string>
+    <string name="widget_running_count">+:count ກຳລັງແລ່ນ</string>
+    <string name="widget_running_since">ກຳລັງແລ່ນຕັ້ງແຕ່ :time</string>
+    <string name="widget_stopped_syncs">ຢຸດແລ້ວ :time · ຈະຊິງຄ໌ເມື່ອທ່ານເປີດ Invoice Ninja</string>
+
+    <string name="widget_this_month">ເດືອນນີ້</string>
+    <string name="widget_last_30_days">30 ມື້ສຸດທ້າຍ</string>
+    <string name="widget_this_year">ປີນີ້</string>
+
+    <string name="widget_settings_title">ການຕັ້ງຄ່າວິດເຈັດ</string>
+    <string name="widget_settings_company">ບໍລິສັດ</string>
+    <string name="widget_settings_current_company">ບໍລິສັດປັດຈຸບັນ</string>
+    <string name="widget_settings_period">ໄລຍະເວລາ</string>
+    <string name="widget_settings_figure">ຕົວເລກ (ວິດເຈັດນ້ອຍ)</string>
+    <string name="widget_settings_figure_help">ວິດເຈັດທີ່ກວ້າງກວ່າຈະສະແດງຍອດຄ້າງຊຳລະພ້ອມການຈ່າຍເງິນໃນໄລຍະນີ້.</string>
+    <string name="widget_settings_hide_amounts">ເຊື່ອງຈຳນວນເງິນ</string>
+    <string name="widget_settings_hide_auto">ອັດຕະໂນມັດ</string>
+    <string name="widget_settings_on">ເປີດ</string>
+    <string name="widget_settings_off">ປິດ</string>
+    <string name="widget_settings_hide_help">ອັດຕະໂນມັດຈະເຊື່ອງຈຳນວນເງິນໃນຂະນະທີ່ການລັອກແອັບເປີດຢູ່. ຈຳນວນລາຍການ, ເລກໃບແຈ້ງໜີ້ ແລະ ໂມງຈັບເວລາຍັງເຫັນໄດ້.</string>
+    <string name="widget_settings_save">ບັນທຶກ</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">ໃບແຈ້ງໜີ້ໃໝ່</string>
+    <string name="shortcut_new_task">ໜ້າວຽກໃໝ່</string>
+    <string name="shortcut_new_expense">ຄ່າໃຊ້ຈ່າຍໃໝ່</string>
+</resources>

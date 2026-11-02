@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- pt_PT translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Resumo do negócio</string>
+    <string name="widget_snapshot_description">Veja quanto lhe devem, o que está vencido e os pagamentos deste período.</string>
+    <string name="widget_attention_name">Requer atenção</string>
+    <string name="widget_attention_description">Acompanhe as faturas vencidas e veja o que vence esta semana. Toque numa para a abrir.</string>
+    <string name="widget_timer_name">Cronómetro em execução</string>
+    <string name="widget_timer_description">Um relógio em direto para o seu cronómetro em execução. Pare-o, ou inicie uma tarefa recente, com um toque.</string>
+
+    <string name="widget_open_to_load">Abra o Invoice Ninja para carregar os seus dados</string>
+    <string name="widget_update_app">Atualize o Invoice Ninja para usar este widget</string>
+    <string name="widget_sign_in">Inicie sessão no Invoice Ninja</string>
+    <string name="widget_choose_company">Escolha uma empresa</string>
+    <string name="widget_no_dashboard_permission">A sua função não pode ver os números do painel</string>
+
+    <string name="widget_outstanding">Em aberto</string>
+    <string name="widget_invoices">Faturas</string>
+    <string name="widget_payments">Pagamentos</string>
+    <string name="widget_expenses">Despesas</string>
+    <string name="widget_past_due">Vencido</string>
+    <string name="widget_due_soon">Vence em breve</string>
+    <string name="widget_next_due">Próximo vencimento</string>
+    <string name="widget_unpaid_count">:count por pagar</string>
+    <string name="widget_past_due_count">:count vencidas</string>
+    <string name="widget_day_late">:count dia de atraso</string>
+    <string name="widget_days_late">:count dias de atraso</string>
+    <string name="widget_due_today">vence hoje</string>
+    <string name="widget_due_in_days">vence em :count dias</string>
+    <string name="widget_nothing_past_due">Nada vencido</string>
+    <string name="widget_updated">Atualizado</string>
+    <string name="widget_tap_to_refresh">Toque para atualizar</string>
+    <string name="widget_open_company_to_update">Abra :company para atualizar</string>
+
+    <string name="widget_stop">Parar</string>
+    <string name="widget_start_a_task">Iniciar uma tarefa</string>
+    <string name="widget_running_count">+:count em execução</string>
+    <string name="widget_running_since">Em execução desde :time</string>
+    <string name="widget_stopped_syncs">Parado :time · sincroniza quando abrir o Invoice Ninja</string>
+
+    <string name="widget_this_month">Este mês</string>
+    <string name="widget_last_30_days">Últimos 30 dias</string>
+    <string name="widget_this_year">Este ano</string>
+
+    <string name="widget_settings_title">Definições do widget</string>
+    <string name="widget_settings_company">Empresa</string>
+    <string name="widget_settings_current_company">Empresa atual</string>
+    <string name="widget_settings_period">Período</string>
+    <string name="widget_settings_figure">Valor (widget pequeno)</string>
+    <string name="widget_settings_figure_help">Um widget mais largo mostra Em aberto com os pagamentos deste período.</string>
+    <string name="widget_settings_hide_amounts">Ocultar valores</string>
+    <string name="widget_settings_hide_auto">Automático</string>
+    <string name="widget_settings_on">Ligado</string>
+    <string name="widget_settings_off">Desligado</string>
+    <string name="widget_settings_hide_help">Automático oculta os valores enquanto o bloqueio da app estiver ativo. Contagens, números de fatura e cronómetros continuam visíveis.</string>
+    <string name="widget_settings_save">Guardar</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nova fatura</string>
+    <string name="shortcut_new_task">Nova tarefa</string>
+    <string name="shortcut_new_expense">Nova despesa</string>
+</resources>

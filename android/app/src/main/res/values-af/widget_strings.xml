@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- af_ZA translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Besigheidsoorsig</string>
+    <string name="widget_snapshot_description">Sien wat aan jou verskuldig is, wat agterstallig is, en hierdie tydperk se betalings.</string>
+    <string name="widget_attention_name">Vereis aandag</string>
+    <string name="widget_attention_description">Volg agterstallige fakture op en sien wat hierdie week verskuldig is. Tik op een om dit oop te maak.</string>
+    <string name="widget_timer_name">Lopende tydhouer</string>
+    <string name="widget_timer_description">\'n Regstreekse horlosie vir jou lopende tydhouer. Stop dit, of begin \'n onlangse taak, met een tik.</string>
+
+    <string name="widget_open_to_load">Maak Invoice Ninja oop om jou data te laai</string>
+    <string name="widget_update_app">Dateer Invoice Ninja op om hierdie legstuk te gebruik</string>
+    <string name="widget_sign_in">Meld aan by Invoice Ninja</string>
+    <string name="widget_choose_company">Kies \'n maatskappy</string>
+    <string name="widget_no_dashboard_permission">Jou rol kan nie paneelbordsyfers sien nie</string>
+
+    <string name="widget_outstanding">Uitstaande</string>
+    <string name="widget_invoices">Fakture</string>
+    <string name="widget_payments">Betalings</string>
+    <string name="widget_expenses">Uitgawes</string>
+    <string name="widget_past_due">Agterstallig</string>
+    <string name="widget_due_soon">Binnekort verskuldig</string>
+    <string name="widget_next_due">Volgende verskuldig</string>
+    <string name="widget_unpaid_count">:count onbetaal</string>
+    <string name="widget_past_due_count">:count agterstallig</string>
+    <string name="widget_day_late">:count dag laat</string>
+    <string name="widget_days_late">:count dae laat</string>
+    <string name="widget_due_today">verskuldig vandag</string>
+    <string name="widget_due_in_days">verskuldig oor :count dae</string>
+    <string name="widget_nothing_past_due">Niks agterstallig nie</string>
+    <string name="widget_updated">Opgedateer</string>
+    <string name="widget_tap_to_refresh">Tik om te verfris</string>
+    <string name="widget_open_company_to_update">Maak :company oop om op te dateer</string>
+
+    <string name="widget_stop">Stop</string>
+    <string name="widget_start_a_task">Begin \'n taak</string>
+    <string name="widget_running_count">+:count aan die gang</string>
+    <string name="widget_running_since">Aan die gang sedert :time</string>
+    <string name="widget_stopped_syncs">Gestop :time · sinkroniseer wanneer jy Invoice Ninja oopmaak</string>
+
+    <string name="widget_this_month">Hierdie maand</string>
+    <string name="widget_last_30_days">Laaste 30 dae</string>
+    <string name="widget_this_year">Hierdie jaar</string>
+
+    <string name="widget_settings_title">Legstukinstellings</string>
+    <string name="widget_settings_company">Maatskappy</string>
+    <string name="widget_settings_current_company">Huidige maatskappy</string>
+    <string name="widget_settings_period">Tydperk</string>
+    <string name="widget_settings_figure">Syfer (klein legstuk)</string>
+    <string name="widget_settings_figure_help">\'n Wyer legstuk wys Uitstaande met hierdie tydperk se betalings.</string>
+    <string name="widget_settings_hide_amounts">Versteek bedrae</string>
+    <string name="widget_settings_hide_auto">Outomaties</string>
+    <string name="widget_settings_on">Aan</string>
+    <string name="widget_settings_off">Af</string>
+    <string name="widget_settings_hide_help">Outomaties versteek bedrae terwyl toepassluiting aan is. Getalle, faktuurnommers en tydhouers bly sigbaar.</string>
+    <string name="widget_settings_save">Stoor</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nuwe faktuur</string>
+    <string name="shortcut_new_task">Nuwe taak</string>
+    <string name="shortcut_new_expense">Nuwe uitgawe</string>
+</resources>

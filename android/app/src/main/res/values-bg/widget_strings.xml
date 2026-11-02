@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- bg translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Бизнес обзор</string>
+    <string name="widget_snapshot_description">Вижте какво ви дължат, какво е просрочено и плащанията за този период.</string>
+    <string name="widget_attention_name">Изисква внимание</string>
+    <string name="widget_attention_description">Следете просрочените фактури и вижте какво е с падеж тази седмица. Докоснете една, за да я отворите.</string>
+    <string name="widget_timer_name">Работещ таймер</string>
+    <string name="widget_timer_description">Часовник на живо за вашия работещ таймер. Спрете го или стартирайте скорошна задача с едно докосване.</string>
+
+    <string name="widget_open_to_load">Отворете Invoice Ninja, за да заредите данните си</string>
+    <string name="widget_update_app">Обновете Invoice Ninja, за да използвате тази джаджа</string>
+    <string name="widget_sign_in">Вход в Invoice Ninja</string>
+    <string name="widget_choose_company">Изберете фирма</string>
+    <string name="widget_no_dashboard_permission">Вашата роля не може да вижда данните на таблото</string>
+
+    <string name="widget_outstanding">Оставащи</string>
+    <string name="widget_invoices">Фактури</string>
+    <string name="widget_payments">Плащания</string>
+    <string name="widget_expenses">Разходи</string>
+    <string name="widget_past_due">Просрочено</string>
+    <string name="widget_due_soon">Скоро с падеж</string>
+    <string name="widget_next_due">Следващ падеж</string>
+    <string name="widget_unpaid_count">:count неплатени</string>
+    <string name="widget_past_due_count">:count просрочени</string>
+    <string name="widget_day_late">:count ден закъснение</string>
+    <string name="widget_days_late">:count дни закъснение</string>
+    <string name="widget_due_today">падеж днес</string>
+    <string name="widget_due_in_days">падеж след :count дни</string>
+    <string name="widget_nothing_past_due">Няма просрочени</string>
+    <string name="widget_updated">Обновено</string>
+    <string name="widget_tap_to_refresh">Докоснете за опресняване</string>
+    <string name="widget_open_company_to_update">Отворете :company за обновяване</string>
+
+    <string name="widget_stop">Стоп</string>
+    <string name="widget_start_a_task">Стартирайте задача</string>
+    <string name="widget_running_count">+:count стартирани</string>
+    <string name="widget_running_since">Стартирано от :time</string>
+    <string name="widget_stopped_syncs">Спряно :time · синхронизира се, когато отворите Invoice Ninja</string>
+
+    <string name="widget_this_month">Този месец</string>
+    <string name="widget_last_30_days">Последни 30 дни</string>
+    <string name="widget_this_year">Тази година</string>
+
+    <string name="widget_settings_title">Настройки на джаджата</string>
+    <string name="widget_settings_company">Фирма</string>
+    <string name="widget_settings_current_company">Текуща фирма</string>
+    <string name="widget_settings_period">Период</string>
+    <string name="widget_settings_figure">Показател (малка джаджа)</string>
+    <string name="widget_settings_figure_help">По-широката джаджа показва Оставащи заедно с плащанията за този период.</string>
+    <string name="widget_settings_hide_amounts">Скриване на сумите</string>
+    <string name="widget_settings_hide_auto">Автоматично</string>
+    <string name="widget_settings_on">Вкл.</string>
+    <string name="widget_settings_off">Изкл.</string>
+    <string name="widget_settings_hide_help">Автоматично скрива сумите, докато заключването на приложението е включено. Броят, номерата на фактурите и таймерите остават видими.</string>
+    <string name="widget_settings_save">Запазване</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Нова фактура</string>
+    <string name="shortcut_new_task">Нова задача</string>
+    <string name="shortcut_new_expense">Нов разход</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A stop square. The colour is a resource reference, so the launcher resolves
+     it with its own light / dark configuration and the glyph follows a switch
+     without a redraw. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="18dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/widget_bad"
+        android:pathData="M8,5h8a3,3 0,0 1,3 3v8a3,3 0,0 1,-3 3h-8a3,3 0,0 1,-3 -3v-8a3,3 0,0 1,3 -3z" />
+</vector>

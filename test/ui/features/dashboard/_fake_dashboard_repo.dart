@@ -218,7 +218,11 @@ class FakeDashboardRepo extends DashboardRepository {
   }
 
   @override
-  Future<void> refreshTotals(String c, DashboardFilter f) async {}
+  Future<void> refreshTotals(
+    String c,
+    DashboardFilter f, {
+    Duration? maxAge,
+  }) async {}
 
   /// Calls of the outstanding-only refresh (a per-section retry).
   int refreshOutstandingCalls = 0;
@@ -227,6 +231,7 @@ class FakeDashboardRepo extends DashboardRepository {
   Future<void> refreshOutstanding(
     String c, {
     required bool includeDrafts,
+    Duration? maxAge,
   }) async {
     refreshOutstandingCalls++;
   }
@@ -260,9 +265,9 @@ class FakeDashboardRepo extends DashboardRepository {
   bool? activityCursorSupported(String c) => cursorSupported;
 
   @override
-  Future<void> refreshPastDue(String c) async {}
+  Future<void> refreshPastDue(String c, {Duration? maxAge}) async {}
   @override
-  Future<void> refreshUpcomingInvoices(String c) async {}
+  Future<void> refreshUpcomingInvoices(String c, {Duration? maxAge}) async {}
   @override
   Future<void> refreshRecentPayments(String c) async {}
   @override

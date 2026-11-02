@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below (android:fullBackupContent). Everything the app backed
+     up before is still backed up; only the home-screen widgets' per-widget
+     settings are left out: widget ids are per device, so a restored
+     "N.hide=off" would attach to whatever new widget happened to get id N.
+     (Their snapshot is in noBackupFilesDir, never backed up.) -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="home_widget_settings.xml" />
+</full-backup-content>

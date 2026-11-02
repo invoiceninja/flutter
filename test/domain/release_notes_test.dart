@@ -114,6 +114,25 @@ void main() {
     });
   });
 
+  test('only the builds with home-screen widgets lack withoutHomeWidgets', () {
+    for (final platform in TargetPlatform.values) {
+      final surfaces = releaseNoteSurfaces(isWeb: false, platform: platform);
+      final hasWidgets =
+          platform == TargetPlatform.iOS ||
+          platform == TargetPlatform.android ||
+          platform == TargetPlatform.macOS;
+      expect(
+        surfaces.contains(ReleaseNoteSurface.withoutHomeWidgets),
+        !hasWidgets,
+        reason: platform.name,
+      );
+    }
+    expect(
+      releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.android),
+      contains(ReleaseNoteSurface.withoutHomeWidgets),
+    );
+  });
+
   test('the phone apps are not pitched the phone app', () {
     for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
       final visible = withStoreNames.visibleOn(
@@ -311,14 +330,13 @@ void main() {
   });
 
   test('surfaces: the web is no App Store build, even on a Mac or iPhone', () {
-    expect(
-      releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.iOS),
-      isEmpty,
-    );
-    expect(
-      releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.linux),
-      isEmpty,
-    );
+    // No App Store, no phone — and no home-screen widgets.
+    expect(releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.iOS), {
+      ReleaseNoteSurface.withoutHomeWidgets,
+    });
+    expect(releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.linux), {
+      ReleaseNoteSurface.withoutHomeWidgets,
+    });
     expect(
       releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.android),
       {ReleaseNoteSurface.nativePhone},

@@ -226,7 +226,7 @@ synthesises a link and hands it to the same `open()` as every other source. That
 buys the signed-out/locked hold, the `_pending`/`_inFlight` de-dup, the guarded
 switch and its toast — and the closing `go(target.path)` is what drops the query
 from the live location. Two guards matter: a `company` on a route that isn't a
-record (`/#/dashboard?company=…`) is ignored **in silence**, because `open`
+link target (`/#/reports?company=…`) is ignored **in silence**, because `open`
 would otherwise toast `invalid_url` at boot for a URL nobody typed; and a
 fragment with no `company` is left entirely alone, since go_router is already
 routing it and a second `go()` would be a duplicate.
@@ -265,3 +265,20 @@ go_router derives `state.pageKey` from the route *pattern*, so every id under a
 root shares one page, and these screens bind their VM from `widget.id` in
 `initState` — without the key, going straight from record A to record B keeps
 showing A. The entity branches already do this in `buildEntityRouteBlock`.
+
+## A link may also name a create screen, the dashboard, or a filtered invoice list
+
+**`parseAppDeepLink` also accepts `<root>/new`, `/dashboard`, and `/invoices?filter=past_due|unpaid`.**
+The home-screen widgets, the app-icon quick actions, the Siri actions and the Control Center
+controls open these (docs/home-screen-widgets.md).
+
+- **`/new`** is accepted only as a route suffix (`_isValidRecordSuffix`). `_isPlausibleRecordId`
+  still refuses `new`, so `buildEntityDeepLink` never builds a link to it.
+  `createForbiddenRedirect` turns a create the user may not make into the list.
+- **`/dashboard`** is the one non-entity target. On web this means `/#/dashboard?company=` now
+  switches company.
+- **`?filter=`** is allow-listed (`kInvoiceLinkFilterNames`, mirrored by `kInvoiceLinkFilters`)
+  and kept on `/invoices` only. It never joins the route: `DeepLinkRouter` passes it as a
+  one-shot `ListFilterIntent` (`goWithExtra`) built by `invoiceLinkFilterIntent`, the dashboard's
+  own definition, which `nav_state` doesn't persist.
+

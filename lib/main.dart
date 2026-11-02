@@ -9,6 +9,9 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:store_services/store_services.dart';
 
+import 'package:admin/app/entity_links.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
+import 'package:admin/app/home_widgets/home_widgets_host.dart';
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/app_share_intake.dart';
 import 'package:admin/app/debug_capture_store.dart';
@@ -251,6 +254,7 @@ Future<void> _bootstrap() async {
     diagnosticsLog: diag,
     realtimeUpdates: true,
     mobileAppPromote: true,
+    homeWidgets: true,
   );
   // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
   // seed the current state. No-op off desktop; nothing downstream awaits it, so
@@ -267,9 +271,12 @@ Future<void> _bootstrap() async {
   // *preferences* for this launch, never the app itself. One load serves them
   // all: each controller follows `devicePrefs`, so a preference added later
   // needs no line here.
+  // The session's own restore, apart from the preferences': only it decides
+  // whether "no session" means signed out (home-screen widgets, below).
+  var sessionRestored = false;
   try {
     await Future.wait([
-      services.auth.restore(),
+      services.auth.restore().then((_) => sessionRestored = true),
       services.devicePrefs.load(),
       services.recentlyViewed.restore(),
     ]).timeout(_kRestoreBudget);
@@ -312,6 +319,14 @@ Future<void> _bootstrap() async {
     }
     mark('demo token bootstrap');
   }
+
+  // Home-screen widgets, after the restore. Started earlier, a cold start's
+  // not-yet-restored session reads as signed out and blanks every widget for a
+  // moment. After a restore that failed or timed out, no session is not the
+  // same as signed out: the widgets keep what they had until one arrives. The
+  // queued-command consumer starts in `HomeWidgetsHost`, once the strings its
+  // toast needs exist.
+  services.homeWidgets?.start(sessionKnown: sessionRestored);
 
   // Warm the statics cache before any screen mounts so dropdowns reading
   // `Services.statics` (Company Details size/industry, Localization currency/
@@ -707,8 +722,27 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     // itself instead of being dropped.
     widget.services.deepLinks.attach(
       go: _router.go,
+      goWithExtra: (location, extra) => _router.go(location, extra: extra),
       contextOf: () => _router.routerDelegate.navigatorKey.currentContext,
     );
+    // A home-screen widget's Start: the task's own link — held while locked,
+    // company switched behind its guards — then the record's own start.
+    widget.services.homeWidgetCommands?.startTask = (command) =>
+        widget.services.deepLinks.open(
+          Uri(
+            scheme: kAppLinkScheme,
+            host: kAppLinkHost,
+            path: '/tasks/${command.taskId}',
+            queryParameters: {'company': command.companyId},
+          ),
+          then: (context) => TaskActions.startFromWidget(
+            context,
+            companyId: command.companyId,
+            taskId: command.taskId,
+          ),
+        );
+    // Set before `HomeWidgetsHost` (a child) starts the first pass, so a
+    // cold start's Start is applied by it.
     // Same wiring, same reasons, for a file shared in from another app.
     widget.services.sharedFiles.attach(
       go: _router.go,
@@ -1022,6 +1056,15 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                               child: ToastHost(
                                 controller: widget.services.toasts,
                               ),
+                            ),
+                            // Hands the home-screen widgets the app's strings
+                            // and lifecycle; draws nothing. Below
+                            // `Localizations`, which only a context reaches.
+                            // (The widgets take the bundled words, not the
+                            // Custom Labels — see `HomeWidgetsHost`.)
+                            HomeWidgetsHost(
+                              publisher: widget.services.homeWidgets,
+                              commands: widget.services.homeWidgetCommands,
                             ),
                             // Slack-style hint bar: holding ⌘/Ctrl reveals the
                             // modifier shortcuts available in the current context.

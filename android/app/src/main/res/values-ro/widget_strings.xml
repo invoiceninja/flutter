@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ro translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Rezumatul afacerii</string>
+    <string name="widget_snapshot_description">Vedeți ce vi se datorează, ce este întârziat și plățile din această perioadă.</string>
+    <string name="widget_attention_name">Necesită atenție</string>
+    <string name="widget_attention_description">Urmăriți facturile întârziate și vedeți ce este scadent săptămâna aceasta. Atingeți una pentru a o deschide.</string>
+    <string name="widget_timer_name">Cronometru activ</string>
+    <string name="widget_timer_description">Un ceas în timp real pentru cronometrul activ. Opriți-l sau începeți un task recent cu o atingere.</string>
+
+    <string name="widget_open_to_load">Deschideți Invoice Ninja pentru a vă încărca datele</string>
+    <string name="widget_update_app">Actualizați Invoice Ninja pentru a folosi acest widget</string>
+    <string name="widget_sign_in">Conectați-vă la Invoice Ninja</string>
+    <string name="widget_choose_company">Alegeți o companie</string>
+    <string name="widget_no_dashboard_permission">Rolul dvs. nu poate vedea cifrele din panoul de control</string>
+
+    <string name="widget_outstanding">Restante</string>
+    <string name="widget_invoices">Facturi</string>
+    <string name="widget_payments">Plăți</string>
+    <string name="widget_expenses">Cheltuieli</string>
+    <string name="widget_past_due">Întârziat</string>
+    <string name="widget_due_soon">Scadent curând</string>
+    <string name="widget_next_due">Următoarea scadență</string>
+    <string name="widget_unpaid_count">:count neplătite</string>
+    <string name="widget_past_due_count">:count întârziate</string>
+    <string name="widget_day_late">:count zi de întârziere</string>
+    <string name="widget_days_late">:count zile de întârziere</string>
+    <string name="widget_due_today">scadent azi</string>
+    <string name="widget_due_in_days">scadent în :count zile</string>
+    <string name="widget_nothing_past_due">Nimic întârziat</string>
+    <string name="widget_updated">Actualizat</string>
+    <string name="widget_tap_to_refresh">Atingeți pentru reîmprospătare</string>
+    <string name="widget_open_company_to_update">Deschideți :company pentru actualizare</string>
+
+    <string name="widget_stop">Oprește</string>
+    <string name="widget_start_a_task">Începeți un task</string>
+    <string name="widget_running_count">+:count în derulare</string>
+    <string name="widget_running_since">În derulare de la :time</string>
+    <string name="widget_stopped_syncs">Oprit :time · se sincronizează când deschideți Invoice Ninja</string>
+
+    <string name="widget_this_month">Luna curentă</string>
+    <string name="widget_last_30_days">Ultimele 30 de zile</string>
+    <string name="widget_this_year">Anul curent</string>
+
+    <string name="widget_settings_title">Setări widget</string>
+    <string name="widget_settings_company">Companie</string>
+    <string name="widget_settings_current_company">Compania curentă</string>
+    <string name="widget_settings_period">Perioadă</string>
+    <string name="widget_settings_figure">Indicator (widget mic)</string>
+    <string name="widget_settings_figure_help">Un widget mai lat afișează Restante împreună cu plățile din această perioadă.</string>
+    <string name="widget_settings_hide_amounts">Ascunde sumele</string>
+    <string name="widget_settings_hide_auto">Automat</string>
+    <string name="widget_settings_on">Pornit</string>
+    <string name="widget_settings_off">Oprit</string>
+    <string name="widget_settings_hide_help">Automat ascunde sumele cât timp blocarea aplicației este activă. Numărătorile, numerele facturilor și cronometrele rămân vizibile.</string>
+    <string name="widget_settings_save">Salvează</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Factură nouă</string>
+    <string name="shortcut_new_task">Task nou</string>
+    <string name="shortcut_new_expense">Cheltuială nouă</string>
+</resources>

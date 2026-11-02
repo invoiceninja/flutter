@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Business snapshot: the hero figure, its caption, the period row (medium
+     and up), and the "Updated" footer. SnapshotWidgetProvider fills it, and
+     sizes the hero itself: autoSize can't be steered from RemoteViews, and a
+     hero left to shrink on its own could end up no bigger than the period
+     amount. The root is @android:id/background, the view Android 12+ animates
+     the app launch from. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="@dimen/widget_padding">
+
+    <!-- One launcher row tall: the whole widget as one line, "Outstanding
+         $12.4K · ⚠ 2 past due", and nothing else. It takes the height (the
+         spacer below goes) so the line sits centred. -->
+    <TextView
+        android:id="@+id/line"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFeatureSettings="tnum"
+        android:gravity="center_vertical|start"
+        android:maxLines="1"
+        android:textColor="@color/widget_ink_muted"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_ink_muted"
+        android:textSize="13sp" />
+
+    <!-- No font padding: a figure has no tall script to clip, and the padding
+         is height the smallest widget doesn't have. -->
+    <TextView
+        android:id="@+id/hero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/widget_ink"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/caption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="@color/widget_ink_muted"
+        android:textSize="13sp" />
+
+    <!-- How much of Outstanding is past due (small, Outstanding hero only). -->
+    <ProgressBar
+        android:id="@+id/past_due_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="4dp"
+        android:max="1000"
+        android:maxHeight="4dp"
+        android:minHeight="4dp"
+        android:mirrorForRtl="true"
+        android:progressDrawable="@drawable/widget_past_due_bar"
+        android:visibility="gone" />
+
+    <!-- The period figure: one plain line, no card — "Payments · This Month"
+         leading, the amount and its trend trailing. When the line can't hold
+         all three the provider shows period_label_top instead, with the amount
+         and trend under it. -->
+    <LinearLayout
+        android:id="@+id/period_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/period_label_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_ink_muted"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- The gap is the label's end margin, not the amount's start: in
+                 the stacked form the label is gone and the amount starts flush. -->
+            <TextView
+                android:id="@+id/period_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink_muted"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/period_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:fontFeatureSettings="tnum"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/period_trend"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:fontFeatureSettings="tnum"
+                android:maxLines="1"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Spacer: a bare View is not allowed in a RemoteViews layout. -->
+    <FrameLayout
+        android:id="@+id/spacer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_ink_muted"
+        android:textSize="11sp" />
+</LinearLayout>

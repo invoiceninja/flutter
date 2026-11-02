@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- vi translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Tổng quan kinh doanh</string>
+    <string name="widget_snapshot_description">Xem số tiền khách hàng còn nợ bạn, khoản quá hạn và các khoản thanh toán trong kỳ này.</string>
+    <string name="widget_attention_name">Cần chú ý</string>
+    <string name="widget_attention_description">Theo dõi hóa đơn quá hạn và xem hóa đơn nào đến hạn trong tuần này. Chạm vào một hóa đơn để mở.</string>
+    <string name="widget_timer_name">Bộ hẹn giờ đang chạy</string>
+    <string name="widget_timer_description">Đồng hồ trực tiếp cho bộ hẹn giờ đang chạy của bạn. Dừng nó, hoặc bắt đầu một nhiệm vụ gần đây, chỉ với một chạm.</string>
+
+    <string name="widget_open_to_load">Mở Invoice Ninja để tải dữ liệu của bạn</string>
+    <string name="widget_update_app">Cập nhật Invoice Ninja để dùng tiện ích này</string>
+    <string name="widget_sign_in">Đăng nhập Invoice Ninja</string>
+    <string name="widget_choose_company">Chọn công ty</string>
+    <string name="widget_no_dashboard_permission">Vai trò của bạn không thể xem số liệu trên bảng điều khiển</string>
+
+    <string name="widget_outstanding">Chưa thanh toán</string>
+    <string name="widget_invoices">Hóa đơn</string>
+    <string name="widget_payments">Thanh toán</string>
+    <string name="widget_expenses">Chi phí</string>
+    <string name="widget_past_due">Quá hạn</string>
+    <string name="widget_due_soon">Sắp đến hạn</string>
+    <string name="widget_next_due">Đến hạn tiếp theo</string>
+    <string name="widget_unpaid_count">:count chưa thanh toán</string>
+    <string name="widget_past_due_count">:count quá hạn</string>
+    <string name="widget_day_late">trễ :count ngày</string>
+    <string name="widget_days_late">trễ :count ngày</string>
+    <string name="widget_due_today">đến hạn hôm nay</string>
+    <string name="widget_due_in_days">đến hạn sau :count ngày</string>
+    <string name="widget_nothing_past_due">Không có gì quá hạn</string>
+    <string name="widget_updated">Đã cập nhật</string>
+    <string name="widget_tap_to_refresh">Chạm để làm mới</string>
+    <string name="widget_open_company_to_update">Mở :company để cập nhật</string>
+
+    <string name="widget_stop">Dừng</string>
+    <string name="widget_start_a_task">Bắt đầu nhiệm vụ</string>
+    <string name="widget_running_count">+:count đang chạy</string>
+    <string name="widget_running_since">Đang chạy từ :time</string>
+    <string name="widget_stopped_syncs">Đã dừng :time · sẽ đồng bộ khi bạn mở Invoice Ninja</string>
+
+    <string name="widget_this_month">Tháng này</string>
+    <string name="widget_last_30_days">30 ngày gần nhất</string>
+    <string name="widget_this_year">Năm nay</string>
+
+    <string name="widget_settings_title">Cài đặt tiện ích</string>
+    <string name="widget_settings_company">Công ty</string>
+    <string name="widget_settings_current_company">Công ty hiện tại</string>
+    <string name="widget_settings_period">Kỳ</string>
+    <string name="widget_settings_figure">Số liệu (tiện ích nhỏ)</string>
+    <string name="widget_settings_figure_help">Tiện ích rộng hơn hiển thị Chưa thanh toán cùng các khoản thanh toán trong kỳ này.</string>
+    <string name="widget_settings_hide_amounts">Ẩn số tiền</string>
+    <string name="widget_settings_hide_auto">Tự động</string>
+    <string name="widget_settings_on">Bật</string>
+    <string name="widget_settings_off">Tắt</string>
+    <string name="widget_settings_hide_help">Tự động ẩn số tiền khi khóa ứng dụng đang bật. Số lượng, số hóa đơn và bộ hẹn giờ vẫn hiển thị.</string>
+    <string name="widget_settings_save">Lưu</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Hóa đơn mới</string>
+    <string name="shortcut_new_task">Nhiệm vụ mới</string>
+    <string name="shortcut_new_expense">Chi phí mới</string>
+</resources>

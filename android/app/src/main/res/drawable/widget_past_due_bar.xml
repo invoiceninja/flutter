@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The past-due share of Outstanding: a muted track, the past-due part in
+     widget_bad. 2dp corners on a 4dp bar — rounded, never a pill (CLAUDE.md
+     § Design system). A scale, not a clip, so the filled part keeps its
+     rounded end. It grows from the left: the ProgressBar sets mirrorForRtl,
+     which flips it for a right-to-left layout. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_bar_track" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale
+            android:scaleGravity="left|fill_vertical"
+            android:scaleWidth="100%">
+            <shape android:shape="rectangle">
+                <solid android:color="@color/widget_bad" />
+                <corners android:radius="2dp" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>

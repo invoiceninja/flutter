@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- pl translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Przegląd firmy</string>
+    <string name="widget_snapshot_description">Zobacz, ile Ci są winni, co jest po terminie i płatności z tego okresu.</string>
+    <string name="widget_attention_name">Wymaga uwagi</string>
+    <string name="widget_attention_description">Pilnuj faktur po terminie i sprawdź, co jest do zapłaty w tym tygodniu. Dotknij, aby otworzyć.</string>
+    <string name="widget_timer_name">Uruchomiony licznik czasu</string>
+    <string name="widget_timer_description">Zegar na żywo dla uruchomionego licznika czasu. Zatrzymaj go lub rozpocznij ostatnie zadanie jednym dotknięciem.</string>
+
+    <string name="widget_open_to_load">Otwórz Invoice Ninja, aby wczytać dane</string>
+    <string name="widget_update_app">Zaktualizuj Invoice Ninja, aby korzystać z tego widżetu</string>
+    <string name="widget_sign_in">Zaloguj się do Invoice Ninja</string>
+    <string name="widget_choose_company">Wybierz firmę</string>
+    <string name="widget_no_dashboard_permission">Twoja rola nie pozwala wyświetlać danych z pulpitu</string>
+
+    <string name="widget_outstanding">Zaległości</string>
+    <string name="widget_invoices">Faktury</string>
+    <string name="widget_payments">Płatności</string>
+    <string name="widget_expenses">Wydatki</string>
+    <string name="widget_past_due">Po terminie</string>
+    <string name="widget_due_soon">Wkrótce termin</string>
+    <string name="widget_next_due">Najbliższy termin</string>
+    <string name="widget_unpaid_count">Niezapłacone: :count</string>
+    <string name="widget_past_due_count">Po terminie: :count</string>
+    <string name="widget_day_late">Dni spóźnienia: :count</string>
+    <string name="widget_days_late">Dni spóźnienia: :count</string>
+    <string name="widget_due_today">termin dzisiaj</string>
+    <string name="widget_due_in_days">termin za :count dni</string>
+    <string name="widget_nothing_past_due">Nic po terminie</string>
+    <string name="widget_updated">Zaktualizowano</string>
+    <string name="widget_tap_to_refresh">Dotknij, aby odświeżyć</string>
+    <string name="widget_open_company_to_update">Otwórz :company, aby zaktualizować</string>
+
+    <string name="widget_stop">Zatrzymaj</string>
+    <string name="widget_start_a_task">Rozpocznij zadanie</string>
+    <string name="widget_running_count">+:count w trakcie</string>
+    <string name="widget_running_since">W trakcie od :time</string>
+    <string name="widget_stopped_syncs">Zatrzymano :time · synchronizacja po otwarciu Invoice Ninja</string>
+
+    <string name="widget_this_month">Ten miesiąc</string>
+    <string name="widget_last_30_days">Ostatnie 30 dni</string>
+    <string name="widget_this_year">Ten rok</string>
+
+    <string name="widget_settings_title">Ustawienia widżetu</string>
+    <string name="widget_settings_company">Firma</string>
+    <string name="widget_settings_current_company">Bieżąca firma</string>
+    <string name="widget_settings_period">Okres</string>
+    <string name="widget_settings_figure">Wartość (mały widżet)</string>
+    <string name="widget_settings_figure_help">Szerszy widżet pokazuje Zaległości razem z płatnościami z tego okresu.</string>
+    <string name="widget_settings_hide_amounts">Ukryj kwoty</string>
+    <string name="widget_settings_hide_auto">Automatycznie</string>
+    <string name="widget_settings_on">Wł.</string>
+    <string name="widget_settings_off">Wył.</string>
+    <string name="widget_settings_hide_help">Automatycznie ukrywa kwoty, gdy blokada aplikacji jest włączona. Liczby, numery faktur i liczniki czasu pozostają widoczne.</string>
+    <string name="widget_settings_save">Zapisz</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nowa faktura</string>
+    <string name="shortcut_new_task">Nowe zadanie</string>
+    <string name="shortcut_new_expense">Nowy wydatek</string>
+</resources>

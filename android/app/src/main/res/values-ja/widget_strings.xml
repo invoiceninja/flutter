@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ja translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">ビジネス概要</string>
+    <string name="widget_snapshot_description">未回収額、期限超過、今期間の入金を確認できます。</string>
+    <string name="widget_attention_name">要対応</string>
+    <string name="widget_attention_description">期限超過の請求書をフォローし、今週期限の請求書を確認できます。タップして開きます。</string>
+    <string name="widget_timer_name">実行中のタイマー</string>
+    <string name="widget_timer_description">実行中のタイマーをライブ時計で表示。ワンタップで停止したり、最近のタスクを開始したりできます。</string>
+
+    <string name="widget_open_to_load">Invoice Ninja を開いてデータを読み込んでください</string>
+    <string name="widget_update_app">このウィジェットを使うには Invoice Ninja を更新してください</string>
+    <string name="widget_sign_in">Invoice Ninja にサインイン</string>
+    <string name="widget_choose_company">会社を選択</string>
+    <string name="widget_no_dashboard_permission">あなたのロールではダッシュボードの数値を表示できません</string>
+
+    <string name="widget_outstanding">未回収</string>
+    <string name="widget_invoices">請求書</string>
+    <string name="widget_payments">入金</string>
+    <string name="widget_expenses">経費</string>
+    <string name="widget_past_due">支払期限超過</string>
+    <string name="widget_due_soon">まもなく期限</string>
+    <string name="widget_next_due">次の期限</string>
+    <string name="widget_unpaid_count">:count 件未払い</string>
+    <string name="widget_past_due_count">:count 件期限超過</string>
+    <string name="widget_day_late">:count 日遅延</string>
+    <string name="widget_days_late">:count 日遅延</string>
+    <string name="widget_due_today">本日期限</string>
+    <string name="widget_due_in_days">あと :count 日で期限</string>
+    <string name="widget_nothing_past_due">期限超過なし</string>
+    <string name="widget_updated">更新</string>
+    <string name="widget_tap_to_refresh">タップして更新</string>
+    <string name="widget_open_company_to_update">:company を開いて更新</string>
+
+    <string name="widget_stop">停止</string>
+    <string name="widget_start_a_task">タスクを開始</string>
+    <string name="widget_running_count">+:count 件実行中</string>
+    <string name="widget_running_since">:time から実行中</string>
+    <string name="widget_stopped_syncs">:time に停止 · Invoice Ninja を開くと同期されます</string>
+
+    <string name="widget_this_month">今月</string>
+    <string name="widget_last_30_days">過去30日間</string>
+    <string name="widget_this_year">今年</string>
+
+    <string name="widget_settings_title">ウィジェットの設定</string>
+    <string name="widget_settings_company">会社</string>
+    <string name="widget_settings_current_company">現在の会社</string>
+    <string name="widget_settings_period">期間</string>
+    <string name="widget_settings_figure">表示する数値（小ウィジェット）</string>
+    <string name="widget_settings_figure_help">幅の広いウィジェットでは、未回収と今期間の入金を表示します。</string>
+    <string name="widget_settings_hide_amounts">金額を非表示</string>
+    <string name="widget_settings_hide_auto">自動</string>
+    <string name="widget_settings_on">オン</string>
+    <string name="widget_settings_off">オフ</string>
+    <string name="widget_settings_hide_help">自動では、アプリロックがオンの間は金額を非表示にします。件数、請求書番号、タイマーは表示されたままです。</string>
+    <string name="widget_settings_save">保存</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">新しい請求書</string>
+    <string name="shortcut_new_task">新しいタスク</string>
+    <string name="shortcut_new_expense">新しい経費</string>
+</resources>

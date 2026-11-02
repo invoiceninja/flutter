@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- sl translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Pregled poslovanja</string>
+    <string name="widget_snapshot_description">Oglejte si, koliko vam dolgujejo, kaj je zapadlo in plačila v tem obdobju.</string>
+    <string name="widget_attention_name">Zahteva pozornost</string>
+    <string name="widget_attention_description">Spremljajte zapadle račune in poglejte, kaj zapade ta teden. Tapnite enega, da ga odprete.</string>
+    <string name="widget_timer_name">Delujoči časovnik</string>
+    <string name="widget_timer_description">Ura v živo za vaš delujoči časovnik. Ustavite ga ali začnite nedavno opravilo z enim dotikom.</string>
+
+    <string name="widget_open_to_load">Odprite Invoice Ninja, da naložite svoje podatke</string>
+    <string name="widget_update_app">Za uporabo tega pripomočka posodobite Invoice Ninja</string>
+    <string name="widget_sign_in">Prijavite se v Invoice Ninja</string>
+    <string name="widget_choose_company">Izberite podjetje</string>
+    <string name="widget_no_dashboard_permission">Vaša vloga ne more videti številk nadzorne plošče</string>
+
+    <string name="widget_outstanding">Odprte postavke</string>
+    <string name="widget_invoices">Računi</string>
+    <string name="widget_payments">Plačila</string>
+    <string name="widget_expenses">Stroški</string>
+    <string name="widget_past_due">Zapadlo</string>
+    <string name="widget_due_soon">Kmalu zapade</string>
+    <string name="widget_next_due">Naslednje zapade</string>
+    <string name="widget_unpaid_count">Neplačanih: :count</string>
+    <string name="widget_past_due_count">Zapadlih: :count</string>
+    <string name="widget_day_late">Dni zamude: :count</string>
+    <string name="widget_days_late">Dni zamude: :count</string>
+    <string name="widget_due_today">zapade danes</string>
+    <string name="widget_due_in_days">zapade čez :count dni</string>
+    <string name="widget_nothing_past_due">Nič zapadlega</string>
+    <string name="widget_updated">Posodobljeno</string>
+    <string name="widget_tap_to_refresh">Tapnite za osvežitev</string>
+    <string name="widget_open_company_to_update">Za posodobitev odprite :company</string>
+
+    <string name="widget_stop">Ustavi</string>
+    <string name="widget_start_a_task">Začni opravilo</string>
+    <string name="widget_running_count">+:count v teku</string>
+    <string name="widget_running_since">V teku od :time</string>
+    <string name="widget_stopped_syncs">Ustavljeno :time · sinhronizira se, ko odprete Invoice Ninja</string>
+
+    <string name="widget_this_month">Ta mesec</string>
+    <string name="widget_last_30_days">Zadnjih 30 dni</string>
+    <string name="widget_this_year">To leto</string>
+
+    <string name="widget_settings_title">Nastavitve pripomočka</string>
+    <string name="widget_settings_company">Podjetje</string>
+    <string name="widget_settings_current_company">Trenutno podjetje</string>
+    <string name="widget_settings_period">Obdobje</string>
+    <string name="widget_settings_figure">Podatek (majhen pripomoček)</string>
+    <string name="widget_settings_figure_help">Širši pripomoček prikazuje odprte postavke skupaj s plačili v tem obdobju.</string>
+    <string name="widget_settings_hide_amounts">Skrij zneske</string>
+    <string name="widget_settings_hide_auto">Samodejno</string>
+    <string name="widget_settings_on">Vklopljeno</string>
+    <string name="widget_settings_off">Izklopljeno</string>
+    <string name="widget_settings_hide_help">Samodejno skrije zneske, dokler je vklopljeno zaklepanje aplikacije. Števila, številke računov in časovniki ostanejo vidni.</string>
+    <string name="widget_settings_save">Shrani</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nov račun</string>
+    <string name="shortcut_new_task">Novo opravilo</string>
+    <string name="shortcut_new_expense">Nov strošek</string>
+</resources>

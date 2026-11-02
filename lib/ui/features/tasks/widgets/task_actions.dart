@@ -156,6 +156,36 @@ class TaskActions {
     Notify.success(context, context.tr('stopped_task'));
   }
 
+  /// The home-screen widgets' Start (`docs/home-screen-widgets.md` § The only
+  /// write is a queued command): the app has just opened [taskId]'s record for
+  /// the widget's tap, and starts it the way the record's own Start would —
+  /// the booking question, the In-progress status and Undo included.
+  ///
+  /// Quietly nothing for a task that is running already, gone, unsynced, or
+  /// one this user may not time: the record is on screen and says so itself.
+  static Future<void> startFromWidget(
+    BuildContext context, {
+    required String companyId,
+    required String taskId,
+  }) async {
+    final services = context.read<Services>();
+    if (services.auth.session.value?.currentCompanyId != companyId) return;
+    // The server's copy first, as the widget's Stop does: started on another
+    // device since, the local row would take a second running entry. Bounded,
+    // and skipped offline — then the local copy is all there is.
+    try {
+      await services.tasks
+          .refreshByIds(companyId: companyId, ids: [taskId])
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+    final task = await services.tasks
+        .watch(companyId: companyId, id: taskId)
+        .first;
+    if (task == null || task.isRunning || !context.mounted) return;
+    if (!canTimeTask(context, task)) return;
+    await _beginTimer(context, services, companyId, task);
+  }
+
   /// Display label for the "Are you sure?" prompt, so a confirm fired
   /// from a long list says which record it's about. Blank is fine — the
   /// dialog just omits the line.

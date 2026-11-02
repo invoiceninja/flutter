@@ -313,6 +313,71 @@ void main() {
     });
   });
 
+  group('stopRunningTimer from a home-screen widget', () {
+    // Whole seconds: the wire log is second-resolution.
+    DateTime secs(DateTime d) => DateTime.fromMillisecondsSinceEpoch(
+      d.millisecondsSinceEpoch ~/ 1000 * 1000,
+    );
+
+    Future<(TaskRepository, String, DateTime)> running() async {
+      final repo = makeRepo();
+      final start = secs(DateTime.now().subtract(const Duration(hours: 2)));
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(timeLog: [TimeEntry(start: start, stop: null)]),
+      );
+      return (repo, created.entity.id, start);
+    }
+
+    test('stops at the time the stop was asked for, not now', () async {
+      final (repo, id, start) = await running();
+      final at = start.add(const Duration(minutes: 30));
+      expect(
+        await repo.stopRunningTimer(companyId: 'co', taskId: id, stopAt: at),
+        TimerStopResult.stopped,
+      );
+      final after = await repo.watch(companyId: 'co', id: id).first;
+      expect(after!.timeLog.last.stop!.isAtSameMomentAs(at), isTrue);
+    });
+
+    test('a stop time before the entry started is clamped to it', () async {
+      final (repo, id, start) = await running();
+      await repo.stopRunningTimer(
+        companyId: 'co',
+        taskId: id,
+        stopAt: start.subtract(const Duration(hours: 1)),
+      );
+      final after = await repo.watch(companyId: 'co', id: id).first;
+      expect(after!.timeLog.last.stop!.isAtSameMomentAs(start), isTrue);
+    });
+
+    test('a task restarted elsewhere since is left running', () async {
+      final (repo, id, start) = await running();
+      final stopped = await repo.stopRunningTimer(
+        companyId: 'co',
+        taskId: id,
+        runningSince: start.add(const Duration(minutes: 5)),
+      );
+      expect(stopped, TimerStopResult.changedElsewhere);
+      final after = await repo.watch(companyId: 'co', id: id).first;
+      expect(after!.isRunning, isTrue);
+    });
+
+    test('the running entry the widget saw is stopped', () async {
+      final (repo, id, start) = await running();
+      expect(
+        await repo.stopRunningTimer(
+          companyId: 'co',
+          taskId: id,
+          runningSince: start,
+        ),
+        TimerStopResult.stopped,
+      );
+      final after = await repo.watch(companyId: 'co', id: id).first;
+      expect(after!.isRunning, isFalse);
+    });
+  });
+
   test('startTimer appends a running entry (B7 bulk start)', () async {
     final repo = makeRepo();
     final created = await repo.create(companyId: 'co', draft: task());

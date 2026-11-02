@@ -69,7 +69,11 @@ class _FakeDashboardApi extends DashboardApi {
   /// request is on the wire.
   void Function()? onFetch;
 
+  /// How many times each fetch went out, by `failures` key.
+  final Map<String, int> calls = {};
+
   Future<Object?> _maybe(String key, Object? value) async {
+    calls[key] = (calls[key] ?? 0) + 1;
     onFetch?.call();
     inFlight++;
     if (inFlight > peakInFlight) peakInFlight = inFlight;
@@ -940,4 +944,150 @@ void main() {
       expect(await repo.refreshActivities('co_a'), 1);
     });
   });
+
+  group('request coalescing (home-screen widgets)', () {
+    test('a background refresh joins the request in flight', () async {
+      api.pastDue = <dynamic>[];
+      await Future.wait([
+        repo.refreshPastDue('co_a'),
+        repo.refreshPastDue('co_a', maxAge: const Duration(minutes: 1)),
+      ]);
+      expect(api.calls['past_due'], 1);
+    });
+
+    test('a "fetch now" during a request fetches once more after it — the '
+        'one in flight may predate the change that prompted it', () async {
+      api.pastDue = <dynamic>[];
+      await Future.wait([
+        repo.refreshPastDue('co_a'),
+        repo.refreshPastDue('co_a'),
+      ]);
+      expect(api.calls['past_due'], 2);
+    });
+
+    test('several "fetch now"s during a request share one re-fetch', () async {
+      final filter = DashboardFilter.defaults();
+      await Future.wait([
+        repo.refreshTotals('co_a', filter),
+        repo.refreshTotals('co_a', filter),
+        repo.refreshTotals('co_a', filter),
+        repo.refreshTotals('co_a', filter),
+      ]);
+      expect(api.calls['totals_current'], 2);
+      expect(api.calls['totals_previous'], 2);
+    });
+
+    test('a failed request still lets a queued re-fetch run', () async {
+      api.failures['past_due'] = Exception('boom');
+      final first = repo.refreshPastDue('co_a');
+      final second = repo.refreshPastDue('co_a');
+      await expectLater(first, throwsException);
+      api.failures.clear();
+      api.pastDue = <dynamic>[];
+      await second;
+      expect(api.calls['past_due'], 2);
+    });
+
+    test('a refresh after the first finished fetches again', () async {
+      api.pastDue = <dynamic>[];
+      await repo.refreshPastDue('co_a');
+      await repo.refreshPastDue('co_a');
+      expect(api.calls['past_due'], 2);
+    });
+
+    test('maxAge skips a row younger than it, never one older', () async {
+      var clock = 1000;
+      repo = DashboardRepository(db: db, api: api, now: () => clock);
+      api.outstandingTotals = <String, dynamic>{};
+      await repo.refreshOutstanding('co_a', includeDrafts: false);
+      clock += 30 * 1000;
+      await repo.refreshOutstanding(
+        'co_a',
+        includeDrafts: false,
+        maxAge: const Duration(minutes: 1),
+      );
+      expect(api.calls['totals_outstanding'], 1, reason: '30 s old: fresh');
+      clock += 60 * 1000;
+      await repo.refreshOutstanding(
+        'co_a',
+        includeDrafts: false,
+        maxAge: const Duration(minutes: 1),
+      );
+      expect(api.calls['totals_outstanding'], 2, reason: '90 s old: stale');
+    });
+
+    test('without maxAge a fresh row is fetched anyway (Refresh)', () async {
+      api.pastDue = <dynamic>[];
+      await repo.refreshPastDue('co_a');
+      await repo.refreshPastDue('co_a');
+      expect(api.calls['past_due'], 2);
+    });
+
+    test('a failed request clears its slot', () async {
+      api.failures['past_due'] = Exception('boom');
+      await expectLater(repo.refreshPastDue('co_a'), throwsException);
+      api.failures.clear();
+      api.pastDue = <dynamic>[];
+      await repo.refreshPastDue('co_a');
+      expect(api.calls['past_due'], 2);
+    });
+  });
+
+  test(
+    'pruneStaleTotals drops only totals nobody refreshed in 60 days',
+    () async {
+      var clock = 1000;
+      repo = DashboardRepository(db: db, api: api, now: () => clock);
+      final old = DashboardFilter.defaults();
+      final fresh = DashboardFilter.defaults().copyWith(currencyId: 1);
+      // A payload for both, or neither row is ever written and "pruned" would
+      // pass by never having existed.
+      api._totalsCurrent[old.filterHash()] = <String, dynamic>{};
+      api._totalsCurrent[fresh.filterHash()] = <String, dynamic>{};
+      api.outstandingTotals = <String, dynamic>{};
+      await repo.refreshTotals('co_a', old);
+      await repo.refreshOutstanding('co_a', includeDrafts: false);
+      expect(
+        await db.dashboardCacheDao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsCurrent,
+          filterHash: old.filterHash(),
+        ),
+        isNotNull,
+        reason: 'the row to prune must exist first',
+      );
+      clock += const Duration(days: 61).inMilliseconds;
+      await repo.refreshTotals('co_a', fresh);
+
+      await repo.pruneStaleTotals('co_a');
+
+      final dao = db.dashboardCacheDao;
+      expect(
+        await dao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsCurrent,
+          filterHash: old.filterHash(),
+        ),
+        isNull,
+        reason: 'unrefreshed for 61 days',
+      );
+      expect(
+        await dao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsCurrent,
+          filterHash: fresh.filterHash(),
+        ),
+        isNotNull,
+      );
+      expect(
+        await dao.read(
+          companyId: 'co_a',
+          kind: DashboardKind.totalsOutstanding,
+          filterHash: dashboardOutstandingHash(includeDrafts: false),
+        ),
+        isNotNull,
+        reason: 'only period totals are pruned',
+      );
+    },
+  );
 }

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fa translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">نمای کلی کسب‌وکار</string>
+    <string name="widget_snapshot_description">ببینید چه مبلغی طلب دارید، چه چیزی سررسیدش گذشته و پرداخت‌های این دوره.</string>
+    <string name="widget_attention_name">نیازمند توجه</string>
+    <string name="widget_attention_description">فاکتورهای سررسیدگذشته را پیگیری کنید و ببینید چه چیزی این هفته سررسید می‌شود. برای باز کردن روی یکی ضربه بزنید.</string>
+    <string name="widget_timer_name">تایمر در حال اجرا</string>
+    <string name="widget_timer_description">ساعت زنده برای تایمر در حال اجرای شما. با یک ضربه متوقفش کنید یا یک وظیفهٔ اخیر را شروع کنید.</string>
+
+    <string name="widget_open_to_load">برای بارگیری داده‌هایتان Invoice Ninja را باز کنید</string>
+    <string name="widget_update_app">برای استفاده از این ابزارک، Invoice Ninja را به‌روزرسانی کنید</string>
+    <string name="widget_sign_in">ورود به Invoice Ninja</string>
+    <string name="widget_choose_company">انتخاب شرکت</string>
+    <string name="widget_no_dashboard_permission">نقش شما اجازهٔ دیدن ارقام داشبورد را ندارد</string>
+
+    <string name="widget_outstanding">مانده</string>
+    <string name="widget_invoices">فاکتورها</string>
+    <string name="widget_payments">پرداخت‌ها</string>
+    <string name="widget_expenses">هزینه‌ها</string>
+    <string name="widget_past_due">سررسیدگذشته</string>
+    <string name="widget_due_soon">سررسید نزدیک</string>
+    <string name="widget_next_due">سررسید بعدی</string>
+    <string name="widget_unpaid_count">:count پرداخت‌نشده</string>
+    <string name="widget_past_due_count">:count سررسیدگذشته</string>
+    <string name="widget_day_late">:count روز تأخیر</string>
+    <string name="widget_days_late">:count روز تأخیر</string>
+    <string name="widget_due_today">سررسید امروز</string>
+    <string name="widget_due_in_days">سررسید تا :count روز دیگر</string>
+    <string name="widget_nothing_past_due">هیچ مورد سررسیدگذشته‌ای نیست</string>
+    <string name="widget_updated">به‌روزرسانی شد</string>
+    <string name="widget_tap_to_refresh">برای به‌روزرسانی ضربه بزنید</string>
+    <string name="widget_open_company_to_update">برای به‌روزرسانی، :company را باز کنید</string>
+
+    <string name="widget_stop">توقف</string>
+    <string name="widget_start_a_task">شروع یک وظیفه</string>
+    <string name="widget_running_count">+:count در حال اجرا</string>
+    <string name="widget_running_since">در حال اجرا از :time</string>
+    <string name="widget_stopped_syncs">متوقف شد :time · هنگام باز کردن Invoice Ninja همگام‌سازی می‌شود</string>
+
+    <string name="widget_this_month">این ماه</string>
+    <string name="widget_last_30_days">30 روز گذشته</string>
+    <string name="widget_this_year">امسال</string>
+
+    <string name="widget_settings_title">تنظیمات ابزارک</string>
+    <string name="widget_settings_company">شرکت</string>
+    <string name="widget_settings_current_company">شرکت فعلی</string>
+    <string name="widget_settings_period">دوره</string>
+    <string name="widget_settings_figure">رقم (ابزارک کوچک)</string>
+    <string name="widget_settings_figure_help">ابزارک پهن‌تر، مانده را همراه با پرداخت‌های این دوره نشان می‌دهد.</string>
+    <string name="widget_settings_hide_amounts">پنهان کردن مبالغ</string>
+    <string name="widget_settings_hide_auto">خودکار</string>
+    <string name="widget_settings_on">روشن</string>
+    <string name="widget_settings_off">خاموش</string>
+    <string name="widget_settings_hide_help">حالت خودکار تا وقتی قفل برنامه روشن است مبالغ را پنهان می‌کند. تعدادها، شماره‌های فاکتور و تایمرها نمایان می‌مانند.</string>
+    <string name="widget_settings_save">ذخیره</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">فاکتور جدید</string>
+    <string name="shortcut_new_task">وظیفهٔ جدید</string>
+    <string name="shortcut_new_expense">هزینهٔ جدید</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (android:dataExtractionRules). Same as backup_rules.xml: all
+     as before, minus the home-screen widgets' per-widget settings. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="home_widget_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="home_widget_settings.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -14,7 +14,7 @@ class _RecordingRouter implements DeepLinkRouter {
   final opened = <Uri>[];
 
   @override
-  Future<void> open(Uri uri) async => opened.add(uri);
+  Future<void> open(Uri uri, {DeepLinkArrival? then}) async => opened.add(uri);
 
   @override
   Object? noSuchMethod(Invocation invocation) =>

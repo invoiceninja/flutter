@@ -1,0 +1,158 @@
+{
+  "v": 1,
+  "writtenAt": 1791977400000,
+  "signedIn": true,
+  "userId": "u1",
+  "appLock": false,
+  "rtl": false,
+  "activeCompanyId": "co1",
+  "strings": {
+    "outstanding": "T:outstanding",
+    "past_due": "T:past_due",
+    "invoices": "T:invoices",
+    "payments": "T:payments",
+    "expenses": "T:expenses",
+    "unpaid_count_label": "T:unpaid_count_label",
+    "past_due_count_label": "T:past_due_count_label",
+    "days_late_count_singular": "T:days_late_count_singular",
+    "days_late_count_plural": "T:days_late_count_plural",
+    "widget_due_in_days": "T:widget_due_in_days",
+    "widget_due_today": "T:widget_due_today",
+    "widget_due_soon": "T:widget_due_soon",
+    "widget_nothing_past_due": "T:widget_nothing_past_due",
+    "next_due": "T:next_due",
+    "updated": "T:updated",
+    "widget_tap_to_refresh": "T:widget_tap_to_refresh",
+    "widget_open_company_to_update": "T:widget_open_company_to_update",
+    "widget_running_count": "T:widget_running_count",
+    "widget_running_since": "T:widget_running_since",
+    "widget_start_a_task": "T:widget_start_a_task",
+    "widget_stopped_syncs": "T:widget_stopped_syncs",
+    "widget_sign_in": "T:widget_sign_in",
+    "widget_open_to_load": "T:widget_open_to_load",
+    "widget_no_dashboard_permission": "T:widget_no_dashboard_permission",
+    "widget_choose_company": "T:widget_choose_company",
+    "widget_update_app": "T:widget_update_app",
+    "widget_amount_hidden": "T:widget_amount_hidden",
+    "widget_trend_up": "T:widget_trend_up",
+    "widget_trend_down": "T:widget_trend_down",
+    "widget_stop_task": "T:widget_stop_task",
+    "widget_start_task": "T:widget_start_task",
+    "widget_in_currency": "T:widget_in_currency",
+    "stop": "T:stop",
+    "today": "T:today",
+    "email_invoice": "T:email_invoice",
+    "this_month": "T:this_month",
+    "last30_days": "T:last30_days",
+    "this_year": "T:this_year"
+  },
+  "companies": [
+    {
+      "id": "co1",
+      "name": "Acme Studio",
+      "accent": "#2f6fed",
+      "canViewDashboard": true,
+      "figures": {
+        "fetchedAt": 1791977400000,
+        "outstanding": {
+          "amount": {
+            "text": "$12,431.50",
+            "compact": "$12.4K"
+          },
+          "unpaidCount": 4,
+          "pastDueCount": 1,
+          "pastDueExact": true,
+          "pastDueAmount": {
+            "text": "$100.00",
+            "compact": "$100"
+          },
+          "pastDueShare": 0.01
+        },
+        "periods": {
+          "this_month": {
+            "label": "T:this_month",
+            "name": "October",
+            "endsOn": "2026-10-31",
+            "fetchedAt": 1791977400000,
+            "invoices": {
+              "text": "$12,000.00",
+              "compact": "$12K",
+              "deltaPct": 20,
+              "good": true
+            },
+            "payments": {
+              "text": "$8,000.00",
+              "compact": "$8K",
+              "deltaPct": -20,
+              "good": false
+            },
+            "expenses": {
+              "text": "$900.00",
+              "compact": "$900",
+              "deltaPct": -10,
+              "good": true
+            }
+          }
+        },
+        "attention": {
+          "pastDue": [
+            {
+              "id": "1",
+              "number": "INV-1",
+              "client": "Acme",
+              "amount": {
+                "text": "$100.00",
+                "compact": "$100"
+              },
+              "lateSince": "2026-10-02"
+            }
+          ],
+          "dueSoon": [
+            {
+              "id": "3",
+              "number": "INV-3",
+              "client": "Acme",
+              "amount": {
+                "text": "$100.00",
+                "compact": "$100"
+              },
+              "dueOn": "2026-10-17"
+            }
+          ],
+          "nextDue": {
+            "id": "3",
+            "number": "INV-3",
+            "client": "Acme",
+            "amount": {
+              "text": "$100.00",
+              "compact": "$100"
+            },
+            "dueOn": "2026-10-17"
+          }
+        }
+      },
+      "timers": [
+        {
+          "taskId": "t1",
+          "description": "Task t1",
+          "client": "Acme",
+          "runningSince": 1791972000000,
+          "priorSeconds": 0,
+          "canStop": true
+        }
+      ],
+      "runningCount": 1,
+      "recentTasks": [
+        {
+          "taskId": "t2",
+          "description": "Task t2",
+          "client": "Acme"
+        }
+      ],
+      "today": {
+        "date": "2026-10-14",
+        "doneSeconds": 0
+      }
+    }
+  ]
+}

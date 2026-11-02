@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The container the app writes the widgets' snapshot to, and the
+	     widgets queue a Stop in (docs/home-screen-widgets.md). Same group as
+	     Runner.entitlements and the Share Extension; it must be enabled on this
+	     extension's App ID before a device or App Store build can be
+	     provisioned. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.invoiceninja.admin</string>
+	</array>
+</dict>
+</plist>

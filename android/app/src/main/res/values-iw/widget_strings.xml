@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- he translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">תמונת מצב עסקית</string>
+    <string name="widget_snapshot_description">ראה כמה חייבים לך, מה באיחור ואת התשלומים של התקופה הזו.</string>
+    <string name="widget_attention_name">דורש תשומת לב</string>
+    <string name="widget_attention_description">עקוב אחר חשבוניות באיחור וראה מה לתשלום השבוע. הקש על אחת כדי לפתוח אותה.</string>
+    <string name="widget_timer_name">טיימר פועל</string>
+    <string name="widget_timer_description">שעון חי לטיימר הפועל שלך. עצור אותו, או התחל משימה שעבדת עליה לאחרונה, בהקשה אחת.</string>
+
+    <string name="widget_open_to_load">פתח את Invoice Ninja כדי לטעון את הנתונים שלך</string>
+    <string name="widget_update_app">עדכן את Invoice Ninja כדי להשתמש בווידג\'ט הזה</string>
+    <string name="widget_sign_in">היכנס ל-Invoice Ninja</string>
+    <string name="widget_choose_company">בחר חברה</string>
+    <string name="widget_no_dashboard_permission">לתפקיד שלך אין הרשאה לצפות בנתוני לוח הבקרה</string>
+
+    <string name="widget_outstanding">יתרה לתשלום</string>
+    <string name="widget_invoices">חשבוניות</string>
+    <string name="widget_payments">תשלומים</string>
+    <string name="widget_expenses">הוצאות</string>
+    <string name="widget_past_due">באיחור</string>
+    <string name="widget_due_soon">לתשלום בקרוב</string>
+    <string name="widget_next_due">התשלום הבא</string>
+    <string name="widget_unpaid_count">:count לא שולמו</string>
+    <string name="widget_past_due_count">:count באיחור</string>
+    <string name="widget_day_late">באיחור של :count יום</string>
+    <string name="widget_days_late">באיחור של :count ימים</string>
+    <string name="widget_due_today">לתשלום היום</string>
+    <string name="widget_due_in_days">לתשלום בעוד :count ימים</string>
+    <string name="widget_nothing_past_due">אין פריטים באיחור</string>
+    <string name="widget_updated">עודכן</string>
+    <string name="widget_tap_to_refresh">הקש לרענון</string>
+    <string name="widget_open_company_to_update">פתח את :company לעדכון</string>
+
+    <string name="widget_stop">עצור</string>
+    <string name="widget_start_a_task">התחל משימה</string>
+    <string name="widget_running_count">+:count פועלים</string>
+    <string name="widget_running_since">פועל מאז :time</string>
+    <string name="widget_stopped_syncs">נעצר :time · יסונכרן כשתפתח את Invoice Ninja</string>
+
+    <string name="widget_this_month">החודש הזה</string>
+    <string name="widget_last_30_days">30 ימים אחרונים</string>
+    <string name="widget_this_year">השנה</string>
+
+    <string name="widget_settings_title">הגדרות ווידג\'ט</string>
+    <string name="widget_settings_company">חברה</string>
+    <string name="widget_settings_current_company">החברה הנוכחית</string>
+    <string name="widget_settings_period">תקופה</string>
+    <string name="widget_settings_figure">נתון (ווידג\'ט קטן)</string>
+    <string name="widget_settings_figure_help">ווידג\'ט רחב יותר מציג את היתרה לתשלום יחד עם התשלומים של התקופה הזו.</string>
+    <string name="widget_settings_hide_amounts">הסתר סכומים</string>
+    <string name="widget_settings_hide_auto">אוטומטי</string>
+    <string name="widget_settings_on">מופעל</string>
+    <string name="widget_settings_off">כבוי</string>
+    <string name="widget_settings_hide_help">במצב אוטומטי הסכומים מוסתרים כל עוד נעילת האפליקציה מופעלת. ספירות, מספרי חשבוניות וטיימרים נשארים גלויים.</string>
+    <string name="widget_settings_save">שמור</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">חשבונית חדשה</string>
+    <string name="shortcut_new_task">משימה חדשה</string>
+    <string name="shortcut_new_expense">הוצאה חדשה</string>
+</resources>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App-icon quick actions (long-press the launcher icon). Each opens a create
+     screen through the engine-free DeepLinkReceiverActivity - never
+     MainActivity, which strips every extra and must only ever be started by a
+     launcher-shaped intent (docs/deep-links.md). The router turns a create the
+     user may not make into the list (createForbiddenRedirect). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_invoice"
+        android:shortcutId="new_invoice"
+        android:shortcutShortLabel="@string/shortcut_new_invoice">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="invoiceninja://app/invoices/new"
+            android:targetClass="com.invoiceninja.admin.DeepLinkReceiverActivity"
+            android:targetPackage="com.invoiceninja.admin" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_task"
+        android:shortcutId="new_task"
+        android:shortcutShortLabel="@string/shortcut_new_task">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="invoiceninja://app/tasks/new"
+            android:targetClass="com.invoiceninja.admin.DeepLinkReceiverActivity"
+            android:targetPackage="com.invoiceninja.admin" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_expense"
+        android:shortcutId="new_expense"
+        android:shortcutShortLabel="@string/shortcut_new_expense">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="invoiceninja://app/expenses/new"
+            android:targetClass="com.invoiceninja.admin.DeepLinkReceiverActivity"
+            android:targetPackage="com.invoiceninja.admin" />
+    </shortcut>
+</shortcuts>

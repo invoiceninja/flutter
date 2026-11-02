@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- sk translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Prehľad podnikania</string>
+    <string name="widget_snapshot_description">Pozrite sa, koľko vám dlhujú, čo je po splatnosti a aké sú platby za toto obdobie.</string>
+    <string name="widget_attention_name">Vyžaduje pozornosť</string>
+    <string name="widget_attention_description">Pripomínajte faktúry po splatnosti a pozrite si, čo je splatné tento týždeň. Ťuknutím faktúru otvoríte.</string>
+    <string name="widget_timer_name">Spustený časovač</string>
+    <string name="widget_timer_description">Živé hodiny pre váš spustený časovač. Zastavte ho alebo spustite nedávnu úlohu jedným ťuknutím.</string>
+
+    <string name="widget_open_to_load">Otvorte Invoice Ninja a načítajte svoje údaje</string>
+    <string name="widget_update_app">Na používanie tohto widgetu aktualizujte Invoice Ninja</string>
+    <string name="widget_sign_in">Prihláste sa do Invoice Ninja</string>
+    <string name="widget_choose_company">Vyberte spoločnosť</string>
+    <string name="widget_no_dashboard_permission">Vaša rola nemôže zobraziť údaje z nástenky</string>
+
+    <string name="widget_outstanding">Nezaplatené</string>
+    <string name="widget_invoices">Faktúry</string>
+    <string name="widget_payments">Platby</string>
+    <string name="widget_expenses">Výdaje</string>
+    <string name="widget_past_due">Po splatnosti</string>
+    <string name="widget_due_soon">Čoskoro splatné</string>
+    <string name="widget_next_due">Najbližšia splatnosť</string>
+    <string name="widget_unpaid_count">Nezaplatené: :count</string>
+    <string name="widget_past_due_count">Po splatnosti: :count</string>
+    <string name="widget_day_late">:count d po splatnosti</string>
+    <string name="widget_days_late">:count d po splatnosti</string>
+    <string name="widget_due_today">splatné dnes</string>
+    <string name="widget_due_in_days">splatné o :count dní</string>
+    <string name="widget_nothing_past_due">Nič po splatnosti</string>
+    <string name="widget_updated">Aktualizované</string>
+    <string name="widget_tap_to_refresh">Ťuknutím obnovíte</string>
+    <string name="widget_open_company_to_update">Na aktualizáciu otvorte :company</string>
+
+    <string name="widget_stop">Zastaviť</string>
+    <string name="widget_start_a_task">Spustiť úlohu</string>
+    <string name="widget_running_count">+:count spustené</string>
+    <string name="widget_running_since">Spustené od :time</string>
+    <string name="widget_stopped_syncs">Zastavené :time · synchronizuje sa po otvorení Invoice Ninja</string>
+
+    <string name="widget_this_month">Tento mesiac</string>
+    <string name="widget_last_30_days">Posledných 30 dní</string>
+    <string name="widget_this_year">Tento rok</string>
+
+    <string name="widget_settings_title">Nastavenia widgetu</string>
+    <string name="widget_settings_company">Spoločnosť</string>
+    <string name="widget_settings_current_company">Aktuálna spoločnosť</string>
+    <string name="widget_settings_period">Obdobie</string>
+    <string name="widget_settings_figure">Údaj (malý widget)</string>
+    <string name="widget_settings_figure_help">Širší widget zobrazuje Nezaplatené spolu s platbami za toto obdobie.</string>
+    <string name="widget_settings_hide_amounts">Skryť sumy</string>
+    <string name="widget_settings_hide_auto">Automaticky</string>
+    <string name="widget_settings_on">Zapnuté</string>
+    <string name="widget_settings_off">Vypnuté</string>
+    <string name="widget_settings_hide_help">Automaticky skryje sumy, keď je zapnutý zámok aplikácie. Počty, čísla faktúr a časovače zostanú viditeľné.</string>
+    <string name="widget_settings_save">Uložiť</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nová faktúra</string>
+    <string name="shortcut_new_task">Nová úloha</string>
+    <string name="shortcut_new_expense">Nový výdaj</string>
+</resources>

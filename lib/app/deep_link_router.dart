@@ -12,6 +12,8 @@ import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
+import 'package:admin/data/models/value/date.dart';
+import 'package:admin/ui/core/list/invoice_kpi_intents.dart';
 
 /// What to do with an incoming deep link, independent of where it came from.
 ///
@@ -26,6 +28,10 @@ import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
 /// is built, so the app state calls [attach] afterwards. A link that arrives
 /// before then — or before the first frame, when there is no `BuildContext`
 /// yet — is held and replayed, not dropped.
+/// What to do once a link has arrived — handed the root navigator's context.
+/// The home-screen widgets' Start opens a task with one, and starts it there.
+typedef DeepLinkArrival = FutureOr<void> Function(BuildContext context);
+
 class DeepLinkRouter {
   DeepLinkRouter({
     required ValueListenable<AuthSession?> session,
@@ -52,6 +58,11 @@ class DeepLinkRouter {
   final _log = Logger('DeepLinkRouter');
 
   void Function(String location)? _go;
+
+  /// `GoRouter.go` with an `extra` — how a link's list filter reaches the
+  /// list (`ListFilterIntent`). Null in a harness that doesn't pass it; the
+  /// list then opens unfiltered.
+  void Function(String location, Object extra)? _goWithExtra;
   BuildContext? Function()? _contextOf;
 
   /// URIs currently queued on [_inFlight] or being handled.
@@ -91,19 +102,26 @@ class DeepLinkRouter {
   /// waiting for the gate to clear. See [ArrivalGate.isOpen].
   Uri? _deferred;
 
+  /// The [open] `then` of [_deferred], replayed with it.
+  DeepLinkArrival? _deferredThen;
+
   /// Wire navigation in once `MaterialApp.router` exists. [contextOf] supplies
   /// a `BuildContext` under the `MultiProvider` (the root navigator's), which
   /// the company-switch guards need for their dialogs.
   void attach({
     required void Function(String location) go,
     required BuildContext? Function() contextOf,
+    void Function(String location, Object extra)? goWithExtra,
   }) {
     _go = go;
+    _goWithExtra = goWithExtra;
     _contextOf = contextOf;
     final pending = _deferred;
     if (pending != null) {
+      final then = _deferredThen;
       _deferred = null;
-      unawaited(open(pending));
+      _deferredThen = null;
+      unawaited(open(pending, then: then));
     }
   }
 
@@ -147,14 +165,18 @@ class DeepLinkRouter {
     );
     // Ignored rather than reported: [open] would toast `invalid_url`, and
     // nobody typed this URL — it is just the page that was opened. A `company`
-    // on a route that isn't a record (`/#/dashboard?company=…`) is ordinary.
+    // on a route that isn't a link target (`/#/reports?company=…`) is ordinary.
     if (parseAppDeepLink(link, _registry) == null) return Future<void>.value();
     return open(link);
   }
 
   /// Handle one incoming link. Never throws — a malformed or unroutable link
   /// is reported to the user, not to the caller.
-  Future<void> open(Uri uri) {
+  ///
+  /// [then] runs after the app has navigated to the link — after the lock
+  /// screen and any company switch — and never when the link is refused, a
+  /// guard is cancelled, or the session ends first.
+  Future<void> open(Uri uri, {DeepLinkArrival? then}) {
     // The calendar OAuth return keeps its query string (a single-use `handoff`
     // token) and bypasses the queue entirely: it is a machine-to-machine
     // handoff to a screen that self-routes, not a place the user asked to go.
@@ -178,7 +200,7 @@ class DeepLinkRouter {
           // Dropped rather than deferred: this link belongs to the session
           // that ended. See [_generation].
           if (generation != _generation) return null;
-          return _open(uri);
+          return _open(uri, then);
         })
         .catchError((Object e, StackTrace st) {
           _log.warning('deep link failed: $uri', e, st);
@@ -186,10 +208,11 @@ class DeepLinkRouter {
         .whenComplete(() => _pending.remove(uri));
   }
 
-  Future<void> _open(Uri uri) async {
+  Future<void> _open(Uri uri, DeepLinkArrival? then) async {
     final go = _go;
     if (go == null) {
       _deferred = uri;
+      _deferredThen = then;
       return;
     }
 
@@ -206,6 +229,7 @@ class DeepLinkRouter {
     // would switch the workspace behind a lock the user hasn't passed.
     if (!_gate.isOpen) {
       _deferred = uri;
+      _deferredThen = then;
       _gate.notifyWhenOpen(_replayDeferred);
       return;
     }
@@ -244,6 +268,7 @@ class DeepLinkRouter {
       final context = _contextOf?.call();
       if (context == null) {
         _deferred = uri;
+        _deferredThen = then;
         WidgetsBinding.instance.addPostFrameCallback((_) => _replayDeferred());
         return;
       }
@@ -278,7 +303,33 @@ class DeepLinkRouter {
     // switch the user initiated from the picker, and exactly wrong here. An
     // open dirty edit form still gets its prompt: the edit routes carry
     // `onExit: _confirmExitIfDirty`, which fires on this `go()`.
-    go(target.path);
+    final intent = invoiceLinkFilterIntent(
+      target.listFilter,
+      today: Date.today(),
+    );
+    final goWithExtra = _goWithExtra;
+    if (intent != null && goWithExtra != null) {
+      goWithExtra(target.path, intent);
+    } else {
+      go(target.path);
+    }
+    if (then != null) _arrive(then, _generation);
+  }
+
+  /// Runs [then] once the navigation has built, with the root navigator's
+  /// context — unless the session ended in between.
+  void _arrive(DeepLinkArrival then, int generation) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (generation != _generation) return;
+      final context = _contextOf?.call();
+      if (context == null || !context.mounted) return;
+      try {
+        await then(context);
+      } catch (e, st) {
+        _log.warning('deep link arrival failed', e, st);
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   /// The host of an already-normalised base URL, or null when there isn't one
@@ -309,8 +360,10 @@ class DeepLinkRouter {
   void _replayDeferred() {
     final pending = _deferred;
     if (pending == null) return;
+    final then = _deferredThen;
     _deferred = null;
-    unawaited(open(pending));
+    _deferredThen = null;
+    unawaited(open(pending, then: then));
   }
 
   /// See [showLocalizedToast]. `switched_to_company` carries `:company`, the
@@ -335,6 +388,7 @@ class DeepLinkRouter {
   void reset() {
     _generation++;
     _deferred = null;
+    _deferredThen = null;
     _pending.clear();
     _gate.cancel();
   }

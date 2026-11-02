@@ -1,0 +1,12 @@
+/* Siri phrases for the app's App Shortcuts (AppShortcuts.swift).
+   Generated from the translations; ${applicationName} must appear
+   exactly once in every phrase. */
+
+"New invoice in ${applicationName}" = "${applicationName} で新しい請求書";
+"Create an invoice in ${applicationName}" = "${applicationName} で請求書を作成";
+"New task in ${applicationName}" = "${applicationName} で新しいタスク";
+"Start a task in ${applicationName}" = "${applicationName} でタスクを開始";
+"New expense in ${applicationName}" = "${applicationName} で新しい経費";
+"Add an expense in ${applicationName}" = "${applicationName} で経費を追加";
+"Show unpaid invoices in ${applicationName}" = "${applicationName} で未払いの請求書を表示";
+"What's outstanding in ${applicationName}" = "${applicationName} の未回収額は";

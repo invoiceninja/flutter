@@ -104,6 +104,20 @@ class DashboardCacheDao extends DatabaseAccessor<AppDatabase>
         .go();
   }
 
+  /// Delete the rows of [kinds] fetched before [before] (epoch ms).
+  Future<int> deleteFetchedBefore({
+    required String companyId,
+    required Iterable<String> kinds,
+    required int before,
+  }) =>
+      (delete(dashboardCache)..where(
+            (c) =>
+                c.companyId.equals(companyId) &
+                c.kind.isIn(kinds.toList()) &
+                c.fetchedAt.isSmallerThanValue(before),
+          ))
+          .go();
+
   /// Delete every cached row for one `kind` (all filter-hashes). Called when
   /// a configured dashboard card is removed/reconfigured so its per-card
   /// rows don't accumulate across every date-range/currency combination.

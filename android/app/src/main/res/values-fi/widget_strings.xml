@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fi translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Liiketoiminnan yhteenveto</string>
+    <string name="widget_snapshot_description">Näe saatavasi, erääntyneet laskut ja tämän jakson maksut.</string>
+    <string name="widget_attention_name">Vaatii huomiota</string>
+    <string name="widget_attention_description">Seuraa erääntyneitä laskuja ja näe, mitkä erääntyvät tällä viikolla. Avaa lasku napauttamalla.</string>
+    <string name="widget_timer_name">Käynnissä oleva ajastin</string>
+    <string name="widget_timer_description">Reaaliaikainen kello käynnissä olevalle ajastimellesi. Pysäytä se tai aloita viimeaikainen tehtävä yhdellä napautuksella.</string>
+
+    <string name="widget_open_to_load">Lataa tietosi avaamalla Invoice Ninja</string>
+    <string name="widget_update_app">Päivitä Invoice Ninja käyttääksesi tätä widgetiä</string>
+    <string name="widget_sign_in">Kirjaudu Invoice Ninja -sovellukseen</string>
+    <string name="widget_choose_company">Valitse yritys</string>
+    <string name="widget_no_dashboard_permission">Roolisi ei voi nähdä kojelaudan lukuja</string>
+
+    <string name="widget_outstanding">Avoimet</string>
+    <string name="widget_invoices">Laskut</string>
+    <string name="widget_payments">Maksut</string>
+    <string name="widget_expenses">Kulut</string>
+    <string name="widget_past_due">Erääntyneet</string>
+    <string name="widget_due_soon">Erääntyy pian</string>
+    <string name="widget_next_due">Seuraava erääntyvä</string>
+    <string name="widget_unpaid_count">:count maksamatta</string>
+    <string name="widget_past_due_count">:count erääntynyt</string>
+    <string name="widget_day_late">:count päivä myöhässä</string>
+    <string name="widget_days_late">:count päivää myöhässä</string>
+    <string name="widget_due_today">erääntyy tänään</string>
+    <string name="widget_due_in_days">erääntyy :count päivän kuluttua</string>
+    <string name="widget_nothing_past_due">Ei erääntyneitä</string>
+    <string name="widget_updated">Päivitetty</string>
+    <string name="widget_tap_to_refresh">Päivitä napauttamalla</string>
+    <string name="widget_open_company_to_update">Päivitä avaamalla :company</string>
+
+    <string name="widget_stop">Pysäytä</string>
+    <string name="widget_start_a_task">Aloita tehtävä</string>
+    <string name="widget_running_count">+:count käynnissä</string>
+    <string name="widget_running_since">Käynnissä :time alkaen</string>
+    <string name="widget_stopped_syncs">Pysäytetty :time · synkronoidaan, kun avaat Invoice Ninja -sovelluksen</string>
+
+    <string name="widget_this_month">Tämä kuukausi</string>
+    <string name="widget_last_30_days">Viimeiset 30 päivää</string>
+    <string name="widget_this_year">Tämä vuosi</string>
+
+    <string name="widget_settings_title">Widgetin asetukset</string>
+    <string name="widget_settings_company">Yritys</string>
+    <string name="widget_settings_current_company">Nykyinen yritys</string>
+    <string name="widget_settings_period">Jakso</string>
+    <string name="widget_settings_figure">Luku (pieni widget)</string>
+    <string name="widget_settings_figure_help">Leveämpi widget näyttää avoimet yhdessä tämän jakson maksujen kanssa.</string>
+    <string name="widget_settings_hide_amounts">Piilota summat</string>
+    <string name="widget_settings_hide_auto">Automaattinen</string>
+    <string name="widget_settings_on">Päällä</string>
+    <string name="widget_settings_off">Pois</string>
+    <string name="widget_settings_hide_help">Automaattinen piilottaa summat, kun sovelluslukko on päällä. Määrät, laskunumerot ja ajastimet pysyvät näkyvissä.</string>
+    <string name="widget_settings_save">Tallenna</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Uusi lasku</string>
+    <string name="shortcut_new_task">Uusi tehtävä</string>
+    <string name="shortcut_new_expense">Uusi kulu</string>
+</resources>

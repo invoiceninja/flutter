@@ -18,6 +18,8 @@
     <dict>
         <key>com.invoiceninja.admin</key>
         <string>Invoice Ninja macOS App Store</string>
+        <key>com.invoiceninja.admin.HomeWidgets</key>
+        <string>Invoice Ninja Home Widgets macOS App Store</string>
     </dict>
     <key>uploadSymbols</key>
     <true/>

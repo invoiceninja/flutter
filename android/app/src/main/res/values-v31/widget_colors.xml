@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: the surface, ink and accent follow the wallpaper (Material You). -->
+<resources>
+    <color name="widget_surface">@android:color/system_neutral1_50</color>
+    <color name="widget_surface_alt">@android:color/system_neutral2_100</color>
+    <color name="widget_ink">@android:color/system_neutral1_900</color>
+    <color name="widget_ink_muted">@android:color/system_neutral2_600</color>
+    <color name="widget_accent">@android:color/system_accent1_600</color>
+    <color name="widget_on_accent">@android:color/system_accent1_0</color>
+    <color name="widget_good">#FF1F8A5B</color>
+    <color name="widget_bad">#FFC0392B</color>
+    <color name="widget_warning">#FFB45309</color>
+</resources>

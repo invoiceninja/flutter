@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- sq translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Përmbledhje e biznesit</string>
+    <string name="widget_snapshot_description">Shiko sa të detyrohen, çfarë ka kaluar afatin dhe pagesat e kësaj periudhe.</string>
+    <string name="widget_attention_name">Kërkon vëmendje</string>
+    <string name="widget_attention_description">Ndiq faturat me afat të kaluar dhe shiko çfarë skadon këtë javë. Prek njërën për ta hapur.</string>
+    <string name="widget_timer_name">Kohëmatësi në ecuri</string>
+    <string name="widget_timer_description">Orë e drejtpërdrejtë për kohëmatësin tënd në ecuri. Ndaloje ose fillo një detyrë të kohëve të fundit me një prekje.</string>
+
+    <string name="widget_open_to_load">Hap Invoice Ninja për të ngarkuar të dhënat e tua</string>
+    <string name="widget_update_app">Përditëso Invoice Ninja për të përdorur këtë widget</string>
+    <string name="widget_sign_in">Identifikohu në Invoice Ninja</string>
+    <string name="widget_choose_company">Zgjidh një kompani</string>
+    <string name="widget_no_dashboard_permission">Roli yt nuk mund të shohë shifrat e panelit</string>
+
+    <string name="widget_outstanding">Pa paguar</string>
+    <string name="widget_invoices">Faturat</string>
+    <string name="widget_payments">Pagesat</string>
+    <string name="widget_expenses">Shpenzimet</string>
+    <string name="widget_past_due">Me afat të kaluar</string>
+    <string name="widget_due_soon">Skadon së shpejti</string>
+    <string name="widget_next_due">Afati i ardhshëm</string>
+    <string name="widget_unpaid_count">:count të papaguara</string>
+    <string name="widget_past_due_count">:count me afat të kaluar</string>
+    <string name="widget_day_late">:count ditë vonesë</string>
+    <string name="widget_days_late">:count ditë vonesë</string>
+    <string name="widget_due_today">skadon sot</string>
+    <string name="widget_due_in_days">skadon pas :count ditësh</string>
+    <string name="widget_nothing_past_due">Asgjë me afat të kaluar</string>
+    <string name="widget_updated">U përditësua</string>
+    <string name="widget_tap_to_refresh">Prek për ta rifreskuar</string>
+    <string name="widget_open_company_to_update">Hap :company për ta përditësuar</string>
+
+    <string name="widget_stop">Ndalo</string>
+    <string name="widget_start_a_task">Fillo një detyrë</string>
+    <string name="widget_running_count">+:count në ecuri</string>
+    <string name="widget_running_since">Në ecuri që nga :time</string>
+    <string name="widget_stopped_syncs">Ndaluar :time · sinkronizohet kur hap Invoice Ninja</string>
+
+    <string name="widget_this_month">Ky muaj</string>
+    <string name="widget_last_30_days">30 ditët e fundit</string>
+    <string name="widget_this_year">Ky vit</string>
+
+    <string name="widget_settings_title">Cilësimet e widget-it</string>
+    <string name="widget_settings_company">Kompania</string>
+    <string name="widget_settings_current_company">Kompania aktuale</string>
+    <string name="widget_settings_period">Periudha</string>
+    <string name="widget_settings_figure">Shifra (widget i vogël)</string>
+    <string name="widget_settings_figure_help">Një widget më i gjerë shfaq shumën pa paguar së bashku me pagesat e kësaj periudhe.</string>
+    <string name="widget_settings_hide_amounts">Fshih shumat</string>
+    <string name="widget_settings_hide_auto">Automatike</string>
+    <string name="widget_settings_on">Aktiv</string>
+    <string name="widget_settings_off">Joaktiv</string>
+    <string name="widget_settings_hide_help">Automatike fsheh shumat ndërsa kyçja e aplikacionit është aktive. Numërimet, numrat e faturave dhe kohëmatësit mbeten të dukshëm.</string>
+    <string name="widget_settings_save">Ruaj</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Faturë e re</string>
+    <string name="shortcut_new_task">Detyrë e re</string>
+    <string name="shortcut_new_expense">Shpenzim i ri</string>
+</resources>

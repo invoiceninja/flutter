@@ -428,6 +428,52 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     return q.watchSingleOrNull();
   }
 
+  /// Every running (non-deleted) task, most recently updated first, at most
+  /// [limit] — the home-screen Timer widget's rows. [watchRunning] is its
+  /// first row.
+  Stream<List<TaskRow>> watchRunningList({
+    required String companyId,
+    required int limit,
+  }) {
+    final q = select(tasks)
+      ..where(
+        (t) =>
+            t.companyId.equals(companyId) &
+            t.isRunning.equals(true) &
+            t.isDeleted.equals(false),
+      )
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+        (t) => OrderingTerm(expression: t.id),
+      ])
+      ..limit(limit);
+    return q.watch().distinctRows();
+  }
+
+  /// The most recently updated tasks a timer could be started on again: not
+  /// running, not deleted or archived, not invoiced — the idle Timer widget's
+  /// "resume" rows.
+  Stream<List<TaskRow>> watchRecentlyWorked({
+    required String companyId,
+    required int limit,
+  }) {
+    final q = select(tasks)
+      ..where(
+        (t) =>
+            t.companyId.equals(companyId) &
+            t.isRunning.equals(false) &
+            t.isDeleted.equals(false) &
+            t.archivedAt.isNull() &
+            t.invoiceId.equals(''),
+      )
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+        (t) => OrderingTerm(expression: t.id),
+      ])
+      ..limit(limit);
+    return q.watch().distinctRows();
+  }
+
   /// Active tasks holding an unfinished booking, with no timer running —
   /// the candidate set for the shell pill's "Due now".
   ///

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- hr translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Pregled poslovanja</string>
+    <string name="widget_snapshot_description">Pogledajte koliko vam duguju, što je dospjelo i uplate u ovom razdoblju.</string>
+    <string name="widget_attention_name">Zahtijeva pažnju</string>
+    <string name="widget_attention_description">Pratite dospjele račune i pogledajte što dospijeva ovaj tjedan. Dodirnite jedan da ga otvorite.</string>
+    <string name="widget_timer_name">Pokrenuta štoperica</string>
+    <string name="widget_timer_description">Sat uživo za vašu pokrenutu štopericu. Zaustavite je ili pokrenite nedavni zadatak jednim dodirom.</string>
+
+    <string name="widget_open_to_load">Otvorite Invoice Ninja za učitavanje podataka</string>
+    <string name="widget_update_app">Ažurirajte Invoice Ninja za korištenje ovog widgeta</string>
+    <string name="widget_sign_in">Prijavite se u Invoice Ninja</string>
+    <string name="widget_choose_company">Odaberite tvrtku</string>
+    <string name="widget_no_dashboard_permission">Vaša uloga ne može vidjeti brojke kontrolne ploče</string>
+
+    <string name="widget_outstanding">Nenaplaćeno</string>
+    <string name="widget_invoices">Računi</string>
+    <string name="widget_payments">Uplate</string>
+    <string name="widget_expenses">Troškovi</string>
+    <string name="widget_past_due">Dospjelo</string>
+    <string name="widget_due_soon">Uskoro dospijeva</string>
+    <string name="widget_next_due">Sljedeće dospijeće</string>
+    <string name="widget_unpaid_count">Neplaćeno: :count</string>
+    <string name="widget_past_due_count">Dospjelo: :count</string>
+    <string name="widget_day_late">kasni :count dan</string>
+    <string name="widget_days_late">kasni :count dana</string>
+    <string name="widget_due_today">dospijeva danas</string>
+    <string name="widget_due_in_days">dospijeva za :count dana</string>
+    <string name="widget_nothing_past_due">Nema dospjelih</string>
+    <string name="widget_updated">Ažurirano</string>
+    <string name="widget_tap_to_refresh">Dodirnite za osvježavanje</string>
+    <string name="widget_open_company_to_update">Otvorite :company za ažuriranje</string>
+
+    <string name="widget_stop">Zaustavi</string>
+    <string name="widget_start_a_task">Pokrenite zadatak</string>
+    <string name="widget_running_count">+:count pokrenuto</string>
+    <string name="widget_running_since">Pokrenuto od :time</string>
+    <string name="widget_stopped_syncs">Zaustavljeno :time · sinkronizira se kada otvorite Invoice Ninja</string>
+
+    <string name="widget_this_month">Ovaj mjesec</string>
+    <string name="widget_last_30_days">Zadnjih 30 dana</string>
+    <string name="widget_this_year">Ova godina</string>
+
+    <string name="widget_settings_title">Postavke widgeta</string>
+    <string name="widget_settings_company">Tvrtka</string>
+    <string name="widget_settings_current_company">Trenutna tvrtka</string>
+    <string name="widget_settings_period">Razdoblje</string>
+    <string name="widget_settings_figure">Brojka (mali widget)</string>
+    <string name="widget_settings_figure_help">Širi widget prikazuje nenaplaćeno zajedno s uplatama ovog razdoblja.</string>
+    <string name="widget_settings_hide_amounts">Sakrij iznose</string>
+    <string name="widget_settings_hide_auto">Automatski</string>
+    <string name="widget_settings_on">Uključeno</string>
+    <string name="widget_settings_off">Isključeno</string>
+    <string name="widget_settings_hide_help">Automatski skriva iznose dok je zaključavanje aplikacije uključeno. Brojevi stavki, brojevi računa i štoperice ostaju vidljivi.</string>
+    <string name="widget_settings_save">Pohrani</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Novi račun</string>
+    <string name="shortcut_new_task">Novi zadatak</string>
+    <string name="shortcut_new_expense">Novi trošak</string>
+</resources>

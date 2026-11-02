@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- el translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Επισκόπηση επιχείρησης</string>
+    <string name="widget_snapshot_description">Δείτε τι σας οφείλεται, τι έχει λήξει και τις πληρωμές αυτής της περιόδου.</string>
+    <string name="widget_attention_name">Χρειάζεται προσοχή</string>
+    <string name="widget_attention_description">Παρακολουθήστε τα ληγμένα τιμολόγια και δείτε τι λήγει αυτή την εβδομάδα. Πατήστε ένα για να το ανοίξετε.</string>
+    <string name="widget_timer_name">Ενεργό χρονόμετρο</string>
+    <string name="widget_timer_description">Ζωντανό ρολόι για το ενεργό χρονόμετρό σας. Σταματήστε το ή ξεκινήστε μια πρόσφατη εργασία με ένα πάτημα.</string>
+
+    <string name="widget_open_to_load">Ανοίξτε το Invoice Ninja για να φορτώσετε τα δεδομένα σας</string>
+    <string name="widget_update_app">Ενημερώστε το Invoice Ninja για να χρησιμοποιήσετε αυτό το widget</string>
+    <string name="widget_sign_in">Συνδεθείτε στο Invoice Ninja</string>
+    <string name="widget_choose_company">Επιλέξτε εταιρεία</string>
+    <string name="widget_no_dashboard_permission">Ο ρόλος σας δεν μπορεί να δει τα στοιχεία του πίνακα ελέγχου</string>
+
+    <string name="widget_outstanding">Εκκρεμή</string>
+    <string name="widget_invoices">Τιμολόγια</string>
+    <string name="widget_payments">Πληρωμές</string>
+    <string name="widget_expenses">Δαπάνες</string>
+    <string name="widget_past_due">Ληγμένα</string>
+    <string name="widget_due_soon">Λήγει σύντομα</string>
+    <string name="widget_next_due">Επόμενη λήξη</string>
+    <string name="widget_unpaid_count">:count απλήρωτα</string>
+    <string name="widget_past_due_count">:count ληγμένα</string>
+    <string name="widget_day_late">:count ημέρα καθυστέρησης</string>
+    <string name="widget_days_late">:count ημέρες καθυστέρησης</string>
+    <string name="widget_due_today">λήγει σήμερα</string>
+    <string name="widget_due_in_days">λήγει σε :count ημέρες</string>
+    <string name="widget_nothing_past_due">Τίποτα ληγμένο</string>
+    <string name="widget_updated">Ενημερώθηκε</string>
+    <string name="widget_tap_to_refresh">Πατήστε για ανανέωση</string>
+    <string name="widget_open_company_to_update">Ανοίξτε :company για ενημέρωση</string>
+
+    <string name="widget_stop">Διακοπή</string>
+    <string name="widget_start_a_task">Έναρξη εργασίας</string>
+    <string name="widget_running_count">+:count σε εξέλιξη</string>
+    <string name="widget_running_since">Εκτελείται από :time</string>
+    <string name="widget_stopped_syncs">Διακόπηκε :time · συγχρονίζεται όταν ανοίξετε το Invoice Ninja</string>
+
+    <string name="widget_this_month">Αυτός ο μήνας</string>
+    <string name="widget_last_30_days">Τελευταίες 30 ημέρες</string>
+    <string name="widget_this_year">Φέτος</string>
+
+    <string name="widget_settings_title">Ρυθμίσεις widget</string>
+    <string name="widget_settings_company">Εταιρεία</string>
+    <string name="widget_settings_current_company">Τρέχουσα εταιρεία</string>
+    <string name="widget_settings_period">Περίοδος</string>
+    <string name="widget_settings_figure">Ένδειξη (μικρό widget)</string>
+    <string name="widget_settings_figure_help">Ένα φαρδύτερο widget δείχνει τα Εκκρεμή μαζί με τις πληρωμές αυτής της περιόδου.</string>
+    <string name="widget_settings_hide_amounts">Απόκρυψη ποσών</string>
+    <string name="widget_settings_hide_auto">Αυτόματα</string>
+    <string name="widget_settings_on">Ανοιχτό</string>
+    <string name="widget_settings_off">Κλειστό</string>
+    <string name="widget_settings_hide_help">Η επιλογή Αυτόματα κρύβει τα ποσά όσο είναι ενεργό το κλείδωμα εφαρμογής. Τα πλήθη, οι αριθμοί τιμολογίων και τα χρονόμετρα παραμένουν ορατά.</string>
+    <string name="widget_settings_save">Αποθήκευση</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Νέο τιμολόγιο</string>
+    <string name="shortcut_new_task">Νέα εργασία</string>
+    <string name="shortcut_new_expense">Νέα δαπάνη</string>
+</resources>

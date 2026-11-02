@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An idle Timer widget's recent task: tapping it starts that task
+     (WidgetStartActivity), so the row says so (Material Symbols play_arrow,
+     Apache 2.0). Mirrored in a right-to-left layout, where "forward" points
+     the other way. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:autoMirrored="true"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/widget_accent"
+        android:pathData="M8,5v14l11,-7z" />
+</vector>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours, from the app's design tokens (InTheme.light /
+     .dark). Android 12+ overrides the surface and ink with the system's dynamic
+     colours (values-v31); paid / past due / warning stay the app's own, so they
+     mean the same thing on every wallpaper. -->
+<resources>
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_surface_alt">#FFF6F4EF</color>
+    <color name="widget_ink">#FF1A1814</color>
+    <color name="widget_ink_muted">#FF857F73</color>
+    <color name="widget_accent">#FF2F7DC3</color>
+    <color name="widget_on_accent">#FFFFFFFF</color>
+    <color name="widget_good">#FF1F8A5B</color>
+    <color name="widget_bad">#FFC0392B</color>
+    <color name="widget_warning">#FFB45309</color>
+    <!-- The Stop button's quiet fill: widget_bad at 14% alpha. -->
+    <color name="widget_stop_fill">#24C0392B</color>
+</resources>

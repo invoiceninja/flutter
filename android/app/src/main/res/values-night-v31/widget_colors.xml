@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_surface">@android:color/system_neutral1_900</color>
+    <color name="widget_surface_alt">@android:color/system_neutral2_800</color>
+    <color name="widget_ink">@android:color/system_neutral1_50</color>
+    <color name="widget_ink_muted">@android:color/system_neutral2_300</color>
+    <color name="widget_accent">@android:color/system_accent1_200</color>
+    <color name="widget_on_accent">@android:color/system_accent1_800</color>
+    <color name="widget_good">#FF3FB97F</color>
+    <color name="widget_bad">#FFE66055</color>
+    <color name="widget_warning">#FFE39A4C</color>
+</resources>

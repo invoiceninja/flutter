@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart' show Icons, SizedBox, ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/ui/core/list/invoice_kpi_intents.dart';
+
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/router.dart' show buildRouter;
@@ -36,6 +38,7 @@ EntityHandlers _handler(
 /// no detail screen, and a disabled entity.
 EntityRegistry _registry() => EntityRegistry({
   EntityType.client: _handler(EntityType.client, 'client', '/clients'),
+  EntityType.invoice: _handler(EntityType.invoice, 'invoice', '/invoices'),
   EntityType.purchaseOrder: _handler(
     EntityType.purchaseOrder,
     'purchase_order',
@@ -338,6 +341,64 @@ void main() {
       );
     });
 
+    test('parses a create route (home-screen widgets, quick actions)', () {
+      final target = parse('invoiceninja://app/clients/new?company=Xrtq1oa8Aq');
+      expect(target?.path, '/clients/new');
+      expect(target?.companyId, 'Xrtq1oa8Aq');
+    });
+
+    test('keeps an allow-listed list filter on /invoices only', () {
+      expect(
+        parse('invoiceninja://app/invoices?filter=past_due')?.listFilter,
+        'past_due',
+      );
+      expect(
+        parse('invoiceninja://app/invoices?filter=draft')?.listFilter,
+        isNull,
+        reason: 'not on the allow-list',
+      );
+      expect(
+        parse('invoiceninja://app/clients?filter=past_due')?.listFilter,
+        isNull,
+      );
+      expect(
+        parse('invoiceninja://app/clients/abc?filter=unpaid')?.listFilter,
+        isNull,
+      );
+    });
+
+    test('the parser and the list agree on the filter names', () {
+      expect(kInvoiceLinkFilterNames, kInvoiceLinkFilters);
+    });
+
+    test("opens an invoice's email screen (the widget's Remind), and no "
+        "other root's", () {
+      expect(
+        parse('invoiceninja://app/invoices/abc/email?company=co1')?.path,
+        '/invoices/abc/email',
+      );
+      expect(parse('invoiceninja://app/clients/abc/email'), isNull);
+      expect(parse('invoiceninja://app/invoices/new/email'), isNull);
+      expect(parse('invoiceninja://app/invoices/abc/email/x'), isNull);
+    });
+
+    test('parses the dashboard', () {
+      final target = parse('invoiceninja://app/dashboard?company=Xrtq1oa8Aq');
+      expect(target?.path, '/dashboard');
+      expect(target?.companyId, 'Xrtq1oa8Aq');
+    });
+
+    test('a create route is still never a record to build a link to', () {
+      expect(
+        buildEntityDeepLink(
+          handlers: _of(EntityType.client),
+          entityId: 'new',
+          companyId: 'Xrtq1oa8Aq',
+        ),
+        isNull,
+      );
+    });
+
     test('parses an underscored root', () {
       expect(
         parse('invoiceninja://app/purchase_orders/Ab3xY')?.path,
@@ -426,8 +487,9 @@ void main() {
         expect(parse('invoiceninja://app/settings/tax_rates/t1'), isNull);
       });
 
-      test('the create route', () {
-        expect(parse('invoiceninja://app/clients/new'), isNull);
+      test('a create route with anything after it', () {
+        expect(parse('invoiceninja://app/clients/new/edit'), isNull);
+        expect(parse('invoiceninja://app/clients/new/x'), isNull);
       });
 
       test('a tmp_ id', () {

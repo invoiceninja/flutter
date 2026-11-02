@@ -73,6 +73,7 @@ import 'package:admin/ui/features/settings/views/basic/device_settings_screen.da
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
+import 'package:admin/ui/features/settings/widgets/home_widgets_section.dart';
 
 // Single source of truth for the settings sidebar layout and the in-app
 // settings search. `SettingsListSidebar` reads `kSettingsSections` to render
@@ -530,6 +531,8 @@ const _kDeviceSettingsKeyGates = <String, bool Function(SettingsSearchScope?)>{
   'mobile_app_promo_section': _mobileAppShown,
   'mobile_app_promo_settings_body': _mobileAppShown,
   'mobile_app_promo_entry': _mobileAppShown,
+  // kHomeWidgetsSearchKeys
+  'widget_settings_section': _homeWidgetsShown,
   // kDownloadsFolderSearchKeys
   'downloads_folder': _downloadsFolderShown,
   'hide_peppol_sent_status': _peppolStatusShown,
@@ -538,6 +541,8 @@ const _kDeviceSettingsKeyGates = <String, bool Function(SettingsSearchScope?)>{
 bool _spellCheckShown(SettingsSearchScope? _) => platformSupportsSpellCheck;
 
 bool _contactsSyncShown(SettingsSearchScope? _) => contactsSyncSectionShown();
+
+bool _homeWidgetsShown(SettingsSearchScope? _) => homeWidgetsSectionShown();
 
 bool _downloadsFolderShown(SettingsSearchScope? _) =>
     downloadsFolderSectionShown();

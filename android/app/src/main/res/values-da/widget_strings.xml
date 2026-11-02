@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- da translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Forretningsoverblik</string>
+    <string name="widget_snapshot_description">Se hvad du har til gode, hvad der er forfaldent, og periodens betalinger.</string>
+    <string name="widget_attention_name">Kræver opmærksomhed</string>
+    <string name="widget_attention_description">Følg op på forfaldne fakturaer, og se, hvad der forfalder i denne uge. Tryk på en for at åbne den.</string>
+    <string name="widget_timer_name">Kørende timer</string>
+    <string name="widget_timer_description">Et live-ur til din kørende timer. Stop den, eller start en nylig opgave, med ét tryk.</string>
+
+    <string name="widget_open_to_load">Åbn Invoice Ninja for at indlæse dine data</string>
+    <string name="widget_update_app">Opdatér Invoice Ninja for at bruge denne widget</string>
+    <string name="widget_sign_in">Log ind på Invoice Ninja</string>
+    <string name="widget_choose_company">Vælg et firma</string>
+    <string name="widget_no_dashboard_permission">Din rolle kan ikke se tallene på oversigten</string>
+
+    <string name="widget_outstanding">Udestående</string>
+    <string name="widget_invoices">Fakturaer</string>
+    <string name="widget_payments">Betalinger</string>
+    <string name="widget_expenses">Udgifter</string>
+    <string name="widget_past_due">Forfaldne</string>
+    <string name="widget_due_soon">Forfalder snart</string>
+    <string name="widget_next_due">Næste forfald</string>
+    <string name="widget_unpaid_count">:count ubetalte</string>
+    <string name="widget_past_due_count">:count forfaldne</string>
+    <string name="widget_day_late">:count dag forsinket</string>
+    <string name="widget_days_late">:count dage forsinket</string>
+    <string name="widget_due_today">forfalder i dag</string>
+    <string name="widget_due_in_days">forfalder om :count dage</string>
+    <string name="widget_nothing_past_due">Intet forfaldent</string>
+    <string name="widget_updated">Opdateret</string>
+    <string name="widget_tap_to_refresh">Tryk for at opdatere</string>
+    <string name="widget_open_company_to_update">Åbn :company for at opdatere</string>
+
+    <string name="widget_stop">Stop</string>
+    <string name="widget_start_a_task">Start en opgave</string>
+    <string name="widget_running_count">+:count kører</string>
+    <string name="widget_running_since">Kører siden :time</string>
+    <string name="widget_stopped_syncs">Stoppet :time · synkroniseres, når du åbner Invoice Ninja</string>
+
+    <string name="widget_this_month">Denne måned</string>
+    <string name="widget_last_30_days">Seneste 30 dage</string>
+    <string name="widget_this_year">Dette år</string>
+
+    <string name="widget_settings_title">Widgetindstillinger</string>
+    <string name="widget_settings_company">Firma</string>
+    <string name="widget_settings_current_company">Nuværende firma</string>
+    <string name="widget_settings_period">Periode</string>
+    <string name="widget_settings_figure">Tal (lille widget)</string>
+    <string name="widget_settings_figure_help">En bredere widget viser Udestående med periodens betalinger.</string>
+    <string name="widget_settings_hide_amounts">Skjul beløb</string>
+    <string name="widget_settings_hide_auto">Automatisk</string>
+    <string name="widget_settings_on">Til</string>
+    <string name="widget_settings_off">Fra</string>
+    <string name="widget_settings_hide_help">Automatisk skjuler beløb, mens applås er slået til. Antal, fakturanumre og timere forbliver synlige.</string>
+    <string name="widget_settings_save">Gem</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Ny faktura</string>
+    <string name="shortcut_new_task">Ny opgave</string>
+    <string name="shortcut_new_expense">Ny udgift</string>
+</resources>

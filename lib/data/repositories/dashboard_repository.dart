@@ -228,6 +228,41 @@ class DashboardRepository {
       )
       .distinct();
 
+  /// How long an unrefreshed period-totals row is kept.
+  static const Duration kTotalsRetention = Duration(days: 60);
+
+  /// Drops period-totals rows nobody has refreshed in [kTotalsRetention].
+  ///
+  /// Totals are keyed by the resolved date range, so a rolling window (a
+  /// widget's "Last 30 days", a dashboard on "Last 7 days") leaves a new row
+  /// every day, and nothing else ever removed them. A row the dashboard or a
+  /// widget shows is refreshed every time it is looked at, so only ranges
+  /// nobody looks at any more are old enough to go.
+  Future<int> pruneStaleTotals(String companyId) => _dao.deleteFetchedBefore(
+    companyId: companyId,
+    kinds: const [DashboardKind.totalsCurrent, DashboardKind.totalsPrevious],
+    before: _now() - kTotalsRetention.inMilliseconds,
+  );
+
+  /// When the cached `(company, kind, hash)` row was fetched, or null when
+  /// there is none — what a home-screen widget's "Updated 3 hr ago" says. Read
+  /// from the row, never from when something last looked at it: an offline
+  /// launch re-reads hours-old rows.
+  Future<DateTime?> fetchedAt(
+    String companyId,
+    String kind,
+    String filterHash,
+  ) async {
+    final row = await _dao.read(
+      companyId: companyId,
+      kind: kind,
+      filterHash: filterHash,
+    );
+    return row == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(row.fetchedAt);
+  }
+
   /// What is unpaid today — see [DashboardKind.totalsOutstanding]. Only the
   /// `outstanding` amount and count of the decoded totals mean anything.
   Stream<DashboardTotals?> watchOutstanding(
@@ -395,9 +430,30 @@ class DashboardRepository {
   /// Refresh totals (both current period and the equivalent previous-period
   /// shift). Two API calls in parallel; both must complete before the future
   /// resolves — a partial failure surfaces as a single rethrown exception.
-  Future<void> refreshTotals(String companyId, DashboardFilter filter) async {
-    _ensureStillActive(companyId, DashboardKind.totalsCurrent);
+  ///
+  /// [maxAge] skips the fetch while the cached current-period row is younger
+  /// than that — for background callers only; see [_coalesced].
+  Future<void> refreshTotals(
+    String companyId,
+    DashboardFilter filter, {
+    Duration? maxAge,
+  }) {
     final hash = filter.filterHash();
+    return _coalesced(
+      '$companyId|${DashboardKind.totalsCurrent}|$hash',
+      maxAge: maxAge,
+      isFresh: (age) =>
+          _isFresh(companyId, DashboardKind.totalsCurrent, hash, age),
+      run: () => _refreshTotals(companyId, filter, hash),
+    );
+  }
+
+  Future<void> _refreshTotals(
+    String companyId,
+    DashboardFilter filter,
+    String hash,
+  ) async {
+    _ensureStillActive(companyId, DashboardKind.totalsCurrent);
     final fetchedAt = _now();
     final results = await Future.wait([
       api
@@ -425,11 +481,13 @@ class DashboardRepository {
   Future<void> refreshOutstanding(
     String companyId, {
     required bool includeDrafts,
+    Duration? maxAge,
   }) => _refresh(
     companyId: companyId,
     kind: DashboardKind.totalsOutstanding,
     filterHash: dashboardOutstandingHash(includeDrafts: includeDrafts),
     fetch: () => api.fetchOutstandingTotals(includeDrafts: includeDrafts),
+    maxAge: maxAge,
   );
 
   Future<void> refreshChart(String companyId, DashboardFilter filter) =>
@@ -638,19 +696,22 @@ class DashboardRepository {
     return raw.length;
   }
 
-  Future<void> refreshPastDue(String companyId) => _refresh(
+  Future<void> refreshPastDue(String companyId, {Duration? maxAge}) => _refresh(
     companyId: companyId,
     kind: DashboardKind.pastDue,
     filterHash: kDashboardListFilterHash,
     fetch: api.fetchPastDueInvoices,
+    maxAge: maxAge,
   );
 
-  Future<void> refreshUpcomingInvoices(String companyId) => _refresh(
-    companyId: companyId,
-    kind: DashboardKind.upcomingInvoices,
-    filterHash: kDashboardListFilterHash,
-    fetch: api.fetchUpcomingInvoices,
-  );
+  Future<void> refreshUpcomingInvoices(String companyId, {Duration? maxAge}) =>
+      _refresh(
+        companyId: companyId,
+        kind: DashboardKind.upcomingInvoices,
+        filterHash: kDashboardListFilterHash,
+        fetch: api.fetchUpcomingInvoices,
+        maxAge: maxAge,
+      );
 
   Future<void> refreshRecentPayments(String companyId) => _refresh(
     companyId: companyId,
@@ -819,20 +880,103 @@ class DashboardRepository {
     required String kind,
     required String filterHash,
     required Future<Object?> Function() fetch,
-  }) async {
-    // Before the request too: a job still queued behind the concurrency cap
-    // would otherwise go out under the next session's token.
-    _ensureStillActive(companyId, kind);
-    final raw = await fetch();
-    if (raw == null) return;
-    _ensureStillActive(companyId, kind);
-    await _dao.upsert(
+    Duration? maxAge,
+  }) => _coalesced(
+    '$companyId|$kind|$filterHash',
+    maxAge: maxAge,
+    isFresh: (age) => _isFresh(companyId, kind, filterHash, age),
+    run: () async {
+      // Before the request too: a job still queued behind the concurrency cap
+      // would otherwise go out under the next session's token.
+      _ensureStillActive(companyId, kind);
+      final raw = await fetch();
+      if (raw == null) return;
+      _ensureStillActive(companyId, kind);
+      await _dao.upsert(
+        companyId: companyId,
+        kind: kind,
+        filterHash: filterHash,
+        payload: jsonEncode(raw),
+        fetchedAt: _now(),
+      );
+    },
+  );
+
+  /// Requests in flight, by `company|kind|hash`.
+  final Map<String, Future<void>> _inFlight = {};
+
+  /// A "fetch now" queued behind the request in flight, by the same key.
+  final Map<String, Future<void>> _queued = {};
+
+  /// Fetches the `company|kind|hash` row — once, however many callers ask at
+  /// the same moment — and, given [maxAge], not at all while the cached row is
+  /// younger than that.
+  ///
+  /// The dashboard and the home-screen widget publisher listen to the same
+  /// signals (a finished Sync, a change leaving the outbox, a resume) and ask
+  /// for some of the same rows. Which caller may *share* a request in flight
+  /// depends on what it is asking:
+  ///
+  /// * **A background caller ([maxAge] given) joins it** — any recent answer
+  ///   will do.
+  /// * **A "fetch now" caller (no [maxAge]) waits for it, then fetches once
+  ///   more.** The request in flight may have left before whatever prompted
+  ///   this call — a change that has just left the outbox, a pushed server
+  ///   event — and its answer would put back the figures the change replaced.
+  ///   Several such callers arriving together share that one re-fetch.
+  ///
+  /// Skipping a fresh row is opt-in for the same reason: the Refresh button
+  /// means "fetch now".
+  Future<void> _coalesced(
+    String key, {
+    required Duration? maxAge,
+    required Future<bool> Function(Duration age) isFresh,
+    required Future<void> Function() run,
+  }) {
+    final pending = _inFlight[key];
+    if (pending != null) {
+      if (maxAge != null) return pending;
+      return _queued[key] ??= pending.catchError((Object _) {}).then((_) {
+        _queued.remove(key);
+        return _coalesced(key, maxAge: null, isFresh: isFresh, run: run);
+      });
+    }
+    final done = Completer<void>();
+    _inFlight[key] = done.future;
+    unawaited(() async {
+      Object? error;
+      StackTrace? stack;
+      try {
+        if (maxAge == null || !await isFresh(maxAge)) await run();
+      } catch (e, st) {
+        error = e;
+        stack = st;
+      }
+      // Off the map before anyone waiting on it resumes, so a queued re-fetch
+      // starts a request of its own rather than finding this one.
+      _inFlight.removeWhere((k, _) => k == key);
+      if (error == null) {
+        done.complete();
+      } else {
+        done.completeError(error, stack);
+      }
+    }());
+    return done.future;
+  }
+
+  /// Whether the cached `(company, kind, hash)` row was fetched within [age].
+  Future<bool> _isFresh(
+    String companyId,
+    String kind,
+    String filterHash,
+    Duration age,
+  ) async {
+    final row = await _dao.read(
       companyId: companyId,
       kind: kind,
       filterHash: filterHash,
-      payload: jsonEncode(raw),
-      fetchedAt: _now(),
     );
+    return row != null && _now() - row.fetchedAt < age.inMilliseconds;
   }
 
   Future<void> _runUnder(

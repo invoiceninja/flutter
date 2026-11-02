@@ -14,6 +14,8 @@
         <string>Invoice Ninja Admin App Store</string>
         <key>com.invoiceninja.admin.ShareExtension</key>
         <string>Invoice Ninja Share Extension App Store</string>
+        <key>com.invoiceninja.admin.HomeWidgets</key>
+        <string>Invoice Ninja Home Widgets App Store</string>
     </dict>
     <key>uploadSymbols</key>
     <true/>

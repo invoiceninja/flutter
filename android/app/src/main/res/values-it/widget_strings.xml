@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- it translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Panoramica aziendale</string>
+    <string name="widget_snapshot_description">Vedi quanto ti devono, cosa è scaduto e i pagamenti di questo periodo.</string>
+    <string name="widget_attention_name">Da gestire</string>
+    <string name="widget_attention_description">Sollecita le fatture scadute e guarda cosa scade questa settimana. Toccane una per aprirla.</string>
+    <string name="widget_timer_name">Timer in corso</string>
+    <string name="widget_timer_description">Un orologio in tempo reale per il timer in corso. Fermalo, o avvia un\'attività recente, con un tocco.</string>
+
+    <string name="widget_open_to_load">Apri Invoice Ninja per caricare i tuoi dati</string>
+    <string name="widget_update_app">Aggiorna Invoice Ninja per usare questo widget</string>
+    <string name="widget_sign_in">Accedi a Invoice Ninja</string>
+    <string name="widget_choose_company">Scegli un\'azienda</string>
+    <string name="widget_no_dashboard_permission">Il tuo ruolo non può vedere i dati della dashboard</string>
+
+    <string name="widget_outstanding">Inevase</string>
+    <string name="widget_invoices">Fatture</string>
+    <string name="widget_payments">Pagamenti</string>
+    <string name="widget_expenses">Spese</string>
+    <string name="widget_past_due">Scadute</string>
+    <string name="widget_due_soon">In scadenza</string>
+    <string name="widget_next_due">Prossima scadenza</string>
+    <string name="widget_unpaid_count">:count non pagate</string>
+    <string name="widget_past_due_count">:count scadute</string>
+    <string name="widget_day_late">:count giorno di ritardo</string>
+    <string name="widget_days_late">:count giorni di ritardo</string>
+    <string name="widget_due_today">scade oggi</string>
+    <string name="widget_due_in_days">scade tra :count giorni</string>
+    <string name="widget_nothing_past_due">Nulla di scaduto</string>
+    <string name="widget_updated">Aggiornato</string>
+    <string name="widget_tap_to_refresh">Tocca per aggiornare</string>
+    <string name="widget_open_company_to_update">Apri :company per aggiornare</string>
+
+    <string name="widget_stop">Ferma</string>
+    <string name="widget_start_a_task">Avvia un\'attività</string>
+    <string name="widget_running_count">+:count in corso</string>
+    <string name="widget_running_since">In corso da :time</string>
+    <string name="widget_stopped_syncs">Fermato :time · si sincronizza quando apri Invoice Ninja</string>
+
+    <string name="widget_this_month">Questo mese</string>
+    <string name="widget_last_30_days">Ultimi 30 giorni</string>
+    <string name="widget_this_year">Quest\'anno</string>
+
+    <string name="widget_settings_title">Impostazioni widget</string>
+    <string name="widget_settings_company">Azienda</string>
+    <string name="widget_settings_current_company">Azienda corrente</string>
+    <string name="widget_settings_period">Periodo</string>
+    <string name="widget_settings_figure">Dato (widget piccolo)</string>
+    <string name="widget_settings_figure_help">Un widget più largo mostra Inevase insieme ai pagamenti di questo periodo.</string>
+    <string name="widget_settings_hide_amounts">Nascondi importi</string>
+    <string name="widget_settings_hide_auto">Automatico</string>
+    <string name="widget_settings_on">Attivo</string>
+    <string name="widget_settings_off">Disattivo</string>
+    <string name="widget_settings_hide_help">Automatico nasconde gli importi mentre il blocco app è attivo. Conteggi, numeri di fattura e timer restano visibili.</string>
+    <string name="widget_settings_save">Salva</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nuova fattura</string>
+    <string name="shortcut_new_task">Nuova attività</string>
+    <string name="shortcut_new_expense">Nuova spesa</string>
+</resources>

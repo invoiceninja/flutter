@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- km_KH translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">ទិដ្ឋភាពអាជីវកម្ម</string>
+    <string name="widget_snapshot_description">មើលអ្វីដែលគេជំពាក់អ្នក អ្វីដែលហួសកំណត់ និងការទូទាត់ក្នុងរយៈពេលនេះ។</string>
+    <string name="widget_attention_name">ត្រូវការការយកចិត្តទុកដាក់</string>
+    <string name="widget_attention_description">តាមដានវិក្កយបត្រហួសកំណត់ និងមើលអ្វីដែលដល់កំណត់សប្តាហ៍នេះ។ ចុចលើមួយដើម្បីបើក។</string>
+    <string name="widget_timer_name">កម្មវិធីកំណត់ម៉ោងកំពុងដំណើរការ</string>
+    <string name="widget_timer_description">នាឡិកាផ្ទាល់សម្រាប់កម្មវិធីកំណត់ម៉ោងដែលកំពុងដំណើរការរបស់អ្នក។ ឈប់វា ឬចាប់ផ្តើមភារកិច្ចថ្មីៗ ដោយចុចតែម្តង។</string>
+
+    <string name="widget_open_to_load">បើក Invoice Ninja ដើម្បីផ្ទុកទិន្នន័យរបស់អ្នក</string>
+    <string name="widget_update_app">ធ្វើបច្ចុប្បន្នភាព Invoice Ninja ដើម្បីប្រើធាតុក្រាហ្វិកនេះ</string>
+    <string name="widget_sign_in">ចូលទៅ Invoice Ninja</string>
+    <string name="widget_choose_company">ជ្រើសរើសក្រុមហ៊ុន</string>
+    <string name="widget_no_dashboard_permission">តួនាទីរបស់អ្នកមិនអាចមើលតួលេខផ្ទាំងគ្រប់គ្រងបានទេ</string>
+
+    <string name="widget_outstanding">មិនទាន់ទូទាត់</string>
+    <string name="widget_invoices">វិក្កយបត្រ</string>
+    <string name="widget_payments">ការទូទាត់</string>
+    <string name="widget_expenses">ការចំណាយ</string>
+    <string name="widget_past_due">ហួសកំណត់</string>
+    <string name="widget_due_soon">ជិតដល់កំណត់</string>
+    <string name="widget_next_due">ដល់កំណត់បន្ទាប់</string>
+    <string name="widget_unpaid_count">មិនទាន់បង់ :count</string>
+    <string name="widget_past_due_count">ហួសកំណត់ :count</string>
+    <string name="widget_day_late">យឺត :count ថ្ងៃ</string>
+    <string name="widget_days_late">យឺត :count ថ្ងៃ</string>
+    <string name="widget_due_today">ដល់កំណត់ថ្ងៃនេះ</string>
+    <string name="widget_due_in_days">ដល់កំណត់ក្នុងរយៈពេល :count ថ្ងៃ</string>
+    <string name="widget_nothing_past_due">គ្មានអ្វីហួសកំណត់ទេ</string>
+    <string name="widget_updated">បានធ្វើបច្ចុប្បន្នភាព</string>
+    <string name="widget_tap_to_refresh">ចុចដើម្បីផ្ទុកឡើងវិញ</string>
+    <string name="widget_open_company_to_update">បើក :company ដើម្បីធ្វើបច្ចុប្បន្នភាព</string>
+
+    <string name="widget_stop">ឈប់</string>
+    <string name="widget_start_a_task">ចាប់ផ្តើមភារកិច្ច</string>
+    <string name="widget_running_count">+:count កំពុងដំណើរការ</string>
+    <string name="widget_running_since">កំពុងដំណើរការតាំងពី :time</string>
+    <string name="widget_stopped_syncs">បានឈប់ :time · ធ្វើសមកាលកម្មនៅពេលអ្នកបើក Invoice Ninja</string>
+
+    <string name="widget_this_month">ខែនេះ</string>
+    <string name="widget_last_30_days">30 ថ្ងៃចុងក្រោយ</string>
+    <string name="widget_this_year">ឆ្នាំនេះ</string>
+
+    <string name="widget_settings_title">ការកំណត់ធាតុក្រាហ្វិក</string>
+    <string name="widget_settings_company">ក្រុមហ៊ុន</string>
+    <string name="widget_settings_current_company">ក្រុមហ៊ុនបច្ចុប្បន្ន</string>
+    <string name="widget_settings_period">រយៈពេល</string>
+    <string name="widget_settings_figure">តួលេខ (ធាតុក្រាហ្វិកតូច)</string>
+    <string name="widget_settings_figure_help">ធាតុក្រាហ្វិកដែលធំជាងបង្ហាញចំនួនមិនទាន់ទូទាត់ ជាមួយការទូទាត់ក្នុងរយៈពេលនេះ។</string>
+    <string name="widget_settings_hide_amounts">លាក់ចំនួនទឹកប្រាក់</string>
+    <string name="widget_settings_hide_auto">ស្វ័យប្រវត្តិ</string>
+    <string name="widget_settings_on">បើក</string>
+    <string name="widget_settings_off">បិទ</string>
+    <string name="widget_settings_hide_help">ស្វ័យប្រវត្តិលាក់ចំនួនទឹកប្រាក់ ខណៈពេលដែលការចាក់សោកម្មវិធីបើក។ ចំនួន លេខវិក្កយបត្រ និងកម្មវិធីកំណត់ម៉ោងនៅតែមើលឃើញ។</string>
+    <string name="widget_settings_save">រក្សាទុក</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">វិក្កយបត្រថ្មី</string>
+    <string name="shortcut_new_task">ភារកិច្ចថ្មី</string>
+    <string name="shortcut_new_expense">ការចំណាយថ្មី</string>
+</resources>

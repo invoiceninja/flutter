@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Timer widget's Stop: a quiet red fill under a red glyph, never white on
+     red — the same "tinted ink on a quiet fill" rule as iOS. Inset inside the
+     48dp touch target, with its own small radius: Android 12's inner radius
+     (20dp) on a 40dp square would read as a pill (CLAUDE.md § Design system). -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="4dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/widget_stop_fill" />
+        <corners android:radius="10dp" />
+    </shape>
+</inset>

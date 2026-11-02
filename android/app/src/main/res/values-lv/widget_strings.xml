@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- lv_LV translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Uzņēmuma pārskats</string>
+    <string name="widget_snapshot_description">Skatiet, cik jums ir parādā, kas ir kavēts, un šī perioda maksājumus.</string>
+    <string name="widget_attention_name">Nepieciešama uzmanība</string>
+    <string name="widget_attention_description">Sekojiet kavētajiem rēķiniem un skatiet, kuru termiņš ir šonedēļ. Pieskarieties, lai atvērtu.</string>
+    <string name="widget_timer_name">Aktīvais taimeris</string>
+    <string name="widget_timer_description">Tiešsaistes pulkstenis jūsu aktīvajam taimerim. Apturiet to vai sāciet nesenu uzdevumu ar vienu pieskārienu.</string>
+
+    <string name="widget_open_to_load">Atveriet Invoice Ninja, lai ielādētu savus datus</string>
+    <string name="widget_update_app">Atjauniniet Invoice Ninja, lai izmantotu šo logrīku</string>
+    <string name="widget_sign_in">Pierakstieties Invoice Ninja</string>
+    <string name="widget_choose_company">Izvēlieties uzņēmumu</string>
+    <string name="widget_no_dashboard_permission">Jūsu loma nevar skatīt informācijas paneļa skaitļus</string>
+
+    <string name="widget_outstanding">Nesamaksāts</string>
+    <string name="widget_invoices">Rēķini</string>
+    <string name="widget_payments">Maksājumi</string>
+    <string name="widget_expenses">Izdevumi</string>
+    <string name="widget_past_due">Kavētie</string>
+    <string name="widget_due_soon">Drīz termiņš</string>
+    <string name="widget_next_due">Nākamais termiņš</string>
+    <string name="widget_unpaid_count">:count neapmaksāti</string>
+    <string name="widget_past_due_count">:count kavēti</string>
+    <string name="widget_day_late">kavēts :count dienu</string>
+    <string name="widget_days_late">kavēts :count dienas</string>
+    <string name="widget_due_today">termiņš šodien</string>
+    <string name="widget_due_in_days">termiņš pēc :count dienām</string>
+    <string name="widget_nothing_past_due">Nav kavētu</string>
+    <string name="widget_updated">Atjaunināts</string>
+    <string name="widget_tap_to_refresh">Pieskarieties, lai atsvaidzinātu</string>
+    <string name="widget_open_company_to_update">Atveriet :company, lai atjauninātu</string>
+
+    <string name="widget_stop">Apturēt</string>
+    <string name="widget_start_a_task">Sākt uzdevumu</string>
+    <string name="widget_running_count">+:count darbojas</string>
+    <string name="widget_running_since">Darbojas kopš :time</string>
+    <string name="widget_stopped_syncs">Apturēts :time · tiks sinhronizēts, kad atvērsiet Invoice Ninja</string>
+
+    <string name="widget_this_month">Šis mēnesis</string>
+    <string name="widget_last_30_days">Pēdējās 30 dienas</string>
+    <string name="widget_this_year">Šis gads</string>
+
+    <string name="widget_settings_title">Logrīka iestatījumi</string>
+    <string name="widget_settings_company">Uzņēmums</string>
+    <string name="widget_settings_current_company">Pašreizējais uzņēmums</string>
+    <string name="widget_settings_period">Periods</string>
+    <string name="widget_settings_figure">Rādītājs (mazais logrīks)</string>
+    <string name="widget_settings_figure_help">Platāks logrīks rāda nesamaksāto summu kopā ar šī perioda maksājumiem.</string>
+    <string name="widget_settings_hide_amounts">Paslēpt summas</string>
+    <string name="widget_settings_hide_auto">Automātiski</string>
+    <string name="widget_settings_on">Ieslēgts</string>
+    <string name="widget_settings_off">Izslēgts</string>
+    <string name="widget_settings_hide_help">Automātiski paslēpj summas, kamēr ir ieslēgta lietotnes bloķēšana. Skaiti, rēķinu numuri un taimeri paliek redzami.</string>
+    <string name="widget_settings_save">Saglabāt</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Jauns rēķins</string>
+    <string name="shortcut_new_task">Jauns uzdevums</string>
+    <string name="shortcut_new_expense">Jauns izdevums</string>
+</resources>

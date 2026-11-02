@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ru_RU translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Сводка по бизнесу</string>
+    <string name="widget_snapshot_description">Сколько вам должны, что просрочено и платежи за этот период.</string>
+    <string name="widget_attention_name">Требует внимания</string>
+    <string name="widget_attention_description">Следите за просроченными счетами и смотрите, что нужно оплатить на этой неделе. Нажмите, чтобы открыть.</string>
+    <string name="widget_timer_name">Запущенный таймер</string>
+    <string name="widget_timer_description">Часы в реальном времени для запущенного таймера. Остановите его или начните недавнюю задачу одним нажатием.</string>
+
+    <string name="widget_open_to_load">Откройте Invoice Ninja, чтобы загрузить данные</string>
+    <string name="widget_update_app">Обновите Invoice Ninja, чтобы использовать этот виджет</string>
+    <string name="widget_sign_in">Войдите в Invoice Ninja</string>
+    <string name="widget_choose_company">Выберите компанию</string>
+    <string name="widget_no_dashboard_permission">Ваша роль не позволяет просматривать показатели панели</string>
+
+    <string name="widget_outstanding">К оплате</string>
+    <string name="widget_invoices">Счета</string>
+    <string name="widget_payments">Платежи</string>
+    <string name="widget_expenses">Расходы</string>
+    <string name="widget_past_due">Просрочено</string>
+    <string name="widget_due_soon">Скоро срок</string>
+    <string name="widget_next_due">Ближайший срок</string>
+    <string name="widget_unpaid_count">Не оплачено: :count</string>
+    <string name="widget_past_due_count">Просрочено: :count</string>
+    <string name="widget_day_late">Просрочено дней: :count</string>
+    <string name="widget_days_late">Просрочено дней: :count</string>
+    <string name="widget_due_today">срок сегодня</string>
+    <string name="widget_due_in_days">срок через :count дн.</string>
+    <string name="widget_nothing_past_due">Нет просроченных</string>
+    <string name="widget_updated">Обновлено</string>
+    <string name="widget_tap_to_refresh">Нажмите, чтобы обновить</string>
+    <string name="widget_open_company_to_update">Откройте :company для обновления</string>
+
+    <string name="widget_stop">Стоп</string>
+    <string name="widget_start_a_task">Начать задачу</string>
+    <string name="widget_running_count">+:count выполняется</string>
+    <string name="widget_running_since">Выполняется с :time</string>
+    <string name="widget_stopped_syncs">Остановлено :time · синхронизируется при открытии Invoice Ninja</string>
+
+    <string name="widget_this_month">Текущий месяц</string>
+    <string name="widget_last_30_days">Последние 30 дней</string>
+    <string name="widget_this_year">Этот год</string>
+
+    <string name="widget_settings_title">Настройки виджета</string>
+    <string name="widget_settings_company">Компания</string>
+    <string name="widget_settings_current_company">Текущая компания</string>
+    <string name="widget_settings_period">Период</string>
+    <string name="widget_settings_figure">Показатель (маленький виджет)</string>
+    <string name="widget_settings_figure_help">Широкий виджет показывает сумму к оплате вместе с платежами за этот период.</string>
+    <string name="widget_settings_hide_amounts">Скрывать суммы</string>
+    <string name="widget_settings_hide_auto">Автоматически</string>
+    <string name="widget_settings_on">Вкл.</string>
+    <string name="widget_settings_off">Выкл.</string>
+    <string name="widget_settings_hide_help">В автоматическом режиме суммы скрываются, пока включена блокировка приложения. Количество, номера счетов и таймеры остаются видимыми.</string>
+    <string name="widget_settings_save">Сохранить</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Новый счёт</string>
+    <string name="shortcut_new_task">Новая задача</string>
+    <string name="shortcut_new_expense">Новый расход</string>
+</resources>

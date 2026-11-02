@@ -136,6 +136,9 @@ View (StatelessWidget)
 See `docs/architecture.md` for the offline-first write pipeline (Drift→outbox→drain→apply, with `tmp_<uuid>` + `id_remap` for offline creates), the on-disk project layout, and the full coding-conventions checklist.
 
 - **The five billing documents share one edit layout (`BillingDocEditLayout`) and one view-model base (`BillingDocEditViewModel`); a difference between them is a `BillingDocType` value or a `BillingDocEditSlots` entry, never a copy.** → `docs/architecture.md`
+- **A home-screen widget reads only the app-written snapshot (no token, no network, no Dart), and its taps are deep links through the trampoline.** → `docs/home-screen-widgets.md`
+- **The only write a widget makes is a queued command that only the app's own code can create (never a URL), applied by the app through the outbox — a Stop at the time of the tap, a Start through the task's own start once the app has opened on it.** → `docs/home-screen-widgets.md`
+- **Every session end leaves the widget snapshot signed out, after cancelling any pending write.** → `docs/home-screen-widgets.md`
 
 ## Design system (v2)
 

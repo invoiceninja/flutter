@@ -1811,6 +1811,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Push notifications (FCM / APNs) | — | ❌ | ❌ |  | |
 | Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | Share files into the app → New Expense with them attached (Android share target, iOS Share Extension) — flutter#173 | — | — | ✅ | | images + PDFs; HEIC/HEIF etc. converted to JPEG; iOS needs the App Group + extension profile (`docs/store-deployment-setup.md` §3E) |
+| Home-screen widgets (Business snapshot, Needs attention, Running timer with one-tap Stop and Start) | — | 🟡 | ✅ | | v1: one macOS dashboard number, disabled Aug 2025. v2: iOS, Android and macOS (three widgets; one-tap Stop, Start on a recent task, today's total, past-due bar, Remind on a past-due invoice; iOS also on the lock screen and a Control Center Stop), Device Settings → Home-screen widgets (Android: add one in a tap) — `docs/home-screen-widgets.md` |
+| App-icon quick actions, iOS 18 Control Center controls, Siri / Shortcuts actions | — | — | ✅ | | New Invoice / Task / Expense on both platforms' icons; Control Center New Invoice / New Task; Siri / Shortcuts: new invoice, task, expense, unpaid invoices |
 | OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`, now the fallback behind the https form; v1 registers a scheme for Google OAuth only |
 | Universal / App Links (https) | — | ❌ | 🟡 | | client side done (`/app/` claim + shims); 🟡 until the server's `.well-known` routes deploy and the Apple capability is enabled — see `APP_LINKS.md` |
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |

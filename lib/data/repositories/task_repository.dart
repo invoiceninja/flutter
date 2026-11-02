@@ -27,6 +27,24 @@ import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/tasks/task_schedule.dart';
 
+/// What [TaskRepository.stopRunningTimer] did.
+enum TimerStopResult {
+  stopped,
+
+  /// No such task here (deleted, or never synced to this device).
+  missing,
+
+  /// Not running — stopped already, or a second tap on a widget's Stop.
+  notRunning,
+
+  /// The caller's edit rule refused it.
+  refused,
+
+  /// Running, but a different entry from the one the caller saw: stopped and
+  /// restarted elsewhere since.
+  changedElsewhere,
+}
+
 /// Source of truth for Task data. Mirrors `ProductRepository`'s shape with
 /// two task-specific additions:
 ///   * `watchAllForKanban` — un-paginated stream for the kanban board.
@@ -178,6 +196,24 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
         .watchRunning(companyId: companyId)
         .map((row) => row == null ? null : _fromRow(row));
   }
+
+  /// Running tasks, most recently updated first, at most [limit] — the
+  /// home-screen Timer widget.
+  Stream<List<Task>> watchRunningList({
+    required String companyId,
+    required int limit,
+  }) => db.taskDao
+      .watchRunningList(companyId: companyId, limit: limit)
+      .map((rows) => rows.map(_fromRow).toList(growable: false));
+
+  /// The most recently updated tasks a timer could be started on again — the
+  /// idle Timer widget's "resume" rows.
+  Stream<List<Task>> watchRecentlyWorked({
+    required String companyId,
+    required int limit,
+  }) => db.taskDao
+      .watchRecentlyWorked(companyId: companyId, limit: limit)
+      .map((rows) => rows.map(_fromRow).toList(growable: false));
 
   Stream<int> watchCount({required String companyId}) =>
       db.taskDao.watchCount(companyId: companyId);
@@ -423,24 +459,49 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   /// [only], when given, leaves a task it refuses running — the pill's
   /// "Stop all" passes the user's edit rule, since the server refuses (401)
   /// the save of a task they may not edit.
-  Future<void> stopRunningTimer({
+  ///
+  /// [stopAt] is when the stop was asked for, for a stop that reaches the app
+  /// later than it was made — a home-screen widget's Stop is applied when the
+  /// app next runs, and stamping `now` would bill the hours in between. It is
+  /// clamped to the entry: never before its start, never in the future.
+  /// [runningSince], when given, is the running entry's start as the caller
+  /// saw it; a task whose running entry starts elsewhere — stopped and
+  /// restarted on another device since — is left alone.
+  ///
+  /// Returns what happened — a widget's queued Stop tells the user only when
+  /// the timer was changed elsewhere ([TimerStopResult.changedElsewhere]).
+  Future<TimerStopResult> stopRunningTimer({
     required String companyId,
     required String taskId,
     bool Function(Task task)? only,
+    DateTime? stopAt,
+    DateTime? runningSince,
   }) async {
     final row = await db.taskDao
         .watchById(companyId: companyId, id: taskId)
         .first;
-    if (row == null) return;
+    if (row == null) return TimerStopResult.missing;
     final task = _fromRow(row);
-    if (task.timeLog.isEmpty || !task.timeLog.last.isRunning) return;
-    if (only != null && !only(task)) return;
+    if (task.timeLog.isEmpty || !task.timeLog.last.isRunning) {
+      return TimerStopResult.notRunning;
+    }
+    if (only != null && !only(task)) return TimerStopResult.refused;
+    final start = task.timeLog.last.start;
+    if (runningSince != null &&
+        (start == null || !start.isAtSameMomentAs(runningSince))) {
+      return TimerStopResult.changedElsewhere;
+    }
+    final now = DateTime.now();
+    var stop = stopAt ?? now;
+    if (stop.isAfter(now)) stop = now;
+    if (start != null && stop.isBefore(start)) stop = start;
     final entries = <TimeEntry>[...task.timeLog];
-    entries[entries.length - 1] = entries.last.copyWith(stop: DateTime.now());
+    entries[entries.length - 1] = entries.last.copyWith(stop: stop);
     await save(
       companyId: companyId,
       task: task.copyWith(timeLog: entries),
     );
+    return TimerStopResult.stopped;
   }
 
   /// Start [taskId]'s timer through the outbox, consuming a booking rather

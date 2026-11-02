@@ -18,6 +18,12 @@ enum ReleaseNoteSurface {
 
   /// Native iOS or Android — already the phone app, and touch-first.
   nativePhone,
+
+  /// Every build with no home-screen widgets (docs/home-screen-widgets.md):
+  /// web, Windows and Linux. A note about the widgets is `hiddenOn` this, so
+  /// it is read only where it can be used. (iOS below 17 and macOS below 14
+  /// have none either, but can't be told apart here.)
+  withoutHomeWidgets,
 }
 
 /// The surfaces this build belongs to.
@@ -25,7 +31,7 @@ Set<ReleaseNoteSurface> releaseNoteSurfaces({
   required bool isWeb,
   required TargetPlatform platform,
 }) {
-  if (isWeb) return const {};
+  if (isWeb) return const {ReleaseNoteSurface.withoutHomeWidgets};
   return switch (platform) {
     TargetPlatform.iOS => const {
       ReleaseNoteSurface.appleStore,
@@ -33,7 +39,7 @@ Set<ReleaseNoteSurface> releaseNoteSurfaces({
     },
     TargetPlatform.macOS => const {ReleaseNoteSurface.appleStore},
     TargetPlatform.android => const {ReleaseNoteSurface.nativePhone},
-    _ => const {},
+    _ => const {ReleaseNoteSurface.withoutHomeWidgets},
   };
 }
 

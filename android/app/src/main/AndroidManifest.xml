@@ -18,6 +18,9 @@
 
     <application
         android:label="Ninja Beta"
+        android:supportsRtl="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -63,6 +66,12 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- App-icon quick actions. Declared on the launcher activity (where
+                 Android looks for them), but each one's intent targets
+                 DeepLinkReceiverActivity - see xml/shortcuts.xml. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <!-- Deep links land here, never on MainActivity: a VIEW intent from an
              app that doesn't add NEW_TASK would start a second singleTop
@@ -165,6 +174,86 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="image/*"/>
                 <data android:mimeType="application/pdf"/>
+            </intent-filter>
+        </activity>
+        <!-- Home-screen widgets (docs/home-screen-widgets.md). None of these
+             starts the Flutter engine: they read the snapshot the app writes
+             and hand taps to DeepLinkReceiverActivity.
+             The providers are NOT exported - the system still delivers their
+             updates, and no other app can poke one. -->
+        <receiver
+            android:name=".homewidgets.SnapshotWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_snapshot_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_snapshot_info" />
+        </receiver>
+        <receiver
+            android:name=".homewidgets.AttentionWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_attention_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_attention_info" />
+        </receiver>
+        <receiver
+            android:name=".homewidgets.TimerWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_timer_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_timer_info" />
+        </receiver>
+        <!-- The Timer widget's Stop. NOT exported and no intent filter: only
+             this app's own PendingIntents reach it, which is what makes a
+             queued stop unforgeable (a URL would not be). -->
+        <receiver
+            android:name=".homewidgets.WidgetCommandReceiver"
+            android:exported="false" />
+        <!-- The Timer widget's Start (a recent task tapped). An activity,
+             because the app must come forward and a background receiver may
+             not start one; NOT exported, for the same reason as the Stop
+             receiver above. It queues the command, opens MainActivity with no
+             extras, and finishes in onCreate (Theme.NoDisplay). -->
+        <activity
+            android:name=".homewidgets.WidgetStartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+        <!-- Redraws at midnight / a stale threshold (an inexact alarm), and when
+             the clock or time zone changes - both protected system broadcasts,
+             exempt from the implicit-broadcast limits. -->
+        <receiver
+            android:name=".homewidgets.WidgetRolloverReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <!-- A widget's settings. Exported because the launcher starts it; it
+             checks the widget id it is given belongs to this app. Plain Views,
+             no engine. -->
+        <activity
+            android:name=".homewidgets.WidgetConfigureActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/WidgetConfigTheme">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

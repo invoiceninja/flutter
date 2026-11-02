@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No updatePeriodMillis: the app pushes every change, and the rollover
+     alarm (HomeWidgets.scheduleRollover) covers midnight and staleness. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.invoiceninja.admin.homewidgets.WidgetConfigureActivity"
+    android:description="@string/widget_timer_description"
+    android:initialLayout="@layout/widget_message"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="60dp"
+    android:previewLayout="@layout/widget_timer_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

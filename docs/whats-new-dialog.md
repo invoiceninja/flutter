@@ -23,6 +23,7 @@ After an update, the app opens a dialog of that release's notes: a few highlight
 
 - `releaseNoteSurfaces` puts native iOS and macOS in `ReleaseNoteSurface.appleStore`, and native iOS and Android in `nativePhone`. The web is neither, even on a Mac or an iPhone.
 - A bullet or highlight that names Android, Google Play, F-Droid or another store carries `hiddenOn: {ReleaseNoteSurface.appleStore}`. One about the phone-app promo, or about keyboard shortcuts, carries `{nativePhone}`.
+- A bullet or highlight about the home-screen widgets (or the quick actions, controls and Siri actions that came with them) carries `hiddenOn: {ReleaseNoteSurface.withoutHomeWidgets}`: web, Windows and Linux have none (docs/home-screen-widgets.md). A widgets bullet that also names Android adds `appleStore`.
 - `test/domain/release_notes_test.dart` scans the whole catalog as the Mac and iPhone builds see it for those names, so a future bullet that forgets the tag fails the build.
 
 **Never a link out.** The GitHub release page lists the F-Droid build and the Android APKs, so linking to it from a Mac App Store build is the exposure the filter exists to prevent. Highlights lead only into the app.

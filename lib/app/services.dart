@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Icons;
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
@@ -30,6 +31,11 @@ import 'package:admin/app/pending_call_controller.dart';
 import 'package:admin/app/phone_actions_controller.dart';
 import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/resync_controller.dart';
+import 'package:admin/app/home_widgets/home_widget_commands.dart';
+import 'package:admin/domain/home_widgets/widget_command.dart'
+    show WidgetCommandKind;
+import 'package:admin/app/home_widgets/home_widget_publisher.dart';
+import 'package:admin/app/home_widgets/home_widget_reader.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/search_focus_registry.dart';
@@ -112,6 +118,7 @@ import 'package:admin/data/services/biometric_service.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/dashboard_api.dart';
+import 'package:admin/data/services/home_widget_bridge.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/data/services/device_contacts_service_factory.dart';
 import 'package:admin/data/services/document_versions_api.dart';
@@ -348,6 +355,8 @@ class Services implements SidebarBadgeContext {
     required this.sync,
     required this.refreshScheduler,
     required this.realtime,
+    this.homeWidgets,
+    this.homeWidgetCommands,
     required this.entityRegistry,
     required this.connectivity,
     required this.passwordCache,
@@ -654,6 +663,14 @@ class Services implements SidebarBadgeContext {
   /// Hosted real-time updates — a pushed "something changed" becomes a
   /// [refreshScheduler] delta. Inert unless `Services.build` was asked for it.
   final RealtimeService realtime;
+
+  /// Keeps the home-screen widgets' snapshot current — null unless the app
+  /// asked for it (`Services.build(homeWidgets:)`) on a platform that has
+  /// them. See `docs/home-screen-widgets.md`.
+  final HomeWidgetPublisher? homeWidgets;
+
+  /// Applies what the widgets queued (Stop timer) — null with [homeWidgets].
+  final HomeWidgetCommands? homeWidgetCommands;
 
   /// Per-entity dispatchers + metadata. The sync engine, outbox screen,
   /// permissions checks, router branches, and shell navigation all read
@@ -1546,6 +1563,10 @@ class Services implements SidebarBadgeContext {
     // Off unless the app asks: a test or harness that builds the graph must
     // never open a socket to the hosted server (docs/realtime-updates.md).
     bool realtimeUpdates = false,
+    // Off unless the app asks, for the same reason: a harness must never
+    // overwrite the widgets on the machine it runs on, nor reach a channel
+    // `flutter_test` has not registered (docs/home-screen-widgets.md).
+    bool homeWidgets = false,
     // Off unless the app asks, for the same reason: a harness must never get
     // the mobile-app promo over the screen it is driving, nor its sidebar card.
     bool mobileAppPromote = false,
@@ -1583,8 +1604,13 @@ class Services implements SidebarBadgeContext {
         prefs: devicePrefs,
         // A wipe also takes the copies of files shared into the app — except
         // a share still waiting for the sign-in that triggered the wipe.
-        onWipeAll: () =>
-            sharedIntakeFiles.purgeAll(except: services.sharedFiles.heldPaths),
+        onWipeAll: () async {
+          await sharedIntakeFiles.purgeAll(
+            except: services.sharedFiles.heldPaths,
+          );
+          // The widgets' copy of the figures goes with the data it came from.
+          await services.homeWidgets?.signOut();
+        },
       ),
     );
     // Read at the moment a credential is needed, so a company switch or a
@@ -2190,6 +2216,12 @@ class Services implements SidebarBadgeContext {
       services.invalidateAllFormatters();
       // Client-level setting overrides are user data.
       services.settings.clearResolvedCache();
+      // Every session end — a 401 and an idle re-lock included — leaves the
+      // home-screen widgets saying "Sign in", and drops a Stop queued for the
+      // outgoing user. Cancels a pending write first, so a late one can't put
+      // the figures back. After the in-memory clears: it waits on the native
+      // side (bounded), and nothing above should wait behind it.
+      await services.homeWidgets?.signOut();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
     // Only on the destructive paths (a destroy logout, a different identity's
@@ -2279,6 +2311,103 @@ class Services implements SidebarBadgeContext {
             ),
       );
     };
+    // Home-screen widgets: built before `Services` so the closures above can
+    // reach them through it.
+    final widgetBridge = homeWidgets ? HomeWidgetBridge() : null;
+    HomeWidgetPublisher? homeWidgetPublisher;
+    HomeWidgetCommands? homeWidgetCommands;
+    if (widgetBridge != null && widgetBridge.supported) {
+      final fetchRequests = StreamController<void>.broadcast();
+      // The same signals the dashboard refetches on. A row it has just fetched
+      // is skipped (`maxAge`), so nothing is asked for twice.
+      resync.lastCompletion.addListener(() => fetchRequests.add(null));
+      realtime.lastRefresh.addListener(() => fetchRequests.add(null));
+      final publisher = HomeWidgetPublisher(
+        bridge: widgetBridge,
+        session: auth.session,
+        reader: HomeWidgetReader(
+          dashboard: dashboardRepo,
+          tasks: entities.tasks,
+          clients: entities.clients,
+          navFilters: () async => (await db.navStateDao.current())?.filtersJson,
+          formatterFor: (companyId) => services.formatterFor(companyId),
+        ),
+        dataChanges: db
+            .tableUpdates(
+              TableUpdateQuery.onAllTables([db.dashboardCache, db.tasks]),
+            )
+            .map((_) {}),
+        fetchRequests: fetchRequests.stream,
+      );
+      homeWidgetPublisher = publisher;
+      // A deferred stop is announced once per run, not on every resume.
+      final toldDeferred = <String>{};
+      homeWidgetCommands = HomeWidgetCommands(
+        bridge: widgetBridge,
+        session: auth.session,
+        stopTimer:
+            ({
+              required companyId,
+              required taskId,
+              required stopAt,
+              required runningSince,
+              required only,
+            }) async {
+              // The server's copy first: the `runningSince` guard is only as
+              // good as what it compares against, and at a cold start the
+              // local row can predate a stop-and-restart made on another
+              // device — saving the whole time log over it would drop that
+              // newer entry. Bounded, and skipped offline: then the local copy
+              // is all there is, and the outbox sends the stop when it can.
+              // A timer on a task created offline carries its `tmp_` id; its
+              // create may have synced since, swapping in the server's id.
+              final id = await entities.tasks.resolveId(taskId);
+              try {
+                await entities.tasks
+                    .refreshByIds(companyId: companyId, ids: [id])
+                    .timeout(const Duration(seconds: 8));
+              } catch (_) {}
+              return entities.tasks.stopRunningTimer(
+                companyId: companyId,
+                taskId: id,
+                stopAt: stopAt,
+                runningSince: runningSince,
+                only: only,
+              );
+            },
+        onHandled: publisher.reloadTimer,
+        onOutcome: (command, outcome) {
+          // Said aloud only where the widget's "syncs when you open Invoice
+          // Ninja" did not come true: the timer was changed elsewhere, the
+          // stop waits for another company, or it came too late to apply.
+          // A Start promised nothing: the app opened on the task, which shows
+          // whether it runs.
+          if (command.kind != WidgetCommandKind.stop) return;
+          final String? message;
+          switch (outcome) {
+            case WidgetCommandOutcome.changedElsewhere:
+              message = publisher.translate('widget_stop_not_applied');
+            case WidgetCommandOutcome.expired:
+              message = publisher.translate('widget_stop_expired');
+            case WidgetCommandOutcome.deferred:
+              if (!toldDeferred.add(command.id)) return;
+              final company = auth.session.value?.companies
+                  .where((c) => c.id == command.companyId)
+                  .firstOrNull;
+              message = publisher.translate('widget_switch_company_to_stop', {
+                'company': company?.displayName ?? '',
+              });
+            case WidgetCommandOutcome.applied ||
+                WidgetCommandOutcome.skipped ||
+                WidgetCommandOutcome.discarded ||
+                WidgetCommandOutcome.failed:
+              return;
+          }
+          if (message != null) services.toasts.info(message);
+        },
+      );
+    }
+
     services = Services._(
       db: db,
       auth: auth,
@@ -2337,6 +2466,8 @@ class Services implements SidebarBadgeContext {
       sync: sync,
       refreshScheduler: refreshScheduler,
       realtime: realtime,
+      homeWidgets: homeWidgetPublisher,
+      homeWidgetCommands: homeWidgetCommands,
       entityRegistry: registry,
       connectivity: connectivity,
       passwordCache: passwordCache,

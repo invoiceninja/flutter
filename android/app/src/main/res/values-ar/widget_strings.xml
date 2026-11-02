@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ar translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">لمحة عن النشاط التجاري</string>
+    <string name="widget_snapshot_description">اطّلع على المبالغ المستحقة لك والمتأخرة ومدفوعات هذه الفترة.</string>
+    <string name="widget_attention_name">تحتاج إلى انتباه</string>
+    <string name="widget_attention_description">تابع الفواتير المتأخرة واطّلع على المستحق هذا الأسبوع. انقر على أي منها لفتحها.</string>
+    <string name="widget_timer_name">المؤقت الجاري</string>
+    <string name="widget_timer_description">ساعة حية لمؤقتك الجاري. أوقفه أو ابدأ مهمة حديثة بنقرة واحدة.</string>
+
+    <string name="widget_open_to_load">افتح Invoice Ninja لتحميل بياناتك</string>
+    <string name="widget_update_app">حدّث Invoice Ninja لاستخدام هذه الأداة</string>
+    <string name="widget_sign_in">سجّل الدخول إلى Invoice Ninja</string>
+    <string name="widget_choose_company">اختر شركة</string>
+    <string name="widget_no_dashboard_permission">لا يمكن لدورك عرض أرقام لوحة التحكم</string>
+
+    <string name="widget_outstanding">المستحق</string>
+    <string name="widget_invoices">الفواتير</string>
+    <string name="widget_payments">الدفعات</string>
+    <string name="widget_expenses">النفقات</string>
+    <string name="widget_past_due">متأخرة</string>
+    <string name="widget_due_soon">مستحقة قريبًا</string>
+    <string name="widget_next_due">الاستحقاق التالي</string>
+    <string name="widget_unpaid_count">:count غير مدفوعة</string>
+    <string name="widget_past_due_count">:count متأخرة</string>
+    <string name="widget_day_late">متأخرة :count يوم</string>
+    <string name="widget_days_late">متأخرة :count أيام</string>
+    <string name="widget_due_today">مستحقة اليوم</string>
+    <string name="widget_due_in_days">مستحقة خلال :count أيام</string>
+    <string name="widget_nothing_past_due">لا شيء متأخر</string>
+    <string name="widget_updated">تم التحديث</string>
+    <string name="widget_tap_to_refresh">انقر للتحديث</string>
+    <string name="widget_open_company_to_update">افتح :company للتحديث</string>
+
+    <string name="widget_stop">إيقاف</string>
+    <string name="widget_start_a_task">ابدأ مهمة</string>
+    <string name="widget_running_count">+:count قيد التشغيل</string>
+    <string name="widget_running_since">قيد التشغيل منذ :time</string>
+    <string name="widget_stopped_syncs">أُوقف :time · تتم المزامنة عند فتح Invoice Ninja</string>
+
+    <string name="widget_this_month">هذا الشهر</string>
+    <string name="widget_last_30_days">آخر 30 يومًا</string>
+    <string name="widget_this_year">هذا العام</string>
+
+    <string name="widget_settings_title">إعدادات الأداة</string>
+    <string name="widget_settings_company">الشركة</string>
+    <string name="widget_settings_current_company">الشركة الحالية</string>
+    <string name="widget_settings_period">الفترة</string>
+    <string name="widget_settings_figure">الرقم (الأداة الصغيرة)</string>
+    <string name="widget_settings_figure_help">تعرض الأداة الأعرض المستحق مع مدفوعات هذه الفترة.</string>
+    <string name="widget_settings_hide_amounts">إخفاء المبالغ</string>
+    <string name="widget_settings_hide_auto">تلقائي</string>
+    <string name="widget_settings_on">تشغيل</string>
+    <string name="widget_settings_off">إيقاف</string>
+    <string name="widget_settings_hide_help">يُخفي الوضع التلقائي المبالغ أثناء تفعيل قفل التطبيق. تظل الأعداد وأرقام الفواتير والمؤقتات ظاهرة.</string>
+    <string name="widget_settings_save">حفظ</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">فاتورة جديدة</string>
+    <string name="shortcut_new_task">مهمة جديدة</string>
+    <string name="shortcut_new_expense">نفقة جديدة</string>
+</resources>

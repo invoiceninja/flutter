@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- zh_TW translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">業務概覽</string>
+    <string name="widget_snapshot_description">查看應收款項、逾期款項以及本期的付款。</string>
+    <string name="widget_attention_name">需要注意</string>
+    <string name="widget_attention_description">追蹤逾期發票，查看本週到期的發票。輕觸即可開啟。</string>
+    <string name="widget_timer_name">執行中的計時器</string>
+    <string name="widget_timer_description">執行中計時器的即時時鐘。輕觸一下即可停止，或開始最近的任務。</string>
+
+    <string name="widget_open_to_load">開啟 Invoice Ninja 以載入您的資料</string>
+    <string name="widget_update_app">更新 Invoice Ninja 以使用此小工具</string>
+    <string name="widget_sign_in">登入 Invoice Ninja</string>
+    <string name="widget_choose_company">選擇公司</string>
+    <string name="widget_no_dashboard_permission">您的角色無法檢視儀表板數據</string>
+
+    <string name="widget_outstanding">未付清</string>
+    <string name="widget_invoices">發票</string>
+    <string name="widget_payments">付款</string>
+    <string name="widget_expenses">支出</string>
+    <string name="widget_past_due">逾期</string>
+    <string name="widget_due_soon">即將到期</string>
+    <string name="widget_next_due">下次到期</string>
+    <string name="widget_unpaid_count">:count 筆未付款</string>
+    <string name="widget_past_due_count">:count 筆逾期</string>
+    <string name="widget_day_late">逾期 :count 天</string>
+    <string name="widget_days_late">逾期 :count 天</string>
+    <string name="widget_due_today">今天到期</string>
+    <string name="widget_due_in_days">:count 天後到期</string>
+    <string name="widget_nothing_past_due">沒有逾期項目</string>
+    <string name="widget_updated">已更新</string>
+    <string name="widget_tap_to_refresh">輕觸以重新整理</string>
+    <string name="widget_open_company_to_update">開啟 :company 以更新</string>
+
+    <string name="widget_stop">停止</string>
+    <string name="widget_start_a_task">開始任務</string>
+    <string name="widget_running_count">+:count 個執行中</string>
+    <string name="widget_running_since">自 :time 起執行中</string>
+    <string name="widget_stopped_syncs">已於 :time 停止 · 開啟 Invoice Ninja 時同步</string>
+
+    <string name="widget_this_month">本月</string>
+    <string name="widget_last_30_days">最近 30 天</string>
+    <string name="widget_this_year">今年</string>
+
+    <string name="widget_settings_title">小工具設定</string>
+    <string name="widget_settings_company">公司</string>
+    <string name="widget_settings_current_company">目前公司</string>
+    <string name="widget_settings_period">期間</string>
+    <string name="widget_settings_figure">數值（小型小工具）</string>
+    <string name="widget_settings_figure_help">較寬的小工具會顯示未付清金額以及本期的付款。</string>
+    <string name="widget_settings_hide_amounts">隱藏金額</string>
+    <string name="widget_settings_hide_auto">自動</string>
+    <string name="widget_settings_on">開</string>
+    <string name="widget_settings_off">關</string>
+    <string name="widget_settings_hide_help">自動模式會在應用程式鎖定開啟時隱藏金額。數量、發票號碼和計時器仍會顯示。</string>
+    <string name="widget_settings_save">儲存</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">新發票</string>
+    <string name="shortcut_new_task">新任務</string>
+    <string name="shortcut_new_expense">新支出</string>
+</resources>

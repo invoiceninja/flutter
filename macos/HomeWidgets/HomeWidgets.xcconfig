@@ -1,0 +1,5 @@
+// The macOS home-screen widget extension's base configuration — only for
+// FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER, so its version matches the app's
+// (App Store validation rejects a mismatch). Its sources are the iOS
+// extension's (ios/HomeWidgets/), shared.
+#include? "../Flutter/ephemeral/Flutter-Generated.xcconfig"

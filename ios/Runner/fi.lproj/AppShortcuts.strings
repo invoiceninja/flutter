@@ -1,0 +1,12 @@
+/* Siri phrases for the app's App Shortcuts (AppShortcuts.swift).
+   Generated from the translations; ${applicationName} must appear
+   exactly once in every phrase. */
+
+"New invoice in ${applicationName}" = "Uusi lasku sovelluksessa ${applicationName}";
+"Create an invoice in ${applicationName}" = "Luo lasku sovelluksessa ${applicationName}";
+"New task in ${applicationName}" = "Uusi tehtävä sovelluksessa ${applicationName}";
+"Start a task in ${applicationName}" = "Aloita tehtävä sovelluksessa ${applicationName}";
+"New expense in ${applicationName}" = "Uusi kulu sovelluksessa ${applicationName}";
+"Add an expense in ${applicationName}" = "Lisää kulu sovelluksessa ${applicationName}";
+"Show unpaid invoices in ${applicationName}" = "Näytä maksamattomat laskut sovelluksessa ${applicationName}";
+"What's outstanding in ${applicationName}" = "Mitä on avoinna sovelluksessa ${applicationName}";

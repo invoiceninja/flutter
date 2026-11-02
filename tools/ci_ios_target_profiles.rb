@@ -22,6 +22,7 @@ require 'xcodeproj'
 PROFILES = {
   'Runner' => 'Invoice Ninja Admin App Store',
   'ShareExtension' => 'Invoice Ninja Share Extension App Store',
+  'HomeWidgets' => 'Invoice Ninja Home Widgets App Store',
 }.freeze
 
 project = Xcodeproj::Project.open(File.expand_path('../ios/Runner.xcodeproj', __dir__))

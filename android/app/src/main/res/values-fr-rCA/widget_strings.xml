@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fr_CA translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Aperçu de l\'activité</string>
+    <string name="widget_snapshot_description">Voyez ce qu\'on vous doit, ce qui est en souffrance et les paiements de la période.</string>
+    <string name="widget_attention_name">À traiter</string>
+    <string name="widget_attention_description">Relancez les factures en souffrance et voyez ce qui est dû cette semaine. Touchez-en une pour l\'ouvrir.</string>
+    <string name="widget_timer_name">Minuterie en cours</string>
+    <string name="widget_timer_description">Une horloge en direct pour votre minuterie en cours. Arrêtez-la, ou démarrez une tâche récente, d\'un toucher.</string>
+
+    <string name="widget_open_to_load">Ouvrez Invoice Ninja pour charger vos données</string>
+    <string name="widget_update_app">Mettez à jour Invoice Ninja pour utiliser ce widget</string>
+    <string name="widget_sign_in">Connectez-vous à Invoice Ninja</string>
+    <string name="widget_choose_company">Choisissez une entreprise</string>
+    <string name="widget_no_dashboard_permission">Votre rôle ne permet pas de voir les chiffres du tableau de bord</string>
+
+    <string name="widget_outstanding">Impayées</string>
+    <string name="widget_invoices">Factures</string>
+    <string name="widget_payments">Paiements</string>
+    <string name="widget_expenses">Dépenses</string>
+    <string name="widget_past_due">En souffrance</string>
+    <string name="widget_due_soon">Échéance proche</string>
+    <string name="widget_next_due">Prochaine échéance</string>
+    <string name="widget_unpaid_count">:count impayées</string>
+    <string name="widget_past_due_count">:count en souffrance</string>
+    <string name="widget_day_late">:count jour de retard</string>
+    <string name="widget_days_late">:count jours de retard</string>
+    <string name="widget_due_today">échéance aujourd\'hui</string>
+    <string name="widget_due_in_days">échéance dans :count jours</string>
+    <string name="widget_nothing_past_due">Rien en souffrance</string>
+    <string name="widget_updated">Mis à jour</string>
+    <string name="widget_tap_to_refresh">Touchez pour actualiser</string>
+    <string name="widget_open_company_to_update">Ouvrez :company pour mettre à jour</string>
+
+    <string name="widget_stop">Arrêter</string>
+    <string name="widget_start_a_task">Démarrer une tâche</string>
+    <string name="widget_running_count">+:count en cours</string>
+    <string name="widget_running_since">En cours depuis :time</string>
+    <string name="widget_stopped_syncs">Arrêté :time · synchronisé à l\'ouverture d\'Invoice Ninja</string>
+
+    <string name="widget_this_month">Mois en cours</string>
+    <string name="widget_last_30_days">30 derniers jours</string>
+    <string name="widget_this_year">Cette année</string>
+
+    <string name="widget_settings_title">Paramètres du widget</string>
+    <string name="widget_settings_company">Entreprise</string>
+    <string name="widget_settings_current_company">Entreprise actuelle</string>
+    <string name="widget_settings_period">Période</string>
+    <string name="widget_settings_figure">Chiffre (petit widget)</string>
+    <string name="widget_settings_figure_help">Un widget plus large affiche Impayées avec les paiements de la période.</string>
+    <string name="widget_settings_hide_amounts">Masquer les montants</string>
+    <string name="widget_settings_hide_auto">Automatique</string>
+    <string name="widget_settings_on">Activé</string>
+    <string name="widget_settings_off">Désactivé</string>
+    <string name="widget_settings_hide_help">Automatique masque les montants tant que le verrouillage de l\'app est activé. Les nombres, numéros de facture et minuteries restent visibles.</string>
+    <string name="widget_settings_save">Enregistrer</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nouvelle facture</string>
+    <string name="shortcut_new_task">Nouvelle tâche</string>
+    <string name="shortcut_new_expense">Nouvelle dépense</string>
+</resources>

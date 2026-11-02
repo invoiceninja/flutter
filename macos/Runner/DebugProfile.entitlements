@@ -6,6 +6,15 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- The home-screen widgets' snapshot and queued commands
+	     (docs/home-screen-widgets.md). Team-prefixed: a sandboxed Mac App
+	     Store app below macOS 15 can only use a group named after its team.
+	     Adding it invalidated the existing Mac App Store profile — see
+	     docs/store-deployment-setup.md §3E. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>NPC44Y2C98.com.invoiceninja.admin.widgets</string>
+	</array>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.cs.allow-jit</key>

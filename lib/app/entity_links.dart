@@ -38,6 +38,10 @@ const Set<EntityType> kNonRecordRouteEntityTypes = {
 bool entityTypeHasRecordRoute(EntityType type) =>
     !kNonRecordRouteEntityTypes.contains(type);
 
+/// The dashboard, as a link names it — the one destination that is not an
+/// entity route.
+const String kDashboardDeepLinkPath = '/dashboard';
+
 /// The app's custom URL scheme. Registered on iOS/macOS (`CFBundleURLTypes`),
 /// Android (an `<intent-filter>` per host) and Windows (`msix_config`
 /// `protocol_activation` — packaged installs only). Linux registers nothing.
@@ -227,8 +231,16 @@ String? buildEntityDeepLink({
 
 /// Target of a parsed record deep link: an in-app route with **no query
 /// string**, plus the company the sender was in (null when the link carries
-/// none).
-typedef DeepLinkTarget = ({String path, String? companyId});
+/// none), and — for `/invoices` only — an allow-listed list filter
+/// (`kInvoiceLinkFilters`: the home-screen widgets' "past due" and "unpaid").
+/// The filter never becomes part of the route: the router hands it to the
+/// list as a one-shot intent, which `nav_state` doesn't persist.
+typedef DeepLinkTarget = ({String path, String? companyId, String? listFilter});
+
+/// The invoice-list filters a link may carry — mirrored by
+/// `kInvoiceLinkFilters` (lib/ui), which builds them. A leaf here so the
+/// parser imports nothing from `lib/ui`.
+const Set<String> kInvoiceLinkFilterNames = {'past_due', 'unpaid'};
 
 /// The calendar OAuth return, or null when [uri] isn't one.
 ///
@@ -267,8 +279,9 @@ String? parseCalendarCompleteLink(Uri uri) {
 ///     instance's own bridge page, and `DeepLinkRouter` is where a link
 ///     belonging to another server is caught.
 ///
-/// `<route>` must be `<routePath>`, `<routePath>/<id>` or
-/// `<routePath>/<id>/edit` for a registered, non-`disabled` entity.
+/// `<route>` must be `<routePath>`, `<routePath>/new`, `<routePath>/<id>` or
+/// `<routePath>/<id>/edit` for a registered, non-`disabled` entity,
+/// `/invoices/<id>/email` ([kEmailLinkRoots]), or [kDashboardDeepLinkPath].
 ///
 /// Deliberately NOT checked here: whether the entity's module is enabled for
 /// the active company. The router's own redirect already bounces a module-off
@@ -277,6 +290,12 @@ String? parseCalendarCompleteLink(Uri uri) {
 DeepLinkTarget? parseAppDeepLink(Uri uri, EntityRegistry registry) {
   final route = _appRouteFrom(uri);
   if (route == null) return null;
+
+  // The one non-entity destination a link may name: the home-screen Business
+  // snapshot widget opens it.
+  if (route == kDashboardDeepLinkPath) {
+    return (path: route, companyId: _companyIdFrom(uri), listFilter: null);
+  }
 
   // Longest root first: `/settings/bank_accounts/transaction_rules` nests
   // under `/settings/bank_accounts`, and the shorter root would otherwise
@@ -302,20 +321,49 @@ DeepLinkTarget? parseAppDeepLink(Uri uri, EntityRegistry registry) {
   for (final root in roots) {
     if (route != root && !route.startsWith('$root/')) continue;
     final rest = route.substring(root.length);
-    if (!_isValidRecordSuffix(rest)) return null;
-    return (path: '$root$rest', companyId: _companyIdFrom(uri));
+    if (!_isValidRecordSuffix(rest, email: kEmailLinkRoots.contains(root))) {
+      return null;
+    }
+    final filter = uri.queryParameters['filter'];
+    return (
+      path: '$root$rest',
+      companyId: _companyIdFrom(uri),
+      // Only a list, only invoices, only a name on the allow-list.
+      listFilter:
+          root == '/invoices' &&
+              rest.isEmpty &&
+              kInvoiceLinkFilterNames.contains(filter)
+          ? filter
+          : null,
+    );
   }
   return null;
 }
 
-/// `''`, `/<id>` or `/<id>/edit`.
-bool _isValidRecordSuffix(String rest) {
+/// `''`, `/new`, `/<id>` or `/<id>/edit`.
+///
+/// `/new` is a create screen — the home-screen widgets and app-icon quick
+/// actions open one. It is accepted here and nowhere else: `new` is never a
+/// record id, so [_isPlausibleRecordId] (shared with [buildEntityDeepLink])
+/// still refuses it. The router's `createForbiddenRedirect` turns a create
+/// the user may not make into the list.
+bool _isValidRecordSuffix(String rest, {bool email = false}) {
   if (rest.isEmpty) return true;
+  if (rest == '/new') return true;
   final segments = rest.split('/')..removeAt(0); // leading '' before the '/'
   if (segments.length > 2) return false;
-  if (segments.length == 2 && segments[1] != 'edit') return false;
+  if (segments.length == 2 &&
+      segments[1] != 'edit' &&
+      !(email && segments[1] == 'email')) {
+    return false;
+  }
   return _isPlausibleRecordId(segments.first);
 }
+
+/// The roots whose records have an `/<id>/email` screen a link may open —
+/// the Needs attention widget's Remind on a past-due invoice. Only invoices:
+/// every other root would hand `go()` a route that matches nothing.
+const Set<String> kEmailLinkRoots = {'/invoices'};
 
 /// Shared by [buildEntityDeepLink] and [parseAppDeepLink], deliberately: if
 /// build accepted an id that parse rejects, `Copy Link` would report success

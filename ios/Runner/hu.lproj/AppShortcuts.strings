@@ -1,0 +1,12 @@
+/* Siri phrases for the app's App Shortcuts (AppShortcuts.swift).
+   Generated from the translations; ${applicationName} must appear
+   exactly once in every phrase. */
+
+"New invoice in ${applicationName}" = "Új számla az ${applicationName} alkalmazásban";
+"Create an invoice in ${applicationName}" = "Hozz létre egy számlát az ${applicationName} alkalmazásban";
+"New task in ${applicationName}" = "Új feladat az ${applicationName} alkalmazásban";
+"Start a task in ${applicationName}" = "Indíts el egy feladatot az ${applicationName} alkalmazásban";
+"New expense in ${applicationName}" = "Új kiadás az ${applicationName} alkalmazásban";
+"Add an expense in ${applicationName}" = "Adj hozzá egy kiadást az ${applicationName} alkalmazásban";
+"Show unpaid invoices in ${applicationName}" = "Mutasd a kifizetetlen számlákat az ${applicationName} alkalmazásban";
+"What's outstanding in ${applicationName}" = "Mi a kintlévőség az ${applicationName} alkalmazásban";

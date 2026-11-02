@@ -90,3 +90,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // JVM unit tests only (`./gradlew :app:testDebugUnitTest`) — never on the
+    // app's runtime classpath, so the F-Droid build ships nothing new. org.json
+    // because android.jar's copy is a stub that throws on the JVM.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}

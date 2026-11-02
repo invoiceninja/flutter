@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- hu translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Üzleti áttekintés</string>
+    <string name="widget_snapshot_description">Lássa, mennyivel tartoznak Önnek, mi járt le, és az időszak befizetéseit.</string>
+    <string name="widget_attention_name">Figyelmet igényel</string>
+    <string name="widget_attention_description">Kövesse nyomon a lejárt számlákat, és nézze meg, mi esedékes ezen a héten. Koppintson egyre a megnyitáshoz.</string>
+    <string name="widget_timer_name">Futó időzítő</string>
+    <string name="widget_timer_description">Élő óra a futó időzítőhöz. Egy koppintással leállíthatja, vagy elindíthat egy legutóbbi feladatot.</string>
+
+    <string name="widget_open_to_load">Az adatok betöltéséhez nyissa meg az Invoice Ninja alkalmazást</string>
+    <string name="widget_update_app">A widget használatához frissítse az Invoice Ninja alkalmazást</string>
+    <string name="widget_sign_in">Bejelentkezés az Invoice Ninja alkalmazásba</string>
+    <string name="widget_choose_company">Válasszon céget</string>
+    <string name="widget_no_dashboard_permission">Az Ön szerepköre nem láthatja az irányítópult adatait</string>
+
+    <string name="widget_outstanding">Kintlévőség</string>
+    <string name="widget_invoices">Számlák</string>
+    <string name="widget_payments">Kifizetések</string>
+    <string name="widget_expenses">Kiadások</string>
+    <string name="widget_past_due">Lejárt</string>
+    <string name="widget_due_soon">Hamarosan esedékes</string>
+    <string name="widget_next_due">Következő esedékesség</string>
+    <string name="widget_unpaid_count">:count kifizetetlen</string>
+    <string name="widget_past_due_count">:count lejárt</string>
+    <string name="widget_day_late">:count nap késés</string>
+    <string name="widget_days_late">:count nap késés</string>
+    <string name="widget_due_today">ma esedékes</string>
+    <string name="widget_due_in_days">:count nap múlva esedékes</string>
+    <string name="widget_nothing_past_due">Nincs lejárt tétel</string>
+    <string name="widget_updated">Frissítve</string>
+    <string name="widget_tap_to_refresh">Koppintson a frissítéshez</string>
+    <string name="widget_open_company_to_update">A frissítéshez nyissa meg: :company</string>
+
+    <string name="widget_stop">Leállítás</string>
+    <string name="widget_start_a_task">Feladat indítása</string>
+    <string name="widget_running_count">+:count fut</string>
+    <string name="widget_running_since">Fut :time óta</string>
+    <string name="widget_stopped_syncs">Leállítva :time · szinkronizál, amikor megnyitja az Invoice Ninja alkalmazást</string>
+
+    <string name="widget_this_month">Ez a hónap</string>
+    <string name="widget_last_30_days">Az elmúlt 30 nap</string>
+    <string name="widget_this_year">Ez az év</string>
+
+    <string name="widget_settings_title">Widget beállításai</string>
+    <string name="widget_settings_company">Cég</string>
+    <string name="widget_settings_current_company">Jelenlegi cég</string>
+    <string name="widget_settings_period">Időszak</string>
+    <string name="widget_settings_figure">Adat (kis widget)</string>
+    <string name="widget_settings_figure_help">A szélesebb widget a kintlévőséget az időszak befizetéseivel együtt mutatja.</string>
+    <string name="widget_settings_hide_amounts">Összegek elrejtése</string>
+    <string name="widget_settings_hide_auto">Automatikus</string>
+    <string name="widget_settings_on">Be</string>
+    <string name="widget_settings_off">Ki</string>
+    <string name="widget_settings_hide_help">Az Automatikus elrejti az összegeket, amíg az alkalmazászár be van kapcsolva. A darabszámok, számlaszámok és időzítők láthatók maradnak.</string>
+    <string name="widget_settings_save">Mentés</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Új számla</string>
+    <string name="shortcut_new_task">Új feladat</string>
+    <string name="shortcut_new_expense">Új kiadás</string>
+</resources>

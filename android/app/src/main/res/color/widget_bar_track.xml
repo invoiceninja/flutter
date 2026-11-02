@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The past-due bar's track: the muted ink at a quarter strength. A colour
+     state list rather than an #AARRGGBB value, so it follows the Material You
+     ink on Android 12+ (a system colour can't be given an alpha in values/). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.25" android:color="@color/widget_ink_muted" />
+</selector>

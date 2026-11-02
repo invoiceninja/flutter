@@ -1,0 +1,12 @@
+/* Siri phrases for the app's App Shortcuts (AppShortcuts.swift).
+   Generated from the translations; ${applicationName} must appear
+   exactly once in every phrase. */
+
+"New invoice in ${applicationName}" = "Faktur baru di ${applicationName}";
+"Create an invoice in ${applicationName}" = "Buat faktur di ${applicationName}";
+"New task in ${applicationName}" = "Tugas baru di ${applicationName}";
+"Start a task in ${applicationName}" = "Mulai tugas di ${applicationName}";
+"New expense in ${applicationName}" = "Pengeluaran baru di ${applicationName}";
+"Add an expense in ${applicationName}" = "Tambah pengeluaran di ${applicationName}";
+"Show unpaid invoices in ${applicationName}" = "Tampilkan faktur belum dibayar di ${applicationName}";
+"What's outstanding in ${applicationName}" = "Apa yang belum dibayar di ${applicationName}";

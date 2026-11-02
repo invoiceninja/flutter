@@ -7,6 +7,7 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.invoiceninja.admin.homewidgets.HomeWidgetsChannel
 import java.io.File
 import org.json.JSONArray
 
@@ -52,6 +53,7 @@ class MainActivity : FlutterFragmentActivity() {
   private var shareChannel: MethodChannel? = null
   private var linkChannel: MethodChannel? = null
   private var appSettingsChannel: MethodChannel? = null
+  private var homeWidgetsChannel: HomeWidgetsChannel? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val token = sanitize(intent)
@@ -85,6 +87,8 @@ class MainActivity : FlutterFragmentActivity() {
             }
           }
         }
+    // The home-screen widgets' snapshot and queued commands (HomeWidgetBridge).
+    homeWidgetsChannel = HomeWidgetsChannel(this, messenger)
     // A camera permission refused for good ("Don't ask again") can only be
     // switched back on from this app's page in the system settings, and no URL
     // reaches it — the toast's Settings action lands here.
@@ -117,6 +121,8 @@ class MainActivity : FlutterFragmentActivity() {
     linkChannel = null
     appSettingsChannel?.setMethodCallHandler(null)
     appSettingsChannel = null
+    homeWidgetsChannel?.dispose()
+    homeWidgetsChannel = null
     super.cleanUpFlutterEngine(flutterEngine)
   }
 

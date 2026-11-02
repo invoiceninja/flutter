@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -159,7 +161,17 @@ class _Harness {
 
   BuildContext? context;
 
-  void attach() => router.attach(go: navigations.add, contextOf: () => context);
+  /// What `goWithExtra` was given, by location.
+  final List<(String, Object)> withExtra = [];
+
+  void attach() => router.attach(
+    go: navigations.add,
+    contextOf: () => context,
+    goWithExtra: (location, extra) {
+      navigations.add(location);
+      withExtra.add((location, extra));
+    },
+  );
 
   /// Mount a throwaway tree so `Localization.of` resolves — the toasts are
   /// localized off a context even though the queue itself is context-free.
@@ -188,6 +200,74 @@ class _Harness {
 }
 
 void main() {
+  group('then — what a home-screen widget Start does once it has arrived', () {
+    testWidgets('runs after the navigation, with the root context', (
+      tester,
+    ) async {
+      final h = _Harness()..attach();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      final arrived = <String>[];
+      await h.router.open(
+        Uri.parse('invoiceninja://app/clients/abc'),
+        then: (c) => arrived.add('${h.navigations.last} ${c.mounted}'),
+      );
+      expect(arrived, isEmpty, reason: 'not before the route has built');
+      await tester.pump();
+      expect(arrived, ['/clients/abc true']);
+    });
+
+    testWidgets('never runs for a link that is refused', (tester) async {
+      final h = _Harness()..attach();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      var ran = false;
+      await h.router.open(
+        Uri.parse('invoiceninja://app/nowhere/abc'),
+        then: (_) => ran = true,
+      );
+      await tester.pump();
+      expect(ran, isFalse);
+      h.toasts.clearAll();
+    });
+
+    testWidgets('is held with its link under the lock, and runs after unlock', (
+      tester,
+    ) async {
+      final h = _Harness(locked: true)..attach();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      var ran = 0;
+      await h.router.open(
+        Uri.parse('invoiceninja://app/clients/abc'),
+        then: (_) => ran++,
+      );
+      await tester.pump();
+      expect(ran, 0);
+      h.lockedNotifier.value = false;
+      await tester.pump();
+      await tester.pump();
+      expect(h.navigations, ['/clients/abc']);
+      expect(ran, 1);
+    });
+
+    testWidgets('is dropped with its link at sign-out', (tester) async {
+      final h = _Harness(locked: true)..attach();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      var ran = false;
+      await h.router.open(
+        Uri.parse('invoiceninja://app/clients/abc'),
+        then: (_) => ran = true,
+      );
+      h.router.reset();
+      h.lockedNotifier.value = false;
+      await tester.pump();
+      await tester.pump();
+      expect(ran, isFalse);
+    });
+  });
+
   test('navigates to the record', () async {
     final h = _Harness()..attach();
     addTearDown(h.dispose);
@@ -568,10 +648,38 @@ void main() {
       await h.mountContext(tester);
       h.attach();
       await h.router.openWebInitialLocation(
-        Uri.parse('https://example.test/#/dashboard?company=co1'),
+        Uri.parse('https://example.test/#/reports?company=co1'),
       );
       expect(h.navigations, isEmpty);
       expect(h.toasts.toasts, isEmpty);
+    });
+
+    testWidgets('the dashboard is a link target (home-screen widgets), so a '
+        'company on it is honoured', (tester) async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      h.attach();
+      await h.router.openWebInitialLocation(
+        Uri.parse('https://example.test/#/dashboard?company=co1'),
+      );
+      expect(h.navigations, ['/dashboard']);
+      expect(h.toasts.toasts, isEmpty);
+    });
+
+    testWidgets('a widget link with a list filter opens the filtered list', (
+      tester,
+    ) async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      h.attach();
+      await h.router.open(
+        Uri.parse('invoiceninja://app/invoices?filter=past_due&company=co1'),
+      );
+      expect(h.navigations, ['/invoices']);
+      final intent = h.withExtra.single.$2 as ListFilterIntent;
+      expect(intent.extraFilters['overdue'], {'true'});
     });
 
     testWidgets('a page URL loaded while signed out is held, not dropped', (

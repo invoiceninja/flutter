@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+    <dimen name="widget_inner_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+    <!-- The launcher's own widget padding. Not
+         @android:dimen/system_app_widget_internal_padding: that one was
+         withdrawn before Android 12 shipped (the SDK lists it only as
+         __removed_system_app_widget_internal_padding), so it doesn't link.
+         16dp is the value it had. -->
+    <dimen name="widget_padding">16dp</dimen>
+</resources>

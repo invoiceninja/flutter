@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- nl translation of values/widget_strings.xml. -->
+<resources>
+    <string name="widget_snapshot_name">Bedrijfsoverzicht</string>
+    <string name="widget_snapshot_description">Zie wat je tegoed hebt, wat verlopen is en de betalingen van deze periode.</string>
+    <string name="widget_attention_name">Vraagt aandacht</string>
+    <string name="widget_attention_description">Volg verlopen facturen op en zie wat er deze week vervalt. Tik erop om te openen.</string>
+    <string name="widget_timer_name">Lopende timer</string>
+    <string name="widget_timer_description">Een live klok voor je lopende timer. Stop hem, of start een recente taak, met één tik.</string>
+
+    <string name="widget_open_to_load">Open Invoice Ninja om je gegevens te laden</string>
+    <string name="widget_update_app">Werk Invoice Ninja bij om deze widget te gebruiken</string>
+    <string name="widget_sign_in">Log in bij Invoice Ninja</string>
+    <string name="widget_choose_company">Kies een bedrijf</string>
+    <string name="widget_no_dashboard_permission">Je rol kan de dashboardcijfers niet bekijken</string>
+
+    <string name="widget_outstanding">Openstaand</string>
+    <string name="widget_invoices">Facturen</string>
+    <string name="widget_payments">Betalingen</string>
+    <string name="widget_expenses">Uitgaven</string>
+    <string name="widget_past_due">Verlopen</string>
+    <string name="widget_due_soon">Vervalt binnenkort</string>
+    <string name="widget_next_due">Eerstvolgende vervaldatum</string>
+    <string name="widget_unpaid_count">:count onbetaald</string>
+    <string name="widget_past_due_count">:count verlopen</string>
+    <string name="widget_day_late">:count dag te laat</string>
+    <string name="widget_days_late">:count dagen te laat</string>
+    <string name="widget_due_today">vervalt vandaag</string>
+    <string name="widget_due_in_days">vervalt over :count dagen</string>
+    <string name="widget_nothing_past_due">Niets verlopen</string>
+    <string name="widget_updated">Bijgewerkt</string>
+    <string name="widget_tap_to_refresh">Tik om te vernieuwen</string>
+    <string name="widget_open_company_to_update">Open :company om bij te werken</string>
+
+    <string name="widget_stop">Stoppen</string>
+    <string name="widget_start_a_task">Start een taak</string>
+    <string name="widget_running_count">+:count lopend</string>
+    <string name="widget_running_since">Loopt sinds :time</string>
+    <string name="widget_stopped_syncs">Gestopt :time · synchroniseert wanneer je Invoice Ninja opent</string>
+
+    <string name="widget_this_month">Deze maand</string>
+    <string name="widget_last_30_days">Laatste 30 dagen</string>
+    <string name="widget_this_year">Dit jaar</string>
+
+    <string name="widget_settings_title">Widgetinstellingen</string>
+    <string name="widget_settings_company">Bedrijf</string>
+    <string name="widget_settings_current_company">Huidig bedrijf</string>
+    <string name="widget_settings_period">Periode</string>
+    <string name="widget_settings_figure">Cijfer (kleine widget)</string>
+    <string name="widget_settings_figure_help">Een bredere widget toont Openstaand samen met de betalingen van deze periode.</string>
+    <string name="widget_settings_hide_amounts">Bedragen verbergen</string>
+    <string name="widget_settings_hide_auto">Automatisch</string>
+    <string name="widget_settings_on">Aan</string>
+    <string name="widget_settings_off">Uit</string>
+    <string name="widget_settings_hide_help">Automatisch verbergt bedragen zolang de app-vergrendeling aan staat. Aantallen, factuurnummers en timers blijven zichtbaar.</string>
+    <string name="widget_settings_save">Opslaan</string>
+
+    <!-- App-icon quick actions (xml/shortcuts.xml). -->
+    <string name="shortcut_new_invoice">Nieuwe factuur</string>
+    <string name="shortcut_new_task">Nieuwe taak</string>
+    <string name="shortcut_new_expense">Nieuwe uitgave</string>
+</resources>

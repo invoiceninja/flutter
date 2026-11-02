@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- A widget extension on macOS must be sandboxed. No network: the widgets
+	     read only the snapshot the app writes (docs/home-screen-widgets.md). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Team-prefixed: a sandboxed Mac App Store app below macOS 15 can only
+	     use a group named after its team. Same string as WidgetFiles.appGroup
+	     (macOS) and the app's entitlements. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>NPC44Y2C98.com.invoiceninja.admin.widgets</string>
+	</array>
+</dict>
+</plist>

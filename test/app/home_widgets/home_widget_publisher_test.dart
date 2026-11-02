@@ -8,6 +8,9 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 
 import 'package:admin/app/home_widgets/home_widget_publisher.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
+import 'package:admin/data/models/value/company_format_settings.dart';
+import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/app/home_widgets/home_widget_reader.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
@@ -15,6 +18,7 @@ import 'package:admin/data/services/home_widget_bridge.dart';
 import 'package:admin/domain/home_widgets/widget_command.dart';
 import 'package:admin/domain/home_widgets/widget_snapshot.dart';
 import 'package:admin/domain/home_widgets/widget_snapshot_builder.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// The publisher's timing and lifecycle: when the widgets' snapshot is
 /// written, what is reloaded, and that every session end leaves it signed
@@ -70,6 +74,12 @@ class _FakeReader implements HomeWidgetReader {
   List<String> runningTaskIds = const [];
   int fetches = 0;
 
+  /// The current company's Outstanding totals; null = not loaded yet.
+  DashboardTotals? outstanding;
+
+  /// The current company's attention lists are loaded (empty) when true.
+  bool attentionLoaded = false;
+
   /// The `timers` flag of every read.
   final List<bool> timerReads = [];
 
@@ -88,9 +98,16 @@ class _FakeReader implements HomeWidgetReader {
   }) async {
     await gate?.future;
     timerReads.add(timers);
+    final current = company.id == session.currentCompanyId;
     return WidgetCompanyInput(
       id: company.id,
       name: company.displayName,
+      canViewDashboard: true,
+      formatter: _formatter,
+      baseCurrencyId: '1',
+      outstanding: current ? outstanding : null,
+      pastDue: current && attentionLoaded ? const [] : null,
+      upcoming: current && attentionLoaded ? const [] : null,
       runningTasks: [
         if (company.id == session.currentCompanyId)
           for (final id in runningTaskIds) _running(id),
@@ -158,6 +175,32 @@ Task _running(String id) => Task(
   archivedAt: null,
   isDeleted: false,
 );
+
+final _formatter = Formatter(
+  settings: CompanyFormatSettings.fallback.copyWith(currencyId: '1'),
+  currencies: {
+    '1': Currency(
+      id: '1',
+      name: 'US Dollar',
+      code: 'USD',
+      symbol: r'$',
+      precision: 2,
+      thousandSeparator: ',',
+      decimalSeparator: '.',
+      swapCurrencySymbol: false,
+      exchangeRate: Decimal.one,
+    ),
+  },
+  countries: const {},
+  dateFormats: const {},
+);
+
+DashboardTotals _outstanding(String amount) => DashboardTotals.fromJson({
+  'currencies': {'1': 'USD'},
+  '1': {
+    'outstanding': {'amount': amount, 'outstanding_count': 1, 'code': 'USD'},
+  },
+});
 
 String _tr(String key, [Map<String, String>? params]) => 'T:$key';
 
@@ -247,6 +290,88 @@ void main() {
     expect(rig.bridge.writes, hasLength(2));
     expect(rig.bridge.writes.last.json['activeCompanyId'], 'co2');
     expect(rig.bridge.writes.last.reload, WidgetKind.values.toSet());
+  });
+
+  testWidgets('figures arriving inside the gap reload at once — a first fill', (
+    tester,
+  ) async {
+    // The app's first write lands before the dashboard has loaded, so the
+    // widgets draw "Open Invoice Ninja to load your data"; the figures a
+    // moment later must not wait out the gap with the app open.
+    final rig = _Rig(session: _session())..start();
+    addTearDown(rig.dispose);
+    await tester.pump(const Duration(seconds: 3));
+    expect(rig.bridge.writes, hasLength(1));
+    expect(
+      (rig.bridge.writes.last.json['companies']! as List)
+          .cast<Map<String, Object?>>()
+          .where((c) => c['figures'] != null),
+      isEmpty,
+    );
+
+    rig.reader.outstanding = _outstanding('100');
+    rig.changes.add(null);
+    await tester.pump(const Duration(seconds: 3));
+    expect(rig.bridge.writes, hasLength(2));
+    expect(rig.bridge.writes.last.reload, contains(WidgetKind.snapshot));
+
+    // Outstanding drew the Snapshot widget, but Needs attention is still
+    // "not loaded" until its lists arrive — that part is a first fill too.
+    rig.reader.attentionLoaded = true;
+    rig.changes.add(null);
+    await tester.pump(const Duration(seconds: 3));
+    expect(rig.bridge.writes, hasLength(3));
+    expect(rig.bridge.writes.last.reload, contains(WidgetKind.attention));
+  });
+
+  testWidgets('a change to figures already shown waits out the gap', (
+    tester,
+  ) async {
+    final rig = _Rig(session: _session())..start();
+    rig.reader
+      ..outstanding = _outstanding('100')
+      ..attentionLoaded = true;
+    addTearDown(rig.dispose);
+    await tester.pump(const Duration(seconds: 3));
+    expect(rig.bridge.writes, hasLength(1));
+
+    rig.reader.outstanding = _outstanding('250');
+    rig.changes.add(null);
+    await tester.pump(const Duration(seconds: 3));
+    // Written (the file holds it), but not reloaded.
+    expect(rig.bridge.writes, hasLength(2));
+    expect(rig.bridge.writes.last.reload, isEmpty);
+
+    // The owed reload goes through once the gap is over.
+    rig.clock = rig.clock.add(const Duration(minutes: 5));
+    await tester.pump(const Duration(minutes: 5));
+    await tester.pump(const Duration(seconds: 3));
+    expect(rig.bridge.writes, hasLength(3));
+    expect(rig.bridge.writes.last.reload, {
+      WidgetKind.snapshot,
+      WidgetKind.attention,
+    });
+  });
+
+  test('figureParts names each part a widget draws "not loaded" without', () {
+    expect(
+      figureParts([
+        {'id': 'a'},
+        {
+          'id': 'b',
+          'figures': {
+            'outstanding': {'unpaidCount': 1},
+            'periods': {'this_month': <String, Object?>{}},
+            'attention': {'pastDue': <Object?>[]},
+          },
+        },
+        {
+          'id': 'c',
+          'figures': {'periods': <String, Object?>{}},
+        },
+      ]),
+      {'b', 'b/outstanding', 'b/attention', 'b/period/this_month', 'c'},
+    );
   });
 
   testWidgets('a timer change reloads the Timer widget alone', (tester) async {

@@ -117,6 +117,11 @@ or a sign-out can't leave a stale fragment behind.
   (`kWidgetReloadGap`). A change of signed-in state, company or strings reloads everything.
 - **Started after `restore()`** (`main.dart`). Earlier, a cold start's not-yet-restored session
   reads as signed out and blanks every widget for a moment. After a restore that failed or
+  **A first fill never waits:** a figure part a widget draws "not loaded" without (the figures,
+  Outstanding, a period, the attention lists — `figureParts`) appearing since the last figure
+  reload goes through at once. The app's first write lands before the dashboard has loaded, so
+  without this a freshly added widget said "Open Invoice Ninja to load your data" for up to
+  5 min with the app open (Apple doesn't budget a foreground app's reloads anyway).
   timed out, `start(sessionKnown: false)` leaves the widgets alone until a session arrives,
   because there "no session" means "not known yet", not "signed out".
 - **One rebuild at a time, the latest always run.** Two overlapping rebuilds can finish out of

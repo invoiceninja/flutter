@@ -20,8 +20,27 @@ const Duration kWidgetWriteDebounce = Duration(seconds: 2);
 
 /// The least time between two figure-driven widget reloads. iOS budgets a
 /// widget's reloads (roughly 40–70 a day), and a Mac left open refetches the
-/// dashboard every few minutes. A timer change and a sign-out reload at once.
+/// dashboard every few minutes. A timer change, a sign-out and a first fill
+/// ([figureParts]) reload at once.
 const Duration kWidgetReloadGap = Duration(minutes: 5);
+
+/// The figure parts a widget draws "not loaded" without, per company in the
+/// snapshot's `companies` JSON: the figures themselves (Snapshot), Outstanding,
+/// each period (Snapshot, by its configured period) and the attention lists
+/// (Needs attention). A part appearing is a first fill, which the publisher
+/// never holds back for [kWidgetReloadGap] — only a change to a part a widget
+/// already draws waits.
+@visibleForTesting
+Set<String> figureParts(List<Map<String, Object?>> companies) => {
+  for (final c in companies)
+    if (c['figures'] case final Map<String, Object?> f) ...[
+      '${c['id']}',
+      if (f['outstanding'] != null) '${c['id']}/outstanding',
+      if (f['attention'] != null) '${c['id']}/attention',
+      if (f['periods'] case final Map<String, Object?> periods)
+        for (final p in periods.keys) '${c['id']}/period/$p',
+    ],
+};
 
 /// How long after a session starts (or the company changes) the widgets fetch:
 /// past the dashboard's own boot fetch, so `maxAge` skips what it fetched.
@@ -91,6 +110,11 @@ class HomeWidgetPublisher {
   String? _lastFigures;
   DateTime? _lastFigureReload;
   bool _figureReloadOwed = false;
+
+  /// The figure parts the figure widgets were last reloaded with
+  /// ([figureParts]). A part outside it is one a widget may still be drawing
+  /// as "Open Invoice Ninja to load your data", so it reloads at once.
+  Set<String> _reloadedParts = const {};
   bool? _wroteSignedIn;
   DateTime? _lastWriteAt;
   Timer? _heartbeat;
@@ -275,6 +299,7 @@ class HomeWidgetPublisher {
     _blockedUserId = session.value?.userId;
     _generation++;
     _lastBase = _lastTimers = _lastFigures = null;
+    _reloadedParts = const {};
     _lastWriteAt = null;
     _wroteSignedIn = false;
     if (!bridge.supported) return;
@@ -360,6 +385,7 @@ class HomeWidgetPublisher {
         [c['timers'], c['runningCount'], c['recentTasks'], c['today']],
     ]);
     final figures = jsonEncode([for (final c in companies) c['figures']]);
+    final parts = figureParts(companies);
 
     final baseChanged = base != _lastBase;
     final timersChanged = timers != _lastTimers;
@@ -395,7 +421,11 @@ class HomeWidgetPublisher {
       if (timersChanged || _timerReloadOwed) reload.add(WidgetKind.timer);
       if (figuresChanged || _figureReloadOwed) {
         final last = _lastFigureReload;
-        if (last == null || now.difference(last) >= reloadGap) {
+        // A first fill is not a change: a widget is showing "not loaded"
+        // while the app is open, so it never waits out the gap. (Apple
+        // doesn't budget a reload from a foreground app anyway.)
+        final firstFill = !_reloadedParts.containsAll(parts);
+        if (firstFill || last == null || now.difference(last) >= reloadGap) {
           reload
             ..add(WidgetKind.snapshot)
             ..add(WidgetKind.attention);
@@ -423,6 +453,7 @@ class HomeWidgetPublisher {
     // identical snapshot, finds nothing changed, and the widget stays on
     // "Sign in".
     if (generation != _generation) return;
+    if (reload.contains(WidgetKind.snapshot)) _reloadedParts = parts;
     _lastBase = base;
     _lastTimers = timers;
     _lastFigures = figures;

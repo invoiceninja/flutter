@@ -201,6 +201,39 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     return rows.map(_fromRow).toList(growable: false);
   }
 
+  /// The projects [ids] name, keyed by id — **fetching any the cache does not
+  /// hold** first, archived ones included.
+  ///
+  /// For a task → invoice line conversion, which prints the project's name
+  /// (header or Service column) and reads its `task_rate`. Lists load page by
+  /// page, so a project the user never scrolled to is not local, and a
+  /// cache-only read silently dropped its name from the invoice — the
+  /// regression a beta tester reported against v1, which held every project.
+  /// Offline the fetch fails quietly and the cached ones are what there is.
+  ///
+  /// Callers wait on this before building lines, so the wait is capped at
+  /// [fetchTimeout] — a hung connection would otherwise hold the user for the
+  /// API client's full request timeout. A fetch still running then lands in
+  /// the cache for next time; this answers with what has arrived.
+  Future<Map<String, Project>> loadByIds({
+    required String companyId,
+    required Iterable<String> ids,
+    Duration fetchTimeout = const Duration(seconds: 5),
+  }) async {
+    final wanted = {
+      for (final id in ids)
+        if (id.isNotEmpty) id,
+    };
+    if (wanted.isEmpty) return const {};
+    await Future.wait(
+      wanted.map((id) => ensureLoaded(companyId: companyId, id: id)),
+    ).timeout(fetchTimeout, onTimeout: () => const []);
+    return {
+      for (final p in await getByIds(companyId: companyId, ids: wanted))
+        p.id: p,
+    };
+  }
+
   @override
   Stream<Project?> watchByRealId({
     required String companyId,

@@ -344,17 +344,63 @@ void main() {
       expect(items.single.notes, isNot(contains('Alpha')));
     });
 
-    test('a product custom field labelled "Project" suppresses the header — it '
-        'already shows the project', () {
+    test('a task custom field labelled "Project" suppresses the header — it '
+        'shows the project', () {
       final items = tasksToLineItems(
         [at('a1', 'pA', 1700000000)],
         projectsById: projects,
         company: _headerCompany().copyWith(
-          customFields: const {'product1': 'Project'},
+          customFields: const {'task1': 'Project'},
         ),
         projectFieldLabel: 'Project',
       );
       expect(items.single.notes, isNot(contains('project-header')));
+      // ...and that field is what shows it (v1's `convertTaskToInvoiceItem`).
+      expect(items.single.customValue1, 'Alpha');
+    });
+
+    // Beta feedback: v1 suppressed the header on a *product* field labelled
+    // "Project", which a task line never prints — the project vanished.
+    test('a product field labelled "Project" neither suppresses the header nor '
+        'takes the name — a task line does not print product fields', () {
+      final items = tasksToLineItems(
+        [
+          Task.fromApi(
+            const TaskApi(
+              id: 'a1',
+              description: 'a1',
+              projectId: 'pA',
+              customValue1: 'PO-7',
+            ),
+          ),
+        ],
+        projectsById: projects,
+        company: _headerCompany().copyWith(
+          customFields: const {'product1': 'Project', 'task1': 'PO Number'},
+        ),
+        projectFieldLabel: 'Project',
+      );
+      expect(
+        items.single.notes,
+        startsWith('<div class="project-header">Alpha</div>\n'),
+      );
+      expect(items.single.customValue1, 'PO-7');
+    });
+
+    test('the "Project" product field is filled on every line, whatever Task '
+        'Settings say, and the other slots keep the task\'s own values', () {
+      final items = tasksToLineItems(
+        [
+          at('a1', 'pA', 1700000000),
+          at('a2', 'pA', 1700010000),
+          at('n1', '', 1700020000),
+        ],
+        projectsById: projects,
+        company: _company().copyWith(customFields: const {'task3': 'project'}),
+        projectFieldLabel: 'Project',
+      );
+      expect(items.map((i) => i.customValue3), ['Alpha', 'Alpha', '']);
+      expect(items.map((i) => i.productKey), everyElement(''));
     });
 
     test('fallbackProject covers tasks whose own project_id is blank — the '

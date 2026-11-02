@@ -211,17 +211,11 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
                 id: client.groupSettingsId,
               )
               .first;
-    // Full Project objects (not just names) so a rate-0 task picks up its
-    // project's `task_rate` in the cascade.
-    final projects = await services.projects
-        .watchPage(companyId: widget.companyId, loadedPages: 100)
-        .first;
     if (!mounted) return;
     setState(() {
       _company = company;
       _client = client;
       _group = group;
-      _projectsById = {for (final p in projects) p.id: p};
     });
   }
 
@@ -249,6 +243,9 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         _projectNames = {
           for (final r in (results[1] as List<({String id, String name})>))
             r.id: r.name,
+          // An archived or never-browsed project, resolved by
+          // [_loadTaskProjects] — `watchActiveNames` holds neither.
+          for (final p in _projectsById.values) p.id: p.name,
         };
         _vendorNames = {
           for (final r in (results[2] as List<({String id, String name})>))
@@ -385,6 +382,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         _expenses = expenses;
         _loadingTasksExpenses = false;
       });
+      unawaited(_loadTaskProjects(tasks));
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -392,6 +390,76 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         _failedTasksExpenses = true;
       });
     }
+  }
+
+  /// Set while [_onAdd] waits on a project fetch, so a second tap doesn't
+  /// pop the route twice.
+  bool _adding = false;
+
+  /// Hand the picked lines back — once every picked task's project is in
+  /// hand, so an Add tapped before [_loadTaskProjects] lands doesn't print the
+  /// lines without it. Usually nothing is missing and this pops at once.
+  Future<void> _onAdd() async {
+    if (_adding) return;
+    _adding = true;
+    try {
+      final missing = {
+        for (final t in _tasks)
+          if (_selTasks.contains(t.id) &&
+              t.projectId.isNotEmpty &&
+              !_projectsById.containsKey(t.projectId))
+            t.projectId,
+      };
+      if (missing.isNotEmpty) {
+        final byId = await context.read<Services>().projects.loadByIds(
+          companyId: widget.companyId,
+          ids: missing,
+        );
+        // Dismissed while waiting: the route may still be mounted through its
+        // exit animation, and a pop now would close the route beneath it.
+        if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+        _projectsById = {..._projectsById, ...byId};
+      }
+    } catch (_) {
+      // Best effort — the lines go back with the projects already in hand.
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    } finally {
+      _adding = false;
+    }
+    Navigator.of(context).pop(
+      LineItemPickerResult(
+        lineItems: _selectedLineItems(),
+        projectIdHint: _projectIdHint(),
+        clientIdHint: _clientIdHint(),
+        pickedTaskClientIds: _pickedTaskClientIds(),
+        pickedExpenseClientIds: _pickedExpenseClientIds(),
+      ),
+    );
+  }
+
+  /// The listed tasks' projects, as full objects: the name goes on the line
+  /// (a header or the Service column, per Task Settings) and a rate-0 task
+  /// reads its project's `task_rate`. By id, fetching what the cache lacks —
+  /// a cache-only read missed every project the user had not browsed, and
+  /// every archived one, and the name silently fell off the invoice.
+  Future<void> _loadTaskProjects(List<Task> tasks) async {
+    final Map<String, Project> byId;
+    try {
+      byId = await context.read<Services>().projects.loadByIds(
+        companyId: widget.companyId,
+        ids: tasks.map((t) => t.projectId),
+      );
+    } catch (_) {
+      return; // Best effort: [_onAdd] asks again for what it needs.
+    }
+    if (!mounted || byId.isEmpty) return;
+    setState(() {
+      _projectsById = {..._projectsById, ...byId};
+      _projectNames = {
+        ..._projectNames,
+        for (final p in byId.values) p.id: p.name,
+      };
+    });
   }
 
   void _subscribeProducts({bool initial = false}) {
@@ -775,17 +843,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
             clientCurrencyId: _client?.currencyId,
             groupCurrencyId: _group?.currencyId,
             onCancel: () => Navigator.of(context).pop(),
-            onAdd: count == 0
-                ? null
-                : () => Navigator.of(context).pop(
-                    LineItemPickerResult(
-                      lineItems: selected,
-                      projectIdHint: _projectIdHint(),
-                      clientIdHint: _clientIdHint(),
-                      pickedTaskClientIds: _pickedTaskClientIds(),
-                      pickedExpenseClientIds: _pickedExpenseClientIds(),
-                    ),
-                  ),
+            onAdd: count == 0 ? null : _onAdd,
           ),
         ],
       ),

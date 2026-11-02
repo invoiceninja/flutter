@@ -995,17 +995,11 @@ class _TaskInvoiceContext {
         : await services.groupSettings
               .watchByRealId(companyId: companyId, id: client.groupSettingsId)
               .first;
-    final projectIds = tasks
-        .map((t) => t.projectId)
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    final projectsById = <String, Project>{};
-    for (final id in projectIds) {
-      final project = await services.projects
-          .watchByRealId(companyId: companyId, id: id)
-          .first;
-      if (project != null) projectsById[id] = project;
-    }
+    // Fetched when not cached: the project's name is printed on the lines.
+    final projectsById = await services.projects.loadByIds(
+      companyId: companyId,
+      ids: tasks.map((t) => t.projectId),
+    );
     return _TaskInvoiceContext(
       company: company,
       formatter: formatter,

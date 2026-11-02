@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:decimal/decimal.dart';
@@ -121,6 +122,51 @@ void main() {
           .first;
       expect(created, hasLength(1));
       expect(created.first.isDirty, isTrue);
+    });
+
+    // Beta feedback: a task's project fell off its invoice line whenever the
+    // project had never been browsed — the conversion read the cache only.
+    test('loadByIds fetches the projects the cache lacks — archived ones '
+        'too — and reads the rest from the cache', () async {
+      final api = _GetProjectsApi({
+        'p1': const ProjectApi(id: 'p1', name: 'Alpha', updatedAt: 1),
+        'p2': const ProjectApi(
+          id: 'p2',
+          name: 'Old',
+          updatedAt: 1,
+          archivedAt: 1700000000,
+        ),
+      });
+      final repo = ProjectRepository(db: db, api: api);
+
+      final first = await repo.loadByIds(
+        companyId: 'co',
+        ids: ['p1', 'p2', 'p1', ''],
+      );
+      expect(first.keys, unorderedEquals(['p1', 'p2']));
+      expect(first['p1']!.name, 'Alpha');
+      expect(first['p2']!.name, 'Old');
+      expect(api.gets, unorderedEquals(['p1', 'p2']));
+
+      final second = await repo.loadByIds(companyId: 'co', ids: ['p1']);
+      expect(second['p1']!.name, 'Alpha');
+      expect(api.gets, hasLength(2), reason: 'cached — no second fetch');
+
+      expect(await repo.loadByIds(companyId: 'co', ids: const []), isEmpty);
+    });
+
+    test('loadByIds stops waiting on a hung fetch and answers from the '
+        'cache', () async {
+      final api = _GetProjectsApi(const {}, hang: true);
+      final repo = ProjectRepository(db: db, api: api);
+
+      final result = await repo.loadByIds(
+        companyId: 'co',
+        ids: ['p9'],
+        fetchTimeout: const Duration(milliseconds: 20),
+      );
+      expect(result, isEmpty);
+      expect(api.gets, ['p9']);
     });
 
     test('runTemplate enqueues MutationKind.runTemplate with id + '
@@ -575,6 +621,23 @@ void main() {
 }
 
 class _FakeProjectsApi implements ProjectsApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _GetProjectsApi implements ProjectsApi {
+  _GetProjectsApi(this.byId, {this.hang = false});
+  final Map<String, ProjectApi> byId;
+  final bool hang;
+  final List<String> gets = [];
+
+  @override
+  Future<ProjectItemApi> get(String id) {
+    gets.add(id);
+    if (hang) return Completer<ProjectItemApi>().future;
+    return Future.value(ProjectItemApi(data: byId[id]!));
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

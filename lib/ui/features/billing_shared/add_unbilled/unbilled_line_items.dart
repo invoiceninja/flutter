@@ -44,9 +44,10 @@ class TaskNoteLabels {
   final String hour;
   final String hours;
 
-  /// Compared against the company's *product* custom-field labels — a field
-  /// literally named "Project" already shows the project, so the header is
-  /// suppressed. See [tasksToLineItems].
+  /// Compared against the company's *task* custom-field labels — the ones a
+  /// task line prints under — a field literally named "Project" gets the
+  /// project's name, and the header is then suppressed. See
+  /// [tasksToLineItems].
   final String project;
 }
 
@@ -83,7 +84,16 @@ LineItem taskToLineItem(
   bool includeProjectHeader = false,
   String hourLabel = 'hour',
   String hoursLabel = 'hours',
+
+  /// 1–4: the task custom field labelled "Project", which gets the
+  /// project's name — see [tasksToLineItems]. Null when there is none.
+  int? projectCustomFieldSlot,
 }) {
+  final projectName = project?.name.trim() ?? '';
+  String customValue(int slot, String own) =>
+      slot == projectCustomFieldSlot && projectName.isNotEmpty
+      ? projectName
+      : own;
   // With every Task Setting off (the default) this collapses to the task's
   // own description — the behaviour before the notes builder existed.
   final composed = company == null
@@ -126,10 +136,12 @@ LineItem taskToLineItem(
     // The server's own converter copies these across
     // (`ProjectRepository::invoice`), and v1 does too — without them a
     // client-built line drops whatever the task's custom fields held.
-    customValue1: task.customValue1,
-    customValue2: task.customValue2,
-    customValue3: task.customValue3,
-    customValue4: task.customValue4,
+    // ...except the slot a task custom field labelled "Project" owns, which
+    // v1 fills with the project's name (`convertTaskToInvoiceItem`).
+    customValue1: customValue(1, task.customValue1),
+    customValue2: customValue(2, task.customValue2),
+    customValue3: customValue(3, task.customValue3),
+    customValue4: customValue(4, task.customValue4),
   );
 }
 
@@ -188,12 +200,16 @@ List<LineItem> tasksToLineItems(
       return _firstStart(a).compareTo(_firstStart(b));
     });
 
-  // v1 skips the header when a *product* custom field is literally labelled
-  // "Project" — that field already carries the project name, so a header would
-  // print it twice.
+  // A *task* custom field literally labelled "Project" carries the project
+  // name on every line (v1 fills it whatever Task Settings say), so the header
+  // is skipped — it would print the name twice. Task, not product: a task line
+  // is labelled from `task1..4` (`lineItemUsesTaskFields`, as the server's PDF
+  // task table is). v1 skipped the header on a *product* field so labelled
+  // while filling the task one, and with only the product field set the
+  // project vanished from the invoice altogether.
+  final projectSlot = _projectLabelledTaskFieldSlot(company, projectFieldLabel);
   final headersEnabled =
-      (company?.invoiceTaskProject ?? false) &&
-      !_hasProjectLabelledProductField(company, projectFieldLabel);
+      (company?.invoiceTaskProject ?? false) && projectSlot == null;
 
   final seenProjectIds = <String>{...alreadyHeadedProjectIds};
   return <LineItem>[
@@ -211,6 +227,7 @@ List<LineItem> tasksToLineItems(
           formatter: formatter,
           hourLabel: hourLabel,
           hoursLabel: hoursLabel,
+          projectCustomFieldSlot: projectSlot,
           includeProjectHeader:
               headersEnabled &&
               project != null &&
@@ -230,16 +247,16 @@ DateTime _firstStart(Task task) {
   return task.createdAt;
 }
 
-bool _hasProjectLabelledProductField(Company? company, String projectLabel) {
-  if (company == null) return false;
+int? _projectLabelledTaskFieldSlot(Company? company, String projectLabel) {
+  if (company == null) return null;
   final needle = projectLabel.trim().toLowerCase();
-  if (needle.isEmpty) return false;
+  if (needle.isEmpty) return null;
   for (var i = 1; i <= 4; i++) {
-    if (company.customFieldLabel('product$i').trim().toLowerCase() == needle) {
-      return true;
+    if (company.customFieldLabel('task$i').trim().toLowerCase() == needle) {
+      return i;
     }
   }
-  return false;
+  return null;
 }
 
 LineItem expenseToLineItem(Expense expense, {required bool invoiceInclusive}) {

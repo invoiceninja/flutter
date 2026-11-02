@@ -208,7 +208,7 @@ WidgetCompany _company(
       for (final t in c.recentTasks.take(kWidgetRecentTasks))
         WidgetTask(
           taskId: t.id,
-          description: t.description,
+          description: widgetTaskTitle(t),
           client: c.clientNames[t.clientId] ?? '',
         ),
     ],
@@ -446,6 +446,16 @@ String widgetPeriodName(
   }
 }
 
+/// What a widget calls [task]: its description, else `#number` — the app's
+/// own rule (the task list, the kanban card, the running-timer pill). Empty
+/// only for a task with neither (one not yet on the server), which the widget
+/// draws as a dash. The client is a line of its own, so it is never the title.
+String widgetTaskTitle(Task task) {
+  final description = task.description.trim();
+  if (description.isNotEmpty) return description;
+  return task.number.isEmpty ? '' : '#${task.number}';
+}
+
 WidgetTimer? _timer(
   Task task,
   Map<String, String> clientNames,
@@ -456,7 +466,7 @@ WidgetTimer? _timer(
   if (since == null) return null;
   return WidgetTimer(
     taskId: task.id,
-    description: task.description,
+    description: widgetTaskTitle(task),
     client: clientNames[task.clientId] ?? '',
     runningSince: since,
     // Everything worked before the running entry: measured at its start, the

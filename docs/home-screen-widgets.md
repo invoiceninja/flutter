@@ -35,7 +35,9 @@ the extension. Here no credential ever leaves the app:
   a second time in the same process, which breaks the one-engine rule (`store_lock.dart`). So
   `home_widget`'s background callbacks and `workmanager` are both out.
 - **The snapshot is display-ready.** Money is pre-formatted by the company's `Formatter` (both
-  `text` and a `compact` form), and every label comes pre-translated in `strings`. Native code
+  `text` and a `compact` form), and every label comes pre-translated in `strings`. A task's
+  `description` is its title (`widgetTaskTitle`: the description, else `#number`, as the app
+  names it everywhere), so a blank one never reaches a widget as a bare dash. Native code
   formats only a live clock and "N days late", and works the latter out from `lateSince` so it
   stays right after midnight.
 - **Taps are deep links**, `invoiceninja://app/<route>?company=<id>`, through the existing
@@ -115,13 +117,13 @@ or a sign-out can't leave a stale fragment behind.
   left open refetches the dashboard every few minutes. A timer change reloads the Timer widget
   at once; a figure change reloads Snapshot and Attention at most every 5 min
   (`kWidgetReloadGap`). A change of signed-in state, company or strings reloads everything.
-- **Started after `restore()`** (`main.dart`). Earlier, a cold start's not-yet-restored session
-  reads as signed out and blanks every widget for a moment. After a restore that failed or
   **A first fill never waits:** a figure part a widget draws "not loaded" without (the figures,
   Outstanding, a period, the attention lists — `figureParts`) appearing since the last figure
   reload goes through at once. The app's first write lands before the dashboard has loaded, so
   without this a freshly added widget said "Open Invoice Ninja to load your data" for up to
   5 min with the app open (Apple doesn't budget a foreground app's reloads anyway).
+- **Started after `restore()`** (`main.dart`). Earlier, a cold start's not-yet-restored session
+  reads as signed out and blanks every widget for a moment. After a restore that failed or
   timed out, `start(sessionKnown: false)` leaves the widgets alone until a session arrives,
   because there "no session" means "not known yet", not "signed out".
 - **One rebuild at a time, the latest always run.** Two overlapping rebuilds can finish out of

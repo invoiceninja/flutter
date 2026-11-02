@@ -444,6 +444,45 @@ void main() {
     });
   });
 
+  group('task titles', () {
+    Task named(String id, {String description = '', String number = ''}) =>
+        _task('x', [
+          TimeEntry(
+            start: DateTime.utc(2026, 10, 14, 8),
+            stop: DateTime.utc(2026, 10, 14, 9),
+          ),
+        ]).copyWith(id: id, description: description, number: number);
+
+    test('a blank description falls back to the number, as the app does', () {
+      expect(widgetTaskTitle(named('a', description: 'Design')), 'Design');
+      expect(widgetTaskTitle(named('b', number: '0042')), '#0042');
+      expect(widgetTaskTitle(named('c', description: '  ', number: '7')), '#7');
+      // Not yet on the server: no number either — the widget draws a dash.
+      expect(widgetTaskTitle(named('tmp_d')), '');
+    });
+
+    test('recent tasks and timers both carry the title, the client apart', () {
+      final s = _build([
+        _company(
+          running: [
+            named('r', number: '0001').copyWith(
+              timeLog: [
+                TimeEntry(start: DateTime.utc(2026, 10, 14, 10), stop: null),
+              ],
+            ),
+          ],
+          recent: [named('d', number: '0042')],
+        ),
+      ]);
+      final c = (_json(s)['companies']! as List).single as Map;
+      final timer = (c['timers'] as List).single as Map;
+      final recent = (c['recentTasks'] as List).single as Map;
+      expect(timer['description'], '#0001');
+      expect(recent['description'], '#0042');
+      expect(recent['client'], 'Acme');
+    });
+  });
+
   group('today', () {
     test('counts finished work inside today, once per task — not a running '
         'entry (the widget ticks that), not yesterday, not a booking', () {

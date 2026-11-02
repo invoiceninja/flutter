@@ -338,6 +338,17 @@ struct TimerWidgetView: View {
         }
       }
       Spacer(minLength: 0)
+      // The small size has no room beside the button, so today's total is a
+      // footer there — what was logged, under what to log next.
+      if family == .systemSmall, let done = doneToday(company), done > 0 {
+        HStack(spacing: 4) {
+          Text(s.string("today", "Today")).foregroundStyle(.secondary)
+          Text(Duration.seconds(done).formatted(.time(pattern: .hourMinute))).monospacedDigit()
+        }
+        .font(.caption2.weight(.medium))
+        .lineLimit(1)
+        .accessibilityElement(children: .combine)
+      }
     }
   }
 
@@ -350,7 +361,9 @@ struct TimerWidgetView: View {
       VStack(alignment: .leading, spacing: 0) {
         Text(t.description.isEmpty ? "—" : t.description)
           .font(.caption.weight(.medium)).lineLimit(1).privacySensitive()
-        if !t.client.isEmpty && family != .systemSmall {
+        // On every size: the client is what tells two tasks apart, and the
+        // small size has the room below its one row.
+        if !t.client.isEmpty {
           Text(t.client).font(.caption2).foregroundStyle(.secondary).lineLimit(1).privacySensitive()
         }
       }

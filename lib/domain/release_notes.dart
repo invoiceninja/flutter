@@ -221,6 +221,52 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.22',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.widgets_outlined,
+        title: 'Home-screen widgets',
+        body:
+            'Outstanding, past-due invoices and your running timer at a glance.',
+        target: ReleaseHighlightRoute('/settings/device_settings'),
+        hiddenOn: {ReleaseNoteSurface.withoutHomeWidgets},
+        major: true,
+      ),
+      ReleaseHighlight(
+        icon: Icons.payment_outlined,
+        title: 'Pay a draft invoice',
+        body:
+            'Apply a payment or credit to a draft. It is marked sent, not emailed.',
+        target: ReleaseHighlightRoute('/invoices', module: EntityType.invoice),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Home-screen widgets on phones, tablets and Macs: a business '
+        'snapshot, the invoices that need attention, and a task timer you can '
+        'stop or start with one tap. Set them up in Device Settings.',
+        hiddenOn: {ReleaseNoteSurface.withoutHomeWidgets},
+      ),
+      ReleaseNoteItem(
+        'Added: A payment or credit can be applied to a draft invoice, which '
+        'marks it sent without emailing it.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Text is readable again on Intel Macs. Since 5.1.17 much of it '
+        'rendered as garbled, smeared glyphs.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Deleted records no longer appear in the dashboard lists, such '
+        'as Upcoming Recurring Invoices '
+        '[#181](https://github.com/invoiceninja/flutter/issues/181)',
+      ),
+      ReleaseNoteItem(
+        "Fixed: Invoicing a task keeps its project's name on the line, even "
+        "for an archived project or one the app hasn't loaded yet.",
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.21',
     highlights: [
       ReleaseHighlight(

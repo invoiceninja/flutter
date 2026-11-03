@@ -1,0 +1,5 @@
+- Home-screen widgets: business snapshot, invoices needing attention, task timer
+- Apply a payment or credit to a draft invoice
+- Text renders correctly again on Intel Macs
+- Deleted records stay out of the dashboard lists
+- A task's project stays on its invoice line

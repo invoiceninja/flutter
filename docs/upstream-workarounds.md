@@ -213,6 +213,17 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: remove the `pdfShareOpensTempCopy()` term at the six sites, `pdfShareOpensTempCopy` itself and the lint's second check.
 - Recheck trigger: a `printing` bump — check `PrintJob::sharePdf` on Windows and `share_pdf` on Linux for anything but write-and-open.
 
+## 16. Flutter 3.47: Impeller garbles text on Intel Macs, so macOS stays on Skia
+
+- Issue / waiting on: [flutter/flutter#191538](https://github.com/flutter/flutter/issues/191538) (Impeller whole-window corruption on Intel Macs, closed 2026-08-25, fixed on main at 3.48.0-1.0.pre-404, in no 3.47.x hotfix). Same symptom in other apps: [flutter_server_box#1798](https://github.com/lollipopkit/flutter_server_box/issues/1798) (Intel + AMD, garbled glyphs, Impeller MetalSDF). • Found: 2026-11-03 (user report, 5.1.21) • Flutter: 3.47.7
+- Symptom: on a MacBook Pro 16" 2019 (Intel UHD 630 + AMD Radeon Pro, macOS 26.7.2), much of the text renders as smeared, striped glyph noise: sidebar labels, list cells, dialog text. Other runs of text on the same screen render cleanly. Every release from 5.1.17 (the first built on 3.47) is affected.
+- Root cause: Flutter 3.47 made Impeller the default macOS renderer ([#186546](https://github.com/flutter/flutter/pull/186546)) and always renders its text through SDF glyphs ([#186265](https://github.com/flutter/flutter/pull/186265), no opt-out). Before 3.47 the app rendered with Skia on every Mac. Apple Silicon is unaffected.
+- Commit ref: not yet committed
+- Change(s):
+  - `macos/Runner/Info.plist` — **MUST-REVERT**: `FLTEnableImpeller` = `false`, which puts every Mac back on Skia (Metal), the renderer the app used through 5.1.16. This applies to every Mac, not just Intel. An Intel-only switch would mean overriding `FlutterDartProject.enableImpeller`, a private selector, from the runner.
+- Revert: delete the `FLTEnableImpeller` key. Do it only on a Flutter release that contains the fix for #191538, and only after the app has been run on an Intel Mac with an AMD GPU. Flutter has said the Skia fallback will be removed, so this cannot stay for good.
+- Recheck trigger: any Flutter bump. Check the release notes for #191538 or Intel Impeller fixes, then launch the build on an Intel Mac with the key removed.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

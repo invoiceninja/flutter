@@ -145,7 +145,8 @@ failure), so it cannot keep boot from reaching `runApp`. `localization_prewarm_t
   cursor write. Mostly database-isolate time.
 - **WAL journal mode and new indexes.** A persistent change to the store and a schema migration,
   for time that is not spent on the UI isolate.
-- **Impeller on macOS.** macOS renders with Skia (no `FLTEnableImpeller`), so first-use shader
+- **Impeller on macOS.** macOS renders with Skia (`FLTEnableImpeller` = `false`, which
+  `docs/upstream-workarounds.md` entry 16 explains), so first-use shader
   compilation is a plausible share of a launch lag. `--enable-impeller` is the diagnostic.
 
 **Read in the code, not reproduced:** a cold-start full sync stamps `lastSyncAt` for every

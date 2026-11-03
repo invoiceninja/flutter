@@ -426,7 +426,14 @@ final List<RouteBase> settingsRoutes = [
     shellBuilder: (initialTab) => BackupRestoreShell(initialTab: initialTab),
   ),
   _leaf('import_export', () => const ImportExportScreen()),
-  _leaf('device_settings', () => const DeviceSettingsScreen()),
+  // Device Settings is one shell with five URL-driven tabs; the bare URL and
+  // the per-tab URL share a page key (see `tabbedSettingsRoutePair`).
+  ...tabbedSettingsRoutePair(
+    path: 'device_settings',
+    pageKey: 'device_settings_shell',
+    tabSlugs: kDeviceSettingsTabSlugs,
+    shellBuilder: (initialTab) => DeviceSettingsScreen(initialTab: initialTab),
+  ),
   _leaf('keyboard_shortcuts', () => const KeyboardShortcutsScreen()),
 
   // ── Advanced ──────────────────────────────────────────────────────────

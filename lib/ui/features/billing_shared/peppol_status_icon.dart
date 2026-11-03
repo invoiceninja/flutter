@@ -37,7 +37,7 @@ class PeppolStatusScope extends InheritedWidget {
 /// The PEPPOL sent (green paper plane) or failed (red warning) mark beside a
 /// list row's status pill — React ui#3410. Renders nothing unless the
 /// [PeppolStatusScope] says the company sends by PEPPOL, the user hasn't
-/// hidden it (Device Settings → E-Invoice), and [peppolSendingStatus] has
+/// hidden it (Device Settings → Appearance → Lists), and [peppolSendingStatus] has
 /// something to say about this document and its client.
 ///
 /// Not a control: a list row and a table cell each already have exactly one

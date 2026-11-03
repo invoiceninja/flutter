@@ -29,10 +29,10 @@ const kDashboardPanelsSearchKeys = <String>[
 /// dashboard uses. Flipping it to what this device would pick anyway goes
 /// back to automatic; only a different answer is stored as an override.
 ///
-/// Placed before the Status tabs card: it changes dashboard chrome as the
-/// three cards after it change list and rail chrome, without splitting that
-/// trio, and it stays above the long Sidebar counters card, so a search hit
-/// on a phone — the device the default is for — is in reach.
+/// On Device Settings → Appearance, after the list switches and before the
+/// two rail cards, so it doesn't split them — and above the long Sidebar
+/// counters card, so on a phone, the device the default is for, it is in
+/// reach.
 class DashboardPanelsSection extends StatelessWidget {
   const DashboardPanelsSection({super.key});
 

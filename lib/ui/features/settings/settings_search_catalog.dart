@@ -514,7 +514,7 @@ const _kGeneratedNumbersEntityKeys = <String>[
 /// **Keep this in sync** when you add or rename fields on a settings screen —
 /// it's the only way search will surface them. A key listed on more than one
 /// tab of a section is shown once and opens the first visible tab.
-/// The [kDeviceSettingsSearchKeys] whose card renders only somewhere, each
+/// The Device Settings keys whose card or row renders only somewhere, each
 /// with the card's own condition, so a hit never opens Device Settings on a
 /// card that isn't there. `settings_search_catalog_test` checks that every key
 /// of a gated card is listed.
@@ -724,10 +724,37 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
     SettingsSearchTab('restore', kRestoreTabSearchKeys, titleKey: 'restore'),
   ],
   'import_export': [SettingsSearchTab('', kImportExportSearchKeys)],
+  // Every Device Settings tab opens with a card that renders on every
+  // platform, so no tab needs a gate of its own — only the cards that hide
+  // themselves do, by key.
   'device_settings': [
     SettingsSearchTab(
       '',
-      kDeviceSettingsSearchKeys,
+      kDeviceSettingsAppearanceSearchKeys,
+      titleKey: 'appearance',
+      keyGates: _kDeviceSettingsKeyGates,
+    ),
+    SettingsSearchTab(
+      'security',
+      kDeviceSettingsSecuritySearchKeys,
+      titleKey: 'security',
+    ),
+    SettingsSearchTab(
+      'phone',
+      kDeviceSettingsPhoneSearchKeys,
+      titleKey: 'phone',
+      keyGates: _kDeviceSettingsKeyGates,
+    ),
+    SettingsSearchTab(
+      'forms',
+      kDeviceSettingsFormsSearchKeys,
+      titleKey: 'forms',
+      keyGates: _kDeviceSettingsKeyGates,
+    ),
+    SettingsSearchTab(
+      'data',
+      kDeviceSettingsDataSearchKeys,
+      titleKey: 'data',
       keyGates: _kDeviceSettingsKeyGates,
     ),
   ],

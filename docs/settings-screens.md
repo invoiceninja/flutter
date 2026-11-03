@@ -277,6 +277,25 @@ A `ListTile` *itself* is fine when wrapped in a typed control widget (`ThemeTile
 
 This rule applies to **read-only diagnostic screens and action-only screens too**, not just editable forms. Even a single button or a list of key/value rows belongs inside a `FormSection` so the settings sidebar reads as one design system. References: `views/basic/account_management/overview_screen.dart` (single-action `FormSection` with `spacing: 0`) and `views/advanced/system_logs_screen.dart` (multiple `FormSection` cards of read-only rows, with a private `_DiagnosticRow` helper for the label/value layout).
 
+## Device Settings is tabbed, and every tab opens with a card that always renders
+
+Device Settings had grown to about 20 cards in one flat list. It is now five URL-driven tabs, shaped like `BackupRestoreShell`: a `SettingsScreenScaffold` with a `TabBar` in `bottom:`, no VM (no tab has a draft), and routes from `tabbedSettingsRoutePair` on `kDeviceSettingsTabSlugs`. The tab is the route, so a restart restores it like any tabbed settings screen's.
+
+| Tab (slug) | Cards, in order | Platform-gated parts |
+|---|---|---|
+| Appearance (`''`) | Theme · Lists (Status tabs, Show seconds, Hide Peppol sent status) · Dashboard · Menu · Sidebar counters | Peppol row: PEPPOL companies only |
+| Security (`security`) | Untitled card (Confirm actions, Biometric) · Trusted certificates | Biometric where available; certificates on native, once one is pinned |
+| Phone (`phone`) | Phone numbers · Contacts · Home-screen widgets · Mobile app | Contacts: iOS / Android · Widgets: iOS / Android / macOS · Mobile app: everywhere but a phone |
+| Forms (`forms`) | Items (Default tab, Spell check) · Users | Spell check only where a checker exists (not Linux, not web) |
+| Data (`data`) | Untitled card (Sync, kept copies) · Downloads folder | Downloads folder: desktop only |
+
+- **Every tab opens with a card that renders on every platform**: Theme, the Security card, Phone numbers, Items, Data. No tab is ever empty, so neither a tab nor its `SettingsSearchTab` needs a platform gate. Only the cards and rows that hide themselves are gated, by key, through `_kDeviceSettingsKeyGates`. A new platform-gated card goes *after* an always-shown one. If a tab could ever be all gated cards, the shell has to drop that tab and the catalog has to gate its entry.
+- **Each tab has its own colocated `kDeviceSettings<Tab>SearchKeys` constant**, spread into its own `SettingsSearchTab` with a `titleKey`. The consistency test scans each tab against the screen and the card widgets it mounts. A tab's own label is its `titleKey`, so `security` is not repeated as a field key.
+- **A card whose title would only repeat its tab drops the title** (`FormSection(title: null)`): Security on Security, Data on Data.
+- **The strip is a width budget.** Five short labels with `labelPadding` at 12 a side fit a 360 px phone in English (356 px). At Material's 16 they ran 6 px past 390 and scrolled to hide a sliver of the last tab. Longer translations still scroll (`isScrollable`, centred, like the other settings shells). A sixth tab or a longer label costs that fit, so measure before adding one.
+- **Sidebar counters closes Appearance.** It alone can render 14 rows, so anything after it is a long way down on a phone.
+- **One-control cards that act on the same thing are rows of one card.** Default tab and Spell check act on a billing document's items table (the Items card). Status tabs, Show seconds and Hide Peppol sent status change what a list shows (the Lists card). A deliberate split stays separate: Menu and Sidebar counters, and Users, whose `users` heading is a correctness choice (`assigned_users_section.dart`). Default tab stays a radio (§ Two-choice fields → radio), under a `default_tab` label line so search can still reveal it.
+
 ## Settings search catalog
 
 `lib/ui/features/settings/settings_search_catalog.dart` is the single source of truth for both the settings sidebar layout (`kSettingsSections`) and the in-app settings search (`kSettingsSearchCatalog`). Whenever you add, rename, or remove a user-facing field on any screen under `lib/ui/features/settings/views/**`, update the matching tab's entry.

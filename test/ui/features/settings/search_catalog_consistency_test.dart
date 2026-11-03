@@ -99,7 +99,11 @@ void main() {
         'invoice_design/': kInvoiceDesignGeneralSearchKeys,
         'generated_numbers/': kGeneratedNumbersSettingsSearchKeys,
         'tags/': kTagsSearchKeys,
-        'device_settings/': kDeviceSettingsSearchKeys,
+        'device_settings/': kDeviceSettingsAppearanceSearchKeys,
+        'device_settings/security': kDeviceSettingsSecuritySearchKeys,
+        'device_settings/phone': kDeviceSettingsPhoneSearchKeys,
+        'device_settings/forms': kDeviceSettingsFormsSearchKeys,
+        'device_settings/data': kDeviceSettingsDataSearchKeys,
         'keyboard_shortcuts/': kKeyboardShortcutsSearchKeys,
         'tax_settings/': kTaxSettingsSearchKeys,
         'email_settings/': kEmailSettingsSearchKeys,
@@ -158,30 +162,56 @@ class _TabUnderTest {
 
 final List<_TabUnderTest> _tabsUnderTest = [
   const _TabUnderTest(
-    label: 'device_settings',
-    // The six long-standing keys are rendered across the screen and its two
-    // extracted tiles; the counter keys live in the section widget, and every
-    // badge-mode label is a `labelKey:` literal in the domain catalog.
+    label: 'device_settings/appearance',
+    // Every badge-mode label is a `labelKey:` literal in the domain catalog.
     sourcePaths: [
       'lib/ui/features/settings/views/basic/device_settings_screen.dart',
       'lib/ui/features/settings/widgets/customize_colors_section.dart',
-      'lib/ui/features/settings/widgets/biometric_toggle_tile.dart',
-      'lib/ui/features/settings/widgets/confirm_actions_tile.dart',
-      'lib/ui/features/settings/widgets/phone_actions_section.dart',
-      'lib/ui/features/settings/widgets/assigned_users_section.dart',
-      'lib/ui/features/settings/widgets/dashboard_panels_section.dart',
-      'lib/ui/features/settings/widgets/contacts_sync_section.dart',
-      'lib/ui/features/settings/widgets/mobile_app_section.dart',
-      'lib/ui/features/settings/widgets/home_widgets_section.dart',
-      'lib/ui/features/settings/widgets/downloads_folder_section.dart',
       'lib/ui/features/settings/widgets/list_status_tabs_section.dart',
+      'lib/ui/features/settings/widgets/dashboard_panels_section.dart',
       'lib/ui/features/settings/widgets/sidebar_menu_section.dart',
       'lib/ui/features/settings/widgets/sidebar_counters_section.dart',
-      'lib/ui/features/settings/widgets/local_data_copies.dart',
-      'lib/ui/features/settings/widgets/trusted_certificates_section.dart',
       'lib/domain/sidebar_badge_modes.dart',
     ],
-    keys: kDeviceSettingsSearchKeys,
+    keys: kDeviceSettingsAppearanceSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'device_settings/security',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/device_settings_screen.dart',
+      'lib/ui/features/settings/widgets/biometric_toggle_tile.dart',
+      'lib/ui/features/settings/widgets/confirm_actions_tile.dart',
+      'lib/ui/features/settings/widgets/trusted_certificates_section.dart',
+    ],
+    keys: kDeviceSettingsSecuritySearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'device_settings/phone',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/device_settings_screen.dart',
+      'lib/ui/features/settings/widgets/phone_actions_section.dart',
+      'lib/ui/features/settings/widgets/contacts_sync_section.dart',
+      'lib/ui/features/settings/widgets/home_widgets_section.dart',
+      'lib/ui/features/settings/widgets/mobile_app_section.dart',
+    ],
+    keys: kDeviceSettingsPhoneSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'device_settings/forms',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/device_settings_screen.dart',
+      'lib/ui/features/settings/widgets/assigned_users_section.dart',
+    ],
+    keys: kDeviceSettingsFormsSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'device_settings/data',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/device_settings_screen.dart',
+      'lib/ui/features/settings/widgets/local_data_copies.dart',
+      'lib/ui/features/settings/widgets/downloads_folder_section.dart',
+    ],
+    keys: kDeviceSettingsDataSearchKeys,
   ),
   const _TabUnderTest(
     label: 'keyboard_shortcuts',

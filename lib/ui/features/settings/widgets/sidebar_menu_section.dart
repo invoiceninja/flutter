@@ -28,7 +28,7 @@ const kSidebarMenuSearchKeys = <String>[
 /// out, and what order its items appear in (invoiceninja/flutter#125).
 ///
 /// Its own card immediately above Sidebar counters, on the reasoning
-/// [ListStatusTabsSection] already sets out for that neighbourhood: both are
+/// [ListStatusTabsTile] already sets out for that neighbourhood: both are
 /// about the rail, but one is what the rows *are* and the other is what their
 /// numbers *count*, so folding them together would read as one setting.
 class SidebarMenuSection extends StatelessWidget {

@@ -1,7 +1,7 @@
 // The Device Settings card for "Hide empty panels"
 // (invoiceninja/flutter#161).
 //
-// Worth pumping where its sibling `ListStatusTabsSection` is not, because the
+// Worth pumping where its sibling `ListStatusTabsTile` is not, because the
 // switch shows a *resolved* value: the stored preference is null until the
 // user chooses, and null means "on for a phone, off everywhere else". A card
 // that rendered the raw value would show every phone user a switch that is off

@@ -383,7 +383,7 @@ void main() {
     });
 
     test('Spell check is offered only where its section renders', () {
-      // `_SpellCheckSection` renders nothing without a platform checker (web,
+      // The Spell Check row renders nothing without a platform checker (web,
       // Linux), so a hit there would open Device Settings on nothing.
       final l10n = bundledLocalization();
       bool offersSpellCheck() => searchSettings(

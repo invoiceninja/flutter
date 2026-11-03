@@ -81,7 +81,7 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 
 ### Status-tab counts are active-only
 
-Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do. Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`DevicePrefKeys.statusTabs`, `StatusTabsController`).
+Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do. Device-toggleable, default **on**: Settings → Device Settings → Appearance → Lists → Status tabs (`DevicePrefKeys.statusTabs`, `StatusTabsController`).
 
 ### A server mapping must return a superset of the local predicate
 

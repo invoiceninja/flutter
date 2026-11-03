@@ -46,12 +46,8 @@ const kAssignedUsersSearchKeys = <String>[
 /// `ContactsSyncSection`'s preflight count — and without it the switch is a
 /// control with no observable consequence anywhere in the app.
 ///
-/// Placement is 5th of 10 on Device Settings, between Contacts and Dashboard.
-/// The four cards below are dashboard / list / rail chrome while this one
-/// changes what a *form* offers, but the load-bearing reason is scroll reach:
-/// Sidebar counters alone can render 14 rows, so anything below that block is
-/// a long way down on a phone for anyone who arrives by the sidebar rather
-/// than by a settings-search hit (which scrolls to its field).
+/// Placement: Device Settings → Forms, because it changes what a *form*
+/// offers.
 class AssignedUsersSection extends StatelessWidget {
   const AssignedUsersSection({super.key});
 

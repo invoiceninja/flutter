@@ -254,7 +254,7 @@ the honest default.
 | Invoice — email history | ✅ | ✅ | ✅ | | |
 | Invoice — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
 | Invoice — list bounce status badge | 🟡 | ✅ | ✅ | | |
-| Invoice / credit — list PEPPOL sent / failed icon (`backup.guid`), hideable | ✅ | ❌ | ✅ | | React on its develop branch (ui#3410), unreleased. v2: beside the status pill in the table and the phone row; hidden from Device Settings → E-Invoice (PEPPOL companies only). Not a link — a row already has one destination |
+| Invoice / credit — list PEPPOL sent / failed icon (`backup.guid`), hideable | ✅ | ❌ | ✅ | | React on its develop branch (ui#3410), unreleased. v2: beside the status pill in the table and the phone row; hidden from Device Settings → Appearance → Lists (PEPPOL companies only). Not a link — a row already has one destination |
 | Invoice / quote / recurring — list footer totals, incl. Net Amount | ✅ | ❌ | ✅ | | v2 totals the *selected* rows (Amount, Net Amount, and Balance on invoices) in a bar under the list, one line per currency — the lists load as you scroll, so there is no page to total. React totals the page and adds currencies together |
 | Invoice — guided step-by-step editor (Who → Items → Payment → Notes → Send) | ✅ | ❌ | ❌ | | React on its develop branch (ui#3288), unreleased; its default for users created since 2026-08-09 |
 | Invoice — activities | ✅ | ✅ | ✅ | ✅ | |

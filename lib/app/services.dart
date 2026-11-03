@@ -775,7 +775,7 @@ class Services implements SidebarBadgeContext {
   final HideEmptyPanelsController hideEmptyPanels;
 
   /// Which items tab a billing document opens on when its lines don't decide
-  /// (React #3355) — Device Settings → Default tab.
+  /// (React #3355) — Device Settings → Forms → Items.
   final DefaultItemsTabController defaultItemsTab;
 
   /// How the Tasks weekly view shows hours, decimal or `H:MM` (React
@@ -783,7 +783,7 @@ class Services implements SidebarBadgeContext {
   final HoursFormatController hoursFormat;
 
   /// Hide the PEPPOL sent / failed icon on the invoice and credit lists
-  /// (React ui#3410) — Device Settings → E-Invoice, shown to PEPPOL companies.
+  /// (React ui#3410) — Device Settings → Appearance → Lists, shown to PEPPOL companies.
   final HidePeppolStatusController hidePeppolStatus;
 
   /// Related-record counts learned this session, for the tab badges on a

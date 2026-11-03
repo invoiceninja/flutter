@@ -64,7 +64,7 @@ class _ContactsSyncSectionState extends State<ContactsSyncSection> {
     super.initState();
     unawaited(_refreshPermission());
     // Keep the relative "last synced" label honest while the screen is open
-    // ("just now" → "2m ago"), same as the Data section above.
+    // ("just now" → "2m ago"), same as Device Settings' Data card.
     _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });

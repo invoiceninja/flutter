@@ -11,7 +11,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Search keys, co-located with the widget that renders them — spread into
-/// `kDeviceSettingsSearchKeys`.
+/// `kDeviceSettingsDataSearchKeys`.
 const kLocalDataCopiesSearchKeys = <String>['local_data_copies'];
 
 /// The old copies of this device's database that a reset kept, each with its

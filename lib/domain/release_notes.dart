@@ -228,7 +228,7 @@ const List<ReleaseNotes> kReleaseNotes = [
         title: 'Home-screen widgets',
         body:
             'Outstanding, past-due invoices and your running timer at a glance.',
-        target: ReleaseHighlightRoute('/settings/device_settings'),
+        target: ReleaseHighlightRoute('/settings/device_settings/phone'),
         hiddenOn: {ReleaseNoteSurface.withoutHomeWidgets},
         major: true,
       ),

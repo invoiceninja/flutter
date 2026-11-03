@@ -1,7 +1,7 @@
 // The Device Settings card for "Hide unverified users"
 // (invoiceninja/flutter#150).
 //
-// Worth pumping where its sibling `ListStatusTabsSection` is not, because this
+// Worth pumping where its sibling `ListStatusTabsTile` is not, because this
 // one is data-bound: the count line is the ONLY place in the app that shows the
 // preference's effect (there is deliberately no marker inside the picker
 // popover), and Device Settings has no widget test of its own, so nothing else

@@ -196,7 +196,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 - **Inside a cap a key gets its printed name** → `docs/keyboard.md`
 
 - **Task status colours resolve through `taskStatusColors`, never an inline parse of `TaskStatus.color`** — `''`, `#fff` and `#ffffff` all mean unset. → `docs/tasks-views.md`
-- **Initials avatars go through `InitialsAvatar` + `initialsFor`, seeded on the entity id (never the name), and a row's badge keeps its 32×32 slot even when empty.** → `docs/row-actions-and-values.md`
+- **Initials avatars go through `InitialsAvatar` + `initialsFor`, seeded on the entity id (never the name), and a row's badge keeps its 32×32 slot even when empty — except that a phone task list drops the whole column, never one row's slot, when no task in the company is assigned.** → `docs/row-actions-and-values.md`
 
 - **A narrow list row has exactly one destination, and a link's at-rest affordance is gated on the input device.** → `docs/row-actions-and-values.md`
 - **A pure navigation action must never reach an edit screen.** → `docs/row-actions-and-values.md`

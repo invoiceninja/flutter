@@ -624,6 +624,11 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     );
   }
 
+  /// Whether any task in the company is assigned — see
+  /// [TaskDao.watchAnyAssigned].
+  Stream<bool> watchAnyAssigned({required String companyId}) =>
+      db.taskDao.watchAnyAssigned(companyId: companyId);
+
   /// Live count of running timers for the company (backs the global pill's
   /// concurrent-timer badge — `watchRunning` only surfaces one).
   Stream<int> watchRunningCount({required String companyId}) =>

@@ -190,6 +190,7 @@ class TaskListScreen extends StatelessWidget {
           formatter: context.read<Services>().formatterIfReady(vm.companyId),
           columns: options.wide ? vm.columns : const [],
           wide: options.wide,
+          showAssignee: options.wide || vm.anyTaskAssigned,
           editable: options.editable,
           hideBottomDivider: options.bottomDividerHidden,
           selecting: options.selecting,

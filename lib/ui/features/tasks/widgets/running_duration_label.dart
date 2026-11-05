@@ -23,6 +23,7 @@ class RunningDurationLabel extends StatefulWidget {
     this.showDot = true,
     this.compactDays = true,
     this.secondsPastDay = false,
+    this.hoursOnly = false,
     this.style,
     this.dotSize = 8,
   });
@@ -55,6 +56,14 @@ class RunningDurationLabel extends StatefulWidget {
   /// the narrow list row, the wide table's 120 px column and the shell pill
   /// do not.
   final bool secondsPastDay;
+
+  /// Render total hours that run past 24 (`36:30`, never `1d 12h`), with
+  /// seconds only while the device's Show Seconds preference is on — the task
+  /// list's format, which a stopped row shares (invoiceninja/flutter#183). The
+  /// ticker still runs at [precision], so the minute rolls over on time; the
+  /// label repaints only when its text changes. Overrides [compactDays] and
+  /// [secondsPastDay].
+  final bool hoursOnly;
 
   /// Override the label text style. Defaults to the screen's body small.
   final TextStyle? style;
@@ -102,8 +111,12 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
     // that as `-0:30` (it splits `Duration.toString()`), on the app's most
     // prominent always-visible surface.
     final elapsed = DateTime.now().difference(widget.start);
+    final total = widget.base + (elapsed.isNegative ? Duration.zero : elapsed);
+    if (widget.hoursOnly) {
+      return formatDuration(total, showSeconds: _secondsPref);
+    }
     return formatDuration(
-      widget.base + (elapsed.isNegative ? Duration.zero : elapsed),
+      total,
       compactDays: widget.compactDays,
       showSeconds: showSeconds,
       secondsPastDay: _secondsPref && widget.secondsPastDay,
@@ -160,6 +173,8 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
           : null;
     }
     if (oldWidget.start != widget.start ||
+        oldWidget.base != widget.base ||
+        oldWidget.hoursOnly != widget.hoursOnly ||
         oldWidget.precision != widget.precision) {
       _label.value = _compute();
       if (oldWidget.precision != widget.precision) _startTicker();

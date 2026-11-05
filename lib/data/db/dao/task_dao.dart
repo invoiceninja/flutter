@@ -506,6 +506,27 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
   /// Live count of running (non-deleted) timers for the company. Backs the
   /// global pill's "N running" affordance so concurrent timers stay visible
   /// even though [watchRunning] surfaces only the most-recent one.
+  /// Whether any non-deleted task in the company has an assignee. The phone
+  /// task list drops its assignee column when none does (flutter#183): for a
+  /// solo user, or a team that doesn't assign, it was a grey placeholder on
+  /// every row, 44 px the task name needed. Company-wide, not the visible rows,
+  /// so the column can't come and go as pages load or a filter changes.
+  /// `assigned_user_id` lives only in the payload, as [assignedToUserFilter]
+  /// reads it.
+  Stream<bool> watchAnyAssigned({required String companyId}) {
+    final q = selectOnly(tasks)
+      ..addColumns([tasks.id])
+      ..where(
+        tasks.companyId.equals(companyId) &
+            tasks.isDeleted.equals(false) &
+            const CustomExpression<String>(
+              "COALESCE(json_extract(payload, '\$.assigned_user_id'), '')",
+            ).isNotValue(''),
+      )
+      ..limit(1);
+    return q.watch().map((rows) => rows.isNotEmpty).distinct();
+  }
+
   Stream<int> watchRunningCount({required String companyId}) {
     final count = tasks.id.count();
     final q = selectOnly(tasks)

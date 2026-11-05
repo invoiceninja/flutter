@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/tasks/widgets/task_list_tile.dart';
 
 import '../shell/_shell_test_helpers.dart';
@@ -62,6 +63,7 @@ void main() {
     required Task task,
     required bool wide,
     bool selecting = false,
+    bool showAssignee = true,
     FakeCompany company = const FakeCompany(id: 'co1', name: 'Co'),
   }) async {
     final fixture = await buildFixture(companies: [company]);
@@ -78,6 +80,7 @@ void main() {
           columns: const [],
           wide: wide,
           selecting: selecting,
+          showAssignee: showAssignee,
           onTap: () {},
           onSelectTap: () {},
         ),
@@ -254,9 +257,54 @@ void main() {
 
     testWidgets('a task with nothing booked is untouched', (tester) async {
       await pumpTile(tester, task: _task(log: _stopped), wide: false);
-      // Unchanged from before this feature: the plain logged total,
-      // seconds and all (the tile passes no `showSeconds: false`).
-      expect(find.text('1:00:00'), findsOneWidget);
+      // The plain logged total — in hours and minutes since flutter#183,
+      // which drops seconds unless the device's Show Seconds is on.
+      expect(find.text('1:00'), findsOneWidget);
+    });
+  });
+
+  // invoiceninja/flutter#183: the phone row's duration was clamped to 76 px
+  // and rolled into days, so it read "1d 12h…"; and every row carried a grey
+  // unassigned placeholder the task name needed the room of.
+  group('the narrow row (flutter#183)', () {
+    final long = [
+      TimeEntry(
+        start: DateTime.utc(2026, 1, 1, 9),
+        stop: DateTime.utc(2026, 1, 2, 21, 30),
+      ),
+    ];
+
+    testWidgets('a long total reads in hours, whole', (tester) async {
+      await pumpTile(tester, task: _task(log: long), wide: false);
+      final text = tester.widget<Text>(find.text('36:30'));
+      expect(text.overflow, isNot(TextOverflow.ellipsis));
+      expect(find.textContaining('1d'), findsNothing);
+    });
+
+    testWidgets('no assignee column when no task is assigned', (tester) async {
+      await pumpTile(
+        tester,
+        task: _task(log: _stopped),
+        wide: false,
+        showAssignee: false,
+      );
+      expect(find.byType(LeadingSelectSlot), findsNothing);
+    });
+
+    testWidgets('selecting brings it back, as the checkbox', (tester) async {
+      await pumpTile(
+        tester,
+        task: _task(log: _stopped),
+        wide: false,
+        showAssignee: false,
+        selecting: true,
+      );
+      expect(find.byType(LeadingSelectSlot), findsOneWidget);
+    });
+
+    testWidgets('a team that assigns keeps it', (tester) async {
+      await pumpTile(tester, task: _task(log: _stopped), wide: false);
+      expect(find.byType(LeadingSelectSlot), findsOneWidget);
     });
   });
 }

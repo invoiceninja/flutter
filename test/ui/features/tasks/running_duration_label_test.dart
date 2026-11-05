@@ -122,5 +122,46 @@ void main() {
       await tester.pump();
       expect(find.text('1d 03h 12m'), findsOneWidget);
     });
+
+    // invoiceninja/flutter#183: the task list's format — the task's total as
+    // hours past 24, seconds only with the preference, and still ticking
+    // every second so the minute rolls over on time.
+    group('hoursOnly', () {
+      Widget listLabel() => ChangeNotifierProvider<ShowSecondsController>.value(
+        value: controller,
+        child: MaterialApp(
+          theme: ThemeData.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[InTheme.light],
+          ),
+          home: Scaffold(
+            body: RunningDurationLabel(
+              // 36:00 already logged, plus a run of 0:30:05.
+              start: DateTime.now().subtract(
+                const Duration(minutes: 30, seconds: 5),
+              ),
+              base: const Duration(hours: 36),
+              hoursOnly: true,
+              showDot: false,
+            ),
+          ),
+        ),
+      );
+
+      testWidgets('the total, in hours past a day, without seconds', (
+        tester,
+      ) async {
+        await tester.pumpWidget(listLabel());
+        expect(find.text('36:30'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('seconds once the preference is on', (tester) async {
+        await tester.pumpWidget(listLabel());
+        await tester.runAsync(() => controller.set(true));
+        await tester.pump();
+        expect(find.textContaining(RegExp(r'^36:30:\d\d$')), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
   });
 }

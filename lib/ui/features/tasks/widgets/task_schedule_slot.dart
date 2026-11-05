@@ -66,7 +66,9 @@ import 'package:admin/utils/formatting.dart';
       // Signed, because an unsigned `2:10` in a column of durations reads as
       // time logged — the opposite of what it means.
       return (
-        text: '+${formatDuration(by, compactDays: true, showSeconds: false)}',
+        // Hours past 24, like the durations around it (flutter#183): a day
+        // form ran to `+1d 02h 15m`, which the row cut off.
+        text: '+${formatDuration(by, showSeconds: false)}',
         color: tokens.overdue,
       );
   }

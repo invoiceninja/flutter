@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -99,19 +100,33 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
     // cumulative TOTAL, a smooth continuation of the static total rather
     // than a reset to 0. `loggedDuration(runningStart)` yields exactly that
     // sum: the running entry's `durationUpTo(runningStart)` collapses to 0.
+    //
+    // Hours that run past 24 (`36:30`), seconds only with the device's Show
+    // Seconds preference — the phone row's format, so a task reads the same
+    // at both widths (invoiceninja/flutter#183).
     cellBuilder: (t, ctx) => (t.isRunning && t.timeLog.isNotEmpty)
         ? RunningDurationLabel(
             start: t.timeLog.last.start!,
             base: t.loggedDuration(t.timeLog.last.start!),
             precision: const Duration(seconds: 1),
+            hoursOnly: true,
             showDot: false,
             style: TextStyle(
               color: ctx.inTheme.accent,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           )
-        : cellText(formatDuration(t.loggedDuration(), compactDays: true)),
-    valueBuilder: (t) => formatDuration(t.loggedDuration(), compactDays: true),
+        // A `Builder`, so the preference is watched from a build whichever
+        // caller asks for the cell.
+        : Builder(
+            builder: (c) => cellText(
+              formatDuration(
+                t.loggedDuration(),
+                showSeconds: watchShowSeconds(c),
+              ),
+            ),
+          ),
+    valueBuilder: (t) => formatDuration(t.loggedDuration()),
   ),
   // The plan, beside the actual. Both are payload-only (no Drift column), so
   // both are display-only for the same reason `duration` and `date` above

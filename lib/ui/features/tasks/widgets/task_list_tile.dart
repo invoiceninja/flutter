@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/columns/column_definition.dart';
@@ -8,6 +9,7 @@ import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
+import 'package:admin/ui/core/utils/show_seconds.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/user_avatar.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -38,6 +40,7 @@ class TaskListTile extends StatefulWidget {
     this.selecting = false,
     this.hideBottomDivider = false,
     this.formatter,
+    this.showAssignee = true,
   });
 
   final Task task;
@@ -73,6 +76,14 @@ class TaskListTile extends StatefulWidget {
   /// directly above the selected one). Computed by the list scaffold and
   /// passed straight to [SelectableListRow.hideBottomDivider].
   final bool hideBottomDivider;
+
+  /// False when no task in the company has an assignee
+  /// (`TaskListViewModel.anyTaskAssigned`). On a touch device's narrow row
+  /// the leading assignee column is then dropped for every row — never one
+  /// row's slot, so the rows stay aligned — and the task name gets its 44 px
+  /// (invoiceninja/flutter#183). A pointer keeps it: the slot is where
+  /// hover-to-select happens. Selection mode brings it back as the checkbox.
+  final bool showAssignee;
 
   @override
   State<TaskListTile> createState() => _TaskListTileState();
@@ -151,11 +162,11 @@ class _TaskListTileState extends State<TaskListTile> {
     final identity = t.description.isEmpty
         ? (t.number.isEmpty ? '—' : '#${t.number}')
         : t.description;
+    final leading = w.showAssignee || w.selecting || !Env.isTouchPrimary;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _leading(),
-        const SizedBox(width: 12),
+        if (leading) ...[_leading(), const SizedBox(width: 12)],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,10 +260,19 @@ class _TaskListTileState extends State<TaskListTile> {
           ),
         ),
         const SizedBox(width: 12),
+        // The task's whole logged time, as hours that run past 24 (`36:30`,
+        // never `1d 12h 30m`) and without seconds unless the device's Show
+        // Seconds preference is on — and never cut off: the name beside it is
+        // the `Expanded` that gives way (invoiceninja/flutter#183). It used
+        // to be clamped to 76 px, which ate "1d 12h…" and "13:15:…".
         if (t.isRunning && t.timeLog.isNotEmpty)
           RunningDurationLabel(
             start: t.timeLog.last.start!,
+            // The stopped entries too, so starting the timer continues the
+            // total rather than resetting it to 0:00 (as the wide column).
+            base: t.loggedDuration(t.timeLog.last.start!),
             precision: const Duration(seconds: 1),
+            hoursOnly: true,
             style: TextStyle(
               color: tokens.accent,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -262,26 +282,22 @@ class _TaskListTileState extends State<TaskListTile> {
           // A booked-but-unstarted task SWAPS this slot rather than adding to
           // the row: its worked time is `0:00`, a number that says nothing,
           // and the identity column beside it has none to spare. See
-          // `taskScheduleSlot`.
+          // `taskScheduleSlot`. Not clamped either: a cut `12:00…` lost the
+          // AM / PM that is the point of it.
           Builder(
             builder: (context) {
               final slot = taskScheduleSlot(context, t, formatter: w.formatter);
-              // Clamped: a 12-hour clock is `12:00 PM`, roughly double the
-              // `0:00` it displaces and ~87 px at the app's 1.4x scale — all
-              // of it taken from the identity `Expanded`, which the comment
-              // above records as already the most truncated thing on the row.
-              return ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 76),
-                child: Text(
-                  slot?.text ??
-                      formatDuration(t.loggedDuration(), compactDays: true),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: slot?.color ?? tokens.ink,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+              return Text(
+                slot?.text ??
+                    formatDuration(
+                      t.loggedDuration(),
+                      showSeconds: watchShowSeconds(context),
+                    ),
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  color: slot?.color ?? tokens.ink,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               );
             },

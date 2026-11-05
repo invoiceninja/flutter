@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/task_dao.dart';
@@ -51,6 +53,31 @@ class TaskListViewModel extends GenericListViewModel<Task> {
   /// When non-null, scopes the watch + fetch to one project. Used by the
   /// embedded list inside `ProjectDetailScreen`'s Tasks tab.
   final String? projectId;
+
+  bool? _anyAssigned;
+  StreamSubscription<bool>? _anyAssignedSub;
+
+  /// Whether any task in the company has an assignee — the phone row's
+  /// leading assignee column is dropped when none does (flutter#183). True
+  /// until the cache answers, so a team that assigns never sees the column
+  /// flicker out; a solo user's goes once, on the first frame or two.
+  ///
+  /// Subscribed on first read (from a tile's build), not in the constructor,
+  /// so a view model whose tiles never render costs no query.
+  bool get anyTaskAssigned {
+    _anyAssignedSub ??= repo.watchAnyAssigned(companyId: companyId).listen((v) {
+      if (v == _anyAssigned) return;
+      _anyAssigned = v;
+      if (!isDisposed) notifyListeners();
+    }, onError: (Object _) {});
+    return _anyAssigned ?? true;
+  }
+
+  @override
+  void dispose() {
+    _anyAssignedSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Set<String> get lockedFilterKeyIds => {

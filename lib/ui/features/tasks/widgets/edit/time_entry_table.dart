@@ -785,8 +785,11 @@ class _DescriptionFieldState extends State<_DescriptionField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      // Grows with the text up to ten lines before it scrolls — entries can
+      // carry lengthy work notes (beta feedback), and three lines hid them.
       minLines: 1,
-      maxLines: 3,
+      maxLines: 10,
+      textCapitalization: TextCapitalization.sentences,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         hintText: context.tr('description'),

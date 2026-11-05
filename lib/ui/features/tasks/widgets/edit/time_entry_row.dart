@@ -100,7 +100,9 @@ class TimeEntryRow extends StatelessWidget {
 
     final description = Text(
       entry.description.isEmpty ? '—' : entry.description,
-      maxLines: 1,
+      // Enough of a lengthy note to recognise the entry; the editor sheet a
+      // tap opens shows all of it.
+      maxLines: 3,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: tokens.ink, fontSize: 13),
     );

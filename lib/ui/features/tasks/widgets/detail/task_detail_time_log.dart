@@ -123,10 +123,11 @@ class _TimeEntryRow extends StatelessWidget {
     // Most entries carry no description, and the slot has no label: blank,
     // not a dash (`docs/row-actions-and-values.md`).
     final hasDescription = entry.description.trim().isNotEmpty;
+    // In full: this tab is the read-only home of the time log, and an entry's
+    // description can be lengthy work notes (beta feedback) — clipped to two
+    // lines, the only way to read the rest was to open the edit form.
     final description = Text(
       entry.description.trim(),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
       style: TextStyle(color: tokens.ink, fontSize: 13),
     );
     final duration = entry.isRunning && start != null
@@ -193,6 +194,9 @@ class _TimeEntryRow extends StatelessWidget {
               when,
               const SizedBox(height: 2),
               Row(
+                // A description now runs to its full length, so the duration
+                // stays on its first line rather than centring on the block.
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: description),
                   ...tail,
@@ -202,6 +206,7 @@ class _TimeEntryRow extends StatelessWidget {
           );
         }
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(width: 240, child: when),
             const SizedBox(width: 12),

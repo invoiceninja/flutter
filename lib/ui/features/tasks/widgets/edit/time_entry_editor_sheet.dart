@@ -12,6 +12,16 @@ import 'package:admin/utils/formatting.dart';
 /// narrow screens (`<600 px`) and an `AlertDialog` on wide. Returns the
 /// committed entry to the caller, or `null` if the user cancelled.
 ///
+/// **Only Cancel discards.** A sheet closed any other way — a swipe down,
+/// Android back, or a tap on the barrier — returns what the user typed, the
+/// same as Done. Escape is the keyboard's Cancel and discards too. The barrier covers the edit form's own Save and Stop
+/// buttons, so the natural "I'm finished" tap lands on it: returning `null`
+/// there silently threw away a description the user had just written
+/// (beta feedback: "lost description when stopping task or saving task").
+/// The swipe pops with `Navigator.pop`, past any `PopScope`, so the edit is
+/// published on every change ([TimeEntryEditorDraft]) instead of read at the
+/// pop.
+///
 /// Returns the literal value `_kRemoveSentinel` (a special TimeEntry value
 /// produced by [_RemoveSentinel]) when the user taps Remove — the caller
 /// distinguishes via the static helper [isRemoveSignal].
@@ -24,9 +34,14 @@ class TimeEntryEditorSheet extends StatefulWidget {
     this.showItemDescription = true,
     this.allowRemove = true,
     this.formatter,
+    this.draft,
   });
 
   final TimeEntry initial;
+
+  /// Where the sheet publishes its edit as it changes, so [show] can return
+  /// it when the sheet is dismissed rather than closed with a button.
+  final TimeEntryEditorDraft? draft;
   final bool allowBillableToggle;
 
   /// When true, surface a stop-DATE field so a single entry can span
@@ -55,9 +70,11 @@ class TimeEntryEditorSheet extends StatefulWidget {
     bool allowRemove = true,
     Formatter? formatter,
   }) async {
+    final draft = TimeEntryEditorDraft();
     final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final TimeEntry? result;
     if (isWide) {
-      return showDialog<TimeEntry>(
+      result = await showDialog<TimeEntry>(
         context: context,
         builder: (ctx) => Dialog(
           child: ConstrainedBox(
@@ -69,27 +86,31 @@ class TimeEntryEditorSheet extends StatefulWidget {
               showItemDescription: showItemDescription,
               allowRemove: allowRemove,
               formatter: formatter,
+              draft: draft,
             ),
           ),
         ),
       );
-    }
-    return showModalBottomSheet<TimeEntry>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
-        child: TimeEntryEditorSheet(
-          initial: initial,
-          allowBillableToggle: allowBillableToggle,
-          showEndDate: showEndDate,
-          showItemDescription: showItemDescription,
-          allowRemove: allowRemove,
-          formatter: formatter,
+    } else {
+      result = await showModalBottomSheet<TimeEntry>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+          child: TimeEntryEditorSheet(
+            initial: initial,
+            allowBillableToggle: allowBillableToggle,
+            showEndDate: showEndDate,
+            showItemDescription: showItemDescription,
+            allowRemove: allowRemove,
+            formatter: formatter,
+            draft: draft,
+          ),
         ),
-      ),
-    );
+      );
+    }
+    return result ?? (draft.discarded ? null : draft.edited);
   }
 
   /// Sentinel detection — the Remove button resolves with a `TimeEntry`
@@ -141,6 +162,47 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
       text: formatDuration(_stop.difference(_start), compactDays: true),
     );
     _billable = widget.initial.billable;
+    _description.addListener(_publish);
+  }
+
+  /// Every handler below changes the entry through `setState`, so routing the
+  /// publish through it keeps [TimeEntryEditorDraft.edited] current without a
+  /// call in each one. The description is typed into a controller and never calls
+  /// `setState`, so it publishes from its own listener.
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _publish();
+  }
+
+  TimeEntry _compose() => TimeEntry(
+    start: _start,
+    stop: _isRunning ? null : _stop,
+    description: _description.text,
+    billable: _billable,
+  );
+
+  /// Null until the entry differs from what the sheet opened on, so a sheet
+  /// opened and swiped away untouched changes nothing — and adds nothing,
+  /// when it was opened by "+ Add time".
+  void _publish() {
+    final draft = widget.draft;
+    if (draft == null) return;
+    final e = _compose();
+    final i = widget.initial;
+    bool same(DateTime? a, DateTime? b) =>
+        a == null ? b == null : (b != null && a.isAtSameMomentAs(b));
+    final unchanged =
+        e.description == i.description &&
+        e.billable == i.billable &&
+        same(e.start, i.start ?? e.start) &&
+        same(e.stop, i.stop ?? (i.isRunning ? null : e.stop));
+    draft.edited = unchanged ? null : e;
+  }
+
+  void _cancel() {
+    widget.draft?.discarded = true;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -241,22 +303,33 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
     });
   }
 
-  void _commit() {
-    Navigator.of(context).pop(
-      TimeEntry(
-        start: _start,
-        stop: _isRunning ? null : _stop,
-        description: _description.text,
-        billable: _billable,
-      ),
-    );
-  }
+  void _commit() => Navigator.of(context).pop(_compose());
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Escape is the keyboard's Cancel. The route's own DismissIntent pops with
+    // null, which `show` now reads as "keep the edit" — right for a tap on
+    // the barrier, wrong for the one key every dialog treats as Cancel.
+    return Actions(
+      actions: <Type, Action<Intent>>{
+        DismissIntent: CallbackAction<DismissIntent>(
+          onInvoke: (_) {
+            _cancel();
+            return null;
+          },
+        ),
+      },
+      child: _body(context, tokens),
+    );
+  }
+
+  Widget _body(BuildContext context, InTheme tokens) {
     return SafeArea(
-      child: Padding(
+      // Scrolls so a long description, with the keyboard up, cannot push the
+      // buttons off a phone screen — `show` pads the sheet by the keyboard's
+      // inset and the Column below is `min`, so without this it overflowed.
+      child: SingleChildScrollView(
         padding: EdgeInsets.all(InSpacing.lg(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -330,12 +403,17 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
             ),
             if (widget.showItemDescription) ...[
               SizedBox(height: InSpacing.md(context)),
+              // Teams keep lengthy work notes per entry (beta feedback), so
+              // the box opens three lines tall and grows to ten before it
+              // scrolls; it was 1–3, which read as a one-line label.
               TextField(
                 controller: _description,
-                maxLines: 3,
-                minLines: 1,
+                minLines: 3,
+                maxLines: 10,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: context.tr('description'),
+                  alignLabelWithHint: true,
                 ),
               ),
             ],
@@ -369,7 +447,7 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(64, 40),
                   ),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: _cancel,
                   child: Text(context.tr('cancel')),
                 ),
                 SizedBox(width: InSpacing.md(context)),
@@ -388,4 +466,14 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
       ),
     );
   }
+}
+
+/// The sheet's edit as of its last change — what [TimeEntryEditorSheet.show]
+/// returns when the sheet is dismissed rather than closed with a button.
+class TimeEntryEditorDraft {
+  /// Null while the entry still matches what the sheet opened on.
+  TimeEntry? edited;
+
+  /// Set by Cancel, the one close that throws the edit away.
+  bool discarded = false;
 }

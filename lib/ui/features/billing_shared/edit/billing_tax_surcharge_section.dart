@@ -8,8 +8,11 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/custom_field_types.dart';
+import 'package:admin/data/models/domain/tax_rate.dart';
+import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -34,8 +37,14 @@ typedef SurchargeSpec = ({Decimal amount, ValueChanged<String> onAmount});
 ///
 /// Tax tiers track the company's `enabled_tax_rates` setting (0–3), like the
 /// expense editor; an "Add tax" button overflows into higher tiers when a
-/// single document needs more. Surcharge slots render only when the company
-/// has given them a label (`customFields['surcharge1'..'surcharge4']`).
+/// single document needs more. Each tier picks from the company's configured
+/// tax rates (picking one fills both name and rate), as the expense and
+/// product forms, admin-portal and React all do — it was a bare name + rate
+/// pair, so a company's saved "NYS Sales Tax 8.75%" was nowhere to be picked
+/// (beta feedback). A company with no rates keeps the freeform pair.
+///
+/// Surcharge slots render only when the company has given them a label
+/// (`customFields['surcharge1'..'surcharge4']`).
 /// Per-surcharge taxability is a company-level setting, so it is not edited
 /// here (matching React) — only the amounts.
 class BillingTaxSurchargeSection extends StatefulWidget {
@@ -96,6 +105,7 @@ class _BillingTaxSurchargeSectionState
   // AnimatedBuilder(vm), and a fresh `watch()` per build would drop the inner
   // StreamBuilder to a null snapshot and flicker the section.
   Stream<Company?>? _company;
+  Stream<List<TaxRate>>? _rates;
   String? _companyId;
 
   @override
@@ -113,7 +123,9 @@ class _BillingTaxSurchargeSectionState
   void _ensureStream() {
     if (_companyId == widget.companyId && _company != null) return;
     _companyId = widget.companyId;
-    _company = context.read<Services>().company.watchCompany(widget.companyId);
+    final services = context.read<Services>();
+    _company = services.company.watchCompany(widget.companyId);
+    _rates = services.taxRates.watchAll(companyId: widget.companyId);
   }
 
   @override
@@ -142,12 +154,41 @@ class _BillingTaxSurchargeSectionState
         }
 
         final children = <Widget>[];
-        for (var i = 0; i < visible && i < 3; i++) {
+        if (visible > 0) {
+          // One rates stream feeds every visible tier.
           children.add(
-            _TaxRow(
-              index: i + 1,
-              spec: widget.taxRows[i],
-              useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+            StreamBuilder<List<TaxRate>>(
+              stream: _rates,
+              builder: (context, rateSnap) {
+                final rates = rateSnap.data ?? const <TaxRate>[];
+                // Only an ANSWERED empty list means "no rates configured".
+                // Before Drift's first emission the picker stands in (its
+                // empty-items placeholder reads "Loading"), so a company with
+                // rates no longer flashes the freeform pair on every open —
+                // and a half-typed name can't be unmounted by the swap.
+                final freeform = rateSnap.hasData && rates.isEmpty;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < visible && i < 3; i++)
+                      freeform
+                          ? _TaxRow(
+                              index: i + 1,
+                              spec: widget.taxRows[i],
+                              useCommaAsDecimalPlace:
+                                  widget.useCommaAsDecimalPlace,
+                            )
+                          : _TaxRatePickerRow(
+                              index: i + 1,
+                              spec: widget.taxRows[i],
+                              rates: rates,
+                              useCommaAsDecimalPlace:
+                                  widget.useCommaAsDecimalPlace,
+                            ),
+                  ],
+                );
+              },
             ),
           );
         }
@@ -214,6 +255,79 @@ class _BillingTaxSurchargeSectionState
           ),
         );
       },
+    );
+  }
+}
+
+/// One tier as a searchable picker over the company's tax rates. Picking a
+/// rate writes the pair; clearing it writes no tax. A stored pair that is not
+/// in the list — typed by hand, or a rate since renamed or deleted — still
+/// shows, as a synthetic entry, so opening the document never hides its tax.
+///
+/// That includes a rate with no name. The server taxes nothing for a tier
+/// named under two characters, but an inclusive document still backs EVERY
+/// rate out of its prices (`totals_calculator.dart`, `InclusiveTax::backout`),
+/// so a hidden nameless rate would move the total with nothing on screen to
+/// explain it — or to clear.
+class _TaxRatePickerRow extends StatelessWidget {
+  const _TaxRatePickerRow({
+    required this.index,
+    required this.spec,
+    required this.rates,
+    required this.useCommaAsDecimalPlace,
+  });
+  final int index;
+  final TaxRowSpec spec;
+  final List<TaxRate> rates;
+  final bool useCommaAsDecimalPlace;
+
+  String _label(TaxRate r) {
+    final pct = rateInputText(
+      r.rate,
+      useCommaAsDecimalPlace: useCommaAsDecimalPlace,
+      blankZero: false,
+    );
+    return r.name.isEmpty ? '$pct%' : '${r.name} ($pct%)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Already ordered by `name.lower()` in `TaxRateDao.watchAll`; a re-sort
+    // here would be case-sensitive and put "county tax" after "Zone Tax".
+    TaxRate? selected;
+    for (final r in rates) {
+      if (r.name == spec.name && numToDecimal(r.rate) == spec.rate) {
+        selected = r;
+        break;
+      }
+    }
+    if (selected == null &&
+        (spec.name.isNotEmpty || spec.rate != Decimal.zero)) {
+      selected = TaxRate(
+        id: '__current__',
+        name: spec.name,
+        rate: spec.rate.toDouble(),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+        archivedAt: null,
+        isDeleted: false,
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: InSpacing.xs),
+      child: SearchableDropdownField<TaxRate>(
+        label: context.tr('tax_rate$index'),
+        items: rates,
+        initialValue: selected,
+        displayString: _label,
+        idOf: (r) => '${r.name}|${r.rate}',
+        onChanged: (r) {
+          spec.onName(r?.name ?? '');
+          // The setter parses with the company's separator, and a plain
+          // decimal string has no comma to misread under either setting.
+          spec.onRate(r == null ? '0' : numToDecimal(r.rate).toString());
+        },
+      ),
     );
   }
 }

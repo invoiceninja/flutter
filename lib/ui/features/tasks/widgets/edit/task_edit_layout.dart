@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
+import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
@@ -429,9 +430,16 @@ class _ClientPicker extends StatelessWidget {
   }
 }
 
-/// Searchable project picker. Streams projects filtered by the currently
-/// selected client; picking a project propagates clientId + auto-fills the
-/// rate (when current rate is zero) via [TaskEditViewModel.selectProject].
+/// Searchable project picker. Offers every active project until a client is
+/// picked, then only that client's; picking a project sets the client (which
+/// then locks — `project_drives_client`) and auto-fills the rate when it is
+/// zero, via [TaskEditViewModel.selectProject].
+///
+/// Project first is the old app's order and the one users reach for (beta
+/// feedback): this used to stay disabled behind "Select a client first", and
+/// a client with no projects said "Loading" forever, because the empty list
+/// fell through to [SearchableDropdownField]'s default hint. Same shape as the
+/// expense form's project picker.
 class _ProjectPicker extends StatelessWidget {
   const _ProjectPicker({required this.vm, required this.locked});
 
@@ -442,54 +450,31 @@ class _ProjectPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     final companyId = vm.companyId;
-    // Empty client → no projects to choose from; render a disabled picker
-    // so the form layout doesn't shift when the user does pick a client.
-    return StreamBuilder<List<Project>>(
-      stream: vm.draft.clientId.isEmpty
-          ? const Stream<List<Project>>.empty()
-          : services.projects.watchForClient(
-              companyId: companyId,
-              clientId: vm.draft.clientId,
-            ),
-      builder: (context, snapshot) {
-        final projects = snapshot.data ?? const <Project>[];
-        Project? selected;
-        for (final p in projects) {
-          if (p.id == vm.draft.projectId) {
-            selected = p;
-            break;
-          }
-        }
-        final empty = vm.draft.clientId.isEmpty;
-        final tokens = context.inTheme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Lockable(
-              locked: locked || empty,
-              child: SearchableDropdownField<Project>(
-                label: context.tr('project'),
-                items: projects,
-                initialValue: selected,
-                displayString: (p) => p.name.isEmpty ? p.id : p.name,
-                idOf: (p) => p.id,
-                onChanged: vm.selectProject,
+    final clientId = vm.draft.clientId;
+    return _Lockable(
+      locked: locked,
+      child: EntityPickerField<Project>(
+        label: context.tr('project'),
+        // The list narrows to the picked client, so the client id is part of
+        // what invalidates the stream.
+        cacheKey: (companyId, clientId),
+        selectedId: vm.draft.projectId,
+        itemsStream: () => clientId.isEmpty
+            ? services.projects.watchPage(
+                companyId: companyId,
+                loadedPages: 100,
+              )
+            : services.projects.watchForClient(
+                companyId: companyId,
+                clientId: clientId,
               ),
-            ),
-            // Helper line that explains why the picker is greyed out when
-            // no client is set. Tucked under the field at the same offset
-            // an InputDecoration's `helperText` would use.
-            if (empty && !locked)
-              Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 0),
-                child: Text(
-                  context.tr('select_a_client_first'),
-                  style: TextStyle(fontSize: 12, color: tokens.ink3),
-                ),
-              ),
-          ],
-        );
-      },
+        watchById: (id) =>
+            services.projects.watch(companyId: companyId, id: id),
+        displayString: (p) => p.name.isEmpty ? p.id : p.name,
+        idOf: (p) => p.id,
+        emptyHintKey: 'no_records_found',
+        onChanged: vm.selectProject,
+      ),
     );
   }
 }

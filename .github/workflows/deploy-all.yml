@@ -1,0 +1,104 @@
+name: Deploy to all
+
+# Manual only — one dispatch that ships a release everywhere, in place of the
+# six individual deploy dispatches (each of which runs the whole test suite):
+#
+#   1. ready    — tools/check_release_ready.sh: the release notes are written
+#                 and tools/bump_client_version.sh has run (an unreleased
+#                 version, above the newest tag). Seconds; nothing is built if
+#                 it fails.
+#   2. release  — appimage.yml: its own test gate is the ONE test run of this
+#                 deploy, beside its preflight and F-Droid builds; then the
+#                 AppImage + F-Droid APKs + v<version> tag on a GitHub Release.
+#   3. the five stores, in parallel, once the Release exists — each called
+#      with skip_tests, so its nested `test` job shows as skipped. Expected.
+#
+# A failed release skips every store. A failed store leaves the others alone:
+# fix it (a secret, a console setting) and "Re-run failed jobs". Never
+# re-dispatch this for a version already released — `ready` refuses it, since
+# the stores reject a reused build number; a fix that needs a commit ships
+# through that store's own workflow.
+#
+# Dispatch on main: the F-Droid signing Environment is limited to it. Runs
+# appear under "Deploy to all" only, not in each store workflow's history.
+# docs/store-deployment-setup.md § 0 Start here.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never `appimage-release` (appimage.yml's own group): a caller and a callee in
+# one concurrency group deadlock.
+concurrency:
+  group: deploy-all
+  cancel-in-progress: false
+
+jobs:
+  ready:
+    name: Release notes and version bump
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Full history + tags: the check reads the newest tag's pubspec.yaml.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check the release is ready
+        run: tools/check_release_ready.sh
+
+  release:
+    needs: ready
+    name: GitHub Release
+    uses: ./.github/workflows/appimage.yml
+    # A called workflow can only narrow the caller's grant: preflight + publish
+    # need write to create the tag and the Release.
+    permissions:
+      contents: write
+    # Repo secrets (IN_SENTRY_DSN). The fdroid-signing Environment's secrets
+    # reach fdroid-sign through its own `environment:`, not through this.
+    secrets: inherit
+    # No skip_tests: this is where the suite runs. `publish` defaults to true.
+
+  # Every store call needs `secrets: inherit` — without it the build ships with
+  # Sentry silently off (test/lint/deploy_all_workflow_test.dart pins it).
+  snap:
+    needs: release
+    name: Snap
+    uses: ./.github/workflows/snapcraft.yml
+    secrets: inherit
+    with:
+      skip_tests: true
+
+  play:
+    needs: release
+    name: Google Play
+    uses: ./.github/workflows/playstore.yml
+    secrets: inherit
+    with:
+      skip_tests: true
+
+  msstore:
+    needs: release
+    name: Microsoft Store
+    uses: ./.github/workflows/microsoft-store.yml
+    secrets: inherit
+    with:
+      skip_tests: true
+
+  ios:
+    needs: release
+    name: TestFlight iOS
+    uses: ./.github/workflows/appstore-ios.yml
+    secrets: inherit
+    with:
+      skip_tests: true
+
+  macos:
+    needs: release
+    name: TestFlight macOS
+    uses: ./.github/workflows/appstore-macos.yml
+    secrets: inherit
+    with:
+      skip_tests: true

@@ -5,6 +5,10 @@ name: Test
 # `workflow_call`-only: it is not dispatchable on its own and shows in the
 # Actions sidebar with no runs of its own.
 #
+# deploy-all.yml runs it once per deploy — inside its call to appimage.yml —
+# and calls the five store workflows with `skip_tests: true`, which skips their
+# copy of this job. Their manual dispatches always run it.
+#
 # Single source of truth for "run the tests". Don't inline a second copy of
 # `flutter test` into a caller — add `uses: ./.github/workflows/_test.yaml`
 # instead, so the SDK pin and the codegen step can't drift between workflows.

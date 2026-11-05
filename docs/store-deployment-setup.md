@@ -11,7 +11,7 @@ Nothing in this guide requires editing a workflow. They are complete as written 
 Six workflows publish the app. Every one of them:
 
 - is **manual only** — GitHub → **Actions** → pick the workflow → **Run workflow** (on the default branch). There is no push, tag, or schedule trigger anywhere in this repo.
-- **runs the full test suite first** (`_test.yaml`, always on `ubuntu-latest`, ~8–12 min). A red suite stops the release before anything is built or uploaded.
+- **runs the full test suite first** (`_test.yaml`, always on `ubuntu-latest`, ~8–12 min). A red suite stops the release before anything is built or uploaded. Under **Deploy to all** (below) it runs once, inside the release, and the stores skip their copy.
 - ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
 
 | Target | Workflow | Lands in | Store credentials |
@@ -22,6 +22,9 @@ Six workflows publish the app. Every one of them:
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 8 |
 | macOS | `appstore-macos.yml` | TestFlight | 7 (3 shared with iOS) |
+| **All of the above** | `deploy-all.yml` | Every row above, release first | the union |
+
+**Deploy to all** (`deploy-all.yml`) is the one dispatch for a whole release. It runs `tools/check_release_ready.sh` (the release notes are written and the version bump has run, §5), then `appimage.yml` (its test gate is the run's only test run; the GitHub Release is created), then the five store workflows in parallel, each called with `skip_tests` so its nested `test` shows as skipped. A failed release skips every store; a failed store leaves the others alone. It includes **Microsoft**, which goes live with no manual gate. Its runs appear only under "Deploy to all" in the Actions sidebar, not in each store workflow's history.
 
 All six additionally read `IN_SENTRY_DSN`, which is optional — 28 secret names in total (four of them the F-Droid signing key, kept in an Environment), plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
 
@@ -413,7 +416,9 @@ Run them in this order — cheapest failure first:
 5. **iOS**, then **macOS** — most credential surface; TestFlight is still testers-only.
 6. **Microsoft Store** — last, because it is the only one that auto-publishes to the listing.
 
-**Bump the version first** (§5) for **Play, iOS, macOS, and Microsoft** — each rejects a re-used build number. **Snap** and **AppImage** don't require it, but know what skipping it means for AppImage: it re-uses the existing `v<version>` tag and *replaces the asset on that release* rather than cutting a new one.
+Once each target is green on its own, ship whole releases with **Deploy to all** (§5).
+
+**Bump the version first** (§5) for **Play, iOS, macOS, and Microsoft** — each rejects a re-used build number. **Snap** doesn't require it. **AppImage** re-dispatched for a version already released replaces the AppImage on that Release only from the *same* commit; from any other commit its preflight fails (`v<version> already points at …`), because F-Droid builds the tag. **Deploy to all** refuses an already-released version outright.
 
 **What success looks like**
 
@@ -425,7 +430,7 @@ Run them in this order — cheapest failure first:
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
 | Microsoft | Certification, then the live listing | Automatic — no promotion step |
 
-**After a Flutter bump that changes desktop rendering, run the desktop builds on real machines before they ship.** CI only *builds* Windows and Linux; nothing runs them. Flutter 3.47 made Impeller the renderer on Windows (over ANGLE) and Linux (over OpenGL), with new text rendering. Launch a `flutter build windows` build on real Windows hardware before running `microsoft-store.yml`, because Microsoft publishes straight to the listing after certification. Launch the AppImage or Snap on Linux before you promote it out of prerelease / `edge`. If either renders wrong, the per-platform opt-out is one line: `project.set_impeller_switch(flutter::ImpellerSwitch::Disabled)` in `windows/runner/main.cpp`, or `fl_dart_project_set_enable_impeller(project, FALSE)` in `linux/runner/my_application.cc`. Log it in `docs/upstream-workarounds.md` as MUST-REVERT, because Flutter says the Skia fallback will be removed. The same release made Impeller the default on macOS too. That one did ship broken: text was garbled on Intel Macs. macOS is opted out with `FLTEnableImpeller` = `false` in `macos/Runner/Info.plist` (`docs/upstream-workarounds.md` entry 16). Test the macOS build on an Intel Mac as well as Apple Silicon.
+**After a Flutter bump that changes desktop rendering, run the desktop builds on real machines before they ship.** CI only *builds* Windows and Linux; nothing runs them. Flutter 3.47 made Impeller the renderer on Windows (over ANGLE) and Linux (over OpenGL), with new text rendering. Launch a `flutter build windows` build on real Windows hardware before running `microsoft-store.yml` (or Deploy to all, which runs it), because Microsoft publishes straight to the listing after certification. Launch the AppImage or Snap on Linux before you promote it out of prerelease / `edge`. If either renders wrong, the per-platform opt-out is one line: `project.set_impeller_switch(flutter::ImpellerSwitch::Disabled)` in `windows/runner/main.cpp`, or `fl_dart_project_set_enable_impeller(project, FALSE)` in `linux/runner/my_application.cc`. Log it in `docs/upstream-workarounds.md` as MUST-REVERT, because Flutter says the Skia fallback will be removed. The same release made Impeller the default on macOS too. That one did ship broken: text was garbled on Intel Macs. macOS is opted out with `FLTEnableImpeller` = `false` in `macos/Runner/Info.plist` (`docs/upstream-workarounds.md` entry 16). Test the macOS build on an Intel Mac as well as Apple Silicon.
 
 ---
 
@@ -434,8 +439,19 @@ Run them in this order — cheapest failure first:
 ```sh
 tools/bump_client_version.sh     # patch +1 and build +1, e.g. 5.1.6+9 → 5.1.7+10
 git commit -am "Bump version"
-# then dispatch the workflows you want
+tools/check_release_ready.sh     # the notes are written and the bump agrees everywhere
+# then dispatch Deploy to all, or the individual workflows you want
 ```
+
+`tools/check_release_ready.sh` is the gate **Deploy to all** runs first, so run it before dispatching. It fails, naming the fix, unless:
+
+- `lib/domain/release_notes.dart` has a `kReleaseNotes` entry for the version, and the three F-Droid changelogs (`fastlane/metadata/android/en-US/changelogs/<build×10+1..3>.txt`) exist and match (`docs/release-notes.md` step 5);
+- `kClientVersion`, `snap/snapcraft.yaml` and the F-Droid recipe all name pubspec's version (the bump script writes all of them);
+- no `v<version>` tag exists on GitHub yet, and the version and build number are above the newest tag's.
+
+`--offline` skips the two tag checks.
+
+Don't dispatch the standalone **Deploy to GitHub Releases** while a Deploy to all is queued: both use the `appimage-release` concurrency group, which holds one running and one pending run, so a third run cancels the pending one, and with it every store.
 
 The bump rewrites three files in lockstep — `lib/app/version.dart` (`kClientVersion`), `pubspec.yaml` (`version:`), and `snap/snapcraft.yaml` (display `version:`) — and `test/app/version_test.dart` asserts they stay in sync.
 
@@ -450,7 +466,7 @@ The bump rewrites three files in lockstep — `lib/app/version.dart` (`kClientVe
 Two exceptions:
 
 - **Snap** is revision-ordered — no bump needed to publish.
-- **AppImage** keys off the display version, so re-dispatching the same version *updates* that Release in place and replaces the asset. Bump to cut a new one.
+- **AppImage** keys off the display version. Re-dispatching the same version from the same commit replaces the AppImage on that Release; from any other commit preflight fails. Bump to cut a new one. **Deploy to all** needs the bump regardless.
 
 ---
 
@@ -477,6 +493,13 @@ Two exceptions:
 | `msstore publish` fails on `--appId` | You used the `9N…` Store ID. Use the ~12-char **Product ID** (`msstore apps list`). |
 | Snap publish fails after months of working | `SNAPCRAFT_STORE_CREDENTIALS` expired. Re-run `snapcraft export-login`. |
 | Snap installs but can't save / can't open its database | Not a CI problem — the user must run `snap connect invoiceninja:password-manager-service`. |
+| Deploy to all: *"No release notes for X.Y.Z"* / *"Missing or empty F-Droid changelog(s)"* / *"changelogs … differ"* | The notes come before the bump: the `kReleaseNotes` entry and the three identical changelogs (`docs/release-notes.md` step 5). Commit them and re-dispatch. |
+| Deploy to all: *"kClientVersion …"* / *"snap/snapcraft.yaml's version …"* / *"tools/foss/… names …"* / *"Build number N is not above …"* | A version was edited by hand. Reset it and run `tools/bump_client_version.sh`, which writes every one of them. |
+| Deploy to all: *"vX.Y.Z is already released"* | That version shipped. To cut a new release, bump. To retry a store that failed in that release, open the original run and **Re-run failed jobs** (fix a secret or console setting first). A fix that needs a commit ships through that store's own workflow. |
+| *"vX.Y.Z already points at <sha>, not <sha>"* (release preflight) | A tag for that version exists on another commit: you didn't bump. Under Deploy to all no store starts. |
+| *"A draft Release for vX.Y.Z is left over from a failed run"* | Delete the draft on the Releases page and re-dispatch. |
+| Deploy to all: the release is red and all five stores are skipped | Fix the release (an F-Droid verify mismatch: `docs/fdroid.md` § The reproducibility gate) and **Re-run failed jobs**, or dispatch the stores individually meanwhile (each then runs its own tests). |
+| `fdroid-sign` refused by the `fdroid-signing` Environment | The run was dispatched on a branch other than `main`. Dispatch on `main`. |
 | AppImage build is green but no Release appears | Either you dispatched with `publish` unchecked, or Settings → Actions → Workflow permissions is not **Read and write**. |
 
 ---

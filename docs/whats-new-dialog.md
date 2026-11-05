@@ -34,6 +34,8 @@ After an update, the app opens a dialog of that release's notes: a few highlight
 
 Without it, a version could ship whose users the dialog has nothing to tell: `releasesToShow` would fall back to the previous release's notes, titled with that older version, for an install that predates the record, and show nothing at all to everyone else. The check sits in the bump rather than in CI because the bump is the step that makes a version real; a `kReleaseNotes` entry newer than `kClientVersion` is normal — the notes are written first — and `releasesToShow` ignores it until the build catches up.
 
+Deploy to all repeats the check at release time (`tools/check_release_ready.sh`), against the version in `pubspec.yaml` only: it catches a version edited by hand past the bump script, and still lets a newer entry sit unreleased.
+
 ## An update is told apart from an install by the store, not the session
 
 The builds before this feature recorded no version, so the first launch of 5.1.16 can't compare one. `main()` calls `WhatsNewController.noteLaunch(existingInstall: …)` once, after the boot restore and before the demo-token bootstrap:

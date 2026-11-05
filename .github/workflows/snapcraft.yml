@@ -5,6 +5,15 @@ name: Deploy to Snapcraft
 # snap; `grade: devel` in snap/snapcraft.yaml prevents an accidental stable push.
 on:
   workflow_dispatch:
+  # Also called by deploy-all.yml, whose release job has already run the
+  # suite once for this commit. `skip_tests` exists only on the call: a manual
+  # dispatch cannot skip the test gate.
+  workflow_call:
+    inputs:
+      skip_tests:
+        description: Set only by deploy-all.yml, whose release job already ran _test.yaml.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,10 +22,15 @@ jobs:
   # Test gate — mirrors appstore-ios.yml. CI is workflow_dispatch-only, so this
   # is what guarantees the suite ran before a snap reaches the edge channel.
   test:
+    # Skipped only under deploy-all.yml (skip_tests), whose release ran it once.
+    if: ${{ !inputs.skip_tests }}
     uses: ./.github/workflows/_test.yaml
 
   deploy-snap:
     needs: test
+    # A skipped `needs` skips this job too unless it states its own condition;
+    # `skipped` is deploy-all.yml's skip_tests, never a failed suite.
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     name: Build and Publish Snap
     # REQUIRED: the snap base is core22 == Ubuntu 22.04 (glibc 2.35). `flutter
     # build linux` runs on the host here, so the host MUST be 22.04 — a binary

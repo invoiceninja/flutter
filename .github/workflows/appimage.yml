@@ -20,6 +20,17 @@ on:
         description: Create/update the GitHub Release (uncheck for a build-only dry run)
         type: boolean
         default: true
+  # Also called by deploy-all.yml, as its first stage: this workflow's own test
+  # gate is the one test run of the whole deploy, and the stores wait for the
+  # Release. `publish` must be declared here too — without it inputs.publish
+  # is null when called, preflight takes the dry-run branch and the run goes
+  # green having published nothing.
+  workflow_call:
+    inputs:
+      publish:
+        description: Create/update the GitHub Release (false for a build-only dry run)
+        type: boolean
+        default: true
 
 # Read-only by default. `preflight` and `publish` get contents: write — the
 # only jobs in any publish workflow that do: publish creates the v<version> tag

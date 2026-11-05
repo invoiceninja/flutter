@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
+import 'package:admin/ui/core/list/entity_list_selection_row.dart';
 import 'package:admin/ui/core/list/entity_list_top_row.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
@@ -199,36 +200,8 @@ class EntityListAppBar<T> extends StatelessWidget
     );
   }
 
-  Widget _wideSelectionRow(BuildContext context) {
-    // One first-row slot tall, like every sibling of the search field: its
-    // 48-px touch buttons must not be what sets the header's height.
-    return HeaderRowSlot(
-      expand: true,
-      child: Row(
-        children: [
-          _closeButton(context),
-          const SizedBox(width: 8),
-          _countText(context),
-          const SizedBox(width: 8),
-          _selectAllButton(context),
-          const SizedBox(width: 8),
-          // Bulk actions have no primary Edit, so they keep the
-          // spread-inline-then-collapse-into-"More" overflow bar — the
-          // detail header now uses a dedicated Edit + ⋮ cluster instead.
-          // End-aligned within the Expanded, matching the old layout.
-          Expanded(
-            child: SizedBox(
-              width: double.infinity,
-              child: Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: EntityOverflowActionBar<String>(items: selectionItems),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _wideSelectionRow(BuildContext context) =>
+      EntityListSelectionRow<T>(vm: vm, items: selectionItems, wide: true);
 
   // ── Narrow ───────────────────────────────────────────────────────────
 
@@ -342,23 +315,15 @@ class EntityListAppBar<T> extends StatelessWidget
     );
   }
 
-  // ── Selection pieces ─────────────────────────────────────────────────
+  // ── Selection pieces — shared with an embedded list's selection row ──
 
-  Widget _closeButton(BuildContext context) => IconButton(
-    icon: const Icon(Icons.close),
-    tooltip: context.tr('cancel'),
-    onPressed: vm.clearSelection,
-  );
+  Widget _closeButton(BuildContext context) =>
+      selectionCloseButton(context, vm);
 
-  Widget _countText(BuildContext context) => Text(
-    context.tr('count_selected', {'count': vm.countSelected.toString()}),
-  );
+  Widget _countText(BuildContext context) => selectionCountText(context, vm);
 
-  Widget _selectAllButton(BuildContext context) => IconButton(
-    icon: const Icon(Icons.checklist_outlined),
-    tooltip: context.tr('select_all_visible'),
-    onPressed: vm.selectAllVisible,
-  );
+  Widget _selectAllButton(BuildContext context) =>
+      selectAllVisibleButton(context, vm);
 
   Future<void> _openSortSheet(BuildContext context) async {
     await showModalBottomSheet<void>(

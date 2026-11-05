@@ -195,8 +195,15 @@ class EmbeddedListTopRow extends StatelessWidget {
     this.canCreate = true,
     this.showNew = true,
     this.onNewPressed,
+    this.onSelect,
     super.key,
   });
+
+  /// Enters selection mode — the visible way in on a phone, where there is no
+  /// hover checkbox and a row's long-press is undiscoverable, as the
+  /// standalone list's narrow toolbar has. Null leaves the button out (a wide
+  /// toolbar, or a list with nothing to select).
+  final VoidCallback? onSelect;
 
   /// False leaves the New button out altogether — the parent record is
   /// read-only, so there is nothing to explain by greying it.
@@ -239,6 +246,16 @@ class EmbeddedListTopRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: searchField),
+        if (onSelect != null) ...[
+          const SizedBox(width: 4),
+          HeaderRowSlot(
+            child: IconButton(
+              tooltip: context.tr('select'),
+              icon: const Icon(Icons.checklist),
+              onPressed: onSelect,
+            ),
+          ),
+        ],
         if (showNew && create != null) ...[
           const SizedBox(width: 12),
           HeaderRowSlot(child: newButton),

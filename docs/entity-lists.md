@@ -75,6 +75,10 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 
 **No strip on an embedded list** (`widget.embedded`): the counts are company-wide, so "Draft 47" on one client's Invoices tab would be a flat lie.
 
+
+### An embedded list selects like a standalone one
+
+**An embedded list's toolbar swaps for the selection row while selecting** (`EntityListSelectionRow`: Cancel, "N selected", Select all visible, the bulk actions). The standalone list shows it in its header; a record screen's Invoices, Quotes, Payments… tab has no header of its own, so its rows could be ticked — long-press, or the hover checkbox — with nothing to act on them (invoiceninja/flutter#186). The two share the widget and its pieces (`selectionCloseButton`, `selectionCountText`, `selectAllVisibleButton`), so they can't drift apart. It is an `IndexedStack` over the slim toolbar, as the standalone header is, so the search field keeps its state and the row its height. A narrow embedded toolbar also carries the standalone narrow list's Select button: on a phone there is no hover checkbox and a row's long-press is undiscoverable. Pinned by `test/ui/core/list/embedded_list_selection_test.dart`.
 ### The strip renders whenever a tab is active, even with the device setting off
 
 **The strip renders whenever a tab is active, even with the device setting off** — a `badge_mode` restored from `nav_state` or applied by a saved view is a live filter, and hiding its only control would leave the list narrowed with nothing but "Clear filters" to escape. `_hydrate` drops a `badge_mode` naming a mode this build no longer offers, for the same reason `_migrateLegacyUpdatedBetween` exists.

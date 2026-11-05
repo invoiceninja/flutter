@@ -32,6 +32,7 @@ import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_bulk_message.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
+import 'package:admin/ui/core/list/entity_list_selection_row.dart';
 import 'package:admin/ui/core/list/entity_list_result_scope.dart';
 import 'package:admin/ui/core/list/entity_list_app_bar.dart';
 import 'package:admin/ui/core/list/entity_list_top_row.dart';
@@ -1364,30 +1365,56 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                     padding: EdgeInsets.symmetric(
                       vertical: InSpacing.lg(context),
                     ),
-                    child: EmbeddedListTopRow(
-                      wide: wide,
-                      newRoute: widget.newRoute,
-                      newLabelKey: widget.newLabelKey,
-                      canCreate: widget.canCreate,
-                      // Null when the parent record is read-only, which
-                      // withdraws the button rather than disabling it.
-                      showNew: _embeddedNewHandler(context) != null,
-                      onNewPressed: _embeddedNewHandler(context),
-                      // Key by company so the search field's State (which
-                      // binds its TokenSearchController to the VM ONCE in
-                      // initState — `TokenSearchController.vm` is final) is
-                      // recreated on a company switch. Without this the same
-                      // element is reused via didUpdateWidget with the new
-                      // `_vm`, but the controller + its VM listener still
-                      // point at the old, now-disposed VM, so chips reflect
-                      // the previous workspace and chip edits no-op. Same
-                      // value-keyed-identity idiom as the row KeyedSubtree.
-                      searchField: KeyedSubtree(
-                        key: ValueKey(_companyId),
-                        child: _withResultScope(
-                          widget.searchFieldBuilder(context, _vm, searchWide),
+                    // Selecting swaps the toolbar for the selection row, as
+                    // the standalone header does: without it the rows of a
+                    // record screen's tab could be ticked with nothing to act
+                    // on them (invoiceninja/flutter#186). Stacked, not
+                    // swapped, so the search field keeps its state and the
+                    // row its height.
+                    child: IndexedStack(
+                      index: selecting ? 1 : 0,
+                      alignment: AlignmentDirectional.topStart,
+                      children: [
+                        EmbeddedListTopRow(
+                          wide: wide,
+                          newRoute: widget.newRoute,
+                          newLabelKey: widget.newLabelKey,
+                          canCreate: widget.canCreate,
+                          // Null when the parent record is read-only, which
+                          // withdraws the button rather than disabling it.
+                          showNew: _embeddedNewHandler(context) != null,
+                          onNewPressed: _embeddedNewHandler(context),
+                          onSelect: (!wide && _vm.items.isNotEmpty)
+                              ? _vm.enterSelectionMode
+                              : null,
+                          // Key by company so the search field's State (which
+                          // binds its TokenSearchController to the VM ONCE in
+                          // initState — `TokenSearchController.vm` is final) is
+                          // recreated on a company switch. Without this the same
+                          // element is reused via didUpdateWidget with the new
+                          // `_vm`, but the controller + its VM listener still
+                          // point at the old, now-disposed VM, so chips reflect
+                          // the previous workspace and chip edits no-op. Same
+                          // value-keyed-identity idiom as the row KeyedSubtree.
+                          searchField: KeyedSubtree(
+                            key: ValueKey(_companyId),
+                            child: _withResultScope(
+                              widget.searchFieldBuilder(
+                                context,
+                                _vm,
+                                searchWide,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        EntityListSelectionRow<T>(
+                          vm: _vm,
+                          items: selecting
+                              ? _bulkActionItems(context)
+                              : const <EntityActionItem<String>>[],
+                          wide: wide,
+                        ),
+                      ],
                     ),
                   ),
                   // Scope only the rows (not the toolbar above) so tiles +

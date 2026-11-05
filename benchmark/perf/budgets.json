@@ -42,7 +42,8 @@
       "budgetMs": 20
     },
     "invoices.list_search": {
-      "budgetMs": 36
+      "budgetMs": 36,
+      "since": "2026-11-05"
     },
     "invoices.list_status_tab": {
       "budgetMs": 3.8

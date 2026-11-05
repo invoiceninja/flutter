@@ -277,7 +277,9 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
               companyId: companyId,
               search: search,
               includeContacts: true,
-            ),
+            ) |
+            // invoiceninja/flutter#185: the server searches line items too.
+            lineItemSearchMatches(payload: e.payload, search: search),
       );
     }
 

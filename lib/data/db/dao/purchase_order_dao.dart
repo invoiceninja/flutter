@@ -197,11 +197,17 @@ class PurchaseOrderDao
             searchLike(e.customValue2, search) |
             searchLike(e.customValue3, search) |
             searchLike(e.customValue4, search) |
+            // The server also LIKEs these (`PurchaseOrderFilters`).
+            serverDateLike(e.date, search) |
+            serverDecimalLike(e.amount, search) |
+            serverDecimalLike(e.balance, search) |
             vendorNameMatchesFilter(
               vendorId: e.vendorId,
               companyId: companyId,
               search: search,
-            ),
+            ) |
+            // invoiceninja/flutter#185: the server searches line items too.
+            lineItemSearchMatches(payload: e.payload, search: search),
       );
     }
     q.orderBy([

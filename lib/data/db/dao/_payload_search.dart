@@ -14,9 +14,18 @@ import 'package:admin/data/db/dao/_search_fold.dart';
 /// Replaces the hand-built per-DAO helpers that concatenated the raw search
 /// term straight into a `LIKE` clause in the SQL text, which both broke on
 /// apostrophes and was injectable.
+///
+/// A payload that isn't a JSON object reads as empty: `json_extract` on one
+/// throws "malformed JSON", which failed the whole list's search, not just
+/// that row's match. Payloads are written by `jsonEncode`, so the same `{`
+/// shape check the contacts and line-item searches use is enough (a
+/// `json_valid` guard would parse every payload twice).
 Expression<bool> payloadJsonLike(String search, List<String> jsonKeys) {
   Expression<bool> likeKey(String key) => searchLike(
-    CustomExpression<String>("COALESCE(json_extract(payload, '\$.$key'), '')"),
+    CustomExpression<String>(
+      "COALESCE(CASE WHEN substr(payload, 1, 1) = '{' "
+      "THEN json_extract(payload, '\$.$key') END, '')",
+    ),
     search,
   );
 

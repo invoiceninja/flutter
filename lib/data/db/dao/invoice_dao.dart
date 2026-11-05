@@ -109,8 +109,10 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
   };
 
   /// Windowed list watch. Filters: state (active/archived/deleted), free-text
-  /// search across number + public_notes + private_notes + po_number (via
-  /// payload JSON extract). Sort field is one of [InvoiceFieldIds].
+  /// search across number, po_number, public / private notes, custom values,
+  /// the client (and its contacts), the project, and line items' notes and
+  /// product keys — `InvoiceFilters::filter`'s fields. Sort field is one of
+  /// [InvoiceFieldIds].
   Stream<List<InvoiceRow>> watchPage({
     required String companyId,
     required int offset,
@@ -255,6 +257,10 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
             searchLike(e.customValue2, search) |
             searchLike(e.customValue3, search) |
             searchLike(e.customValue4, search) |
+            // The server also LIKEs these (`InvoiceFilters`).
+            serverDateLike(e.date, search) |
+            serverDecimalLike(e.amount, search) |
+            serverDecimalLike(e.balance, search) |
             clientNameMatchesFilter(
               clientId: e.clientId,
               companyId: companyId,
@@ -265,7 +271,9 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
               projectId: e.projectId,
               companyId: companyId,
               search: search,
-            ),
+            ) |
+            // invoiceninja/flutter#185: the server searches line items too.
+            lineItemSearchMatches(payload: e.payload, search: search),
       );
     }
 

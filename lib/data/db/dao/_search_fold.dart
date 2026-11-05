@@ -84,6 +84,55 @@ Expression<bool> contactSearchMatches({
   ]).isBiggerThanValue(0),
 );
 
+/// Whether a decimal column (stored as text, `150`) matches [search] the way
+/// the server's `LIKE` reads it: MySQL renders its `decimal(20,6)` amounts
+/// with six places (`150.000000`), so `150.00` finds an amount of 150 there.
+/// Matching the stored text instead would hide those rows locally.
+///
+/// That text holds only digits, `.` and `-`, so a search with anything else
+/// can't match it and is answered in Dart — the common text search pays
+/// nothing for the `printf` on every row.
+Expression<bool> serverDecimalLike(Expression<String> column, String search) =>
+    _kDecimalChars.hasMatch(search)
+    ? searchLike(
+        FunctionCallExpression<String>('printf', [
+          const Constant('%.6f'),
+          column.cast<double>(),
+        ]),
+        search,
+      )
+    : const Constant(false);
+
+/// Whether a date column (`YYYY-MM-DD`) matches [search] as the server's
+/// `LIKE` on a `DATE` does. Only digits and `-` can match, so any other search
+/// is answered in Dart, like [serverDecimalLike].
+Expression<bool> serverDateLike(Expression<String> column, String search) =>
+    _kDateChars.hasMatch(search)
+    ? searchLike(column, search)
+    : const Constant(false);
+
+final _kDecimalChars = RegExp(r'^[0-9.\-]+$');
+final _kDateChars = RegExp(r'^[0-9\-]+$');
+
+/// The line-item fields every billing document's server search reads —
+/// `InvoiceFilters`, `QuoteFilters`, `CreditFilters`, `RecurringInvoiceFilters`
+/// and `PurchaseOrderFilters` all match `line_items[*].notes` and
+/// `line_items[*].product_key`.
+const kLineItemSearchKeys = ['notes', 'product_key'];
+
+/// Whether any line item in [payload]'s `line_items` has a description
+/// (`notes`) or product key matching [search], the way [searchLike] matches.
+///
+/// The five billing lists' local search left line items out, so every server
+/// match found through one was fetched and then hidden (invoiceninja/flutter
+/// #185). Each value is matched on its own, so a search never spans two items
+/// or two fields; a payload that isn't a JSON object, or has no `line_items`,
+/// matches nothing. See docs/local-search-matching.md.
+Expression<bool> lineItemSearchMatches({
+  required Expression<String> payload,
+  required String search,
+}) => _LineItemSearchLike(payload, search);
+
 /// Fill `contact_search` on [table]'s rows for [companyId] that predate it,
 /// [batchSize] at a time, from each row's payload. Returns how many rows it
 /// filled.
@@ -264,6 +313,13 @@ Expression<String> _stripMarks(Expression<String> value) {
   );
 }
 
+/// `EXISTS` over `json_tree([json], [path])`, true when a value under one of
+/// [keys] matches [search] through [searchLike] — the contacts fallback.
+///
+/// Never write an unqualified column name inside the subquery: `json_tree`'s
+/// own columns (`id`, `key`, `value`, `type`, `path`, …) would capture it, so
+/// an outer `id` would silently read the tree's. Qualify it, or pass it in as
+/// [json] is.
 class _JsonArraySearchLike extends Expression<bool> {
   _JsonArraySearchLike(this.json, this.path, this.keys, this.search);
 
@@ -293,6 +349,53 @@ class _JsonArraySearchLike extends Expression<bool> {
     context.buffer.write(') AND ');
     searchLike(
       const CustomExpression<String>('je.value'),
+      search,
+    ).writeInto(context);
+    context.buffer.write(')');
+  }
+}
+
+/// `EXISTS` over the payload's `line_items`, true when an item's `notes` or
+/// `product_key` matches [search] through [searchLike]. See
+/// [lineItemSearchMatches].
+///
+/// [_JsonArraySearchLike]'s shape, with the payload passed through `jsonb()`
+/// first: `json_tree` would otherwise parse the whole payload again, while
+/// `jsonb()` reuses the parse the notes search already made of it in this
+/// statement. Pulling the two keys out of each item with `->>` instead (one
+/// `json_each` row per item) measured slower still: [searchLike] repeats its
+/// value several times, so each item was read again for every repetition. The
+/// timings are in docs/local-search-matching.md. Kept apart from the contacts
+/// path, which this does not change.
+///
+/// Never write an unqualified column name inside the subquery: `json_tree`'s
+/// own columns (`id`, `key`, `value`, `type`, …) would capture it.
+class _LineItemSearchLike extends Expression<bool> {
+  _LineItemSearchLike(this.payload, this.search);
+
+  final Expression<String> payload;
+  final String search;
+
+  @override
+  Precedence get precedence => Precedence.primary;
+
+  @override
+  void writeInto(GenerationContext context) {
+    // The same `{` shape check as the contacts path: anything that isn't a
+    // JSON object reads as no line items rather than throwing.
+    context.buffer.write(
+      'EXISTS (SELECT 1 FROM json_tree(jsonb(CASE WHEN substr(',
+    );
+    payload.writeInto(context);
+    context.buffer.write(", 1, 1) = '{' THEN ");
+    payload.writeInto(context);
+    context.buffer.write(
+      " ELSE '{}' END), '\$.line_items') AS li WHERE li.key IN (",
+    );
+    context.buffer.write(kLineItemSearchKeys.map((k) => "'$k'").join(', '));
+    context.buffer.write(') AND ');
+    searchLike(
+      const CustomExpression<String>('li.value'),
       search,
     ).writeInto(context);
     context.buffer.write(')');

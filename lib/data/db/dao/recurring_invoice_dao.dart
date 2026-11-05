@@ -190,12 +190,17 @@ class RecurringInvoiceDao
             searchLike(e.customValue2, search) |
             searchLike(e.customValue3, search) |
             searchLike(e.customValue4, search) |
+            // The server also LIKEs these (`RecurringInvoiceFilters`).
+            serverDateLike(e.date, search) |
+            serverDecimalLike(e.amount, search) |
             clientNameMatchesFilter(
               clientId: e.clientId,
               companyId: companyId,
               search: search,
               includeContacts: true,
-            ),
+            ) |
+            // invoiceninja/flutter#185: the server searches line items too.
+            lineItemSearchMatches(payload: e.payload, search: search),
       );
     }
     q.orderBy([

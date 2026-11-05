@@ -61,6 +61,43 @@ Reading them from the payload (`json_tree` over `$.contacts`) is correct and cos
 
 Pinned by `client_vendor_name_search_test.dart` (the fallback path: rows inserted with the column NULL) and `migration_test.dart` › v15 → v16 (NULL after the upgrade, found through the payload, filled, found through the column).
 
+## Line items are matched per value, from the payload
+
+The server's search on all five billing documents — `InvoiceFilters`, `QuoteFilters`, `CreditFilters`, `RecurringInvoiceFilters` and `PurchaseOrderFilters` → `filter()` — matches `line_items[*].notes` and `line_items[*].product_key`. The local predicates left line items out, so a document the server found through one was fetched and then hidden: searching a product or a work description found nothing (invoiceninja/flutter#185).
+
+`lineItemSearchMatches` (`_search_fold.dart`) is the last term of each DAO's search, so a row a cheaper field already matched never walks its JSON. It is an `EXISTS` over `json_tree(jsonb(<payload>), '$.line_items')`, keeping only the `notes` and `product_key` nodes and running `searchLike` on each value:
+
+- Each value is matched on its own, so a search never spans two items or two fields (the server's LIKE over the serialised array can; see Known limits).
+- The `{` shape check is the contacts path's: a payload that isn't a JSON object, or has no `line_items`, matches nothing rather than throwing.
+- Not a scalar subquery handed to `searchLike`: it repeats its value several times in the SQL (length, octet_length, LIKE, every GLOB variant), and SQLite re-runs a correlated subquery each time.
+
+The cost lands on rows nothing else matched — every item of every such row is walked. On `invoices.list_search` (5,000 invoices × 8 lines, a term no line item holds, so the worst case), scaled to the reference machine:
+
+| Shape | ms | Budget |
+|---|--:|--:|
+| Before line items | 14.5 | 36 |
+| `json_tree(<payload>)` — the contacts path as is | ~41 | 36 |
+| `json_tree(jsonb(<payload>))` — shipped | 33.7 | 36 |
+| `json_each` + `->>` per key | 59.3 | 36 |
+
+`jsonb()` lets the walk reuse the parse the notes search (`json_extract`) already made of the same payload in the statement; `json_tree` on the text would parse it again. Extracting the two keys per item with `->>` was slower still, because each repetition inside `searchLike` reads the item again. The budget's `since` accepts the slowdown. If the account sizes it is measured against grow, the next step is the contacts approach — a pre-folded column written by the mappers (§ A contact is matched through a pre-folded column).
+
+Pinned by `line_item_search_test.dart`: the helper on its own (fields, folding, no cross-item or cross-field match, every malformed shape, literals), and each of the five DAOs through `watchPage(search:)`.
+
+## Dates and amounts are matched the way the server renders them
+
+`InvoiceFilters`, `CreditFilters` and `PurchaseOrderFilters` also LIKE `date`, `amount` and `balance`; `RecurringInvoiceFilters` `date` and `amount`; `QuoteFilters` none of them. The local predicates left them out — the same fetched-then-hidden bug as line items, for a typed date or amount (found alongside #185).
+
+- **A date** (`YYYY-MM-DD` text on both sides) goes through `serverDateLike`, a plain `searchLike`.
+- **An amount** is a MySQL `decimal(20,6)`, which LIKE reads as `150.000000`, so `150.00` finds an amount of 150 there. Locally it is stored as text (`150`), so `serverDecimalLike` matches `printf('%.6f', CAST(amount AS REAL))` instead of the column.
+- **Both answer in Dart when the search can't match**: those strings hold only digits, `-` (and `.`), so a search with any other character skips the comparison and the per-row `printf`. Without that the 5,000-invoice text search went from 33.7 to 36.1 ms, over its budget; with it, a text search costs nothing extra.
+
+Pinned by `billing_search_server_fields_test.dart`.
+
+## A payload that isn't a JSON object never breaks a search
+
+`payloadJsonLike` (the notes search on billing documents, expenses, recurring expenses and payments) called `json_extract` on every row's payload. On a payload that isn't JSON (`''` on an old row) SQLite throws "malformed JSON", and the whole list's search failed, not just that row's match — though only for a search that reached that row's notes, so one that matched the number first hid it. It now uses the same `{` shape check as the contacts and line-item searches, and reads such a payload as empty. Pinned by `billing_search_server_fields_test.dart` › a payload that is not a JSON object never breaks the search.
+
 ## Client search splits on spaces, like the server
 
 `ClientFilters::filter` splits the search on spaces and requires every word to match some field. Locally the whole text was one pattern, so `Hans Müller` found only a client whose name held that exact phrase, and `Müller Hans` found nothing. `ClientDao.watchPage` now ANDs one group per word. No other server filter splits, so no other DAO does.
@@ -76,4 +113,6 @@ The `/activity` search does too (`ActivityViewModel._matchesBase`: the rendered 
 - The accent table covers Latin-1 Supplement and Latin Extended-A. A letter outside it (Vietnamese `ạ`, Latin Extended-B) matches only itself, in either case. Extending it is a data change to `_kFoldGroups`, and the parity test then covers the new entries.
 - Sorting is untouched. `ORDER BY lower(name)` still places `Ö` after `z`.
 - A search with more than three ligature pairs (`ss`, `ae`, `oe`, `ij`, `th`) gets only eight `GLOB` variants. The later pairs then match only as two letters, so they no longer find a `ß` or `æ` in a non-ASCII value. The all-letters reading is always kept.
+- The server LIKEs line items as one serialised array (`["notes …", "SKU…"]`), so a search spanning two items, or holding the JSON's own quotes and commas, can match there and not locally. Matching each value on its own is deliberately narrower.
+- An amount is compared as a double (`CAST(amount AS REAL)`), so one with more than about fifteen significant digits can render differently from MySQL's exact decimal in its last places.
 - `%` and `_` are literal locally, while the server's `LIKE` treats them as wildcards. This deliberately breaks the superset rule: `50%` no longer finds `500`, so a server row matched only through a wildcard is hidden.

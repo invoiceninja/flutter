@@ -6,6 +6,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Project edit + create screen. Optimistic — `save()` lands the
 /// draft in Drift via the repo, returns the saved entity, and the outbox
@@ -28,6 +29,11 @@ class ProjectEditViewModel extends GenericEditViewModel<Project> {
        );
 
   final ProjectRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
 
   /// Localized "please enter a name" — injected from the edit screen's

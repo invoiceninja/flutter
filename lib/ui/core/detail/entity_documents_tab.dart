@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:provider/provider.dart';
-
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/document_open_actions.dart';
+import 'package:admin/ui/core/widgets/attachments_plan_gate.dart';
 import 'package:admin/ui/core/widgets/document_type_icon.dart';
 import 'package:admin/ui/core/widgets/document_capture.dart';
+import 'package:admin/ui/core/widgets/documents_save_first.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
@@ -82,32 +81,13 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    if (_isTmp) {
-      return Padding(
-        padding: EdgeInsets.all(InSpacing.lg(context)),
-        child: Text(
-          context.tr('save_to_upload_documents'),
-          style: TextStyle(color: tokens.ink3),
-        ),
-      );
-    }
+    if (_isTmp) return const DocumentsSaveFirstNotice();
     // Document attachments are an Enterprise feature on hosted (parity with
     // admin-portal `document_grid.dart` & React `Upload.tsx`). Trialing users
     // keep access (`hasEnterpriseAccess` is trial-aware). Existing documents
     // stay viewable / downloadable (read-value policy) — only upload and the
     // per-row mutate actions are gated.
-    //
-    // This is a shared leaf reused in widget tests that don't mount a
-    // `Services` provider; resolve it defensively (no provider → ungated,
-    // matching pre-gate behaviour) instead of throwing.
-    Services? services;
-    try {
-      services = context.watch<Services>();
-    } catch (_) {
-      services = null;
-    }
-    final session = services?.auth.session.value;
-    final planGated = !(session?.canAttachDocuments ?? true);
+    final planGated = !attachmentsAllowed(context);
     final readOnly = widget.readOnly || planGated;
     final sorted = [...widget.documents]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));

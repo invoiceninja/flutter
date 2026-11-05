@@ -3,6 +3,7 @@ import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Vendor edit + create screen.
 ///
@@ -28,6 +29,11 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
        );
 
   final VendorRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
 
   /// Localized "please enter a name" message, resolved at the screen (VMs have

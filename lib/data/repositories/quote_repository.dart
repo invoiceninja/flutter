@@ -19,6 +19,7 @@ import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/embedded_documents_owner.dart';
 import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/quotes_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -37,7 +38,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     with
         EntityCommentMutations<Quote, QuoteApi>,
         BillingDocEmailMutations<Quote, QuoteApi>
-    implements EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   QuoteRepository({
     required super.db,
     required this.api,
@@ -409,6 +410,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
 
   // ── Documents ──────────────────────────────────────────────────────
 
+  @override
   Future<void> uploadDocument({
     required String companyId,
     required String entityId,
@@ -420,6 +422,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     payload: {'entity_id': entityId, ...source.toPayload()},
   );
 
+  @override
   Future<void> deleteDocument({
     required String companyId,
     required String entityId,
@@ -431,6 +434,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     payload: {'entity_id': entityId, 'document_id': documentId},
   );
 
+  @override
   Future<void> setDocumentVisibility({
     required String companyId,
     required String entityId,

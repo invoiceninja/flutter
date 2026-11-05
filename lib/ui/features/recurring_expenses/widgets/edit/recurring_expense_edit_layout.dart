@@ -17,6 +17,7 @@ import 'package:admin/ui/features/recurring_expenses/widgets/edit/recurring_expe
 import 'package:admin/ui/features/recurring_expenses/widgets/edit/recurring_expense_edit_invoicing_section.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/edit/recurring_expense_edit_notes_section.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/edit/recurring_expense_edit_schedule_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Lays out the recurring-expense edit-screen sections using the v2 two-column
 /// pattern: expanded main column + fixed-width sidebar on wide widths, single
@@ -76,6 +77,10 @@ class RecurringExpenseEditLayout extends StatelessWidget {
               RecurringExpenseEditNotesSection(vm: vm),
               SizedBox(height: InSpacing.md(context)),
               RecurringExpenseEditInvoicingSection(vm: vm),
+              if (vm.offersDocuments) ...[
+                SizedBox(height: InSpacing.md(context)),
+                CreateFormDocumentsCard(vm: vm),
+              ],
               SizedBox(height: InSpacing.md(context)),
               _CollapsibleFormSection(
                 title: context.tr('currency_conversion'),
@@ -106,6 +111,10 @@ class RecurringExpenseEditLayout extends StatelessWidget {
         RecurringExpenseEditInvoicingSection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         RecurringExpenseEditNotesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.md(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
         SizedBox(height: InSpacing.md(context)),
         _CollapsibleFormSection(
           title: context.tr('currency_conversion'),

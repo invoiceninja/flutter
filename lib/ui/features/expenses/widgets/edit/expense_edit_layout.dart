@@ -26,8 +26,7 @@ import 'package:admin/ui/features/expenses/widgets/edit/expense_edit_payment_sec
 ///
 /// - ≥1000 px: two columns. Left (`Expanded`) holds Identity, Amount/Tax, and
 ///   Payment — the core transaction fields. Right (`_sidebarWidth` 360 px)
-///   holds Documents (create only, where the plan allows attachments —
-///   [showsExpenseDocumentsCard]), Notes, Invoicing, and the three
+///   holds Documents (create only — `vm.offersDocuments`), Notes, Invoicing, and the three
 ///   collapsible secondary sections (Currency conversion, Banking, Custom
 ///   fields).
 /// - <1000 px: single centered column (≤820 px), pre-refactor order, with
@@ -48,10 +47,7 @@ class ExpenseEditLayout extends StatelessWidget {
           builder: (context, constraints) {
             final twoCol =
                 constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
-            final documents = showsExpenseDocumentsCard(
-              isCreate: vm.isCreate,
-              session: context.read<Services>().auth.session.value,
-            );
+            final documents = vm.offersDocuments;
             return SingleChildScrollView(
               padding: EdgeInsets.all(InSpacing.lg(context)),
               child: twoCol

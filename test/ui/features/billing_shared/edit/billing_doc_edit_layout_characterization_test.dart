@@ -68,6 +68,8 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
+    // A new document's save-first placeholder (docs/attaching-documents.md).
+    'Documents': [],
   },
   BillingDoc.quote: {
     'Details': [
@@ -84,6 +86,8 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
+    // A new document's save-first placeholder (docs/attaching-documents.md).
+    'Documents': [],
   },
   BillingDoc.credit: {
     'Details': [
@@ -100,6 +104,8 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
+    // A new document's save-first placeholder (docs/attaching-documents.md).
+    'Documents': [],
   },
   BillingDoc.purchaseOrder: {
     'Details': [
@@ -114,6 +120,7 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': ['Design', 'Project', 'Exchange Rate', 'User', 'Add tag'],
+    'Documents': [],
   },
   BillingDoc.recurringInvoice: {
     'Details': [
@@ -129,6 +136,8 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
+    // A new document's save-first placeholder (docs/attaching-documents.md).
+    'Documents': [],
   },
 };
 
@@ -222,6 +231,7 @@ const _notesSubtabs = [
   'Public Notes',
   'Private Notes',
   'Settings',
+  'Documents',
 ];
 
 /// The documents that grow an E-Invoice tab when the company enables it.

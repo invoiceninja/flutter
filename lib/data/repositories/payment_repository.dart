@@ -38,7 +38,7 @@ final _log = Logger('PaymentRepository');
 /// variants and dispatched via `customActions`.
 class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     with EntityCommentMutations<Payment, PaymentApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   PaymentRepository({
     required super.db,
     required this.api,

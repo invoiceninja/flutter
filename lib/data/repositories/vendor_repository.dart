@@ -35,7 +35,7 @@ import 'package:admin/utils/search_fold.dart';
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     with EntityCommentMutations<Vendor, VendorApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   VendorRepository({
     required super.db,
     required this.api,

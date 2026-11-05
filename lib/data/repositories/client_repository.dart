@@ -38,7 +38,7 @@ import 'package:admin/utils/search_fold.dart';
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     with EntityCommentMutations<Client, ClientApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   ClientRepository({
     required super.db,
     required this.api,

@@ -61,7 +61,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     with
         EntityCommentMutations<Invoice, InvoiceApi>,
         BillingDocEmailMutations<Invoice, InvoiceApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   InvoiceRepository({
     required super.db,
     required this.api,

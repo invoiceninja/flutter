@@ -11,6 +11,7 @@ import 'package:admin/ui/features/projects/view_models/project_edit_view_model.d
 import 'package:admin/ui/features/projects/widgets/edit/project_edit_budget_section.dart';
 import 'package:admin/ui/features/projects/widgets/edit/project_edit_details_section.dart';
 import 'package:admin/ui/features/projects/widgets/edit/project_edit_notes_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Lays out the project edit cards (Details, Budget, Notes, Custom Fields)
 /// using the same `1fr` main + fixed-width sidebar pattern as
@@ -68,6 +69,10 @@ class ProjectEditLayout extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ProjectEditNotesSection(vm: vm),
+              if (vm.offersDocuments) ...[
+                SizedBox(height: InSpacing.md(context)),
+                CreateFormDocumentsCard(vm: vm),
+              ],
               SizedBox(height: InSpacing.md(context)),
               _customFieldsSection(context),
             ],
@@ -108,6 +113,10 @@ class ProjectEditLayout extends StatelessWidget {
         ProjectEditBudgetSection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         ProjectEditNotesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.md(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
         SizedBox(height: InSpacing.md(context)),
         _customFieldsSection(context),
       ],

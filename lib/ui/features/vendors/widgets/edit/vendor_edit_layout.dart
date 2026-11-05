@@ -9,6 +9,7 @@ import 'package:admin/ui/features/vendors/widgets/edit/vendor_edit_contacts_sect
 import 'package:admin/ui/features/vendors/widgets/edit/vendor_edit_details_section.dart';
 import 'package:admin/ui/features/vendors/widgets/edit/vendor_edit_notes_section.dart';
 import 'package:admin/ui/features/vendors/widgets/edit/vendor_edit_settings_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Lays out the edit-screen cards (Details, Address, Settings, Contacts,
 /// Notes) using the same v2 mockup pattern as `ClientEditLayout`:
@@ -64,6 +65,10 @@ class VendorEditLayout extends StatelessWidget {
               VendorEditContactsSection(vm: vm),
               SizedBox(height: InSpacing.md(context)),
               VendorEditNotesSection(vm: vm),
+              if (vm.offersDocuments) ...[
+                SizedBox(height: InSpacing.md(context)),
+                CreateFormDocumentsCard(vm: vm),
+              ],
             ],
           ),
         ),
@@ -84,6 +89,10 @@ class VendorEditLayout extends StatelessWidget {
         VendorEditContactsSection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         VendorEditNotesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.md(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
       ],
     );
   }

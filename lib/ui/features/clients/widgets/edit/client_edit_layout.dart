@@ -10,6 +10,7 @@ import 'package:admin/ui/features/clients/widgets/edit/client_edit_details_secti
 import 'package:admin/ui/features/clients/widgets/edit/client_edit_notes_section.dart';
 import 'package:admin/ui/features/clients/widgets/edit/client_edit_settings_section.dart';
 import 'package:admin/ui/features/clients/widgets/edit/client_edit_shipping_address_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Lays out the four edit-screen cards (Details, Address, Notes, Contacts)
 /// using the v2 mockup pattern: `1fr` main column + fixed-width side column
@@ -68,6 +69,10 @@ class ClientEditLayout extends StatelessWidget {
               ClientEditContactsSection(vm: vm),
               SizedBox(height: InSpacing.md(context)),
               ClientEditNotesSection(vm: vm),
+              if (vm.offersDocuments) ...[
+                SizedBox(height: InSpacing.md(context)),
+                CreateFormDocumentsCard(vm: vm),
+              ],
             ],
           ),
         ),
@@ -90,6 +95,10 @@ class ClientEditLayout extends StatelessWidget {
         ClientEditSettingsSection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         ClientEditNotesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.md(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
       ],
     );
   }

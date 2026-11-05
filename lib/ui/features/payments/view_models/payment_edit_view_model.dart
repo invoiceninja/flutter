@@ -7,6 +7,7 @@ import 'package:admin/data/repositories/payment_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Translation key surfaced as a toast when [PaymentEditViewModel
 /// .validateForSave] detects credits exceed invoices.
@@ -56,6 +57,11 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
        );
 
   final PaymentRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
   final bool enableApplyingPayments;
 

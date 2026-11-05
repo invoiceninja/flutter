@@ -542,6 +542,7 @@ Panels are ordered and hidden per user — `DashboardKind.panelKinds` is the reg
 - **A record screen runs identity, quick actions, standing, comments and an always-shown profile above a pinned tab strip, in that order at every width.** → `docs/detail-screen-layout.md`
 - **A quick-action tile is a second render of an existing `EntityActionItem`, never a second definition, and one that does not apply yields its slot.** → `docs/detail-screen-layout.md`
 - **A figure the server does not supply is shown only when proven — the past-due line needs a complete fetch *and* a sum equal to the client's balance.** → `docs/detail-screen-layout.md`
+- **A new record's edit screen attaches documents itself and uploads them on Save, from one copy in `GenericEditViewModel` (override `documentUploadRepository`) and one card (`CreateFormDocumentsCard`, a tab on billing docs); the plan gate swaps it for the Enterprise banner, never hides it.** → `docs/attaching-documents.md`
 - **Tab counts are server totals (`BaseEntityApi.count`); an unknown count draws no badge, never a zero.** → `docs/detail-screen-layout.md`
 - **A deleted record is read-only through one banner and `EmbeddedListParentScope`; one that could not be fetched offers Retry, not "not found".** → `docs/detail-screen-layout.md`
 - **A billing-doc PDF preview refetches when its document changes (`contentRevision`) and keeps the last good render, marked stale, when that refresh fails; a version switch (`revision`) still clears it.** → `docs/pdf-preview-refresh.md`

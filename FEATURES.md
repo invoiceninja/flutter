@@ -683,6 +683,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
+| Documents — attach files while creating any record (invoice, quote, credit, recurring invoice, purchase order, client, vendor, product, project, task, payment, expense, recurring expense): a Documents card / tab on the create form, uploaded on save, works offline (`docs/attaching-documents.md`) | — | — | ✅ | | |
 | Documents — main-menu entry, after Transactions; hidden with the Documents module (bit 128), no create "+" | ❌ | ✅ | ✅ | | |
 | Documents — list: paged, name search, sort, columns (name, linked to, size, width, height, private, created; type, hash, id, uploader, updated) | ❌ | ✅ | ✅ | | |
 | Documents — record screen: details, linked-to record, inline PDF / image preview | ❌ | ✅ | ✅ | | |

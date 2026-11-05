@@ -8,6 +8,7 @@ import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Invoice edit + create screen. The shared fields, setters and
 /// bridges come from [BillingDocEditViewModel] through [_invoiceWriter];
@@ -37,6 +38,11 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
        );
 
   final InvoiceRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   @override
   final String companyId;
 

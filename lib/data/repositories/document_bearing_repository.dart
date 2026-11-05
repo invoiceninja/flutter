@@ -30,3 +30,25 @@ abstract class DocumentBearingRepository {
     required bool isPublic,
   });
 }
+
+/// A [DocumentBearingRepository] whose NEW records can take documents before
+/// they exist: the create form queues the files as uploads under the record's
+/// `tmp_` id, behind its create, and the outbox rewrites the id once the
+/// create lands (invoiceninja/flutter#173, docs/attaching-documents.md).
+///
+/// The two outbox methods are `BaseEntityRepository`'s; declaring them here
+/// is what lets `GenericEditViewModel` reach them without knowing the entity.
+abstract class PendingUploadsRepository implements DocumentBearingRepository {
+  /// See `BaseEntityRepository.replaceUnsentDocumentUploads`.
+  Future<List<String>> replaceUnsentDocumentUploads({
+    required String companyId,
+    required String tempId,
+    required Future<void> Function() enqueue,
+  });
+
+  /// See `BaseEntityRepository.requeueUnsentDocumentUploads`.
+  Future<int> requeueUnsentDocumentUploads({
+    required String companyId,
+    required String tempId,
+  });
+}

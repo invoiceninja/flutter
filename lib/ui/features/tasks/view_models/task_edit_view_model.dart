@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Task edit + create screen. Optimistic — `save()` lands the
 /// draft in Drift via the repo, returns the saved entity, and the outbox
@@ -38,6 +39,11 @@ class TaskEditViewModel extends GenericEditViewModel<Task> {
        );
 
   final TaskRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
   final DateTime Function() now;
 

@@ -8,6 +8,7 @@ import 'package:admin/data/repositories/recurring_expense_repository.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Recurring Expense edit + create screen. Mirrors
 /// `ExpenseEditViewModel` plus the recurring schedule setters
@@ -30,6 +31,11 @@ class RecurringExpenseEditViewModel
        );
 
   final RecurringExpenseRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
 
   /// Dirty is "differs from what the untouched form held" — see

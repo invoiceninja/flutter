@@ -35,7 +35,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 class RecurringExpenseRepository
     extends BaseEntityRepository<RecurringExpense, RecurringExpenseApi>
     with EntityCommentMutations<RecurringExpense, RecurringExpenseApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   RecurringExpenseRepository({
     required super.db,
     required this.api,

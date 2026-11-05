@@ -20,6 +20,7 @@ import 'package:admin/ui/features/tasks/widgets/detail/task_rate_context.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/task_edit_times_section.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Form body for the Task edit / create screen. Composes the identity
 /// fields, the time-log section (`TaskEditTimesSection`), and the custom
@@ -94,6 +95,10 @@ class TaskEditLayout extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _IdentitySection(vm: vm, locked: locked, formatter: formatter),
+              if (vm.offersDocuments) ...[
+                SizedBox(height: InSpacing.lg(context)),
+                CreateFormDocumentsCard(vm: vm),
+              ],
               SizedBox(height: InSpacing.lg(context)),
               _CustomFieldsSection(
                 vm: vm,
@@ -125,6 +130,10 @@ class TaskEditLayout extends StatelessWidget {
             _CustomFieldsSection(vm: vm, formatter: formatter, locked: locked),
             SizedBox(height: InSpacing.lg(context)),
             TaskEditTimesSection(vm: vm, locked: locked, formatter: formatter),
+            if (vm.offersDocuments) ...[
+              SizedBox(height: InSpacing.lg(context)),
+              CreateFormDocumentsCard(vm: vm),
+            ],
           ],
         ),
       ),

@@ -11,6 +11,7 @@ import 'package:admin/ui/features/products/view_models/product_edit_view_model.d
 import 'package:admin/ui/features/products/widgets/edit/product_edit_details_section.dart';
 import 'package:admin/ui/features/products/widgets/edit/product_edit_inventory_section.dart';
 import 'package:admin/ui/features/products/widgets/edit/product_edit_taxes_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Lays out the product edit cards (Details, Inventory, Taxes, Custom
 /// Fields) using the same `1fr` main + fixed-width sidebar pattern as
@@ -63,7 +64,13 @@ class ProductEditLayout extends StatelessWidget {
           width: _sidebarWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [_customFieldsSection(context)],
+            children: [
+              if (vm.offersDocuments) ...[
+                CreateFormDocumentsCard(vm: vm),
+                SizedBox(height: InSpacing.md(context)),
+              ],
+              _customFieldsSection(context),
+            ],
           ),
         ),
       ],
@@ -101,6 +108,10 @@ class ProductEditLayout extends StatelessWidget {
         ProductEditInventorySection(vm: vm),
         SizedBox(height: InSpacing.md(context)),
         ProductEditTaxesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.md(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
         SizedBox(height: InSpacing.md(context)),
         _customFieldsSection(context),
       ],

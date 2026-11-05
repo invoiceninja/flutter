@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/product_repository.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the Product edit + create screen. Optimistic — `save()` lands
 /// the draft in Drift via the repo, returns the saved entity, and the
@@ -24,6 +25,11 @@ class ProductEditViewModel extends GenericEditViewModel<Product> {
        );
 
   final ProductRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   final String companyId;
 
   @override

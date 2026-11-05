@@ -6,6 +6,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/recurring_invoice_repository.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 
 /// Drives the RecurringInvoice edit + create screen. The shared fields,
 /// setters and bridges come from [BillingDocEditViewModel] through
@@ -34,6 +35,11 @@ class RecurringInvoiceEditViewModel
        );
 
   final RecurringInvoiceRepository repo;
+
+  /// Files picked on the create form upload under the new record's id on
+  /// Save (docs/attaching-documents.md).
+  @override
+  PendingUploadsRepository get documentUploadRepository => repo;
   @override
   final String companyId;
 

@@ -29,6 +29,7 @@ import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_foot
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_invoice_picker.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 
 /// Edit + create form body for a Payment. Two-column on wide widths
 /// (Expanded main + 360 px sidebar @ 1000 px), single centered column (≤820 px)
@@ -215,6 +216,10 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
         _CurrencyConversionSection(vm: vm, formatter: formatter),
         SizedBox(height: InSpacing.lg(context)),
         _NotesSection(vm: vm),
+        if (vm.offersDocuments) ...[
+          SizedBox(height: InSpacing.lg(context)),
+          CreateFormDocumentsCard(vm: vm),
+        ],
         SizedBox(height: InSpacing.lg(context)),
         _CustomFieldsSection(vm: vm, formatter: formatter),
         SizedBox(height: InSpacing.lg(context)),

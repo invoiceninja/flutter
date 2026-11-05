@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
@@ -49,23 +48,6 @@ class _HeldSync extends SyncRepository {
     return const SyncRowResult(outcome: SyncRowOutcome.success);
   }
 }
-
-const _owner = AuthCompany(
-  id: 'co',
-  name: 'Co',
-  displayName: 'Co',
-  permissions: '',
-  isAdmin: true,
-  isOwner: true,
-);
-
-AuthSession _session({required bool hosted}) => AuthSession(
-  baseUrl: 'https://example.test',
-  isHosted: hosted,
-  accountId: 'acc',
-  companies: const [_owner],
-  currentCompanyId: 'co',
-);
 
 void main() {
   late AppDatabase db;
@@ -225,38 +207,11 @@ void main() {
     expect(await saving, isNotNull);
   });
 
-  group('showsExpenseDocumentsCard', () {
-    test('a new expense where attachments are allowed', () {
-      expect(
-        showsExpenseDocumentsCard(
-          isCreate: true,
-          session: _session(hosted: false),
-        ),
-        isTrue,
-      );
-      expect(showsExpenseDocumentsCard(isCreate: true, session: null), isTrue);
-    });
-
-    test('never on an existing expense — its documents are on the detail '
-        'screen', () {
-      expect(
-        showsExpenseDocumentsCard(
-          isCreate: false,
-          session: _session(hosted: false),
-        ),
-        isFalse,
-      );
-    });
-
-    test('a hosted plan without attachments gets no card — no upsell on '
-        'every new expense', () {
-      expect(
-        showsExpenseDocumentsCard(
-          isCreate: true,
-          session: _session(hosted: true),
-        ),
-        isFalse,
-      );
+  group('offersDocuments', () {
+    test('a new expense takes files', () {
+      final vm = ExpenseEditViewModel(repo: repo, companyId: 'co');
+      addTearDown(vm.dispose);
+      expect(vm.offersDocuments, isTrue);
     });
   });
 }

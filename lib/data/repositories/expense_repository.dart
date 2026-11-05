@@ -40,7 +40,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// overlay.
 class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     with EntityCommentMutations<Expense, ExpenseApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   ExpenseRepository({
     required super.db,
     required this.api,

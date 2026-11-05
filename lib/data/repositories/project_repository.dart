@@ -38,7 +38,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// Task detail still renders (with the archived/deleted state indicator).
 class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     with EntityCommentMutations<Project, ProjectApi>, TagNameResolver
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   ProjectRepository({
     required super.db,
     required this.api,

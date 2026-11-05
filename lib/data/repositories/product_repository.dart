@@ -66,7 +66,7 @@ bool stockFilterMatches(
 /// Consistent with the Drift-first architecture; revisit only if the lag is
 /// reported (the fix would be a products refresh keyed off affected drains).
 class ProductRepository extends BaseEntityRepository<Product, ProductApi>
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   ProductRepository({
     required super.db,
     required this.api,

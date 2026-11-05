@@ -14,6 +14,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
+import 'package:admin/ui/core/edit/create_form_documents.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
@@ -154,7 +155,17 @@ class BillingDocEditLayout<T extends BillingDocFields> extends StatefulWidget {
 /// The narrow strip's tabs, in order, so every arm of the `switch` in
 /// [_BillingDocEditLayoutState._tabFor] is reachable and the compiler checks
 /// the map is total.
-enum _Tab { details, schedule, contacts, items, notes, settings, pdf, eInvoice }
+enum _Tab {
+  details,
+  schedule,
+  contacts,
+  items,
+  notes,
+  settings,
+  documents,
+  pdf,
+  eInvoice,
+}
 
 class _BillingDocEditLayoutState<T extends BillingDocFields>
     extends State<BillingDocEditLayout<T>> {
@@ -171,6 +182,11 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   BillingDocType get _type => widget.type;
   BillingDocEditViewModel<T> get _vm => widget.vm;
 
+  /// The Documents tab, on a document that was never saved: files picked
+  /// there upload on Save (docs/attaching-documents.md). A saved document's
+  /// files are on its record screen.
+  bool get _showDocuments => _vm.offersDocuments;
+
   /// The narrow strip's tabs, in order — the only place a tab's presence is
   /// decided. [BillingDocEditTabStrip] sizes its own controller from the
   /// list [_buildMobile] hands it, and [_tabFor] maps each key to its label
@@ -186,6 +202,8 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
     // desktop-only; mobile gets it as its own tab so those fields are
     // reachable on a phone.
     _Tab.settings,
+    // A new document's files, uploaded on Save (docs/attaching-documents.md).
+    if (_showDocuments) _Tab.documents,
     if (widget.showPdfTab) _Tab.pdf,
     if (_showEInvoice) _Tab.eInvoice,
   ];
@@ -365,6 +383,13 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
           label: context.tr('settings'),
           body: _SettingsTab<T>(type: _type, vm: _vm, slots: widget.slots),
         ),
+        _Tab.documents => (
+          label: context.tr('documents'),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(InSpacing.lg(context)),
+            child: CreateFormDocumentsPanel(vm: _vm),
+          ),
+        ),
         _Tab.pdf => (
           label: context.tr('pdf'),
           body: _PdfTab<T>(type: _type, vm: _vm, slots: widget.slots),
@@ -422,6 +447,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
         vm: _vm,
         slots: widget.slots,
         showEInvoice: _showEInvoice,
+        showDocuments: _showDocuments,
       ),
       totalsCard: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1074,6 +1100,7 @@ class _NotesTabsCardDesktop<T extends BillingDocFields> extends StatefulWidget {
     required this.vm,
     required this.slots,
     required this.showEInvoice,
+    required this.showDocuments,
   });
   final BillingDocType type;
   final BillingDocEditViewModel<T> vm;
@@ -1083,6 +1110,10 @@ class _NotesTabsCardDesktop<T extends BillingDocFields> extends StatefulWidget {
   /// here: the narrow strip and this card must agree, and one cascade read
   /// per screen is enough.
   final bool showEInvoice;
+
+  /// The new document's Documents sub-tab — the narrow strip's gate,
+  /// threaded down for the same reason.
+  final bool showDocuments;
 
   @override
   State<_NotesTabsCardDesktop<T>> createState() =>
@@ -1098,12 +1129,16 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
         TickerProviderStateMixin {
   late TabController _ctl = TabController(length: _length, vsync: this);
 
-  int get _length => widget.showEInvoice ? 6 : 5;
+  int get _length =>
+      5 + (widget.showDocuments ? 1 : 0) + (widget.showEInvoice ? 1 : 0);
 
   @override
   void didUpdateWidget(_NotesTabsCardDesktop<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.showEInvoice == widget.showEInvoice) return;
+    if (oldWidget.showEInvoice == widget.showEInvoice &&
+        oldWidget.showDocuments == widget.showDocuments) {
+      return;
+    }
     final previousIndex = _ctl.index;
     _ctl.dispose();
     _ctl = TabController(
@@ -1140,6 +1175,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
             Tab(text: context.tr('public_notes')),
             Tab(text: context.tr('private_notes')),
             Tab(text: context.tr('settings')),
+            if (widget.showDocuments) Tab(text: context.tr('documents')),
             if (widget.showEInvoice) Tab(text: context.tr('e_invoice')),
           ],
         ),
@@ -1203,6 +1239,11 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   onChanged: vm.setPrivateNotes,
                 ),
                 SingleChildScrollView(child: _settings(type, vm, widget.slots)),
+                if (widget.showDocuments)
+                  SingleChildScrollView(
+                    padding: EdgeInsets.all(InSpacing.lg(context)),
+                    child: CreateFormDocumentsPanel(vm: vm),
+                  ),
                 if (widget.showEInvoice) widget.slots.eInvoiceTab!(context),
               ],
             ),

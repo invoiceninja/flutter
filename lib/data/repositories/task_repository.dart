@@ -54,7 +54,7 @@ enum TimerStopResult {
 ///     bulk kanban-sort payload.
 class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     with EntityCommentMutations<Task, TaskApi>, TagNameResolver
-    implements DocumentBearingRepository, EmbeddedDocumentsOwner {
+    implements PendingUploadsRepository, EmbeddedDocumentsOwner {
   TaskRepository({
     required super.db,
     required this.api,

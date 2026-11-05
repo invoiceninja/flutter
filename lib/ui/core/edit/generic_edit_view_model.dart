@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/create_already_landed_exception.dart';
+import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// State for an entity edit or create screen. Holds the in-progress draft in
@@ -31,7 +36,10 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     String? companyId,
     Duration onlineSaveTimeout = const Duration(seconds: 30),
     bool prefilled = false,
-  }) : _original = original,
+    List<UploadSource> initialDocuments = const [],
+    this.discardDocumentFiles,
+  }) : _documents = original == null ? [...initialDocuments] : [],
+       _original = original,
        _draft = initialDraft,
        _createBaseline = initialDraft,
        _prefilled = prefilled,
@@ -135,7 +143,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   bool get isDirty {
     if (_savedClean) return false;
     final orig = _original;
-    if (orig == null) return draftIsNonEmpty();
+    if (orig == null) return draftIsNonEmpty() || _documents.isNotEmpty;
     return _draft != orig;
   }
 
@@ -189,7 +197,199 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    // Left without saving: copies nothing queued belong to no record. Not
+    // mid-save — the rows being written would name them; the boot sweep
+    // collects anything that really was left behind.
+    if (!_isSaving) _discardFiles(_documents);
+    _documents.clear();
     super.dispose();
+  }
+
+  // ── Documents attached before the record exists ──────────────────────
+  //
+  // invoiceninja/flutter#173, docs/attaching-documents.md. Every
+  // document-bearing entity's create form holds files the user picks before
+  // Save; each Save queues exactly these as uploads of the record.
+
+  /// The repository that takes this record's uploads, which turns the
+  /// feature on. Null (the default): an entity that takes no documents.
+  @protected
+  PendingUploadsRepository? get documentUploadRepository => null;
+
+  /// Hands a file's app-owned copy back once the form lets go of it
+  /// (`SharedIntakeFiles.delete`, which ignores every path outside its own
+  /// folder and every copy an outbox row still names — so a picked file, or
+  /// one an earlier attempt queued, is never touched). Set by the edit
+  /// scaffold; null in unit tests, which then keep every file.
+  Future<void> Function(Iterable<String> paths)? discardDocumentFiles;
+
+  /// Files attached to a new record before it exists — picked on the form,
+  /// or (New Expense) shared into the app from another one.
+  ///
+  /// The list is the truth for every create attempt: each Save queues exactly
+  /// these as uploads of the record (under its `tmp_` id — the outbox holds
+  /// them behind the create and rewrites the id once it lands, so this works
+  /// offline too), replacing whatever an earlier attempt left unsent
+  /// (`BaseEntityRepository.replaceUnsentDocumentUploads`). The outbox rows
+  /// can't be the truth: a rejected create's uploads die with it, and the
+  /// save-failed banner's Discard deletes them with the record. Cleared only
+  /// when a save succeeds. Create mode only — an existing record uploads from
+  /// its detail screen's Documents tab.
+  final List<UploadSource> _documents;
+
+  /// What the save in flight queued, and under which `tmp_` id — so a file
+  /// added while that save is still out ([save]) can follow it.
+  List<UploadSource>? _attemptBatch;
+  String? _attemptTempId;
+
+  /// Whether an attempt on this form queued any upload. Until one has, a
+  /// Save with no files leaves the outbox alone — nothing of this form's can
+  /// be there to replace, and most creates carry no files.
+  bool _documentsQueued = false;
+
+  /// A copy, not a view: a caller may iterate it across awaits (New Expense's
+  /// receipt read) while the user adds or removes a file.
+  List<UploadSource> get documents => List.unmodifiable(_documents);
+
+  /// Whether the form shows its Documents card (or tab): a new record of an
+  /// entity that takes documents.
+  bool get offersDocuments => documentUploadRepository != null && isCreate;
+
+  /// Whether the form can take more files: [offersDocuments], and a create
+  /// that isn't waiting on the user (unconfirmed — the card is locked) and
+  /// hasn't already been made (every later Save is refused, so a file added
+  /// then would be deleted on leave). A save in flight can: see [save].
+  bool get acceptsDocuments =>
+      offersDocuments &&
+      !_disposed &&
+      !_documentsHandedOver &&
+      _unconfirmedRowId == null &&
+      !_alreadyCreated;
+
+  /// Latched when a save hands the files to the record: the form is on its
+  /// way out (or running an after-save action), and a file added now would
+  /// be neither queued nor kept. Cleared by [reset].
+  bool _documentsHandedOver = false;
+
+  /// Attach [sources]; false, with nothing attached, when the form can't take
+  /// them ([acceptsDocuments]).
+  bool addDocuments(Iterable<UploadSource> sources) {
+    if (!acceptsDocuments) return false;
+    if (sources.isEmpty) return true;
+    final added = List<UploadSource>.of(sources);
+    _documents.addAll(added);
+    // Files are unsaved content, even on a form [reset] just marked clean.
+    _savedClean = false;
+    notifyListeners();
+    onDocumentsAdded(added);
+    return true;
+  }
+
+  void removeDocument(UploadSource source) {
+    if (!_documents.remove(source)) return;
+    onDocumentRemoved(source);
+    _discardFiles([source]);
+    notifyListeners();
+  }
+
+  /// Called after [addDocuments] attached [added] (New Expense reads a
+  /// receipt from them).
+  @protected
+  void onDocumentsAdded(List<UploadSource> added) {}
+
+  /// Called after [removeDocument] dropped [source].
+  @protected
+  void onDocumentRemoved(UploadSource source) {}
+
+  void _discardFiles(Iterable<UploadSource> sources) {
+    final paths = sources.map(SharedIntakeFiles.localPathOf).nonNulls.toList();
+    if (paths.isEmpty) return;
+    unawaited(discardDocumentFiles?.call(paths));
+  }
+
+  /// Queue this attempt's files behind the create [performSave] just queued
+  /// (its `tmp_` id is [recoveryTempId] by now). [batch] was snapshotted
+  /// before [performSave]'s first await: a dispose meanwhile (a sign-out, the
+  /// `/new` route re-keyed) clears the list, and a file added meanwhile
+  /// belongs to [save]'s follow-up, not to this batch.
+  Future<void> _queueDocumentUploads({
+    required List<UploadSource>? batch,
+    required String? retryingTempId,
+  }) async {
+    final repo = documentUploadRepository;
+    final companyId = _companyId ?? '';
+    final tempId = _recoveryTempId;
+    if (repo == null || tempId == null) return;
+    if (batch != null) {
+      // Recorded first: a file added while this save is out follows it
+      // ([_settleDocuments]) even when the batch itself was empty.
+      _attemptBatch = batch;
+      _attemptTempId = tempId;
+      if (batch.isEmpty && !_documentsQueued) return;
+      if (batch.isNotEmpty) _documentsQueued = true;
+      final replaced = await repo.replaceUnsentDocumentUploads(
+        companyId: companyId,
+        tempId: tempId,
+        enqueue: () async {
+          for (final source in batch) {
+            await repo.uploadDocument(
+              companyId: companyId,
+              entityId: tempId,
+              source: source,
+            );
+          }
+        },
+      );
+      // A file removed from the form after an earlier attempt: its row named
+      // it until now, so the ✕ couldn't hand it back then.
+      final kept = batch.map(SharedIntakeFiles.localPathOf).nonNulls.toSet();
+      final dropped = replaced.where((p) => !kept.contains(p)).toList();
+      if (dropped.isNotEmpty) unawaited(discardDocumentFiles?.call(dropped));
+    } else if (retryingTempId != null) {
+      // An edit form re-sending a failed create holds no files of its own:
+      // move the earlier attempt's uploads behind this create.
+      await repo.requeueUnsentDocumentUploads(
+        companyId: companyId,
+        tempId: retryingTempId,
+      );
+    }
+  }
+
+  /// A save the server confirmed (or that went out optimistically) hands the
+  /// files to the record for good; a rejected one keeps them on the form, to
+  /// be queued again — the same list — by the next attempt.
+  ///
+  /// A file added while the save was out (up to the 30 s online wait) missed
+  /// that attempt's batch. It follows the record when the attempt's create row
+  /// stands — saved, or waiting on the user — and stays on the form for the
+  /// next attempt otherwise.
+  Future<void> _settleDocuments(T? saved) async {
+    final repo = documentUploadRepository;
+    final batch = _attemptBatch;
+    final tempId = _attemptTempId;
+    _attemptBatch = null;
+    _attemptTempId = null;
+    if (repo != null &&
+        batch != null &&
+        tempId != null &&
+        (saved != null || _unconfirmedRowId != null)) {
+      final arrived = [
+        for (final source in _documents)
+          if (!batch.contains(source)) source,
+      ];
+      if (arrived.isNotEmpty) _documentsQueued = true;
+      for (final source in arrived) {
+        await repo.uploadDocument(
+          companyId: _companyId ?? '',
+          entityId: tempId,
+          source: source,
+        );
+      }
+    }
+    if (saved != null) {
+      _documents.clear();
+      _documentsHandedOver = true;
+    }
   }
 
   String? _submitError;
@@ -492,6 +692,12 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// remembered [seedCreateDefault] defaults re-applied — a discarded form is
   /// a blank one, not a prefilled one.
   void reset({required T emptyDraft}) {
+    // As in [dispose]: a save in flight is writing rows that name them.
+    if (!_isSaving) _discardFiles(_documents);
+    _documents.clear();
+    // A fresh record from here: [_recoveryTempId] goes below.
+    _documentsQueued = false;
+    _documentsHandedOver = false;
     if (_original == null) {
       var baseline = emptyDraft;
       for (final seed in _resetSeeds) {
@@ -642,6 +848,24 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
 
   Future<T?> save() async {
     if (_isSaving) return null;
+    T? saved;
+    try {
+      saved = await _save();
+      // Still "saving" while the files settle: the panel stays locked and a
+      // dispose leaves them be, so neither a ✕ nor a sign-out hands back a
+      // copy this is about to queue.
+      await _settleDocuments(saved);
+    } finally {
+      _isSaving = false;
+      // The screen may have unmounted while we were awaiting the sync
+      // result (30 s timeout) — guard the notification so we don't trip
+      // ChangeNotifier's disposed assertion.
+      if (!_disposed) notifyListeners();
+    }
+    return saved;
+  }
+
+  Future<T?> _save() async {
     flushPendingEdits();
     for (final hook in List.of(_beforeSaveHooks)) {
       hook();
@@ -681,8 +905,20 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
         _localValidationOnly = true;
         return null;
       }
+      final createsHere = savesAsCreate && documentUploadRepository != null;
+      // Captured before [performSave]: [rememberCreateTempId] overwrites it.
+      final retryingTempId = _recoveryTempId;
+      final batch = createsHere && isCreate
+          ? List<UploadSource>.of(_documents)
+          : null;
       final result = await performSave();
       awaitedRowId = result.outboxRowId;
+      if (createsHere) {
+        await _queueDocumentUploads(
+          batch: batch,
+          retryingTempId: retryingTempId,
+        );
+      }
       // If the production wiring is in place AND the device is online, wait
       // for the just-enqueued row to settle so 422 / 5xx errors land on this
       // form instead of via the dead-row banner after pop. When wiring is
@@ -825,12 +1061,9 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // Defensively drop any pending save-query that performSave did not
       // consume (e.g. an after-save-only screen, or a non-billing entity):
       // it must never survive into a subsequent plain Save.
+      // [save] clears `_isSaving` and notifies, once the attached files
+      // have settled.
       _pendingSaveQuery = null;
-      _isSaving = false;
-      // The screen may have unmounted while we were awaiting the sync
-      // result (30 s timeout) — guard the notification so we don't trip
-      // ChangeNotifier's disposed assertion.
-      if (!_disposed) notifyListeners();
     }
   }
 }

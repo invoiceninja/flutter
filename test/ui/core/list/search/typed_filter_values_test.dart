@@ -154,6 +154,9 @@ void main() {
     const balance = BalanceFilterKey();
     expect(balance.normalizeTypedValue(vm, context, '<500'), 'lt:500');
     expect(balance.normalizeTypedValue(vm, context, '1,000'), 'gt:1000');
+    // A lone decimal comma is a decimal under a dot company too — the same
+    // rule a typed price follows (`isLoneDecimalComma`).
+    expect(balance.normalizeTypedValue(vm, context, '<3,50'), 'lt:3.5');
     expect(balance.normalizeTypedValue(vm, context, '>= 12.50'), 'gte:12.5');
     expect(balance.normalizeTypedValue(vm, context, 'abc'), isNull);
     expect(balance.normalizeTypedValue(vm, context, '>'), isNull);

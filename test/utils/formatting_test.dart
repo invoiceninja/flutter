@@ -146,6 +146,37 @@ void main() {
     test('negative values', () {
       expect(parseDecimal('-12.5'), Decimal.parse('-12.5'));
     });
+
+    // The iOS decimal pad shows the DEVICE locale's separator, so a dot-decimal
+    // company on a comma-locale phone can only type `3,00` — which saved as
+    // 300 (beta feedback).
+    test('a lone decimal comma reads as a decimal in a dot company', () {
+      expect(parseDecimal('3,00'), Decimal.parse('3'));
+      expect(parseDecimal('3,5'), Decimal.parse('3.5'));
+      expect(parseDecimal('-12,75'), Decimal.parse('-12.75'));
+      expect(parseDecimal(',5'), Decimal.parse('0.5'));
+      expect(parseDecimal('€ 3,00'), Decimal.parse('3'));
+    });
+
+    test('a thousands comma still reads as thousands in a dot company', () {
+      expect(parseDecimal('1,000'), Decimal.parse('1000'));
+      expect(parseDecimal('1,234,567'), Decimal.parse('1234567'));
+      expect(parseDecimal('1,234.56'), Decimal.parse('1234.56'));
+      // Mid-keystroke: a trailing comma is not yet a decimal.
+      expect(parseDecimal('3,'), Decimal.parse('3'));
+    });
+
+    test('comma-decimal companies are unchanged', () {
+      expect(
+        parseDecimal('3,00', useCommaAsDecimalPlace: true),
+        Decimal.parse('3'),
+      );
+      // The mirror case: a comma company on a dot-locale phone's keypad.
+      expect(
+        parseDecimal('3.50', useCommaAsDecimalPlace: true),
+        Decimal.parse('3.5'),
+      );
+    });
   });
 
   group('parseDouble — tax-rate input (comma-locale safe)', () {
@@ -158,6 +189,11 @@ void main() {
       // not 195. See Settings → Tax Settings (CRUD + subregion dialog).
       expect(parseDouble('19,5', useCommaAsDecimalPlace: true), 19.5);
       expect(parseDouble('1.234,56', useCommaAsDecimalPlace: true), 1234.56);
+    });
+
+    test('a lone decimal comma reads as a decimal in a dot company', () {
+      expect(parseDouble('19,5'), 19.5);
+      expect(parseDouble('1,000'), 1000.0);
     });
 
     test('empty / unparseable input is zero (or null with zeroIsNull)', () {

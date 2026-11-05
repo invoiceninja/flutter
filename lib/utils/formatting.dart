@@ -56,19 +56,48 @@ int? parseInt(String? value, {bool zeroIsNull = false}) {
   return (n == 0 && zeroIsNull) ? null : n;
 }
 
+final RegExp _decimalCommaOnly = RegExp(r'^-?\d*,\d{1,2}$');
+
+/// Whether [digits] — input already reduced to digits, separators and a sign —
+/// is a lone comma with one or two digits after it and no dot anywhere
+/// (`3,00`, `-12,5`): a decimal comma even under a dot-decimal company
+/// ([_normalizeDecimalInput]). Shared with the list search's strict numeric
+/// parse so a typed `amount:>3,00` and a typed price agree.
+bool isLoneDecimalComma(String digits) => _decimalCommaOnly.hasMatch(digits);
+
+/// Reduce numeric input to `Decimal.tryParse` shape: digits, one `.`, a sign.
+///
+/// With [useCommaAsDecimalPlace] off, a comma is a thousands separator —
+/// **except** a lone comma with one or two digits after it and no dot in the
+/// string, which can only be a decimal comma (nobody writes a thousand as
+/// `3,00`). The iOS decimal pad draws its separator key from the DEVICE
+/// locale, not the company's format, so a dot-decimal company on a phone set
+/// to a comma locale has no dot key at all: `3,00` saved as **300** and the
+/// workaround was pasting a dot in (beta feedback). `1,000` and `1,234.56`
+/// still read as thousands.
+String _normalizeDecimalInput(String value, bool useCommaAsDecimalPlace) {
+  var v = value;
+  if (useCommaAsDecimalPlace && v.contains(',')) {
+    v = v.replaceAll('.', '').replaceAll(',', '.');
+  }
+  v = v.replaceAll(RegExp(r'[^0-9\.,\-]'), '');
+  if (!useCommaAsDecimalPlace && isLoneDecimalComma(v)) {
+    v = v.replaceAll(',', '.');
+  }
+  return v.replaceAll(',', '');
+}
+
 /// Parse a messy user-input string to `Decimal`. Handles thousand separators
-/// and the "comma as decimal place" company setting (`1.234,56` → `1234.56`).
+/// and the "comma as decimal place" company setting (`1.234,56` → `1234.56`),
+/// and reads a lone `3,00` as a decimal comma either way
+/// ([_normalizeDecimalInput]).
 Decimal? parseDecimal(
   String? value, {
   bool zeroIsNull = false,
   bool useCommaAsDecimalPlace = false,
 }) {
   if (value == null) return zeroIsNull ? null : Decimal.zero;
-  var v = value;
-  if (useCommaAsDecimalPlace && v.contains(',')) {
-    v = v.replaceAll('.', '').replaceAll(',', '.');
-  }
-  v = v.replaceAll(RegExp(r'[^0-9\.\-]'), '');
+  final v = _normalizeDecimalInput(value, useCommaAsDecimalPlace);
   final n = Decimal.tryParse(v) ?? Decimal.zero;
   return (n == Decimal.zero && zeroIsNull) ? null : n;
 }
@@ -107,11 +136,7 @@ double? parseDouble(
   bool useCommaAsDecimalPlace = false,
 }) {
   if (value == null) return zeroIsNull ? null : 0.0;
-  var v = value;
-  if (useCommaAsDecimalPlace && v.contains(',')) {
-    v = v.replaceAll('.', '').replaceAll(',', '.');
-  }
-  v = v.replaceAll(RegExp(r'[^0-9\.\-]'), '');
+  final v = _normalizeDecimalInput(value, useCommaAsDecimalPlace);
   final n = double.tryParse(v) ?? 0.0;
   return (n == 0 && zeroIsNull) ? null : n;
 }

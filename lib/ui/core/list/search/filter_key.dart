@@ -566,6 +566,8 @@ mixin ComparableFilterKey on FilterKey {
     var digits = split.value.replaceAll(RegExp(r'\s'), '');
     if (commaDecimal && digits.contains(',')) {
       digits = digits.replaceAll('.', '').replaceAll(',', '.');
+    } else if (isLoneDecimalComma(digits)) {
+      digits = digits.replaceAll(',', '.');
     } else {
       digits = digits.replaceAll(',', '');
     }

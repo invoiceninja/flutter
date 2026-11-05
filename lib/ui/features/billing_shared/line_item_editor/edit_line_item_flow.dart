@@ -41,10 +41,12 @@ Future<void> editLineItemAt(
     if (!text.moreFields) return;
     initial = text.item;
   }
-  final fmt = context.read<Services>().formatterIfReady(companyId);
+  final services = context.read<Services>();
+  final fmt = services.formatterIfReady(companyId);
   final useComma = fmt?.settings.useCommaAsDecimalPlace ?? false;
   final result = await showLineItemEditDialog(
     context,
+    taxRates: services.taxRates.watchAll(companyId: companyId),
     initial: initial,
     config: config,
     useComma: useComma,

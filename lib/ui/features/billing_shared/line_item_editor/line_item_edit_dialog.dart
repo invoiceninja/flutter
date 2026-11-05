@@ -5,10 +5,12 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/billing/line_item_custom_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
+import 'package:admin/data/models/domain/tax_rate.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/custom_field_input.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/spell_check.dart';
+import 'package:admin/ui/features/billing_shared/edit/tax_rate_tier_picker.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -36,6 +38,13 @@ import 'package:admin/utils/formatting.dart';
 /// Cancel that silently adds nothing — would both be lying about what the
 /// buttons do.
 ///
+/// [taxRates] is the company's configured tax rates
+/// (`TaxRateRepository.watchAll`). With rates, each tax tier is a
+/// [TaxRateTierPicker], as the desktop table's tax cells and the document's
+/// Taxes card are; without any, or with no stream, it stays a freeform name +
+/// rate pair. The phone was the one surface left typing a saved rate by hand
+/// (beta feedback: "NYS Sales Tax 8.75%" was nowhere to be picked).
+///
 /// [autofocusProduct] is for that create caller too: a new line starts at its
 /// Product, but tapping an existing card is usually about some other field,
 /// and an autofocused Product raises the keyboard over the very fields the
@@ -49,6 +58,7 @@ Future<LineItem?> showLineItemEditDialog(
   String titleKey = 'line_item',
   String actionKey = 'save',
   bool autofocusProduct = false,
+  Stream<List<TaxRate>>? taxRates,
 }) {
   return showDialog<LineItem>(
     context: context,
@@ -60,6 +70,7 @@ Future<LineItem?> showLineItemEditDialog(
       titleKey: titleKey,
       actionKey: actionKey,
       autofocusProduct: autofocusProduct,
+      taxRates: taxRates,
     ),
   );
 }
@@ -73,6 +84,7 @@ class _LineItemEditDialog extends StatefulWidget {
     required this.titleKey,
     required this.actionKey,
     required this.autofocusProduct,
+    required this.taxRates,
   });
 
   final LineItem initial;
@@ -82,6 +94,7 @@ class _LineItemEditDialog extends StatefulWidget {
   final String titleKey;
   final String actionKey;
   final bool autofocusProduct;
+  final Stream<List<TaxRate>>? taxRates;
 
   @override
   State<_LineItemEditDialog> createState() => _LineItemEditDialogState();
@@ -276,18 +289,58 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                   ),
                 ),
               ],
-              if (config.taxColumnCount >= 1) ...[
-                SizedBox(height: InSpacing.md(context)),
-                _TaxRow(name: _taxName1, rate: _taxRate1, index: 1),
-              ],
-              if (config.taxColumnCount >= 2) ...[
-                SizedBox(height: InSpacing.md(context)),
-                _TaxRow(name: _taxName2, rate: _taxRate2, index: 2),
-              ],
-              if (config.taxColumnCount >= 3) ...[
-                SizedBox(height: InSpacing.md(context)),
-                _TaxRow(name: _taxName3, rate: _taxRate3, index: 3),
-              ],
+              if (config.taxColumnCount >= 1)
+                StreamBuilder<List<TaxRate>>(
+                  stream: widget.taxRates,
+                  builder: (context, snap) {
+                    final rates = snap.data ?? const <TaxRate>[];
+                    // Freeform only on an ANSWERED empty list (or no stream):
+                    // until the rates answer, the picker's placeholder stands
+                    // in, so the pair never flashes up and away again.
+                    final freeform =
+                        widget.taxRates == null ||
+                        (snap.hasData && rates.isEmpty);
+                    final tiers = [
+                      (_taxName1, _taxRate1),
+                      (_taxName2, _taxRate2),
+                      (_taxName3, _taxRate3),
+                    ];
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (
+                          var i = 0;
+                          i < config.taxColumnCount && i < 3;
+                          i++
+                        ) ...[
+                          SizedBox(height: InSpacing.md(context)),
+                          if (freeform)
+                            _TaxRow(
+                              name: tiers[i].$1,
+                              rate: tiers[i].$2,
+                              index: i + 1,
+                            )
+                          else
+                            TaxRateTierPicker(
+                              label: '${context.tr('tax_rate')} ${i + 1}',
+                              name: tiers[i].$1.text,
+                              rate: _parseOrZero(tiers[i].$2),
+                              rates: rates,
+                              useCommaAsDecimalPlace: widget.useComma,
+                              // The controllers stay the dialog's one store
+                              // for the pair, so `_build` reads a pick the
+                              // same way it reads a typed tax.
+                              onChanged: (name, rate) => setState(() {
+                                tiers[i].$1.text = name;
+                                tiers[i].$2.text = _decimalText(rate);
+                              }),
+                            ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
             ],
           ),
         ),

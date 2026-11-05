@@ -117,10 +117,12 @@ class LineItemCardListMobile extends StatelessWidget {
   /// `quantity: 1`, which is why Quantity arrives usefully pre-filled while
   /// every zero renders as an empty field.
   Future<void> _add(BuildContext context) async {
-    final fmt = context.read<Services>().formatterIfReady(companyId);
+    final services = context.read<Services>();
+    final fmt = services.formatterIfReady(companyId);
     final useComma = fmt?.settings.useCommaAsDecimalPlace ?? false;
     final result = await showLineItemEditDialog(
       context,
+      taxRates: services.taxRates.watchAll(companyId: companyId),
       initial: newItemFactory(),
       config: config,
       useComma: useComma,

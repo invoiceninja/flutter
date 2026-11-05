@@ -3,6 +3,8 @@ import 'package:decimal/decimal.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/tax_rate.dart';
+import 'package:admin/data/repositories/tax_rate_repository.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_card_list_mobile.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
@@ -22,10 +24,25 @@ import '../../../_localization_helper.dart';
 /// covered it on this branch is gone.
 ///
 /// `_ItemCard` asks Services for a Formatter and renders unformatted when it
-/// isn't ready — which is the only thing these tests need from the DI graph.
+/// isn't ready, and the editor asks for the company's tax rates — the only
+/// things these tests need from the DI graph.
 class _FakeServices implements Services {
   @override
   Formatter? formatterIfReady(String companyId) => null;
+
+  @override
+  final TaxRateRepository taxRates = _NoTaxRates();
+
+  @override
+  dynamic noSuchMethod(Invocation i) =>
+      throw UnimplementedError(i.memberName.toString());
+}
+
+/// A company with no tax rates: the editor keeps its freeform tax pair.
+class _NoTaxRates implements TaxRateRepository {
+  @override
+  Stream<List<TaxRate>> watchAll({required String companyId}) =>
+      Stream.value(const <TaxRate>[]);
 
   @override
   dynamic noSuchMethod(Invocation i) =>

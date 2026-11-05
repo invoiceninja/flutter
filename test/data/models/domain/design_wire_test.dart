@@ -123,6 +123,42 @@ void main() {
     });
   });
 
+  // invoiceninja/flutter#184: the server substitutes variables into a `logo`
+  // block's source only, and fetches an `image` block's verbatim — so an image
+  // block on `$company.logo` (its own "Use Company Logo" button) printed an
+  // `<img>` with no `src`, while the canvas showed the logo. Measured on the
+  // demo server: the same block as a `logo` printed the image.
+  group('an image block showing a variable is sent as a logo', () {
+    String wireType(DesignBlock b) {
+      final wire = _wireDesign(_design(DesignTemplate(blocks: [b])));
+      return ((wire['blocks'] as List).single as Map)['type'] as String;
+    }
+
+    test('the company logo token', () {
+      expect(wireType(_block('image', {'source': r'$company.logo'})), 'logo');
+      expect(
+        wireType(_block('image', {'source': r'  $company.logo_url '})),
+        'logo',
+      );
+    });
+
+    test('a URL, an upload or nothing stays an image', () {
+      for (final source in [
+        'https://example.com/a.png',
+        'data:image/png;base64,AAAA',
+        '',
+      ]) {
+        expect(wireType(_block('image', {'source': source})), 'image');
+      }
+      expect(wireType(_block('image', const {})), 'image');
+    });
+
+    test('other blocks keep their type', () {
+      expect(wireType(_block('logo', {'source': r'$company.logo'})), 'logo');
+      expect(wireType(_block('text', {'content': r'$company.name'})), 'text');
+    });
+  });
+
   group('legacy label keys become the tokens the server translates', () {
     test('product table headers', () {
       final out = wireBlockProperties('table', {

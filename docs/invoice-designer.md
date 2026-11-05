@@ -137,6 +137,30 @@ inside it, and Max Width's `PxInput` takes `allowPercent` (0–100, a px/% menu
 in place of the unit label). An image block still defaults to `200px`, and a
 saved design keeps whatever it stored.
 
+### An image block showing a variable is sent as a logo
+
+`JsonToSectionsAdapter::convertImageBlock` runs `strtr($source, $values)` for
+a `logo` block only; an `image` block's `source` goes to `ImageFetcher`
+verbatim. So an image block on `$company.logo` — what its own **Use Company
+Logo** button writes, and what its field's hint suggests typing — printed an
+`<img>` with no `src`, while the canvas, which resolves the token for both
+types, showed the logo (invoiceninja/flutter#184). Measured on the demo server
+(`/api/v1/preview?html=true`): the image block came back with no `src`, the
+same block typed `logo` with the image inlined, and a `logo` on a plain https
+URL inlined it too.
+
+`wireBlockType` (`design_block_wire.dart`, applied in `DesignBlock.toApi`)
+sends an `image` whose `source` starts with `$` as a `logo`; a URL, an upload
+(`data:`) or an empty source stays an `image`. The local payload goes through
+the same `toApi`, so a reopened design shows the block as the logo it prints
+as. Test: `design_wire_test.dart`.
+
+Separately, `ImageFetcher` inlines only PNG, JPEG, GIF and WebP (by magic
+bytes, with an `image/*` or absent `Content-Type`), over https on hosted. Any
+other logo — an SVG — prints as a transparent pixel in a block design. The
+canvas cannot draw an SVG either, so it shows its placeholder rather than a
+logo the PDF will not print.
+
 ### Page sizes are the server's list
 
 `kDesignerPageSizes` is `cssSizeFor`'s allow-list minus the poster sizes. A

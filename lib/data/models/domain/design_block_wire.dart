@@ -74,6 +74,23 @@ String upgradeLegacyColumnHeader(String blockType, String header) {
 String upgradeLegacyTitle(String title) =>
     kLegacyTitleTokens[title.trim()] ?? title;
 
+/// The block type the server must receive for a block of [type] with
+/// [properties].
+///
+/// An `image` block whose `source` is a `$` variable is sent as a `logo`. The
+/// server's `convertImageBlock` substitutes variables only into a `logo`'s
+/// source and fetches an `image`'s verbatim, so `$company.logo` on an image
+/// block printed an `<img>` with no `src` — while the canvas, which resolves
+/// the token for both, showed the logo (invoiceninja/flutter#184). The image
+/// block's own "Use Company Logo" button writes exactly that, and its field's
+/// hint suggests typing it. A `logo` prints an image the same way otherwise,
+/// so converting changes nothing else, a plain URL or uploaded image included.
+String wireBlockType(String type, Map<String, dynamic> properties) {
+  if (type != 'image') return type;
+  final source = properties['source'];
+  return source is String && source.trim().startsWith(r'$') ? 'logo' : type;
+}
+
 /// [properties] as the server must receive them for a block of [type]. Returns
 /// the same map when nothing needs changing.
 Map<String, dynamic> wireBlockProperties(

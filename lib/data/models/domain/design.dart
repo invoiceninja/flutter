@@ -135,10 +135,13 @@ abstract class DesignBlock with _$DesignBlock {
 extension DesignBlockApiMapper on DesignBlock {
   /// `properties` is always present, and passes through
   /// [wireBlockProperties]: the server reads it unguarded, so a block without
-  /// one is a failed render of the whole document.
+  /// one is a failed render of the whole document. The type passes through
+  /// [wireBlockType].
   DesignBlockApi toApi() => DesignBlockApi(
     id: id,
-    type: type,
+    // [wireBlockType]: an image block showing a `$` variable is a logo to the
+    // server, which substitutes variables into a logo's source alone.
+    type: wireBlockType(type, properties),
     gridPosition: gridPosition.toApi(),
     properties: Map<String, dynamic>.from(
       wireBlockProperties(type, properties),

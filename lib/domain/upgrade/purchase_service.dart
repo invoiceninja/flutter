@@ -116,12 +116,24 @@ class PurchaseService {
         busy.value = true;
         continue;
       }
-      if (p.status == StorePurchaseStatus.error) {
+      // A cancelled store sheet sends `canceled`, not `error` (StoreKit 2,
+      // and Play's user-cancelled) — it must clear [busy] too, or every plan
+      // tile stayed disabled until the sheet was reopened.
+      if (p.status == StorePurchaseStatus.error ||
+          p.status == StorePurchaseStatus.canceled) {
         busy.value = false;
-        _log.warning('purchase error: ${p.error}');
+        if (p.status == StorePurchaseStatus.error) {
+          _log.warning('purchase error: ${p.error}');
+        }
       } else if (p.status == StorePurchaseStatus.purchased ||
           p.status == StorePurchaseStatus.restored) {
-        await _deliver(p);
+        // Finished with the store only once the server has it. A finished
+        // Apple transaction is never re-delivered and Google never refunds
+        // an acknowledged one, so finishing after a failed POST charged the
+        // user for a plan the account never got. Left unfinished, the store
+        // hands it back on the next launch (and Google refunds it after
+        // three days if it never lands).
+        if (!await _deliver(p)) continue;
       }
       if (p.pendingCompletePurchase) {
         await _iap.completePurchase(p);
@@ -131,27 +143,40 @@ class PurchaseService {
 
   /// POST the receipt to the hosted admin endpoint, then refresh the session
   /// so the upgraded plan (and the cleared gates) take effect.
-  Future<void> _deliver(StorePurchase p) async {
+  ///
+  /// Whether the purchase may be finished with the store: true once the server
+  /// has recorded it (a refresh failing after that changes nothing), and for a
+  /// purchase with no transaction id, which no retry could ever deliver; false
+  /// when the POST failed, so the store re-delivers it.
+  Future<bool> _deliver(StorePurchase p) async {
     busy.value = true;
     try {
       final purchaseId = _inAppTransactionId(p);
       if (purchaseId == null || purchaseId.isEmpty) {
         // The server requires a non-empty string; posting null just 422s.
         _log.warning('no transaction id for ${p.productId} — skipping deliver');
-        return;
+        return true;
       }
-      await _apiClient.postJson(
-        '/api/admin/subscription',
-        body: {
-          'inapp_transaction_id': purchaseId,
-          'key': _auth.session.value?.accountId ?? '',
-          'plan': p.productId.replaceAll('-', '_'),
-        },
-      );
-      // Full session snapshot — flips the plan slug everywhere.
-      await _auth.refresh();
-    } catch (e) {
-      _log.warning('subscription deliver failed: $e');
+      try {
+        await _apiClient.postJson(
+          '/api/admin/subscription',
+          body: {
+            'inapp_transaction_id': purchaseId,
+            'key': _auth.session.value?.accountId ?? '',
+            'plan': p.productId.replaceAll('-', '_'),
+          },
+        );
+      } catch (e) {
+        _log.warning('subscription deliver failed: $e');
+        return false;
+      }
+      try {
+        // Full session snapshot — flips the plan slug everywhere.
+        await _auth.refresh();
+      } catch (e) {
+        _log.warning('refresh after subscription deliver failed: $e');
+      }
+      return true;
     } finally {
       busy.value = false;
     }

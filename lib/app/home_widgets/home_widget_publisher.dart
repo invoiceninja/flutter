@@ -289,7 +289,14 @@ class HomeWidgetPublisher {
   /// Every session end: cancel the pending write, outdate any rebuild in
   /// flight, and leave the widgets saying "Sign in". Chained into
   /// `AuthRepository.onBeforeLogout` and the data wipe.
-  Future<void> signOut() async {
+  ///
+  /// [dropCommands] also deletes the widget commands still queued — only the
+  /// data wipe passes it. Any other session end keeps them: a 401 that keeps
+  /// the data is the same user coming back, and deleting their Stop there left
+  /// the timer running and billing with nothing said. A command is applied
+  /// only for the user who queued it (`HomeWidgetCommands._apply`) and only
+  /// while it is fresh, so a kept one can't act for anyone else.
+  Future<void> signOut({bool dropCommands = false}) async {
     _pending?.cancel();
     _pending = null;
     _deferredReload?.cancel();
@@ -310,7 +317,7 @@ class HomeWidgetPublisher {
         rtl: _rtl,
       ).toJson(writtenAt: _now()),
     );
-    await bridge.deleteAllCommands();
+    if (dropCommands) await bridge.deleteAllCommands();
   }
 
   Future<void> _rebuild() async {

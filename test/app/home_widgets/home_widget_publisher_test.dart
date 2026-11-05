@@ -414,7 +414,7 @@ void main() {
     expect(rig.bridge.writes, hasLength(1));
   });
 
-  testWidgets('signing out writes the signed-out stub and drops commands', (
+  testWidgets('signing out writes the signed-out stub and keeps commands', (
     tester,
   ) async {
     final rig = _Rig(session: _session())..start();
@@ -428,7 +428,20 @@ void main() {
       (rig.bridge.writes.last.json['strings']! as Map)['widget_sign_in'],
       'T:widget_sign_in',
     );
+    // A session end keeps the queued Stops: a 401 that keeps the data is the
+    // same user coming back, and a Stop dropped there left the timer running
+    // and billing with nothing said. A command for anyone else is discarded
+    // where it is applied (`HomeWidgetCommands._apply`).
+    expect(rig.bridge.deleteAllCalls, 0);
+  });
+
+  testWidgets('a data wipe drops the queued commands', (tester) async {
+    final rig = _Rig(session: _session())..start();
+    addTearDown(rig.dispose);
+    await tester.pump(const Duration(seconds: 3));
+    await rig.publisher.signOut(dropCommands: true);
     expect(rig.bridge.deleteAllCalls, greaterThan(0));
+    expect(rig.bridge.writes.last.json['signedIn'], isFalse);
   });
 
   testWidgets('a rebuild in flight when the user signs out never writes', (

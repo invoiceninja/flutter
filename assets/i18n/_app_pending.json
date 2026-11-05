@@ -1687,5 +1687,6 @@
   "widget_add_attention": "Add Needs attention",
   "widget_add_timer": "Add Running timer",
   "widget_pin_unsupported": "Your home screen can't add widgets from an app. Touch and hold it and choose Widgets instead.",
-  "widget_settings_help_macos": "See what you're owed, what's past due and your running timer on your desktop or in Notification Center. Control-click the desktop and choose Edit Widgets, or click the date in the menu bar and choose Edit Widgets, then search for Invoice Ninja. Widgets need macOS 14 or later."
+  "widget_settings_help_macos": "See what you're owed, what's past due and your running timer on your desktop or in Notification Center. Control-click the desktop and choose Edit Widgets, or click the date in the menu bar and choose Edit Widgets, then search for Invoice Ninja. Widgets need macOS 14 or later.",
+  "self_update_may_still_be_running": "The server didn't answer in time, but the update may still be running. Wait a few minutes, then check the server's version before trying again."
 }

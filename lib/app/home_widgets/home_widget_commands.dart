@@ -45,6 +45,14 @@ enum WidgetCommandOutcome {
 
 /// Stops a timer for a widget command. `TaskRepository.stopRunningTimer` in
 /// the app; a fake in tests.
+///
+/// [stillCurrent] answers whether the session the command is being applied
+/// under is still the active one — same user, same company. The app's stop
+/// awaits a refresh of the task before it saves, and a sign-out landing in
+/// that wait wipes the database: the refresh then writes the task back and the
+/// save queues an outbox row for the outgoing user into the database the next
+/// user signs into. The stop checks it just before saving and throws
+/// [WidgetSessionEndedException] when it is false.
 typedef StopTimer =
     Future<TimerStopResult> Function({
       required String companyId,
@@ -52,7 +60,18 @@ typedef StopTimer =
       required DateTime stopAt,
       required DateTime runningSince,
       required bool Function(Task task) only,
+      required bool Function() stillCurrent,
     });
+
+/// Thrown by a [StopTimer] whose session ended while it was being applied.
+/// The command is kept ([WidgetCommandOutcome.failed]) for the next session:
+/// the same user coming back after a 401 still gets the stop.
+class WidgetSessionEndedException implements Exception {
+  const WidgetSessionEndedException();
+
+  @override
+  String toString() => 'The session ended while the widget command applied';
+}
 
 /// Opens a task and starts its timer for a widget's Start — the app's deep
 /// link choreography (held while locked, company switched behind its
@@ -236,6 +255,12 @@ class HomeWidgetCommands {
             assignedTo: task.assignedUserId,
             recordId: task.id,
           ),
+          stillCurrent: () {
+            final now = session.value;
+            return now != null &&
+                now.userId == s.userId &&
+                now.currentCompanyId == s.currentCompanyId;
+          },
         );
         _applied.add(command.id);
         return switch (result) {

@@ -1,6 +1,7 @@
 import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/data/services/api_exception.dart';
 
 /// What the app offers a self-hosted admin about updating their server —
 /// admin-portal's sidebar warning icon and About-screen button
@@ -29,6 +30,13 @@ SelfUpdateOffer selfUpdateOffer(AuthSession? session) {
   final me = session.currentCompany;
   // Fail closed on a not-yet-loaded company, like the white-label nag.
   if (me == null || !(me.isAdmin || me.isOwner)) return SelfUpdateOffer.none;
+  // Fail closed until the session knows the install. A stored account that
+  // predates `current_version` / `is_docker` restores both blank / false until
+  // the first refresh, and a Docker server read that way was offered a Force
+  // Update — which unpacks a release over the container's files.
+  if (bareVersion(session.serverCurrentVersion).isEmpty) {
+    return SelfUpdateOffer.none;
+  }
   if (isNewerRelease(
     installed: session.serverCurrentVersion,
     latest: session.serverLatestVersion,
@@ -69,3 +77,21 @@ const String kServerReleaseNotesUrl =
 /// Force Update.
 String serverChangesUrl(String installed) =>
     'https://github.com/invoiceninja/invoiceninja/compare/v${bareVersion(installed)}...v5-stable';
+
+/// Whether a failed `POST /self-update` may still be running on the server —
+/// the request got there, and only the answer was lost. The server
+/// (`SelfUpdateController::update`) lifts its own time limit, downloads and
+/// unpacks the release and runs the migrations, which outlasts a typical
+/// reverse proxy's ~60 s: the proxy answers 502 / 503 / 504, or the app's own
+/// timeout or a dropped connection gives up first, while PHP carries on.
+///
+/// Reported as a plain failure, that invited Update Now again — a second
+/// unpack and migration over one still in progress, which can leave a
+/// half-written install. A [RequestNotSentException] provably never reached
+/// the server, so that one is an ordinary failure.
+bool selfUpdateMayStillBeRunning(Object error) {
+  if (error is RequestNotSentException) return false;
+  if (error is NetworkException) return true;
+  return error is ServerException &&
+      const {502, 503, 504}.contains(error.statusCode);
+}

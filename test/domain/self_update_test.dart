@@ -5,6 +5,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/self_update.dart';
 
 AuthSession _session({
@@ -78,6 +79,21 @@ void main() {
       );
     });
 
+    // An install upgraded to this build restores a session whose stored
+    // account predates `current_version` / `is_docker`, until the first
+    // refresh: blank, and `isDocker` false — a Docker server read as not one,
+    // offered a Force Update that unpacks a release over the container.
+    test('nothing while the installed version is unknown', () {
+      expect(
+        selfUpdateOffer(_session(current: '', latest: '')),
+        SelfUpdateOffer.none,
+      );
+      expect(
+        selfUpdateOffer(_session(current: '', latest: '5.13.45')),
+        SelfUpdateOffer.none,
+      );
+    });
+
     test('Docker: the update still shows, a Force Update does not', () {
       expect(selfUpdateOffer(_session(isDocker: true)), SelfUpdateOffer.update);
       expect(
@@ -131,5 +147,31 @@ void main() {
       serverChangesUrl(' 5.13.40 '),
       'https://github.com/invoiceninja/invoiceninja/compare/v5.13.40...v5-stable',
     );
+  });
+
+  // A proxy's ~60 s gives up long before the server finishes unpacking and
+  // migrating; reported as a failure, it invited a second, overlapping update.
+  group('selfUpdateMayStillBeRunning', () {
+    test('an answer lost after the request went out', () {
+      expect(
+        selfUpdateMayStillBeRunning(const NetworkException('timed out')),
+        isTrue,
+      );
+      for (final code in [502, 503, 504]) {
+        expect(selfUpdateMayStillBeRunning(ServerException(code)), isTrue);
+      }
+    });
+
+    test('a request that never left, or a real refusal, is a failure', () {
+      expect(
+        selfUpdateMayStillBeRunning(const RequestNotSentException('offline')),
+        isFalse,
+      );
+      expect(selfUpdateMayStillBeRunning(const ServerException(500)), isFalse);
+      expect(
+        selfUpdateMayStillBeRunning(const ValidationException('Invalid', {})),
+        isFalse,
+      );
+    });
   });
 }

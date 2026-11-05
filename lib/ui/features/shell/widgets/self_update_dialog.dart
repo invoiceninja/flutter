@@ -83,7 +83,12 @@ class _SelfUpdateDialogState extends State<SelfUpdateDialog> {
       if (!mounted) return;
       setState(() {
         _phase = _Phase.done;
-        _error = formatNotifyError(e);
+        // A lost answer (a proxy's 504, a timeout) is not a failure: the
+        // server is likely still unpacking and migrating, and "failed" invited
+        // a second, overlapping update. See `selfUpdateMayStillBeRunning`.
+        _error = selfUpdateMayStillBeRunning(e)
+            ? context.tr('self_update_may_still_be_running')
+            : formatNotifyError(e);
       });
     }
   }

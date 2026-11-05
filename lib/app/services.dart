@@ -1608,8 +1608,9 @@ class Services implements SidebarBadgeContext {
           await sharedIntakeFiles.purgeAll(
             except: services.sharedFiles.heldPaths,
           );
-          // The widgets' copy of the figures goes with the data it came from.
-          await services.homeWidgets?.signOut();
+          // The widgets' copy of the figures goes with the data it came from,
+          // and so do the Stops queued against it.
+          await services.homeWidgets?.signOut(dropCommands: true);
         },
       ),
     );
@@ -2217,10 +2218,12 @@ class Services implements SidebarBadgeContext {
       // Client-level setting overrides are user data.
       services.settings.clearResolvedCache();
       // Every session end — a 401 and an idle re-lock included — leaves the
-      // home-screen widgets saying "Sign in", and drops a Stop queued for the
-      // outgoing user. Cancels a pending write first, so a late one can't put
-      // the figures back. After the in-memory clears: it waits on the native
-      // side (bounded), and nothing above should wait behind it.
+      // home-screen widgets saying "Sign in". It keeps a Stop queued for the
+      // outgoing user, who is the one coming back after a 401; a data wipe
+      // drops it (`onWipeAll` above). Cancels a pending write first, so a
+      // late one can't put the figures back. After the in-memory clears: it
+      // waits on the native side (bounded), and nothing above should wait
+      // behind it.
       await services.homeWidgets?.signOut();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
@@ -2352,6 +2355,7 @@ class Services implements SidebarBadgeContext {
               required stopAt,
               required runningSince,
               required only,
+              required stillCurrent,
             }) async {
               // The server's copy first: the `runningSince` guard is only as
               // good as what it compares against, and at a cold start the
@@ -2367,6 +2371,10 @@ class Services implements SidebarBadgeContext {
                     .refreshByIds(companyId: companyId, ids: [id])
                     .timeout(const Duration(seconds: 8));
               } catch (_) {}
+              // A sign-out or a company switch during that wait must not have
+              // the stop saved — after a wipe it would queue an outbox row for
+              // the outgoing user. Kept for the next session instead.
+              if (!stillCurrent()) throw const WidgetSessionEndedException();
               return entities.tasks.stopRunningTimer(
                 companyId: companyId,
                 taskId: id,

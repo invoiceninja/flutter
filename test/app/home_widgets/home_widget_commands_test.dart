@@ -102,6 +102,9 @@ class _Rig {
   void Function()? onStop;
   Object? stopThrows;
 
+  /// What the stop's `stillCurrent` answered after [onStop] ran.
+  final List<bool> stillCurrentAfterStop = [];
+
   late final commands = HomeWidgetCommands(
     bridge: bridge,
     session: session,
@@ -113,9 +116,11 @@ class _Rig {
           required DateTime stopAt,
           required DateTime runningSince,
           required bool Function(Task task) only,
+          required bool Function() stillCurrent,
         }) async {
           stops.add(_Stop(companyId, taskId, stopAt, runningSince));
           onStop?.call();
+          stillCurrentAfterStop.add(stillCurrent());
           final thrown = stopThrows;
           if (thrown != null) throw thrown;
           return stopResult;
@@ -126,6 +131,48 @@ class _Rig {
 
 void main() {
   _startTests();
+
+  // The app's stop awaits a refresh of the task before saving it; a sign-out
+  // landing in that wait wiped the database, the refresh then wrote the task
+  // back, and the save queued an outbox row for the outgoing user into the
+  // database the next user signs into. `stillCurrent` is what the stop checks
+  // just before saving (`Services.build`).
+  group('stillCurrent', () {
+    test('true while the same user and company are active', () async {
+      final rig = _Rig();
+      rig.bridge.files['f1'] = _cmd();
+      await rig.commands.run();
+      expect(rig.stillCurrentAfterStop, [true]);
+    });
+
+    test('false once the user signs out during the stop', () async {
+      final rig = _Rig()..onStop = () {};
+      rig.onStop = () => rig.session.value = null;
+      rig.bridge.files['f1'] = _cmd();
+      await rig.commands.run();
+      expect(rig.stillCurrentAfterStop, [false]);
+    });
+
+    test('false once the company switches during the stop', () async {
+      final rig = _Rig();
+      rig.onStop = () => rig.session.value = _session(company: 'co2');
+      rig.bridge.files['f1'] = _cmd();
+      await rig.commands.run();
+      expect(rig.stillCurrentAfterStop, [false]);
+    });
+
+    test(
+      'a stop abandoned for it keeps its file for the next session',
+      () async {
+        final rig = _Rig()..stopThrows = const WidgetSessionEndedException();
+        rig.bridge.files['f1'] = _cmd();
+        await rig.commands.run();
+        expect(rig.bridge.deleted, isEmpty);
+        expect(rig.outcomes, [WidgetCommandOutcome.failed]);
+      },
+    );
+  });
+
   test(
     'stops the timer at the time of the tap, then deletes the file',
     () async {

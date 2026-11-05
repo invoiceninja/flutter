@@ -147,11 +147,14 @@ or a sign-out can't leave a stale fragment behind.
   - cancels the pending write;
   - bumps a generation, so a rebuild already in flight can't write the figures back;
   - writes the `signedIn: false` stub;
-  - deletes queued commands.
+  - keeps queued commands. A 401 that keeps the data is the same user coming back, and deleting
+    their Stop there left the timer running and billing with nothing said. A command is applied
+    only for the user who queued it, and only while fresh, so a kept one can't act for anyone else.
 - **The stub is written, not the file deleted.** A missing file reads as "Open Invoice Ninja to
   load your data"; the stub reads as "Sign in".
-- **`LocalDataDisposer.onWipeAll`** does the same. Its single slot is shared with the
-  shared-intake purge, so both run from one closure.
+- **`LocalDataDisposer.onWipeAll`** does the same, and deletes the queued commands
+  (`signOut(dropCommands: true)`): they name records the wipe just removed. Its single slot is
+  shared with the shared-intake purge, so both run from one closure.
 - **A cold start with no session** also writes the stub, which covers a logout that crashed half
   way.
 - **Never name a bridge method `wipe`.** `local_data_disposal_test` greps for `.wipe(` and would
@@ -178,6 +181,13 @@ task's own start once the app has opened on it.** Two commands, `stop` and `star
   (`TimerStopResult`).
 - **A pass re-reads the session before every command, and stops once it changes.** A stop must
   never be written under a session that has ended, into a database about to be wiped.
+- **A Stop re-checks it again just before it saves (`stillCurrent`).** The stop first refreshes the
+  task from the server (up to 8 s), and a sign-out landing in that wait used to wipe the database
+  under it: the refresh then wrote the task back, and the save queued an outbox row for the
+  outgoing user into the database the next user signs into. The app's `stopTimer` throws
+  `WidgetSessionEndedException` instead, which keeps the command (`failed`) for the next session.
+  The refresh's own upsert is not guarded (it is a plain read, outside the outbox's
+  `RequestScope`), so the task's cached row can still land; nothing is queued from it.
 - **A command is checked before it is applied.** It must be:
   - this user's (`userId`);
   - for a company the session lists;

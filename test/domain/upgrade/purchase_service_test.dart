@@ -76,6 +76,9 @@ class _FakeBilling implements StoreBilling {
 class _FakeApi implements ApiClient {
   final posts = <(String, Map<String, dynamic>?)>[];
 
+  /// Thrown by [postJson] when set — the server never recorded the purchase.
+  Object? postError;
+
   @override
   Future<dynamic> postJson(
     String path, {
@@ -86,6 +89,8 @@ class _FakeApi implements ApiClient {
     Duration? timeout,
   }) async {
     posts.add((path, body));
+    final error = postError;
+    if (error != null) throw error;
     return null;
   }
 
@@ -96,6 +101,9 @@ class _FakeApi implements ApiClient {
 
 class _FakeAuth implements AuthRepository {
   int refreshes = 0;
+
+  /// Thrown by [refresh] when set.
+  Object? refreshError;
 
   @override
   final ValueListenable<AuthSession?> session = ValueNotifier<AuthSession?>(
@@ -110,7 +118,11 @@ class _FakeAuth implements AuthRepository {
   );
 
   @override
-  Future<void> refresh({bool fullSync = false}) async => refreshes++;
+  Future<void> refresh({bool fullSync = false}) async {
+    refreshes++;
+    final error = refreshError;
+    if (error != null) throw error;
+  }
 
   @override
   Object? noSuchMethod(Invocation invocation) =>
@@ -225,6 +237,57 @@ void main() {
       expect(svc.busy.value, isFalse);
       expect(api.posts, isEmpty);
       expect(billing.bought.single.id, 'pro_plan');
+    });
+
+    // A purchase the server never recorded must not be finished with the
+    // store: a finished Apple transaction is never re-delivered, and Google
+    // never auto-refunds an acknowledged one — the user would be charged for
+    // a plan the account does not have. Left unfinished, the store hands it
+    // back on the next launch, and Google refunds it after three days.
+    test('a failed delivery leaves the purchase unfinished', () async {
+      api.postError = Exception('offline');
+      final p = StorePurchase(
+        productId: 'pro_plan',
+        status: StorePurchaseStatus.purchased,
+        purchaseId: 'GPA.1',
+        localVerificationData: jsonEncode({'orderId': 'x'}),
+        pendingCompletePurchase: true,
+      );
+      await emit(p);
+
+      expect(api.posts, hasLength(1));
+      expect(billing.completed, isEmpty);
+      expect(auth.refreshes, 0);
+      expect(svc.busy.value, isFalse);
+    });
+
+    test('a refresh failing after delivery still completes', () async {
+      auth.refreshError = Exception('offline');
+      final p = StorePurchase(
+        productId: 'pro_plan',
+        status: StorePurchaseStatus.purchased,
+        purchaseId: 'GPA.1',
+        localVerificationData: jsonEncode({'orderId': 'x'}),
+        pendingCompletePurchase: true,
+      );
+      await emit(p);
+
+      expect(billing.completed, [p]);
+    });
+
+    test('a cancelled purchase sheet clears busy', () async {
+      await svc.buy(svc.products.value.single);
+      expect(svc.busy.value, isTrue);
+
+      await emit(
+        const StorePurchase(
+          productId: 'pro_plan',
+          status: StorePurchaseStatus.canceled,
+        ),
+      );
+
+      expect(svc.busy.value, isFalse);
+      expect(api.posts, isEmpty);
     });
 
     test(

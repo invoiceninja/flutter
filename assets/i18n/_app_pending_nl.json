@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Vraagt aandacht toevoegen",
   "widget_add_timer": "Lopende timer toevoegen",
   "widget_pin_unsupported": "Je startscherm kan geen widgets toevoegen vanuit een app. Houd het in plaats daarvan ingedrukt en kies Widgets.",
-  "widget_settings_help_macos": "Zie wat je tegoed hebt, wat over de vervaldatum is en je lopende timer op je bureaublad of in Berichtencentrum. Klik met de Control-toets ingedrukt op het bureaublad en kies Wijzig widgets, of klik op de datum in de menubalk en kies Wijzig widgets, en zoek daarna naar Invoice Ninja. Widgets vereisen macOS 14 of nieuwer."
+  "widget_settings_help_macos": "Zie wat je tegoed hebt, wat over de vervaldatum is en je lopende timer op je bureaublad of in Berichtencentrum. Klik met de Control-toets ingedrukt op het bureaublad en kies Wijzig widgets, of klik op de datum in de menubalk en kies Wijzig widgets, en zoek daarna naar Invoice Ninja. Widgets vereisen macOS 14 of nieuwer.",
+  "not_really": "Niet echt",
+  "send_feedback": "Feedback sturen",
+  "leave_a_review": "Een review schrijven",
+  "rate_the_app": "De app beoordelen",
+  "review_happy_title": "Fijn om te horen! Wil je een korte review achterlaten?",
+  "review_sorry_title": "Dat is jammer. Wat kunnen we beter doen?",
+  "review_helps_others": "Zo vinden andere kleine bedrijven ons ook.",
+  "review_opens_store": "Opent :store",
+  "review_thanks": "Bedankt voor je steun!",
+  "no_thanks": "Nee, bedankt"
 }

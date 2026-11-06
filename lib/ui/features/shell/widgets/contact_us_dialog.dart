@@ -15,7 +15,11 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 /// `showDialog` so a logout / drawer-pop mid-flight can't strand the post-send
 /// toast on a defunct context. Bails silently when there's no session (the
 /// sidebar shouldn't render in that case anyway).
-Future<void> showContactUsDialog(BuildContext context) {
+///
+/// [intro] is a line above the message — the review prompt's "What could we
+/// do better?", so the switch from its card to this one reads as one
+/// conversation (docs/review-prompt.md).
+Future<void> showContactUsDialog(BuildContext context, {String? intro}) {
   final session = context.read<Services>().auth.session.value;
   if (session == null) return Future.value();
   final messenger = ScaffoldMessenger.maybeOf(context);
@@ -25,15 +29,21 @@ Future<void> showContactUsDialog(BuildContext context) {
     // dialog can disappear, otherwise the post-await setState fires on a
     // disposed widget.
     barrierDismissible: false,
-    builder: (ctx) => _ContactUsDialog(session: session, messenger: messenger),
+    builder: (ctx) =>
+        _ContactUsDialog(session: session, messenger: messenger, intro: intro),
   );
 }
 
 class _ContactUsDialog extends StatefulWidget {
-  const _ContactUsDialog({required this.session, required this.messenger});
+  const _ContactUsDialog({
+    required this.session,
+    required this.messenger,
+    this.intro,
+  });
 
   final AuthSession session;
   final ScaffoldMessengerState? messenger;
+  final String? intro;
 
   @override
   State<_ContactUsDialog> createState() => _ContactUsDialogState();
@@ -113,6 +123,13 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.intro case final intro?) ...[
+                  Text(
+                    intro,
+                    style: TextStyle(fontSize: 14, color: tokens.ink2),
+                  ),
+                  const SizedBox(height: InSpacing.xs),
+                ],
                 if (identity.isNotEmpty)
                   Text(
                     identity,

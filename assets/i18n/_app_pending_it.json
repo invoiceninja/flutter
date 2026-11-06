@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Aggiungi Da gestire",
   "widget_add_timer": "Aggiungi Timer in corso",
   "widget_pin_unsupported": "La tua schermata Home non consente di aggiungere widget da un'app. Tocca e tieni premuto lo schermo e scegli Widget.",
-  "widget_settings_help_macos": "Vedi quanto ti devono, cosa è scaduto e il timer in corso sulla scrivania o in Centro Notifiche. Fai clic sulla scrivania tenendo premuto il tasto Ctrl e scegli Modifica widget, oppure fai clic sulla data nella barra dei menu e scegli Modifica widget, poi cerca Invoice Ninja. I widget richiedono macOS 14 o versioni successive."
+  "widget_settings_help_macos": "Vedi quanto ti devono, cosa è scaduto e il timer in corso sulla scrivania o in Centro Notifiche. Fai clic sulla scrivania tenendo premuto il tasto Ctrl e scegli Modifica widget, oppure fai clic sulla data nella barra dei menu e scegli Modifica widget, poi cerca Invoice Ninja. I widget richiedono macOS 14 o versioni successive.",
+  "not_really": "Non proprio",
+  "send_feedback": "Invia un feedback",
+  "leave_a_review": "Lascia una recensione",
+  "rate_the_app": "Valuta l'app",
+  "review_happy_title": "Che bello! Ti andrebbe di lasciare una breve recensione?",
+  "review_sorry_title": "Ci dispiace. Cosa potremmo migliorare?",
+  "review_helps_others": "Aiuta altre piccole imprese a trovarci.",
+  "review_opens_store": "Apre :store",
+  "review_thanks": "Grazie per il tuo supporto!",
+  "no_thanks": "No, grazie"
 }

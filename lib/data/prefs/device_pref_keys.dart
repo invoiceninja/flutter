@@ -280,6 +280,17 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// The review prompt's schedule — install age, days of use, wins, asks
+  /// (`ReviewPromptController`, docs/review-prompt.md). Like
+  /// [mobileAppPromo] it is "this device has been asked": a sign-out keeps
+  /// it, so the install age survives and the next person here isn't asked
+  /// the day after someone else declined.
+  static const reviewPrompt = PrefKey<String>(
+    'review_prompt_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -310,6 +321,7 @@ abstract final class DevicePrefKeys {
     spellCheck,
     showSeconds,
     downloadsFolder,
+    reviewPrompt,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

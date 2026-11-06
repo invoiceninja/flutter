@@ -1633,5 +1633,15 @@
   "widget_add_attention": "新增需要注意",
   "widget_add_timer": "新增執行中的計時器",
   "widget_pin_unsupported": "您的主畫面不支援從應用程式新增小工具。請改為按住主畫面並選擇「小工具」。",
-  "widget_settings_help_macos": "在桌面或通知中心查看應收款項、逾期項目和執行中的計時器。按住 Control 鍵並按一下桌面，然後選擇「編輯小工具」，或按一下選單列中的日期並選擇「編輯小工具」，再搜尋 Invoice Ninja。小工具需要 macOS 14 或以上版本。"
+  "widget_settings_help_macos": "在桌面或通知中心查看應收款項、逾期項目和執行中的計時器。按住 Control 鍵並按一下桌面，然後選擇「編輯小工具」，或按一下選單列中的日期並選擇「編輯小工具」，再搜尋 Invoice Ninja。小工具需要 macOS 14 或以上版本。",
+  "not_really": "不太滿意",
+  "send_feedback": "傳送意見回饋",
+  "leave_a_review": "撰寫評論",
+  "rate_the_app": "為應用程式評分",
+  "review_happy_title": "太好了！能否花點時間寫個評論？",
+  "review_sorry_title": "很抱歉。我們可以在哪些方面做得更好？",
+  "review_helps_others": "這能幫助其他小型企業找到我們。",
+  "review_opens_store": "開啟 :store",
+  "review_thanks": "感謝您的支持！",
+  "no_thanks": "不用了，謝謝"
 }

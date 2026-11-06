@@ -1689,5 +1689,18 @@
   "widget_add_timer": "Add Running timer",
   "widget_pin_unsupported": "Your home screen can't add widgets from an app. Touch and hold it and choose Widgets instead.",
   "widget_settings_help_macos": "See what you're owed, what's past due and your running timer on your desktop or in Notification Center. Control-click the desktop and choose Edit Widgets, or click the date in the menu bar and choose Edit Widgets, then search for Invoice Ninja. Widgets need macOS 14 or later.",
-  "self_update_may_still_be_running": "The server didn't answer in time, but the update may still be running. Wait a few minutes, then check the server's version before trying again."
+  "self_update_may_still_be_running": "The server didn't answer in time, but the update may still be running. Wait a few minutes, then check the server's version before trying again.",
+  "not_really": "Not really",
+  "send_feedback": "Send feedback",
+  "leave_a_review": "Leave a review",
+  "rate_the_app": "Rate the app",
+  "review_happy_title": "Great to hear! Would you mind leaving a quick review?",
+  "review_sorry_title": "Sorry to hear that. What could we do better?",
+  "review_helps_others": "It helps other small businesses find us.",
+  "review_opens_store": "Opens :store",
+  "microsoft_store": "Microsoft Store",
+  "review_thanks": "Thanks for your support!",
+  "no_thanks": "No thanks",
+  "reset_review_schedule": "Reset review schedule",
+  "force_review_prompt": "Force review prompt"
 }

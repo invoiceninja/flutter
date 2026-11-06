@@ -19,6 +19,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/auth/widgets/name_required_dialog.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_host.dart';
+import 'package:admin/ui/features/review_prompt/review_prompt_host.dart';
 import 'package:admin/ui/features/tokens/widgets/token_created_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_host.dart';
 
@@ -591,11 +592,13 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     }
   }
 
-  // The What's New and mobile-app promo auto-opens ride along: they are the
-  // other app-wide prompts, and they share this listener's guarantee of never
-  // landing over `/lock` or `/setup`. The promo waits a day behind What's New
-  // (docs/whats-new-dialog.md).
+  // The What's New, mobile-app promo and review prompt auto-opens ride along:
+  // they are the other app-wide prompts, and they share this listener's
+  // guarantee of never landing over `/lock` or `/setup`. The promo waits a
+  // day behind What's New (docs/whats-new-dialog.md); the review prompt and
+  // the promo hold each other back for a week (docs/review-prompt.md).
   @override
-  Widget build(BuildContext context) =>
-      WhatsNewHost(child: MobileAppPromoHost(child: widget.child));
+  Widget build(BuildContext context) => WhatsNewHost(
+    child: MobileAppPromoHost(child: ReviewPromptHost(child: widget.child)),
+  );
 }

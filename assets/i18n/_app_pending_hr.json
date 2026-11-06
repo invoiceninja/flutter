@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Dodaj Zahtijeva pažnju",
   "widget_add_timer": "Dodaj Pokrenuta štoperica",
   "widget_pin_unsupported": "Vaš početni zaslon ne može dodavati widgete iz aplikacije. Umjesto toga dodirnite ga i držite pa odaberite Widgeti.",
-  "widget_settings_help_macos": "Pogledajte što vam duguju, što je dospjelo i pokrenutu štopericu na radnoj površini ili u Centru za obavijesti. Kliknite radnu površinu uz pritisnutu tipku Control i odaberite Uredi widgete ili kliknite datum na traci s izbornicima i odaberite Uredi widgete, zatim potražite Invoice Ninja. Widgeti zahtijevaju macOS 14 ili noviji."
+  "widget_settings_help_macos": "Pogledajte što vam duguju, što je dospjelo i pokrenutu štopericu na radnoj površini ili u Centru za obavijesti. Kliknite radnu površinu uz pritisnutu tipku Control i odaberite Uredi widgete ili kliknite datum na traci s izbornicima i odaberite Uredi widgete, zatim potražite Invoice Ninja. Widgeti zahtijevaju macOS 14 ili noviji.",
+  "not_really": "Baš i ne",
+  "send_feedback": "Pošalji povratne informacije",
+  "leave_a_review": "Napiši recenziju",
+  "rate_the_app": "Ocijeni aplikaciju",
+  "review_happy_title": "Drago nam je! Biste li ostavili kratku recenziju?",
+  "review_sorry_title": "Žao nam je. Što bismo mogli bolje?",
+  "review_helps_others": "To pomaže drugim malim tvrtkama da nas pronađu.",
+  "review_opens_store": "Otvara :store",
+  "review_thanks": "Hvala na podršci!",
+  "no_thanks": "Ne, hvala"
 }

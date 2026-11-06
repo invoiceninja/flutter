@@ -16,7 +16,7 @@ the check — is `tools/foss/com.invoiceninja.admin.yml` plus `tools/fdroid_buil
 
 ## Store SDKs are imported only from packages/store_services
 
-**Rule: the non-free SDKs (Google Sign-In, in-app purchase, Sentry) are imported only from
+**Rule: the non-free SDKs (Google Sign-In, in-app purchase, in-app review, Sentry) are imported only from
 `packages/store_services`. The app imports that package's own API
 (`package:store_services/store_services.dart`), never an SDK.** Enforced by
 `test/lint/store_sdk_boundary_test.dart`.
@@ -75,14 +75,15 @@ Measured by scanning every Android plugin's `build.gradle` (2026-09):
 | `google_sign_in` | `play-services-auth`, `googleid`, `credentials-play-services-auth` | Play Services |
 | `in_app_purchase` | `com.android.billingclient:billing` | Play Billing |
 | `in_app_purchase_storekit` | none (iOS only) | rides with `in_app_purchase` |
+| `in_app_review` | `com.google.android.play:review`, `play-services-base` | Play's In-App Review sheet (`docs/review-prompt.md`); the twin's `StoreReview.isStoreBuild` is false, so F-Droid asks through the app's own card instead |
 | `sentry_flutter` | sentry-android (MIT) | Free, but F-Droid tags it with the *Tracking* anti-feature, and it is inert anyway without the `IN_SENTRY_DSN` define |
 | `store_services`' own Android plugin | `com.google.mlkit:text-recognition` (+ `datatransport` telemetry) | Google's proprietary OCR — receipt reading (`docs/receipt-ocr.md`) |
 
 Everything else is androidx, Kotlin, Tink (`flutter_secure_storage`) or Apache Tika
-(`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 13
+(`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 15
 packages no longer depended on. `tools/foss/pubspec.lock` is the store lock without them.
 `prepare_foss.sh` fails if a store SDK is in it, and `store_sdk_boundary_test` fails if any of the
-13 is (§ F-Droid resolves a committed FOSS lock).
+15 is (§ F-Droid resolves a committed FOSS lock).
 
 **Adding a new store-only SDK**:
 
@@ -243,9 +244,10 @@ SDKs. Regenerate it with `tools/prepare_foss.sh --update-lock` whenever `pubspec
 - **Why it matters.** Pub checks every download against its locked `sha256`. So F-Droid's build
   resolves exactly the code the store build was tested with, which is also the precondition for
   F-Droid and us resolving the *same* code.
-- **Measured** (2026-10-15): the store lock holds 239 packages and the FOSS lock 226. The 13
+- **Measured** (2026-11-06): the store lock holds 248 packages and the FOSS lock 233. The 15
   dropped are the `google_sign_in*` family (with `google_identity_services_web`), the
-  `in_app_purchase*` family, `sentry`, `sentry_flutter` and `jni`; the only other difference is
+  `in_app_purchase*` family, `in_app_review` and its platform interface, `sentry`,
+  `sentry_flutter` and `jni`; the only other difference is
   `store_services`' path. Editing a version in the FOSS lock fails `prepare` at
   `--enforce-lockfile`. Moving a pin in the store lock fails the pin check, which names the
   package.

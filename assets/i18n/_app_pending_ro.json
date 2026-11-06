@@ -1682,5 +1682,15 @@
   "widget_add_attention": "Adăugați Necesită atenție",
   "widget_add_timer": "Adăugați Cronometru activ",
   "widget_pin_unsupported": "Ecranul de pornire nu permite adăugarea de widgeturi dintr-o aplicație. Atingeți-l lung și alegeți Widgeturi.",
-  "widget_settings_help_macos": "Vedeți ce vi se datorează, ce este restant și cronometrul activ pe birou sau în Centrul de notificări. Faceți Control-clic pe birou și alegeți Editați widgeturile sau faceți clic pe dată în bara de meniuri și alegeți Editați widgeturile, apoi căutați Invoice Ninja. Widgeturile necesită macOS 14 sau o versiune ulterioară."
+  "widget_settings_help_macos": "Vedeți ce vi se datorează, ce este restant și cronometrul activ pe birou sau în Centrul de notificări. Faceți Control-clic pe birou și alegeți Editați widgeturile sau faceți clic pe dată în bara de meniuri și alegeți Editați widgeturile, apoi căutați Invoice Ninja. Widgeturile necesită macOS 14 sau o versiune ulterioară.",
+  "not_really": "Nu chiar",
+  "send_feedback": "Trimite feedback",
+  "leave_a_review": "Scrie o recenzie",
+  "rate_the_app": "Evaluează aplicația",
+  "review_happy_title": "Ne bucurăm! Ai scrie o recenzie scurtă?",
+  "review_sorry_title": "Ne pare rău. Ce am putea face mai bine?",
+  "review_helps_others": "Ajută alte afaceri mici să ne găsească.",
+  "review_opens_store": "Deschide :store",
+  "review_thanks": "Îți mulțumim pentru sprijin!",
+  "no_thanks": "Nu, mulțumesc"
 }

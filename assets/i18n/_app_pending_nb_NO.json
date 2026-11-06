@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Legg til Trenger oppmerksomhet",
   "widget_add_timer": "Legg til Løpende tidtaker",
   "widget_pin_unsupported": "Startskjermen din kan ikke legge til widgeter fra en app. Trykk og hold på den i stedet, og velg Moduler.",
-  "widget_settings_help_macos": "Se hva du har utestående, hva som er forfalt, og den løpende tidtakeren på skrivebordet eller i Varslingssenter. Kontroll-klikk på skrivebordet og velg Rediger widgeter, eller klikk på datoen i menylinjen og velg Rediger widgeter, og søk deretter etter Invoice Ninja. Widgeter krever macOS 14 eller nyere."
+  "widget_settings_help_macos": "Se hva du har utestående, hva som er forfalt, og den løpende tidtakeren på skrivebordet eller i Varslingssenter. Kontroll-klikk på skrivebordet og velg Rediger widgeter, eller klikk på datoen i menylinjen og velg Rediger widgeter, og søk deretter etter Invoice Ninja. Widgeter krever macOS 14 eller nyere.",
+  "not_really": "Egentlig ikke",
+  "send_feedback": "Send tilbakemelding",
+  "leave_a_review": "Skriv en anmeldelse",
+  "rate_the_app": "Vurder appen",
+  "review_happy_title": "Så hyggelig å høre! Vil du skrive en kort anmeldelse?",
+  "review_sorry_title": "Det var leit å høre. Hva kan vi gjøre bedre?",
+  "review_helps_others": "Det hjelper andre små bedrifter med å finne oss.",
+  "review_opens_store": "Åpner :store",
+  "review_thanks": "Takk for støtten!",
+  "no_thanks": "Nei takk"
 }

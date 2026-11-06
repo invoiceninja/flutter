@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Voeg Vereis aandag by",
   "widget_add_timer": "Voeg Lopende tydhouer by",
   "widget_pin_unsupported": "Jou tuisskerm kan nie legstukke vanuit 'n app byvoeg nie. Raak en hou dit eerder en kies Legstukke.",
-  "widget_settings_help_macos": "Sien wat aan jou geskuld word, wat agterstallig is en jou lopende tydhouer op jou lessenaar of in die Kennisgewingsentrum. Control-klik op die lessenaar en kies Wysig legstukke, of klik op die datum in die kieslysbalk en kies Wysig legstukke, en soek dan na Invoice Ninja. Legstukke vereis macOS 14 of later."
+  "widget_settings_help_macos": "Sien wat aan jou geskuld word, wat agterstallig is en jou lopende tydhouer op jou lessenaar of in die Kennisgewingsentrum. Control-klik op die lessenaar en kies Wysig legstukke, of klik op die datum in die kieslysbalk en kies Wysig legstukke, en soek dan na Invoice Ninja. Legstukke vereis macOS 14 of later.",
+  "not_really": "Nie regtig nie",
+  "send_feedback": "Stuur terugvoer",
+  "leave_a_review": "Laat 'n resensie",
+  "rate_the_app": "Beoordeel die app",
+  "review_happy_title": "Wonderlik om te hoor! Sal jy gou 'n resensie wil los?",
+  "review_sorry_title": "Jammer om dit te hoor. Wat kan ons beter doen?",
+  "review_helps_others": "Dit help ander klein ondernemings om ons te vind.",
+  "review_opens_store": "Maak :store oop",
+  "review_thanks": "Dankie vir jou ondersteuning!",
+  "no_thanks": "Nee dankie"
 }

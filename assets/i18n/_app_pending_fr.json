@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Ajouter À traiter",
   "widget_add_timer": "Ajouter Minuteur en cours",
   "widget_pin_unsupported": "Votre écran d'accueil ne permet pas d'ajouter des widgets depuis une app. Maintenez plutôt le doigt dessus et choisissez Widgets.",
-  "widget_settings_help_macos": "Consultez ce qu'on vous doit, ce qui est en retard et votre minuteur en cours sur le bureau ou dans le centre de notifications. Cliquez sur le bureau tout en maintenant la touche Contrôle enfoncée et choisissez Modifier les widgets, ou cliquez sur la date dans la barre des menus et choisissez Modifier les widgets, puis recherchez Invoice Ninja. Les widgets nécessitent macOS 14 ou une version ultérieure."
+  "widget_settings_help_macos": "Consultez ce qu'on vous doit, ce qui est en retard et votre minuteur en cours sur le bureau ou dans le centre de notifications. Cliquez sur le bureau tout en maintenant la touche Contrôle enfoncée et choisissez Modifier les widgets, ou cliquez sur la date dans la barre des menus et choisissez Modifier les widgets, puis recherchez Invoice Ninja. Les widgets nécessitent macOS 14 ou une version ultérieure.",
+  "not_really": "Pas vraiment",
+  "send_feedback": "Envoyer un commentaire",
+  "leave_a_review": "Laisser un avis",
+  "rate_the_app": "Évaluer l'application",
+  "review_happy_title": "Ravis de l'entendre ! Accepteriez-vous de laisser un petit avis ?",
+  "review_sorry_title": "Désolés de l'apprendre. Que pourrions-nous améliorer ?",
+  "review_helps_others": "Cela aide d'autres petites entreprises à nous trouver.",
+  "review_opens_store": "Ouvre :store",
+  "review_thanks": "Merci de votre soutien !",
+  "no_thanks": "Non merci"
 }

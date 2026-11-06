@@ -25,6 +25,7 @@ import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
 import 'package:admin/app/memory_pressure_observer.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
+import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/native_splash.dart';
 import 'package:admin/app/native_window.dart';
@@ -254,6 +255,7 @@ Future<void> _bootstrap() async {
     diagnosticsLog: diag,
     realtimeUpdates: true,
     mobileAppPromote: true,
+    reviewPromptAutoAsk: true,
     homeWidgets: true,
   );
   // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
@@ -873,6 +875,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // read as `context.read<WhatsNewController?>()` for the same reason.
         ChangeNotifierProvider<WhatsNewController>.value(
           value: widget.services.whatsNew,
+        ),
+        // For the shell's review prompt host, About, the command palette and
+        // the Debug Panel, read as `context.read<ReviewPromptController?>()`
+        // for the same reason.
+        ChangeNotifierProvider<ReviewPromptController>.value(
+          value: widget.services.reviewPrompt,
         ),
         // For the line-item fields' spell check and its Device Settings
         // switch, read as `context.watch<SpellCheckController?>()` for the

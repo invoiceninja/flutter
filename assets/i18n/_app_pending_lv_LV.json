@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Pievienot Nepieciešama uzmanība",
   "widget_add_timer": "Pievienot Aktīvais taimeris",
   "widget_pin_unsupported": "Jūsu sākuma ekrāns nevar pievienot logrīkus no lietotnes. Tā vietā pieskarieties tam, turiet un izvēlieties Logrīki.",
-  "widget_settings_help_macos": "Redziet, cik jums ir parādā, kas ir nokavēts, un aktīvo taimeri darbvirsmā vai paziņojumu centrā. Turot nospiestu taustiņu Control, noklikšķiniet uz darbvirsmas un izvēlieties Rediģēt logrīkus vai noklikšķiniet uz datuma izvēļņu joslā un izvēlieties Rediģēt logrīkus, pēc tam meklējiet Invoice Ninja. Logrīkiem nepieciešama macOS 14 vai jaunāka versija."
+  "widget_settings_help_macos": "Redziet, cik jums ir parādā, kas ir nokavēts, un aktīvo taimeri darbvirsmā vai paziņojumu centrā. Turot nospiestu taustiņu Control, noklikšķiniet uz darbvirsmas un izvēlieties Rediģēt logrīkus vai noklikšķiniet uz datuma izvēļņu joslā un izvēlieties Rediģēt logrīkus, pēc tam meklējiet Invoice Ninja. Logrīkiem nepieciešama macOS 14 vai jaunāka versija.",
+  "not_really": "Ne īsti",
+  "send_feedback": "Sūtīt atsauksmi",
+  "leave_a_review": "Uzrakstīt atsauksmi",
+  "rate_the_app": "Novērtēt lietotni",
+  "review_happy_title": "Prieks dzirdēt! Vai jūs uzrakstītu īsu atsauksmi?",
+  "review_sorry_title": "Žēl to dzirdēt. Ko mēs varētu uzlabot?",
+  "review_helps_others": "Tas palīdz citiem mazajiem uzņēmumiem mūs atrast.",
+  "review_opens_store": "Atver :store",
+  "review_thanks": "Paldies par atbalstu!",
+  "no_thanks": "Nē, paldies"
 }

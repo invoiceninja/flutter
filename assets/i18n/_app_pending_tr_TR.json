@@ -1685,5 +1685,15 @@
   "widget_add_attention": "İlgi gerektiriyor ekle",
   "widget_add_timer": "Çalışan zamanlayıcı ekle",
   "widget_pin_unsupported": "Ana ekranınız bir uygulamadan widget eklemeyi desteklemiyor. Bunun yerine ana ekrana dokunup basılı tutun ve Widget'lar'ı seçin.",
-  "widget_settings_help_macos": "Alacaklarınızı, vadesi geçenleri ve çalışan zamanlayıcınızı masaüstünde veya Bildirim Merkezi'nde görün. Masaüstüne Control tuşuna basılı tutarak tıklayın ve Widget'ları Düzenle'yi seçin ya da menü çubuğundaki tarihe tıklayıp Widget'ları Düzenle'yi seçin, ardından Invoice Ninja'yı arayın. Widget'lar macOS 14 veya daha yenisini gerektirir."
+  "widget_settings_help_macos": "Alacaklarınızı, vadesi geçenleri ve çalışan zamanlayıcınızı masaüstünde veya Bildirim Merkezi'nde görün. Masaüstüne Control tuşuna basılı tutarak tıklayın ve Widget'ları Düzenle'yi seçin ya da menü çubuğundaki tarihe tıklayıp Widget'ları Düzenle'yi seçin, ardından Invoice Ninja'yı arayın. Widget'lar macOS 14 veya daha yenisini gerektirir.",
+  "not_really": "Pek değil",
+  "send_feedback": "Geri bildirim gönder",
+  "leave_a_review": "Değerlendirme yaz",
+  "rate_the_app": "Uygulamayı değerlendir",
+  "review_happy_title": "Buna sevindik! Kısa bir değerlendirme yazar mısınız?",
+  "review_sorry_title": "Bunu duyduğumuza üzüldük. Neyi daha iyi yapabiliriz?",
+  "review_helps_others": "Diğer küçük işletmelerin bizi bulmasına yardımcı olur.",
+  "review_opens_store": ":store açılır",
+  "review_thanks": "Desteğiniz için teşekkürler!",
+  "no_thanks": "Hayır, teşekkürler"
 }

@@ -13,7 +13,8 @@
 #
 # Four steps:
 #   1. `store_services` → its FOSS twin, via a root pubspec_overrides.yaml
-#      (no Google Sign-In / Play Billing / Sentry in the dependency graph).
+#      (no Google Sign-In / Play Billing / in-app review / Sentry in the
+#      dependency graph).
 #   2. SQLite compiled from source instead of the hook's prebuilt download:
 #      fetch the pinned sqlite3mc amalgamation, check its sha256, and point
 #      the sqlite3 hook at it (`source: source`). Hook user-defines can only
@@ -53,7 +54,7 @@ SQLITE3MC_DIR="native/sqlite3mc"
 SQLITE3MC_C="$SQLITE3MC_DIR/sqlite3mc_amalgamation.c"
 SQLITE3MC_H="$SQLITE3MC_DIR/sqlite3mc_amalgamation.h"
 
-NONFREE_PACKAGES='google_sign_in|in_app_purchase|sentry'
+NONFREE_PACKAGES='google_sign_in|in_app_purchase|in_app_review|sentry'
 
 # The FOSS graph's own lock: pubspec.lock minus the store SDKs. F-Droid wants
 # `pub get --enforce-lockfile`, which a lock rewritten by the swap can't pass

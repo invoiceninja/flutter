@@ -174,4 +174,29 @@ void main() {
     expect(c.isDue(noon.add(const Duration(hours: 23))), isFalse);
     expect(c.isDue(noon.add(const Duration(days: 1))), isTrue);
   });
+
+  test('the promo and the review prompt hold each other back for a week '
+      '(docs/review-prompt.md)', () async {
+    final c = controller();
+    await useOn(c, 3);
+    var reviewAskedLately = true;
+    c.heldBackBy = (_) => reviewAskedLately;
+    expect(c.isDue(noon), isFalse, reason: 'the review prompt just asked');
+    reviewAskedLately = false;
+    expect(c.isDue(noon), isTrue);
+
+    expect(c.holdsBackPromptsAt(noon), isFalse);
+    await c.noteShown(noon);
+    expect(c.holdsBackPromptsAt(noon.add(const Duration(days: 6))), isTrue);
+    expect(c.holdsBackPromptsAt(noon.add(const Duration(days: 7))), isFalse);
+    // A stamp in the future (the clock moved back) holds nothing.
+    expect(
+      c.holdsBackPromptsAt(noon.subtract(const Duration(days: 1))),
+      isFalse,
+    );
+    expect(
+      MobileAppPromoState.decode(c.state.encode()).shownAt,
+      c.state.shownAt,
+    );
+  });
 }

@@ -1634,5 +1634,15 @@
   "widget_add_attention": "Tambah Perlu perhatian",
   "widget_add_timer": "Tambah Timer berjalan",
   "widget_pin_unsupported": "Layar utama Anda tidak dapat menambahkan widget dari aplikasi. Sebagai gantinya, sentuh lama layar utama dan pilih Widget.",
-  "widget_settings_help_macos": "Lihat tagihan Anda, yang sudah lewat jatuh tempo, dan timer yang berjalan di desktop atau di Pusat Pemberitahuan. Klik desktop sambil menekan Control dan pilih Edit Widget, atau klik tanggal di bar menu dan pilih Edit Widget, lalu cari Invoice Ninja. Widget memerlukan macOS 14 atau lebih baru."
+  "widget_settings_help_macos": "Lihat tagihan Anda, yang sudah lewat jatuh tempo, dan timer yang berjalan di desktop atau di Pusat Pemberitahuan. Klik desktop sambil menekan Control dan pilih Edit Widget, atau klik tanggal di bar menu dan pilih Edit Widget, lalu cari Invoice Ninja. Widget memerlukan macOS 14 atau lebih baru.",
+  "not_really": "Tidak juga",
+  "send_feedback": "Kirim masukan",
+  "leave_a_review": "Tulis ulasan",
+  "rate_the_app": "Beri nilai aplikasi",
+  "review_happy_title": "Senang mendengarnya! Maukah Anda menulis ulasan singkat?",
+  "review_sorry_title": "Kami turut menyesal. Apa yang bisa kami perbaiki?",
+  "review_helps_others": "Ini membantu usaha kecil lain menemukan kami.",
+  "review_opens_store": "Membuka :store",
+  "review_thanks": "Terima kasih atas dukungan Anda!",
+  "no_thanks": "Tidak, terima kasih"
 }

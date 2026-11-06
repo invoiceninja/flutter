@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Lisa Vajab tähelepanu",
   "widget_add_timer": "Lisa Töötav taimer",
   "widget_pin_unsupported": "Sinu avakuva ei luba rakendusest vidinaid lisada. Hoia selle asemel sõrme avakuval ja vali Vidinad.",
-  "widget_settings_help_macos": "Vaata, mis sulle võlgu on, mis on tähtaja ületanud ja töötavat taimerit töölaual või teavituskeskuses. Klõpsa Control-klahvi all hoides töölauda ja vali Muuda vidinaid või klõpsa menüüribal kuupäeval ja vali Muuda vidinaid, seejärel otsi Invoice Ninja. Vidinad vajavad macOS 14 või uuemat."
+  "widget_settings_help_macos": "Vaata, mis sulle võlgu on, mis on tähtaja ületanud ja töötavat taimerit töölaual või teavituskeskuses. Klõpsa Control-klahvi all hoides töölauda ja vali Muuda vidinaid või klõpsa menüüribal kuupäeval ja vali Muuda vidinaid, seejärel otsi Invoice Ninja. Vidinad vajavad macOS 14 või uuemat.",
+  "not_really": "Mitte eriti",
+  "send_feedback": "Saada tagasisidet",
+  "leave_a_review": "Kirjuta arvustus",
+  "rate_the_app": "Hinda rakendust",
+  "review_happy_title": "Rõõm kuulda! Kas kirjutaksid lühikese arvustuse?",
+  "review_sorry_title": "Kahju seda kuulda. Mida saaksime paremini teha?",
+  "review_helps_others": "See aitab teistel väikeettevõtetel meid leida.",
+  "review_opens_store": "Avab :store",
+  "review_thanks": "Aitäh toetuse eest!",
+  "no_thanks": "Ei, aitäh"
 }

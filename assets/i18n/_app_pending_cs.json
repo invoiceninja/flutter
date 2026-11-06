@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Přidat Vyžaduje pozornost",
   "widget_add_timer": "Přidat Běžící časovač",
   "widget_pin_unsupported": "Vaše plocha neumožňuje přidávat widgety z aplikace. Místo toho na ní podržte prst a zvolte Widgety.",
-  "widget_settings_help_macos": "Mějte přehled o tom, co vám dluží, co je po splatnosti, a o běžícím časovači na ploše nebo v Oznamovacím centru. Klikněte na plochu se stisknutou klávesou Control a vyberte Upravit widgety, nebo klikněte na datum na řádku nabídek a vyberte Upravit widgety, potom vyhledejte Invoice Ninja. Widgety vyžadují macOS 14 nebo novější."
+  "widget_settings_help_macos": "Mějte přehled o tom, co vám dluží, co je po splatnosti, a o běžícím časovači na ploše nebo v Oznamovacím centru. Klikněte na plochu se stisknutou klávesou Control a vyberte Upravit widgety, nebo klikněte na datum na řádku nabídek a vyberte Upravit widgety, potom vyhledejte Invoice Ninja. Widgety vyžadují macOS 14 nebo novější.",
+  "not_really": "Ani ne",
+  "send_feedback": "Odeslat zpětnou vazbu",
+  "leave_a_review": "Napsat recenzi",
+  "rate_the_app": "Ohodnotit aplikaci",
+  "review_happy_title": "To rádi slyšíme! Nechtěli byste napsat krátkou recenzi?",
+  "review_sorry_title": "To nás mrzí. Co bychom mohli zlepšit?",
+  "review_helps_others": "Pomůže to dalším malým firmám nás najít.",
+  "review_opens_store": "Otevře :store",
+  "review_thanks": "Děkujeme za podporu!",
+  "no_thanks": "Ne, děkuji"
 }

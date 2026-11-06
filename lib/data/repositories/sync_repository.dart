@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/sync/landed_mutation.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -202,6 +203,28 @@ class SyncRepository {
 
   Stream<SyncEvent> get events => _events.stream;
 
+  final StreamController<LandedMutation> _landed =
+      StreamController<LandedMutation>.broadcast();
+
+  /// Every row the server confirmed, as it is deleted — the review prompt's
+  /// "the user just finished something" (docs/review-prompt.md). Never a row
+  /// whose outcome is unknown, one recovered at launch, or one the user
+  /// resolved by hand through Check / Resend.
+  Stream<LandedMutation> get landed => _landed.stream;
+
+  void _emitLanded(OutboxRow row, {bool committedSettle = false}) {
+    if (_landed.isClosed || !_landed.hasListener) return;
+    _landed.add(
+      LandedMutation.fromRow(
+        entityType: row.entityType,
+        mutationKind: row.mutationKind,
+        payload: row.payload,
+        createdAtMs: row.createdAt,
+        committedSettle: committedSettle,
+      ),
+    );
+  }
+
   /// Drains currently in flight, keyed by `companyId`. A second
   /// [drainOnce] call for the same company while a drain is running
   /// returns the existing future instead of starting a parallel one —
@@ -267,7 +290,10 @@ class SyncRepository {
     }
   }
 
-  Future<void> dispose() => _events.close();
+  Future<void> dispose() async {
+    await _landed.close();
+    await _events.close();
+  }
 
   /// Stop a running [drainOnce] (between rows — an in-flight HTTP request is
   /// allowed to settle so the server's view doesn't diverge from ours) and
@@ -1699,6 +1725,7 @@ class SyncRepository {
       await scope.run(() => handlers.dispatcher.dispatch(row: row, kind: kind));
       _noteLanded(row.id);
       await db.outboxDao.deleteRow(row.id);
+      _emitLanded(row);
       return true;
     } catch (e, st) {
       // Discarded while on the wire: the discard settled the row, and left
@@ -1851,6 +1878,7 @@ class SyncRepository {
     }
     _noteLanded(row.id);
     await db.outboxDao.deleteRow(row.id);
+    _emitLanded(row, committedSettle: true);
     await _reconcileDiscardedDirty(row);
     final handlers = registry.byWireName(row.entityType);
     final refresh = refreshRecord;

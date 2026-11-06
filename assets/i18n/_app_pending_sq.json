@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Shto Kërkon vëmendje",
   "widget_add_timer": "Shto Kohëmatësi në ecuri",
   "widget_pin_unsupported": "Ekrani yt bazë nuk lejon shtimin e widget-eve nga një aplikacion. Prek dhe mbaje atë dhe zgjidh Miniaplikacionet.",
-  "widget_settings_help_macos": "Shiko sa të kanë borxh, çfarë ka kaluar afatin dhe kohëmatësin në ecuri në desktop ose në Qendrën e njoftimeve. Kliko në desktop duke mbajtur shtypur tastin Control dhe zgjidh Redakto widget-et, ose kliko datën në shiritin e menysë dhe zgjidh Redakto widget-et, pastaj kërko Invoice Ninja. Widget-et kërkojnë macOS 14 ose më të ri."
+  "widget_settings_help_macos": "Shiko sa të kanë borxh, çfarë ka kaluar afatin dhe kohëmatësin në ecuri në desktop ose në Qendrën e njoftimeve. Kliko në desktop duke mbajtur shtypur tastin Control dhe zgjidh Redakto widget-et, ose kliko datën në shiritin e menysë dhe zgjidh Redakto widget-et, pastaj kërko Invoice Ninja. Widget-et kërkojnë macOS 14 ose më të ri.",
+  "not_really": "Jo shumë",
+  "send_feedback": "Dërgo komente",
+  "leave_a_review": "Shkruaj një vlerësim",
+  "rate_the_app": "Vlerëso aplikacionin",
+  "review_happy_title": "Gëzohemi! A do të linit një vlerësim të shkurtër?",
+  "review_sorry_title": "Na vjen keq. Çfarë mund të bëjmë më mirë?",
+  "review_helps_others": "Kjo ndihmon bizneset e tjera të vogla të na gjejnë.",
+  "review_opens_store": "Hap :store",
+  "review_thanks": "Faleminderit për mbështetjen!",
+  "no_thanks": "Jo, faleminderit"
 }

@@ -108,6 +108,7 @@ class _MobileAppPromoHostState extends State<MobileAppPromoHost> {
   Future<void> _show(MobileAppPromoController controller) async {
     controller.shownThisLaunch = true;
     AutomaticDialogs.noteShown();
+    unawaited(controller.noteShown(DateTime.now()));
     final result = await showMobileAppPromoDialog(context);
     // A `null` is Esc — or the shell page being replaced under the dialog (a
     // 401, the idle timeout, `/setup`), which unmounts this host too and is

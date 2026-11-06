@@ -1685,5 +1685,15 @@
   "widget_add_attention": "添加需要关注",
   "widget_add_timer": "添加运行中的计时器",
   "widget_pin_unsupported": "您的主屏幕不支持从应用内添加微件。请改为长按主屏幕并选择“微件”。",
-  "widget_settings_help_macos": "在桌面或通知中心查看应收款项、逾期项目和运行中的计时器。按住 Control 键点按桌面并选取“编辑小组件”，或点按菜单栏中的日期并选取“编辑小组件”，然后搜索 Invoice Ninja。小组件需要 macOS 14 或更高版本。"
+  "widget_settings_help_macos": "在桌面或通知中心查看应收款项、逾期项目和运行中的计时器。按住 Control 键点按桌面并选取“编辑小组件”，或点按菜单栏中的日期并选取“编辑小组件”，然后搜索 Invoice Ninja。小组件需要 macOS 14 或更高版本。",
+  "not_really": "不太满意",
+  "send_feedback": "发送反馈",
+  "leave_a_review": "写评价",
+  "rate_the_app": "为应用评分",
+  "review_happy_title": "太好了！能否花一点时间写个评价？",
+  "review_sorry_title": "很抱歉。我们可以在哪些方面做得更好？",
+  "review_helps_others": "这能帮助其他小企业找到我们。",
+  "review_opens_store": "打开 :store",
+  "review_thanks": "感谢您的支持！",
+  "no_thanks": "不用了，谢谢"
 }

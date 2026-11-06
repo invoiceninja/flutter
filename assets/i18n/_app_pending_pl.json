@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Dodaj Wymaga uwagi",
   "widget_add_timer": "Dodaj Uruchomiony licznik czasu",
   "widget_pin_unsupported": "Twój ekran główny nie pozwala dodawać widżetów z aplikacji. Zamiast tego dotknij go i przytrzymaj, a potem wybierz Widżety.",
-  "widget_settings_help_macos": "Sprawdzaj, ile Ci są winni, co jest przeterminowane i uruchomiony licznik czasu na biurku lub w Centrum powiadomień. Kliknij w biurko z naciśniętym klawiszem Control i wybierz Edycja widżetów lub kliknij w datę na pasku menu i wybierz Edycja widżetów, a następnie wyszukaj Invoice Ninja. Widżety wymagają systemu macOS 14 lub nowszego."
+  "widget_settings_help_macos": "Sprawdzaj, ile Ci są winni, co jest przeterminowane i uruchomiony licznik czasu na biurku lub w Centrum powiadomień. Kliknij w biurko z naciśniętym klawiszem Control i wybierz Edycja widżetów lub kliknij w datę na pasku menu i wybierz Edycja widżetów, a następnie wyszukaj Invoice Ninja. Widżety wymagają systemu macOS 14 lub nowszego.",
+  "not_really": "Raczej nie",
+  "send_feedback": "Wyślij opinię",
+  "leave_a_review": "Napisz recenzję",
+  "rate_the_app": "Oceń aplikację",
+  "review_happy_title": "Miło nam! Czy możesz zostawić krótką recenzję?",
+  "review_sorry_title": "Przykro nam. Co możemy poprawić?",
+  "review_helps_others": "To pomaga innym małym firmom nas znaleźć.",
+  "review_opens_store": "Otwiera :store",
+  "review_thanks": "Dziękujemy za wsparcie!",
+  "no_thanks": "Nie, dziękuję"
 }

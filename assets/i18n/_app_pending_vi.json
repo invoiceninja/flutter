@@ -1599,5 +1599,15 @@
   "widget_add_attention": "Thêm Cần chú ý",
   "widget_add_timer": "Thêm Bộ hẹn giờ đang chạy",
   "widget_pin_unsupported": "Màn hình chính của bạn không cho phép thêm tiện ích từ ứng dụng. Thay vào đó, hãy chạm và giữ màn hình rồi chọn Tiện ích.",
-  "widget_settings_help_macos": "Xem số tiền bạn được nợ, khoản đã quá hạn và bộ hẹn giờ đang chạy trên màn hình nền hoặc trong Trung tâm thông báo. Giữ Control khi bấm vào màn hình nền và chọn Sửa tiện ích, hoặc bấm vào ngày trong thanh menu và chọn Sửa tiện ích, sau đó tìm Invoice Ninja. Tiện ích yêu cầu macOS 14 trở lên."
+  "widget_settings_help_macos": "Xem số tiền bạn được nợ, khoản đã quá hạn và bộ hẹn giờ đang chạy trên màn hình nền hoặc trong Trung tâm thông báo. Giữ Control khi bấm vào màn hình nền và chọn Sửa tiện ích, hoặc bấm vào ngày trong thanh menu và chọn Sửa tiện ích, sau đó tìm Invoice Ninja. Tiện ích yêu cầu macOS 14 trở lên.",
+  "not_really": "Không hẳn",
+  "send_feedback": "Gửi phản hồi",
+  "leave_a_review": "Viết đánh giá",
+  "rate_the_app": "Đánh giá ứng dụng",
+  "review_happy_title": "Thật vui khi nghe vậy! Bạn có thể viết một đánh giá ngắn không?",
+  "review_sorry_title": "Rất tiếc vì điều đó. Chúng tôi có thể cải thiện điều gì?",
+  "review_helps_others": "Điều này giúp các doanh nghiệp nhỏ khác tìm thấy chúng tôi.",
+  "review_opens_store": "Mở :store",
+  "review_thanks": "Cảm ơn bạn đã ủng hộ!",
+  "no_thanks": "Không, cảm ơn"
 }

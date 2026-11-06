@@ -1652,5 +1652,15 @@
   "widget_add_attention": "Pridėti Reikia dėmesio",
   "widget_add_timer": "Pridėti Veikiantis laikmatis",
   "widget_pin_unsupported": "Jūsų pagrindinis ekranas negali pridėti valdiklių iš programos. Vietoj to palieskite ir palaikykite jį ir pasirinkite Valdikliai.",
-  "widget_settings_help_macos": "Matykite, kiek jums skolingi, kas pradelsta, ir veikiantį laikmatį darbalaukyje arba pranešimų centre. Spustelėkite darbalaukį laikydami nuspaudę klavišą Control ir pasirinkite Redaguoti valdiklius arba spustelėkite datą meniu juostoje ir pasirinkite Redaguoti valdiklius, tada ieškokite Invoice Ninja. Valdikliams reikia macOS 14 ar naujesnės versijos."
+  "widget_settings_help_macos": "Matykite, kiek jums skolingi, kas pradelsta, ir veikiantį laikmatį darbalaukyje arba pranešimų centre. Spustelėkite darbalaukį laikydami nuspaudę klavišą Control ir pasirinkite Redaguoti valdiklius arba spustelėkite datą meniu juostoje ir pasirinkite Redaguoti valdiklius, tada ieškokite Invoice Ninja. Valdikliams reikia macOS 14 ar naujesnės versijos.",
+  "not_really": "Nelabai",
+  "send_feedback": "Siųsti atsiliepimą",
+  "leave_a_review": "Parašyti atsiliepimą",
+  "rate_the_app": "Įvertinti programėlę",
+  "review_happy_title": "Malonu girdėti! Ar galėtumėte parašyti trumpą atsiliepimą?",
+  "review_sorry_title": "Gaila tai girdėti. Ką galėtume patobulinti?",
+  "review_helps_others": "Tai padeda kitoms smulkioms įmonėms mus rasti.",
+  "review_opens_store": "Atidaro :store",
+  "review_thanks": "Ačiū už palaikymą!",
+  "no_thanks": "Ne, ačiū"
 }

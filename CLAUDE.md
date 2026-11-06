@@ -99,7 +99,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **CI runs in UTC; the dev machines here don't.** A fixture whose expectation depends on a calendar day or wall-clock time sits in the ~11:00–13:00 UTC band (the same local day from UTC−11 to UTC+10); `DateTime.toLocal()` is the trap and task time-log grouping (`_isoDay`, `lib/domain/tasks/task_invoice_notes.dart`) the live example. Check with `TZ=UTC flutter test <file>` before pushing.
 - **Don't run integration tests locally unless the user explicitly asks** — they take over the foreground app and interrupt the session. Never run them proactively or as incidental verification; let CI run them. On-request procedure: `docs/integration-tests.md`.
 - **`FEATURES.md` is the parity tracker — keep it current, by hand.** It compares React (`/Users/hillel/Code/react`), Flutter v1 (`/Users/hillel/Code/admin-portal`) and this rebuild; a PR that finishes a feature flips its Flutter v2 cell in the same PR (no precedent: `—` / `—` / `✅`; scaffolded: 🟡). Legend: ✅ done, 🟡 partial, ❌ not implemented, — N/A.
-- **Store SDKs (Google Sign-In, in-app purchase, Sentry, ML Kit) are imported only from `packages/store_services`, never from `lib/` or the root pubspec — the F-Droid build swaps that package for its FOSS twin.** → `docs/fdroid.md`
+- **Store SDKs (Google Sign-In, in-app purchase, in-app review, Sentry, ML Kit) are imported only from `packages/store_services`, never from `lib/` or the root pubspec — the F-Droid build swaps that package for its FOSS twin.** → `docs/fdroid.md`
 - **ML Kit lives only in `packages/store_services/android`, which `prepare_foss.sh` removes before F-Droid's scan.** → `docs/receipt-ocr.md`
 - **The F-Droid APK is built only by `fdroid build` running `tools/foss/com.invoiceninja.admin.yml` in F-Droid's digest-pinned image, signed only by the dedicated F-Droid key, and published only after a varied rebuild matches it.** → `docs/fdroid.md`
 - **The mobile-app promo never shows Android or Google Play on native macOS, never gates anything, and never carries purchase copy.** → `docs/mobile-app-promo.md`
@@ -113,6 +113,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Launch-time work is measured with `traceSync` / `traceAsync`, not guessed.** → `docs/startup-responsiveness.md`
 - **A path users wait on gets a benchmark in `benchmark/perf/` and a budget; never rename a benchmark id — its history is filed under it.** → `docs/performance-tracking.md`
 - **Contacts sync touches only a device contact it can prove it wrote — a link row whose recorded entry is the contact's only one (`ownsDeviceContact`) — never one found by label membership; Android merges cards into the user's own contacts, and a delete through the merged contact takes theirs.** → `docs/contacts-sync.md`
+- **Nothing asks for a review while `kAppIsBeta`; a store build asks only through the native API — no question first, never from a button; our card runs only on non-store builds and offers the review link to every answer; an automatic ask needs a server-confirmed finishing win at a quiet moment.** → `docs/review-prompt.md`
 - **Workarounds for open upstream bugs are logged in `docs/upstream-workarounds.md`** — issue link, files tagged KEEP vs MUST-REVERT, revert steps — whenever you add, change or remove one.
 
 ## Architecture — at a glance
@@ -578,8 +579,8 @@ Tapping a phone number opens the dialer (invoiceninja/flutter#109), behind a dev
 - **Credit Items, Recurring Expenses and Transactions are built on the device too — a `RecordReportSource` each: the list route narrowed by `date_range` into Drift, every filter applied on the device, each row's currency named by its `*.currency_id` column.** → `docs/reports.md`
 - **The Tasks report merges the server's per-entry rows into one per task (`collapsesToRecord`) — each of them carries the task's whole duration.** → `docs/reports.md`
 - **A duration is hours — decimal or `H:MM` as the device's hours-format preference says — never a day count.** → `docs/reports.md`
-
 - **A related record's column (a payment's client city) is fetched on pick as the known set plus `addedColumnIds`, never totalled, and never names the row currency — the catalog is `kReportRelatedColumns`.** → `docs/reports.md`
+
 ## Visual invoice designer
 
 The block designer (`invoice_design/wysiwyg/`) is a picture of what the server prints, so its rules are the server's.

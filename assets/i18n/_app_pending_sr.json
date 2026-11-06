@@ -1632,5 +1632,15 @@
   "widget_add_attention": "Dodaj Zahteva pažnju",
   "widget_add_timer": "Dodaj Pokrenut tajmer",
   "widget_pin_unsupported": "Vaš početni ekran ne može da dodaje vidžete iz aplikacije. Umesto toga, dodirnite ga i zadržite i izaberite Vidžeti.",
-  "widget_settings_help_macos": "Pogledajte koliko vam duguju, šta je dospelo i pokrenut tajmer na radnoj površini ili u Centru za obaveštenja. Kliknite na radnu površinu uz pritisnut taster Control i izaberite Izmeni vidžete, ili kliknite na datum na traci menija i izaberite Izmeni vidžete, zatim potražite Invoice Ninja. Vidžeti zahtevaju macOS 14 ili noviji."
+  "widget_settings_help_macos": "Pogledajte koliko vam duguju, šta je dospelo i pokrenut tajmer na radnoj površini ili u Centru za obaveštenja. Kliknite na radnu površinu uz pritisnut taster Control i izaberite Izmeni vidžete, ili kliknite na datum na traci menija i izaberite Izmeni vidžete, zatim potražite Invoice Ninja. Vidžeti zahtevaju macOS 14 ili noviji.",
+  "not_really": "Baš i ne",
+  "send_feedback": "Pošalji povratne informacije",
+  "leave_a_review": "Napiši recenziju",
+  "rate_the_app": "Oceni aplikaciju",
+  "review_happy_title": "Drago nam je! Da li biste ostavili kratku recenziju?",
+  "review_sorry_title": "Žao nam je. Šta bismo mogli bolje?",
+  "review_helps_others": "To pomaže drugim malim firmama da nas pronađu.",
+  "review_opens_store": "Otvara :store",
+  "review_thanks": "Hvala na podršci!",
+  "no_thanks": "Ne, hvala"
 }

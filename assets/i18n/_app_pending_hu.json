@@ -1653,5 +1653,15 @@
   "widget_add_attention": "Figyelmet igényel hozzáadása",
   "widget_add_timer": "Futó időzítő hozzáadása",
   "widget_pin_unsupported": "A kezdőképernyő nem tud widgeteket hozzáadni alkalmazásból. Ehelyett tartsa megérintve, és válassza a Modulok lehetőséget.",
-  "widget_settings_help_macos": "Lássa, mennyivel tartoznak Önnek, mi lejárt, és a futó időzítőt az íróasztalon vagy az Értesítési központban. Kattintson a Control billentyűt lenyomva tartva az íróasztalra, és válassza a Widgetek szerkesztése lehetőséget, vagy kattintson a dátumra a menüsoron, és válassza a Widgetek szerkesztése lehetőséget, majd keressen rá az Invoice Ninja kifejezésre. A widgetekhez macOS 14 vagy újabb szükséges."
+  "widget_settings_help_macos": "Lássa, mennyivel tartoznak Önnek, mi lejárt, és a futó időzítőt az íróasztalon vagy az Értesítési központban. Kattintson a Control billentyűt lenyomva tartva az íróasztalra, és válassza a Widgetek szerkesztése lehetőséget, vagy kattintson a dátumra a menüsoron, és válassza a Widgetek szerkesztése lehetőséget, majd keressen rá az Invoice Ninja kifejezésre. A widgetekhez macOS 14 vagy újabb szükséges.",
+  "not_really": "Nem igazán",
+  "send_feedback": "Visszajelzés küldése",
+  "leave_a_review": "Értékelés írása",
+  "rate_the_app": "Értékelje az alkalmazást",
+  "review_happy_title": "Örülünk neki! Írna egy rövid értékelést?",
+  "review_sorry_title": "Sajnáljuk. Min javíthatnánk?",
+  "review_helps_others": "Ezzel más kisvállalkozások is ránk találnak.",
+  "review_opens_store": "Megnyitja: :store",
+  "review_thanks": "Köszönjük a támogatását!",
+  "no_thanks": "Nem, köszönöm"
 }

@@ -28,6 +28,8 @@ void main() {
     'google_sign_in',
     'in_app_purchase',
     'in_app_purchase_storekit',
+    'in_app_review',
+    'in_app_review_platform_interface',
     'sentry',
     'sentry_flutter',
   ];
@@ -111,6 +113,8 @@ void main() {
         'StorePurchase()',
         'StorePurchase.storeKit1OriginalTransactionId',
         'StorePurchaseStatus.canceled',
+        'StoreReview.isStoreBuild',
+        'StoreReview.requestReview',
       ]),
     );
     for (final file in real.keys) {

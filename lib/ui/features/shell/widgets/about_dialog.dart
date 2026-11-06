@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
@@ -14,6 +15,7 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/shell/widgets/health_check_dialog.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
+import 'package:admin/ui/features/review_prompt/review_listing.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/self_update_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
@@ -45,6 +47,7 @@ Future<void> showAppAboutDialog(BuildContext context) async {
   final outerContext = context;
   final whatsNew = whatsNewOnRequest(context);
   final updateOffer = selfUpdateOffer(session);
+  final reviewPrompt = context.read<ReviewPromptController?>();
   await showDialog<void>(
     context: context,
     builder: (ctx) => _AboutDialog(
@@ -99,6 +102,12 @@ Future<void> showAppAboutDialog(BuildContext context) async {
               }
             }
           : null,
+      // A static link to the review page — never the OS sheet, which a
+      // button may not trigger (docs/review-prompt.md). Hidden in beta, on
+      // the demo, and on Apple until the listing's id is known.
+      onRateApp: (reviewPrompt?.offersManualRatingTo(session) ?? false)
+          ? () => rateAppManually(ctx, reviewPrompt!)
+          : null,
       // The notes' permanent way back (docs/whats-new-dialog.md): the
       // update's when one is waiting, else this build's release.
       whatsNewVersion: whatsNew?.first.version,
@@ -135,6 +144,7 @@ class _AboutDialog extends StatelessWidget {
     required this.onShowKeyboardShortcuts,
     required this.onShowDebugPanel,
     this.onShowMobileApp,
+    this.onRateApp,
     this.whatsNewVersion,
     this.onShowWhatsNew,
   });
@@ -150,6 +160,7 @@ class _AboutDialog extends StatelessWidget {
   final VoidCallback? onShowKeyboardShortcuts;
   final VoidCallback onShowDebugPanel;
   final VoidCallback? onShowMobileApp;
+  final VoidCallback? onRateApp;
   final String? whatsNewVersion;
   final VoidCallback? onShowWhatsNew;
 
@@ -242,7 +253,9 @@ class _AboutDialog extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: tokens.ink3),
                 ),
               ],
-              if (onShowWhatsNew != null || onShowMobileApp != null) ...[
+              if (onShowWhatsNew != null ||
+                  onShowMobileApp != null ||
+                  onRateApp != null) ...[
                 SizedBox(height: InSpacing.md(context)),
                 // Wraps: the two side by side outgrow a phone's About.
                 Wrap(
@@ -270,6 +283,15 @@ class _AboutDialog extends StatelessWidget {
                         onPressed: onShowMobileApp,
                         icon: const Icon(Icons.smartphone_outlined, size: 18),
                         label: Text(context.tr('mobile_app_promo_entry')),
+                      ),
+                    if (onRateApp != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        onPressed: onRateApp,
+                        icon: const Icon(Icons.star_outline, size: 18),
+                        label: Text(context.tr('rate_the_app')),
                       ),
                   ],
                 ),

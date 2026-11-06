@@ -15,6 +15,7 @@ import 'package:admin/app/script_fonts.dart';
 import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
+import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
@@ -385,6 +386,7 @@ class Services implements SidebarBadgeContext {
     required this.signOutNotice,
     required this.mobileAppPromo,
     required this.whatsNew,
+    required this.reviewPrompt,
     required this.spellCheck,
     required this.showSeconds,
     required this.downloadsFolder,
@@ -819,6 +821,11 @@ class Services implements SidebarBadgeContext {
   /// The "What's new" dialog's schedule (docs/whats-new-dialog.md), armed
   /// only by `main()`. Read through its root provider, like [signOutNotice].
   final WhatsNewController whatsNew;
+
+  /// The store-review prompt's schedule (docs/review-prompt.md), asking only
+  /// when `main()` arms it. Read through its root provider, like
+  /// [signOutNotice].
+  final ReviewPromptController reviewPrompt;
 
   /// Whether line-item fields underline spelling mistakes
   /// (docs/spell-check.md). Read through its root provider, like
@@ -1570,6 +1577,10 @@ class Services implements SidebarBadgeContext {
     // Off unless the app asks, for the same reason: a harness must never get
     // the mobile-app promo over the screen it is driving, nor its sidebar card.
     bool mobileAppPromote = false,
+    // Off unless the app asks, for the same reason: a harness must never get
+    // a review sheet or card over the screen it is driving
+    // (docs/review-prompt.md).
+    bool reviewPromptAutoAsk = false,
     DiagnosticsLog? diagnosticsLog,
     DebugCaptureStore? debugCaptureStore,
   }) {
@@ -1638,6 +1649,13 @@ class Services implements SidebarBadgeContext {
       promote: mobileAppPromote,
       whatsNew: whatsNew,
     );
+    final reviewPrompt = ReviewPromptController(
+      prefs: devicePrefs,
+      autoAsk: reviewPromptAutoAsk,
+      whatsNew: whatsNew,
+      promoShownRecently: mobileAppPromo.holdsBackPromptsAt,
+    );
+    mobileAppPromo.heldBackBy = reviewPrompt.holdsBackPromptsAt;
     // Assigned a few lines below; the `onUnauthorized` closure captures the
     // variable (not its value) and only ever runs once a request has come
     // back 401 — long after construction completes.
@@ -2506,6 +2524,7 @@ class Services implements SidebarBadgeContext {
       signOutNotice: signOutNotice,
       mobileAppPromo: mobileAppPromo,
       whatsNew: whatsNew,
+      reviewPrompt: reviewPrompt,
       spellCheck: spellCheck,
       showSeconds: showSeconds,
       downloadsFolder: downloadsFolder,

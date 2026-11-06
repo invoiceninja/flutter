@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Handlungsbedarf hinzufügen",
   "widget_add_timer": "Laufenden Timer hinzufügen",
   "widget_pin_unsupported": "Ihr Startbildschirm kann keine Widgets aus einer App hinzufügen. Halten Sie ihn stattdessen gedrückt und wählen Sie Widgets.",
-  "widget_settings_help_macos": "Sehen Sie offene Beträge, Überfälliges und Ihren laufenden Timer auf dem Schreibtisch oder in der Mitteilungszentrale. Klicken Sie bei gedrückter Taste „control“ auf den Schreibtisch und wählen Sie Widgets bearbeiten oder klicken Sie in der Menüleiste auf das Datum und wählen Sie Widgets bearbeiten. Suchen Sie dann nach Invoice Ninja. Widgets erfordern macOS 14 oder neuer."
+  "widget_settings_help_macos": "Sehen Sie offene Beträge, Überfälliges und Ihren laufenden Timer auf dem Schreibtisch oder in der Mitteilungszentrale. Klicken Sie bei gedrückter Taste „control“ auf den Schreibtisch und wählen Sie Widgets bearbeiten oder klicken Sie in der Menüleiste auf das Datum und wählen Sie Widgets bearbeiten. Suchen Sie dann nach Invoice Ninja. Widgets erfordern macOS 14 oder neuer.",
+  "not_really": "Eher nicht",
+  "send_feedback": "Feedback senden",
+  "leave_a_review": "Bewertung schreiben",
+  "rate_the_app": "App bewerten",
+  "review_happy_title": "Das freut uns! Würden Sie uns kurz bewerten?",
+  "review_sorry_title": "Das tut uns leid. Was können wir besser machen?",
+  "review_helps_others": "Das hilft anderen kleinen Unternehmen, uns zu finden.",
+  "review_opens_store": "Öffnet :store",
+  "review_thanks": "Danke für Ihre Unterstützung!",
+  "no_thanks": "Nein danke"
 }

@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Adicionar Requer atenção",
   "widget_add_timer": "Adicionar Cronómetro em execução",
   "widget_pin_unsupported": "O seu ecrã principal não permite adicionar widgets a partir de uma app. Em alternativa, mantenha-o premido e escolha Widgets.",
-  "widget_settings_help_macos": "Veja quanto lhe devem, o que está vencido e o cronómetro em execução na secretária ou na Central de notificações. Clique na secretária com a tecla Control premida e selecione Editar widgets, ou clique na data na barra de menus e selecione Editar widgets, depois procure Invoice Ninja. Os widgets requerem o macOS 14 ou posterior."
+  "widget_settings_help_macos": "Veja quanto lhe devem, o que está vencido e o cronómetro em execução na secretária ou na Central de notificações. Clique na secretária com a tecla Control premida e selecione Editar widgets, ou clique na data na barra de menus e selecione Editar widgets, depois procure Invoice Ninja. Os widgets requerem o macOS 14 ou posterior.",
+  "not_really": "Nem por isso",
+  "send_feedback": "Enviar comentários",
+  "leave_a_review": "Deixar uma avaliação",
+  "rate_the_app": "Avaliar a aplicação",
+  "review_happy_title": "Ainda bem! Importa-se de deixar uma avaliação rápida?",
+  "review_sorry_title": "Lamentamos. O que podemos melhorar?",
+  "review_helps_others": "Isso ajuda outras pequenas empresas a encontrar-nos.",
+  "review_opens_store": "Abre :store",
+  "review_thanks": "Obrigado pelo seu apoio!",
+  "no_thanks": "Não, obrigado"
 }

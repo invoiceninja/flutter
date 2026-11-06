@@ -10,6 +10,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/recent_record.dart';
@@ -24,6 +25,7 @@ import 'package:admin/ui/features/reports/helpers/report_access.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
+import 'package:admin/ui/features/review_prompt/review_listing.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
@@ -114,6 +116,12 @@ const _kWhatsNewTerms = [
   'version',
   'update',
 ];
+
+/// The group of the palette's "Rate the app" hit — also its heading's key.
+const String kRateAppSearchGroup = 'rate_the_app';
+
+/// What someone looking to leave a review types, beside the translated label.
+const _kRateAppTerms = ['rate', 'rating', 'review', 'star', 'feedback'];
 
 /// Groups whose row describes a **contact**, not the record it routes to.
 ///
@@ -366,6 +374,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
         ...r.where((hit) => !hit.isSettings),
         ..._localReportHits(q),
         ..._localWhatsNewHits(q),
+        ..._localRateAppHits(q),
         ..._localSettingsHits(q),
       ];
       setState(() {
@@ -383,6 +392,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
         _results = [
           ..._localReportHits(q),
           ..._localWhatsNewHits(q),
+          ..._localRateAppHits(q),
           ..._localSettingsHits(q),
         ];
         _selected = 0;
@@ -436,6 +446,27 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
     return [
       SearchResult(group: kWhatsNewSearchGroup, name: label, id: '', path: ''),
+    ];
+  }
+
+  /// "Rate the app" (docs/review-prompt.md) — a static link to the review
+  /// page, hidden wherever About hides it (beta, the demo, Apple before the
+  /// listing's id is known).
+  List<SearchResult> _localRateAppHits(String query) {
+    final needle = query.trim().toLowerCase();
+    if (needle.length < 3) return const [];
+    final reviewPrompt = context.read<ReviewPromptController?>();
+    final session = context.read<Services>().auth.session.value;
+    if (reviewPrompt == null || !reviewPrompt.offersManualRatingTo(session)) {
+      return const [];
+    }
+    final label = context.tr('rate_the_app');
+    final terms = [..._kRateAppTerms, label.toLowerCase()];
+    if (!terms.any((t) => t.startsWith(needle) || t.contains(' $needle'))) {
+      return const [];
+    }
+    return [
+      SearchResult(group: kRateAppSearchGroup, name: label, id: '', path: ''),
     ];
   }
 
@@ -544,6 +575,15 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
     if (_selected < 0 || _selected >= _results.length) return;
     final r = _results[_selected];
+    if (r.group == kRateAppSearchGroup) {
+      // Nothing navigates, so no unsaved-changes prompt; and the launch runs
+      // first, inside the key press or tap, before any await.
+      final reviewPrompt = context.read<ReviewPromptController?>();
+      if (reviewPrompt == null) return;
+      rateAppManually(context, reviewPrompt);
+      Navigator.of(context).pop();
+      return;
+    }
     if (r.group == kWhatsNewSearchGroup) {
       // A dialog over the current screen, which nothing navigates away from
       // — so no unsaved-changes prompt. Opened from the root navigator's
@@ -859,6 +899,8 @@ class _CommandPaletteState extends State<_CommandPalette> {
                         ? Icons.bar_chart_outlined
                         : r.group == kWhatsNewSearchGroup
                         ? Icons.new_releases_outlined
+                        : r.group == kRateAppSearchGroup
+                        ? Icons.star_outline
                         : settingsHit?.section.icon ??
                               (type != null
                                   ? registry[type]?.effectiveOutlinedIcon

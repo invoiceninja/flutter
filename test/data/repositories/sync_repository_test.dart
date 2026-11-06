@@ -262,6 +262,43 @@ void main() {
     });
   });
 
+  group('landed', () {
+    // The review prompt's "the user just finished something"
+    // (docs/review-prompt.md): only a row the server confirmed, never one that
+    // failed or whose outcome is unknown.
+    test('a delivered row is announced as it is deleted', () async {
+      final engine = makeEngine(_ProgrammableDispatcher()..queueSuccess());
+      final landed = <String>[];
+      final sub = engine.landed.listen(
+        (m) => landed.add('${m.entityType} ${m.mutationKind}'),
+      );
+      addTearDown(sub.cancel);
+      final id = await enqueueClient(entityId: 'c1');
+
+      await engine.drainOnce(companyId: 'co');
+      await pumpEventQueue();
+
+      expect(landed, ['client update']);
+      expect(await rowById(id), isNull);
+    });
+
+    test('a failed or rejected row is not', () async {
+      final engine = makeEngine(
+        _ProgrammableDispatcher()
+          ..queueThrow(const ValidationException('Validation failed', {})),
+      );
+      final landed = <Object>[];
+      final sub = engine.landed.listen(landed.add);
+      addTearDown(sub.cancel);
+      await enqueueClient(entityId: 'c1');
+
+      await engine.drainOnce(companyId: 'co');
+      await pumpEventQueue();
+
+      expect(landed, isEmpty);
+    });
+  });
+
   group('a re-sent create is not held behind the changes waiting for it', () {
     // A record whose create failed, then archived (or commented on, or marked
     // sent) before the user fixed it and saved it again: the archive waits for

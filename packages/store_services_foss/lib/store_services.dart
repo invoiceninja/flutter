@@ -9,3 +9,4 @@ library;
 export 'package:store_services/src/crash_reporting.dart';
 export 'package:store_services/src/google_sign_in_client.dart';
 export 'package:store_services/src/store_billing.dart';
+export 'package:store_services/src/store_review.dart';

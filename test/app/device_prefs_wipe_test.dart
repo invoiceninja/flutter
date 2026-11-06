@@ -179,6 +179,12 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.downloadsFolder.set('/x'),
     (s) => s.downloadsFolder.value == '',
   ),
+  // "This device has been asked" — and its install age — survive a sign-out,
+  // so the next person here isn't asked the day after someone declined.
+  DevicePrefKeys.reviewPrompt: _Probe(
+    (s) => s.reviewPrompt.noteRatedManually(),
+    (s) => !s.reviewPrompt.state.done,
+  ),
 };
 
 final _certificate = CertificateFacts(

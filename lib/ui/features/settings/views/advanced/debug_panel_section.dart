@@ -7,10 +7,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -18,6 +20,7 @@ import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
+import 'package:admin/ui/features/review_prompt/review_prompt_host.dart';
 import 'package:admin/ui/features/settings/views/advanced/debug_panel_window_controls.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -216,6 +219,26 @@ class _Toolbar extends StatelessWidget {
       tooltip: context.tr('take_screenshot'),
       onPressed: () => _captureAndSave(context, windowController),
     );
+    // The review prompt (docs/review-prompt.md): open it now, skipping every
+    // gate — on a store build only in a debug build, since the panel ships in
+    // release and Play forbids a button that calls the OS sheet — and start
+    // its schedule over.
+    final reviewPrompt = context.read<ReviewPromptController?>();
+    final reviewButtons = reviewPrompt == null
+        ? const <Widget>[]
+        : <Widget>[
+            if (canForceReviewPrompt(reviewPrompt.channel))
+              IconButton(
+                icon: const Icon(Icons.star_outline),
+                tooltip: context.tr('force_review_prompt'),
+                onPressed: () => unawaited(forceReviewPrompt(context)),
+              ),
+            IconButton(
+              icon: const Icon(Icons.restart_alt),
+              tooltip: context.tr('reset_review_schedule'),
+              onPressed: () => unawaited(reviewPrompt.reset()),
+            ),
+          ];
     final rtl = forceRtl;
     final rtlButton = rtl == null
         ? null
@@ -256,6 +279,7 @@ class _Toolbar extends StatelessWidget {
                 ),
                 ...screenshotControls,
                 ?rtlButton,
+                ...reviewButtons,
                 cameraButton,
                 clearButton,
                 copyButton,
@@ -282,6 +306,7 @@ class _Toolbar extends StatelessWidget {
                 children: [
                   ...screenshotControls,
                   ?rtlButton,
+                  ...reviewButtons,
                   cameraButton,
                   clearButton,
                   copyButton,

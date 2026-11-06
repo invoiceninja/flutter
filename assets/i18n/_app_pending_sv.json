@@ -1681,5 +1681,15 @@
   "widget_add_attention": "Lägg till Kräver uppmärksamhet",
   "widget_add_timer": "Lägg till Pågående timer",
   "widget_pin_unsupported": "Din startskärm kan inte lägga till widgetar från en app. Håll i stället fingret på den och välj Widgetar.",
-  "widget_settings_help_macos": "Se vad du har att fordra, vad som är förfallet och din pågående timer på skrivbordet eller i Notiscenter. Kontrollklicka på skrivbordet och välj Redigera widgetar, eller klicka på datumet i menyraden och välj Redigera widgetar, och sök sedan efter Invoice Ninja. Widgetar kräver macOS 14 eller senare."
+  "widget_settings_help_macos": "Se vad du har att fordra, vad som är förfallet och din pågående timer på skrivbordet eller i Notiscenter. Kontrollklicka på skrivbordet och välj Redigera widgetar, eller klicka på datumet i menyraden och välj Redigera widgetar, och sök sedan efter Invoice Ninja. Widgetar kräver macOS 14 eller senare.",
+  "not_really": "Inte direkt",
+  "send_feedback": "Skicka feedback",
+  "leave_a_review": "Skriv en recension",
+  "rate_the_app": "Betygsätt appen",
+  "review_happy_title": "Kul att höra! Vill du skriva en kort recension?",
+  "review_sorry_title": "Tråkigt att höra. Vad kan vi göra bättre?",
+  "review_helps_others": "Det hjälper andra småföretag att hitta oss.",
+  "review_opens_store": "Öppnar :store",
+  "review_thanks": "Tack för ditt stöd!",
+  "no_thanks": "Nej tack"
 }

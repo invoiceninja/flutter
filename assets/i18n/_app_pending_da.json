@@ -1637,5 +1637,15 @@
   "widget_add_attention": "Tilføj Kræver opmærksomhed",
   "widget_add_timer": "Tilføj Kørende timer",
   "widget_pin_unsupported": "Din hjemmeskærm kan ikke tilføje widgets fra en app. Hold i stedet fingeren på den, og vælg Widgets.",
-  "widget_settings_help_macos": "Se, hvad du har til gode, hvad der er forfaldent, og din kørende timer på skrivebordet eller i Notifikationscenter. Ctrl-klik på skrivebordet, og vælg Rediger widgets, eller klik på datoen på menulinjen, og vælg Rediger widgets, og søg derefter efter Invoice Ninja. Widgets kræver macOS 14 eller nyere."
+  "widget_settings_help_macos": "Se, hvad du har til gode, hvad der er forfaldent, og din kørende timer på skrivebordet eller i Notifikationscenter. Ctrl-klik på skrivebordet, og vælg Rediger widgets, eller klik på datoen på menulinjen, og vælg Rediger widgets, og søg derefter efter Invoice Ninja. Widgets kræver macOS 14 eller nyere.",
+  "not_really": "Ikke rigtigt",
+  "send_feedback": "Send feedback",
+  "leave_a_review": "Skriv en anmeldelse",
+  "rate_the_app": "Bedøm appen",
+  "review_happy_title": "Dejligt at høre! Vil du skrive en hurtig anmeldelse?",
+  "review_sorry_title": "Det er vi kede af at høre. Hvad kan vi gøre bedre?",
+  "review_helps_others": "Det hjælper andre små virksomheder med at finde os.",
+  "review_opens_store": "Åbner :store",
+  "review_thanks": "Tak for din støtte!",
+  "no_thanks": "Nej tak"
 }

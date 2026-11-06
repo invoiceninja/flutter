@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:admin/app/prompt_hold.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
@@ -121,10 +122,7 @@ class WhatsNewController extends ChangeNotifier {
   /// nothing, or it could hold for months.
   bool holdsBackPromptsAt(DateTime now) {
     if (autoOpens) return true;
-    final shownAt = _state.shownAt;
-    if (shownAt == null) return false;
-    final since = now.difference(shownAt);
-    return !since.isNegative && since < promptHold;
+    return promptHoldsBack(_state.shownAt, promptHold, now);
   }
 
   /// The releases About and the command palette open: [pending], else the

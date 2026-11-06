@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Añadir Requiere atención",
   "widget_add_timer": "Añadir Temporizador en curso",
   "widget_pin_unsupported": "Tu pantalla de inicio no permite añadir widgets desde una app. Mantenla pulsada y elige Widgets.",
-  "widget_settings_help_macos": "Consulta lo que te deben, lo vencido y tu temporizador en curso en el escritorio o en el Centro de notificaciones. Haz clic en el escritorio con la tecla Control pulsada y selecciona Editar widgets, o haz clic en la fecha de la barra de menús y selecciona Editar widgets; después busca Invoice Ninja. Los widgets requieren macOS 14 o posterior."
+  "widget_settings_help_macos": "Consulta lo que te deben, lo vencido y tu temporizador en curso en el escritorio o en el Centro de notificaciones. Haz clic en el escritorio con la tecla Control pulsada y selecciona Editar widgets, o haz clic en la fecha de la barra de menús y selecciona Editar widgets; después busca Invoice Ninja. Los widgets requieren macOS 14 o posterior.",
+  "not_really": "No mucho",
+  "send_feedback": "Enviar comentarios",
+  "leave_a_review": "Dejar una reseña",
+  "rate_the_app": "Valorar la aplicación",
+  "review_happy_title": "¡Nos alegra saberlo! ¿Te importaría dejar una reseña rápida?",
+  "review_sorry_title": "Sentimos oír eso. ¿Qué podríamos mejorar?",
+  "review_helps_others": "Ayuda a otras pequeñas empresas a encontrarnos.",
+  "review_opens_store": "Abre :store",
+  "review_thanks": "¡Gracias por tu apoyo!",
+  "no_thanks": "No, gracias"
 }

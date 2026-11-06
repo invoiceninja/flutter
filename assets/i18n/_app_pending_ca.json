@@ -1633,5 +1633,15 @@
   "widget_add_attention": "Afegeix Requereix atenció",
   "widget_add_timer": "Afegeix Temporitzador en curs",
   "widget_pin_unsupported": "La pantalla d'inici no permet afegir ginys des d'una app. Mantén-la premuda i tria Ginys.",
-  "widget_settings_help_macos": "Consulta què et deuen, què està vençut i el temporitzador en curs a l'escriptori o al Centre de notificacions. Fes clic a l'escriptori amb la tecla Control premuda i selecciona Edita els ginys, o fes clic a la data de la barra de menús i selecciona Edita els ginys, i després cerca Invoice Ninja. Els ginys requereixen macOS 14 o posterior."
+  "widget_settings_help_macos": "Consulta què et deuen, què està vençut i el temporitzador en curs a l'escriptori o al Centre de notificacions. Fes clic a l'escriptori amb la tecla Control premuda i selecciona Edita els ginys, o fes clic a la data de la barra de menús i selecciona Edita els ginys, i després cerca Invoice Ninja. Els ginys requereixen macOS 14 o posterior.",
+  "not_really": "No gaire",
+  "send_feedback": "Envia comentaris",
+  "leave_a_review": "Deixa una ressenya",
+  "rate_the_app": "Valora l'aplicació",
+  "review_happy_title": "Ens alegra saber-ho! Et faria res deixar una ressenya ràpida?",
+  "review_sorry_title": "Ens sap greu. Què podríem fer millor?",
+  "review_helps_others": "Ajuda altres petites empreses a trobar-nos.",
+  "review_opens_store": "Obre :store",
+  "review_thanks": "Gràcies pel teu suport!",
+  "no_thanks": "No, gràcies"
 }

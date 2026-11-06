@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:admin/app/prompt_hold.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
@@ -46,6 +47,12 @@ class MobileAppPromoController extends ChangeNotifier {
   /// About and Device Settings, which the user goes looking for, don't ask.
   final bool promote;
 
+  /// Another automatic prompt that holds this one back while it is fresh —
+  /// the review prompt, for a week after it asked
+  /// (`ReviewPromptController.holdsBackPromptsAt`). Set after both are
+  /// built, since each waits on the other.
+  bool Function(DateTime now)? heldBackBy;
+
   static const int maxAutoOpens = 3;
   static const int daysBeforeFirstOpen = 3;
 
@@ -82,9 +89,30 @@ class MobileAppPromoController extends ChangeNotifier {
     if (s.closes >= maxAutoOpens) return false;
     if (s.daysSeen < daysBeforeFirstOpen) return false;
     if (_whatsNew?.holdsBackPromptsAt(now) ?? false) return false;
+    if (heldBackBy?.call(now) ?? false) return false;
     final next = s.nextAt;
     return next == null || !now.isBefore(next);
   }
+
+  /// An automatic open is starting. Recorded on open, so a dialog a 401
+  /// tears down still holds the review prompt back.
+  ///
+  /// Stored as the UTC millisecond it decodes back to, so the store's
+  /// re-read after the write ([_sync]) sees no change and doesn't notify
+  /// twice.
+  Future<void> noteShown(DateTime now) => _save(
+    _state.copyWith(
+      shownAt: DateTime.fromMillisecondsSinceEpoch(
+        now.millisecondsSinceEpoch,
+        isUtc: true,
+      ),
+    ),
+  );
+
+  /// Whether another automatic prompt must wait at [now]: the promo opened
+  /// on its own less than [kAutomaticPromptGap] ago.
+  bool holdsBackPromptsAt(DateTime now) =>
+      promptHoldsBack(_state.shownAt, kAutomaticPromptGap, now);
 
   /// The automatic open now showing is the last one.
   bool get isLastReminder => _state.closes >= maxAutoOpens - 1;
@@ -149,6 +177,7 @@ class MobileAppPromoState {
     this.engaged = false,
     this.daysSeen = 0,
     this.lastDay = '',
+    this.shownAt,
   });
 
   /// Automatic opens closed without engaging.
@@ -165,6 +194,9 @@ class MobileAppPromoState {
   /// The last of those days, `YYYY-MM-DD`.
   final String lastDay;
 
+  /// When it last opened on its own.
+  final DateTime? shownAt;
+
   MobileAppPromoState copyWith({
     int? closes,
     DateTime? nextAt,
@@ -173,6 +205,7 @@ class MobileAppPromoState {
     bool? engaged,
     int? daysSeen,
     String? lastDay,
+    DateTime? shownAt,
   }) => MobileAppPromoState(
     closes: closes ?? this.closes,
     nextAt: clearNextAt ? null : (nextAt ?? this.nextAt),
@@ -180,6 +213,7 @@ class MobileAppPromoState {
     engaged: engaged ?? this.engaged,
     daysSeen: daysSeen ?? this.daysSeen,
     lastDay: lastDay ?? this.lastDay,
+    shownAt: shownAt ?? this.shownAt,
   );
 
   String encode() => jsonEncode({
@@ -189,6 +223,7 @@ class MobileAppPromoState {
     'engaged': engaged,
     'daysSeen': daysSeen,
     'lastDay': lastDay,
+    if (shownAt != null) 'shownAt': shownAt!.toUtc().millisecondsSinceEpoch,
   });
 
   /// A missing or unreadable row is a device that hasn't been told yet.
@@ -198,6 +233,7 @@ class MobileAppPromoState {
       final json = jsonDecode(raw);
       if (json is! Map<String, dynamic>) return const MobileAppPromoState();
       final nextAt = json['nextAt'];
+      final shownAt = json['shownAt'];
       return MobileAppPromoState(
         closes: _int(json['closes']),
         nextAt: nextAt is int
@@ -207,6 +243,9 @@ class MobileAppPromoState {
         engaged: json['engaged'] == true,
         daysSeen: _int(json['daysSeen']),
         lastDay: json['lastDay'] is String ? json['lastDay'] as String : '',
+        shownAt: shownAt is int
+            ? DateTime.fromMillisecondsSinceEpoch(shownAt, isUtc: true)
+            : null,
       );
     } on FormatException {
       return const MobileAppPromoState();
@@ -223,9 +262,10 @@ class MobileAppPromoState {
       other.done == done &&
       other.engaged == engaged &&
       other.daysSeen == daysSeen &&
-      other.lastDay == lastDay;
+      other.lastDay == lastDay &&
+      other.shownAt == shownAt;
 
   @override
   int get hashCode =>
-      Object.hash(closes, nextAt, done, engaged, daysSeen, lastDay);
+      Object.hash(closes, nextAt, done, engaged, daysSeen, lastDay, shownAt);
 }

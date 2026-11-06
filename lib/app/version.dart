@@ -51,6 +51,13 @@ class AppVersion {
   }
 }
 
+/// Whether this build is still the public beta (TestFlight, Play testing, the
+/// restricted Microsoft Store listing). While it is, nothing asks for a store
+/// review — there is no public listing to send anyone to — and the review
+/// prompt only counts (docs/review-prompt.md). Flip it to `false` in the first
+/// GA release, with the rest of the launch checklist there.
+const bool kAppIsBeta = true;
+
 /// Compare two semver-ish strings (`a.b.c[-pre]`). Returns -1, 0, 1. A missing
 /// or non-numeric segment counts as 0.
 int compareSemver(String a, String b) {

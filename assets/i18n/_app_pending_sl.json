@@ -1685,5 +1685,15 @@
   "widget_add_attention": "Dodaj Zahteva pozornost",
   "widget_add_timer": "Dodaj Delujoči časovnik",
   "widget_pin_unsupported": "Vaš začetni zaslon ne more dodajati pripomočkov iz aplikacije. Namesto tega se ga dotaknite in pridržite ter izberite Pripomočki.",
-  "widget_settings_help_macos": "Oglejte si, koliko vam dolgujejo, kaj je zapadlo, in delujoči časovnik na namizju ali v središču za obvestila. Kliknite namizje s pritisnjeno tipko Control in izberite Uredi pripomočke ali kliknite datum v menijski vrstici in izberite Uredi pripomočke, nato poiščite Invoice Ninja. Pripomočki zahtevajo macOS 14 ali novejši."
+  "widget_settings_help_macos": "Oglejte si, koliko vam dolgujejo, kaj je zapadlo, in delujoči časovnik na namizju ali v središču za obvestila. Kliknite namizje s pritisnjeno tipko Control in izberite Uredi pripomočke ali kliknite datum v menijski vrstici in izberite Uredi pripomočke, nato poiščite Invoice Ninja. Pripomočki zahtevajo macOS 14 ali novejši.",
+  "not_really": "Pravzaprav ne",
+  "send_feedback": "Pošlji povratne informacije",
+  "leave_a_review": "Napiši oceno",
+  "rate_the_app": "Oceni aplikacijo",
+  "review_happy_title": "Veseli nas! Bi napisali kratko oceno?",
+  "review_sorry_title": "Žal nam je. Kaj bi lahko izboljšali?",
+  "review_helps_others": "To pomaga drugim malim podjetjem, da nas najdejo.",
+  "review_opens_store": "Odpre :store",
+  "review_thanks": "Hvala za podporo!",
+  "no_thanks": "Ne, hvala"
 }

@@ -182,6 +182,48 @@ void main() {
       expect(parsed.invoiceNumberCounter, 42);
     });
 
+    test('drops null items from pdf_variables lists', () {
+      // Regression: one null in a section list made the strict `as String`
+      // cast throw, so the company's typed settings fell back to empty.
+      final parsed = CompanySettingsApi.fromJsonLenient({
+        'name': 'Acme',
+        'pdf_variables': {
+          'product_columns': [r'$product.item', null, r'$product.cost'],
+          'client_details': null,
+        },
+      });
+      expect(parsed.name, 'Acme');
+      expect(parsed.pdfVariables, {
+        'product_columns': [r'$product.item', r'$product.cost'],
+      });
+    });
+
+    test('reads a pdf_variables section PHP wrote as an object', () {
+      // `json_encode` of an array with gaps in its keys — after an `unset` —
+      // is an object. Dropped, the next settings save would erase it.
+      final parsed = CompanySettingsApi.fromJsonLenient({
+        'name': 'Acme',
+        'pdf_variables': {
+          'client_details': {'2': r'$client.city', '0': r'$client.name'},
+          'product_columns': [r'$product.item', 7, r'$product.cost'],
+        },
+      });
+      expect(parsed.name, 'Acme');
+      expect(parsed.pdfVariables, {
+        'client_details': [r'$client.name', r'$client.city'],
+        'product_columns': [r'$product.item', r'$product.cost'],
+      });
+    });
+
+    test('omits pdf_variables when it is not a map', () {
+      final parsed = CompanySettingsApi.fromJsonLenient({
+        'name': 'Acme',
+        'pdf_variables': const <dynamic>[],
+      });
+      expect(parsed.name, 'Acme');
+      expect(parsed.pdfVariables, isNull);
+    });
+
     test(
       'translations parses as a Map (server ships {} for unset accounts)',
       () {

@@ -554,6 +554,34 @@ const Set<String> _settingsBoolKeys = {
 ///   * Bool key + String value: `"0"`/`"false"` → false, `"1"`/`"true"` → true.
 ///     Other strings → drop (the strict parser would crash anyway; better
 ///     to silently lose a single field than the whole row).
+/// One `pdf_variables` section as a list of its text items, or null for a
+/// section that holds no list at all. PHP's `json_encode` writes an array
+/// with gaps in its keys — what an `unset` or an `array_filter` leaves — as an
+/// object (`{"0": "$client.name", "2": "$client.city"}`), so that shape is
+/// read in key order rather than dropped: dropped, the next save of the typed
+/// settings would erase the section on the server.
+List<String>? _pdfVariableItems(Object? section) {
+  final Iterable<Object?> items;
+  if (section is List) {
+    items = section;
+  } else if (section is Map) {
+    final keys = section.keys.toList()
+      ..sort((a, b) {
+        final ai = int.tryParse('$a');
+        final bi = int.tryParse('$b');
+        if (ai != null && bi != null) return ai.compareTo(bi);
+        return '$a'.compareTo('$b');
+      });
+    items = [for (final k in keys) section[k]];
+  } else {
+    return null;
+  }
+  return [
+    for (final item in items)
+      if (item is String) item,
+  ];
+}
+
 Map<String, dynamic> _sanitizeSettingsJson(Map<String, dynamic> raw) {
   final out = <String, dynamic>{};
   for (final entry in raw.entries) {
@@ -564,6 +592,20 @@ Map<String, dynamic> _sanitizeSettingsJson(Map<String, dynamic> raw) {
       // PHP serializes an empty assoc-array as `[]` instead of `{}`. The
       // strict parser would crash casting to `Map<String, dynamic>?`; omit
       // so it reads as null.
+      continue;
+    }
+    if (key == 'pdf_variables') {
+      // The strict parser casts every item to String, so one null or number
+      // in a section (written by another client) would throw and drop the
+      // whole typed view. Keep the text items; omit anything that isn't a
+      // map of sections (PHP's `[]` for an empty assoc-array).
+      if (value is Map) {
+        out[key] = <String, dynamic>{
+          for (final section in value.entries)
+            if (_pdfVariableItems(section.value) case final items?)
+              section.key.toString(): items,
+        };
+      }
       continue;
     }
     if (_settingsNumericKeys.contains(key) && value is String) {

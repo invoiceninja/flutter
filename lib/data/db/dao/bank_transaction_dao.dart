@@ -185,27 +185,42 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
     required Map<String, BankTransactionsCompanion> byId,
   }) async {
     if (byId.isEmpty) return;
-    final candidateIds = byId.keys.toList(growable: false);
-    final dirty = <String>{};
-    // Chunked: a `/refresh` delta can hand this far more ids than the <= 50 a
-    // page used to. See `chunkIdsForSqlIn`.
-    for (final chunk in chunkIdsForSqlIn(candidateIds)) {
-      final dirtyQ = selectOnly(bankTransactions)
-        ..addColumns([bankTransactions.id])
-        ..where(
-          bankTransactions.companyId.equals(companyId) &
-              bankTransactions.id.isIn(chunk) &
-              bankTransactions.isDirty.equals(true),
-        );
-      for (final r in await dirtyQ.get()) {
-        dirty.add(r.read(bankTransactions.id)!);
+    // Same rules as `BaseEntityDao.upsertAllPreservingDirty`: skip dirty rows
+    // and rows strictly older than the stored copy, in one transaction.
+    await transaction(() async {
+      final candidateIds = byId.keys.toList(growable: false);
+      final dirty = <String>{};
+      // Chunked: a `/refresh` delta can hand this far more ids than the <= 50
+      // a page used to. See `chunkIdsForSqlIn`.
+      for (final chunk in chunkIdsForSqlIn(candidateIds)) {
+        final dirtyQ = selectOnly(bankTransactions)
+          ..addColumns([bankTransactions.id])
+          ..where(
+            bankTransactions.companyId.equals(companyId) &
+                bankTransactions.id.isIn(chunk) &
+                bankTransactions.isDirty.equals(true),
+          );
+        for (final r in await dirtyQ.get()) {
+          dirty.add(r.read(bankTransactions.id)!);
+        }
       }
-    }
-    final filtered = [
-      for (final entry in byId.entries)
-        if (!dirty.contains(entry.key)) entry.value,
-    ];
-    await upsertAll(filtered);
+      final stored = await updatedAtAmong(
+        companyId: companyId,
+        ids: candidateIds,
+      );
+      final filtered = [
+        for (final entry in byId.entries)
+          if (!dirty.contains(entry.key) &&
+              !_isOlderThanStored(entry.value, stored[entry.key]))
+            entry.value,
+      ];
+      await upsertAll(filtered);
+    });
+  }
+
+  static bool _isOlderThanStored(BankTransactionsCompanion row, int? stored) {
+    final incoming = row.updatedAt;
+    return stored != null && incoming.present && incoming.value < stored;
   }
 
   /// Stored `updated_at` for whichever of [ids] exist in [companyId].

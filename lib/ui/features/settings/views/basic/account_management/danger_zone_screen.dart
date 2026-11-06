@@ -472,15 +472,20 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
 
     try {
       if (!isDelete) {
-        await services.apiClient.postJson(
-          '/api/v1/companies/purge_save_settings/$companyId',
-          body: {'cancellation_message': _feedbackCtrl.text},
-          requiresPassword: true,
-        );
-        await services.auth.localData.wipeCompany(
-          companyId,
-          DisposalReason.companyGoneOnServer,
-        );
+        // No drain may run across the purge: a pass already sending could
+        // deliver a queued row after the server purged the company (re-
+        // creating it there) or write a reply after the wipe below.
+        await services.sync.withDrainsHeld(companyId, () async {
+          await services.apiClient.postJson(
+            '/api/v1/companies/purge_save_settings/$companyId',
+            body: {'cancellation_message': _feedbackCtrl.text},
+            requiresPassword: true,
+          );
+          await services.auth.localData.wipeCompany(
+            companyId,
+            DisposalReason.companyGoneOnServer,
+          );
+        });
         try {
           // Local per-entity sync cursors were just wiped — force a full
           // snapshot so the purged company re-seeds instead of pulling an

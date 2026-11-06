@@ -13,6 +13,7 @@ import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/users_api.dart';
+import 'package:admin/domain/sync/refresh_sync_constants.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -2011,6 +2012,83 @@ void main() {
         await storage.read('invoiceninja.current_company.v1'),
         'co_b',
         reason: 'the stale snapshot id must not be persisted for restore',
+      );
+    });
+
+    test('a delta never sends one company\'s watermark under another\'s '
+        'token', () async {
+      // A delta asks for changes since the ACTIVE company's watermark, and
+      // the server answers for whichever company the live token names. A
+      // switch landing while the watermark was read sent co_b's token with
+      // co_a's `updated_at`, and the commit then stamped co_b as synced:
+      // co_b's changes between the two watermarks were skipped for good.
+      final twoCompanies = _envelope(
+        companies: [
+          (
+            id: 'co_a',
+            name: 'Acme',
+            token: 'tok_a',
+            isAdmin: false,
+            isOwner: false,
+          ),
+          (
+            id: 'co_b',
+            name: 'Beta',
+            token: 'tok_b',
+            isAdmin: false,
+            isOwner: false,
+          ),
+        ],
+      );
+      authService.queueLogin(twoCompanies);
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+      // co_a synced much more recently than co_b.
+      const aMs = 1800000000000;
+      const bMs = 1700000000000;
+      for (final (id, ms) in [('co_a', aMs), ('co_b', bMs)]) {
+        await db.customStatement(
+          'UPDATE companies SET last_sync_at = ? WHERE id = ?',
+          [ms, id],
+        );
+      }
+
+      final sent = <({String? token, String? updatedAt})>[];
+      repo.apiClient = gatedClient(
+        MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            sent.add((
+              token: req.headers['X-API-Token'],
+              updatedAt: req.url.queryParameters['updated_at'],
+            ));
+            return http.Response(jsonEncode(twoCompanies.toJson()), 200);
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      // `refresh()` runs up to its first Drift read of co_a's watermark, and
+      // the switch (its token is cached) moves the credentials before that
+      // read returns.
+      final refreshFuture = repo.refresh();
+      final switchFuture = repo.switchCompany('co_b');
+      await Future.wait([refreshFuture, switchFuture]);
+      await pumpEventQueue();
+
+      final aSecs = '${(aMs ~/ 1000) - kUpdatedAtBufferSeconds}';
+      expect(
+        sent.where((r) => r.token == 'tok_b' && r.updatedAt == aSecs),
+        isEmpty,
+        reason: 'co_b was asked only for changes since co_a synced',
+      );
+      expect(
+        sent.where((r) => r.token == 'tok_b'),
+        isNotEmpty,
+        reason: 'the delta re-ran for the live company',
       );
     });
 

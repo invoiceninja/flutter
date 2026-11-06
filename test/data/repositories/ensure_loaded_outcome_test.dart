@@ -92,6 +92,85 @@ void main() {
     },
   );
 
+  group('an answer that comes back after the session moved on', () {
+    test('a refusal after a company switch is not remembered — switching back '
+        'must not find the record "missing"', () async {
+      // A screen left mounted across a switch asks for company `co`'s record
+      // under the other company's token and is refused. That refusal is about
+      // the other company; cached under `co/c1` it outlived the switch back.
+      var live = 'co';
+      final api = _Api((id) async {
+        live = 'co_b';
+        throw const PermissionDeniedException();
+      });
+      final repo = ClientRepository(db: db, api: api)
+        ..activeCompanyId = () => live;
+      expect(await load(repo, 'c1'), EnsureLoadedOutcome.failed);
+      live = 'co';
+      await load(repo, 'c1');
+      expect(api.gets, 2, reason: 'asked again, not answered from the cache');
+    });
+
+    test('a 404 after a company switch is not remembered either', () async {
+      var live = 'co';
+      final api = _Api((id) async {
+        live = 'co_b';
+        throw const NotFoundException();
+      });
+      final repo = ClientRepository(db: db, api: api)
+        ..activeCompanyId = () => live;
+      expect(await load(repo, 'c1'), EnsureLoadedOutcome.failed);
+      live = 'co';
+      await load(repo, 'c1');
+      expect(api.gets, 2);
+    });
+
+    test('a record fetched after a sign-out is not written', () async {
+      // `logout()` clears the credentials before it wipes the database, so a
+      // response that lands in between found the hook answering null. Written,
+      // it survived the wipe for the next user to inherit.
+      String? live = 'co';
+      final api = _Api((id) async {
+        live = null;
+        return _item(id);
+      });
+      final repo = ClientRepository(db: db, api: api)
+        ..activeCompanyId = () => live;
+      expect(await load(repo, 'c1'), EnsureLoadedOutcome.failed);
+      expect(await db.select(db.clients).get(), isEmpty);
+    });
+
+    test('refreshByIds after a sign-out writes nothing', () async {
+      String? live = 'co';
+      final api = _Api((id) async {
+        live = null;
+        return _item(id);
+      });
+      final repo = ClientRepository(db: db, api: api)
+        ..activeCompanyId = () => live;
+      await repo.refreshByIds(companyId: 'co', ids: ['c1']);
+      expect(await db.select(db.clients).get(), isEmpty);
+    });
+  });
+
+  test(
+    'a sign-out forgets every remembered "missing" (clearPeekCache)',
+    () async {
+      // The outgoing user's refusals: an admin signing in next on the same
+      // install must be able to open those records.
+      var refuse = true;
+      final api = _Api((id) async {
+        if (refuse) throw const PermissionDeniedException();
+        return _item(id);
+      });
+      final repo = ClientRepository(db: db, api: api);
+      expect(await load(repo, 'c1'), EnsureLoadedOutcome.missing);
+      repo.clearPeekCache();
+      refuse = false;
+      expect(await load(repo, 'c1'), EnsureLoadedOutcome.fetched);
+    },
+  );
+
   test('any other answer is a failure, and is tried again next time', () async {
     final api = _Api((id) async => throw const ServerException(503));
     final repo = ClientRepository(db: db, api: api);

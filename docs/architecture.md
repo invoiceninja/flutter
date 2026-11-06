@@ -95,7 +95,7 @@ Every write goes through this pipeline:
 
 1. Repository writes the change to Drift (`is_dirty = true`). UI updates instantly via stream.
 2. Repository appends a row to the `outbox` table with an `idempotency_key`, `payload`, `mutation_kind`, and (if needed) `requires_password`.
-3. `SyncRepository` drains the outbox in FIFO order **per (company, entity_type)**. Retries follow exponential backoff (5s → 30s → 2m → 10m, dead after 5 attempts).
+3. `SyncRepository` drains the outbox in FIFO order **per company, strict global id order** (`OutboxDao.nextReady`); a row also waits behind an earlier unsettled row for the same record. Retries follow exponential backoff (5s → 30s → 2m → 10m, dead after 5 attempts).
 4. On success, the row is removed; the server response upserts into Drift.
 5. On `422`: row marked `dead` — shown on the Outbox screen for user action.
 6. On `409` or stale-data: emits `Conflict` → `ConflictResolutionSheet` modal.

@@ -363,6 +363,48 @@ class SyncRepository {
     if (_holds > 0) _holds--;
   }
 
+  /// Run [body] with no drain pass for [companyId] running or able to start:
+  /// take a [holdDrains], wait for a pass already running to stop at its next
+  /// row, run [body], then release.
+  ///
+  /// For a flow that changes the server and wipes the company's local data
+  /// around it (the Danger Zone purge). A pass left running could send a
+  /// queued row between the server purge and the wipe, re-creating what was
+  /// just purged, or write a reply into the freshly wiped tables. Unlike
+  /// [cancel] it does not latch the engine off for the rest of the session.
+  Future<T> withDrainsHeld<T>(
+    String companyId,
+    Future<T> Function() body,
+  ) async {
+    holdDrains();
+    try {
+      final running = _inFlight[companyId];
+      if (running != null) {
+        try {
+          await running;
+        } catch (_) {
+          // The pass's own failure is its caller's to report.
+        }
+      }
+      return await body();
+    } finally {
+      releaseDrains();
+      // Every kick that landed while held was dropped (`drainOnce` answers
+      // 0 and records no trailing re-drain), so a body that failed — a wrong
+      // password, offline — left the company's queued rows to wait for some
+      // later trigger. One pass now picks them up; after a purge that went
+      // through, the wipe left nothing for it to send.
+      if (_holds == 0 && !_cancelled) {
+        unawaited(
+          drainOnce(companyId: companyId).catchError((Object e) {
+            _log.fine('drain after withDrainsHeld failed: $e');
+            return 0;
+          }),
+        );
+      }
+    }
+  }
+
   /// Count of non-`dead` outbox rows for [companyId]. Wraps the DAO so the
   /// UI shell doesn't reach into the database layer directly.
   Future<int> pendingCountFor(String companyId) =>
@@ -444,6 +486,7 @@ class SyncRepository {
     bool keepRecord = false,
   }) async {
     String? drainFor;
+    OutboxRow? refetch;
     final taken = await db.transaction(() async {
       final row = await db.outboxDao.byId(id);
       if (row == null) return false;
@@ -462,9 +505,14 @@ class SyncRepository {
           includeCreates: !row.entityId.startsWith('tmp_'),
         );
       }
-      return _discardRow(row, (companyId) => drainFor = companyId);
+      return _discardRow(
+        row,
+        (companyId) => drainFor = companyId,
+        (released) => refetch = released,
+      );
     });
     if (drainFor != null) unawaited(drainOnce(companyId: drainFor!));
+    if (refetch != null) unawaited(_refetchDiscarded(refetch!));
     return taken;
   }
 
@@ -583,22 +631,30 @@ class SyncRepository {
   /// drain this may kick starts after the commit, outside the transaction.
   Future<bool> discardOutboxRow(int id) async {
     String? drainFor;
+    OutboxRow? refetch;
     final taken = await db.transaction(() async {
       final row = await db.outboxDao.byId(id);
       if (row == null) return false;
-      return _discardRow(row, (companyId) => drainFor = companyId);
+      return _discardRow(
+        row,
+        (companyId) => drainFor = companyId,
+        (released) => refetch = released,
+      );
     });
     if (drainFor != null) unawaited(drainOnce(companyId: drainFor!));
+    if (refetch != null) unawaited(_refetchDiscarded(refetch!));
     return taken;
   }
 
   /// [discardOutboxRow]'s body, run inside its caller's transaction. A drain
   /// it wants is handed to [kickDrain] for the caller to start once the
   /// transaction commits: started inside it, the drain would run in the
-  /// transaction's zone.
+  /// transaction's zone. A record whose dirty flag the discard released is
+  /// handed to [refetch] the same way, for [_refetchDiscarded].
   Future<bool> _discardRow(
     OutboxRow row,
     void Function(String companyId) kickDrain,
+    void Function(OutboxRow released) refetch,
   ) async {
     final id = row.id;
     _noteDiscarded(id);
@@ -619,7 +675,7 @@ class SyncRepository {
     }
     if (!await _discardTakesRecord(row)) {
       await db.outboxDao.deleteRow(id);
-      await _reconcileDiscardedDirty(row);
+      if (await _reconcileDiscardedDirty(row)) refetch(row);
       if (row.state == 'unconfirmed') {
         await _rearmHeldBehind(row);
         // What it held goes now, as after a Resend — for the active company
@@ -1948,27 +2004,7 @@ class SyncRepository {
           message: e.message,
         ),
       );
-      // A failed tmp_ CREATE strands every dependent that referenced it —
-      // their tmp ref can never be rewritten now (rewrite only fires on a
-      // create SUCCESS), so the drain's tmp_-dependency guard would defer
-      // them forever and "Sync first" could never settle. Mark them dead
-      // (kept, retryable once the parent is fixed); recursion covers deeper
-      // levels.
-      if (MutationKind.tryParse(row.mutationKind) == MutationKind.create &&
-          row.entityId.startsWith('tmp_')) {
-        if (row.entityType == 'tag') {
-          // A failed tag create must not kill the task/project that referenced
-          // it — strip the dead tmp tag id from their payloads so they still
-          // save with their remaining tags, instead of marking them dead (M1).
-          await _stripFailedTagFromDependents(row.companyId, row.entityId);
-        } else {
-          await _failTmpDependents(
-            row.companyId,
-            row.entityId,
-            _ParentGone.failed,
-          );
-        }
-      }
+      await _settleDependentsOfDeadCreate(row);
       return false;
     } on RecordDeletedException catch (e) {
       // The row still exists server-side but is soft-deleted (`is_deleted`),
@@ -1985,6 +2021,7 @@ class SyncRepository {
         '${e.message}',
       );
       await _markDead(row, e.message, e.statusCode);
+      await _settleDependentsOfDeadCreate(row);
       return false;
     } on NotFoundException catch (e) {
       // The entity is gone server-side (Invoice Ninja reports this as HTTP 400
@@ -2061,6 +2098,7 @@ class SyncRepository {
       // user sees the failure in the outbox screen and resolves it by
       // upgrading + re-enqueuing or discarding the row.
       await _markDead(row, e.message, 402);
+      await _settleDependentsOfDeadCreate(row);
       return false;
     } on PasswordRequiredException {
       _log.info('Password required for ${row.entityType}/${row.entityId}');
@@ -2176,6 +2214,7 @@ class SyncRepository {
       // that the entity vanished.
       if (e.statusCode >= 400 && e.statusCode < 500) {
         await _markDead(row, e.message, e.statusCode);
+        await _settleDependentsOfDeadCreate(row);
       } else if (kOutcomeUnknownStatuses.contains(e.statusCode) &&
           _unknownOutcome(row, kind, scope)) {
         await _markUnconfirmed(row, e.message, e.statusCode);
@@ -2282,6 +2321,10 @@ class SyncRepository {
   Future<void> _retryWithBackoff(OutboxRow row, String error, int? code) async {
     final nextAttempt = row.attempts + 1;
     if (nextAttempt >= kMaxAttempts) {
+      // Not [_settleDependentsOfDeadCreate]: a create that ran out of retries
+      // (a 412, a 5xx that never went out) failed for a reason a Retry can
+      // fix as it is, and its dependents, left pending, go by themselves once
+      // it lands. Dead, each would need a Retry of its own.
       await _markDead(row, error, code);
       return;
     }
@@ -2309,17 +2352,20 @@ class SyncRepository {
   /// payload's ids (their entityId is the synthetic `_sort`); every other row
   /// clears its own entityId. Guarded per-id: an id that still has ANOTHER
   /// pending row keeps its flag so that separate edit stays protected.
-  Future<void> _reconcileDiscardedDirty(OutboxRow row) async {
+  ///
+  /// Returns whether it released the flag on the row's own record, which is
+  /// what [_refetchDiscarded] needs to know. Always false for a reorder.
+  Future<bool> _reconcileDiscardedDirty(OutboxRow row) async {
     if (MutationKind.tryParse(row.mutationKind) == MutationKind.reorder) {
       await _clearReorderDirty(row);
-      return;
+      return false;
     }
     final stillActive = await db.outboxDao.hasActiveRowsForEntity(
       companyId: row.companyId,
       entityType: row.entityType,
       entityId: row.entityId,
     );
-    if (stillActive) return;
+    if (stillActive) return false;
     // "The user abandoned it" holds when the discarded row IS this entity's
     // edit. It does not when the row is some *other* mutation keyed to the same
     // entity — and `add_comment` is exactly that: `ClientRepository.addComment`
@@ -2339,11 +2385,52 @@ class SyncRepository {
       entityType: row.entityType,
       entityId: row.entityId,
     );
-    if (hasPendingEdit) return;
-    await registry
-        .byWireName(row.entityType)
-        ?.dispatcher
-        .clearLocalDirty(companyId: row.companyId, id: row.entityId);
+    if (hasPendingEdit) return false;
+    final dispatcher = registry.byWireName(row.entityType)?.dispatcher;
+    if (dispatcher == null) return false;
+    await dispatcher.clearLocalDirty(
+      companyId: row.companyId,
+      id: row.entityId,
+    );
+    return true;
+  }
+
+  /// Re-fetch the record a discard released, so its local row stops showing
+  /// the content the user just threw away.
+  ///
+  /// Releasing `is_dirty` only lets a later server copy in; it does not bring
+  /// one. The record never changed on the server, so neither the `/refresh`
+  /// delta nor a cursor'd page 1 (`updated_at >= W`) ever returns it, and only
+  /// a full Sync did. Meanwhile the list showed the discarded values as saved,
+  /// an edit form opened from it was seeded with them (`ensureLoaded` answers
+  /// `cached`), and the next Save PUT them to the server. A landed write that
+  /// failed afterwards is re-fetched the same way ([_settleCommitted]).
+  ///
+  /// Best-effort and run after the discard's transaction commits; offline it
+  /// fails quietly and the next Sync converges. Skipped for what has no server
+  /// copy to fetch (a create, a `tmp_` or synthetic id), for a row that wrote
+  /// no field of its record ([writesNoRecordField]), and for a user, whose
+  /// only fetch is a full `/refresh` (`GET /users/{id}` is 412-gated).
+  Future<void> _refetchDiscarded(OutboxRow row) async {
+    if (MutationKind.tryParse(row.mutationKind) == MutationKind.create) return;
+    final id = row.entityId;
+    if (id.isEmpty || id.startsWith('tmp_') || id.startsWith('_')) return;
+    if (writesNoRecordField(
+      mutationKind: row.mutationKind,
+      payload: row.payload,
+    )) {
+      return;
+    }
+    final handlers = registry.byWireName(row.entityType);
+    final refresh = refreshRecord;
+    if (handlers == null || refresh == null) return;
+    if (handlers.type == EntityType.user) return;
+    if (!_isActive(row.companyId)) return;
+    try {
+      await refresh(row.companyId, handlers.type, id);
+    } catch (e) {
+      _log.fine('Re-fetching discarded ${row.entityType} $id failed: $e');
+    }
   }
 
   /// Clear the optimistic `is_dirty` flag on every row a reorder touched, once
@@ -2492,6 +2579,32 @@ class SyncRepository {
   /// the app wires [activeCompanyId].
   bool _isActive(String companyId) =>
       (activeCompanyId?.call() ?? companyId) == companyId;
+
+  /// A failed tmp_ CREATE strands every dependent that referenced it — their
+  /// tmp ref can never be rewritten now (rewrite only fires on a create
+  /// SUCCESS), so the drain's tmp_-dependency guard would defer them forever
+  /// and "Sync first" could never settle. Mark them dead (kept, retryable once
+  /// the parent is fixed); recursion covers deeper levels.
+  ///
+  /// Called wherever the server rejects a create for good: a 422, and also a
+  /// 402 plan limit, any other 4xx, or a soft-deleted answer. Only the 422
+  /// used to, so the others left the dependents `pending`, re-parked every
+  /// 60 s and counted as unsynced work that no Sync could ever send. Not when
+  /// retries run out ([_retryWithBackoff]), which a plain Retry can heal.
+  Future<void> _settleDependentsOfDeadCreate(OutboxRow row) async {
+    if (MutationKind.tryParse(row.mutationKind) != MutationKind.create ||
+        !row.entityId.startsWith('tmp_')) {
+      return;
+    }
+    if (row.entityType == 'tag') {
+      // A failed tag create must not kill the task/project that referenced
+      // it — strip the dead tmp tag id from their payloads so they still
+      // save with their remaining tags, instead of marking them dead (M1).
+      await _stripFailedTagFromDependents(row.companyId, row.entityId);
+    } else {
+      await _failTmpDependents(row.companyId, row.entityId, _ParentGone.failed);
+    }
+  }
 
   Future<void> _markDead(
     OutboxRow row,

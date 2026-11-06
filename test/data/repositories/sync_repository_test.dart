@@ -260,6 +260,47 @@ void main() {
 
       expect(sent, ['c1']);
     });
+
+    test('withDrainsHeld waits for a running pass, starts none while its '
+        'body runs, and releases after', () async {
+      // The Danger Zone purge: a pass left running sent a queued row between
+      // the server purge and the local wipe, re-creating what was purged.
+      final gate = Completer<void>();
+      final sent = <String>[];
+      final engine = makeEngine(
+        _CallbackDispatcher((row) async {
+          sent.add(row.entityId);
+          if (row.entityId == 'c1') await gate.future;
+        }),
+      );
+      await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      await enqueueClient(entityId: 'c2', idempotencyKey: 'k2');
+
+      final pass = engine.drainOnce(companyId: 'co');
+      await pumpEventQueue();
+      expect(sent, ['c1'], reason: 'sanity: c1 is on the wire');
+
+      var bodyRan = false;
+      final held = engine.withDrainsHeld('co', () async {
+        bodyRan = true;
+        // Nothing may send while the body runs.
+        await engine.drainOnce(companyId: 'co');
+        expect(sent, ['c1']);
+      });
+      await pumpEventQueue();
+      expect(bodyRan, isFalse, reason: 'waits for the running pass');
+
+      gate.complete();
+      await held;
+      await pass;
+      expect(bodyRan, isTrue);
+
+      // Every kick that landed while held was dropped, so the release starts
+      // one pass itself: a purge that failed must not leave c2 waiting for
+      // some later trigger.
+      await pumpEventQueue();
+      expect(sent, ['c1', 'c2'], reason: 'released afterwards, by itself');
+    });
   });
 
   group('landed', () {
@@ -1981,6 +2022,69 @@ void main() {
     expect(events.whereType<ValidationFailedEvent>(), hasLength(1));
   });
 
+  group('a create the server rejects for good settles what depends on it', () {
+    // Only a 422 used to. A plan limit or another 4xx left the dependents
+    // `pending`, re-parked every 60 s and counted as unsynced work that no
+    // Sync could ever send.
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000ad';
+    for (final (label, error) in <(String, Object)>[
+      ('a 402 plan limit', const PlanRequiredException()),
+      ('a 403', const ServerException(403, 'Forbidden')),
+    ]) {
+      test(label, () async {
+        final engine = makeEngine(
+          _CallbackDispatcher((row) async {
+            if (row.mutationKind == MutationKind.create.wireName) throw error;
+          }),
+        );
+        await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'create',
+        );
+        final dependent = await enqueueClient(
+          entityId: tmp,
+          idempotencyKey: 'edit',
+        );
+
+        await engine.drainOnce(companyId: 'co');
+
+        final row = await (db.select(
+          db.outbox,
+        )..where((o) => o.id.equals(dependent))).getSingle();
+        expect(row.state, 'dead');
+      });
+    }
+
+    test('not one that ran out of retries — a Retry heals it as it is, and '
+        'its dependents then go by themselves', () async {
+      final engine = makeEngine(
+        _CallbackDispatcher((row) async {
+          if (row.mutationKind == MutationKind.create.wireName) {
+            throw const ServerException(503);
+          }
+        }),
+      );
+      await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'create',
+        attempts: kMaxAttempts - 1,
+      );
+      final dependent = await enqueueClient(
+        entityId: tmp,
+        idempotencyKey: 'edit',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      final row = await (db.select(
+        db.outbox,
+      )..where((o) => o.id.equals(dependent))).getSingle();
+      expect(row.state, 'pending');
+    });
+  });
+
   group('tmp_ dependency guard', () {
     // Ids minted by mintTempId() are tmp_<uuid-v4>; the guard matches that
     // exact shape.
@@ -2651,6 +2755,58 @@ void main() {
         isNull,
         reason: 'follow-up rows for the gone entity go too',
       );
+    });
+
+    group('a discard that releases a record re-fetches it', () {
+      // Releasing `is_dirty` only lets a later server copy in. The record
+      // never changed on the server, so no delta or cursor'd page brings one:
+      // the list went on showing the discarded values, an edit form opened
+      // from it was seeded with them, and the next Save sent them.
+      Future<List<String>> discardAndCollect(
+        int id, {
+        bool viaFailedSave = false,
+      }) async {
+        final refetched = <String>[];
+        final engine = engineWith(_TestRepo(db: db))
+          ..refreshRecord = (companyId, type, id) async => refetched.add(id);
+        if (viaFailedSave) {
+          await engine.discardFailedSave(id);
+        } else {
+          await engine.discardOutboxRow(id);
+        }
+        await pumpEventQueue();
+        return refetched;
+      }
+
+      test('discardOutboxRow on an edit', () async {
+        final id = await enqueueClient(entityId: 'c1');
+        expect(await discardAndCollect(id), ['c1']);
+      });
+
+      test('discardFailedSave on a dead edit', () async {
+        final id = await enqueueClient(entityId: 'c1');
+        await db.outboxDao.markDead(id: id, error: '422');
+        expect(await discardAndCollect(id, viaFailedSave: true), ['c1']);
+      });
+
+      test('not while another edit of the record is still queued', () async {
+        final id = await enqueueClient(entityId: 'c1');
+        await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+        expect(await discardAndCollect(id), isEmpty);
+      });
+
+      test('not for a comment, which wrote no field of the record', () async {
+        final id = await enqueueClient(
+          entityId: 'c1',
+          kind: MutationKind.addComment,
+        );
+        expect(await discardAndCollect(id), isEmpty);
+      });
+
+      test('not for a never-synced record', () async {
+        final id = await enqueueClient(entityId: 'tmp_g');
+        expect(await discardAndCollect(id), isEmpty);
+      });
     });
 
     group('discardFailedSave for a form left with Discard', () {

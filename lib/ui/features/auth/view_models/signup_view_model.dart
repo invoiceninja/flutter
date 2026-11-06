@@ -19,6 +19,22 @@ class SignupViewModel extends ChangeNotifier {
 
   final AuthRepository auth;
 
+  /// Set in [dispose]: leaving the screen while a sign-up is on the wire
+  /// disposes this, and the request's `finally` then notified a dead notifier
+  /// (an assertion in debug). Same guard as `LoginViewModel`.
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   /// Offer "Sign up with Apple" / "Sign up with Google" — the login screen's
   /// gates, so the two screens show the same providers.
   bool get appleEnabled => AppleSignIn.isSupported;

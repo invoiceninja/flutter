@@ -1058,6 +1058,51 @@ void main() {
     });
   });
 
+  group('a create response kept under a newer local edit', () {
+    test('takes the server\'s updated_at, not the device clock\'s', () async {
+      // The local row keeps its content (the newer edit wins), but a create
+      // can be stamped by the device clock. Kept under the real id, a fast
+      // clock's stamp outranked every later server copy, which the stale-row
+      // guard in `upsertAllPreservingDirty` then dropped as "older".
+      final (:repo, :api) = makeRepo();
+      const fastClock = 2000000000; // 2033
+      final created = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(
+          apiClient('', name: 'Acme', updatedAt: fastClock),
+        ),
+      );
+      final tmpId = created.entity.id;
+      await repo.save(
+        companyId: 'co',
+        client: created.entity.copyWith(name: 'Acme Ltd'),
+      );
+
+      await RequestScope(
+        'co',
+        sourceRowId: created.outboxRowId,
+        sourceEntityType: 'client',
+        sourceEntityId: tmpId,
+      ).run(
+        () => repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: tmpId,
+          serverResponse: apiClient(
+            'c_real',
+            name: 'Acme',
+            updatedAt: 1700000000,
+          ),
+        ),
+      );
+
+      final row = await (db.select(
+        db.clients,
+      )..where((c) => c.id.equals('c_real'))).getSingle();
+      expect(row.name, 'Acme Ltd', reason: 'the newer edit still wins');
+      expect(row.updatedAt, 1700000000);
+    });
+  });
+
   group('re-sending the create of a record whose create failed', () {
     test('replaces the updates queued for the record — left behind it, they '
         'held it back forever', () async {
@@ -1426,17 +1471,34 @@ void main() {
       );
     });
 
-    test('a null active company never blocks a fetch', () async {
-      // Boot, pre-credentials, and every test: the guard protects against
-      // writing the WRONG company's rows, it does not require credentials.
+    test('an unbound hook never blocks a fetch', () async {
+      // Tests and anything built without DI: no hook, no check.
+      final (:repo, :api) = makeRepo(
+        pages: {
+          1: [apiClient('c1')],
+        },
+      );
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+      expect((await db.select(db.clients).get()).length, 1);
+    });
+
+    test('a page that arrives after a sign-out is discarded', () async {
+      // A bound hook answering null means signed out: `ApiClient` sends
+      // nothing without credentials, so the page went out under a session
+      // that has since ended. `logout()` clears the credentials before it
+      // wipes, so a page written here landed after the wipe, and the next
+      // user's identity check could no longer see it.
       final (:repo, :api) = makeRepo(
         pages: {
           1: [apiClient('c1')],
         },
       );
       repo.activeCompanyId = () => null;
-      await repo.ensurePageLoaded(companyId: 'co', page: 1);
-      expect((await db.select(db.clients).get()).length, 1);
+      await expectLater(
+        repo.ensurePageLoaded(companyId: 'co', page: 1),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+      expect(await db.select(db.clients).get(), isEmpty);
     });
 
     test('the abandoned page leaves the cursor untouched', () async {
@@ -1474,6 +1536,43 @@ void main() {
         repo.ensurePageLoaded(companyId: 'co', page: 2),
         throwsA(isA<CompanySwitchedException>()),
       );
+    });
+  });
+
+  group('a page older than the stored row', () {
+    // A page GET the server answered before a save committed can arrive after
+    // the drain applied that save's reply and cleared `is_dirty`. Written, it
+    // reverted the save on screen, and the next edit, seeded from the stale
+    // row, PUT the old content back over it.
+    Future<String> storedName() async =>
+        (await db.select(db.clients).getSingle()).name;
+
+    Future<void> store(String name, int updatedAt) async {
+      final (:repo, :api) = makeRepo(
+        pages: {
+          1: [apiClient('c1', name: name, updatedAt: updatedAt)],
+        },
+      );
+      await repo.ensurePageLoaded(companyId: 'co', page: 1, ignoreCursor: true);
+    }
+
+    test('does not overwrite it', () async {
+      await store('Saved', 200);
+      await store('Old', 100);
+      expect(await storedName(), 'Saved');
+    });
+
+    test('at the same timestamp still applies', () async {
+      // Never suppress a legitimate update: equal is not older.
+      await store('Local', 200);
+      await store('Server', 200);
+      expect(await storedName(), 'Server');
+    });
+
+    test('a newer one applies', () async {
+      await store('Old', 100);
+      await store('New', 200);
+      expect(await storedName(), 'New');
     });
   });
 

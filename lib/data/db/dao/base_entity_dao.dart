@@ -411,18 +411,56 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   /// is right only when no NEWER edit of the record is still queued — the
   /// bit may have been set by a later save than the mutation that just
   /// succeeded (it used to be cleared unconditionally, losing that save).
+  ///
+  /// It also drops a row whose `updated_at` is strictly OLDER than the one
+  /// stored, where [updatedAtColumn] is bound — the guard the `/refresh` delta
+  /// already had ([updatedAtAmong]). A page GET the server answered before a
+  /// save committed can arrive after the drain applied that save's reply and
+  /// cleared `is_dirty`; written, it reverted the save on screen, and the next
+  /// edit, seeded from the stale row, PUT the old content back over it. An
+  /// equal timestamp still applies, and a local save never touches
+  /// `updated_at`, so a refetch of an unchanged record always lands.
+  ///
+  /// One transaction, so a save committing between the reads and the write
+  /// cannot be overwritten while it is still dirty.
   Future<void> upsertAllPreservingDirty({
     required String companyId,
     required Map<String, Insertable<RowT>> byId,
   }) async {
     if (byId.isEmpty) return;
-    final candidateIds = byId.keys.toList(growable: false);
-    final dirty = await _dirtyIdsAmong(companyId, candidateIds);
-    final filtered = [
-      for (final entry in byId.entries)
-        if (!dirty.contains(entry.key)) entry.value,
-    ];
-    await upsertAll(filtered);
+    await transaction(() async {
+      final candidateIds = byId.keys.toList(growable: false);
+      final dirty = await _dirtyIdsAmong(companyId, candidateIds);
+      final stored = await updatedAtAmong(
+        companyId: companyId,
+        ids: candidateIds,
+      );
+      final filtered = [
+        for (final entry in byId.entries)
+          if (!dirty.contains(entry.key) &&
+              !_isOlderThanStored(entry.value, stored[entry.key]))
+            entry.value,
+      ];
+      await upsertAll(filtered);
+    });
+  }
+
+  /// Whether [row] carries an `updated_at` strictly older than [stored].
+  /// False when either is unknown: a companion that leaves the column absent,
+  /// or an id with no local row.
+  bool _isOlderThanStored(Insertable<RowT> row, int? stored) {
+    if (stored == null) return false;
+    final incoming = updatedAtOf(row);
+    return incoming != null && incoming < stored;
+  }
+
+  /// The `updated_at` [row] would write, or null when [updatedAtColumn] is
+  /// unbound or the companion leaves the column absent.
+  int? updatedAtOf(Insertable<RowT> row) {
+    final column = updatedAtColumn;
+    if (column == null) return null;
+    final value = row.toColumns(false)[column.name];
+    return value is Variable<int> ? value.value : null;
   }
 
   Future<Set<String>> _dirtyIdsAmong(String companyId, List<String> ids) async {
@@ -453,15 +491,26 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   /// the payload, not the id column, so moving only the column left the
   /// record calling itself by its temp id — and anything done to it queued
   /// against an id the server has never heard of.
+  ///
+  /// [serverUpdatedAt], the create response's `updated_at`, replaces the
+  /// row's: a create can be stamped by the device clock (a new product, a
+  /// quick-added task), and kept under the real id that stamp outranked every
+  /// later server copy whenever the clock ran fast, since
+  /// [upsertAllPreservingDirty] drops a copy older than the stored row.
   Future<void> rekeyRow({
     required String companyId,
     required String fromId,
     required String toId,
+    int? serverUpdatedAt,
   }) async {
     final name = table.actualTableName;
     final payloadId = table.$columns.any((c) => c.name == 'payload')
         ? ', payload = CASE WHEN json_valid(payload) '
               "THEN json_set(payload, '\$.id', ?1) ELSE payload END"
+        : '';
+    final stampColumn = updatedAtColumn;
+    final stamp = stampColumn != null && serverUpdatedAt != null
+        ? ', ${stampColumn.name} = $serverUpdatedAt'
         : '';
     await customUpdate(
       'DELETE FROM $name WHERE company_id = ? AND id = ?',
@@ -470,7 +519,8 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
       updateKind: UpdateKind.delete,
     );
     await customUpdate(
-      'UPDATE $name SET id = ?1$payloadId WHERE company_id = ?2 AND id = ?3',
+      'UPDATE $name SET id = ?1$payloadId$stamp '
+      'WHERE company_id = ?2 AND id = ?3',
       variables: [
         Variable.withString(toId),
         Variable.withString(companyId),

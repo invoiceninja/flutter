@@ -1070,6 +1070,7 @@ class AuthRepository {
   Future<void> _refreshSession({
     String? preserveActiveCompanyId,
     bool fullSync = false,
+    bool restarted = false,
   }) async {
     final s = _session.value;
     if (s == null) {
@@ -1122,6 +1123,27 @@ class AuthRepository {
       };
     }
 
+    // A delta asks for one company's changes since THAT company's watermark,
+    // and the server answers for whichever company the live token names. A
+    // switch landing in the reads above sent B's token with A's `updated_at`,
+    // and the commit then stamped B as synced to now: if A had synced more
+    // recently, B's changes between the two watermarks were skipped for good.
+    // Start over for the live company. Checked right before `postJson`, which
+    // reads the credentials before its first await, so nothing can land in
+    // between. A full sync carries no watermark, and an explicit
+    // [preserveActiveCompanyId] is a caller steering the refresh on purpose.
+    // One restart at most ([restarted]): a second mismatch abandons the delta
+    // rather than chase a session that keeps moving, and the next tick runs it.
+    if (!isFullSync &&
+        preserveActiveCompanyId == null &&
+        _credentials.value?.companyId != activeId) {
+      if (restarted ||
+          generation != _sessionGeneration ||
+          _session.value == null) {
+        return;
+      }
+      return _refreshSession(fullSync: fullSync, restarted: true);
+    }
     final raw = await _requireApi.postJson(
       '/api/v1/refresh',
       query: query,

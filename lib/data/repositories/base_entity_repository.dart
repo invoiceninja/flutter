@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Insertable, Value;
 import 'package:flutter/foundation.dart' show protected, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
@@ -98,13 +98,19 @@ abstract class BaseEntityRepository<TDomain, TApi> {
 
   /// Whether [companyId] is still the company whose token is being used.
   ///
-  /// Null (boot, pre-credentials, or a test) is a no-op, never a mismatch:
-  /// this is a guard against writing the *wrong* company's data, not a
-  /// requirement that credentials exist.
+  /// An unbound hook (a test) is a no-op. A bound hook answering null means
+  /// signed out, and blocks: `ApiClient` sends nothing without credentials
+  /// (`_requireCreds`), so a response that finds them gone was sent under a
+  /// session that has since ended. `logout()` clears the credentials before
+  /// it wipes the database and forgets the identity, so a page let through
+  /// here landed after the wipe, where the next sign-in's identity check can
+  /// no longer see it, and a second user inherited the first one's records.
+  /// Same rule as `DashboardRepository._ensureStillActive`.
   @protected
   bool companyStillActive(String companyId) {
-    final live = activeCompanyId?.call();
-    return live == null || live == companyId;
+    final hook = activeCompanyId;
+    if (hook == null) return true;
+    return hook() == companyId;
   }
 
   OutboxDao get _outbox => db.outboxDao;
@@ -230,6 +236,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// on the same install must not inherit them.
   void clearPeekCache() {
     _lastSeen.clear();
+    // The "not found" answers too: they are the outgoing user's. A record a
+    // restricted user was refused must not read as missing for the admin who
+    // signs in next.
+    _ensureMissing.clear();
     clearDecodedRows();
   }
 
@@ -787,7 +797,16 @@ abstract class BaseEntityRepository<TDomain, TApi> {
           'Keeping the newer local edit of $entityTypeName $tempId as '
           '$realId over the create response',
         );
-        await dao.rekeyRow(companyId: companyId, fromId: tempId, toId: realId);
+        await dao.rekeyRow(
+          companyId: companyId,
+          fromId: tempId,
+          toId: realId,
+          // The server's stamp, not the device's — see `rekeyRow`.
+          serverUpdatedAt: switch (companion) {
+            final Insertable<Object?> row => dao.updatedAtOf(row),
+            _ => null,
+          },
+        );
       } else {
         await upsert(companion);
         if (realId != tempId) {
@@ -1688,19 +1707,28 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         final cached = await watch(companyId: companyId, id: id).first;
         if (cached != null) return EnsureLoadedOutcome.cached;
         final item = await fetch(id);
+        // Answered under another company's token, or after a sign-out: the
+        // same guard as a page ([companyStillActive]).
+        if (!companyStillActive(companyId)) return EnsureLoadedOutcome.failed;
         await upsert({idOf(item): toCompanion(item)});
         return EnsureLoadedOutcome.fetched;
       } on NotFoundException {
         // Genuinely gone server-side (404) — negative-cache so a deleted /
         // unknown reference isn't re-fetched on every rebuild this session.
+        // Not when the company switched under the request: the answer was
+        // about the other company, and caching it under this one would leave
+        // the record "missing" here once the user switches back.
+        if (!companyStillActive(companyId)) return EnsureLoadedOutcome.failed;
         _ensureMissing.add(cacheKey);
         return EnsureLoadedOutcome.missing;
       } on PermissionDeniedException {
-        // There is such a record and this user may not see it — or it belongs
-        // to another company, which is what a screen left mounted across a
-        // company switch asks about. To the screen that is "missing", and it
-        // is negative-cached for the same reason: asking again gets the same
-        // answer.
+        // There is such a record and this user may not see it. To the screen
+        // that is "missing", and it is negative-cached for the same reason:
+        // asking again gets the same answer. A screen left mounted across a
+        // company switch asks about the old company's record under the new
+        // company's token and is refused too, but that refusal says nothing
+        // about the old company, so it is not cached.
+        if (!companyStillActive(companyId)) return EnsureLoadedOutcome.failed;
         _ensureMissing.add(cacheKey);
         return EnsureLoadedOutcome.missing;
       } on NetworkException {
@@ -1760,6 +1788,16 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         }
       }),
     );
+    // A detail screen's open-time recheck calls this outside the drain, so a
+    // sign-out or a company switch can land while it is on the wire. Same
+    // guard as a page ([companyStillActive]); a missed refresh self-heals.
+    if (!companyStillActive(companyId)) {
+      _log.fine(
+        'refreshByIds: dropped ${byId.length} $entityTypeName row(s) for '
+        '$companyId, no longer the active company',
+      );
+      return const [];
+    }
     if (byId.isNotEmpty) await upsert(byId);
     return fetched;
   }

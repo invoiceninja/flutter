@@ -11,6 +11,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/clamped_text.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
@@ -371,40 +372,6 @@ List<Widget> expenseCustomFieldRows(
     no: context.tr('no'),
   );
   return [for (final r in rows) DetailInfoRow(label: r.label, value: r.value)];
-}
-
-/// Created / updated, for the foot of a Details card.
-///
-/// As local calendar days: these are UTC-backed server timestamps, and the
-/// ISO date of the UTC instant is the wrong day across the boundary. Left out
-/// until the formatter is here (never a raw ISO date), and for a record that
-/// has not been to the server yet (epoch zero).
-List<Widget> recordTimestampRows(
-  BuildContext context, {
-  required DateTime createdAt,
-  required DateTime updatedAt,
-  required Formatter? formatter,
-}) {
-  if (formatter == null) return const [];
-  String? day(DateTime dt) => dt.millisecondsSinceEpoch == 0
-      ? null
-      : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-  final created = day(createdAt);
-  final updated = day(updatedAt);
-  return [
-    if (created != null)
-      DetailInfoRow(
-        label: context.tr('created_at'),
-        value: created,
-        copyable: false,
-      ),
-    if (updated != null)
-      DetailInfoRow(
-        label: context.tr('updated_at'),
-        value: updated,
-        copyable: false,
-      ),
-  ];
 }
 
 /// Private + public notes. Renders either or both; builds nothing when both

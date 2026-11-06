@@ -580,6 +580,7 @@
   "last_error": "Ostatni błąd",
   "last_error_label": "Ostatni błąd",
   "last_expense_date": "Ostatni wydatek",
+  "last_login_short": "Ostatnie logowanie :date",
   "last_queue_error": "Ostatni błąd kolejki",
   "last_refreshed": "Ostatnie odświeżenie",
   "light_variant": "Jasna paleta",

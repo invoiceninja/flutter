@@ -605,6 +605,7 @@
   "last_error": "Siste feil",
   "last_error_label": "Siste feil",
   "last_expense_date": "Siste utgift",
+  "last_login_short": "Siste Pålogging :date",
   "last_queue_error": "Siste køfeil",
   "last_refreshed": "Sist oppdatert",
   "light_variant": "Lys palett",

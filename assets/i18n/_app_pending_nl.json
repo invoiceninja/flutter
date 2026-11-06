@@ -605,6 +605,7 @@
   "last_error": "Laatste fout",
   "last_error_label": "Laatste fout",
   "last_expense_date": "Laatste uitgave",
+  "last_login_short": "Laatste login :date",
   "last_queue_error": "Laatste queue-fout",
   "last_refreshed": "Laatst vernieuwd",
   "light_variant": "Licht palet",

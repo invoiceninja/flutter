@@ -19,6 +19,7 @@ import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
 import 'package:admin/ui/core/detail/related_rows_proof.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -344,6 +345,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               project: p,
               company: company.data,
               tasks: tasks,
+              formatter: formatter,
+            ),
+            timestamps: RecordTimestampsLine(
+              createdAt: p.createdAt,
+              updatedAt: p.updatedAt,
               formatter: formatter,
             ),
           );

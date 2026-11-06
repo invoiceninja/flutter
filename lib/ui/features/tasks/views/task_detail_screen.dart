@@ -19,6 +19,7 @@ import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
@@ -290,6 +291,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         profile: TaskDetailProfile(
           task: t,
           company: company.data,
+          formatter: formatter,
+        ),
+        timestamps: RecordTimestampsLine(
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
           formatter: formatter,
         ),
       ),

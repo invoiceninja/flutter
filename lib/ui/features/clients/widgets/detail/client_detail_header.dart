@@ -63,6 +63,7 @@ class ClientDetailHeader extends StatelessWidget {
           showStatePills: showStatePills,
           subtitle: segments.isEmpty
               ? DetailHeaderTimestamps(
+                  shownAtFoot: true,
                   createdAt: c.createdAt,
                   updatedAt: c.updatedAt,
                   formatter: formatter,

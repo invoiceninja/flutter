@@ -580,6 +580,7 @@
   "last_error": "Последна грешка",
   "last_error_label": "Последна грешка",
   "last_expense_date": "Последен разход",
+  "last_login_short": "Последно влизане :date",
   "last_queue_error": "Последна грешка в опашката",
   "last_refreshed": "Последно обновяване",
   "light_variant": "Светла палитра",

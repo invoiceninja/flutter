@@ -605,6 +605,7 @@
   "last_error": "Dernière erreur",
   "last_error_label": "Dernière erreur",
   "last_expense_date": "Dernière dépense",
+  "last_login_short": "Dernière connexion :date",
   "last_queue_error": "Dernière erreur de file d'attente",
   "last_refreshed": "Dernière actualisation",
   "light_variant": "Palette claire",

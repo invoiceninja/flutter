@@ -14,6 +14,7 @@ import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
 import 'package:admin/ui/core/detail/settings_record_body.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_detail_view_model.dart';
 import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_detail_header.dart';
@@ -152,6 +153,11 @@ class _PaymentLinkDetailScreenState extends State<PaymentLinkDetailScreen>
             profile: PaymentLinkDetailProfile(
               paymentLink: link,
               companyId: _companyId,
+              formatter: formatter,
+            ),
+            timestamps: RecordTimestampsLine(
+              createdAt: link.createdAt,
+              updatedAt: link.updatedAt,
               formatter: formatter,
             ),
           ),

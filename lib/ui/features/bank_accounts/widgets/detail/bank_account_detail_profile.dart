@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
@@ -41,14 +42,7 @@ class BankAccountDetailProfile extends StatelessWidget {
     Formatter? formatter,
   }) {
     final f = formatter;
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) => f == null || dt.millisecondsSinceEpoch == 0
-        ? null
-        : f.date(dt.toLocal().toIso8601String().split('T').first);
     final from = account.fromDate;
-    final created = day(account.createdAt);
-    final updated = day(account.updatedAt);
     return [
       if (account.provider.trim().isNotEmpty)
         DetailInfoRow(
@@ -85,18 +79,12 @@ class BankAccountDetailProfile extends StatelessWidget {
           value: f.date(from.toIso()),
           copyable: false,
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+        formatter: f,
+      ),
     ];
   }
 

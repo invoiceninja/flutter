@@ -580,6 +580,7 @@
   "last_error": "Viimeisin virhe",
   "last_error_label": "Viimeisin virhe",
   "last_expense_date": "Viimeisin kulu",
+  "last_login_short": "Viimeinen kirjautuminen :date",
   "last_queue_error": "Viimeisin jonovirhe",
   "last_refreshed": "Päivitetty viimeksi",
   "light_variant": "Vaalea paletti",

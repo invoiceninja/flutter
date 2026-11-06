@@ -605,6 +605,7 @@
   "last_error": "Letzter Fehler",
   "last_error_label": "Letzter Fehler",
   "last_expense_date": "Letzte Ausgabe",
+  "last_login_short": "Letzter Login :date",
   "last_queue_error": "Letzter Warteschlangenfehler",
   "last_refreshed": "Zuletzt aktualisiert",
   "light_variant": "Helle Farbpalette",

@@ -48,6 +48,7 @@ class ExpenseCategoryDetailHeader extends StatelessWidget {
       showStatePills: showStatePills,
       subtitle: swatch == null
           ? DetailHeaderTimestamps(
+              shownAtFoot: true,
               createdAt: category.createdAt,
               updatedAt: category.updatedAt,
               formatter: formatter,

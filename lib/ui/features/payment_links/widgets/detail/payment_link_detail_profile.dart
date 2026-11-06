@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
@@ -145,14 +146,6 @@ abstract final class PaymentLinkDetailsCard {
             formatter,
           )
         : '${link.promoDiscount}%';
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) =>
-        formatter == null || dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(link.createdAt);
-    final updated = day(link.updatedAt);
     final discount = link.promoDiscount == Decimal.zero ? '' : promoDiscount();
     return [
       if (url.isNotEmpty)
@@ -214,18 +207,12 @@ abstract final class PaymentLinkDetailsCard {
           value: '${link.maxSeatsLimit}',
           copyable: false,
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: link.createdAt,
+        updatedAt: link.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 }

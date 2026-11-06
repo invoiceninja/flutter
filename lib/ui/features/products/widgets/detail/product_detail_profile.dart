@@ -7,6 +7,7 @@ import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/detail/record_profile_layout.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
@@ -124,7 +125,12 @@ class ProductDetailProfile extends StatelessWidget {
           monospace: true,
         ),
       ..._customRows(context, p, company, formatter),
-      ..._timestampRows(context, p, formatter),
+      ...recordTimestampRows(
+        context,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 
@@ -187,37 +193,6 @@ class ProductDetailProfile extends StatelessWidget {
     );
     return [
       for (final r in rows) DetailInfoRow(label: r.label, value: r.value),
-    ];
-  }
-
-  /// Created / updated, at the foot. As local calendar days — these are
-  /// UTC-backed server timestamps, and the ISO date of the UTC instant is the
-  /// wrong day across the boundary. Left out until the formatter is here, and
-  /// for a product that has not been to the server yet (epoch zero).
-  static List<Widget> _timestampRows(
-    BuildContext context,
-    Product p,
-    Formatter? formatter,
-  ) {
-    if (formatter == null) return const [];
-    String? day(DateTime dt) => dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(p.createdAt);
-    final updated = day(p.updatedAt);
-    return [
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
     ];
   }
 }

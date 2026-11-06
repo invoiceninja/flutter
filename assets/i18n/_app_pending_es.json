@@ -605,6 +605,7 @@
   "last_error": "Último error",
   "last_error_label": "Último error",
   "last_expense_date": "Último gasto",
+  "last_login_short": "Último Acceso :date",
   "last_queue_error": "Último error de la cola",
   "last_refreshed": "Última actualización",
   "light_variant": "Paleta clara",

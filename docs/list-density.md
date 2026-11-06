@@ -72,9 +72,22 @@ On a phone, the two-line tile goes from 72 px to about 57 px per row.
 | Status-tab strip (`dense:`), vertical | `InSpacing.md` | `InSpacing.sm` |
 | Group section header, top / bottom | `lg` / `sm` | `sm` / `xs` |
 | Standalone table card inset (`entityListCardInset`) | 24 all round | 24 horizontal, 12 vertical |
+| Record screen quick-action tile (`EntityQuickActions`): floor / vertical padding | 56 / 8 | 48 / 4 |
+| Record screen standing card (`StandingCard`) padding, vertical only | `InSpacing.lg` | `InSpacing.md` |
+| Record screen cards above the tabs — profile and Comments (`DashboardCardShell` inside `RecordColumnScope`): title band top / bottom, body vertical | `lg` / `md`, `md` | `md` / `sm`, `sm` |
 
 The detail record rows also tighten in the overview's Comments card, which hosts the same
 row widgets. That is intended: the card shows the same records.
+
+The record-screen rows are the one place Compact reaches above a record's tabs
+(invoiceninja/flutter#187). The phone layout already removes what was wasted there for
+everyone (`docs/detail-screen-layout.md` § The phone record layout); what is left is taste —
+a tile 8 px shorter and tighter cards — so it rides the preference rather than being a
+default. The profile cards are `DashboardCardShell`s, the same widget as the dashboard's,
+so the trim is gated on `RecordColumnScope` (mounted by `EntityRecordColumn`): the
+dashboard stays out of scope. The compact tile is still above the 44 px touch target. The content sets a tile's
+height at normal text, not the floor, so the padding has to tighten with it or the lower
+floor does nothing.
 
 ## Why it is built this way
 

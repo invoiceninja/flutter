@@ -579,6 +579,7 @@
   "last_error": "Poslednja greška",
   "last_error_label": "Poslednja greška",
   "last_expense_date": "Poslednji trošak",
+  "last_login_short": "Zadnja prijava :date",
   "last_queue_error": "Poslednja greška reda",
   "last_refreshed": "Poslednje osvežavanje",
   "light_variant": "Svetla paleta",

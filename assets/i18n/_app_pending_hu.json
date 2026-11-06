@@ -587,6 +587,7 @@
   "last_error": "Utolsó hiba",
   "last_error_label": "Utolsó hiba",
   "last_expense_date": "Utolsó kiadás",
+  "last_login_short": "Legutóbbi belépés :date",
   "last_queue_error": "Utolsó várólista-hiba",
   "last_refreshed": "Utoljára frissítve",
   "light_variant": "Világos paletta",

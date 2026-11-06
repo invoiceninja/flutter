@@ -586,6 +586,7 @@
   "last_error": "Paskutinė klaida",
   "last_error_label": "Paskutinė klaida",
   "last_expense_date": "Paskutinės išlaidos",
+  "last_login_short": "Paskutinis prisijungimas :date",
   "last_queue_error": "Paskutinė eilės klaida",
   "last_refreshed": "Paskutinį kartą atnaujinta",
   "light_variant": "Šviesi paletė",

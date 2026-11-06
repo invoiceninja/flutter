@@ -41,6 +41,7 @@ class DocumentDetailHeader extends StatelessWidget {
       showStatePills: false,
       subtitle: segments.isEmpty
           ? DetailHeaderTimestamps(
+              shownAtFoot: true,
               createdAt: document.createdAt,
               updatedAt: document.updatedAt,
               formatter: formatter,

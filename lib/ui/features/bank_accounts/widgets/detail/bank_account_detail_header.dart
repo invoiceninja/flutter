@@ -51,6 +51,7 @@ class BankAccountDetailHeader extends StatelessWidget {
       showStatePills: showStatePills,
       subtitle: segments.isEmpty
           ? DetailHeaderTimestamps(
+              shownAtFoot: true,
               createdAt: a.createdAt,
               updatedAt: a.updatedAt,
               formatter: formatter,

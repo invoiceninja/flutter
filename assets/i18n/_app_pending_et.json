@@ -580,6 +580,7 @@
   "last_error": "Viimane viga",
   "last_error_label": "Viimane viga",
   "last_expense_date": "Viimane kulu",
+  "last_login_short": "Viimane Sisselogimine :date",
   "last_queue_error": "Viimane järjekorra viga",
   "last_refreshed": "Viimati värskendatud",
   "light_variant": "Hele palett",

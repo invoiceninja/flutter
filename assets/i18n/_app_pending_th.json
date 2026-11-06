@@ -605,6 +605,7 @@
   "last_error": "ข้อผิดพลาดล่าสุด",
   "last_error_label": "ข้อผิดพลาดล่าสุด",
   "last_expense_date": "ค่าใช้จ่ายล่าสุด",
+  "last_login_short": "ล็อกอินล่าล่าสุด :date",
   "last_queue_error": "ข้อผิดพลาดคิวล่าสุด",
   "last_refreshed": "รีเฟรชล่าสุด",
   "light_variant": "จานสีโหมดสว่าง",

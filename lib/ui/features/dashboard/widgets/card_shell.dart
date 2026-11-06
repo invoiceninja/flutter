@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/ui/core/detail/entity_record_column.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 
 /// Shared shell every dashboard card uses: bordered surface card with an
@@ -96,12 +98,13 @@ class DashboardCardShell extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
     final hasHeader = title != null || trailing != null;
+    final dense = _dense(context);
     final Widget body = Padding(
       padding:
           padding ??
           EdgeInsets.symmetric(
             horizontal: InSpacing.lg(context),
-            vertical: InSpacing.md(context),
+            vertical: dense ? InSpacing.sm : InSpacing.md(context),
           ),
       child: child,
     );
@@ -132,13 +135,21 @@ class DashboardCardShell extends StatelessWidget {
     );
   }
 
+  /// The Compact density preference, on a record screen's profile only — the
+  /// dashboard's cards are that screen's content and keep their size
+  /// (`docs/list-density.md` § What Compact changes).
+  static bool _dense(BuildContext context) =>
+      ListDensityScope.isCompactOf(context) &&
+      RecordColumnScope.contains(context);
+
   Widget _header(BuildContext context, ThemeData theme, InTheme tokens) {
+    final dense = _dense(context);
     final row = Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         InSpacing.lg(context),
+        dense ? InSpacing.md(context) : InSpacing.lg(context),
         InSpacing.lg(context),
-        InSpacing.lg(context),
-        InSpacing.md(context),
+        dense ? InSpacing.sm : InSpacing.md(context),
       ),
       child: Row(
         children: [

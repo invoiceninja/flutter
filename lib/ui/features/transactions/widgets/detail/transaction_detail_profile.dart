@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
@@ -156,13 +157,6 @@ abstract final class TransactionDetailsCard {
   }) {
     final f = formatter;
     final date = tx.date;
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) => f == null || dt.millisecondsSinceEpoch == 0
-        ? null
-        : f.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(tx.createdAt);
-    final updated = day(tx.updatedAt);
     final valueStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: context.inTheme.ink,
       fontSize: 12.5,
@@ -218,18 +212,12 @@ abstract final class TransactionDetailsCard {
           label: context.tr('transaction_id'),
           value: tx.transactionId,
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: tx.createdAt,
+        updatedAt: tx.updatedAt,
+        formatter: f,
+      ),
     ];
   }
 }

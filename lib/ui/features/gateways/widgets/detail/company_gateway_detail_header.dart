@@ -88,6 +88,7 @@ class CompanyGatewayDetailHeader extends StatelessWidget {
       subtitle: showProvider
           ? DetailSubtitle(segments: [Text(providerName)])
           : DetailHeaderTimestamps(
+              shownAtFoot: true,
               createdAt: createdAt,
               updatedAt: updatedAt,
               formatter: formatter,

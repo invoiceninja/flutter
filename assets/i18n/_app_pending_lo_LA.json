@@ -605,6 +605,7 @@
   "last_error": "ຂໍ້ຜິດພາດລ່າສຸດ",
   "last_error_label": "ຂໍ້ຜິດພາດລ່າສຸດ",
   "last_expense_date": "ຄ່າໃຊ້ຈ່າຍລ່າສຸດ",
+  "last_login_short": "ເຂົ້າສູ່ລະບົບຄັ້ງສຸດທ້າຍ :date",
   "last_queue_error": "ຂໍ້ຜິດພາດຄິວລ່າສຸດ",
   "last_refreshed": "ໂຫຼດຄືນລ່າສຸດ",
   "light_variant": "ຊຸດສີສະຫວ່າງ",

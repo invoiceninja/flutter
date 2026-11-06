@@ -605,6 +605,7 @@
   "last_error": "Pēdējā kļūda",
   "last_error_label": "Pēdējā kļūda",
   "last_expense_date": "Pēdējais izdevums",
+  "last_login_short": "Pēdējais pieteikšanās :date",
   "last_queue_error": "Pēdējā rindas kļūda",
   "last_refreshed": "Pēdējoreiz atsvaidzināts",
   "light_variant": "Gaišā palete",

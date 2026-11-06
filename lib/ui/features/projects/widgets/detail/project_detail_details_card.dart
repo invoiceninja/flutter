@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
@@ -110,7 +111,12 @@ class ProjectDetailDetailsCard extends StatelessWidget {
           ),
         ),
       ..._customRows(context, p, company, formatter),
-      ..._timestampRows(context, p, formatter),
+      ...recordTimestampRows(
+        context,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 
@@ -132,37 +138,6 @@ class ProjectDetailDetailsCard extends StatelessWidget {
     );
     return [
       for (final r in rows) DetailInfoRow(label: r.label, value: r.value),
-    ];
-  }
-
-  /// Created / updated, at the foot: the two facts about a record a user
-  /// wants least often, and until now the line under its name.
-  static List<Widget> _timestampRows(
-    BuildContext context,
-    Project p,
-    Formatter? formatter,
-  ) {
-    if (formatter == null) return const [];
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) => dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(p.createdAt);
-    final updated = day(p.updatedAt);
-    return [
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
     ];
   }
 

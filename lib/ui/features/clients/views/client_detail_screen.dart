@@ -24,6 +24,7 @@ import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.d
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/phone_number_value.dart';
@@ -344,6 +345,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
         profile: ClientDetailProfile(
           client: c,
           company: company.data,
+          formatter: formatter,
+        ),
+        timestamps: RecordTimestampsLine(
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
           formatter: formatter,
         ),
       ),

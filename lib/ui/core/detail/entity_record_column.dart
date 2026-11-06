@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 
 /// Everything a record screen shows above its tabs, in the one order every
@@ -34,6 +35,7 @@ class EntityRecordColumn extends StatelessWidget {
     this.standing,
     this.comments,
     this.profile,
+    this.timestamps,
   });
 
   final Widget header;
@@ -53,73 +55,173 @@ class EntityRecordColumn extends StatelessWidget {
   /// the host lays them out. Last above the tabs.
   final Widget? profile;
 
+  /// Created / updated — a `RecordTimestampsLine`, which draws only on a
+  /// phone (where the Details card leaves those rows out) and **owns its
+  /// trailing gap**. On a phone the column has the profile pay the gap above
+  /// it, only when the profile draws. Last above the tabs.
+  final Widget? timestamps;
+
   @override
   Widget build(BuildContext context) {
     final gapSize = InSpacing.lg(context);
     final gap = SizedBox(height: gapSize);
-    final below = <Widget>[?comments, ?profile];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
-        final standing = this.standing;
-        if (!wide) {
-          // Capped and centred like every single-column entity form, so on a
-          // tablet-width pane the header, cards and comments share one edge.
-          return CenteredFormColumn(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                header,
-                gap,
-                ?quickActions,
-                if (standing != null) ...[standing, gap],
-                ...below,
-              ],
-            ),
-          );
-        }
-        // `spaceBetween`: at its own height this is just the two stacked. When
-        // the band stretches it — the standing card beside it is the taller
-        // one — the header stays at the top and the tiles drop to the bottom
-        // line, level with the foot of that card.
-        final lead = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Padding(
-              padding: EdgeInsets.only(bottom: gapSize),
-              child: header,
-            ),
-            ?quickActions,
-          ],
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (standing == null)
-              lead
-            else
-              _EvenBand(
-                gap: gapSize,
-                // Each side carries its own trailing gap — the lead ends in
-                // the header's or the quick actions' own, the card in this
-                // padding — so the band ends exactly one gap below both.
+    final profile = this.profile;
+    final timestamps = this.timestamps;
+    final below = <Widget>[
+      ?comments,
+      // With the dates line under it, the profile pays the gap between them —
+      // but only when it draws something. The line cannot tell a card above
+      // it from the standing card's own trailing gap, and a fixed gap of its
+      // own sat 20 px under one and 8 px under the other.
+      if (profile != null)
+        timestamps is RecordTimestampsLine && timestamps.drawsIn(context)
+            ? _GapAfterIfPainted(gap: gapSize, child: profile)
+            : profile,
+      ?timestamps,
+    ];
+    return RecordColumnScope(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide =
+              constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
+          final standing = this.standing;
+          if (!wide) {
+            // Capped and centred like every single-column entity form, so on a
+            // tablet-width pane the header, cards and comments share one edge.
+            return CenteredFormColumn(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  lead,
-                  Padding(
-                    padding: EdgeInsets.only(bottom: gapSize),
-                    child: standing,
-                  ),
+                  header,
+                  gap,
+                  ?quickActions,
+                  if (standing != null) ...[standing, gap],
+                  ...below,
                 ],
               ),
-            ...below,
-          ],
-        );
-      },
+            );
+          }
+          // `spaceBetween`: at its own height this is just the two stacked. When
+          // the band stretches it — the standing card beside it is the taller
+          // one — the header stays at the top and the tiles drop to the bottom
+          // line, level with the foot of that card.
+          final lead = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(bottom: gapSize),
+                child: header,
+              ),
+              ?quickActions,
+            ],
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (standing == null)
+                lead
+              else
+                _EvenBand(
+                  gap: gapSize,
+                  // Each side carries its own trailing gap — the lead ends in
+                  // the header's or the quick actions' own, the card in this
+                  // padding — so the band ends exactly one gap below both.
+                  children: [
+                    lead,
+                    Padding(
+                      padding: EdgeInsets.only(bottom: gapSize),
+                      child: standing,
+                    ),
+                  ],
+                ),
+              ...below,
+            ],
+          );
+        },
+      ),
     );
+  }
+}
+
+/// Marks everything above a record's tabs, so a shared widget can tell it is
+/// on a record screen rather than on the dashboard — the Compact density
+/// trims of `DashboardCardShell` apply here (the profile cards and the
+/// Comments card alike, deliberately: they sit in one stack) and not there
+/// (`docs/list-density.md` § What Compact changes).
+class RecordColumnScope extends InheritedWidget {
+  const RecordColumnScope({super.key, required super.child});
+
+  /// Whether [context] is inside an [EntityRecordColumn]. Does not subscribe:
+  /// the answer cannot change for a mounted widget.
+  static bool contains(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<RecordColumnScope>() != null;
+
+  @override
+  bool updateShouldNotify(RecordColumnScope oldWidget) => false;
+}
+
+/// [child], then [gap] below it — unless [child] laid itself out at zero
+/// height (a profile whose every card hid itself), when it costs nothing.
+///
+/// A render object because whether the child draws is only known after its
+/// layout: each profile card decides that itself.
+class _GapAfterIfPainted extends SingleChildRenderObjectWidget {
+  const _GapAfterIfPainted({required this.gap, required super.child});
+
+  final double gap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderGapAfterIfPainted(gap);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderGapAfterIfPainted renderObject,
+  ) => renderObject.gap = gap;
+}
+
+class _RenderGapAfterIfPainted extends RenderProxyBox {
+  _RenderGapAfterIfPainted(this._gap);
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    // Width as given (a stretched column); only the height is the child's.
+    child.layout(constraints.copyWith(minHeight: 0), parentUsesSize: true);
+    final h = child.size.height;
+    size = constraints.constrain(Size(child.size.width, h > 0 ? h + _gap : 0));
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) => 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => 0;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    assert(
+      debugCannotComputeDryLayout(
+        reason: 'Whether the gap is paid depends on the child\'s real layout.',
+      ),
+    );
+    return Size.zero;
   }
 }
 

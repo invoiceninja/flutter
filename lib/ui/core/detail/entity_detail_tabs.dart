@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_tab_navigator.dart';
 import 'package:admin/ui/core/list/master_detail_nav_scope.dart';
@@ -938,8 +939,15 @@ class _TabButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(tab.icon, size: 16, color: color),
-                  const SizedBox(width: InSpacing.sm),
+                  // Not on a phone: like the header's avatar it is decoration
+                  // that costs width — 24 px a tab, which on a 390 px strip
+                  // was a fourth tab pushed behind the ▾ (invoiceninja/
+                  // flutter#187). The label says which tab it is; the all-tabs
+                  // menu keeps its icons.
+                  if (!isPhoneRecordLayout(context)) ...[
+                    Icon(tab.icon, size: 16, color: color),
+                    const SizedBox(width: InSpacing.sm),
+                  ],
                   Text(
                     tab.label,
                     style: TextStyle(

@@ -24,7 +24,8 @@ import 'package:admin/utils/formatting.dart';
 /// when the number *is* the name, printing it twice says nothing.
 ///
 /// A task attached to nothing and with no number to show falls back to the
-/// created / updated dates, so the line is never blank.
+/// created / updated dates, so the line is never blank — except on a phone,
+/// where those dates are the line above the tabs (`RecordTimestampsLine`).
 ///
 /// **Tags sit under the subtitle**, where the user's own labels can be seen
 /// without opening anything.
@@ -74,6 +75,7 @@ class TaskDetailHeader extends StatelessWidget {
           showStatePills: showStatePills,
           subtitle: segments.isEmpty
               ? DetailHeaderTimestamps(
+                  shownAtFoot: true,
                   createdAt: t.createdAt,
                   updatedAt: t.updatedAt,
                   formatter: formatter,

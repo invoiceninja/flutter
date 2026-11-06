@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/detail/entity_detail_header.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_detail_description_card.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_detail_details_card.dart';
@@ -65,7 +66,7 @@ class TaskDetailProfile extends StatelessWidget {
         final hasDescription = TaskDetailDescriptionCard.truncatedInHeader(
           context,
           task,
-          nameWidth: headerWidth - _kHeaderAvatar - band,
+          nameWidth: headerWidth - detailHeaderLeadingInset(context),
         );
         final rows = <Widget>[
           if (hasDetails)
@@ -84,6 +85,3 @@ class TaskDetailProfile extends StatelessWidget {
     );
   }
 }
-
-/// The header's avatar (`EntityDetailHeader`), which the name sits beside.
-const double _kHeaderAvatar = 56;

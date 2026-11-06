@@ -605,6 +605,7 @@
   "last_error": "最近错误",
   "last_error_label": "最近错误",
   "last_expense_date": "最近费用",
+  "last_login_short": "最后登录 :date",
   "last_queue_error": "最近队列错误",
   "last_refreshed": "上次刷新",
   "light_variant": "浅色调色板",

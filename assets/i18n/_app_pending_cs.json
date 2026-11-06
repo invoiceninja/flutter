@@ -605,6 +605,7 @@
   "last_error": "Poslední chyba",
   "last_error_label": "Poslední chyba",
   "last_expense_date": "Poslední náklad",
+  "last_login_short": "Poslední přihlášení :date",
   "last_queue_error": "Poslední chyba fronty",
   "last_refreshed": "Naposledy obnoveno",
   "light_variant": "Světlá paleta",

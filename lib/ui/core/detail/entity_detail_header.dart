@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/avatar_tint.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/initials_avatar.dart';
@@ -88,6 +89,9 @@ class EntityDetailHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Kept on a phone too (invoiceninja/flutter#187 tried dropping it):
+        // it sits beside the name, so it costs width, never height, and it is
+        // the colour that ties the record to its list row.
         _Avatar(
           seed: seedForAvatar,
           initials: initialsFor(displayName),
@@ -170,19 +174,29 @@ class DetailHeaderTimestamps extends StatelessWidget {
     required this.createdAt,
     required this.updatedAt,
     required this.formatter,
+    this.shownAtFoot = false,
   });
 
   final DateTime createdAt;
   final DateTime updatedAt;
   final Formatter? formatter;
 
+  /// True when the screen also passes a `RecordTimestampsLine` to
+  /// `EntityRecordColumn.timestamps`. On a phone that line already says this,
+  /// so the header draws nothing rather than printing the dates twice. The
+  /// billing documents have no foot line and leave it false.
+  final bool shownAtFoot;
+
   @override
-  Widget build(BuildContext context) => _Timestamps(
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    formatter: formatter,
-    tokens: context.inTheme,
-  );
+  Widget build(BuildContext context) =>
+      shownAtFoot && isPhoneRecordLayout(context)
+      ? const SizedBox.shrink()
+      : _Timestamps(
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          formatter: formatter,
+          tokens: context.inTheme,
+        );
 }
 
 /// A header subtitle built from independent segments — a copyable number, a
@@ -247,29 +261,20 @@ class _Timestamps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final created = _format(createdAt);
-    final updated = _format(updatedAt);
+    final created = recordDay(createdAt, formatter);
+    final updated = recordDay(updatedAt, formatter);
     final parts = <String>[
-      if (created.isNotEmpty) context.tr('created_short', {'date': created}),
-      if (updated.isNotEmpty) context.tr('updated_short', {'date': updated}),
+      if (created != null) context.tr('created_short', {'date': created}),
+      if (updated != null) context.tr('updated_short', {'date': updated}),
     ];
     if (parts.isEmpty) return const SizedBox.shrink();
+    // `ink2` and the subtitle's separator: the same line as
+    // `RecordTimestampsLine`, which is what a phone shows instead. `ink3` was
+    // under the 4.5:1 floor at this size.
     return Text(
-      parts.join(' · '),
-      style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
+      parts.join(_kSegmentSeparator),
+      style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink2),
     );
-  }
-
-  String _format(DateTime dt) {
-    if (dt.millisecondsSinceEpoch == 0) return '';
-    final f = formatter;
-    if (f == null) return '';
-    // toLocal() first: these are server epoch timestamps (UTC-backed), and
-    // taking the ISO date of the UTC instant renders the wrong calendar day
-    // for any user whose evening/morning falls across the UTC boundary
-    // (e.g. created 23:30 UTC = next day in UTC+2 — the header said
-    // "yesterday"). No-op when the value is already local.
-    return f.date(dt.toLocal().toIso8601String().split('T').first);
   }
 }
 
@@ -315,6 +320,16 @@ class _HeaderPills extends StatelessWidget {
   }
 }
 
+/// The header avatar's side, shared with `BillingDocRecordHeader`'s type tile
+/// so the two headers line up when a pane swaps one for the other.
+const double kDetailHeaderAvatarSize = 56;
+
+/// How much of the header's width the avatar and its gap take from the name,
+/// for a host that measures whether the name fits
+/// (`TaskDetailDescriptionCard.truncatedInHeader`) — never a copy of the 56.
+double detailHeaderLeadingInset(BuildContext context) =>
+    kDetailHeaderAvatarSize + InSpacing.lg(context);
+
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.seed, this.initials, this.fallbackIcon});
   final String seed;
@@ -324,8 +339,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: kDetailHeaderAvatarSize,
+      height: kDetailHeaderAvatarSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: avatarTintFor(seed),

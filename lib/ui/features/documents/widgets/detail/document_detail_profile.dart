@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/models/domain/document_record.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/document_parent_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
@@ -26,14 +27,6 @@ class DocumentDetailProfile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = document;
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) =>
-        formatter == null || dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter!.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(d.createdAt);
-    final updated = day(d.updatedAt);
     final dims = d.dimensions;
     final rows = <Widget>[
       if (d.parentType != null && (d.parentId ?? '').isNotEmpty)
@@ -79,18 +72,12 @@ class DocumentDetailProfile extends StatelessWidget {
           copyable: false,
           child: UserNameLabel(userId: d.userId),
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+        formatter: formatter,
+      ),
       if (d.hash.isNotEmpty)
         DetailInfoRow(
           label: context.tr('hash'),
@@ -98,6 +85,9 @@ class DocumentDetailProfile extends StatelessWidget {
           monospace: true,
         ),
     ];
+    // No titled card over nothing — every row is optional now that created /
+    // updated are the dates line on a phone.
+    if (rows.isEmpty) return const SizedBox.shrink();
     return DashboardCardShell(
       title: context.tr('details'),
       child: DetailRowStack(children: rows),

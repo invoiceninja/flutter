@@ -62,6 +62,7 @@ class ProjectDetailHeader extends StatelessWidget {
           showStatePills: showStatePills,
           subtitle: segments.isEmpty
               ? DetailHeaderTimestamps(
+                  shownAtFoot: true,
                   createdAt: p.createdAt,
                   updatedAt: p.updatedAt,
                   formatter: formatter,

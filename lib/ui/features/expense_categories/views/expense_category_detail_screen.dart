@@ -13,6 +13,7 @@ import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
 import 'package:admin/ui/core/detail/settings_record_body.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/expense_categories/view_models/expense_category_detail_view_model.dart';
 import 'package:admin/ui/features/expense_categories/widgets/detail/expense_category_detail_header.dart';
@@ -153,6 +154,11 @@ class _ExpenseCategoryDetailScreenState
                     formatter: formatter,
                   )
                 : null,
+            timestamps: RecordTimestampsLine(
+              createdAt: c.createdAt,
+              updatedAt: c.updatedAt,
+              formatter: formatter,
+            ),
           ),
         );
       },

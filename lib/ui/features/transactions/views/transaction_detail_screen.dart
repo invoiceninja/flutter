@@ -17,6 +17,7 @@ import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -259,6 +260,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                             _runConversion(context, tx, convert, successKey),
                       )
                     : null,
+              ),
+              timestamps: RecordTimestampsLine(
+                createdAt: tx.createdAt,
+                updatedAt: tx.updatedAt,
+                formatter: formatter,
               ),
             ),
           ),

@@ -580,6 +580,7 @@
   "last_error": "Τελευταίο σφάλμα",
   "last_error_label": "Τελευταίο σφάλμα",
   "last_expense_date": "Τελευταία δαπάνη",
+  "last_login_short": "Τελευταία Είσοδος :date",
   "last_queue_error": "Τελευταίο σφάλμα ουράς",
   "last_refreshed": "Τελευταία ανανέωση",
   "light_variant": "Φωτεινή παλέτα",

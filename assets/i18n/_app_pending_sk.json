@@ -580,6 +580,7 @@
   "last_error": "Posledná chyba",
   "last_error_label": "Posledná chyba",
   "last_expense_date": "Posledný výdaj",
+  "last_login_short": "Posledné prihlásenie :date",
   "last_queue_error": "Posledná chyba frontu",
   "last_refreshed": "Naposledy obnovené",
   "light_variant": "Svetlá paleta",

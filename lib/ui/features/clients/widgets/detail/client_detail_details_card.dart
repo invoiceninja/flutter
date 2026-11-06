@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
@@ -209,39 +210,12 @@ class ClientDetailDetailsCard extends StatelessWidget {
           copyable: false,
         ),
       ..._customRows(context, client, company),
-      ..._timestampRows(context, client, formatter),
-    ];
-  }
-
-  /// Created / updated, at the foot. They used to be the line under the
-  /// client's name — the most prominent spot on the screen for the two facts
-  /// about it a user wants least often.
-  static List<Widget> _timestampRows(
-    BuildContext context,
-    Client client,
-    Formatter? formatter,
-  ) {
-    if (formatter == null) return const [];
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) => dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(client.createdAt);
-    final updated = day(client.updatedAt);
-    return [
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 

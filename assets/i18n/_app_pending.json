@@ -607,6 +607,7 @@
   "last_error": "Last Error",
   "last_error_label": "Last error",
   "last_expense_date": "Last expense",
+  "last_login_short": "Last login :date",
   "last_queue_error": "Last Queue Error",
   "last_refreshed": "Last refreshed",
   "light_variant": "Light palette",

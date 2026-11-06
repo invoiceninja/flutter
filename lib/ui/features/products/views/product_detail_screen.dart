@@ -16,6 +16,7 @@ import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/products/view_models/product_detail_view_model.dart';
@@ -175,6 +176,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         profile: ProductDetailProfile(
           product: p,
           company: company.data,
+          formatter: formatter,
+        ),
+        timestamps: RecordTimestampsLine(
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
           formatter: formatter,
         ),
       ),

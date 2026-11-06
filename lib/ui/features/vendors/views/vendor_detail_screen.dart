@@ -18,6 +18,7 @@ import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/phone_number_value.dart';
@@ -443,6 +444,12 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
         profile: VendorDetailProfile(
           vendor: v,
           company: company.data,
+          formatter: formatter,
+        ),
+        timestamps: RecordTimestampsLine(
+          createdAt: v.createdAt,
+          updatedAt: v.updatedAt,
+          lastLogin: v.lastLogin,
           formatter: formatter,
         ),
       ),

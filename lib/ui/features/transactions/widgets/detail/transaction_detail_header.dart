@@ -78,6 +78,7 @@ class TransactionDetailHeader extends StatelessWidget {
           showStatePills: showStatePills,
           subtitle: segments.isEmpty
               ? DetailHeaderTimestamps(
+                  shownAtFoot: true,
                   createdAt: tx.createdAt,
                   updatedAt: tx.updatedAt,
                   formatter: formatter,

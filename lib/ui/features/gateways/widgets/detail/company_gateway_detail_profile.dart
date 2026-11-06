@@ -6,6 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
@@ -97,17 +98,6 @@ abstract final class CompanyGatewayDetailsCard {
     );
     final events = provider?.supportedEvents() ?? const <String>[];
     final webhook = webhookUrl(context, gateway, company);
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(int epochSeconds) => formatter == null || epochSeconds == 0
-        ? null
-        : formatter.date(
-            DateTime.fromMillisecondsSinceEpoch(
-              epochSeconds * 1000,
-            ).toLocal().toIso8601String().split('T').first,
-          );
-    final created = day(gateway.createdAt);
-    final updated = day(gateway.updatedAt);
     final valueStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: context.inTheme.ink,
       fontSize: 12.5,
@@ -150,18 +140,17 @@ abstract final class CompanyGatewayDetailsCard {
             ],
           ),
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
+      // The gateway's stamps are epoch seconds, not a DateTime.
+      ...recordTimestampRows(
+        context,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+          gateway.createdAt * 1000,
         ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          gateway.updatedAt * 1000,
         ),
+        formatter: formatter,
+      ),
     ];
   }
 }

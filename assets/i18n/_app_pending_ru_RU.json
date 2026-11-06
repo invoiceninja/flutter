@@ -605,6 +605,7 @@
   "last_error": "Последняя ошибка",
   "last_error_label": "Последняя ошибка",
   "last_expense_date": "Последний расход",
+  "last_login_short": "Последний вход :date",
   "last_queue_error": "Последняя ошибка очереди",
   "last_refreshed": "Последнее обновление",
   "light_variant": "Светлая палитра",

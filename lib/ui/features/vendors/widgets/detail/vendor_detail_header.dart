@@ -87,6 +87,7 @@ class VendorDetailHeader extends StatelessWidget {
           showStatePills: showStatePills,
           subtitle: segments.isEmpty
               ? DetailHeaderTimestamps(
+                  shownAtFoot: true,
                   createdAt: v.createdAt,
                   updatedAt: v.updatedAt,
                   formatter: formatter,

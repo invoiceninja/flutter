@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
@@ -83,7 +84,12 @@ class TaskDetailDetailsCard extends StatelessWidget {
       // not which.
       if (t.isInvoiced) _InvoiceRow(invoiceId: t.invoiceId),
       ..._customRows(context, t, company, formatter),
-      ..._timestampRows(context, t, formatter),
+      ...recordTimestampRows(
+        context,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 
@@ -105,37 +111,6 @@ class TaskDetailDetailsCard extends StatelessWidget {
     );
     return [
       for (final r in rows) DetailInfoRow(label: r.label, value: r.value),
-    ];
-  }
-
-  /// Created / updated, at the foot: the two facts about a record a user
-  /// wants least often, and until now the line under its name.
-  static List<Widget> _timestampRows(
-    BuildContext context,
-    Task t,
-    Formatter? formatter,
-  ) {
-    if (formatter == null) return const [];
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) => dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(t.createdAt);
-    final updated = day(t.updatedAt);
-    return [
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
     ];
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -41,14 +42,6 @@ class ExpenseCategoryDetailProfile extends StatelessWidget {
     Formatter? formatter,
   }) {
     final swatch = expenseCategoryColor(category.color);
-    // The local calendar day: these are UTC-backed server timestamps, and the
-    // ISO date of the UTC instant is the wrong day across the boundary.
-    String? day(DateTime dt) =>
-        formatter == null || dt.millisecondsSinceEpoch == 0
-        ? null
-        : formatter.date(dt.toLocal().toIso8601String().split('T').first);
-    final created = day(category.createdAt);
-    final updated = day(category.updatedAt);
     return [
       if (category.color.trim().isNotEmpty)
         DetailInfoRow(
@@ -78,18 +71,12 @@ class ExpenseCategoryDetailProfile extends StatelessWidget {
             ),
           ),
         ),
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: category.createdAt,
+        updatedAt: category.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 

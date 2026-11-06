@@ -603,6 +603,7 @@
   "last_error": "Senaste fel",
   "last_error_label": "Senaste fel",
   "last_expense_date": "Senaste utgift",
+  "last_login_short": "Senast inloggad :date",
   "last_queue_error": "Senaste köfel",
   "last_refreshed": "Senast uppdaterad",
   "light_variant": "Ljus palett",

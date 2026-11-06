@@ -28,7 +28,8 @@ class TaskDetailDescriptionCard extends StatelessWidget {
   /// **Measured, not guessed from a character count** — what fits two heading
   /// lines is some fifty characters on a phone and well over a hundred beside
   /// the standing card on a wide window. [nameWidth] is the width the header
-  /// gives the name: its column, less the avatar and the gap beside it.
+  /// gives the name: its column, less `detailHeaderLeadingInset` (the avatar
+  /// and its gap).
   static bool truncatedInHeader(
     BuildContext context,
     Task task, {

@@ -68,9 +68,14 @@ class RecurringExpenseDetailStanding extends StatelessWidget {
       ],
       footnote: Padding(
         padding: const EdgeInsets.only(top: kStandingFootnoteGap),
-        child: Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: RecurringExpenseStatusPill(statusId: e.calculatedStatusId),
+        // A `Wrap`, not an `Align`: start-aligned in the card's stretched
+        // column, and sized to the pill in the phone's one-line wrap, where an
+        // `Align` would take the whole width and push the pill to a line of
+        // its own (invoiceninja/flutter#187).
+        child: Wrap(
+          children: [
+            RecurringExpenseStatusPill(statusId: e.calculatedStatusId),
+          ],
         ),
       ),
     );

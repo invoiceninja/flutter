@@ -573,6 +573,7 @@
   "last_error": "Lỗi gần nhất",
   "last_error_label": "Lỗi gần nhất",
   "last_expense_date": "Chi phí gần nhất",
+  "last_login_short": "Lần đăng nhập cuối :date",
   "last_queue_error": "Lỗi hàng đợi gần nhất",
   "last_refreshed": "Làm mới lần cuối",
   "light_variant": "Bảng màu sáng",

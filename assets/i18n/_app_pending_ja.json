@@ -605,6 +605,7 @@
   "last_error": "最後のエラー",
   "last_error_label": "最後のエラー",
   "last_expense_date": "最後の経費",
+  "last_login_short": "最終ログイン :date",
   "last_queue_error": "最後のキューエラー",
   "last_refreshed": "最終更新",
   "light_variant": "ライトパレット",

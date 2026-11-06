@@ -580,6 +580,7 @@
   "last_error": "最近一次錯誤",
   "last_error_label": "最近一次錯誤",
   "last_expense_date": "最近一筆支出",
+  "last_login_short": "上次登入 :date",
   "last_queue_error": "最近一次佇列錯誤",
   "last_refreshed": "最近重新整理",
   "light_variant": "淺色調色盤",

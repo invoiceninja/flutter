@@ -605,6 +605,7 @@
   "last_error": "Zadnja napaka",
   "last_error_label": "Zadnja napaka",
   "last_expense_date": "Zadnji strošek",
+  "last_login_short": "Zadnja prijava :date",
   "last_queue_error": "Zadnja napaka čakalne vrste",
   "last_refreshed": "Nazadnje osveženo",
   "light_variant": "Svetla paleta",

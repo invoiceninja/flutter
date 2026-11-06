@@ -579,6 +579,7 @@
   "last_error": "កំហុសចុងក្រោយ",
   "last_error_label": "កំហុសចុងក្រោយ",
   "last_expense_date": "ការចំណាយចុងក្រោយ",
+  "last_login_short": "ការចូលចុងក្រោយ :date",
   "last_queue_error": "កំហុសជួរចុងក្រោយ",
   "last_refreshed": "បានធ្វើឱ្យស្រស់ចុងក្រោយ",
   "light_variant": "ក្ដារលាយពណ៌ភ្លឺ",

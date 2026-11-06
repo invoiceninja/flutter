@@ -12,6 +12,7 @@ import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/documents/view_models/document_detail_view_model.dart';
@@ -119,6 +120,11 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen>
                   ),
                 ],
               ],
+            ),
+            timestamps: RecordTimestampsLine(
+              createdAt: d.createdAt,
+              updatedAt: d.updatedAt,
+              formatter: formatter,
             ),
           ),
         );

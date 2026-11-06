@@ -269,8 +269,8 @@ class _TypeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 56,
-    height: 56,
+    width: kDetailHeaderAvatarSize,
+    height: kDetailHeaderAvatarSize,
     alignment: Alignment.center,
     decoration: BoxDecoration(
       color: avatarTintFor(seed),

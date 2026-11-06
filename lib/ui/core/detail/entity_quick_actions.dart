@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 
 /// One candidate for a record's quick-action strip: an existing
 /// [EntityActionItem] plus what a tile needs that a menu row does not.
@@ -150,6 +151,7 @@ class _QuickActionTile<A> extends StatelessWidget {
     final handler = (busy || !item.enabled)
         ? null
         : guardedOnTap<A>(context, item);
+    final compact = ListDensityScope.isCompactOf(context);
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(InRadii.r2),
       side: BorderSide(color: tokens.border),
@@ -176,11 +178,17 @@ class _QuickActionTile<A> extends StatelessWidget {
             child: InkWell(
               onTap: handler,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: kQuickTileHeight),
+                constraints: BoxConstraints(
+                  minHeight: compact
+                      ? kQuickTileCompactHeight
+                      : kQuickTileHeight,
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
+                  // The content, not the floor, sets a tile's height at
+                  // normal text, so Compact has to trim the padding too.
+                  padding: EdgeInsets.symmetric(
                     horizontal: 6,
-                    vertical: InSpacing.sm,
+                    vertical: compact ? InSpacing.xs : InSpacing.sm,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -230,3 +238,7 @@ class _QuickActionTile<A> extends StatelessWidget {
 /// separate touch branch — and a floor, not a height, so a large text scale
 /// grows the row instead of clipping the label.
 const double kQuickTileHeight = 56;
+
+/// The floor under the Compact density preference (`DevicePrefKeys.listDensity`)
+/// — still above the 44 px touch target (invoiceninja/flutter#187).
+const double kQuickTileCompactHeight = 48;

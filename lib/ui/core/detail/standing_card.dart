@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/detail/kpi_strip_layout.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
+import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 
@@ -83,6 +85,15 @@ class StandingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final phone = isPhoneRecordLayout(context);
+    // The Compact density preference tightens the card's own padding too —
+    // vertically only, so its figures keep the left edge of the cards below.
+    final padding = EdgeInsets.symmetric(
+      horizontal: InSpacing.lg(context),
+      vertical: ListDensityScope.isCompactOf(context)
+          ? InSpacing.md(context)
+          : InSpacing.lg(context),
+    );
     // The card's own box rather than `DashboardCardShell`, for one reason:
     // the shell lays its child out at the child's own height whatever height
     // the shell is given, so a card stretched by its host kept its figures at
@@ -96,7 +107,7 @@ class StandingCard extends StatelessWidget {
         border: Border.all(color: tokens.border),
         boxShadow: tokens.shadow1,
       ),
-      padding: EdgeInsets.all(InSpacing.lg(context)),
+      padding: padding,
       alignment: Alignment.center,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -105,20 +116,55 @@ class StandingCard extends StatelessWidget {
           KpiStripLayout(
             cells: [for (final f in primary) _PrimaryFigure(figure: f)],
           ),
-          ?footnote,
-          if (secondary.isNotEmpty) ...[
-            SizedBox(height: InSpacing.md(context)),
-            Divider(height: 1, thickness: 1, color: tokens.border),
-            const SizedBox(height: InSpacing.xs),
-            Wrap(
-              spacing: InSpacing.lg(context),
-              children: [
-                for (final f in secondary) _SecondaryFigure(figure: f),
-              ],
-            ),
+          if (phone)
+            ?_phoneFacts(context)
+          else ...[
+            ?footnote,
+            if (secondary.isNotEmpty) ...[
+              SizedBox(height: InSpacing.md(context)),
+              Divider(height: 1, thickness: 1, color: tokens.border),
+              const SizedBox(height: InSpacing.xs),
+              Wrap(
+                spacing: InSpacing.lg(context),
+                children: [
+                  for (final f in secondary) _SecondaryFigure(figure: f),
+                ],
+              ),
+            ],
           ],
         ],
       ),
+    );
+  }
+
+  /// On a phone the secondary figures and the footnote share one wrapping
+  /// line, with no divider: a lone Rate under a rule, then a status pill on a
+  /// line of its own, cost a task ~50 px of a 844 px screen
+  /// (invoiceninja/flutter#187).
+  ///
+  /// The secondaries lead and the footnote trails because the footnote can
+  /// turn out to draw nothing after layout (the client's past-due line waits
+  /// on a fetch), and an empty child *before* a figure would still be paid a
+  /// `spacing` — an indent with nothing in front of it. After the figures it
+  /// costs nothing visible. A full-width footnote (a project's budget bar)
+  /// simply takes a run of its own.
+  ///
+  /// Each secondary pays the footnote's leading gap itself, and the runs align
+  /// at their foot, so a figure and a footnote on one run share a baseline
+  /// band whichever is taller.
+  Widget? _phoneFacts(BuildContext context) {
+    if (secondary.isEmpty) return footnote;
+    return Wrap(
+      spacing: InSpacing.lg(context),
+      crossAxisAlignment: WrapCrossAlignment.end,
+      children: [
+        for (final f in secondary)
+          Padding(
+            padding: const EdgeInsets.only(top: kStandingFootnoteGap),
+            child: _SecondaryFigure(figure: f, compact: true),
+          ),
+        ?footnote,
+      ],
     );
   }
 }
@@ -169,19 +215,33 @@ class _PrimaryFigure extends StatelessWidget {
 
 /// Label and amount on one line, for the balances that only sometimes exist.
 class _SecondaryFigure extends StatelessWidget {
-  const _SecondaryFigure({required this.figure});
+  const _SecondaryFigure({required this.figure, this.compact = false});
 
   final StandingFigure figure;
+
+  /// The phone's one-line form: only a figure that leads somewhere keeps the
+  /// touch-target floor. One that only copies (by long-press) is a fact on a
+  /// line, and a 44 px row for it is what pushed the tabs down.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
-    final floor = Env.isTouchPrimary ? InSizes.touchTarget : 32.0;
+    final floor = compact && figure.onTap == null
+        ? 0.0
+        : Env.isTouchPrimary
+        ? InSizes.touchTarget
+        : 32.0;
     final body = ConstrainedBox(
       constraints: BoxConstraints(minHeight: floor),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        // On the phone's line a tappable figure keeps its 44 px target but
+        // sits its text at the foot, where the wrap aligns the footnote's.
+        crossAxisAlignment: compact
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.center,
         children: [
           // The label gives way, never the amount: at a large text scale on a
           // narrow card the two do not fit, and a clipped amount is a wrong
@@ -211,7 +271,7 @@ class _SecondaryFigure extends StatelessWidget {
         ],
       ),
     );
-    return _FigureTarget(figure: figure, child: body);
+    return _FigureTarget(figure: figure, compact: compact, child: body);
   }
 }
 
@@ -256,10 +316,18 @@ class _Caption extends StatelessWidget {
 /// with a pointer or a long-press on touch. Without the second half, making a
 /// balance a link would have taken away the only way to copy it.
 class _FigureTarget extends StatelessWidget {
-  const _FigureTarget({required this.figure, required this.child});
+  const _FigureTarget({
+    required this.figure,
+    required this.child,
+    this.compact = false,
+  });
 
   final StandingFigure figure;
   final Widget child;
+
+  /// A secondary on the phone's line: one that only copies has no touch-sized
+  /// box, so it copies on a long-press, never on a tap too small to aim at.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -268,8 +336,8 @@ class _FigureTarget extends StatelessWidget {
         ? child
         : CopyableValue(
             value: figure.value,
-            enableTapToCopy: onTap == null,
-            enableLongPressToCopy: onTap != null,
+            enableTapToCopy: onTap == null && !compact,
+            enableLongPressToCopy: onTap != null || compact,
             fillWidth: false,
             child: child,
           );

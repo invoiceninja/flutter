@@ -580,6 +580,7 @@
   "last_error": "Seneste fejl",
   "last_error_label": "Seneste fejl",
   "last_expense_date": "Seneste udgift",
+  "last_login_short": "Sidst set :date",
   "last_queue_error": "Seneste køfejl",
   "last_refreshed": "Senest opdateret",
   "light_variant": "Lys palet",

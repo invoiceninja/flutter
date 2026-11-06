@@ -17,6 +17,7 @@ import 'package:admin/ui/core/detail/entity_record_column.dart';
 import 'package:admin/ui/core/detail/entity_state_banner.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/core/detail/record_screen_controller.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/list/embedded_list_parent_scope.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart'
@@ -209,6 +210,11 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen>
             onAutoSyncChanged: a.isDeleted || !canEdit
                 ? null
                 : (value) => _toggleAutoSync(a, value),
+          ),
+          timestamps: RecordTimestampsLine(
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt,
+            formatter: formatter,
           ),
         ),
       ],

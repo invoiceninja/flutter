@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/detail_row_columns.dart';
@@ -151,46 +152,23 @@ class VendorDetailDetailsCard extends StatelessWidget {
         ),
       // The vendor's own last portal login, as a local calendar day. It is a
       // UTC instant, and the ISO date of the UTC instant is the wrong day for
-      // anyone whose evening crosses the boundary.
-      if (lastLogin != null && formatter != null)
+      // anyone whose evening crosses the boundary. On a phone it is part of
+      // the dates line above the tabs instead (`RecordTimestampsLine`).
+      if (lastLogin != null &&
+          formatter != null &&
+          !isPhoneRecordLayout(context))
         DetailInfoRow(
           label: context.tr('last_login'),
-          value: formatter.date(_localDay(lastLogin)),
+          value: recordDay(lastLogin, formatter) ?? '',
           copyable: false,
         ),
       ..._customRows(context, vendor, company),
-      ..._timestampRows(context, vendor, formatter),
-    ];
-  }
-
-  static String _localDay(DateTime utc) =>
-      utc.toLocal().toIso8601String().split('T').first;
-
-  /// Created / updated, at the foot. The header shows them only for a vendor
-  /// with neither a place nor a number to put under its name.
-  static List<Widget> _timestampRows(
-    BuildContext context,
-    Vendor vendor,
-    Formatter? formatter,
-  ) {
-    if (formatter == null) return const [];
-    String? day(DateTime dt) =>
-        dt.millisecondsSinceEpoch == 0 ? null : formatter.date(_localDay(dt));
-    final created = day(vendor.createdAt);
-    final updated = day(vendor.updatedAt);
-    return [
-      if (created != null)
-        DetailInfoRow(
-          label: context.tr('created_at'),
-          value: created,
-          copyable: false,
-        ),
-      if (updated != null)
-        DetailInfoRow(
-          label: context.tr('updated_at'),
-          value: updated,
-          copyable: false,
-        ),
+      ...recordTimestampRows(
+        context,
+        createdAt: vendor.createdAt,
+        updatedAt: vendor.updatedAt,
+        formatter: formatter,
+      ),
     ];
   }
 

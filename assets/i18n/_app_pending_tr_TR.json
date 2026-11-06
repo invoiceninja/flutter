@@ -605,6 +605,7 @@
   "last_error": "Son Hata",
   "last_error_label": "Son hata",
   "last_expense_date": "Son gider",
+  "last_login_short": "Son Giriş :date",
   "last_queue_error": "Son Kuyruk Hatası",
   "last_refreshed": "Son yenileme",
   "light_variant": "Açık palet",

@@ -603,6 +603,7 @@
   "last_error": "Ultima eroare",
   "last_error_label": "Ultima eroare",
   "last_expense_date": "Ultima cheltuială",
+  "last_login_short": "Ultima autentificare :date",
   "last_queue_error": "Ultima eroare din coadă",
   "last_refreshed": "Ultima reîncărcare",
   "light_variant": "Paletă luminoasă",

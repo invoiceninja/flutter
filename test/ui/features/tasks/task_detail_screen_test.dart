@@ -223,8 +223,11 @@ void main() {
       expect(find.text(r'$100.00'), findsOneWidget);
       await screen.untilFound(find.text('In progress'), 'the status');
 
-      // The profile is simply there — nothing to open.
-      expect(find.text('Details'), findsOneWidget);
+      // The harness is a phone (touch, 480 px), so created / updated are one
+      // line above the tabs, and a Details card that held nothing else is
+      // not drawn (invoiceninja/flutter#187).
+      expect(find.text('Details'), findsNothing);
+      expect(find.textContaining('Created'), findsOneWidget);
       // A description the header shows whole is not printed a second time.
       expect(find.byType(TaskDetailDescriptionCard), findsNothing);
 

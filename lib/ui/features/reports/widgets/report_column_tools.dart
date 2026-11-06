@@ -7,6 +7,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_group_label.dart';
+import 'package:admin/domain/reports/report_related_columns.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -439,21 +440,25 @@ class _ValuesDialogState extends State<_ValuesDialog> {
 /// Fed from the columns the server returned — all of them, not the ones
 /// showing — so a column that is hidden is always here to be switched back
 /// on. The report's on-demand date column is listed too, marked as one that
-/// has to be fetched.
+/// has to be fetched, and so — under More Fields — are the columns of the
+/// record each row belongs to (the client of a payment) that the result does
+/// not carry yet ([ReportsViewModel.relatedColumnGroups]).
 Future<void> openReportColumns(
   BuildContext context,
   ReportsViewModel vm,
 ) async {
   final preview = vm.run.preview;
   if (preview == null) return;
-  final result = await showDialog<(Set<String>, List<String>, bool)>(
-    context: context,
-    builder: (context) => _ColumnsDialog(vm: vm, preview: preview),
-  );
+  final result =
+      await showDialog<(Set<String>, List<String>, bool, Set<String>)>(
+        context: context,
+        builder: (context) => _ColumnsDialog(vm: vm, preview: preview),
+      );
   if (result == null) return;
-  final (ids, order, fetchDate) = result;
+  final (ids, order, fetchDate, fetch) = result;
   if (fetchDate) vm.setIncludeDateColumn(true);
   vm.setVisibleColumns(ids, order: order);
+  if (fetch.isNotEmpty) vm.addColumns(fetch);
 }
 
 class _ColumnsDialog extends StatefulWidget {
@@ -470,6 +475,9 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
   late List<ReportColumn> _order;
   late Set<String> _visible;
   bool _fetchDate = false;
+
+  /// Related-record columns ticked to be fetched.
+  final Set<String> _fetch = {};
   String _query = '';
 
   @override
@@ -504,6 +512,74 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
         : _order;
     final offerable = vm.offerableDateColumnId;
     final dateLabelKey = reportDateKeyLabelKey(vm.definition.dateRangeKey);
+
+    String offerLabel(ReportRelatedOffer o) => o.label ?? tr(o.labelKey);
+    final related = [
+      for (final group in vm.relatedColumnGroups)
+        if ([
+              for (final o in group.columns)
+                if (!searching ||
+                    offerLabel(o).toLowerCase().contains(needle) ||
+                    tr(group.labelKey).toLowerCase().contains(needle))
+                  o,
+            ]
+            case final offers when offers.isNotEmpty)
+          (labelKey: group.labelKey, offers: offers),
+    ];
+    Widget heading(String text, {required int level}) => Semantics(
+      header: true,
+      headingLevel: level,
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(
+          pad,
+          InSpacing.md(context),
+          pad,
+          InSpacing.xs,
+        ),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: tokens.ink3,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+    // Columns not in the result yet: ticking one asks the server again.
+    final Widget? relatedSection = related.isEmpty
+        ? null
+        : Column(
+            key: const ValueKey('report-related-columns'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Divider(height: 1, thickness: 1, color: tokens.border),
+              heading(tr('more_fields'), level: 2),
+              for (final group in related) ...[
+                heading(tr(group.labelKey), level: 3),
+                for (final o in group.offers)
+                  CheckboxListTile(
+                    key: ValueKey('add:${o.id}'),
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: _fetch.contains(o.id),
+                    onChanged: (_) => setState(() {
+                      if (!_fetch.remove(o.id)) _fetch.add(o.id);
+                    }),
+                    title: Text(
+                      offerLabel(o),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    secondary: Icon(
+                      Icons.cloud_download_outlined,
+                      size: 18,
+                      color: tokens.ink3,
+                    ),
+                  ),
+              ],
+            ],
+          );
 
     Widget tile(ReportColumn c, {int? index}) => CheckboxListTile(
       key: ValueKey(c.identifier),
@@ -570,9 +646,15 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
               // Dragging reorders the whole list, so it is offered only when
               // the whole list is showing.
               child: searching
-                  ? ListView(children: [for (final c in shown) tile(c)])
+                  ? ListView(
+                      children: [
+                        for (final c in shown) tile(c),
+                        ?relatedSection,
+                      ],
+                    )
                   : ReorderableListView.builder(
                       buildDefaultDragHandles: false,
+                      footer: relatedSection,
                       itemCount: shown.length,
                       onReorderItem: (from, to) => setState(() {
                         _order.insert(to, _order.removeAt(from));
@@ -613,11 +695,13 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
                     autofocus: false,
                     showEnterHint: false,
                     // A table with no columns is not a table.
-                    enabled: _visible.isNotEmpty || _fetchDate,
+                    enabled:
+                        _visible.isNotEmpty || _fetchDate || _fetch.isNotEmpty,
                     onPressed: () => Navigator.of(context).pop((
                       _visible,
                       [for (final c in _order) c.identifier],
                       _fetchDate,
+                      {..._fetch},
                     )),
                   ),
                 ],

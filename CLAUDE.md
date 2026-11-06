@@ -579,6 +579,7 @@ Tapping a phone number opens the dialer (invoiceninja/flutter#109), behind a dev
 - **The Tasks report merges the server's per-entry rows into one per task (`collapsesToRecord`) — each of them carries the task's whole duration.** → `docs/reports.md`
 - **A duration is hours — decimal or `H:MM` as the device's hours-format preference says — never a day count.** → `docs/reports.md`
 
+- **A related record's column (a payment's client city) is fetched on pick as the known set plus `addedColumnIds`, never totalled, and never names the row currency — the catalog is `kReportRelatedColumns`.** → `docs/reports.md`
 ## Visual invoice designer
 
 The block designer (`invoice_design/wysiwyg/`) is a picture of what the server prints, so its rules are the server's.

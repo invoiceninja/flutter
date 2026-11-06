@@ -24,23 +24,35 @@ import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_group_label.dart';
 import 'package:admin/domain/reports/report_measures.dart';
 import 'package:admin/domain/reports/report_registry.dart';
+import 'package:admin/domain/reports/report_related_columns.dart';
 import 'package:admin/domain/reports/report_row_currency.dart';
 import 'package:admin/domain/reports/report_row_records.dart';
 import 'package:admin/ui/features/reports/helpers/report_range.dart';
 
 final _log = Logger('ReportsViewModel');
 
-/// What one run asked the server for: the payload, and whether it opted into
-/// the report's optional date column (which changes the fetch without
-/// touching the payload — see `ReportsViewModel.isParamDirty`).
-typedef _RunRequest = ({ReportPayload payload, bool withDateColumn});
+/// What one run asked the server for: the payload, whether it opted into
+/// the report's optional date column, and the related-record columns the
+/// reader added (both change the fetch without touching the payload — see
+/// `ReportsViewModel.isParamDirty`).
+typedef _RunRequest = ({
+  ReportPayload payload,
+  bool withDateColumn,
+  List<String> added,
+});
 
 /// Whether [a] and [b] ask for the same rows. Only [ReportPayload.forPreview]
 /// counts: a template or an attachment switch is not a different result.
 bool _sameRequest(_RunRequest? a, _RunRequest b) =>
     a != null &&
     a.payload.forPreview == b.payload.forPreview &&
-    a.withDateColumn == b.withDateColumn;
+    a.withDateColumn == b.withDateColumn &&
+    _sameColumns(a.added, b.added);
+
+/// Whether two lists of added columns fetch the same thing — order aside,
+/// since the order a column shows in is the reader's, not the server's.
+bool _sameColumns(List<String> a, List<String> b) =>
+    a.length == b.length && a.toSet().containsAll(b);
 
 /// What the view model needs to know about the company besides its currency:
 /// the Dart pattern of its date format (the task report writes dates in it),
@@ -102,6 +114,7 @@ class ReportsViewModel extends ChangeNotifier {
     this.companyId,
     this.companyCurrencyId,
     this.companyFormat,
+    this.customFieldLabels,
     this.localSourceFor,
     this.tasksCrossRange,
     this.fetchRowIds = false,
@@ -230,6 +243,13 @@ class ReportsViewModel extends ChangeNotifier {
   final Future<ReportCompanyFormat> Function()? companyFormat;
   String? _datePattern;
 
+  /// The company's custom-field labels by slot (`client1`, `contact2`, …),
+  /// loaded with [companyCurrencyId]. They decide which custom fields of a
+  /// related record are offered ([relatedColumnGroups]): an unconfigured
+  /// slot is blank on every row. Null (tests) offers none.
+  final Future<Map<String, String>> Function()? customFieldLabels;
+  Map<String, String> _customFieldLabels = const {};
+
   /// The source of a report built on the device
   /// ([ReportDefinition.isLocal]), by identifier — asked for when such a
   /// report runs, not before, so a host builds nothing for reports never
@@ -317,9 +337,14 @@ class ReportsViewModel extends ChangeNotifier {
   /// DTO whose `toJson` is a direct dump.
   bool _lastRunIncludeDateColumn = false;
 
+  /// [_addedColumnIds] as of the last successful run — the same by-hand
+  /// join as [_lastRunIncludeDateColumn].
+  List<String> _lastRunAddedColumns = const [];
+
   bool get isParamDirty =>
       _payload.forPreview != _lastRunPayload?.forPreview ||
-      _includeDateColumn != _lastRunIncludeDateColumn;
+      _includeDateColumn != _lastRunIncludeDateColumn ||
+      !_sameColumns(_addedColumnIds, _lastRunAddedColumns);
 
   // ─── Result ───
   ReportRunState _run = ReportRunState.idle();
@@ -524,7 +549,11 @@ class ReportsViewModel extends ChangeNotifier {
     final shown = _lastRunPayload;
     final base = shown == null
         ? null
-        : (payload: shown, withDateColumn: _lastRunIncludeDateColumn);
+        : (
+            payload: shown,
+            withDateColumn: _lastRunIncludeDateColumn,
+            added: _lastRunAddedColumns,
+          );
     final window = _compare && canCompare && base != null
         ? comparisonFor(base.payload)
         : null;
@@ -562,7 +591,9 @@ class ReportsViewModel extends ChangeNotifier {
               // two can be cut the same way.
               reportKeys: _previewReportKeys(
                 withDateColumn: base.withDateColumn,
+                added: base.added,
               ),
+              addedColumns: base.added,
               isCancelled: cancelled,
             );
       if (_disposed || epoch != _compareEpoch || report != _reportIdentifier) {
@@ -643,6 +674,19 @@ class ReportsViewModel extends ChangeNotifier {
   /// default behaviour byte-identical for anyone who doesn't want it.
   bool _includeDateColumn = false;
   bool get includeDateColumn => _includeDateColumn;
+
+  /// Columns of a related record the reader added to the report — the
+  /// client's city on the payment report ([relatedColumnGroups]). Like the
+  /// optional date column they change the *fetch*: the preview asks for the
+  /// known set plus these. Hiding one keeps it fetched, so it can be shown
+  /// again without a run; a reset forgets them.
+  List<String> _addedColumnIds = const [];
+  List<String> get addedColumnIds => _addedColumnIds;
+
+  /// Added columns to make visible when they first arrive — the ones just
+  /// ticked. Not every added column: one the reader has since hidden stays
+  /// hidden on the next run.
+  Set<String> _revealOnArrival = const {};
 
   /// Identifiers the last successful preview returned, persisted so the
   /// augmented request survives a cold start (a restored `group` pointing
@@ -806,8 +850,11 @@ class ReportsViewModel extends ChangeNotifier {
   bool _disposed = false;
 
   /// The request as it now stands.
-  _RunRequest get _request =>
-      (payload: _payload, withDateColumn: _includeDateColumn);
+  _RunRequest get _request => (
+    payload: _payload,
+    withDateColumn: _includeDateColumn,
+    added: _addedColumnIds,
+  );
 
   /// What the run in flight asked for. Read only while `_run.isLoading`:
   /// [_showOrRun] lets a run for the request on screen land and supersedes
@@ -1104,6 +1151,7 @@ class ReportsViewModel extends ChangeNotifier {
     if (_timeChartStyle != null) 'timeChartStyle': _timeChartStyle!.name,
     if (_columnWidths.isNotEmpty) 'columnWidths': _columnWidths,
     if (_includeDateColumn) 'includeDateColumn': true,
+    if (_addedColumnIds.isNotEmpty) 'addedColumns': _addedColumnIds,
     // Persisted so a restored grouping on the optional date column survives
     // the cold run that would otherwise drop it (see `_previewReportKeys`).
     if (_serverColumnIds.isNotEmpty) 'serverColumns': _serverColumnIds,
@@ -1206,6 +1254,14 @@ class ReportsViewModel extends ChangeNotifier {
       });
     }
     _includeDateColumn = s['includeDateColumn'] == true;
+    final ac = s['addedColumns'];
+    if (ac is List) {
+      final offered = reportRelatedColumnIds(_reportIdentifier);
+      _addedColumnIds = List.unmodifiable([
+        for (final id in ac)
+          if (offered.contains('$id')) '$id',
+      ]);
+    }
     final sc = s['serverColumns'];
     if (sc is List) {
       _serverColumnIds = List.unmodifiable(sc.map((e) => '$e'));
@@ -1244,6 +1300,9 @@ class ReportsViewModel extends ChangeNotifier {
     // costs nothing.
     _includeDateColumn = false;
     _lastRunIncludeDateColumn = false;
+    _addedColumnIds = const [];
+    _lastRunAddedColumns = const [];
+    _revealOnArrival = const {};
     _serverColumnIds = const [];
     _serverColumnsLearnedAt = 0;
     _resultFetchedAt = null;
@@ -1961,6 +2020,8 @@ class ReportsViewModel extends ChangeNotifier {
     _compareWindow = null;
     _compareEpoch++;
     _includeDateColumn = false;
+    _addedColumnIds = const [];
+    _revealOnArrival = const {};
     _thenBy = const [];
     _search = '';
     _currencyId = null;
@@ -2023,6 +2084,7 @@ class ReportsViewModel extends ChangeNotifier {
       }
       final reportKeys = _previewReportKeys(
         withDateColumn: sent.withDateColumn,
+        added: sent.added,
       );
       final rawPreview = await repo.runPreview(
         reportIdentifier: _reportIdentifier,
@@ -2041,18 +2103,20 @@ class ReportsViewModel extends ChangeNotifier {
         // The one non-empty case is the opt-in optional date column, which
         // still sends the *full* known set plus that one — never a subset.
         reportKeys: reportKeys,
+        addedColumns: sent.added,
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch || _supersededOnArrival(sent)) return;
+      final ranFor = _forgetUnservedColumns(sent, reportKeys, rawPreview);
       _applySuccessfulPreview(
         rawPreview,
-        ranFor: sent,
+        ranFor: ranFor,
         plainRun: reportKeys.isEmpty,
       );
       _activePollingHash = null;
       notifyListeners();
       if (_wantsRowIds && !reportKeys.contains(definition.rowIdKey)) {
-        unawaited(_fetchRowIds(epoch, sent));
+        unawaited(_fetchRowIds(epoch, ranFor));
       }
       if (_compare) unawaited(_runCompare());
     } on ReportError catch (e) {
@@ -2125,6 +2189,7 @@ class ReportsViewModel extends ChangeNotifier {
       _documentUnreadable = _document == null;
       _lastRunPayload = payload;
       _lastRunIncludeDateColumn = sent.withDateColumn;
+      _lastRunAddedColumns = sent.added;
       _resultFetchedAt = _now();
       _run = ReportRunState.idle();
       notifyListeners();
@@ -2201,6 +2266,14 @@ class ReportsViewModel extends ChangeNotifier {
     final preview = _augmentPreview(rawPreview);
     _lastRunPayload = ranFor.payload;
     _lastRunIncludeDateColumn = ranFor.withDateColumn;
+    // Only what arrived: an added column a run asked for and did not get
+    // (a cold start with no column set to append it to) is still owed, so
+    // the request reads as changed and Run offers to fetch it.
+    _lastRunAddedColumns = List.unmodifiable(
+      ranFor.added.where(
+        (id) => rawPreview.columns.any((c) => c.identifier == id),
+      ),
+    );
     // A comparison is with the period before *a* result. Once a result for
     // another request is on screen — a range read back from disk, say — its
     // deltas are against the wrong period: drop it (stranding one in flight)
@@ -2247,6 +2320,7 @@ class ReportsViewModel extends ChangeNotifier {
     // column is one the user just asked for by name — without this it
     // arrives fetched and invisible, and the switch appears to do nothing.
     _showOptionalDateColumn(preview);
+    _showAddedColumns(preview);
     // A grouping restored before its columns were known gets its ranking
     // now that there is a figure to rank by.
     _syncRanking();
@@ -2346,7 +2420,11 @@ class ReportsViewModel extends ChangeNotifier {
     final error = _run.error;
     _applySuccessfulPreview(
       local,
-      ranFor: (payload: shown, withDateColumn: _lastRunIncludeDateColumn),
+      ranFor: (
+        payload: shown,
+        withDateColumn: _lastRunIncludeDateColumn,
+        added: _lastRunAddedColumns,
+      ),
       fetchedAt: _resultFetchedAt,
       fromDevice: _resultFromDevice,
     );
@@ -2489,6 +2567,7 @@ class ReportsViewModel extends ChangeNotifier {
         companyId: cid,
         reportIdentifier: report,
         payload: request.payload,
+        addedColumns: request.added,
         numberStyle: _numberStyle,
       );
       // Changed while the disk was read: the change scheduled its own call.
@@ -2574,11 +2653,23 @@ class ReportsViewModel extends ChangeNotifier {
   /// ran. Present and not asked for: switching it off was answered by the
   /// result the "on" run stored, fresh, so nothing ran, and the column — still
   /// in the result, so never reconciled away — stayed on screen.
+  ///
+  /// The added columns are checked both ways too. Asked for and missing is
+  /// the first case again. Carried and no longer asked for — a reset, then
+  /// the result the augmented run stored — put the dropped column back on
+  /// the table as though the server returned it by default, and every later
+  /// run asked for it as part of the known set. The second check needs the
+  /// last run's added columns: a related column can also be in the default
+  /// set (`client.name`), so being in the catalog says nothing.
   bool _rememberedResultServes(ReportPreview preview, _RunRequest request) {
+    final ids = {for (final c in preview.columns) c.identifier};
+    if (!ids.containsAll(request.added)) return false;
+    for (final id in _lastRunAddedColumns) {
+      if (ids.contains(id) && !request.added.contains(id)) return false;
+    }
     final dateColumn = definition.optionalDateColumnId;
     if (dateColumn == null) return true;
-    final carries = preview.columns.any((c) => c.identifier == dateColumn);
-    return carries == request.withDateColumn;
+    return ids.contains(dateColumn) == request.withDateColumn;
   }
 
   void _onOnlineChanged(bool online) {
@@ -2802,12 +2893,18 @@ class ReportsViewModel extends ChangeNotifier {
   ///
   /// [withDateColumn] is the request's own choice where it was fixed earlier
   /// than now (a run's, a comparison's); it defaults to the current one.
-  List<String> _previewReportKeys({bool? withDateColumn}) {
+  ///
+  /// [added] is likewise the request's own related-record columns
+  /// ([addedColumnIds]).
+  List<String> _previewReportKeys({bool? withDateColumn, List<String>? added}) {
     final dateColumn = definition.optionalDateColumnId;
     final idColumn = _wantsRowIds ? definition.rowIdKey : null;
+    final addedNow = added ?? _addedColumnIds;
     final extras = [
       if ((withDateColumn ?? _includeDateColumn) && dateColumn != null)
         dateColumn,
+      for (final id in addedNow)
+        if (id != dateColumn && id != idColumn) id,
       ?idColumn,
     ];
     if (extras.isEmpty) return const [];
@@ -2825,7 +2922,18 @@ class ReportsViewModel extends ChangeNotifier {
     // `contains` guard would send `[]` on the very next run and the column
     // would vanish again — a bug invisible until the second Run. Stripping
     // also drops the date column once the user has switched it back off.
-    final drop = {_kStockValueId, ?dateColumn, ?idColumn};
+    //
+    // The added columns of the last run are stripped too, whether or not
+    // this one asks for them: `known` is that run's answer, so it carries
+    // them, and a column the reader no longer adds must not ride back in as
+    // one the server returned.
+    final drop = {
+      _kStockValueId,
+      ?dateColumn,
+      ?idColumn,
+      ...addedNow,
+      ..._lastRunAddedColumns,
+    };
     // A report of one row per record still asks for the columns it hides —
     // they are what makes the server write a row per entry (`task.time_log`,
     // since 5.13.44), and a task row the server merged itself comes back
@@ -2864,6 +2972,7 @@ class ReportsViewModel extends ChangeNotifier {
   Future<void> _fetchRowIds(int epoch, _RunRequest request) async {
     final reportKeys = _previewReportKeys(
       withDateColumn: request.withDateColumn,
+      added: request.added,
     );
     if (!reportKeys.contains(definition.rowIdKey)) return;
     try {
@@ -2871,6 +2980,7 @@ class ReportsViewModel extends ChangeNotifier {
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
         payload: request.payload,
+        addedColumns: request.added,
         numberStyle: _numberStyle,
         companyId: companyId,
         reportKeys: reportKeys,
@@ -2914,6 +3024,120 @@ class ReportsViewModel extends ChangeNotifier {
     }
     notifyListeners();
     _scheduleAutoRun();
+  }
+
+  // ─── Columns of a related record (opt-in) ───
+
+  /// The related-record columns this report can still add — the ones the
+  /// result on screen does not already carry — by record. Empty for a
+  /// report that has none, and before there is a result: like the optional
+  /// date column, an added column is appended to a known column set.
+  ///
+  /// A custom field is offered only when the company has configured it, and
+  /// then under its own label ([ReportRelatedOffer.label]).
+  List<ReportRelatedOfferGroup> get relatedColumnGroups {
+    final preview = _run.preview;
+    if (preview == null || definition.isLocal) return const [];
+    final present = {for (final c in preview.columns) c.identifier};
+    return [
+      for (final group in reportRelatedColumnGroups(_reportIdentifier))
+        if (_offers(group, present) case final offers when offers.isNotEmpty)
+          ReportRelatedOfferGroup(labelKey: group.labelKey, columns: offers),
+    ];
+  }
+
+  List<ReportRelatedOffer> _offers(
+    ReportRelatedColumnGroup group,
+    Set<String> present,
+  ) {
+    final offers = <ReportRelatedOffer>[];
+    for (final column in group.columns) {
+      if (present.contains(column.id)) continue;
+      final slot = column.customFieldSlot;
+      final label = slot == null ? null : _customFieldLabels[slot] ?? '';
+      if (label != null && label.isEmpty) continue;
+      offers.add(
+        ReportRelatedOffer(
+          id: column.id,
+          labelKey: column.labelKey,
+          label: label,
+        ),
+      );
+    }
+    return offers;
+  }
+
+  /// Add the related-record columns [ids] to the report and fetch them; each
+  /// shows as soon as it arrives. An id the report cannot add is ignored.
+  void addColumns(Iterable<String> ids) {
+    final offered = reportRelatedColumnIds(_reportIdentifier);
+    final fresh = [
+      for (final id in ids)
+        if (offered.contains(id) && !_addedColumnIds.contains(id)) id,
+    ];
+    if (fresh.isEmpty) return;
+    _userTouched = true;
+    _addedColumnIds = List.unmodifiable([..._addedColumnIds, ...fresh]);
+    _revealOnArrival = Set.unmodifiable({..._revealOnArrival, ...fresh});
+    notifyListeners();
+    _scheduleAutoRun();
+  }
+
+  /// [sent] without the added columns the server was asked for by name and
+  /// did not return — an older server, or one that dropped the key. They are
+  /// forgotten rather than kept as owed: owed, the request never matched a
+  /// result, so the report read as needing a Run on every open and skipped
+  /// every remembered result, and ticking the column again did nothing.
+  /// A column that was not asked for — a cold start, with no known set to
+  /// append it to — is still owed, and the next run asks for it.
+  _RunRequest _forgetUnservedColumns(
+    _RunRequest sent,
+    List<String> reportKeys,
+    ReportPreview preview,
+  ) {
+    final returned = {for (final c in preview.columns) c.identifier};
+    final unserved = {
+      for (final id in sent.added)
+        if (reportKeys.contains(id) && !returned.contains(id)) id,
+    };
+    if (unserved.isEmpty) return sent;
+    _log.info('The server did not return the added columns $unserved');
+    _addedColumnIds = List.unmodifiable(
+      _addedColumnIds.where((id) => !unserved.contains(id)),
+    );
+    _revealOnArrival = Set.unmodifiable(_revealOnArrival.difference(unserved));
+    return (
+      payload: sent.payload,
+      withDateColumn: sent.withDateColumn,
+      added: List.unmodifiable(
+        sent.added.where((id) => !unserved.contains(id)),
+      ),
+    );
+  }
+
+  /// Make the columns just added visible the first time they arrive, at the
+  /// end of the reader's order. `_reconcileWithColumns` never shows a new
+  /// column by itself ("don't un-hide what the user hid").
+  void _showAddedColumns(ReportPreview preview) {
+    if (_revealOnArrival.isEmpty) return;
+    final arrived = [
+      for (final c in preview.columns)
+        if (_revealOnArrival.contains(c.identifier)) c.identifier,
+    ];
+    if (arrived.isEmpty) return;
+    _revealOnArrival = Set.unmodifiable(
+      _revealOnArrival.difference(arrived.toSet()),
+    );
+    if (_visibleColumnIds.isNotEmpty) {
+      _visibleColumnIds = Set.unmodifiable({..._visibleColumnIds, ...arrived});
+    }
+    if (_columnOrder.isNotEmpty) {
+      _columnOrder = List.unmodifiable([
+        for (final id in _columnOrder)
+          if (!arrived.contains(id)) id,
+        ...arrived,
+      ]);
+    }
   }
 
   /// Make the opted-in column visible the first time it arrives.
@@ -2989,6 +3213,17 @@ class ReportsViewModel extends ChangeNotifier {
     out = withRowRecords(out, definition);
     if (definition.collapsesToRecord) out = collapsedToRecords(out);
     out = withoutColumns(out, definition.hiddenColumnIds);
+    // Before the row grain: a client's balance is the client's, and the
+    // line-item reports would otherwise count it once per document.
+    out = withRelatedColumnsUntotalled(
+      out,
+      reportRelatedColumnIds(_reportIdentifier),
+    );
+    out = withCustomFieldLabels(
+      out,
+      reportRelatedCustomFieldSlots(_reportIdentifier),
+      _customFieldLabels,
+    );
     return _relabelOptionalDateColumn(
       _augmentStockValue(_assignRowCurrencies(withRowGrain(out, definition))),
     );
@@ -3012,6 +3247,13 @@ class ReportsViewModel extends ChangeNotifier {
       // Not fatal, and not remembered: the run goes ahead on the
       // format-agnostic parse and the next one asks again.
       _log.warning('Could not resolve the company currency', e, st);
+      return;
+    }
+    try {
+      _customFieldLabels = await customFieldLabels?.call() ?? const {};
+    } catch (e, st) {
+      // Only costs the custom fields their place among the related columns.
+      _log.warning('Could not read the company custom fields', e, st);
     }
   }
 
@@ -3040,6 +3282,11 @@ class ReportsViewModel extends ChangeNotifier {
       fallbackCurrencyId: currencies.containsKey(_companyCurrencyId)
           ? _companyCurrencyId
           : null,
+      // The report's own currency column is in its default set; an added
+      // `client.currency_id` would otherwise outrank the payment report's
+      // `payment.currency` (an exact `currency_id` tail wins). The last
+      // run's too: a column just un-added is still in the result on screen.
+      ignoring: {..._addedColumnIds, ..._lastRunAddedColumns},
     );
   }
 

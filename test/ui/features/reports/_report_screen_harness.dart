@@ -112,7 +112,44 @@ class FixtureReportsRepo implements ReportsRepository {
         compareRequests.add(payload!);
         return Future<ReportPreview>.value(earlier);
       }
-      return Future<ReportPreview>.value(preview);
+      // A server returns the related columns a run adds by name
+      // (`addedColumns`), so the fake does too — blank, since the fixture
+      // has no value for them.
+      final added = [
+        for (final id
+            in invocation.namedArguments[#addedColumns] as List? ?? const [])
+          if ((invocation.namedArguments[#reportKeys] as List? ?? const [])
+                  .contains(id) &&
+              !preview.columns.any((c) => c.identifier == id))
+            '$id',
+      ];
+      if (added.isEmpty) return Future<ReportPreview>.value(preview);
+      return Future<ReportPreview>.value(
+        ReportPreview(
+          columns: [
+            ...preview.columns,
+            for (final id in added)
+              ReportColumn(
+                identifier: id,
+                displayLabel: id,
+                type: ReportColumnType.string,
+              ),
+          ],
+          rows: [
+            for (final row in preview.rows)
+              ReportRow(
+                cells: [
+                  ...row.cells,
+                  for (final _ in added)
+                    const ReportStringCell(value: '', displayValue: ''),
+                ],
+                recordWire: row.recordWire,
+                recordId: row.recordId,
+                currencyId: row.currencyId,
+              ),
+          ],
+        ),
+      );
     }
     if (invocation.memberName == #runExport) {
       exports++;

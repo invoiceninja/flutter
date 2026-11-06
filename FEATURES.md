@@ -749,6 +749,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | Report — tax period | ✅ | ❌ | ✅ | ✅ | |
 | Report — project | ✅ | ❌ | ✅ | ✅ | v1's report list never had this one (checked against its `kReport*` constants). |
 | Report — custom column selection | ✅ | ✅ | ✅ | ✅ | |
+| Report — columns from the related client / vendor (e.g. client city on Payments) | ✅ | ✅ | ✅ | — | v2 lists them under More Fields in the column picker and fetches them on pick; a client's balance repeats on each of its rows, so it is shown per row and never totalled. React also offers invoice fields on Payments; v2 leaves them out because they turn each payment into a row per applied invoice. |
 | Report — date range filters (preset + custom) | ✅ | ✅ | ✅ | ✅ | |
 | Report — export to PDF / CSV | ✅ | ✅ | ✅ | ✅ | v2 reads the file's type from the file (the server chooses it) and also writes the view on screen — filtered, sorted, arranged — as a CSV locally. |
 | Report — email-scheduled delivery | ✅ | 🟡 | ✅ | ✅ | |

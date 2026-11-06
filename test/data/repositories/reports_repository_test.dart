@@ -1,8 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/db/app_database.dart';
+
 import 'package:admin/data/models/domain/report_payload.dart';
+import 'package:admin/data/repositories/report_cache_store.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -312,6 +316,55 @@ void main() {
         expect(e.kind, ReportErrorKind.timeout);
         expect(e.pollingHash, 'hash-123');
       }
+    });
+  });
+
+  group('the remembered result', () {
+    // Filed under the payload alone, a result that carried an added
+    // `client.currency_id` answered the plain request after a reset — as
+    // though the server returned the column by default — and became the
+    // rows' currency.
+    test('is filed under the added related columns too', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final api = _FakeApi()
+        ..queuePreviewSuccess({
+          'columns': [
+            {'identifier': 'payment.number', 'display_value': 'Number'},
+            {'identifier': 'client.currency_id', 'display_value': 'Currency'},
+          ],
+        });
+      final repo = ReportsRepository(
+        api: api,
+        cache: ReportCacheStore(db: db),
+      );
+      await repo.runPreview(
+        reportIdentifier: 'payment',
+        endpoint: '/api/v1/reports/payments',
+        payload: const ReportPayload(),
+        addedColumns: const ['client.currency_id'],
+        companyId: 'co',
+      );
+
+      expect(
+        await repo.cachedPreview(
+          companyId: 'co',
+          reportIdentifier: 'payment',
+          payload: const ReportPayload(),
+        ),
+        isNull,
+        reason: 'the plain request is a different result',
+      );
+      final hit = await repo.cachedPreview(
+        companyId: 'co',
+        reportIdentifier: 'payment',
+        payload: const ReportPayload(),
+        addedColumns: const ['client.currency_id'],
+      );
+      expect(
+        hit!.preview.columns.map((c) => c.identifier),
+        contains('client.currency_id'),
+      );
     });
   });
 

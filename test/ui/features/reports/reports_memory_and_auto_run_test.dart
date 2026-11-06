@@ -61,6 +61,7 @@ class _Repo implements ReportsRepository {
     required String endpoint,
     required ReportPayload payload,
     List<String> reportKeys = const [],
+    List<String> addedColumns = const [],
     FormattedNumberStyle? numberStyle,
     String? companyId,
     int maxRetries = ReportsApi.defaultPreviewRetries,
@@ -92,6 +93,7 @@ class _Repo implements ReportsRepository {
     required String companyId,
     required String reportIdentifier,
     required ReportPayload payload,
+    List<String> addedColumns = const [],
     FormattedNumberStyle? numberStyle,
   }) async => remembered[_key(reportIdentifier, payload)];
 

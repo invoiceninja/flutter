@@ -92,17 +92,22 @@ class ReportsRepository {
   /// The last result of this exact request, if one was kept — the rows a
   /// report can show at once, before (or instead of) asking the server.
   /// [numberStyle] must be the one a live run would be parsed with.
+  ///
+  /// [addedColumns] are the related-record columns the request adds
+  /// (`ReportsViewModel.addedColumnIds`): part of the key, since they change
+  /// what comes back without touching the payload.
   Future<({ReportPreview preview, DateTime fetchedAt})?> cachedPreview({
     required String companyId,
     required String reportIdentifier,
     required ReportPayload payload,
+    List<String> addedColumns = const [],
     FormattedNumberStyle? numberStyle,
   }) async {
     final store = cache;
     if (store == null || companyId.isEmpty) return null;
     final hit = await store.read(
       companyId: companyId,
-      key: _cacheKey(reportIdentifier, payload),
+      key: _cacheKey(reportIdentifier, payload, addedColumns),
     );
     if (hit == null) return null;
     try {
@@ -116,13 +121,22 @@ class ReportsRepository {
     }
   }
 
-  static String _cacheKey(String reportIdentifier, ReportPayload payload) =>
-      ReportCacheStore.keyFor(
-        reportIdentifier,
-        // Only what changes the rows: a template or an attachment switch
-        // does not make it a different result.
-        payload.forPreview.toJson(reportIdentifier: reportIdentifier),
-      );
+  /// The request's cache key. Only what changes the result: a template or
+  /// an attachment switch does not make it a different one, and the added
+  /// related columns do — filed under the payload alone, a result that
+  /// carried `client.currency_id` came back after a reset as though the
+  /// server returned it by default, and became the rows' currency. Without
+  /// added columns the key is what it always was, so results already on disk
+  /// stay readable.
+  static String _cacheKey(
+    String reportIdentifier,
+    ReportPayload payload, [
+    List<String> addedColumns = const [],
+  ]) => ReportCacheStore.keyFor(reportIdentifier, {
+    ...payload.forPreview.toJson(reportIdentifier: reportIdentifier),
+    if (addedColumns.isNotEmpty)
+      '__added_columns': ([...addedColumns.toSet()]..sort()),
+  });
 
   /// Run a preview report. Returns the typed [ReportPreview]; throws a
   /// [ReportError] on any failure.
@@ -139,6 +153,7 @@ class ReportsRepository {
     required String endpoint,
     required ReportPayload payload,
     List<String> reportKeys = const [],
+    List<String> addedColumns = const [],
     FormattedNumberStyle? numberStyle,
     String? companyId,
     int maxRetries = ReportsApi.defaultPreviewRetries,
@@ -168,7 +183,7 @@ class ReportsRepository {
           _stillActive(companyId)) {
         await store.write(
           companyId: companyId,
-          key: _cacheKey(reportIdentifier, payload),
+          key: _cacheKey(reportIdentifier, payload, addedColumns),
           raw: raw,
         );
       }

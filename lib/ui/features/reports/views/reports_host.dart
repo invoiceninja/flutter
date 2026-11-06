@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/hours_format_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/domain/reports/credit_items_source.dart';
 import 'package:admin/domain/reports/local_report_source.dart';
 import 'package:admin/domain/reports/recurring_expenses_source.dart';
@@ -161,6 +162,16 @@ class _ReportsHostState extends State<ReportsHost> {
                 datePattern: f.dateFormats[f.settings.dateFormatId]?.format,
                 firstMonthOfYear: f.settings.firstMonthOfYear,
               );
+            },
+      customFieldLabels: companyId.isEmpty
+          ? null
+          : () async {
+              final company = await _services.company.get(companyId);
+              if (company == null) return const {};
+              return {
+                for (final slot in company.customFields.keys)
+                  slot: company.customFieldLabel(slot),
+              };
             },
       localSourceFor: _localSourceFor,
       tasksCrossRange: (query) => _taskItemsSource().crossesRange(query),

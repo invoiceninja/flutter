@@ -14,9 +14,17 @@ import 'package:admin/data/models/domain/report_preview.dart';
 /// — `expense.invoice_currency_id`, the currency the expense was *invoiced*
 /// in, which says nothing about the row's own amounts — is never taken for it.
 /// The task and product reports have no currency column at all.
-int reportCurrencyColumnIndex(List<ReportColumn> columns) {
+///
+/// [ignoring] names columns that say nothing about the row's own amounts: a
+/// related record's currency the reader added (`client.currency_id` on the
+/// payment report, whose amounts are in `payment.currency`).
+int reportCurrencyColumnIndex(
+  List<ReportColumn> columns, {
+  Set<String> ignoring = const {},
+}) {
   var fallback = -1;
   for (var i = 0; i < columns.length; i++) {
+    if (ignoring.contains(columns[i].identifier)) continue;
     final id = columns[i].identifier.toLowerCase();
     final tail = id.contains('.') ? id.split('.').last : id;
     if (tail == 'currency_id') return i;
@@ -37,8 +45,9 @@ ReportPreview withRowCurrencies(
   ReportPreview preview, {
   required Map<String, String> currencyIdByCode,
   String? fallbackCurrencyId,
+  Set<String> ignoring = const {},
 }) {
-  final index = reportCurrencyColumnIndex(preview.columns);
+  final index = reportCurrencyColumnIndex(preview.columns, ignoring: ignoring);
   if (index < 0 && fallbackCurrencyId == null) return preview;
   if (preview.rows.isEmpty) return preview;
   return ReportPreview(

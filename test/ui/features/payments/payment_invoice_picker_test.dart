@@ -234,6 +234,24 @@ void main() {
     expect(invoices.fetches, containsAll(['client:c1', 'draft:c1']));
   });
 
+  // Beta feedback: picking an invoice and then typing half its balance as
+  // the amount left the invoice allocated in full, and the server refused
+  // the save ("Amounts do not balance correctly").
+  testWidgets(
+    'a partial amount typed after the pick is what the invoice gets',
+    (tester) async {
+      final vm = await pump(tester);
+      await openPicker(tester);
+      await tester.tap(find.text('#0001  ·  Acme Ltd  ·  120'));
+      await tester.pumpAndSettle();
+
+      vm.setAmount('60');
+      expect(vm.draft.paymentables.single.amount, Decimal.parse('60'));
+      vm.setAmount('500');
+      expect(vm.draft.paymentables.single.amount, Decimal.parse('120'));
+    },
+  );
+
   testWidgets('with a client chosen, only that client\'s invoices', (
     tester,
   ) async {

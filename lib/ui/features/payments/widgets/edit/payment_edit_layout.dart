@@ -182,6 +182,7 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
                     // picked and every later pick auto-filled 0.00.
                     paymentAmount: vm.autoFillCap,
                     onChanged: vm.replacePaymentables,
+                    onOpenAmounts: vm.noteInvoiceOpenAmounts,
                     formatter: formatter,
                     currencyId: currencyId,
                   ),

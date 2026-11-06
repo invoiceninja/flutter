@@ -142,6 +142,7 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
     vm.startFromInvoice(
       clientId: invoice.clientId,
       clientCurrencyId: client?.currencyId ?? '',
+      openAmount: target.balance,
       allocation: Paymentable(
         invoiceId: invoice.id,
         amount: computeAutoFillAmount(

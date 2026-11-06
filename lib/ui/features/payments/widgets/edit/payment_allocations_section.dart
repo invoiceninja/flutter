@@ -66,6 +66,7 @@ class PaymentAllocationsSection extends StatelessWidget {
     this.formatter,
     this.currencyId,
     this.showClientFirstHint = true,
+    this.onOpenAmounts,
   });
 
   final AllocationKind kind;
@@ -104,6 +105,12 @@ class PaymentAllocationsSection extends StatelessWidget {
   /// is the canonical owner — Credits hides itself).
   final bool showClientFirstHint;
 
+  /// Told, just before every [onChanged], the open amount (balance) of each
+  /// of this kind's targets the new list allocates, keyed by id — so the
+  /// owner can let an allocation follow a re-typed payment amount without
+  /// overpaying its invoice.
+  final ValueChanged<Map<String, Decimal>>? onOpenAmounts;
+
   bool _belongsToThisKind(Paymentable p) => kind == AllocationKind.invoice
       ? p.invoiceId.isNotEmpty
       : p.creditId.isNotEmpty;
@@ -137,6 +144,7 @@ class PaymentAllocationsSection extends StatelessWidget {
       idOfRow: _idOf,
       formatter: formatter,
       currencyId: currencyId,
+      onOpenAmounts: onOpenAmounts,
     );
   }
 }
@@ -152,6 +160,7 @@ class _LiveSection extends StatefulWidget {
     required this.idOfRow,
     required this.formatter,
     required this.currencyId,
+    required this.onOpenAmounts,
   });
 
   final AllocationKind kind;
@@ -163,6 +172,7 @@ class _LiveSection extends StatefulWidget {
   final String Function(Paymentable) idOfRow;
   final Formatter? formatter;
   final String? currencyId;
+  final ValueChanged<Map<String, Decimal>>? onOpenAmounts;
 
   @override
   State<_LiveSection> createState() => _LiveSectionState();
@@ -204,7 +214,6 @@ class _LiveSectionState extends State<_LiveSection> {
     final paymentables = widget.paymentables;
     final kind = widget.kind;
     final paymentAmount = widget.paymentAmount;
-    final onChanged = widget.onChanged;
     final belongsToThisKind = widget.belongsToThisKind;
     final idOfRow = widget.idOfRow;
 
@@ -212,6 +221,20 @@ class _LiveSectionState extends State<_LiveSection> {
       stream: stream,
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <AllocationTarget>[];
+        final onOpenAmounts = widget.onOpenAmounts;
+        final ValueChanged<List<Paymentable>> onChanged = onOpenAmounts == null
+            ? widget.onChanged
+            : (next) {
+                final allocated = next
+                    .where(belongsToThisKind)
+                    .map(idOfRow)
+                    .toSet();
+                onOpenAmounts({
+                  for (final t in all)
+                    if (allocated.contains(t.id)) t.id: t.balance,
+                });
+                widget.onChanged(next);
+              };
         final rowsForKind = paymentables
             .where(belongsToThisKind)
             .toList(growable: false);

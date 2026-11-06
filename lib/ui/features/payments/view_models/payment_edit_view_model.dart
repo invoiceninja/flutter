@@ -18,6 +18,11 @@ const String kPaymentValidationCreditExceedsInvoice = 'credit_payment_error';
 const String kPaymentValidationMissingAllocations =
     'please_select_an_invoice_or_credit';
 
+/// Translation key surfaced when the invoices are allocated more than the
+/// payment amount plus its credits — the server's `PaymentAmountsBalanceRule`
+/// rejects that save with this same message.
+const String kPaymentValidationAmountsDoNotBalance = 'amounts_do_not_balance';
+
 /// Drives the Payment edit + create screen. Optimistic — `save()` lands the
 /// draft in Drift via the repo, returns the saved entity, and the outbox
 /// handles the server round-trip.
@@ -102,6 +107,20 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
   /// `draft.amount` directly.
   Decimal get autoFillCap => _amountDirty ? draft.amount : Decimal.zero;
 
+  /// Open amount (balance) of each invoice the allocations editor has offered,
+  /// keyed by invoice id — the most a following allocation may grow to. Fed by
+  /// [noteInvoiceOpenAmounts] / [startFromInvoice]; an invoice missing here
+  /// (a clone, a restored draft) switches [setAmount]'s follow off.
+  final Map<String, Decimal> _invoiceOpenAmounts = {};
+
+  /// `true` once the user has typed an invoice allocation's own amount. From
+  /// then on the allocations are theirs and [setAmount] leaves them alone.
+  bool _allocationsEdited = false;
+
+  /// Record the open amounts of invoices the allocations editor knows.
+  void noteInvoiceOpenAmounts(Map<String, Decimal> openAmounts) =>
+      _invoiceOpenAmounts.addAll(openAmounts);
+
   /// Sum of allocation amounts (invoices + credits). The footer surfaces
   /// the running total + a "$Y remaining" hint so the user catches a
   /// mismatch before the server rejects it.
@@ -151,6 +170,16 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
     // create payment must touch at least one invoice or credit.
     if (isCreate && !enableApplyingPayments && draft.paymentables.isEmpty) {
       return kPaymentValidationMissingAllocations;
+    }
+    // The server's balance rule: a zero amount is derived from the
+    // allocations, anything else must cover the invoices with the credits —
+    // compared, as the server does, at two decimals (a 3-decimal currency's
+    // 99.999 covers 100.00 there).
+    if (savesAsCreate &&
+        draft.amount != Decimal.zero &&
+        invoiceAllocatedTotal.round(scale: 2) >
+            (draft.amount + creditAllocatedTotal).round(scale: 2)) {
+      return kPaymentValidationAmountsDoNotBalance;
     }
     return null;
   }
@@ -226,18 +255,65 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
 
   /// Manual amount edit. Flips `_amountDirty` so the auto-sync from
   /// allocations stops — the user has made their intent explicit.
+  ///
+  /// The invoice allocations follow the typed amount (see
+  /// [_allocationsFollowing]): pick a $1,250 invoice, type 625, and the
+  /// invoice is allocated 625 — a partial payment, not a save the server
+  /// rejects because the invoices outweigh the payment.
   void setAmount(String input) {
     _amountDirty = true;
+    final amount =
+        parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
+        Decimal.zero;
     updateDraft(
       draft.copyWith(
-        amount:
-            parseDecimal(
-              input,
-              useCommaAsDecimalPlace: useCommaAsDecimalPlace,
-            ) ??
-            Decimal.zero,
+        amount: amount,
+        paymentables:
+            _allocationsFollowing(amount, draft.paymentables) ??
+            draft.paymentables,
       ),
     );
+  }
+
+  /// The invoice allocations re-spread over [amount] (plus the credits, which
+  /// pay invoices too): in list order, each up to its invoice's open amount,
+  /// any excess left unapplied. Null — leave them as they are — on an edit,
+  /// once the user has typed an allocation themselves, while any invoice's
+  /// open amount is unknown, or for an amount that is not positive.
+  ///
+  /// The last is load-bearing: an emptied Amount field parses to zero, which
+  /// the server reads as "derive the amount from the allocations" — and
+  /// `Payment.toApiJson` drops zero-amount rows, so zeroed allocations would
+  /// save an unapplied $0 payment instead of paying the invoice.
+  List<Paymentable>? _allocationsFollowing(
+    Decimal amount,
+    List<Paymentable> paymentables,
+  ) {
+    if (!isCreate || _allocationsEdited || amount <= Decimal.zero) {
+      return null;
+    }
+    final invoices = paymentables.where((p) => p.invoiceId.isNotEmpty);
+    if (invoices.isEmpty ||
+        invoices.any((p) => !_invoiceOpenAmounts.containsKey(p.invoiceId))) {
+      return null;
+    }
+    var left = paymentables
+        .where((p) => p.creditId.isNotEmpty)
+        .fold<Decimal>(amount, (sum, p) => sum + p.amount);
+    final next = <Paymentable>[];
+    for (final p in paymentables) {
+      if (p.invoiceId.isEmpty) {
+        next.add(p);
+        continue;
+      }
+      final open = _invoiceOpenAmounts[p.invoiceId]!;
+      final share = left <= Decimal.zero
+          ? Decimal.zero
+          : (left < open ? left : open);
+      left -= share;
+      next.add(p.copyWith(amount: share));
+    }
+    return List<Paymentable>.unmodifiable(next);
   }
 
   void setExchangeRate(String input) => updateDraft(
@@ -274,7 +350,11 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
     required String clientId,
     required String clientCurrencyId,
     required Paymentable allocation,
+    Decimal? openAmount,
   }) {
+    if (openAmount != null) {
+      _invoiceOpenAmounts[allocation.invoiceId] = openAmount;
+    }
     final sameClient = draft.clientId == clientId;
     if (!sameClient) {
       updateDraft(
@@ -291,6 +371,9 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
       allocation,
       ...draft.paymentables.where((p) => p.creditId.isNotEmpty),
     ]);
+    // A fresh pick replaces the invoice allocations, so the amount may lead
+    // them again — even when it re-picked the same invoice.
+    _allocationsEdited = false;
   }
 
   /// Drop every invoice allocation, keeping credits — the Invoice picker
@@ -305,8 +388,17 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
   /// without forcing the user to type the same number twice.
   void replacePaymentables(List<Paymentable> next) {
     final unmodifiable = List<Paymentable>.unmodifiable(next);
+    _trackAllocationEdits(unmodifiable);
     if (_amountDirty) {
-      updateDraft(draft.copyWith(paymentables: unmodifiable));
+      // The amount is fixed, so a credit added, changed or removed (or an
+      // invoice dropped) re-spreads the invoices over it — else the save
+      // stops balancing until the amount is retyped.
+      updateDraft(
+        draft.copyWith(
+          paymentables:
+              _allocationsFollowing(draft.amount, unmodifiable) ?? unmodifiable,
+        ),
+      );
       return;
     }
     final invoiceTotal = unmodifiable
@@ -319,6 +411,25 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
     updateDraft(
       draft.copyWith(paymentables: unmodifiable, amount: syncedAmount),
     );
+  }
+
+  /// A kept invoice whose amount changed was typed by the user — stop the
+  /// amount leading the allocations. Adding, removing or swapping an invoice
+  /// is not that. Allocations starting from none — however the last ones
+  /// went (dropped here, a client change, a reset) — hand the lead back.
+  void _trackAllocationEdits(List<Paymentable> next) {
+    final before = {
+      for (final p in draft.paymentables)
+        if (p.invoiceId.isNotEmpty) p.invoiceId: p.amount,
+    };
+    final invoices = next.where((p) => p.invoiceId.isNotEmpty);
+    if (invoices.isEmpty || before.isEmpty) {
+      _allocationsEdited = false;
+    } else if (invoices.any(
+      (p) => before.containsKey(p.invoiceId) && before[p.invoiceId] != p.amount,
+    )) {
+      _allocationsEdited = true;
+    }
   }
 }
 

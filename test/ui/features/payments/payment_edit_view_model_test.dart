@@ -295,4 +295,177 @@ void main() {
       expect(vm.autoFillCap, Decimal.parse('75'));
     });
   });
+
+  // Beta report: pick a $1,250 invoice, type 625 as the amount, Save — the
+  // invoice stayed allocated 1,250 and the server rejected the save with
+  // "Amounts do not balance correctly".
+  group('PaymentEditViewModel — invoice allocations follow the amount', () {
+    Decimal d(String v) => Decimal.parse(v);
+    List<String> amounts(PaymentEditViewModel vm) =>
+        vm.draft.paymentables.map((p) => p.amount.toString()).toList();
+
+    test('a partial amount on one invoice allocates that amount', () {
+      final vm = vmFor();
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '1',
+        allocation: inv('i1', 1250),
+        openAmount: d('1250'),
+      );
+      vm.setAmount('625');
+      expect(amounts(vm), ['625']);
+      expect(vm.allocationRemainder, Decimal.zero);
+      expect(vm.validateForSave(), isNull);
+    });
+
+    test('typing digit by digit grows back, capped at the open amount', () {
+      final vm = vmFor();
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '1',
+        allocation: inv('i1', 1250),
+        openAmount: d('1250'),
+      );
+      for (final typed in ['6', '62', '625']) {
+        vm.setAmount(typed);
+      }
+      expect(amounts(vm), ['625']);
+      vm.setAmount('2000');
+      // The excess stays unapplied — never an overpaid invoice.
+      expect(amounts(vm), ['1250']);
+      expect(vm.allocationRemainder, d('750'));
+    });
+
+    test('several invoices fill in order; credits pay invoices too', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100'), 'i2': d('200')});
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 200), cre('c1', 50)]);
+      vm.setAmount('120');
+      // 120 paid + 50 credit = 170 over the invoices.
+      expect(amounts(vm), ['100', '70', '50']);
+    });
+
+    // Review: an emptied field parses to zero, which the server reads as
+    // "derive the amount from the allocations" — and toApiJson drops
+    // zero-amount rows, so zeroing them saved an unapplied $0 payment.
+    test('an emptied, zero or negative amount leaves the allocations', () {
+      final vm = vmFor();
+      vm.startFromInvoice(
+        clientId: 'c_1',
+        clientCurrencyId: '1',
+        allocation: inv('i1', 1250),
+        openAmount: d('1250'),
+      );
+      for (final typed in ['', '0', '-', '-5']) {
+        vm.setAmount(typed);
+        expect(amounts(vm), ['1250'], reason: 'typed "$typed"');
+      }
+      vm.setAmount('');
+      expect(vm.validateForSave(), isNull);
+      vm.setAmount('625');
+      expect(amounts(vm), ['625']);
+    });
+
+    test('a credit changed after the amount re-spreads the invoices', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100'), 'i2': d('200')});
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 200), cre('c1', 50)]);
+      vm.setAmount('120');
+      expect(amounts(vm), ['100', '70', '50']);
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 70), cre('c1', 20)]);
+      expect(amounts(vm), ['100', '40', '20']);
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 40)]);
+      expect(amounts(vm), ['100', '20']);
+      expect(vm.validateForSave(), isNull);
+    });
+
+    test('a client change hands the lead back to the amount', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100'), 'i9': d('1250')});
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.replacePaymentables([inv('i1', 40)]); // typed
+      vm.replaceClientAndClearPaymentables('c_2');
+      vm.replacePaymentables([inv('i9', 1250)]);
+      vm.setAmount('625');
+      expect(amounts(vm), ['625']);
+    });
+
+    test('a discarded draft hands the lead back too', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100')});
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.replacePaymentables([inv('i1', 40)]); // typed
+      vm.resetToEmpty();
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.setAmount('30');
+      expect(amounts(vm), ['30']);
+    });
+
+    test('an allocation the user typed is left alone', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100'), 'i2': d('200')});
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 200)]);
+      vm.replacePaymentables([inv('i1', 40), inv('i2', 200)]);
+      vm.setAmount('100');
+      expect(amounts(vm), ['40', '200']);
+    });
+
+    test('adding or removing an invoice is not a typed allocation', () {
+      final vm = vmFor();
+      vm.noteInvoiceOpenAmounts({'i1': d('100'), 'i2': d('200')});
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.replacePaymentables([inv('i1', 100), inv('i2', 200)]);
+      vm.replacePaymentables([inv('i2', 200)]);
+      vm.setAmount('150');
+      expect(amounts(vm), ['150']);
+    });
+
+    test('an invoice with no known open amount turns the follow off', () {
+      final vm = vmFor();
+      vm.replacePaymentables([inv('i1', 1250)]);
+      vm.setAmount('625');
+      expect(amounts(vm), ['1250']);
+      expect(vm.validateForSave(), kPaymentValidationAmountsDoNotBalance);
+    });
+
+    test('an existing payment\'s allocations never follow', () {
+      final vm = vmFor(
+        existing: emptyPayment().copyWith(
+          id: 'p1',
+          amount: d('100'),
+          paymentables: [inv('i1', 100)],
+        ),
+      );
+      vm.noteInvoiceOpenAmounts({'i1': d('100')});
+      vm.setAmount('50');
+      expect(amounts(vm), ['100']);
+    });
+  });
+
+  group('PaymentEditViewModel — validateForSave balance rule', () {
+    test('invoices over amount + credits are refused before the server', () {
+      final vm = vmFor();
+      vm.replacePaymentables([inv('i1', 100), cre('c1', 30)]);
+      vm.setAmount('60');
+      expect(vm.validateForSave(), kPaymentValidationAmountsDoNotBalance);
+      vm.setAmount('70');
+      expect(vm.validateForSave(), isNull);
+    });
+
+    test('compares at two decimals, as the server does', () {
+      final vm = vmFor();
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.setAmount('99.999');
+      expect(vm.validateForSave(), isNull);
+      vm.setAmount('99.99');
+      expect(vm.validateForSave(), kPaymentValidationAmountsDoNotBalance);
+    });
+
+    test('a zero amount is derived by the server, so it passes', () {
+      final vm = vmFor();
+      vm.replacePaymentables([inv('i1', 100)]);
+      vm.setAmount('0');
+      expect(vm.validateForSave(), isNull);
+    });
+  });
 }

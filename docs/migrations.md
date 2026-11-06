@@ -25,7 +25,7 @@ The schema lives in the Dart table classes under `lib/data/db/`; `AppDatabase`
    `createClientFilterIndexes(this)` / `createListSortIndexes(this)`, which **existing users
    never re-run**. All use `CREATE INDEX IF NOT EXISTS` (idempotent), and the end of
    `onUpgrade` calls them again, so a new index reaches already-installed databases — but only
-   on an upgrade: **an index-only change still bumps `schemaVersion`** (v13 did exactly that),
+   on an upgrade: **an index-only change still bumps `schemaVersion`** (v13 and v19 did exactly that),
    and since drift does not model these indexes the new dump is byte-identical to the last.
    Pin the index with a test of its own (`migration_test` › the list sort indexes).
 5. **Regenerate codegen:**

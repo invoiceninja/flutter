@@ -68,6 +68,10 @@ void main() {
     16: '9db7061812c29fe2531ca892746b82dd7f1171e87704c1cab2c08fd94054b66d',
     17: 'fc839ef1872bf0bf3ece4ad76159967f3ae1de090aa90297793b55e9f3443d35',
     18: '4546009b7caa31e5d5686629d84ab439ab9d8e3c7e5ec95229b0f217f89b7ada',
+    // Byte-identical to v18, as v13 is to v12: v19 adds only indexes drift
+    // does not model (`kIndexedForeignKeys`, `kDefaultSortIndexes`), which the
+    // index tests below pin.
+    19: '4546009b7caa31e5d5686629d84ab439ab9d8e3c7e5ec95229b0f217f89b7ada',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -383,6 +387,41 @@ void main() {
               'fresh ones',
         );
       }
+      await db.close();
+    });
+
+    test('an installed v18 database gains the parent-record and default-sort '
+        'indexes', () async {
+      final connection = await verifier.startAt(18);
+      final db = AppDatabase(connection);
+      await verifier.migrateAndValidate(db, schemaVersion);
+      Future<Iterable<Object?>> indexesOn(String t) async =>
+          (await db.customSelect('PRAGMA index_list($t)').get()).map(
+            (r) => r.data['name'],
+          );
+      for (final t in kDefaultSortIndexes.keys) {
+        expect(
+          await indexesOn(t),
+          contains('idx_${t}_company_sort'),
+          reason: 'the upgrade must reach installed databases',
+        );
+      }
+      expect(
+        await indexesOn('invoices'),
+        containsAll(<String>[
+          'idx_invoices_company_client_id',
+          'idx_invoices_company_vendor_id',
+          'idx_invoices_company_project_id',
+        ]),
+      );
+      expect(
+        await indexesOn('tasks'),
+        containsAll(<String>[
+          'idx_tasks_company_client_id',
+          'idx_tasks_company_project_id',
+          'idx_tasks_company_invoice_id',
+        ]),
+      );
       await db.close();
     });
 
@@ -777,7 +816,118 @@ void main() {
       }
       await db.close();
     });
+
+    test('every other list opens on its default-sort index, not a sort of '
+        'every row', () async {
+      final recorder = _SelectRecorder();
+      final db = AppDatabase(NativeDatabase.memory().interceptWith(recorder));
+      await db.customSelect('SELECT 1').getSingle();
+
+      // Each DAO's own defaults are the list view model's default sort.
+      final reads = <String, Future<Object?> Function()>{
+        'clients': () =>
+            db.clientDao.watchPage(companyId: 'co', offset: 0, limit: 50).first,
+        'vendors': () =>
+            db.vendorDao.watchPage(companyId: 'co', offset: 0, limit: 50).first,
+        'projects': () => db.projectDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'products': () => db.productDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'payments': () => db.paymentDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'expenses': () => db.expenseDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'bank_transactions': () => db.bankTransactionDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'recurring_expenses': () => db.recurringExpenseDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+        'document_records': () => db.documentDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50)
+            .first,
+      };
+      expect(reads.keys, unorderedEquals(kDefaultSortIndexes.keys));
+
+      for (final MapEntry(key: table, value: read) in reads.entries) {
+        final detail = await _planOf(db, recorder, table, read);
+        expect(
+          detail,
+          contains('idx_${table}_company_sort'),
+          reason: '$table page 1 should walk its sort index, got: $detail',
+        );
+        expect(
+          detail,
+          isNot(contains('USE TEMP B-TREE FOR ORDER BY')),
+          reason: '$table page 1 must not sort every row, got: $detail',
+        );
+      }
+      await db.close();
+    });
+
+    test('a list narrowed to one parent finds its rows through an index, not '
+        'a scan of the company', () async {
+      final recorder = _SelectRecorder();
+      final db = AppDatabase(NativeDatabase.memory().interceptWith(recorder));
+      await db.customSelect('SELECT 1').getSingle();
+
+      final reads = <(String, String), Future<Object?> Function()>{
+        ('invoices', 'client_id'): () => db.invoiceDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50, clientId: 'c1')
+            .first,
+        ('payments', 'client_id'): () => db.paymentDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50, clientId: 'c1')
+            .first,
+        ('expenses', 'vendor_id'): () => db.expenseDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50, vendorId: 'v1')
+            .first,
+        ('tasks', 'project_id'): () => db.taskDao
+            .watchPage(companyId: 'co', offset: 0, limit: 50, projectId: 'p1')
+            .first,
+      };
+      for (final MapEntry(key: (table, fk), value: read) in reads.entries) {
+        final detail = await _planOf(db, recorder, table, read);
+        expect(
+          detail,
+          contains('idx_${table}_company_$fk'),
+          reason: '$table narrowed by $fk should use its index, got: $detail',
+        );
+        expect(
+          detail,
+          isNot(contains('USE TEMP B-TREE FOR ORDER BY')),
+          reason:
+              'the index ends in the default sort, so the parent\'s rows come '
+              'out in order, got: $detail',
+        );
+      }
+      await db.close();
+    });
   });
+}
+
+/// The query plan of the first statement [read] sends against [table].
+Future<String> _planOf(
+  AppDatabase db,
+  _SelectRecorder recorder,
+  String table,
+  Future<Object?> Function() read,
+) async {
+  recorder.selects.clear();
+  await read();
+  final (sql, args) = recorder.selects.firstWhere(
+    (s) => s.$1.contains('FROM "$table"'),
+  );
+  final plan = await db
+      .customSelect(
+        'EXPLAIN QUERY PLAN $sql',
+        variables: [for (final a in args) Variable(a)],
+      )
+      .get();
+  return plan.map((r) => r.data['detail'] as String).join(' | ');
 }
 
 /// Every SELECT the database runs, with its arguments.

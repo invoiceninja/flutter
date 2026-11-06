@@ -209,7 +209,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -336,6 +336,13 @@ class AppDatabase extends _$AppDatabase {
     // save used to drop, for the Last Sent Date list column to show and sort
     // by. Backfilled here from the payload: one SQL `json_extract` pass, no
     // Dart work, and the `= ''` guard makes a re-run a no-op.
+    //
+    // v18 → v19: no table or column, like v13 — the bump exists so installed
+    // databases run the index pass at the end of the steps below and gain the
+    // parent-record indexes (`kIndexedForeignKeys`: a record screen's
+    // embedded tabs read every row of the company to find a client's
+    // invoices) and the other lists' default-order indexes
+    // (`kDefaultSortIndexes`).
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -958,8 +965,48 @@ Future<void> createPerformanceIndexes(AppDatabase db) async {
         'ON $t (company_id, is_deleted)',
       );
     }
+    final sortKey = defaultSortKeyOf(t, columns);
+    for (final fk in kIndexedForeignKeys) {
+      if (!columns.contains(fk)) continue;
+      await db.customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_${t}_company_$fk '
+        'ON $t (company_id, $fk${sortKey == null ? '' : ', $sortKey'})',
+      );
+    }
   }
 }
+
+/// The expression [table]'s list is ordered by when the user has not picked a
+/// sort: `LOWER(number)` for the billing documents, [kDefaultSortIndexes]
+/// for the other lists, else `updated_at` (tasks) when the table has one.
+///
+/// The parent-record indexes end in it. Ordered by its default and filtered to
+/// one parent, a list otherwise made SQLite choose between the parent index
+/// (then sort what it found) and the sort index (then read the whole company
+/// to find the parent's rows), and it chose the sort index: a client with
+/// twenty invoices among five thousand read all five thousand. With the sort
+/// key trailing, one index serves both.
+String? defaultSortKeyOf(String table, Set<String> columns) {
+  if (kNumberSortedTables.contains(table)) return 'LOWER(number)';
+  final listed = kDefaultSortIndexes[table];
+  if (listed != null) return listed;
+  return columns.contains('updated_at') ? 'updated_at' : null;
+}
+
+/// The parent-record columns a list is filtered on: a record screen's
+/// embedded tabs (a client's invoices, a project's tasks, a vendor's
+/// expenses), the per-client figures, and a list the user narrowed to one
+/// parent. Without an index each of those read every row the company has to
+/// find the few that belong to the parent. One index per table that carries
+/// the column — `company_id`, the column, then the list's default sort —
+/// discovered like the two above; see [defaultSortKeyOf] for why the sort key
+/// trails.
+const kIndexedForeignKeys = <String>[
+  'client_id',
+  'vendor_id',
+  'project_id',
+  'invoice_id',
+];
 
 /// Targeted indexes for the high-cardinality Client filter columns
 /// (`country_id` / `group_settings_id`) that the generic
@@ -1010,7 +1057,32 @@ Future<void> createListSortIndexes(AppDatabase db) async {
       'ON $t (company_id, LOWER(number))',
     );
   }
+  for (final MapEntry(key: t, value: sortKey) in kDefaultSortIndexes.entries) {
+    await db.customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_${t}_company_sort '
+      'ON $t (company_id, $sortKey)',
+    );
+  }
 }
+
+/// The other lists' default order, as each DAO's `_sortExpression` emits it
+/// for the list view model's `defaultSortField` — the same reason as the
+/// billing documents above: without an index SQLite sorts every row of the
+/// company to return the first fifty. Each expression must match the DAO's
+/// byte for byte (`LOWER("name")` matches `LOWER(name)`, `"name"` does not
+/// match `LOWER(name)`), or the planner silently ignores it; `migration_test`
+/// checks the plan of each list's real first-page query.
+const kDefaultSortIndexes = <String, String>{
+  'clients': 'name',
+  'vendors': 'name',
+  'projects': 'LOWER(name)',
+  'products': 'LOWER(product_key)',
+  'payments': 'date',
+  'expenses': 'date',
+  'bank_transactions': 'date',
+  'recurring_expenses': 'next_send_date',
+  'document_records': 'created_at',
+};
 
 /// Shared denormalized columns every entity table carries: id, company id,
 /// tmp id, timestamps, dirty/deleted flags, and the four optional

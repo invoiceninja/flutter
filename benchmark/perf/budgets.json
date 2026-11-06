@@ -38,6 +38,9 @@
     "invoices.list_first_page": {
       "budgetMs": 3.8
     },
+    "invoices.list_client_tab": {
+      "budgetMs": 1.5
+    },
     "invoices.list_first_page_cold": {
       "budgetMs": 20
     },

@@ -304,6 +304,21 @@ void main() {
     reset: () => invoices.clearPeekCache(),
   );
 
+  // A client's record screen: its Invoices tab is the invoice list narrowed
+  // to one client, on the list's default sort. With no index on `client_id`
+  // this read every invoice of the company to find the client's three.
+  benchmark(
+    'invoices.list_client_tab',
+    title: "Invoices list — one client's invoices among 5,000 (a record tab)",
+    batch: 2,
+    run: () => _query(() async {
+      final rows = await invoices
+          .watchPage(companyId: _co, clientId: 'cl_7')
+          .first;
+      return _expectRows(rows, _invoiceCount ~/ _clientCount + 1);
+    }),
+  );
+
   benchmark(
     'invoices.list_deep_scroll',
     title: 'Invoices list — re-reading 10 loaded pages (500 rows)',

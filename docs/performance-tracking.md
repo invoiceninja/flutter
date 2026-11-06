@@ -43,6 +43,7 @@ Four files, by layer. Every id is `<area>.<what>`; the title is what a person re
 | | `screens.client_record_open` | The client record screen until its standing card draws |
 | Database | `invoices.list_first_page` / `_deep_scroll` / `_search` / `_status_tab` | The invoice list's Drift query over 5,000 rows, its rows already decoded (see the note below): page 1, ten loaded pages, a search, the Overdue tab. Fixture dates are all in the past, so "overdue" is the same rows every run |
 | | `invoices.list_first_page_cold` | Page 1 with nothing decoded yet — the query plus fifty payload decodes (`jsonDecode` → `fromJson` → `fromApi`), what a first look at a page costs |
+| | `invoices.list_client_tab` | A client record's Invoices tab: the list narrowed to one client's three invoices among 5,000, on the default sort — served by `idx_invoices_company_client_id` |
 | | `invoices.page_write` | Storing a page of 50 from the server — DTO to companion to dirty-preserving upsert |
 | | `invoices.save_edit` | An offline save: the row and its outbox entry, in one transaction |
 | | `invoices.badge_counts`, `clients.list_first_page` / `_search` / `_search_folded` | The sidebar counts; the client list over 2,000 rows — page 1, a search, and an unaccented search finding accented names (`garcia` → `García`, docs/local-search-matching.md) |
@@ -317,8 +318,33 @@ be exactly that, every list's real page-1 statement was planned. Eight more sort
 clients and vendors (`name`), products (`LOWER(product_key)`), projects (`LOWER(name)`), payments,
 expenses and bank transactions (`date`), recurring expenses (`next_send_date`). Timed at 5,000
 rows, the four high-volume ones open in 1.4–2.5 ms: their rows are small, where an invoice carries
-its line items. So no index was added for them — a schema change for two milliseconds — and the
-`*.list_first_page` benchmarks are what will say if that changes.
+its line items. So no index was added for them then — a schema change for two milliseconds.
+
+**v19 added them, together with the parent-record indexes, because of the read nothing measured.**
+A record screen's tabs (a client's invoices, a project's tasks, a vendor's expenses) are a list
+narrowed to one parent, and no index covered `client_id` / `vendor_id` / `project_id` /
+`invoice_id`, so each tab read every row of the company to find a handful. A bare `(company_id,
+client_id)` index was not enough: on the invoice list's default order SQLite still chose the
+`LOWER(number)` sort index and filtered the company's rows through it, so each parent index ends
+in its list's default sort (`defaultSortKeyOf`), and one index serves the filter and the order
+(`migration_test` › a list narrowed to one parent). Measured on the reference machine, two passes,
+calibration-normalised, before → after:
+
+| Benchmark | Before | After |
+|---|--:|--:|
+| `invoices.list_client_tab` (new) | ~1.6 ms | ~0.45 ms |
+| `expenses.list_first_page` | 2.0 ms | 0.87 ms |
+| `payments.list_first_page` | 2.4 ms | 1.0 ms |
+| `products.list_first_page` | 1.4 ms | 0.62 ms |
+| `transactions.list_first_page` | 1.3 ms | 0.67 ms |
+| `clients.list_first_page` | 1.3 ms | 0.90 ms |
+| `invoices.page_write` | 5.3 ms | 6.4 ms |
+| `invoices.save_edit` | 1.0 ms | 1.3 ms |
+| `sync.refresh_delta_apply` | 21.6 ms | 25.7 ms |
+
+The writes pay for it: each invoice row now updates three more indexes, and the same change made
+`upsertAllPreservingDirty` read the stored `updated_at` inside a transaction (docs/sync.md § A server
+copy never overwrites a newer queued edit). All within budget; the reads are what a user waits on.
 
 ## First numbers — 15 October 2026
 

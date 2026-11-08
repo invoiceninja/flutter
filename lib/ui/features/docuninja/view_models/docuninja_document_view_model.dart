@@ -92,6 +92,10 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
       return true;
     } on Object catch (e, st) {
       _log.warning('DocuNinja action failed', e, st);
+      // It may have landed all the same (a timed-out send still emails):
+      // re-read, so the page shows what DocuNinja holds and does not offer
+      // the same action again.
+      await load();
       return false;
     } finally {
       _busy = false;

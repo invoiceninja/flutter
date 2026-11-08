@@ -13,6 +13,9 @@ class _Tokens implements DocuNinjaTokenSource {
 
   @override
   Future<String?> refreshToken() async => token;
+
+  @override
+  int get epoch => 0;
 }
 
 /// DocuNinja's own settings, as React's settings pages save them.

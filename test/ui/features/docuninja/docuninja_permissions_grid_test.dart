@@ -45,5 +45,7 @@ void main() {
     expect(permissions, hasLength(2));
     expect(permissions.first.permissionableId, 'd1');
     expect(permissions.last.permissionableId, isNull);
+    expect(permissions.last.model, 'documents');
+    expect(permissions.last.permissionId, 4, reason: 'create');
   });
 }

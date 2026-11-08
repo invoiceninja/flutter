@@ -297,6 +297,13 @@ class _TableRow extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: color ?? tokens.ink),
     );
+    Widget name(String s) => LtrText(
+      s.isEmpty ? '—' : s,
+      keepRtlScript: true,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: tokens.ink),
+    );
     // A date or a count reads left-to-right in every language.
     Widget value(String s, {Color? color}) => LtrText(
       s.isEmpty ? '—' : s,
@@ -312,8 +319,10 @@ class _TableRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              cell(0, text(_contactName(doc))),
-              cell(1, text(_userName(doc))),
+              // A name, or an email when there is none: left-to-right
+              // unless it is Arabic or Hebrew script.
+              cell(0, name(_contactName(doc))),
+              cell(1, name(_userName(doc))),
               cell(
                 2,
                 Text(

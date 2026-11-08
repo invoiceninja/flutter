@@ -154,6 +154,13 @@ class _CreateDialogState extends State<_CreateDialog> {
       Navigator.of(context).pop(doc);
     } on DocuNinjaException catch (e) {
       if (!mounted) return;
+      if (e.statusCode == 408) {
+        // The upload timed out but may have landed: close rather than
+        // invite a second document; the list re-reads.
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _saving = false;
         _nameError = e.fieldErrors['description']?.first;
@@ -194,6 +201,7 @@ class _CreateDialogState extends State<_CreateDialog> {
               children: [
                 TextField(
                   controller: _name,
+                  autofocus: true,
                   enabled: !_saving,
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.done,
@@ -248,6 +256,8 @@ class _CreateDialogState extends State<_CreateDialog> {
           ),
           PrimaryDialogAction(
             label: context.tr('save'),
+            // The name field takes the focus.
+            autofocus: false,
             busy: _saving,
             onPressed: _save,
           ),

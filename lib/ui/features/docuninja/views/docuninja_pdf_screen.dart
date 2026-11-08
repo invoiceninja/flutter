@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/env.dart';
+import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
@@ -35,6 +37,13 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
   Future<({Uint8List bytes, String name})> _load() async {
     final api = context.read<DocuNinjaApi?>();
     if (api == null) throw StateError('No DocuNinja');
+    // Only a completed document has a signed PDF: React sends any other
+    // back to its page (a restored or linked route).
+    final doc = await api.document(widget.id);
+    if (doc.status != DnDocumentStatus.completed) {
+      if (mounted) context.go('/docuninja/${widget.id}');
+      throw StateError('Not completed');
+    }
     final file = await api.download(widget.id);
     final name = sanitizeFileName(
       (file.filename ?? 'document').replaceAll(

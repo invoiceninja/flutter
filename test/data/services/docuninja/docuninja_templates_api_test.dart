@@ -18,6 +18,9 @@ class _Tokens implements DocuNinjaTokenSource {
 
   @override
   Future<String?> refreshToken() async => token;
+
+  @override
+  int get epoch => 0;
 }
 
 /// The template (blueprint) calls, as React's `Blueprints.tsx`, wizard and

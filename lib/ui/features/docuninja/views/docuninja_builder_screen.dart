@@ -256,12 +256,17 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                   label: Text(context.tr(_actionKey)),
                 ),
               ),
-              _ => Stack(
-                children: [
-                  WebViewWidget(controller: web),
-                  if (vm.phase == DnBuilderPhase.loading)
-                    const Center(child: CircularProgressIndicator()),
-                ],
+              // The page's own Send / Save sit at its bottom: clear of the
+              // system navigation bar and a landscape notch.
+              _ => SafeArea(
+                top: false,
+                child: Stack(
+                  children: [
+                    WebViewWidget(controller: web),
+                    if (vm.phase == DnBuilderPhase.loading)
+                      const Center(child: CircularProgressIndicator()),
+                  ],
+                ),
               ),
             },
           ),

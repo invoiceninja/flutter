@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -248,6 +249,15 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
     super.dispose();
   }
 
+  /// The server's per-field messages, by settings key.
+  Map<String, String> _fieldErrors = const {};
+
+  static Map<String, String> _settingsErrors(Map<String, List<String>> e) => {
+    for (final entry in e.entries)
+      if (entry.value.isNotEmpty)
+        entry.key.replaceFirst('settings.', ''): entry.value.first,
+  };
+
   bool _flag(String key) => _settings[key] == true || _settings[key] == 1;
 
   Future<void> _save() async {
@@ -267,22 +277,29 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       return;
     }
     _companySaveLock.value = true;
+    _fieldErrors = const {};
     try {
-      final next = {...widget.company.settings, ..._edits};
-      await widget.api.updateCompanySettings(widget.company, next);
+      // The company as DocuNinja holds it now, not as this session first
+      // read it: another admin may have changed it since, and the save puts
+      // the whole company back (React refetches its login on focus).
+      await widget.session.load(force: true);
+      final company = widget.session.value.company?.id == widget.company.id
+          ? widget.session.value.company!
+          : widget.company;
+      final next = {...company.settings, ..._edits};
+      await widget.api.updateCompanySettings(company, next);
       // Saved: the session holds the company as saved, so the other tabs
-      // build their next save on it (React refetches its login instead).
-      widget.session.replaceCompany(widget.company.withSettings(next));
+      // build their next save on it.
+      widget.session.replaceCompany(company.withSettings(next));
       _edits.clear();
       if (!mounted) return;
       Notify.success(context, context.tr('updated_company'));
     } on DocuNinjaException catch (e) {
+      // A refused field's own message shows beside it; the toast stays
+      // the app's (server text is never toasted raw).
       if (mounted) {
-        final first = e.fieldErrors.values.expand((v) => v).firstOrNull;
-        Notify.error(
-          context,
-          first ?? context.tr('an_error_occurred_try_again'),
-        );
+        setState(() => _fieldErrors = _settingsErrors(e.fieldErrors));
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
       }
     } on Object catch (e, st) {
       _log.warning('Saving DocuNinja company settings failed', e, st);
@@ -322,6 +339,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: context.tr('from_name'),
+                      errorText: _fieldErrors['email_from_name'],
                     ),
                     onSubmitted: (_) => _save(),
                   ),
@@ -333,6 +351,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: context.tr('reply_to_email'),
+                      errorText: _fieldErrors['reply_to_email'],
                     ),
                     onSubmitted: (_) => _save(),
                   ),
@@ -775,17 +794,21 @@ class _ReminderSchedulesTabState extends State<_ReminderSchedulesTab>
               for (final s in schedules)
                 Row(
                   children: [
-                    Switch(
-                      value: s.enabled,
-                      onChanged: _busy
-                          ? null
-                          : (v) => _run(
-                              () => widget.api.setReminderScheduleEnabled(
-                                s.id,
-                                v,
+                    // Named for a screen reader: the switch saves at once.
+                    Semantics(
+                      label: s.name,
+                      child: Switch(
+                        value: s.enabled,
+                        onChanged: _busy
+                            ? null
+                            : (v) => _run(
+                                () => widget.api.setReminderScheduleEnabled(
+                                  s.id,
+                                  v,
+                                ),
+                                'updated_reminder_schedule',
                               ),
-                              'updated_reminder_schedule',
-                            ),
+                      ),
                     ),
                     const SizedBox(width: InSpacing.sm),
                     Expanded(
@@ -949,6 +972,8 @@ class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
               TextField(
                 controller: _days,
                 keyboardType: TextInputType.number,
+                // Whole days only: anything else would save as 0.
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
                   labelText: context.tr('num_days'),

@@ -1,9 +1,11 @@
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
 
-/// DocuNinja's document endpoints (`api.docuninja.co/api/documents…`), as
-/// React calls them (`src/common/queries/docuninja/documents.ts` and the
-/// detail page's actions). Everything is online-only (docs/docuninja.md).
+/// DocuNinja's endpoints (`api.docuninja.co/api/…`: documents, templates,
+/// users, the company's settings, email templates and reminder schedules),
+/// as React calls them. Everything is online-only and none of it goes
+/// through the outbox: DocuNinja's send, sign and void are server-side state
+/// machines a queued replay could not run safely (docs/docuninja.md).
 class DocuNinjaApi {
   const DocuNinjaApi(this._client);
 
@@ -38,7 +40,7 @@ class DocuNinjaApi {
   /// One document with its files' URLs and page previews.
   Future<DnDocument> document(String id) async {
     final json = await _client.getJson(
-      '/api/documents/$id',
+      '/api/documents/${_seg(id)}',
       query: const {
         'includeUrl': 'true',
         'includePreviews': 'true',
@@ -90,7 +92,7 @@ class DocuNinjaApi {
     required String description,
   }) async {
     final json = await _client.putJson(
-      '/api/blueprints/${blueprint.id}',
+      '/api/blueprints/${_seg(blueprint.id)}',
       body: {...blueprint.raw, 'name': name, 'description': description},
     );
     return DnBlueprint.fromJson(_data(json));
@@ -104,7 +106,7 @@ class DocuNinjaApi {
   /// are mapped in the builder. Returns the new document's id.
   Future<String> makeDocument(String blueprintId) async {
     final json = await _client.postJson(
-      '/api/blueprints/$blueprintId/action',
+      '/api/blueprints/${_seg(blueprintId)}/action',
       body: const {'action': 'make_document'},
     );
     return '${_data(json)['id'] ?? ''}';
@@ -113,7 +115,7 @@ class DocuNinjaApi {
   /// React's Clone to Template: a template from a document. Returns its id.
   Future<String> makeBlueprint(String documentId) async {
     final json = await _client.postJson(
-      '/api/documents/$documentId/action',
+      '/api/documents/${_seg(documentId)}/action',
       body: {'action': 'make_blueprint', 'id': documentId},
     );
     return '${_data(json)['id'] ?? ''}';
@@ -143,7 +145,7 @@ class DocuNinjaApi {
   }
 
   Future<DnUser> user(String id) async =>
-      DnUser.fromJson(_data(await _client.getJson('/api/users/$id')));
+      DnUser.fromJson(_data(await _client.getJson('/api/users/${_seg(id)}')));
 
   /// React's user Save: the whole user back with the role, permissions and
   /// notifications (an admin carries no permissions).
@@ -154,7 +156,7 @@ class DocuNinjaApi {
     required List<String> notifications,
   }) async {
     final json = await _client.putJson(
-      '/api/users/${user.id}',
+      '/api/users/${_seg(user.id)}',
       body: {
         ...user.raw,
         'is_admin': isAdmin,
@@ -177,7 +179,7 @@ class DocuNinjaApi {
     DnCompany company,
     Map<String, dynamic> settings,
   ) => _client.putJson(
-    '/api/companies/${company.id}',
+    '/api/companies/${_seg(company.id)}',
     body: {...company.raw, 'settings': settings},
   );
 
@@ -220,14 +222,20 @@ class DocuNinjaApi {
     String? id,
   }) => id == null
       ? _client.postJson('/api/reminder_schedules', body: schedule.toJson())
-      : _client.putJson('/api/reminder_schedules/$id', body: schedule.toJson());
+      : _client.putJson(
+          '/api/reminder_schedules/${_seg(id)}',
+          body: schedule.toJson(),
+        );
 
   /// React's row toggle: only `enabled`.
-  Future<void> setReminderScheduleEnabled(String id, bool enabled) => _client
-      .putJson('/api/reminder_schedules/$id', body: {'enabled': enabled});
+  Future<void> setReminderScheduleEnabled(String id, bool enabled) =>
+      _client.putJson(
+        '/api/reminder_schedules/${_seg(id)}',
+        body: {'enabled': enabled},
+      );
 
   Future<void> deleteReminderSchedule(String id) =>
-      _client.deleteJson('/api/reminder_schedules/$id');
+      _client.deleteJson('/api/reminder_schedules/${_seg(id)}');
 
   /// Creates a document from uploaded files (`POST /api/documents`,
   /// React's `Create.tsx` and drop zone): its fields are placed later, in
@@ -245,7 +253,7 @@ class DocuNinjaApi {
   }
 
   Future<List<DnTimelineEntry>> timeline(String id) async {
-    final json = await _client.postJson('/api/documents/$id/timeline');
+    final json = await _client.postJson('/api/documents/${_seg(id)}/timeline');
     final rows = json is List ? json : (json is Map ? json['data'] : null);
     if (rows is! List) return const [];
     return [
@@ -264,7 +272,7 @@ class DocuNinjaApi {
     String? expiresAt,
   }) async {
     final json = await _client.putJson(
-      '/api/documents/$id',
+      '/api/documents/${_seg(id)}',
       body: {
         'description': description,
         if (setExpiry) 'expires_at': expiresAt,
@@ -282,14 +290,14 @@ class DocuNinjaApi {
 
   /// `void`, `clone` or `make_blueprint`.
   Future<Object?> action(String id, String action) => _client.postJson(
-    '/api/documents/$id/action',
+    '/api/documents/${_seg(id)}/action',
     body: {'action': action, 'id': id},
   );
 
   /// Emails the invitations: all of them, or one to resend.
   Future<void> send(String id, List<DnInvitation> invitations) =>
       _client.postJson(
-        '/api/documents/$id/send',
+        '/api/documents/${_seg(id)}/send',
         body: {
           'invitations': [for (final i in invitations) i.raw],
         },
@@ -297,11 +305,15 @@ class DocuNinjaApi {
 
   /// The signed PDF (Completed documents only).
   Future<DnFileBytes> download(String id) =>
-      _client.postForFile('/api/documents/$id/download');
+      _client.postForFile('/api/documents/${_seg(id)}/download');
 
   /// The audit log PDF (Completed documents only).
   Future<DnFileBytes> auditLog(String id) =>
-      _client.postForFile('/api/documents/$id/audit_log');
+      _client.postForFile('/api/documents/${_seg(id)}/audit_log');
+
+  /// One path segment: an id from a route (a web URL, decoded) can carry
+  /// `/`, `?` or `..`, which must never reach another endpoint.
+  static String _seg(String id) => Uri.encodeComponent(id);
 
   static Map<String, dynamic> _asMap(Object? json) =>
       json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{};

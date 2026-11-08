@@ -28,6 +28,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_document_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
@@ -42,8 +43,8 @@ import 'package:admin/utils/formatting.dart';
 /// lays it out: the title with its status, the signers beside the timeline,
 /// and the actions in React's order (docs/docuninja.md).
 ///
-/// Edit (the field builder) and Make template arrive with the builder and the
-/// templates; until then they are not offered.
+/// Edit opens the field builder (embedded where it can be, else in the
+/// browser), and Clone to Template the template builder.
 class DocuNinjaDocumentScreen extends StatefulWidget {
   const DocuNinjaDocumentScreen({super.key, required this.id});
 
@@ -218,6 +219,12 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       formatter: _formatter,
       busy: vm.isBusy,
       onResend: (i) => _resend(context, vm, i),
+      onAddSignatories:
+          doc.isDeleted ||
+              dnIsCompleted(doc) ||
+              doc.status == DnDocumentStatus.voided
+          ? null
+          : () => _onAction(context, vm, doc, _Action.edit),
     );
     final timeline = _Timeline(entries: vm.timeline, formatter: _formatter);
     return AppSelectionArea(
@@ -489,6 +496,9 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         final id = await vm.clone();
         if (!context.mounted) return;
         if (id == null) {
+          // A copy may exist all the same (a timed-out clone): the list
+          // re-reads.
+          _changed();
           Notify.error(context, context.tr('an_error_occurred_try_again'));
         } else {
           _changed();
@@ -505,6 +515,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         final templateId = await vm.makeTemplate();
         if (!context.mounted) return;
         if (templateId == null || companyId == null) {
+          _changed();
           Notify.error(context, context.tr('an_error_occurred_try_again'));
           return;
         }
@@ -634,9 +645,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     DocuNinjaDocumentViewModel vm,
     DnInvitation invitation,
   ) async {
+    // React's per-signer Send Email confirms naming that one recipient.
     final confirmed = await showConfirmActionDialog(
       context,
-      title: context.tr('resend'),
+      title: context.tr('send_confirmation'),
       subject: invitation.signerName.isNotEmpty
           ? invitation.signerName
           : invitation.signerEmail,
@@ -669,14 +681,15 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
 String _title(BuildContext context, DnDocument doc) =>
     doc.description.isEmpty ? context.tr('untitled_document') : doc.description;
 
-/// React's `Invitations.tsx`: each signer, in signing order, with where they
-/// are and a resend.
+/// React's `Invitations.tsx`: each signer, in the order DocuNinja lists
+/// them, with a status, where they are, React's Copy Link and Send Email.
 class _Invitations extends StatelessWidget {
   const _Invitations({
     required this.document,
     required this.formatter,
     required this.busy,
     required this.onResend,
+    this.onAddSignatories,
   });
 
   final DnDocument document;
@@ -684,11 +697,15 @@ class _Invitations extends StatelessWidget {
   final bool busy;
   final ValueChanged<DnInvitation> onResend;
 
+  /// React's empty box is a way into the builder; null where the builder
+  /// cannot open (a completed, voided or deleted document).
+  final VoidCallback? onAddSignatories;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
-    final rows = document.invitationsInOrder;
+    final rows = document.invitations;
     final showResend = dnShowsResend(document);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -702,7 +719,16 @@ class _Invitations extends StatelessWidget {
           ),
         ),
         const SizedBox(height: InSpacing.sm),
-        if (rows.isEmpty)
+        if (rows.isEmpty && onAddSignatories != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: onAddSignatories,
+              icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+              label: Text(context.tr('add_signatories')),
+            ),
+          )
+        else if (rows.isEmpty)
           Text(
             context.tr('add_signatories'),
             style: TextStyle(color: tokens.ink3),
@@ -719,9 +745,21 @@ class _Invitations extends StatelessWidget {
                       children: [
                         // React's "Client contact:" / "User:" over each
                         // signer: who on whose side is asked to sign.
-                        Text(
-                          '${context.tr(i.clientContactId.isNotEmpty ? 'client_contact' : 'user')}:',
-                          style: TextStyle(color: tokens.ink3, fontSize: 12),
+                        Wrap(
+                          spacing: InSpacing.sm,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              '${context.tr(i.clientContactId.isNotEmpty ? 'client_contact' : 'user')}:',
+                              style: TextStyle(
+                                color: tokens.ink3,
+                                fontSize: 12,
+                              ),
+                            ),
+                            // React's per-signer badge.
+                            _SignerPill(invitation: i),
+                          ],
                         ),
                         LtrText(
                           i.signerName.isNotEmpty
@@ -745,24 +783,31 @@ class _Invitations extends StatelessWidget {
                     ),
                   ),
                   // React's per-signer Copy Link: the web app's sign page for
-                  // this signer, which opens behind its sign-in.
-                  IconButton(
-                    icon: const Icon(Icons.link),
-                    tooltip: context.tr(
-                      Env.isTouchPrimary ? 'share_link' : 'copy_link',
+                  // this signer (behind its sign-in), for a signer linked to
+                  // a contact or user, until the document is finished.
+                  if (showResend &&
+                      (i.clientContactId.isNotEmpty || i.userId.isNotEmpty))
+                    Builder(
+                      // Its own context: the iPad share popover anchors to
+                      // this button.
+                      builder: (buttonContext) => IconButton(
+                        icon: const Icon(Icons.link),
+                        tooltip: context.tr(
+                          Env.isTouchPrimary ? 'share_link' : 'copy_link',
+                        ),
+                        onPressed: () => shareOrCopyLink(
+                          buttonContext,
+                          dnWebAppSignLink(
+                            documentId: document.id,
+                            invitationId: i.id,
+                          ).toString(),
+                        ),
+                      ),
                     ),
-                    onPressed: () => shareOrCopyLink(
-                      context,
-                      dnWebAppSignLink(
-                        documentId: document.id,
-                        invitationId: i.id,
-                      ).toString(),
-                    ),
-                  ),
                   if (showResend)
                     IconButton(
                       icon: const Icon(Icons.forward_to_inbox_outlined),
-                      tooltip: context.tr('resend'),
+                      tooltip: context.tr('send_email'),
                       onPressed: !busy && dnCanResend(document, i)
                           ? () => onResend(i)
                           : null,
@@ -771,6 +816,34 @@ class _Invitations extends StatelessWidget {
               ),
             ),
       ],
+    );
+  }
+}
+
+/// React's badge for one signer: signed, viewed, sent or pending.
+class _SignerPill extends StatelessWidget {
+  const _SignerPill({required this.invitation});
+
+  final DnInvitation invitation;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final (String key, Color fg, Color bg) = switch (invitation.state) {
+      DnInvitationState.signed => ('signed', tokens.paid, tokens.paidSoft),
+      DnInvitationState.viewed => (
+        'viewed',
+        tokens.partial,
+        tokens.partialSoft,
+      ),
+      DnInvitationState.sent => ('sent', tokens.sent, tokens.sentSoft),
+      DnInvitationState.pending => ('pending', tokens.ink3, tokens.draftSoft),
+    };
+    return StatusPill(
+      label: context.tr(key),
+      fgColor: fg,
+      bgColor: bg,
+      textStyle: TextStyle(fontSize: 12, color: tokens.ink),
     );
   }
 }
@@ -841,6 +914,10 @@ class _Timeline extends StatelessWidget {
                   e.completed
                       ? Icons.check_circle
                       : Icons.radio_button_unchecked,
+                  // The step's state, which the icon alone shows.
+                  semanticLabel: context.tr(
+                    e.completed ? 'completed' : 'pending',
+                  ),
                   size: 18,
                   color: e.completed ? tokens.paid : tokens.ink3,
                 ),
@@ -963,35 +1040,38 @@ class _OptionsDialogState extends State<_OptionsDialog> {
         // Scrolls in a short landscape window with the keyboard up.
         scrollable: true,
         title: Text(context.tr('options')),
-        content: FormSaveScope(
-          onSubmit: _save,
-          enabled: !_saving,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _description,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: context.tr('description'),
-                  errorText: _descriptionError,
+        content: SizedBox(
+          width: 480,
+          child: FormSaveScope(
+            onSubmit: _save,
+            enabled: !_saving,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _description,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: context.tr('description'),
+                    errorText: _descriptionError,
+                  ),
+                  onSubmitted: (_) => _save(),
                 ),
-                onSubmitted: (_) => _save(),
-              ),
-              if (canExpire) ...[
-                const SizedBox(height: InSpacing.sm),
-                InDateField(
-                  value: _expires,
-                  formatter: widget.formatter,
-                  labelText: context.tr('expiry_date'),
-                  clearable: true,
-                  errorText: _expiryError,
-                  onChanged: (d) => setState(() => _expires = d),
-                ),
+                if (canExpire) ...[
+                  const SizedBox(height: InSpacing.sm),
+                  InDateField(
+                    value: _expires,
+                    formatter: widget.formatter,
+                    labelText: context.tr('expiry_date'),
+                    clearable: true,
+                    errorText: _expiryError,
+                    onChanged: (d) => setState(() => _expires = d),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         actions: [

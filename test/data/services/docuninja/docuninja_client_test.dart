@@ -21,6 +21,9 @@ class _Tokens implements DocuNinjaTokenSource {
     token = next;
     return next;
   }
+
+  @override
+  int epoch = 0;
 }
 
 /// DocuNinja has its own host and token. A 401 re-runs the handshake once,
@@ -182,5 +185,45 @@ void main() {
       expect(body, contains('filename="a.pdf|secret"'));
       expect(body, contains('%PDF-1.7'));
     }
+  });
+
+  test('a 401 is not retried once the company has changed', () async {
+    final tokens = _Tokens('a-token', next: 'b-token');
+    final sent = <String?>[];
+    final client = DocuNinjaClient(
+      tokens: tokens,
+      httpClient: MockClient((r) async {
+        sent.add(r.headers['Authorization']);
+        // The company switches while the first attempt is out.
+        tokens.epoch++;
+        return http.Response('{"message":"Unauthenticated."}', 401);
+      }),
+    );
+    await expectLater(
+      client.postJson('/api/blueprints', body: {'name': 'x'}),
+      throwsA(isA<DocuNinjaException>()),
+    );
+    expect(sent, ['Bearer a-token'], reason: 'never resent with B\'s token');
+  });
+
+  test('a write that times out is an error; a read is offline', () async {
+    final client = DocuNinjaClient(
+      tokens: _Tokens('t'),
+      timeout: const Duration(milliseconds: 10),
+      httpClient: MockClient((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        return http.Response('{}', 200);
+      }),
+    );
+    await expectLater(
+      client.postJson('/api/documents/d/send'),
+      throwsA(
+        isA<DocuNinjaException>().having((e) => e.statusCode, 'status', 408),
+      ),
+    );
+    await expectLater(
+      client.getJson('/api/documents'),
+      throwsA(isA<NetworkException>()),
+    );
   });
 }

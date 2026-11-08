@@ -273,7 +273,7 @@ class _UsersListState extends State<_UsersList> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
                 onPressed: (seats != null && seats.full) || _busy
                     ? null
                     : () async {
@@ -422,8 +422,9 @@ class _UsersListState extends State<_UsersList> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                LtrText(
                                   u.name.isEmpty ? u.email : u.name,
+                                  keepRtlScript: true,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -534,6 +535,73 @@ class _UserEditorState extends State<_UserEditor> {
     }
   }
 
+  List<EntityActionItem<_UserAction>> _lifecycleItems(DnUser u) {
+    final subject = u.name.isEmpty ? u.email : u.name;
+    EntityActionItem<_UserAction> item(
+      _UserAction kind,
+      IconData icon,
+      String key,
+      String action,
+      String toast, {
+      bool destructive = false,
+    }) => EntityActionItem<_UserAction>(
+      kind: kind,
+      icon: icon,
+      label: context.tr(key),
+      enabled: !_saving,
+      confirm: true,
+      isDestructive: destructive,
+      isLifecycle: true,
+      confirmSubject: subject,
+      onTap: () => _lifecycle(action, toast),
+    );
+    return [
+      if (u.isActive)
+        item(
+          _UserAction.archive,
+          Icons.archive_outlined,
+          'archive',
+          'archive',
+          'archived_user',
+        ),
+      if (!u.isActive)
+        item(
+          _UserAction.restore,
+          Icons.restore_outlined,
+          'restore',
+          'restore',
+          'restored_user',
+        ),
+      if (!u.isDeleted)
+        item(
+          _UserAction.delete,
+          Icons.delete_outline,
+          'delete',
+          'delete',
+          'deleted_user',
+          destructive: true,
+        ),
+    ];
+  }
+
+  Future<void> _lifecycle(String action, String toast) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _api.userBulk(action, [widget.id]);
+      if (!mounted) return;
+      Notify.success(context, context.tr(toast));
+      await _load();
+    } on Object catch (e, st) {
+      _log.warning('DocuNinja user $action failed', e, st);
+      if (mounted) {
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     final u = _user;
     if (u == null || _saving) return;
@@ -583,14 +651,17 @@ class _UserEditorState extends State<_UserEditor> {
                 FormSection(
                   title: context.tr('user_details'),
                   children: [
-                    _ReadOnly(
-                      label: context.tr('first_name'),
-                      value: u.firstName,
-                    ),
-                    _ReadOnly(
-                      label: context.tr('last_name'),
-                      value: u.lastName,
-                    ),
+                    // Blank rows are left out, as detail screens do.
+                    if (u.firstName.isNotEmpty)
+                      _ReadOnly(
+                        label: context.tr('first_name'),
+                        value: u.firstName,
+                      ),
+                    if (u.lastName.isNotEmpty)
+                      _ReadOnly(
+                        label: context.tr('last_name'),
+                        value: u.lastName,
+                      ),
                     _ReadOnly(
                       label: context.tr('email'),
                       value: u.email,
@@ -656,23 +727,30 @@ class _UserEditorState extends State<_UserEditor> {
                 ),
                 Padding(
                   padding: EdgeInsets.only(top: InSpacing.lg(context)),
-                  child: Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(64, 44),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // React's edit page actions: archive, restore, delete.
+                      EntityActionsPopupButton<_UserAction>(
+                        items: _lifecycleItems(u),
                       ),
-                      onPressed: _saving ? null : _save,
-                      child: _saving
-                          ? SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: tokens.ink3,
-                              ),
-                            )
-                          : Text(context.tr('save')),
-                    ),
+                      SizedBox(width: InSpacing.md(context)),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(64, 44),
+                        ),
+                        onPressed: _saving ? null : _save,
+                        child: _saving
+                            ? SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: tokens.ink3,
+                                ),
+                              )
+                            : Text(context.tr('save')),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -792,6 +870,9 @@ class _NotifyDropdown extends StatelessWidget {
   }
 }
 
+String _columnKey(DnAction a) =>
+    kDnPermissionColumns.firstWhere((c) => c.$1 == a).$2;
+
 /// React's permissions grid (`components/Permissions.tsx`): Administrator,
 /// then create / view / edit / delete (and requires approval for
 /// documents) per model, with an All row. An administrator needs no
@@ -863,6 +944,8 @@ class DnPermissionsGrid extends StatelessWidget {
                         ? cell(const Text('—'))
                         : cell(
                             Checkbox(
+                              semanticLabel:
+                                  '${context.tr('all')} ${context.tr(_columnKey(a))}',
                               value: !isAdmin && allOn(a),
                               onChanged: boxes
                                   ? (v) => onChanged(
@@ -882,6 +965,8 @@ class DnPermissionsGrid extends StatelessWidget {
                       dnPermissionApplies(model, a)
                           ? cell(
                               Checkbox(
+                                semanticLabel:
+                                    '${context.tr(labelKey)} ${context.tr(_columnKey(a))}',
                                 value:
                                     !isAdmin &&
                                     dnHasPermission(permissions, model, a),
@@ -1007,6 +1092,9 @@ class _GrantAccessState extends State<_GrantAccess> {
     // grants anyone twice.
     final failed = <String>{};
     for (final u in available) {
+      // Gone (a company switch strips the route): the rest would go out
+      // with the next company's token.
+      if (!mounted) return;
       if (!_selected.contains(u.id)) continue;
       try {
         await loginApi.createUser(
@@ -1056,23 +1144,70 @@ class _GrantAccessState extends State<_GrantAccess> {
     final tokens = context.inTheme;
     final seats = _seats0!;
     final Widget users;
+    // React's two dead ends each say the way on: upgrade for more seats, or
+    // add an Invoice Ninja user to give one to.
+    Widget upgrade() => Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton(
+        onPressed: () => context.go('/settings/account_management'),
+        child: Text(context.tr('upgrade')),
+      ),
+    );
     if (available.isEmpty) {
-      users = Text(
-        context.tr(
-          seats.full
-              ? 'max_users_reached'
-              : 'docuninja_quota_available_but_no_users',
-        ),
-        style: TextStyle(color: tokens.ink2),
+      users = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr(
+              seats.full
+                  ? 'max_users_reached'
+                  : 'docuninja_quota_available_but_no_users',
+            ),
+            style: TextStyle(color: tokens.ink2),
+          ),
+          if (seats.full)
+            upgrade()
+          else
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: () => context.go('/settings/users'),
+                child: Text(context.tr('add_user')),
+              ),
+            ),
+        ],
       );
     } else if (seats.full) {
-      users = Text(
-        context.tr('user_limit_reached'),
-        style: TextStyle(color: tokens.ink2),
+      users = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('user_limit_reached'),
+            style: TextStyle(color: tokens.ink2),
+          ),
+          upgrade(),
+        ],
       );
     } else {
+      final pickable = available.take(_left).map((u) => u.id).toSet();
+      final allPicked =
+          pickable.isNotEmpty && pickable.every(_selected.contains);
       users = Column(
         children: [
+          // React's select-all row (within the seats left).
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: allPicked,
+            title: Text(context.tr('all')),
+            onChanged: _saving
+                ? null
+                : (v) => setState(() {
+                    _selected.clear();
+                    if (v == true) _selected.addAll(pickable);
+                  }),
+          ),
+          const Divider(height: 1),
           for (final u in available)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,

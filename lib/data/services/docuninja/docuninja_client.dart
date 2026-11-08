@@ -27,6 +27,10 @@ abstract interface class DocuNinjaTokenSource {
 
   /// Re-runs the login handshake and returns the new token, or null.
   Future<String?> refreshToken();
+
+  /// Changes whenever the session resets (company switch, sign-out): a
+  /// request that started under one epoch is never retried under another.
+  int get epoch;
 }
 
 /// A DocuNinja request the service refused. [statusCode] is the HTTP status;
@@ -170,10 +174,13 @@ class DocuNinjaClient {
     // No token yet (a screen opened before the handshake answered, or after
     // a company switch): run the handshake before the first attempt.
     final token = _tokens.token ?? await _tokens.refreshToken();
+    // The company this request is for: its retry must not go out with the
+    // next company's token (a create would land in the wrong company).
+    final epoch = _tokens.epoch;
     var response = await _attempt(build, token, timeout ?? _timeout);
-    if (response.statusCode == 401) {
+    if (response.statusCode == 401 && _tokens.epoch == epoch) {
       final fresh = await _tokens.refreshToken();
-      if (fresh != null) {
+      if (fresh != null && _tokens.epoch == epoch) {
         response = await _attempt(build, fresh, timeout ?? _timeout);
       }
     }

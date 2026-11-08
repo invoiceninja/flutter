@@ -137,6 +137,20 @@ void main() {
       );
       expect(dnOwnInvitation(doc(status: 6), 'me'), isNull);
       expect(dnOwnInvitation(doc(status: 8), 'me'), isNull);
+      expect(
+        dnOwnInvitation(
+          DnDocument.fromJson({
+            'id': 'd',
+            'status_id': 5,
+            'is_deleted': true,
+            'invitations': [
+              {'id': 'u1', 'user_id': 'me'},
+            ],
+          }),
+          'me',
+        ),
+        isNull,
+      );
     });
   });
 }

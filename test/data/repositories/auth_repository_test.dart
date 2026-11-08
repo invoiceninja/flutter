@@ -783,8 +783,8 @@ void main() {
 
     test('threads account.docuninja_num_users to AuthSession and survives '
         'restore via the features_json blob', () async {
-      // DocuNinja's Join reads it to tell "not joined" from "joined, no seat
-      // for you" (docs/docuninja.md), on a cold start before any refresh.
+      // DocuNinja's seats bought (docs/docuninja.md), kept for the plan
+      // screen; it must survive a cold start before any refresh.
       authService.queueLogin(_envelope(docuninjaNumUsers: 2));
       await repo.login(
         baseUrl: 'https://test',

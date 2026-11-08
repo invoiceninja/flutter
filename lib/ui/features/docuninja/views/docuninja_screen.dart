@@ -409,12 +409,14 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           () => _openBuilder(doc),
           enabled: !completed && doc.status != DnDocumentStatus.voided,
         ),
-      item(
-        _RowAction.open,
-        Icons.timeline,
-        'timeline',
-        () async => context.go('/docuninja/${doc.id}'),
-      ),
+      // React hides Timeline on a deleted document.
+      if (!doc.isDeleted)
+        item(
+          _RowAction.open,
+          Icons.timeline,
+          'timeline',
+          () async => context.go('/docuninja/${doc.id}'),
+        ),
       if (completed && !doc.isDeleted && doc.files.isNotEmpty)
         item(
           _RowAction.viewPdf,
@@ -476,7 +478,10 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           'void',
           () => _rowRun(vm, () async {
             await context.read<DocuNinjaApi>().action(doc.id, 'void');
-            if (mounted) Notify.success(context, context.tr('voided_document'));
+            if (!mounted) return;
+            Notify.success(context, context.tr('voided_document'));
+            // React goes to the voided document.
+            context.go('/docuninja/${doc.id}');
           }),
           confirm: true,
           destructive: true,
@@ -486,7 +491,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           _RowAction.archive,
           Icons.archive_outlined,
           'archive',
-          () => _rowBulk(vm, doc, 'archive', 'document_archived'),
+          () => _rowBulk(vm, doc, 'archive', 'archived_document'),
           confirm: true,
           confirmMessageKey: 'archive_document_description',
           lifecycle: true,
@@ -496,7 +501,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           _RowAction.restore,
           Icons.restore_outlined,
           'restore',
-          () => _rowBulk(vm, doc, 'restore', 'document_restored'),
+          () => _rowBulk(vm, doc, 'restore', 'restored_document'),
           lifecycle: true,
         ),
       if (!doc.isDeleted)

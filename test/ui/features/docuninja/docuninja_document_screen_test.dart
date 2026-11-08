@@ -229,6 +229,7 @@ void main() {
     testWidgets('nor on one without files', (tester) async {
       await pump(tester, _doc(status: 6, files: false));
       await openMenu(tester);
+      expect(find.text('Download'), findsOneWidget, reason: 'menu is open');
       expect(find.text('View PDF'), findsNothing);
       await dispose(tester);
     });

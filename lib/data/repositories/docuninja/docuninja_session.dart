@@ -87,6 +87,9 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
   @override
   String? get token => value.company?.token;
 
+  @override
+  int get epoch => _generation;
+
   /// Runs the handshake unless it already answered for this session;
   /// [force] runs it again (Reconnect, a 401). Concurrent calls share one
   /// request.

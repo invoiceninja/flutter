@@ -38,8 +38,8 @@ bool docuNinjaPlanActive(AuthSession? session) =>
 ///
 /// A tap opens the document's PDF, which for a signed document is the signed
 /// copy: the stored-PDF route serves it in place of a fresh render. React's
-/// badge opens the DocuNinja document instead; the app gains that link with
-/// its DocuNinja screens.
+/// badge opens the DocuNinja document instead; the app keeps the PDF, which
+/// needs no DocuNinja seat (docs/docuninja.md).
 class SignedDocumentPill extends StatelessWidget {
   const SignedDocumentPill({super.key, this.onTap});
 

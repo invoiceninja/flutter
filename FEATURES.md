@@ -704,9 +704,9 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | DocuNinja — document list | ✅ | ❌ | 🟡 |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging, and each row's actions; no bulk selection yet |
 | DocuNinja — create document | ✅ | ❌ | 🟡 |  | Upload (name, files, password-protected PDFs) is native; the fields are placed in the builder, which opens in the browser for now |
 | DocuNinja — create blueprint / template | ✅ | ❌ | 🟡 |  | Templates list, Invoice Ninja design or your own, Options, Use Template, Clone to Template; fields are placed in the builder (browser for now) |
-| DocuNinja — drag-and-drop document builder | ✅ | ❌ | 🟡 |  | Opens React's builder in the browser, on the document's company; the in-app builder is next |
+| DocuNinja — drag-and-drop document builder | ✅ | ❌ | 🟡 |  | Opens React's builder in the browser, on the document's company; the in-app builder is built but off until React's embed mode is live |
 | DocuNinja — signature field mapping | ✅ | ❌ | 🟡 |  | Use Template opens the builder, which maps the template's signers itself |
-| DocuNinja — sign document | ✅ | ❌ | 🟡 |  | Your own invitation opens React's sign page (in the app or the browser); a native signer is not built |
+| DocuNinja — sign document | ✅ | ❌ | 🟡 |  | Your own invitation opens React's sign page in the browser (in the app once the embed is on); a native signer is not built |
 | DocuNinja — PDF preview / render | ✅ | ❌ | ✅ |  | The signed PDF of a completed document; the audit log downloads |
 | DocuNinja — user management for docs | ✅ | ❌ | 🟡 |  | Owner: users list, seat limit, grant access, role, permissions and notifications; signature and initials are shown, not yet edited |
 | DocuNinja — document email templates | ✅ | ❌ | ✅ |  | DocuNinja settings (admin): email settings, email templates, notifications, widget defaults, reminder schedules |

@@ -65,3 +65,26 @@ Future<bool> openDocuNinjaBuilder(
     ).toString(),
   );
 }
+
+/// Opens React's sign page for the user's own invitation: embedded where
+/// the builder is, else in the browser (`dnWebAppSignUri`).
+Future<bool> openDocuNinjaSign(
+  BuildContext context, {
+  required String documentId,
+  required String invitationId,
+  required String companyId,
+  bool embedded = true,
+}) async {
+  if (embedded && kDnEmbeddedBuilder && dnEmbedSupported) {
+    context.go('/docuninja/$documentId/sign/$invitationId');
+    return true;
+  }
+  return openExternalUrl(
+    context,
+    dnWebAppSignUri(
+      documentId: documentId,
+      invitationId: invitationId,
+      companyId: companyId,
+    ).toString(),
+  );
+}

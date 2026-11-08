@@ -91,6 +91,28 @@ Uri dnWebAppBuilderUri({
   return Uri.parse('$kDnHostedWebAppUrl/#/$path?$query');
 }
 
+/// React's own sign page for the signed-in user's invitation
+/// (`/docuninja/sign/<document>/<invitation>`), as its builder's Sign
+/// opens it: `sig` is the invitation id. `company` is the Invoice Ninja
+/// company, which pins the tab (the sign page itself reads neither).
+Uri dnWebAppSignUri({
+  required String documentId,
+  required String invitationId,
+  required String companyId,
+  bool embed = false,
+}) {
+  final query = [
+    'sig=${Uri.encodeQueryComponent(invitationId)}',
+    'company=${Uri.encodeQueryComponent(companyId)}',
+    if (embed) 'embed=1',
+  ].join('&');
+  return Uri.parse(
+    '$kDnHostedWebAppUrl/#/docuninja/sign/'
+    '${Uri.encodeComponent(documentId)}/${Uri.encodeComponent(invitationId)}'
+    '?$query',
+  );
+}
+
 /// React's builder for [documentId] in the browser ([dnWebAppBuilderUri]).
 Uri dnBuilderWebUri({
   required String documentId,

@@ -1025,6 +1025,23 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                       ),
                     ),
                   ),
+                  // The user's own invitation, on React's sign page.
+                  GoRoute(
+                    path: 'sign/:invitationId',
+                    redirect: (context, state) =>
+                        kDnEmbeddedBuilder && dnEmbedSupported
+                        ? null
+                        : '/docuninja/${state.pathParameters['id']}',
+                    builder: (context, state) => KeyedSubtree(
+                      key: ValueKey(
+                        'docuninja-sign:${state.pathParameters['invitationId']}',
+                      ),
+                      child: DocuNinjaBuilderScreen(
+                        id: state.pathParameters['id']!,
+                        signInvitationId: state.pathParameters['invitationId'],
+                      ),
+                    ),
+                  ),
                   GoRoute(
                     path: 'pdf',
                     builder: (context, state) => KeyedSubtree(

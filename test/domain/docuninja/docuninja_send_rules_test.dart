@@ -103,4 +103,40 @@ void main() {
       expect(enabled, ['b']);
     });
   });
+
+  group('own invitation', () {
+    DnDocument doc({int status = 5, List<Map<String, dynamic>>? invitations}) =>
+        DnDocument.fromJson({
+          'id': 'd',
+          'status_id': status,
+          'invitations':
+              invitations ??
+              [
+                {'id': 'c1', 'client_contact_id': 'cc', 'user_id': 'me'},
+                {'id': 'u1', 'user_id': 'me'},
+              ],
+        });
+
+    test('is the user\'s, never a client contact\'s', () {
+      expect(dnOwnInvitation(doc(), 'me')?.id, 'u1');
+      expect(dnOwnInvitation(doc(), 'someone'), isNull);
+      expect(dnOwnInvitation(doc(), ''), isNull);
+    });
+
+    test('is gone once signed, completed, voided or deleted', () {
+      expect(
+        dnOwnInvitation(
+          doc(
+            invitations: [
+              {'id': 'u1', 'user_id': 'me', 'signed_date': '2026-11-01'},
+            ],
+          ),
+          'me',
+        ),
+        isNull,
+      );
+      expect(dnOwnInvitation(doc(status: 6), 'me'), isNull);
+      expect(dnOwnInvitation(doc(status: 8), 'me'), isNull);
+    });
+  });
 }

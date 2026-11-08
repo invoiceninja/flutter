@@ -156,3 +156,10 @@ DocuNinja's users at `/docuninja/users` (`DocuNinjaUsersScreen`, the DocuNinja s
 - **Signature and initials** are shown when the user has them, not edited: React's pad, upload and generated script font are not built yet.
 - **Granting access** (`UserSelection.tsx`, `/docuninja/users/access`): the company's Invoice Ninja users from the roster the app already holds (`watchAllForPicker`, so no fetch) who are active, not the owner, and have no DocuNinja user of the same email; picked within the seats left, with one role and set of permissions for all of them; one `POST /api/docuninja/create_user` per user on the Invoice Ninja server (`DocuNinjaLoginApi.createUser`), which like the handshake never ends the session on a 401. React lists the whole account's users; the app lists this company's.
 
+## Signing your own invitation
+
+React lets the signed-in user sign a document they are a signer of from its builder's Sign button; the app offers the same as Sign on the document page (`_Action.sign`), for the user's own invitation (`dnOwnInvitation`: theirs by the login's DocuNinja user id, not a client contact's, not yet signed, the document neither completed, voided nor deleted).
+
+- **It opens React's own sign page**, `/#/docuninja/sign/<document>/<invitation>?sig=<invitation>&company=<company>` (`dnWebAppSignUri`): embedded at `/docuninja/:id/sign/:invitationId` where the builder is (`DocuNinjaBuilderScreen(signInvitationId:)`, the same handshake and allow-list), else in the browser, where the web app needs its own sign-in.
+- **Unverified.** React's builder sends the invitation id as `sig`, and its sign page passes no `sig` at all; whether DocuNinja answers that with the `x-signer-token` the submit needs could not be checked (the server is not open source). The native signer the plan describes waits on that answer.
+

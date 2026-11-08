@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
+import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
@@ -38,6 +39,7 @@ class DocuNinjaBuilderScreen extends StatefulWidget {
     required this.id,
     this.template = false,
     this.fromTemplate = false,
+    this.signInvitationId,
   });
 
   final String id;
@@ -48,6 +50,10 @@ class DocuNinjaBuilderScreen extends StatefulWidget {
   /// A document just made from a template: React starts its template tour
   /// and maps the template's signers.
   final bool fromTemplate;
+
+  /// The user's own invitation to sign, on React's sign page, instead of a
+  /// builder.
+  final String? signInvitationId;
 
   /// Where the screen leaves to: the document, or the templates.
   String get exitRoute => template ? '/docuninja/templates' : '/docuninja/$id';
@@ -115,13 +121,21 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     // earlier visit (React keeps the DocuNinja token in localStorage).
     web.clearLocalStorage().whenComplete(() {
       if (!mounted) return;
+      final sign = widget.signInvitationId;
       web.loadRequest(
-        dnEmbedBuilderUri(
-          documentId: widget.id,
-          companyId: companyId,
-          template: widget.template,
-          fromTemplate: widget.fromTemplate,
-        ),
+        sign != null
+            ? dnWebAppSignUri(
+                documentId: widget.id,
+                invitationId: sign,
+                companyId: companyId,
+                embed: true,
+              )
+            : dnEmbedBuilderUri(
+                documentId: widget.id,
+                companyId: companyId,
+                template: widget.template,
+                fromTemplate: widget.fromTemplate,
+              ),
       );
     });
   }
@@ -133,9 +147,26 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     super.dispose();
   }
 
+  String get _titleKey => widget.signInvitationId != null
+      ? 'sign'
+      : widget.template
+      ? 'edit_template'
+      : 'edit_document';
+
   Future<void> _openInBrowser() async {
     final companyId = _companyId;
     if (companyId == null) return;
+    final sign = widget.signInvitationId;
+    if (sign != null) {
+      await openDocuNinjaSign(
+        context,
+        documentId: widget.id,
+        invitationId: sign,
+        companyId: companyId,
+        embedded: false,
+      );
+      return;
+    }
     await openDocuNinjaBuilder(
       context,
       documentId: widget.id,
@@ -167,9 +198,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
           },
           child: Scaffold(
             appBar: AppBar(
-              title: Text(
-                context.tr(widget.template ? 'edit_template' : 'edit_document'),
-              ),
+              title: Text(context.tr(_titleKey)),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.open_in_new),
@@ -181,9 +210,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             body: switch (vm.phase) {
               DnBuilderPhase.unavailable => EmptyState(
                 icon: Icons.open_in_new,
-                title: context.tr(
-                  widget.template ? 'edit_template' : 'edit_document',
-                ),
+                title: context.tr(_titleKey),
                 action: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(64, 44),

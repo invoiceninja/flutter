@@ -67,3 +67,22 @@ bool dnCanSetExpiry(DnDocument d) {
   final status = d.status;
   return status != null && status.id <= DnDocumentStatus.sent.id;
 }
+
+/// The invitation the signed-in DocuNinja user signs themselves, as React's
+/// builder finds it (`getInvitationId`): theirs ([dnUserId] is the login's
+/// user id) and not a client contact's. Null when they have none, or it is
+/// signed, or the document can no longer be signed.
+DnInvitation? dnOwnInvitation(DnDocument d, String dnUserId) {
+  if (dnUserId.isEmpty ||
+      d.isDeleted ||
+      d.status == DnDocumentStatus.completed ||
+      d.status == DnDocumentStatus.voided) {
+    return null;
+  }
+  for (final i in d.invitations) {
+    if (i.userId == dnUserId && i.clientContactId.isEmpty) {
+      return i.signedDate == null ? i : null;
+    }
+  }
+  return null;
+}

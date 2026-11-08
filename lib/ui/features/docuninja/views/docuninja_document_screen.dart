@@ -55,6 +55,7 @@ class DocuNinjaDocumentScreen extends StatefulWidget {
 
 enum _Action {
   edit,
+  sign,
   viewPdf,
   send,
   auditLog,
@@ -109,6 +110,12 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     _vm?.dispose();
     super.dispose();
   }
+
+  /// The signed-in DocuNinja user's own invitation, still to sign.
+  DnInvitation? _ownInvitation(DnDocument doc) => dnOwnInvitation(
+    doc,
+    context.read<DocuNinjaSession?>()?.value.login?.user.id ?? '',
+  );
 
   /// Tells the list it came from to re-read DocuNinja.
   void _changed() => context.read<DocuNinjaSession?>()?.markDocumentsChanged();
@@ -327,6 +334,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           primary: true,
           enabled: !completed && doc.status != DnDocumentStatus.voided,
         ),
+      // React's Sign (its builder's): the user's own invitation, on React's
+      // sign page (docs/docuninja.md § Signing your own invitation).
+      if (_ownInvitation(doc) != null)
+        item(_Action.sign, Icons.draw_outlined, 'sign'),
       // React's `shouldShowPdf`: completed, not deleted, and with a file.
       if (completed && !doc.isDeleted && doc.files.isNotEmpty)
         item(_Action.viewPdf, Icons.picture_as_pdf_outlined, 'view_pdf'),
@@ -426,6 +437,21 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         await openDocuNinjaBuilder(
           context,
           documentId: doc.id,
+          companyId: companyId,
+        );
+      case _Action.sign:
+        final invitation = _ownInvitation(doc);
+        final companyId = context
+            .read<Services>()
+            .auth
+            .session
+            .value
+            ?.currentCompanyId;
+        if (invitation == null || companyId == null) return;
+        await openDocuNinjaSign(
+          context,
+          documentId: doc.id,
+          invitationId: invitation.id,
           companyId: companyId,
         );
       case _Action.viewPdf:

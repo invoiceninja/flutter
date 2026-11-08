@@ -62,4 +62,15 @@ void main() {
       '?company=C&from_template=true',
     );
   });
+
+  test('the sign page carries the invitation as sig, and the company', () {
+    expect(
+      dnWebAppSignUri(
+        documentId: 'D1',
+        invitationId: 'I1',
+        companyId: 'C',
+      ).toString(),
+      'https://app.invoicing.co/#/docuninja/sign/D1/I1?sig=I1&company=C',
+    );
+  });
 }

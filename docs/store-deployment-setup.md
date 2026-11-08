@@ -508,7 +508,7 @@ Two exceptions:
 
 ## 7. Beta → GA flips *(not required for setup)*
 
-These are deliberate beta-posture settings, listed so they aren't mistaken for setup gaps. None of them blocks a dispatch.
+These are deliberate beta-posture settings, listed so they aren't mistaken for setup gaps. None of them blocks a dispatch. The full launch checklist, with each store's console step, is `docs/going-live.md`.
 
 | Where | Current | At GA |
 |---|---|---|

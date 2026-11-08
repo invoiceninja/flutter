@@ -207,6 +207,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 - **A conditional KPI cell means the layout must be count-agnostic — which is now a solved problem, so don't re-solve it.** → `docs/row-actions-and-values.md`
 - **The server seeds one all-blank contact per client and per vendor, so `contacts.isNotEmpty` is never the question — `isBlank` per row is.** → `docs/contacts-and-invitations.md`
 - **An invitation is created when the DOCUMENT is saved, so `invitations.isNotEmpty` is never the question — `hasSendHistory` per row is.** → `docs/contacts-and-invitations.md`
+- **A save sends an invitation's `key` only with its `can_sign` — on a DocuNinja company the server applies a matched `key` as `can_sign ?? false`, so `Invitation.canSign` is tri-state and the stored row keeps invitations whole (`toPayloadJson`).** → `docs/contacts-and-invitations.md`
 - **A contact's email can be one the *server* typed, and it is indistinguishable from the user's except by shape.** → `docs/contacts-and-invitations.md`
 - **A row that prints the same name twice is the *normal* state for an individual, and the only usable tell is string equality against the title the row is already rendering.** → `docs/contacts-and-invitations.md`
 - **A card that hides itself still costs a gap.** → `docs/comments-and-activity.md`

@@ -10,6 +10,7 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/recurring_invoice_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/recurring_invoice_api_model.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
@@ -689,7 +690,12 @@ class RecurringInvoiceRepository
       documents: Value(
         jsonEncode(r.documents.map((d) => d.toApi().toJson()).toList()),
       ),
-      payload: jsonEncode(r.toApiJson(preserveTempId: true)),
+      payload: jsonEncode({
+        ...r.toApiJson(preserveTempId: true),
+        // Full invitations: the wire's `toApiJson` drops their lifecycle
+        // (sent / viewed / delivery), which the screens read from this row.
+        'invitations': r.invitations.map((x) => x.toPayloadJson()).toList(),
+      }),
     );
   }
 

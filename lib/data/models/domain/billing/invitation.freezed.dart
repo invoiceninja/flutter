@@ -15,7 +15,14 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Invitation {
 
- String get id; String get key; String get link; String get clientContactId; String get vendorContactId; String get sentDate; String get viewedDate; String get openedDate; String get emailStatus; String get emailError; String get messageId;
+ String get id; String get key; String get link; String get clientContactId; String get vendorContactId; String get sentDate; String get viewedDate; String get openedDate; String get emailStatus; String get emailError; String get messageId;/// Whether DocuNinja asks this contact to sign (`can_sign`). **Tri-state
+/// on purpose.** Null means the app never learned the value (the row was
+/// stored before the app read the field, or is a fresh clone), and then
+/// the save sends neither `key` nor `can_sign`, so the server keeps
+/// whatever it holds. The server applies a `key` as `can_sign ?? false`
+/// on a DocuNinja company, so a `key` sent alone would silently move the
+/// signer (docs/contacts-and-invitations.md).
+ bool? get canSign;
 /// Create a copy of Invitation
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +34,20 @@ $InvitationCopyWith<Invitation> get copyWith => _$InvitationCopyWithImpl<Invitat
 @override
 bool operator ==(Object other) {
   final _this = this as Invitation;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Invitation&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.vendorContactId, _this.vendorContactId) || other.vendorContactId == _this.vendorContactId)&&(identical(other.sentDate, _this.sentDate) || other.sentDate == _this.sentDate)&&(identical(other.viewedDate, _this.viewedDate) || other.viewedDate == _this.viewedDate)&&(identical(other.openedDate, _this.openedDate) || other.openedDate == _this.openedDate)&&(identical(other.emailStatus, _this.emailStatus) || other.emailStatus == _this.emailStatus)&&(identical(other.emailError, _this.emailError) || other.emailError == _this.emailError)&&(identical(other.messageId, _this.messageId) || other.messageId == _this.messageId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Invitation&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.vendorContactId, _this.vendorContactId) || other.vendorContactId == _this.vendorContactId)&&(identical(other.sentDate, _this.sentDate) || other.sentDate == _this.sentDate)&&(identical(other.viewedDate, _this.viewedDate) || other.viewedDate == _this.viewedDate)&&(identical(other.openedDate, _this.openedDate) || other.openedDate == _this.openedDate)&&(identical(other.emailStatus, _this.emailStatus) || other.emailStatus == _this.emailStatus)&&(identical(other.emailError, _this.emailError) || other.emailError == _this.emailError)&&(identical(other.messageId, _this.messageId) || other.messageId == _this.messageId)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign));
 }
 
 
 @override
 int get hashCode {
   final _this = this as Invitation;
-  return Object.hash(runtimeType,_this.id,_this.key,_this.link,_this.clientContactId,_this.vendorContactId,_this.sentDate,_this.viewedDate,_this.openedDate,_this.emailStatus,_this.emailError,_this.messageId);
+  return Object.hash(runtimeType,_this.id,_this.key,_this.link,_this.clientContactId,_this.vendorContactId,_this.sentDate,_this.viewedDate,_this.openedDate,_this.emailStatus,_this.emailError,_this.messageId,_this.canSign);
 }
 
 @override
 String toString() {
   final _this = this as Invitation;
-  return 'Invitation(id: ${_this.id}, key: ${_this.key}, link: ${_this.link}, clientContactId: ${_this.clientContactId}, vendorContactId: ${_this.vendorContactId}, sentDate: ${_this.sentDate}, viewedDate: ${_this.viewedDate}, openedDate: ${_this.openedDate}, emailStatus: ${_this.emailStatus}, emailError: ${_this.emailError}, messageId: ${_this.messageId})';
+  return 'Invitation(id: ${_this.id}, key: ${_this.key}, link: ${_this.link}, clientContactId: ${_this.clientContactId}, vendorContactId: ${_this.vendorContactId}, sentDate: ${_this.sentDate}, viewedDate: ${_this.viewedDate}, openedDate: ${_this.openedDate}, emailStatus: ${_this.emailStatus}, emailError: ${_this.emailError}, messageId: ${_this.messageId}, canSign: ${_this.canSign})';
 }
 
 
@@ -51,7 +58,7 @@ abstract mixin class $InvitationCopyWith<$Res>  {
   factory $InvitationCopyWith(Invitation value, $Res Function(Invitation) _then) = _$InvitationCopyWithImpl;
 @useResult
 $Res call({
- String id, String key, String link, String clientContactId, String vendorContactId, String sentDate, String viewedDate, String openedDate, String emailStatus, String emailError, String messageId
+ String id, String key, String link, String clientContactId, String vendorContactId, String sentDate, String viewedDate, String openedDate, String emailStatus, String emailError, String messageId, bool? canSign
 });
 
 
@@ -68,7 +75,7 @@ class _$InvitationCopyWithImpl<$Res>
 
 /// Create a copy of Invitation
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? canSign = freezed,}) {
   return _then(Invitation(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
@@ -81,7 +88,8 @@ as String,openedDate: null == openedDate ? _self.openedDate : openedDate // igno
 as String,emailStatus: null == emailStatus ? _self.emailStatus : emailStatus // ignore: cast_nullable_to_non_nullable
 as String,emailError: null == emailError ? _self.emailError : emailError // ignore: cast_nullable_to_non_nullable
 as String,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
-as String,
+as String,canSign: freezed == canSign ? _self.canSign : canSign // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 
@@ -166,10 +174,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId,  bool? canSign)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Invitation() when $default != null:
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.canSign);case _:
   return orElse();
 
 }
@@ -187,10 +195,10 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId,  bool? canSign)  $default,) {final _that = this;
 switch (_that) {
 case _Invitation():
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.canSign);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -207,10 +215,10 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String key,  String link,  String clientContactId,  String vendorContactId,  String sentDate,  String viewedDate,  String openedDate,  String emailStatus,  String emailError,  String messageId,  bool? canSign)?  $default,) {final _that = this;
 switch (_that) {
 case _Invitation() when $default != null:
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.canSign);case _:
   return null;
 
 }
@@ -222,7 +230,7 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 
 
 class _Invitation implements Invitation {
-  const _Invitation({this.id = '', this.key = '', this.link = '', this.clientContactId = '', this.vendorContactId = '', this.sentDate = '', this.viewedDate = '', this.openedDate = '', this.emailStatus = '', this.emailError = '', this.messageId = ''});
+  const _Invitation({this.id = '', this.key = '', this.link = '', this.clientContactId = '', this.vendorContactId = '', this.sentDate = '', this.viewedDate = '', this.openedDate = '', this.emailStatus = '', this.emailError = '', this.messageId = '', this.canSign});
   
 
 @override@JsonKey() final  String id;
@@ -236,6 +244,14 @@ class _Invitation implements Invitation {
 @override@JsonKey() final  String emailStatus;
 @override@JsonKey() final  String emailError;
 @override@JsonKey() final  String messageId;
+/// Whether DocuNinja asks this contact to sign (`can_sign`). **Tri-state
+/// on purpose.** Null means the app never learned the value (the row was
+/// stored before the app read the field, or is a fresh clone), and then
+/// the save sends neither `key` nor `can_sign`, so the server keeps
+/// whatever it holds. The server applies a `key` as `can_sign ?? false`
+/// on a DocuNinja company, so a `key` sent alone would silently move the
+/// signer (docs/contacts-and-invitations.md).
+@override final  bool? canSign;
 
 /// Create a copy of Invitation
 /// with the given fields replaced by the non-null parameter values.
@@ -247,18 +263,18 @@ _$InvitationCopyWith<_Invitation> get copyWith => __$InvitationCopyWithImpl<_Inv
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Invitation&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Invitation&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.canSign, canSign) || other.canSign == canSign));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId);
+    return Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,canSign);
 }
 
 @override
 String toString() {
-    return 'Invitation(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId)';
+    return 'Invitation(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, canSign: $canSign)';
 }
 
 
@@ -269,7 +285,7 @@ abstract mixin class _$InvitationCopyWith<$Res> implements $InvitationCopyWith<$
   factory _$InvitationCopyWith(_Invitation value, $Res Function(_Invitation) _then) = __$InvitationCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String key, String link, String clientContactId, String vendorContactId, String sentDate, String viewedDate, String openedDate, String emailStatus, String emailError, String messageId
+ String id, String key, String link, String clientContactId, String vendorContactId, String sentDate, String viewedDate, String openedDate, String emailStatus, String emailError, String messageId, bool? canSign
 });
 
 
@@ -286,7 +302,7 @@ class __$InvitationCopyWithImpl<$Res>
 
 /// Create a copy of Invitation
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? canSign = freezed,}) {
   return _then(_Invitation(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
@@ -299,7 +315,8 @@ as String,openedDate: null == openedDate ? _self.openedDate : openedDate // igno
 as String,emailStatus: null == emailStatus ? _self.emailStatus : emailStatus // ignore: cast_nullable_to_non_nullable
 as String,emailError: null == emailError ? _self.emailError : emailError // ignore: cast_nullable_to_non_nullable
 as String,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
-as String,
+as String,canSign: freezed == canSign ? _self.canSign : canSign // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 

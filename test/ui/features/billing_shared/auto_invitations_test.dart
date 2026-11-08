@@ -18,7 +18,7 @@ class _Doc {
 
 /// Concrete VM to exercise `selectClient` in isolation.
 class _Vm extends GenericBillingDocEditViewModel<_Doc> {
-  _Vm(_Doc seed) : super(initialDraft: seed);
+  _Vm(_Doc seed, {super.original}) : super(initialDraft: seed);
 
   @override
   List<LineItem> lineItemsOf(_Doc d) => const [];
@@ -291,6 +291,77 @@ void main() {
 
       vm.setContactInvitation('a', false);
       expect(vm.draft.invitations, isEmpty);
+    });
+  });
+
+  // DocuNinja's per-invitation `can_sign` (docs/contacts-and-invitations.md).
+  group('Authorized to sign', () {
+    const saved = Invitation(
+      id: 'inv-a',
+      key: 'key-a',
+      clientContactId: 'a',
+      sentDate: '2026-11-01',
+      canSign: true,
+    );
+
+    test('a contact re-ticked in one edit gets back its saved invitation', () {
+      const doc = _Doc(clientId: 'c', invitations: [saved]);
+      final vm = _Vm(doc, original: doc)
+        ..setContactInvitation('a', false)
+        ..setContactInvitation('a', true);
+      // Its key and can_sign come back, so the save matches it by key instead
+      // of the server's restore path, which ignores a key-less can_sign.
+      expect(vm.draft.invitations.single, saved);
+    });
+
+    test('a contact the saved document never had gets a new invitation', () {
+      const doc = _Doc(clientId: 'c', invitations: [saved]);
+      final vm = _Vm(doc, original: doc)..setContactInvitation('b', true);
+      final added = vm.draft.invitations.last;
+      expect(added.clientContactId, 'b');
+      expect(added.key, isEmpty);
+      // A new invitation knows its value: the contact's default (false here).
+      expect(added.canSign, isFalse);
+    });
+
+    test('setContactCanSign changes only that invited contact', () {
+      const doc = _Doc(
+        clientId: 'c',
+        invitations: [
+          saved,
+          Invitation(id: 'inv-b', key: 'key-b', clientContactId: 'b'),
+        ],
+      );
+      final vm = _Vm(doc)..setContactCanSign('b', true);
+      expect(vm.draft.invitations[0].canSign, isTrue);
+      expect(vm.draft.invitations[1].canSign, isTrue);
+      vm.setContactCanSign('a', false);
+      expect(vm.draft.invitations[0].canSign, isFalse);
+      expect(vm.draft.invitations[1].canSign, isTrue);
+    });
+
+    test('a ticked contact starts from its own Authorized to sign', () {
+      const doc = _Doc(clientId: 'c');
+      final vm = _Vm(doc)..setContactInvitation('b', true, canSign: true);
+      expect(vm.draft.invitations.single.canSign, isTrue);
+    });
+
+    test('picking a client seeds each invitation from its contact', () {
+      final vm = _Vm(const _Doc())
+        ..selectClient('c', [
+          _contact('a', sendEmail: true, isPrimary: true),
+          _contact('b', sendEmail: true).copyWith(canSign: true),
+        ]);
+      final byContact = {
+        for (final i in vm.draft.invitations) i.clientContactId: i.canSign,
+      };
+      expect(byContact, {'a': false, 'b': true});
+    });
+
+    test('a contact that is not invited is left alone, as in React', () {
+      const doc = _Doc(clientId: 'c', invitations: [saved]);
+      final vm = _Vm(doc)..setContactCanSign('zzz', true);
+      expect(vm.draft.invitations, doc.invitations);
     });
   });
 }

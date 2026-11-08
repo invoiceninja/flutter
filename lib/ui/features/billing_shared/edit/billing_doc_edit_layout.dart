@@ -9,12 +9,11 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/billing_contact.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/vendor.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/edit/create_form_documents.dart';
+import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
@@ -609,7 +608,7 @@ class _PartyCardDesktop<T extends BillingDocFields> extends StatelessWidget {
 /// The contacts of the document's party, each with the checkbox that puts an
 /// invitation on the document. [dense] is the desktop card's capped list;
 /// otherwise the narrow Contacts tab's full page.
-class _PartyContacts<T extends BillingDocFields> extends StatelessWidget {
+class _PartyContacts<T extends BillingDocFields> extends StatefulWidget {
   const _PartyContacts({
     required this.type,
     required this.vm,
@@ -620,10 +619,41 @@ class _PartyContacts<T extends BillingDocFields> extends StatelessWidget {
   final bool dense;
 
   @override
+  State<_PartyContacts<T>> createState() => _PartyContactsState<T>();
+}
+
+/// Holds the company and party watches, so a rebuild (every keystroke on the
+/// form) re-reads them instead of re-subscribing. They are rebuilt only when
+/// the company or the party changes.
+class _PartyContactsState<T extends BillingDocFields>
+    extends State<_PartyContacts<T>> {
+  String? _companyId;
+  String? _partyId;
+  Stream<Company?>? _company;
+  Stream<List<BillingContact>?>? _contacts;
+
+  bool get _client => widget.type.party == BillingDocParty.client;
+
+  void _watch(Services services, String companyId, String partyId) {
+    if (companyId == _companyId && partyId == _partyId) return;
+    _companyId = companyId;
+    _partyId = partyId;
+    _company = services.company.watchCompany(companyId);
+    _contacts = _client
+        ? services.clients
+              .watch(companyId: companyId, id: partyId)
+              .map((c) => c?.contacts.map((x) => x.toBilling()).toList())
+        : services.vendors
+              .watch(companyId: companyId, id: partyId)
+              .map((v) => v?.contacts.map((x) => x.toBilling()).toList());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final client = type.party == BillingDocParty.client;
-    final partyId = _partyIdOf(type, vm.draft);
+    final vm = widget.vm;
+    final dense = widget.dense;
+    final client = _client;
+    final partyId = _partyIdOf(widget.type, vm.draft);
     if (partyId.isEmpty) {
       if (dense) return const SizedBox.shrink();
       return Center(
@@ -638,21 +668,35 @@ class _PartyContacts<T extends BillingDocFields> extends StatelessWidget {
         ),
       );
     }
-    Widget section(List<BillingContact> contacts) {
+    _watch(context.read<Services>(), vm.companyId, partyId);
+
+    Widget section(List<BillingContact> contacts, {required bool eSign}) {
       final selected = vm.draft.invitations
           .map((i) => client ? i.clientContactId : i.vendorContactId)
           .where((id) => id.isNotEmpty)
           .toSet();
+      final defaults = {for (final c in contacts) c.id: c.canSign};
       final list = BillingDocContactsSection(
         contacts: contacts,
         selectedContactIds: selected,
+        // DocuNinja's "Authorized to sign", only while DocuNinja is on for
+        // the company (`enable_modules`), as React shows it.
+        canSignByContactId: eSign
+            ? {
+                for (final i in vm.draft.invitations)
+                  (client ? i.clientContactId : i.vendorContactId): i.canSign,
+              }
+            : null,
+        onCanSignChanged: (id, canSign) =>
+            vm.setContactCanSign(id, canSign, vendor: !client),
         onChanged: (next) {
           final added = next.difference(selected);
           final removed = selected.difference(next);
           for (final id in added) {
+            final canSign = defaults[id] ?? false;
             client
-                ? vm.setContactInvitation(id, true)
-                : vm.setVendorContactInvitation(id, true);
+                ? vm.setContactInvitation(id, true, canSign: canSign)
+                : vm.setVendorContactInvitation(id, true, canSign: canSign);
           }
           for (final id in removed) {
             client
@@ -673,25 +717,22 @@ class _PartyContacts<T extends BillingDocFields> extends StatelessWidget {
       );
     }
 
-    Widget loading() => dense
-        ? const LinearProgressIndicator(minHeight: 2)
-        : const Center(child: CircularProgressIndicator());
-    if (client) {
-      return StreamBuilder<Client?>(
-        stream: services.clients.watch(companyId: vm.companyId, id: partyId),
-        builder: (context, snapshot) {
-          final party = snapshot.data;
-          if (party == null) return loading();
-          return section(party.contacts.map((c) => c.toBilling()).toList());
-        },
-      );
-    }
-    return StreamBuilder<Vendor?>(
-      stream: services.vendors.watch(companyId: vm.companyId, id: partyId),
-      builder: (context, snapshot) {
-        final party = snapshot.data;
-        if (party == null) return loading();
-        return section(party.contacts.map((c) => c.toBilling()).toList());
+    return StreamBuilder<Company?>(
+      stream: _company,
+      builder: (context, companySnapshot) {
+        final eSign = companySnapshot.data?.enableModules ?? false;
+        return StreamBuilder<List<BillingContact>?>(
+          stream: _contacts,
+          builder: (context, snapshot) {
+            final contacts = snapshot.data;
+            if (contacts == null) {
+              return dense
+                  ? const LinearProgressIndicator(minHeight: 2)
+                  : const Center(child: CircularProgressIndicator());
+            }
+            return section(contacts, eSign: eSign);
+          },
+        );
       },
     );
   }

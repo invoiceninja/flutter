@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'invitation_api_model.freezed.dart';
 part 'invitation_api_model.g.dart';
 
@@ -26,6 +28,15 @@ abstract class InvitationApi with _$InvitationApi {
     @JsonKey(name: 'message_id') @Default('') String messageId,
     @JsonKey(name: 'created_at') @Default(0) int createdAt,
     @JsonKey(name: 'updated_at') @Default(0) int updatedAt,
+    // Whether DocuNinja asks this contact to sign (`can_sign`). Null when the
+    // JSON carries no value — a row stored before the app read it — which is
+    // not the same as false: see `Invitation.canSign`.
+    @JsonKey(
+      name: 'can_sign',
+      fromJson: jsonScalarToBoolOrNull,
+      includeIfNull: false,
+    )
+    bool? canSign,
   }) = _InvitationApi;
 
   factory InvitationApi.fromJson(Map<String, dynamic> json) =>

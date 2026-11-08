@@ -388,7 +388,14 @@ abstract class GenericBillingDocEditViewModel<T>
   /// (`sentDate` / `viewedDate` / `openedDate`) — the server fills those
   /// after the first send. Vendor contacts use the `vendorContactId`
   /// slot via [setVendorContactInvitation] instead.
-  void setContactInvitation(String contactId, bool included) {
+  ///
+  /// A new invitation starts with [canSign], the contact's own "Authorized to
+  /// sign", as React seeds it (`invoices/create/Create.tsx`).
+  void setContactInvitation(
+    String contactId,
+    bool included, {
+    bool canSign = false,
+  }) {
     // An empty id means the contact hasn't synced yet (ids are server-minted),
     // so the server has no row to attach an invitation to.
     // `Invitation.toApiJson` omits the key when empty, shipping `{}`, which
@@ -402,19 +409,21 @@ abstract class GenericBillingDocEditViewModel<T>
     if (included) {
       final next = [
         ...current,
-        Invitation(
-          id: '',
-          key: '',
-          link: '',
-          clientContactId: contactId,
-          vendorContactId: '',
-          sentDate: '',
-          viewedDate: '',
-          openedDate: '',
-          emailStatus: '',
-          emailError: '',
-          messageId: '',
-        ),
+        _originalInvitation((i) => i.clientContactId == contactId) ??
+            Invitation(
+              id: '',
+              key: '',
+              link: '',
+              clientContactId: contactId,
+              vendorContactId: '',
+              sentDate: '',
+              viewedDate: '',
+              openedDate: '',
+              emailStatus: '',
+              emailError: '',
+              messageId: '',
+              canSign: canSign,
+            ),
       ];
       updateDraft(copyWithInvitations(draft, next));
     } else {
@@ -425,9 +434,47 @@ abstract class GenericBillingDocEditViewModel<T>
     }
   }
 
+  /// The saved document's invitation for a contact being re-ticked, so a
+  /// contact unticked and ticked again in one edit is the invitation it was,
+  /// with its `key` and `can_sign`. A fresh one would carry no key, and the
+  /// server's restore path ignores a key-less invitation's `can_sign`
+  /// (docs/contacts-and-invitations.md).
+  Invitation? _originalInvitation(bool Function(Invitation) matches) {
+    final saved = original;
+    if (saved == null) return null;
+    for (final i in invitationsOf(saved)) {
+      if (matches(i)) return i;
+    }
+    return null;
+  }
+
+  /// Sets whether DocuNinja asks [contactId] to sign (`can_sign`), on the
+  /// invitation already on the draft. A contact that is not invited is left
+  /// alone, as React's control ignores it (`handleContactCanSignChange`).
+  /// Client or vendor contact, by [vendor].
+  void setContactCanSign(
+    String contactId,
+    bool canSign, {
+    bool vendor = false,
+  }) {
+    if (contactId.isEmpty) return;
+    bool isContact(Invitation i) =>
+        (vendor ? i.vendorContactId : i.clientContactId) == contactId;
+    final current = invitationsOf(draft);
+    if (!current.any((i) => isContact(i) && i.canSign != canSign)) return;
+    final next = [
+      for (final i in current) isContact(i) ? i.copyWith(canSign: canSign) : i,
+    ];
+    updateDraft(copyWithInvitations(draft, next));
+  }
+
   /// Vendor variant of [setContactInvitation] — used by PurchaseOrder.
   /// Keyed off `vendorContactId` instead of `clientContactId`.
-  void setVendorContactInvitation(String vendorContactId, bool included) {
+  void setVendorContactInvitation(
+    String vendorContactId,
+    bool included, {
+    bool canSign = false,
+  }) {
     // Same unsynced-contact guard as [setContactInvitation] — vendor contact
     // ids are server-minted too.
     if (vendorContactId.isEmpty) return;
@@ -437,19 +484,21 @@ abstract class GenericBillingDocEditViewModel<T>
     if (included) {
       final next = [
         ...current,
-        Invitation(
-          id: '',
-          key: '',
-          link: '',
-          clientContactId: '',
-          vendorContactId: vendorContactId,
-          sentDate: '',
-          viewedDate: '',
-          openedDate: '',
-          emailStatus: '',
-          emailError: '',
-          messageId: '',
-        ),
+        _originalInvitation((i) => i.vendorContactId == vendorContactId) ??
+            Invitation(
+              id: '',
+              key: '',
+              link: '',
+              clientContactId: '',
+              vendorContactId: vendorContactId,
+              sentDate: '',
+              viewedDate: '',
+              openedDate: '',
+              emailStatus: '',
+              emailError: '',
+              messageId: '',
+              canSign: canSign,
+            ),
       ];
       updateDraft(copyWithInvitations(draft, next));
     } else {
@@ -526,6 +575,8 @@ abstract class GenericBillingDocEditViewModel<T>
           emailStatus: '',
           emailError: '',
           messageId: '',
+          // The contact's own "Authorized to sign", as React seeds it.
+          canSign: c.canSign,
         ),
     ];
   }

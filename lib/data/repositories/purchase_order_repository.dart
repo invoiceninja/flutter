@@ -10,6 +10,7 @@ import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
@@ -612,6 +613,9 @@ class PurchaseOrderRepository
       ),
       payload: jsonEncode({
         ...p.toApiJson(preserveTempId: true),
+        // Full invitations: the wire's `toApiJson` drops their lifecycle
+        // (sent / viewed / delivery), which the screens read from this row.
+        'invitations': p.invitations.map((x) => x.toPayloadJson()).toList(),
         // Read-only sync state, kept in the stored row only (the wire body
         // leaves it off) so a local edit doesn't drop the signed-document
         // pill (`sync.dn_completed`), as the invoice repository does.

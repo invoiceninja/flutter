@@ -26,6 +26,8 @@ Widget _host({
   required List<BillingContact> contacts,
   required Set<String> selected,
   required ValueChanged<Set<String>> onChanged,
+  Map<String, bool?>? canSign,
+  void Function(String, bool)? onCanSignChanged,
 }) => MaterialApp(
   theme: buildInTheme(InTheme.light),
   localizationsDelegates: kTestLocalizationsDelegates,
@@ -34,6 +36,8 @@ Widget _host({
       contacts: contacts,
       selectedContactIds: selected,
       onChanged: onChanged,
+      canSignByContactId: canSign,
+      onCanSignChanged: onCanSignChanged,
     ),
   ),
 );
@@ -119,6 +123,77 @@ void main() {
       await tester.tap(find.text('Pending Contact'));
       await tester.pump();
       expect(emitted, isEmpty);
+    });
+  });
+
+  // DocuNinja's "Authorized to sign", as React's ClientSelector draws it.
+  group('Authorized to sign', () {
+    testWidgets('is absent while DocuNinja is off', (tester) async {
+      await tester.pumpWidget(
+        _host(contacts: [_contact('a')], selected: {'a'}, onChanged: (_) {}),
+      );
+      expect(find.text('Authorized to sign'), findsNothing);
+    });
+
+    testWidgets('toggles can_sign on an invited contact, not the invitation', (
+      tester,
+    ) async {
+      final changes = <(String, bool)>[];
+      Set<String>? invited;
+      await tester.pumpWidget(
+        _host(
+          contacts: [_contact('a')],
+          selected: {'a'},
+          onChanged: (next) => invited = next,
+          canSign: {'a': false},
+          onCanSignChanged: (id, v) => changes.add((id, v)),
+        ),
+      );
+      await tester.tap(find.text('Authorized to sign'));
+      await tester.pump();
+      expect(changes, [('a', true)]);
+      expect(invited, isNull);
+    });
+
+    testWidgets('does nothing on a contact that is not invited', (
+      tester,
+    ) async {
+      final changes = <(String, bool)>[];
+      Set<String>? invited;
+      await tester.pumpWidget(
+        _host(
+          contacts: [_contact('a')],
+          selected: const {},
+          onChanged: (next) => invited = next,
+          canSign: const {},
+          onCanSignChanged: (id, v) => changes.add((id, v)),
+        ),
+      );
+      // Neither the dimmed label nor its checkbox may fall through to the
+      // contact row, which would invite the contact.
+      await tester.tap(find.text('Authorized to sign'));
+      await tester.pump();
+      await tester.tap(find.byType(Checkbox).last);
+      await tester.pump();
+      expect(changes, isEmpty);
+      expect(invited, isNull);
+    });
+
+    testWidgets('an unread can_sign shows as a dash, not as false', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          contacts: [_contact('a')],
+          selected: {'a'},
+          onChanged: (_) {},
+          canSign: {'a': null},
+          onCanSignChanged: (_, _) {},
+        ),
+      );
+      final boxes = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+      expect(boxes.last.tristate, isTrue);
+      expect(boxes.last.value, isNull);
     });
   });
 }

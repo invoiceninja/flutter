@@ -21,6 +21,7 @@ _InvitationApi _$InvitationApiFromJson(Map<String, dynamic> json) =>
       messageId: json['message_id'] as String? ?? '',
       createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
       updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      canSign: jsonScalarToBoolOrNull(json['can_sign']),
     );
 
 Map<String, dynamic> _$InvitationApiToJson(_InvitationApi instance) =>
@@ -38,4 +39,5 @@ Map<String, dynamic> _$InvitationApiToJson(_InvitationApi instance) =>
       'message_id': instance.messageId,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
+      'can_sign': ?instance.canSign,
     };

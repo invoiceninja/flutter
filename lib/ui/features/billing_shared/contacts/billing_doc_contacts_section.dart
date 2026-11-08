@@ -18,6 +18,8 @@ class BillingDocContactsSection extends StatelessWidget {
     required this.selectedContactIds,
     required this.onChanged,
     this.readOnly = false,
+    this.canSignByContactId,
+    this.onCanSignChanged,
   });
 
   /// Available contacts to invite. Callers map their concrete contact
@@ -37,6 +39,17 @@ class BillingDocContactsSection extends StatelessWidget {
   /// When true, render checkboxes disabled. Used during save/in-flight
   /// states to prevent racing changes mid-write.
   final bool readOnly;
+
+  /// DocuNinja's per-invitation "Authorized to sign" (`can_sign`), by contact
+  /// id: null turns the row off (DocuNinja is off for the company), as React
+  /// shows it only on `company.enable_modules`. A contact missing from the map
+  /// is not invited; a null value is an invitation whose `can_sign` the app
+  /// has not read yet, drawn as a dash rather than claimed false.
+  final Map<String, bool?>? canSignByContactId;
+
+  /// Fires when "Authorized to sign" toggles on an invited contact. React
+  /// ignores a click on a contact that is not invited, and so does this.
+  final void Function(String contactId, bool canSign)? onCanSignChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +77,13 @@ class BillingDocContactsSection extends StatelessWidget {
             // shown disabled — not hidden, which would read as data loss on a
             // freshly created client.
             unsynced: contact.id.isEmpty,
+            showCanSign: canSignByContactId != null,
+            canSign: canSignByContactId?[contact.id],
+            onCanSignChanged:
+                onCanSignChanged == null ||
+                    !selectedContactIds.contains(contact.id)
+                ? null
+                : (v) => onCanSignChanged!(contact.id, v),
             onTap: () {
               final next = Set<String>.from(selectedContactIds);
               if (next.contains(contact.id)) {
@@ -86,11 +106,20 @@ class _ContactRow extends StatelessWidget {
     required this.readOnly,
     required this.unsynced,
     required this.onTap,
+    this.showCanSign = false,
+    this.canSign,
+    this.onCanSignChanged,
   });
 
   final BillingContact contact;
   final bool selected;
   final bool readOnly;
+  final bool showCanSign;
+  final bool? canSign;
+
+  /// Null while the contact is not invited: the control then stays put, as
+  /// React's does, and its label is dimmed.
+  final ValueChanged<bool>? onCanSignChanged;
 
   /// Contact has no server id yet — selectable only once its client syncs.
   final bool unsynced;
@@ -140,6 +169,12 @@ class _ContactRow extends StatelessWidget {
                         style: TextStyle(color: tokens.ink3, fontSize: 12),
                       ),
                     ),
+                  if (showCanSign)
+                    _CanSignRow(
+                      value: selected ? canSign : false,
+                      invited: selected,
+                      onChanged: readOnly ? null : onCanSignChanged,
+                    ),
                 ],
               ),
             ),
@@ -187,6 +222,72 @@ class _ContactRow extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// React's "Authorized to sign" checkbox under an invited contact
+/// (`ClientSelector.tsx`): which contacts DocuNinja asks to sign. Its label is
+/// dimmed while the contact is not invited, and a tap on it then does nothing,
+/// as in React. Its own tap target, so it never toggles the invitation.
+class _CanSignRow extends StatelessWidget {
+  const _CanSignRow({
+    required this.value,
+    required this.invited,
+    required this.onChanged,
+  });
+
+  /// Null is an invitation whose `can_sign` the app has not read yet.
+  final bool? value;
+  final bool invited;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final label = context.tr('authorized_to_sign');
+    final active = invited && onChanged != null;
+    void toggle() => onChanged?.call(!(value ?? false));
+    // Opaque and always claiming the tap: an inert row must still swallow it,
+    // or it falls through to the contact row and invites the contact.
+    return Semantics(
+      container: true,
+      label: label,
+      checked: value ?? false,
+      mixed: value == null,
+      enabled: active,
+      onTap: active ? toggle : null,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: active ? null : () {},
+        child: InkWell(
+          onTap: active ? toggle : null,
+          borderRadius: BorderRadius.circular(InRadii.r1),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AbsorbPointer(
+                absorbing: !active,
+                child: Checkbox(
+                  tristate: value == null,
+                  value: value,
+                  onChanged: active ? (_) => toggle() : null,
+                ),
+              ),
+              Flexible(
+                child: Opacity(
+                  opacity: invited ? 1 : 0.5,
+                  child: Text(
+                    label,
+                    style: TextStyle(color: tokens.ink2, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

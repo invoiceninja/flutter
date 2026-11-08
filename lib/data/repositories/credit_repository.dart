@@ -10,6 +10,7 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/credit_dao.dart';
 import 'package:admin/data/models/api/credit_api_model.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
@@ -606,6 +607,9 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
       ),
       payload: jsonEncode({
         ...c.toApiJson(preserveTempId: true),
+        // Full invitations: the wire's `toApiJson` drops their lifecycle
+        // (sent / viewed / delivery), which the screens read from this row.
+        'invitations': c.invitations.map((x) => x.toPayloadJson()).toList(),
         // Read-only e-invoice delivery state, kept in the stored row only —
         // the wire body is `toApiJson`, which leaves it off. Without this a
         // delivered credit reads back as undelivered after a local edit.

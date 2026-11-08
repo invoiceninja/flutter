@@ -25,6 +25,15 @@ abstract class Invitation with _$Invitation {
     @Default('') String emailStatus,
     @Default('') String emailError,
     @Default('') String messageId,
+
+    /// Whether DocuNinja asks this contact to sign (`can_sign`). **Tri-state
+    /// on purpose.** Null means the app never learned the value (the row was
+    /// stored before the app read the field, or is a fresh clone), and then
+    /// the save sends neither `key` nor `can_sign`, so the server keeps
+    /// whatever it holds. The server applies a `key` as `can_sign ?? false`
+    /// on a DocuNinja company, so a `key` sent alone would silently move the
+    /// signer (docs/contacts-and-invitations.md).
+    bool? canSign,
   }) = _Invitation;
 
   factory Invitation.fromApi(InvitationApi a) => Invitation(
@@ -39,6 +48,7 @@ abstract class Invitation with _$Invitation {
     emailStatus: a.emailStatus,
     emailError: a.emailError,
     messageId: a.messageId,
+    canSign: a.canSign,
   );
 }
 
@@ -151,11 +161,46 @@ extension InvitationAccessors on Invitation {
 }
 
 extension InvitationPayload on Invitation {
+  /// The invitation as a save request sends it: what
+  /// `BaseRepository::alternativeSave` reads (`key`, `id`, the contact id,
+  /// `can_sign`), never the lifecycle fields.
+  ///
+  /// **`key` is sent only with `can_sign`.** The server matches an invitation
+  /// by `key`, and on a DocuNinja company a matched one takes
+  /// `can_sign ?? false`, so a `key` alone would clear the signer. Without a
+  /// key the server soft-deletes and restores the contact's invitation, which
+  /// keeps its stored `can_sign` — today's path, and still the one taken
+  /// while [Invitation.canSign] is unknown. A new invitation (no key yet)
+  /// still sends `can_sign` when it is known, because the server reads it on
+  /// create.
   Map<String, dynamic> toApiJson() => <String, dynamic>{
     if (id.isNotEmpty) 'id': id,
+    if (canSign != null && key.isNotEmpty) 'key': key,
     if (clientContactId.isNotEmpty) 'client_contact_id': clientContactId,
     if (vendorContactId.isNotEmpty) 'vendor_contact_id': vendorContactId,
+    if (canSign != null) 'can_sign': canSign,
   };
+
+  /// The invitation as the stored row keeps it: every field the screens
+  /// read, in `InvitationApi`'s shape, so `_fromRow` gets back what it was
+  /// given. [toApiJson] is the wire projection and drops the lifecycle
+  /// (sent / viewed / opened dates, delivery status), so a payload built
+  /// from it would strip a document's Email History, its Viewed status and
+  /// its bounce badge on every local save until the server's echo landed.
+  Map<String, dynamic> toPayloadJson() => InvitationApi(
+    id: id,
+    key: key,
+    link: link,
+    clientContactId: clientContactId,
+    vendorContactId: vendorContactId,
+    sentDate: sentDate,
+    viewedDate: viewedDate,
+    openedDate: openedDate,
+    emailStatus: emailStatus,
+    emailError: emailError,
+    messageId: messageId,
+    canSign: canSign,
+  ).toJson();
 }
 
 extension InvitationClone on Invitation {

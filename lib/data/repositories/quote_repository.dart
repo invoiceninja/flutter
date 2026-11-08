@@ -10,6 +10,7 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/quote_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/quote_api_model.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -683,6 +684,9 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
       ),
       payload: jsonEncode({
         ...q.toApiJson(preserveTempId: true),
+        // Full invitations: the wire's `toApiJson` drops their lifecycle
+        // (sent / viewed / delivery), which the screens read from this row.
+        'invitations': q.invitations.map((x) => x.toPayloadJson()).toList(),
         // Read-only sync state, kept in the stored row only (the wire body
         // leaves it off) so a local edit doesn't drop the signed-document
         // pill (`sync.dn_completed`), as the invoice repository does.

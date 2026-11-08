@@ -370,15 +370,11 @@ class _ContactEditor extends StatelessWidget {
         StreamBuilder<Company?>(
           stream: companyStream,
           builder: (context, snapshot) {
-            // "Authorized to sign" is only meaningful when the company requires
-            // an e-signature somewhere (invoice / quote / PO). Hidden otherwise
-            // — the value is preserved on save regardless (it stays in the
-            // draft and `Contact.toApiJson` still emits `can_sign`).
-            final settings = snapshot.data?.settings;
-            final eSignEnabled =
-                (settings?.requireInvoiceSignature ?? false) ||
-                (settings?.requireQuoteSignature ?? false) ||
-                (settings?.requirePurchaseOrderSignature ?? false);
+            // "Authorized to sign" means DocuNinja asks this contact to sign,
+            // so it shows only while DocuNinja is on for the company
+            // (`enable_modules`), as React's contact form does. The value is
+            // kept on save regardless (`Contact.toApiJson` still emits `can_sign`).
+            final eSignEnabled = snapshot.data?.enableModules ?? false;
             return LabeledSwitchGroup(
               items: [
                 LabeledSwitchItem(

@@ -29,6 +29,7 @@ class BillingContact {
     required this.email,
     required this.isPrimary,
     this.isLocked = false,
+    this.canSign = false,
   });
 
   final String id;
@@ -40,6 +41,10 @@ class BillingContact {
   /// Email destination suppressed by a bounce / unsubscribe. Client
   /// contacts only — vendor contacts don't carry this flag.
   final bool isLocked;
+
+  /// The contact's own "Authorized to sign" (`can_sign`): the value a new
+  /// invitation for this contact starts with, as React seeds it.
+  final bool canSign;
 }
 
 extension ContactToBillingContact on Contact {
@@ -50,6 +55,7 @@ extension ContactToBillingContact on Contact {
     email: email,
     isPrimary: isPrimary,
     isLocked: isLocked,
+    canSign: canSign,
   );
 }
 
@@ -60,5 +66,6 @@ extension VendorContactToBillingContact on VendorContact {
     lastName: lastName,
     email: email,
     isPrimary: isPrimary,
+    canSign: canSign,
   );
 }

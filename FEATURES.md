@@ -711,6 +711,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | DocuNinja — user management for docs | ✅ | ❌ | ❌ |  | |
 | DocuNinja — document email templates | ✅ | ❌ | ❌ |  | |
 | DocuNinja — delete document | ✅ | ❌ | ❌ |  | |
+| DocuNinja — "Authorized to sign" per invited contact on invoices, quotes, credits, recurring invoices and POs (when DocuNinja is on) | ✅ | ❌ | ✅ | | An unread value shows as a dash; the contact forms' toggle shows only while DocuNinja is on |
 | DocuNinja — "Signed Document" pill on a signed invoice / quote / purchase order | ✅ | ❌ | ✅ | | Opens the signed PDF; React's opens the DocuNinja document (docs/docuninja.md) |
 
 ---

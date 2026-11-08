@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$InvitationApi {
 
- String get id; String get key; String get link;@JsonKey(name: 'client_contact_id') String get clientContactId;@JsonKey(name: 'vendor_contact_id') String get vendorContactId;@JsonKey(name: 'sent_date') String get sentDate;@JsonKey(name: 'viewed_date') String get viewedDate;@JsonKey(name: 'opened_date') String get openedDate;@JsonKey(name: 'email_status') String get emailStatus;@JsonKey(name: 'email_error') String get emailError;@JsonKey(name: 'message_id') String get messageId;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;
+ String get id; String get key; String get link;@JsonKey(name: 'client_contact_id') String get clientContactId;@JsonKey(name: 'vendor_contact_id') String get vendorContactId;@JsonKey(name: 'sent_date') String get sentDate;@JsonKey(name: 'viewed_date') String get viewedDate;@JsonKey(name: 'opened_date') String get openedDate;@JsonKey(name: 'email_status') String get emailStatus;@JsonKey(name: 'email_error') String get emailError;@JsonKey(name: 'message_id') String get messageId;@JsonKey(name: 'created_at') int get createdAt;@JsonKey(name: 'updated_at') int get updatedAt;@JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false) bool? get canSign;
 /// Create a copy of InvitationApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $InvitationApiCopyWith<InvitationApi> get copyWith => _$InvitationApiCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as InvitationApi;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.vendorContactId, _this.vendorContactId) || other.vendorContactId == _this.vendorContactId)&&(identical(other.sentDate, _this.sentDate) || other.sentDate == _this.sentDate)&&(identical(other.viewedDate, _this.viewedDate) || other.viewedDate == _this.viewedDate)&&(identical(other.openedDate, _this.openedDate) || other.openedDate == _this.openedDate)&&(identical(other.emailStatus, _this.emailStatus) || other.emailStatus == _this.emailStatus)&&(identical(other.emailError, _this.emailError) || other.emailError == _this.emailError)&&(identical(other.messageId, _this.messageId) || other.messageId == _this.messageId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationApi&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.key, _this.key) || other.key == _this.key)&&(identical(other.link, _this.link) || other.link == _this.link)&&(identical(other.clientContactId, _this.clientContactId) || other.clientContactId == _this.clientContactId)&&(identical(other.vendorContactId, _this.vendorContactId) || other.vendorContactId == _this.vendorContactId)&&(identical(other.sentDate, _this.sentDate) || other.sentDate == _this.sentDate)&&(identical(other.viewedDate, _this.viewedDate) || other.viewedDate == _this.viewedDate)&&(identical(other.openedDate, _this.openedDate) || other.openedDate == _this.openedDate)&&(identical(other.emailStatus, _this.emailStatus) || other.emailStatus == _this.emailStatus)&&(identical(other.emailError, _this.emailError) || other.emailError == _this.emailError)&&(identical(other.messageId, _this.messageId) || other.messageId == _this.messageId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.canSign, _this.canSign) || other.canSign == _this.canSign));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as InvitationApi;
-  return Object.hash(runtimeType,_this.id,_this.key,_this.link,_this.clientContactId,_this.vendorContactId,_this.sentDate,_this.viewedDate,_this.openedDate,_this.emailStatus,_this.emailError,_this.messageId,_this.createdAt,_this.updatedAt);
+  return Object.hash(runtimeType,_this.id,_this.key,_this.link,_this.clientContactId,_this.vendorContactId,_this.sentDate,_this.viewedDate,_this.openedDate,_this.emailStatus,_this.emailError,_this.messageId,_this.createdAt,_this.updatedAt,_this.canSign);
 }
 
 @override
 String toString() {
   final _this = this as InvitationApi;
-  return 'InvitationApi(id: ${_this.id}, key: ${_this.key}, link: ${_this.link}, clientContactId: ${_this.clientContactId}, vendorContactId: ${_this.vendorContactId}, sentDate: ${_this.sentDate}, viewedDate: ${_this.viewedDate}, openedDate: ${_this.openedDate}, emailStatus: ${_this.emailStatus}, emailError: ${_this.emailError}, messageId: ${_this.messageId}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt})';
+  return 'InvitationApi(id: ${_this.id}, key: ${_this.key}, link: ${_this.link}, clientContactId: ${_this.clientContactId}, vendorContactId: ${_this.vendorContactId}, sentDate: ${_this.sentDate}, viewedDate: ${_this.viewedDate}, openedDate: ${_this.openedDate}, emailStatus: ${_this.emailStatus}, emailError: ${_this.emailError}, messageId: ${_this.messageId}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, canSign: ${_this.canSign})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $InvitationApiCopyWith<$Res>  {
   factory $InvitationApiCopyWith(InvitationApi value, $Res Function(InvitationApi) _then) = _$InvitationApiCopyWithImpl;
 @useResult
 $Res call({
- String id, String key, String link,@JsonKey(name: 'client_contact_id') String clientContactId,@JsonKey(name: 'vendor_contact_id') String vendorContactId,@JsonKey(name: 'sent_date') String sentDate,@JsonKey(name: 'viewed_date') String viewedDate,@JsonKey(name: 'opened_date') String openedDate,@JsonKey(name: 'email_status') String emailStatus,@JsonKey(name: 'email_error') String emailError,@JsonKey(name: 'message_id') String messageId,@JsonKey(name: 'created_at') int createdAt,@JsonKey(name: 'updated_at') int updatedAt
+ String id, String key, String link,@JsonKey(name: 'client_contact_id') String clientContactId,@JsonKey(name: 'vendor_contact_id') String vendorContactId,@JsonKey(name: 'sent_date') String sentDate,@JsonKey(name: 'viewed_date') String viewedDate,@JsonKey(name: 'opened_date') String openedDate,@JsonKey(name: 'email_status') String emailStatus,@JsonKey(name: 'email_error') String emailError,@JsonKey(name: 'message_id') String messageId,@JsonKey(name: 'created_at') int createdAt,@JsonKey(name: 'updated_at') int updatedAt,@JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false) bool? canSign
 });
 
 
@@ -71,7 +71,7 @@ class _$InvitationApiCopyWithImpl<$Res>
 
 /// Create a copy of InvitationApi
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? createdAt = null,Object? updatedAt = null,Object? canSign = freezed,}) {
   return _then(InvitationApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
@@ -86,7 +86,8 @@ as String,emailError: null == emailError ? _self.emailError : emailError // igno
 as String,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as int,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as int,
+as int,canSign: freezed == canSign ? _self.canSign : canSign // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 
@@ -171,10 +172,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt, @JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false)  bool? canSign)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _InvitationApi() when $default != null:
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt,_that.canSign);case _:
   return orElse();
 
 }
@@ -192,10 +193,10 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt, @JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false)  bool? canSign)  $default,) {final _that = this;
 switch (_that) {
 case _InvitationApi():
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt,_that.canSign);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -212,10 +213,10 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String key,  String link, @JsonKey(name: 'client_contact_id')  String clientContactId, @JsonKey(name: 'vendor_contact_id')  String vendorContactId, @JsonKey(name: 'sent_date')  String sentDate, @JsonKey(name: 'viewed_date')  String viewedDate, @JsonKey(name: 'opened_date')  String openedDate, @JsonKey(name: 'email_status')  String emailStatus, @JsonKey(name: 'email_error')  String emailError, @JsonKey(name: 'message_id')  String messageId, @JsonKey(name: 'created_at')  int createdAt, @JsonKey(name: 'updated_at')  int updatedAt, @JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false)  bool? canSign)?  $default,) {final _that = this;
 switch (_that) {
 case _InvitationApi() when $default != null:
-return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendorContactId,_that.sentDate,_that.viewedDate,_that.openedDate,_that.emailStatus,_that.emailError,_that.messageId,_that.createdAt,_that.updatedAt,_that.canSign);case _:
   return null;
 
 }
@@ -227,7 +228,7 @@ return $default(_that.id,_that.key,_that.link,_that.clientContactId,_that.vendor
 @JsonSerializable()
 
 class _InvitationApi implements InvitationApi {
-  const _InvitationApi({this.id = '', this.key = '', this.link = '', @JsonKey(name: 'client_contact_id') this.clientContactId = '', @JsonKey(name: 'vendor_contact_id') this.vendorContactId = '', @JsonKey(name: 'sent_date') this.sentDate = '', @JsonKey(name: 'viewed_date') this.viewedDate = '', @JsonKey(name: 'opened_date') this.openedDate = '', @JsonKey(name: 'email_status') this.emailStatus = '', @JsonKey(name: 'email_error') this.emailError = '', @JsonKey(name: 'message_id') this.messageId = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0});
+  const _InvitationApi({this.id = '', this.key = '', this.link = '', @JsonKey(name: 'client_contact_id') this.clientContactId = '', @JsonKey(name: 'vendor_contact_id') this.vendorContactId = '', @JsonKey(name: 'sent_date') this.sentDate = '', @JsonKey(name: 'viewed_date') this.viewedDate = '', @JsonKey(name: 'opened_date') this.openedDate = '', @JsonKey(name: 'email_status') this.emailStatus = '', @JsonKey(name: 'email_error') this.emailError = '', @JsonKey(name: 'message_id') this.messageId = '', @JsonKey(name: 'created_at') this.createdAt = 0, @JsonKey(name: 'updated_at') this.updatedAt = 0, @JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false) this.canSign});
   factory _InvitationApi.fromJson(Map<String, dynamic> json) => _$InvitationApiFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -243,6 +244,7 @@ class _InvitationApi implements InvitationApi {
 @override@JsonKey(name: 'message_id') final  String messageId;
 @override@JsonKey(name: 'created_at') final  int createdAt;
 @override@JsonKey(name: 'updated_at') final  int updatedAt;
+@override@JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false) final  bool? canSign;
 
 /// Create a copy of InvitationApi
 /// with the given fields replaced by the non-null parameter values.
@@ -257,18 +259,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationApi&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationApi&&(identical(other.id, id) || other.id == id)&&(identical(other.key, key) || other.key == key)&&(identical(other.link, link) || other.link == link)&&(identical(other.clientContactId, clientContactId) || other.clientContactId == clientContactId)&&(identical(other.vendorContactId, vendorContactId) || other.vendorContactId == vendorContactId)&&(identical(other.sentDate, sentDate) || other.sentDate == sentDate)&&(identical(other.viewedDate, viewedDate) || other.viewedDate == viewedDate)&&(identical(other.openedDate, openedDate) || other.openedDate == openedDate)&&(identical(other.emailStatus, emailStatus) || other.emailStatus == emailStatus)&&(identical(other.emailError, emailError) || other.emailError == emailError)&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.canSign, canSign) || other.canSign == canSign));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,createdAt,updatedAt);
+    return Object.hash(runtimeType,id,key,link,clientContactId,vendorContactId,sentDate,viewedDate,openedDate,emailStatus,emailError,messageId,createdAt,updatedAt,canSign);
 }
 
 @override
 String toString() {
-    return 'InvitationApi(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'InvitationApi(id: $id, key: $key, link: $link, clientContactId: $clientContactId, vendorContactId: $vendorContactId, sentDate: $sentDate, viewedDate: $viewedDate, openedDate: $openedDate, emailStatus: $emailStatus, emailError: $emailError, messageId: $messageId, createdAt: $createdAt, updatedAt: $updatedAt, canSign: $canSign)';
 }
 
 
@@ -279,7 +281,7 @@ abstract mixin class _$InvitationApiCopyWith<$Res> implements $InvitationApiCopy
   factory _$InvitationApiCopyWith(_InvitationApi value, $Res Function(_InvitationApi) _then) = __$InvitationApiCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String key, String link,@JsonKey(name: 'client_contact_id') String clientContactId,@JsonKey(name: 'vendor_contact_id') String vendorContactId,@JsonKey(name: 'sent_date') String sentDate,@JsonKey(name: 'viewed_date') String viewedDate,@JsonKey(name: 'opened_date') String openedDate,@JsonKey(name: 'email_status') String emailStatus,@JsonKey(name: 'email_error') String emailError,@JsonKey(name: 'message_id') String messageId,@JsonKey(name: 'created_at') int createdAt,@JsonKey(name: 'updated_at') int updatedAt
+ String id, String key, String link,@JsonKey(name: 'client_contact_id') String clientContactId,@JsonKey(name: 'vendor_contact_id') String vendorContactId,@JsonKey(name: 'sent_date') String sentDate,@JsonKey(name: 'viewed_date') String viewedDate,@JsonKey(name: 'opened_date') String openedDate,@JsonKey(name: 'email_status') String emailStatus,@JsonKey(name: 'email_error') String emailError,@JsonKey(name: 'message_id') String messageId,@JsonKey(name: 'created_at') int createdAt,@JsonKey(name: 'updated_at') int updatedAt,@JsonKey(name: 'can_sign', fromJson: jsonScalarToBoolOrNull, includeIfNull: false) bool? canSign
 });
 
 
@@ -296,7 +298,7 @@ class __$InvitationApiCopyWithImpl<$Res>
 
 /// Create a copy of InvitationApi
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? key = null,Object? link = null,Object? clientContactId = null,Object? vendorContactId = null,Object? sentDate = null,Object? viewedDate = null,Object? openedDate = null,Object? emailStatus = null,Object? emailError = null,Object? messageId = null,Object? createdAt = null,Object? updatedAt = null,Object? canSign = freezed,}) {
   return _then(_InvitationApi(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
@@ -311,7 +313,8 @@ as String,emailError: null == emailError ? _self.emailError : emailError // igno
 as String,messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as int,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as int,
+as int,canSign: freezed == canSign ? _self.canSign : canSign // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 

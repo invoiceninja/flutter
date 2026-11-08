@@ -1,21 +1,22 @@
 name: Deploy to Google Play
 
 # Manual only — building + uploading an Android App Bundle is a deliberate
-# release action, not a per-push gate. Releases straight to the `production`
-# track by default (a testing track can be picked instead), with Play's
-# "What's new" set from the version's short release notes, the F-Droid
-# changelog digest (docs/release-notes.md step 5). `rollout` below 100 makes it
-# a staged rollout, finished by hand in the Console. Production needs the
-# service account to hold "Release to production" (docs/setup.md § Android /
-# Google Play); with only the testing-track permission the upload is refused.
+# release action, not a per-push gate. Releases to the Open testing track
+# (`beta`) by default, so the beta testers get it with nothing left to do in
+# the Console, and Play's "What's new" is set from the version's short release
+# notes, the F-Droid changelog digest (docs/release-notes.md step 5). The
+# service account holds only "Release apps to testing tracks", so this
+# workflow is structurally incapable of touching production; promote to
+# production by hand in the Console. `rollout` below 100 makes a staged
+# rollout, finished there too.
 on:
   workflow_dispatch:
     inputs:
       track:
         description: Play track to release to
         type: choice
-        options: [production, beta, alpha, internal]
-        default: production
+        options: [beta, alpha, internal]
+        default: beta
       rollout:
         description: Percent of users to roll out to (100 = everyone; less = a staged rollout)
         type: string
@@ -30,9 +31,9 @@ on:
         type: boolean
         default: false
       track:
-        description: Play track to release to (production, beta, alpha or internal)
+        description: Play testing track to release to (beta, alpha or internal)
         type: string
-        default: production
+        default: beta
       rollout:
         description: Percent of users to roll out to (100 = everyone)
         type: string
@@ -69,13 +70,13 @@ jobs:
       - name: Release plan and What's new
         id: plan
         env:
-          TRACK: ${{ inputs.track || 'production' }}
+          TRACK: ${{ inputs.track || 'beta' }}
           ROLLOUT: ${{ inputs.rollout || '100' }}
         run: |
           set -euo pipefail
           case "$TRACK" in
-            production|beta|alpha|internal) ;;
-            *) echo "::error::Unknown track '$TRACK'."; exit 1 ;;
+            beta|alpha|internal) ;;
+            *) echo "::error::'$TRACK' is not a testing track (beta, alpha or internal)."; exit 1 ;;
           esac
           if ! [[ "$ROLLOUT" =~ ^[0-9]+$ ]] || [ "$ROLLOUT" -lt 1 ] || [ "$ROLLOUT" -gt 100 ]; then
             echo "::error::rollout must be a whole percent from 1 to 100, not '$ROLLOUT'."
@@ -168,9 +169,10 @@ jobs:
       # Upload to the Play Console via the de-facto community action
       # (r0adkll/upload-google-play, @v1 = latest v1.1.x, Play Developer API v3).
       # Credentials: a Google Cloud service-account JSON with the Play Developer
-      # API enabled, stored verbatim in the PLAY_SERVICE_ACCOUNT_JSON secret; it
-      # needs "Release to production" for the production track.
-      #   status: completed   — released to everyone on the track;
+      # API enabled and "Release apps to testing tracks" granted in the Play
+      # Console, stored verbatim in the PLAY_SERVICE_ACCOUNT_JSON secret.
+      #   status: completed   — released to everyone on the track once Google's
+      #                         review passes (Open testing is reviewed);
       #   status: inProgress  — a staged rollout to `userFraction` of them.
       # Two steps rather than one with computed inputs: the action rejects a
       # userFraction on a completed release.

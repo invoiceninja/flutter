@@ -70,6 +70,7 @@ _PurchaseOrderApi _$PurchaseOrderApiFromJson(Map<String, dynamic> json) =>
           ? const <TagRefApi>[]
           : const EmbeddedTagsConverter().fromJson(json['tags']),
       eInvoice: json['e_invoice'] as Map<String, dynamic>?,
+      sync: json['sync'] as Map<String, dynamic>?,
       isDeleted: json['is_deleted'] as bool? ?? false,
       createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
       updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
@@ -128,6 +129,7 @@ Map<String, dynamic> _$PurchaseOrderApiToJson(_PurchaseOrderApi instance) =>
       'documents': instance.documents,
       'tags': const EmbeddedTagsConverter().toJson(instance.tags),
       'e_invoice': instance.eInvoice,
+      'sync': instance.sync,
       'is_deleted': instance.isDeleted,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,

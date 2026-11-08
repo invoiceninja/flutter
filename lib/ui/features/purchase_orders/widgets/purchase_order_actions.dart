@@ -567,6 +567,9 @@ class PurchaseOrderActions {
           exchangeRate: Decimal.one,
           projectId: '',
           expenseId: '',
+          // The source's QuickBooks / DocuNinja state — a fresh draft is
+          // neither synced nor signed.
+          sync: null,
           // A clone is its own order — not the one converted from that
           // invoice / quote.
           invoiceId: '',

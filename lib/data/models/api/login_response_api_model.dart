@@ -285,6 +285,10 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     bool useCommaAsDecimalPlace,
     @JsonKey(name: 'legal_entity_id') @Default(0) int legalEntityId,
     @JsonKey(name: 'enabled_modules') @Default(0) int enabledModules,
+    // DocuNinja's on/off flag, read-only (see `CompanyApi.enableModules`).
+    @JsonKey(name: 'enable_modules', fromJson: jsonScalarToBool)
+    @Default(false)
+    bool enableModules,
     // `settings` stays as a raw map — every key the server sends is
     // preserved verbatim through the round-trip. Strong-typing here would
     // drop unknown keys at fromJson/toJson, silently corrupting fields
@@ -700,6 +704,9 @@ abstract class AccountEnvelopeApi with _$AccountEnvelopeApi {
     @JsonKey(name: 'disable_auto_update')
     @Default(false)
     bool disableAutoUpdate,
+    // DocuNinja seats this account has bought (hosted). Join treats a
+    // non-zero count as "already joined" (docs/docuninja.md).
+    @JsonKey(name: 'docuninja_num_users') @Default(0) int docuninjaNumUsers,
   }) = _AccountEnvelopeApi;
 
   factory AccountEnvelopeApi.fromJson(Map<String, dynamic> json) =>

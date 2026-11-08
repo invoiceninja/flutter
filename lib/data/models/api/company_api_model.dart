@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/client_registration_field_api_model.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/tax_config_api_model.dart';
 
 // `DocumentApi` moved out of this file when Client and Product also started
@@ -40,6 +41,17 @@ abstract class CompanyApi with _$CompanyApi {
     @Default(false)
     bool useCommaAsDecimalPlace,
     @JsonKey(name: 'enabled_modules') @Default(0) int enabledModules,
+    // `enable_modules` is DocuNinja's "e-signatures are on for this company"
+    // flag (server `Company::docuninjaActive()`), not the `enabled_modules`
+    // bitmask above. Set by the hosted admin service and not fillable, so it
+    // is read-only: never sent back (docs/docuninja.md).
+    @JsonKey(
+      name: 'enable_modules',
+      fromJson: jsonScalarToBool,
+      includeToJson: false,
+    )
+    @Default(false)
+    bool enableModules,
     @JsonKey(name: 'legal_entity_id') @Default(0) int legalEntityId,
     // ── E-Invoice certificate ───────────────────────────────────────────
     // Top-level company fields edited by Settings → E-Invoice's certificate

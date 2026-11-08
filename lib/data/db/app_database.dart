@@ -209,7 +209,7 @@ class AppDatabase extends _$AppDatabase {
   bool _createdThisOpen = false;
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -437,6 +437,11 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(m, invoices, invoices.lastSentDate);
             await _addColumnIfMissing(m, quotes, quotes.lastSentDate);
             await backfillLastSentDates(this);
+          }
+          if (from < 20) {
+            // DocuNinja's `enable_modules` flag. Added false; the next
+            // login / refresh rewrites the row from the envelope.
+            await _addColumnIfMissing(m, companies, companies.enableModules);
           }
           // Create any declared table this database is missing, before the
           // index pass below touches it.

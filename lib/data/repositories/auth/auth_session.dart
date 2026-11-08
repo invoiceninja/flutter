@@ -77,6 +77,7 @@ class AuthSession {
     this.eInvoicingToken = '',
     this.reportErrors = false,
     this.isPremium = false,
+    this.docuninjaNumUsers = 0,
     this.accountKey = '',
     this.serverCurrentVersion = '',
     this.serverLatestVersion = '',
@@ -212,6 +213,11 @@ class AuthSession {
   /// `account.is_premium` — hosted, paid, out of trial, older than a month.
   /// Only meaningful on hosted; see [canCcEmail].
   final bool isPremium;
+
+  /// `account.docuninja_num_users`: DocuNinja seats bought on hosted. React's
+  /// Join treats a non-zero count as "already joined", so a login refusal
+  /// then means this user has no DocuNinja access (docs/docuninja.md).
+  final int docuninjaNumUsers;
 
   /// `account.key`. Names the per-user realtime channel
   /// (`private-user-{accountKey}-{userId}`). Blank until the account envelope
@@ -540,6 +546,7 @@ class AuthSession {
     eInvoicingToken: eInvoicingToken,
     reportErrors: reportErrors,
     isPremium: isPremium,
+    docuninjaNumUsers: docuninjaNumUsers,
     accountKey: accountKey,
     serverCurrentVersion: serverCurrentVersion,
     serverLatestVersion: serverLatestVersion,

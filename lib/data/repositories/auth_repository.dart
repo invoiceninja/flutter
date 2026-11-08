@@ -1503,6 +1503,7 @@ class AuthRepository {
     var eInvoicingToken = '';
     var reportErrors = false;
     var isPremium = false;
+    var docuninjaNumUsers = 0;
     var accountKey = '';
     var serverCurrentVersion = '';
     var serverLatestVersion = '';
@@ -1533,6 +1534,7 @@ class AuthRepository {
           eInvoicingToken = asStr(decoded['e_invoicing_token']);
           reportErrors = decoded['report_errors'] == true;
           isPremium = decoded['is_premium'] == true;
+          docuninjaNumUsers = asInt(decoded['docuninja_num_users']);
           accountKey = asStr(decoded['key']);
           serverCurrentVersion = asStr(decoded['current_version']);
           serverLatestVersion = asStr(decoded['latest_version']);
@@ -1664,6 +1666,7 @@ class AuthRepository {
       eInvoicingToken: eInvoicingToken,
       reportErrors: reportErrors,
       isPremium: isPremium,
+      docuninjaNumUsers: docuninjaNumUsers,
       accountKey: accountKey,
       serverCurrentVersion: serverCurrentVersion,
       serverLatestVersion: serverLatestVersion,
@@ -1989,6 +1992,7 @@ class AuthRepository {
           accountId: uc.account.id,
           isAdmin: uc.isAdmin,
           isOwner: uc.isOwner,
+          enableModules: uc.company.enableModules,
         );
       }
       await _db.companiesDao.upsertAll([
@@ -2022,6 +2026,7 @@ class AuthRepository {
               useCommaAsDecimalPlace: Value(uc.company.useCommaAsDecimalPlace),
               legalEntityId: Value(uc.company.legalEntityId),
               enabledModules: Value(uc.company.enabledModules),
+              enableModules: Value(uc.company.enableModules),
               googleAnalyticsKey: Value(uc.company.googleAnalyticsKey),
               matomoId: Value(uc.company.matomoId),
               matomoUrl: Value(uc.company.matomoUrl),
@@ -2520,6 +2525,7 @@ class AuthRepository {
       eInvoicingToken: firstAccount.eInvoicingToken,
       reportErrors: firstAccount.reportErrors,
       isPremium: firstAccount.isPremium,
+      docuninjaNumUsers: firstAccount.docuninjaNumUsers,
       accountKey: firstAccount.key,
       serverCurrentVersion: firstAccount.currentVersion,
       serverLatestVersion: firstAccount.latestVersion,

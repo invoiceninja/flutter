@@ -598,6 +598,9 @@ class QuoteActions {
           projectId: '',
           vendorId: '',
           subscriptionId: '',
+          // The source's QuickBooks / DocuNinja state — a fresh draft is
+          // neither synced nor signed.
+          sync: null,
           invoiceId: '',
           eInvoice: null,
           // Drop the source's per-send lifecycle state — see

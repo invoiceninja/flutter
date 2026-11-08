@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
@@ -36,6 +37,7 @@ import 'package:admin/ui/features/billing_shared/detail/billing_doc_documents_ta
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_profile.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_header.dart';
+import 'package:admin/ui/features/billing_shared/detail/signed_document_pill.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_standing.dart';
 import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
 import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
@@ -355,6 +357,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         type: BillingDocType.purchaseOrder,
         doc: po,
         formatter: formatter,
+        signedPill: showSignedDocumentPill(po.sync, company)
+            ? SignedDocumentPill(
+                onTap: () => context.go('/purchase_orders/${po.id}/pdf'),
+              )
+            : null,
         statusPill: ViewedStatusPillLink(
           isViewed: po.calculatedStatusId == PurchaseOrderStatusComputed.viewed,
           invitations: po.invitations,

@@ -46,6 +46,9 @@ abstract class Company with _$Company {
     @Default('') String firstDayOfWeek,
     @Default(false) bool useCommaAsDecimalPlace,
     @Default(0) int enabledModules,
+    // DocuNinja e-signatures are on for this company (`enable_modules`).
+    // Read-only: `toApiJson` never sends it (`CompanyApi` excludes it).
+    @Default(false) bool enableModules,
     @Default(0) int legalEntityId,
     // Top-level e-invoice certificate state. The passphrase is the only field
     // the user edits directly; the two `has*` flags are server-set (set
@@ -179,6 +182,7 @@ abstract class Company with _$Company {
     firstDayOfWeek: api.firstDayOfWeek,
     useCommaAsDecimalPlace: api.useCommaAsDecimalPlace,
     enabledModules: api.enabledModules,
+    enableModules: api.enableModules,
     legalEntityId: api.legalEntityId,
     hasEInvoiceCertificate: api.hasEInvoiceCertificate,
     eInvoiceCertificatePassphrase: api.eInvoiceCertificatePassphrase,

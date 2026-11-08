@@ -130,9 +130,12 @@ void main() {
         accountId: 'acct_2',
         isAdmin: true,
         isOwner: true,
+        enableModules: true,
       );
 
       final row = (await db.companiesDao.byId('co_a'))!;
+      // DocuNinja's flag is server-owned, so a parked edit can't hold it back.
+      expect(row.enableModules, isTrue);
       expect(row.permissions, 'view_client,edit_client');
       expect(row.accountId, 'acct_2');
       expect(row.isAdmin, isTrue);
@@ -152,6 +155,7 @@ void main() {
         accountId: 'acct',
         isAdmin: false,
         isOwner: false,
+        enableModules: false,
       );
 
       final row = (await db.companiesDao.byId('co_a'))!;

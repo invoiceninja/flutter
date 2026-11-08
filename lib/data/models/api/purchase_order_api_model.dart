@@ -76,6 +76,9 @@ abstract class PurchaseOrderApi with _$PurchaseOrderApi {
     @Default(<TagRefApi>[])
     List<TagRefApi> tags,
     @JsonKey(name: 'e_invoice') Map<String, dynamic>? eInvoice,
+    // Read-only sync state (`App\DataMapper\PurchaseOrderSync`): QuickBooks
+    // and DocuNinja (`dn_completed`, `invitations[].dn_id`). Never sent back.
+    @JsonKey(name: 'sync') Map<String, dynamic>? sync,
     @JsonKey(name: 'is_deleted') @Default(false) bool isDeleted,
     @JsonKey(name: 'created_at') @Default(0) int createdAt,
     @JsonKey(name: 'updated_at') @Default(0) int updatedAt,

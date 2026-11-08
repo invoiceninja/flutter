@@ -78,6 +78,8 @@ abstract class Quote with _$Quote implements BillingDocPartialFields {
     @Default(<Document>[]) List<Document> documents,
     @Default(<String>[]) List<String> tagIds,
     Map<String, dynamic>? eInvoice,
+    // Read-only, like the invoice's — not part of `toApiJson`.
+    Map<String, dynamic>? sync,
     // Server-computed, read-only (display only — omitted from toApiJson).
     Date? lastSentDate,
     Date? nextSendDate,
@@ -143,6 +145,7 @@ abstract class Quote with _$Quote implements BillingDocPartialFields {
         if (t.id.isNotEmpty) t.id,
     ],
     eInvoice: a.eInvoice,
+    sync: a.sync,
     lastSentDate: Date.tryParse(a.lastSentDate),
     nextSendDate: Date.tryParse(a.nextSendDate),
   );

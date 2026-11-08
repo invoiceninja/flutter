@@ -6491,6 +6491,21 @@ class $CompaniesTable extends Companies
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _enableModulesMeta = const VerificationMeta(
+    'enableModules',
+  );
+  @override
+  late final GeneratedColumn<bool> enableModules = GeneratedColumn<bool>(
+    'enable_modules',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enable_modules" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _hasEInvoiceCertificateMeta =
       const VerificationMeta('hasEInvoiceCertificate');
   @override
@@ -7686,6 +7701,7 @@ class $CompaniesTable extends Companies
     firstDayOfWeek,
     useCommaAsDecimalPlace,
     legalEntityId,
+    enableModules,
     hasEInvoiceCertificate,
     eInvoiceCertificatePassphrase,
     hasEInvoiceCertificatePassphrase,
@@ -7902,6 +7918,15 @@ class $CompaniesTable extends Companies
         legalEntityId.isAcceptableOrUnknown(
           data['legal_entity_id']!,
           _legalEntityIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('enable_modules')) {
+      context.handle(
+        _enableModulesMeta,
+        enableModules.isAcceptableOrUnknown(
+          data['enable_modules']!,
+          _enableModulesMeta,
         ),
       );
     }
@@ -8714,6 +8739,10 @@ class $CompaniesTable extends Companies
         DriftSqlType.int,
         data['${effectivePrefix}legal_entity_id'],
       )!,
+      enableModules: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enable_modules'],
+      )!,
       hasEInvoiceCertificate: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_e_invoice_certificate'],
@@ -9083,6 +9112,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
   final String firstDayOfWeek;
   final bool useCommaAsDecimalPlace;
   final int legalEntityId;
+  final bool enableModules;
   final bool hasEInvoiceCertificate;
   final String eInvoiceCertificatePassphrase;
   final bool hasEInvoiceCertificatePassphrase;
@@ -9192,6 +9222,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
     required this.firstDayOfWeek,
     required this.useCommaAsDecimalPlace,
     required this.legalEntityId,
+    required this.enableModules,
     required this.hasEInvoiceCertificate,
     required this.eInvoiceCertificatePassphrase,
     required this.hasEInvoiceCertificatePassphrase,
@@ -9301,6 +9332,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
     map['first_day_of_week'] = Variable<String>(firstDayOfWeek);
     map['use_comma_as_decimal_place'] = Variable<bool>(useCommaAsDecimalPlace);
     map['legal_entity_id'] = Variable<int>(legalEntityId);
+    map['enable_modules'] = Variable<bool>(enableModules);
     map['has_e_invoice_certificate'] = Variable<bool>(hasEInvoiceCertificate);
     map['e_invoice_certificate_passphrase'] = Variable<String>(
       eInvoiceCertificatePassphrase,
@@ -9447,6 +9479,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
       firstDayOfWeek: Value(firstDayOfWeek),
       useCommaAsDecimalPlace: Value(useCommaAsDecimalPlace),
       legalEntityId: Value(legalEntityId),
+      enableModules: Value(enableModules),
       hasEInvoiceCertificate: Value(hasEInvoiceCertificate),
       eInvoiceCertificatePassphrase: Value(eInvoiceCertificatePassphrase),
       hasEInvoiceCertificatePassphrase: Value(hasEInvoiceCertificatePassphrase),
@@ -9567,6 +9600,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
         json['useCommaAsDecimalPlace'],
       ),
       legalEntityId: serializer.fromJson<int>(json['legalEntityId']),
+      enableModules: serializer.fromJson<bool>(json['enableModules']),
       hasEInvoiceCertificate: serializer.fromJson<bool>(
         json['hasEInvoiceCertificate'],
       ),
@@ -9754,6 +9788,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
       'firstDayOfWeek': serializer.toJson<String>(firstDayOfWeek),
       'useCommaAsDecimalPlace': serializer.toJson<bool>(useCommaAsDecimalPlace),
       'legalEntityId': serializer.toJson<int>(legalEntityId),
+      'enableModules': serializer.toJson<bool>(enableModules),
       'hasEInvoiceCertificate': serializer.toJson<bool>(hasEInvoiceCertificate),
       'eInvoiceCertificatePassphrase': serializer.toJson<String>(
         eInvoiceCertificatePassphrase,
@@ -9891,6 +9926,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
     String? firstDayOfWeek,
     bool? useCommaAsDecimalPlace,
     int? legalEntityId,
+    bool? enableModules,
     bool? hasEInvoiceCertificate,
     String? eInvoiceCertificatePassphrase,
     bool? hasEInvoiceCertificatePassphrase,
@@ -9994,6 +10030,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
     useCommaAsDecimalPlace:
         useCommaAsDecimalPlace ?? this.useCommaAsDecimalPlace,
     legalEntityId: legalEntityId ?? this.legalEntityId,
+    enableModules: enableModules ?? this.enableModules,
     hasEInvoiceCertificate:
         hasEInvoiceCertificate ?? this.hasEInvoiceCertificate,
     eInvoiceCertificatePassphrase:
@@ -10139,6 +10176,9 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
       legalEntityId: data.legalEntityId.present
           ? data.legalEntityId.value
           : this.legalEntityId,
+      enableModules: data.enableModules.present
+          ? data.enableModules.value
+          : this.enableModules,
       hasEInvoiceCertificate: data.hasEInvoiceCertificate.present
           ? data.hasEInvoiceCertificate.value
           : this.hasEInvoiceCertificate,
@@ -10403,6 +10443,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
           ..write('firstDayOfWeek: $firstDayOfWeek, ')
           ..write('useCommaAsDecimalPlace: $useCommaAsDecimalPlace, ')
           ..write('legalEntityId: $legalEntityId, ')
+          ..write('enableModules: $enableModules, ')
           ..write('hasEInvoiceCertificate: $hasEInvoiceCertificate, ')
           ..write(
             'eInvoiceCertificatePassphrase: $eInvoiceCertificatePassphrase, ',
@@ -10518,6 +10559,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
     firstDayOfWeek,
     useCommaAsDecimalPlace,
     legalEntityId,
+    enableModules,
     hasEInvoiceCertificate,
     eInvoiceCertificatePassphrase,
     hasEInvoiceCertificatePassphrase,
@@ -10624,6 +10666,7 @@ class CompanyRow extends DataClass implements Insertable<CompanyRow> {
           other.firstDayOfWeek == this.firstDayOfWeek &&
           other.useCommaAsDecimalPlace == this.useCommaAsDecimalPlace &&
           other.legalEntityId == this.legalEntityId &&
+          other.enableModules == this.enableModules &&
           other.hasEInvoiceCertificate == this.hasEInvoiceCertificate &&
           other.eInvoiceCertificatePassphrase ==
               this.eInvoiceCertificatePassphrase &&
@@ -10733,6 +10776,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
   final Value<String> firstDayOfWeek;
   final Value<bool> useCommaAsDecimalPlace;
   final Value<int> legalEntityId;
+  final Value<bool> enableModules;
   final Value<bool> hasEInvoiceCertificate;
   final Value<String> eInvoiceCertificatePassphrase;
   final Value<bool> hasEInvoiceCertificatePassphrase;
@@ -10836,6 +10880,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
     this.firstDayOfWeek = const Value.absent(),
     this.useCommaAsDecimalPlace = const Value.absent(),
     this.legalEntityId = const Value.absent(),
+    this.enableModules = const Value.absent(),
     this.hasEInvoiceCertificate = const Value.absent(),
     this.eInvoiceCertificatePassphrase = const Value.absent(),
     this.hasEInvoiceCertificatePassphrase = const Value.absent(),
@@ -10940,6 +10985,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
     this.firstDayOfWeek = const Value.absent(),
     this.useCommaAsDecimalPlace = const Value.absent(),
     this.legalEntityId = const Value.absent(),
+    this.enableModules = const Value.absent(),
     this.hasEInvoiceCertificate = const Value.absent(),
     this.eInvoiceCertificatePassphrase = const Value.absent(),
     this.hasEInvoiceCertificatePassphrase = const Value.absent(),
@@ -11050,6 +11096,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
     Expression<String>? firstDayOfWeek,
     Expression<bool>? useCommaAsDecimalPlace,
     Expression<int>? legalEntityId,
+    Expression<bool>? enableModules,
     Expression<bool>? hasEInvoiceCertificate,
     Expression<String>? eInvoiceCertificatePassphrase,
     Expression<bool>? hasEInvoiceCertificatePassphrase,
@@ -11155,6 +11202,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
       if (useCommaAsDecimalPlace != null)
         'use_comma_as_decimal_place': useCommaAsDecimalPlace,
       if (legalEntityId != null) 'legal_entity_id': legalEntityId,
+      if (enableModules != null) 'enable_modules': enableModules,
       if (hasEInvoiceCertificate != null)
         'has_e_invoice_certificate': hasEInvoiceCertificate,
       if (eInvoiceCertificatePassphrase != null)
@@ -11306,6 +11354,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
     Value<String>? firstDayOfWeek,
     Value<bool>? useCommaAsDecimalPlace,
     Value<int>? legalEntityId,
+    Value<bool>? enableModules,
     Value<bool>? hasEInvoiceCertificate,
     Value<String>? eInvoiceCertificatePassphrase,
     Value<bool>? hasEInvoiceCertificatePassphrase,
@@ -11411,6 +11460,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
       useCommaAsDecimalPlace:
           useCommaAsDecimalPlace ?? this.useCommaAsDecimalPlace,
       legalEntityId: legalEntityId ?? this.legalEntityId,
+      enableModules: enableModules ?? this.enableModules,
       hasEInvoiceCertificate:
           hasEInvoiceCertificate ?? this.hasEInvoiceCertificate,
       eInvoiceCertificatePassphrase:
@@ -11583,6 +11633,9 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
     }
     if (legalEntityId.present) {
       map['legal_entity_id'] = Variable<int>(legalEntityId.value);
+    }
+    if (enableModules.present) {
+      map['enable_modules'] = Variable<bool>(enableModules.value);
     }
     if (hasEInvoiceCertificate.present) {
       map['has_e_invoice_certificate'] = Variable<bool>(
@@ -11938,6 +11991,7 @@ class CompaniesCompanion extends UpdateCompanion<CompanyRow> {
           ..write('firstDayOfWeek: $firstDayOfWeek, ')
           ..write('useCommaAsDecimalPlace: $useCommaAsDecimalPlace, ')
           ..write('legalEntityId: $legalEntityId, ')
+          ..write('enableModules: $enableModules, ')
           ..write('hasEInvoiceCertificate: $hasEInvoiceCertificate, ')
           ..write(
             'eInvoiceCertificatePassphrase: $eInvoiceCertificatePassphrase, ',
@@ -49901,6 +49955,7 @@ typedef $$CompaniesTableCreateCompanionBuilder =
       Value<String> firstDayOfWeek,
       Value<bool> useCommaAsDecimalPlace,
       Value<int> legalEntityId,
+      Value<bool> enableModules,
       Value<bool> hasEInvoiceCertificate,
       Value<String> eInvoiceCertificatePassphrase,
       Value<bool> hasEInvoiceCertificatePassphrase,
@@ -50006,6 +50061,7 @@ typedef $$CompaniesTableUpdateCompanionBuilder =
       Value<String> firstDayOfWeek,
       Value<bool> useCommaAsDecimalPlace,
       Value<int> legalEntityId,
+      Value<bool> enableModules,
       Value<bool> hasEInvoiceCertificate,
       Value<String> eInvoiceCertificatePassphrase,
       Value<bool> hasEInvoiceCertificatePassphrase,
@@ -50176,6 +50232,11 @@ class $$CompaniesTableFilterComposer
 
   ColumnFilters<int> get legalEntityId => $composableBuilder(
     column: $table.legalEntityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enableModules => $composableBuilder(
+    column: $table.enableModules,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -50695,6 +50756,11 @@ class $$CompaniesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get enableModules => $composableBuilder(
+    column: $table.enableModules,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get hasEInvoiceCertificate => $composableBuilder(
     column: $table.hasEInvoiceCertificate,
     builder: (column) => ColumnOrderings(column),
@@ -51199,6 +51265,11 @@ class $$CompaniesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get enableModules => $composableBuilder(
+    column: $table.enableModules,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get hasEInvoiceCertificate => $composableBuilder(
     column: $table.hasEInvoiceCertificate,
     builder: (column) => column,
@@ -51661,6 +51732,7 @@ class $$CompaniesTableTableManager
                 Value<String> firstDayOfWeek = const Value.absent(),
                 Value<bool> useCommaAsDecimalPlace = const Value.absent(),
                 Value<int> legalEntityId = const Value.absent(),
+                Value<bool> enableModules = const Value.absent(),
                 Value<bool> hasEInvoiceCertificate = const Value.absent(),
                 Value<String> eInvoiceCertificatePassphrase =
                     const Value.absent(),
@@ -51768,6 +51840,7 @@ class $$CompaniesTableTableManager
                 firstDayOfWeek: firstDayOfWeek,
                 useCommaAsDecimalPlace: useCommaAsDecimalPlace,
                 legalEntityId: legalEntityId,
+                enableModules: enableModules,
                 hasEInvoiceCertificate: hasEInvoiceCertificate,
                 eInvoiceCertificatePassphrase: eInvoiceCertificatePassphrase,
                 hasEInvoiceCertificatePassphrase:
@@ -51875,6 +51948,7 @@ class $$CompaniesTableTableManager
                 Value<String> firstDayOfWeek = const Value.absent(),
                 Value<bool> useCommaAsDecimalPlace = const Value.absent(),
                 Value<int> legalEntityId = const Value.absent(),
+                Value<bool> enableModules = const Value.absent(),
                 Value<bool> hasEInvoiceCertificate = const Value.absent(),
                 Value<String> eInvoiceCertificatePassphrase =
                     const Value.absent(),
@@ -51982,6 +52056,7 @@ class $$CompaniesTableTableManager
                 firstDayOfWeek: firstDayOfWeek,
                 useCommaAsDecimalPlace: useCommaAsDecimalPlace,
                 legalEntityId: legalEntityId,
+                enableModules: enableModules,
                 hasEInvoiceCertificate: hasEInvoiceCertificate,
                 eInvoiceCertificatePassphrase: eInvoiceCertificatePassphrase,
                 hasEInvoiceCertificatePassphrase:

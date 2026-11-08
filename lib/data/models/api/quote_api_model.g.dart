@@ -72,6 +72,7 @@ _QuoteApi _$QuoteApiFromJson(Map<String, dynamic> json) => _QuoteApi(
       ? const <TagRefApi>[]
       : const EmbeddedTagsConverter().fromJson(json['tags']),
   eInvoice: json['e_invoice'] as Map<String, dynamic>?,
+  sync: json['sync'] as Map<String, dynamic>?,
   isDeleted: json['is_deleted'] as bool? ?? false,
   createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
   updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
@@ -132,6 +133,7 @@ Map<String, dynamic> _$QuoteApiToJson(_QuoteApi instance) => <String, dynamic>{
   'documents': instance.documents,
   'tags': const EmbeddedTagsConverter().toJson(instance.tags),
   'e_invoice': instance.eInvoice,
+  'sync': instance.sync,
   'is_deleted': instance.isDeleted,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,

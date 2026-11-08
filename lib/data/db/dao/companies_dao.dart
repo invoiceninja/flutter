@@ -49,7 +49,10 @@ class CompaniesDao extends DatabaseAccessor<AppDatabase>
   ///
   /// The columns below are safe to write unconditionally because
   /// `CompanyRepository.updateCompany` never touches them — they carry no
-  /// local edit that could be clobbered. Two deliberate omissions:
+  /// local edit that could be clobbered — `enableModules` (DocuNinja's flag,
+  /// set by the hosted service and never by the app) among them, so turning
+  /// DocuNinja on or off reaches a device with a parked edit. Two deliberate
+  /// omissions:
   /// `enabledModules`, which Settings → Account Management → Enabled Modules
   /// writes (so it belongs to the skipped set alongside `settings` and the
   /// top-level company columns); and `token`, because `/refresh` has been
@@ -63,6 +66,7 @@ class CompaniesDao extends DatabaseAccessor<AppDatabase>
     required String accountId,
     required bool isAdmin,
     required bool isOwner,
+    required bool enableModules,
   }) async {
     await (update(companies)..where((c) => c.id.equals(companyId))).write(
       CompaniesCompanion(
@@ -71,6 +75,7 @@ class CompaniesDao extends DatabaseAccessor<AppDatabase>
         accountId: Value(accountId),
         isAdmin: Value(isAdmin),
         isOwner: Value(isOwner),
+        enableModules: Value(enableModules),
       ),
     );
   }

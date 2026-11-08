@@ -1,4 +1,6 @@
+import 'package:admin/data/models/api/company_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -31,6 +33,60 @@ void main() {
 
     test('coerces bool defensively', () {
       expect(jsonScalarToString(true), 'true');
+    });
+  });
+
+  group('jsonScalarToBool', () {
+    test('reads true however the server casts it', () {
+      expect(jsonScalarToBool(true), isTrue);
+      expect(jsonScalarToBool(1), isTrue);
+      expect(jsonScalarToBool('1'), isTrue);
+      expect(jsonScalarToBool('true'), isTrue);
+      expect(jsonScalarToBool(' TRUE '), isTrue);
+    });
+
+    test('reads false, absence and junk as false', () {
+      expect(jsonScalarToBool(false), isFalse);
+      expect(jsonScalarToBool(0), isFalse);
+      expect(jsonScalarToBool('0'), isFalse);
+      expect(jsonScalarToBool(''), isFalse);
+      expect(jsonScalarToBool(null), isFalse);
+      expect(jsonScalarToBool(const <String, dynamic>{}), isFalse);
+    });
+  });
+
+  group('company enable_modules (DocuNinja)', () {
+    test('parses on CompanyApi and the login envelope, never sent back', () {
+      final api = CompanyApi.fromJson({'id': 'c1', 'enable_modules': 1});
+      expect(api.enableModules, isTrue);
+      expect(api.toJson().containsKey('enable_modules'), isFalse);
+      expect(CompanyApi.fromJson({'id': 'c1'}).enableModules, isFalse);
+
+      expect(
+        CompanyEnvelopeApi.fromJson({
+          'id': 'c1',
+          'enable_modules': true,
+        }).enableModules,
+        isTrue,
+      );
+      // The envelope is persisted through toJson; the flag must survive it.
+      final envelope = CompanyEnvelopeApi.fromJson({
+        'id': 'c1',
+        'enable_modules': true,
+      });
+      expect(
+        CompanyEnvelopeApi.fromJson(envelope.toJson()).enableModules,
+        isTrue,
+      );
+    });
+
+    test('docuninja_num_users rides the account envelope round trip', () {
+      final account = AccountEnvelopeApi.fromJson({
+        'id': 'a1',
+        'docuninja_num_users': 3,
+      });
+      expect(account.docuninjaNumUsers, 3);
+      expect(account.toJson()['docuninja_num_users'], 3);
     });
   });
 

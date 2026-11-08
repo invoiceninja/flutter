@@ -51,6 +51,31 @@ String? jsonScalarToString(Object? value) {
 String jsonScalarToStringOrEmpty(Object? value) =>
     jsonScalarToString(value) ?? '';
 
+/// Coerce a JSON flag the server may emit as a bool, a number or a string into
+/// a Dart `bool`: `true`, a non-zero number, `"true"` and `"1"` are true;
+/// anything else, `null` included, is false. Wire via
+/// `@JsonKey(fromJson: jsonScalarToBool)` on a non-null `bool` field (a custom
+/// converter does not re-apply `@Default`, so absence must map to `false`
+/// here). For a smallint column the server may cast inconsistently, such as
+/// `company.enable_modules`.
+bool jsonScalarToBool(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final v = value.trim().toLowerCase();
+    return v == 'true' || v == '1';
+  }
+  return false;
+}
+
+/// Nullable variant of [jsonScalarToBool]: `null`/absent stays `null`, so a
+/// field can tell "the server didn't say" from "false". Wire to a `bool?`
+/// field via `@JsonKey(fromJson: jsonScalarToBoolOrNull)` — for an
+/// invitation's `can_sign`, where a payload written before the field existed
+/// must not read as false (docs/contacts-and-invitations.md).
+bool? jsonScalarToBoolOrNull(Object? value) =>
+    value == null ? null : jsonScalarToBool(value);
+
 /// Tolerant list parse: deserialize each element of [raw] with [parse],
 /// **dropping and logging** any element that throws instead of failing the
 /// entire page. Backstops unknown future type mismatches in list responses —

@@ -136,6 +136,9 @@ _CompanyEnvelopeApi _$CompanyEnvelopeApiFromJson(
   useCommaAsDecimalPlace: json['use_comma_as_decimal_place'] as bool? ?? false,
   legalEntityId: (json['legal_entity_id'] as num?)?.toInt() ?? 0,
   enabledModules: (json['enabled_modules'] as num?)?.toInt() ?? 0,
+  enableModules: json['enable_modules'] == null
+      ? false
+      : jsonScalarToBool(json['enable_modules']),
   settings:
       json['settings'] as Map<String, dynamic>? ?? const <String, dynamic>{},
   users: json['users'] == null
@@ -333,6 +336,7 @@ Map<String, dynamic> _$CompanyEnvelopeApiToJson(
   'use_comma_as_decimal_place': instance.useCommaAsDecimalPlace,
   'legal_entity_id': instance.legalEntityId,
   'enabled_modules': instance.enabledModules,
+  'enable_modules': instance.enableModules,
   'settings': instance.settings,
   'users': instance.users,
   'task_statuses': instance.taskStatuses,
@@ -469,6 +473,7 @@ _AccountEnvelopeApi _$AccountEnvelopeApiFromJson(Map<String, dynamic> json) =>
       latestVersion: json['latest_version'] as String? ?? '',
       isDocker: json['is_docker'] as bool? ?? false,
       disableAutoUpdate: json['disable_auto_update'] as bool? ?? false,
+      docuninjaNumUsers: (json['docuninja_num_users'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$AccountEnvelopeApiToJson(_AccountEnvelopeApi instance) =>
@@ -492,4 +497,5 @@ Map<String, dynamic> _$AccountEnvelopeApiToJson(_AccountEnvelopeApi instance) =>
       'latest_version': instance.latestVersion,
       'is_docker': instance.isDocker,
       'disable_auto_update': instance.disableAutoUpdate,
+      'docuninja_num_users': instance.docuninjaNumUsers,
     };

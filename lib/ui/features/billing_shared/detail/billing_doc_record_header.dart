@@ -74,6 +74,7 @@ class BillingDocRecordHeader extends StatelessWidget {
     this.formatter,
     this.banner,
     this.facts = const [],
+    this.signedPill,
   });
 
   final BillingDocType type;
@@ -93,6 +94,13 @@ class BillingDocRecordHeader extends StatelessWidget {
   /// Extra subtitle segments for a document whose dates come from somewhere
   /// else — the recurring invoice's frequency and last send.
   final List<Widget> facts;
+
+  /// The DocuNinja "Signed Document" pill (`SignedDocumentPill`), beside the
+  /// status pill as in React. Null until the document is signed
+  /// (`showSignedDocumentPill`): a pill that hid itself would still take a
+  /// gap in the `Wrap`. Invoices, quotes and purchase orders only: nothing
+  /// else is signed through DocuNinja.
+  final Widget? signedPill;
 
   /// The style for [party]: `bodyMedium`, whose line box the inline call
   /// button is pinned to (`docs/tap-to-call.md` § The billing-doc header
@@ -171,6 +179,7 @@ class BillingDocRecordHeader extends StatelessWidget {
                           style: nameStyle,
                         ),
                         statusPill,
+                        ?signedPill,
                         // Not a lifecycle state and no banner repeats it, so
                         // it is said here.
                         if (doc.isDirty) const UnsyncedPill(),

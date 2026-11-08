@@ -72,6 +72,8 @@ void main() {
     // does not model (`kIndexedForeignKeys`, `kDefaultSortIndexes`), which the
     // index tests below pin.
     19: '4546009b7caa31e5d5686629d84ab439ab9d8e3c7e5ec95229b0f217f89b7ada',
+    // v20 adds `companies.enable_modules` (DocuNinja's on/off flag).
+    20: '91cd86b73bcf3648b9b620b95d62c04746f7b05e3532106edda111bcb53ab94c',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB

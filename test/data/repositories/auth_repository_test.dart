@@ -127,6 +127,7 @@ LoginResponseApi _envelope({
   Map<String, CompanyEnvelopeApi>? companyOverrideById,
   String eInvoicingToken = '',
   bool reportErrors = false,
+  int docuninjaNumUsers = 0,
   String currentVersion = '',
   String latestVersion = '',
   bool isDocker = false,
@@ -158,6 +159,7 @@ LoginResponseApi _envelope({
             numTrialDays: 14,
             eInvoicingToken: eInvoicingToken,
             reportErrors: reportErrors,
+            docuninjaNumUsers: docuninjaNumUsers,
             currentVersion: currentVersion,
             latestVersion: latestVersion,
             isDocker: isDocker,
@@ -777,6 +779,51 @@ void main() {
       );
       await restoreRepo.restore();
       expect(restoreRepo.session.value!.reportErrors, isTrue);
+    });
+
+    test('threads account.docuninja_num_users to AuthSession and survives '
+        'restore via the features_json blob', () async {
+      // DocuNinja's Join reads it to tell "not joined" from "joined, no seat
+      // for you" (docs/docuninja.md), on a cold start before any refresh.
+      authService.queueLogin(_envelope(docuninjaNumUsers: 2));
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: true,
+        email: 'a@b',
+        password: 'pw',
+      );
+      expect(repo.session.value!.docuninjaNumUsers, 2);
+
+      final restoreRepo = AuthRepository(
+        db: db,
+        authService: _FakeAuthService(),
+        tokenStorage: storage,
+        passwordCache: passwordCache,
+      );
+      await restoreRepo.restore();
+      expect(restoreRepo.session.value!.docuninjaNumUsers, 2);
+    });
+
+    test('persists company.enable_modules from the login envelope', () async {
+      authService.queueLogin(
+        _envelope(
+          companyOverrideById: const {
+            'co_a': CompanyEnvelopeApi(
+              id: 'co_a',
+              name: 'Acme',
+              enableModules: true,
+            ),
+          },
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: true,
+        email: 'a@b',
+        password: 'pw',
+      );
+      final row = await db.companiesDao.byId('co_a');
+      expect(row!.enableModules, isTrue);
     });
 
     test(

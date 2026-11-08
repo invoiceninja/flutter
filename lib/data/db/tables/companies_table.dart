@@ -55,6 +55,11 @@ class Companies extends Table {
   // after upload, false after remove). The local `is_dirty` overlay in
   // `_fromRow` lets pending uploads show as "set" immediately instead of
   // waiting on the dispatcher drain — see § Strict rules in CLAUDE.md.
+  // DocuNinja's "e-signatures are on" flag (`company.enable_modules`, not the
+  // `enabled_modules` bitmask). Server-set and read-only (docs/docuninja.md);
+  // rewritten from the login / refresh envelope like every other column.
+  BoolColumn get enableModules =>
+      boolean().named('enable_modules').withDefault(const Constant(false))();
   BoolColumn get hasEInvoiceCertificate => boolean()
       .named('has_e_invoice_certificate')
       .withDefault(const Constant(false))();

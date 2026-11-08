@@ -256,6 +256,7 @@ void main() {
         accountId: 'acct1',
         isAdmin: false,
         isOwner: false,
+        enableModules: false,
       );
       await _pumpFrames(tester);
       expect(

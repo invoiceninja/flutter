@@ -75,6 +75,8 @@ abstract class PurchaseOrder with _$PurchaseOrder implements BillingDocFields {
     @Default(<Document>[]) List<Document> documents,
     @Default(<String>[]) List<String> tagIds,
     Map<String, dynamic>? eInvoice,
+    // Read-only, like the invoice's — not part of `toApiJson`.
+    Map<String, dynamic>? sync,
     @Default(false) bool isDirty,
   }) = _PurchaseOrder;
 
@@ -136,6 +138,7 @@ abstract class PurchaseOrder with _$PurchaseOrder implements BillingDocFields {
         if (t.id.isNotEmpty) t.id,
     ],
     eInvoice: a.eInvoice,
+    sync: a.sync,
   );
 }
 

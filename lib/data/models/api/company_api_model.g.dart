@@ -17,6 +17,9 @@ _CompanyApi _$CompanyApiFromJson(Map<String, dynamic> json) => _CompanyApi(
   firstDayOfWeek: json['first_day_of_week'] as String? ?? '',
   useCommaAsDecimalPlace: json['use_comma_as_decimal_place'] as bool? ?? false,
   enabledModules: (json['enabled_modules'] as num?)?.toInt() ?? 0,
+  enableModules: json['enable_modules'] == null
+      ? false
+      : jsonScalarToBool(json['enable_modules']),
   legalEntityId: (json['legal_entity_id'] as num?)?.toInt() ?? 0,
   hasEInvoiceCertificate: json['has_e_invoice_certificate'] as bool? ?? false,
   eInvoiceCertificatePassphrase:

@@ -681,7 +681,13 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
       documents: Value(
         jsonEncode(q.documents.map((d) => d.toApi().toJson()).toList()),
       ),
-      payload: jsonEncode(q.toApiJson(preserveTempId: true)),
+      payload: jsonEncode({
+        ...q.toApiJson(preserveTempId: true),
+        // Read-only sync state, kept in the stored row only (the wire body
+        // leaves it off) so a local edit doesn't drop the signed-document
+        // pill (`sync.dn_completed`), as the invoice repository does.
+        if (q.sync != null) 'sync': q.sync,
+      }),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
@@ -35,6 +36,7 @@ import 'package:admin/ui/features/billing_shared/detail/billing_doc_due_note.dar
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_profile.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_header.dart';
+import 'package:admin/ui/features/billing_shared/detail/signed_document_pill.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_standing.dart';
 import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
 import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
@@ -349,6 +351,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
         type: BillingDocType.quote,
         doc: quote,
         formatter: formatter,
+        signedPill: showSignedDocumentPill(quote.sync, company)
+            ? SignedDocumentPill(
+                onTap: () => context.go('/quotes/${quote.id}/pdf'),
+              )
+            : null,
         statusPill: ViewedStatusPillLink(
           isViewed: quote.calculatedStatusId == QuoteStatusComputed.viewed,
           invitations: quote.invitations,

@@ -180,8 +180,9 @@ current="$(xcconfig_get DART_DEFINES)"
 # not a broken button: google_sign_in_ios 6.3.7+ raises a native exception on
 # the first tap. So when the scheme is missing the ID is left out of the build
 # and the button stays hidden, whether the ID came from the env / dev.json or
-# was already in DART_DEFINES. CI registers the scheme on the runner before it
-# archives, so this never trips there. docs/setup.md § Google Sign-In client IDs.
+# was already in DART_DEFINES. The scheme is committed in both Info.plists, and
+# both CI workflows fail before archiving when it is missing, so this never
+# trips there. docs/setup.md § Google Sign-In client IDs.
 google_scheme_missing=0
 google_effective="$google_ios_client_id"
 if [[ -z "$google_effective" ]]; then

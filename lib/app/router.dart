@@ -946,6 +946,7 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                   ),
                   GoRoute(
                     path: ':userId',
+                    onExit: _confirmExitIfDirty,
                     builder: (context, state) => KeyedSubtree(
                       key: ValueKey(
                         'docuninja-user:${state.pathParameters['userId']}',
@@ -960,6 +961,7 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
               // DocuNinja's own settings (a DocuNinja admin's). Before `:id`.
               GoRoute(
                 path: 'settings',
+                onExit: _confirmExitIfDirty,
                 builder: (context, state) => const DocuNinjaSettingsScreen(),
               ),
               // The templates (React's blueprints). Before `:id`, which would

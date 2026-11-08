@@ -56,12 +56,54 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   @override
   void initState() {
     super.initState();
-    _lifecycle = dnRefreshOnReturn(() => _vm?.refresh());
+    _lifecycle = dnRefreshOnReturn(_refreshList);
+  }
+
+  /// Whether the list is on screen. The DocuNinja branch stays mounted
+  /// once visited (and the list stays under a document opened from it), so
+  /// a refresh a live event, a return to the app or a company switch asks
+  /// for while the user is elsewhere waits until the list shows again:
+  /// one catch-up, not a stream of background requests.
+  bool _onStage = true;
+
+  /// A list refresh was asked for while off screen.
+  bool _stale = false;
+
+  /// The handshake for a new company was asked for while off screen.
+  bool _sessionLoadPending = false;
+
+  void _refreshList() {
+    if (_onStage) {
+      _vm?.refresh();
+    } else {
+      _stale = true;
+    }
+  }
+
+  void _catchUp() {
+    if (_sessionLoadPending) {
+      _sessionLoadPending = false;
+      _session?.load();
+    }
+    if (_stale) {
+      _stale = false;
+      _vm?.refresh();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final onStage = TickerMode.valuesOf(context).enabled;
+    if (onStage != _onStage) {
+      _onStage = onStage;
+      // After this frame: a refresh notifies its listeners at once.
+      if (onStage) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _onStage) _catchUp();
+        });
+      }
+    }
     final session = context.read<DocuNinjaSession?>();
     if (identical(session, _session)) return;
     _session?.removeListener(_onSession);
@@ -99,14 +141,19 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     if (session.value.access == DocuNinjaAccess.unavailable &&
         (context.read<Services>().auth.session.value?.isHosted ?? false)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) session.load();
+        if (!mounted) return;
+        if (_onStage) {
+          session.load();
+        } else {
+          _sessionLoadPending = true;
+        }
       });
     }
   }
 
   /// A document changed on its detail page: re-read the list, as React
   /// refetches its documents after every action.
-  void _onDocumentsChanged() => _vm?.refresh();
+  void _onDocumentsChanged() => _refreshList();
 
   DocuNinjaDocumentsViewModel? _documents(DocuNinjaState state) {
     final api = context.read<DocuNinjaApi?>();
@@ -171,10 +218,10 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     );
     if (doc == null || !mounted) return;
     _session?.markDocumentsChanged();
-    Notify.success(context, context.tr('document_created'));
     context.go('/docuninja/${doc.id}');
-    await openDocuNinjaBuilder(
+    notifyAndOpenDocuNinjaBuilder(
       context,
+      message: context.tr('document_created'),
       documentId: doc.id,
       companyId: companyId,
     );
@@ -367,6 +414,9 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       case DocuNinjaAccess.ready:
         if (vm == null) return const SizedBox.shrink();
         return DocuNinjaDocumentsList(
+          // A new company's list is a new list: its own date format (read
+          // once, at mount) and the top of the scroll.
+          key: ObjectKey(vm),
           vm: vm,
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
           actionsFor: (doc) => EntityActionsPopupButton<_RowAction>(
@@ -472,16 +522,15 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             if (id.isEmpty || companyId == null) {
               throw StateError('make_blueprint returned no id');
             }
-            Notify.success(context, context.tr('template_created'));
-            await openDocuNinjaBuilder(
+            notifyAndOpenDocuNinjaBuilder(
               context,
+              message: context.tr('template_created'),
               documentId: id,
               companyId: companyId,
               template: true,
             );
           }),
           confirm: true,
-          confirmMessageKey: 'make_template_description',
         ),
       if (dnCanVoid(doc))
         item(

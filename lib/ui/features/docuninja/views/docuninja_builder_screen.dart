@@ -242,7 +242,8 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.open_in_new),
-                  tooltip: context.tr(_actionKey),
+                  // Already in the editor: the button is the browser.
+                  tooltip: context.tr('open_in_browser'),
                   onPressed: _openInBrowser,
                 ),
               ],
@@ -251,6 +252,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
               DnBuilderPhase.unavailable => EmptyState(
                 icon: Icons.open_in_new,
                 title: context.tr(_titleKey),
+                subtitle: context.tr('docuninja_builder_unavailable'),
                 action: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(64, 44),

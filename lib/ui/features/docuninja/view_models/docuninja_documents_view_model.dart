@@ -189,8 +189,15 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   Timer? _searchTimer;
   bool _disposed = false;
 
-  /// Loads the first page again, keeping the rows on screen until it lands.
-  Future<void> refresh() => _loadFirst();
+  /// How many pages a [refresh] reloads at most, so a deep scroll is kept
+  /// without one refresh turning into a long run of requests.
+  static const kRefreshMaxPages = 5;
+
+  /// Loads the rows again, keeping them on screen until the new ones land,
+  /// and as many pages as are showing (up to [kRefreshMaxPages]): a refresh
+  /// a teammate's event or a return from the browser starts must not drop a
+  /// user sixty rows down back to the first page.
+  Future<void> refresh() => _loadFirst(depth: _page.clamp(1, kRefreshMaxPages));
 
   void setSearch(String value) {
     if (value == _search) return;
@@ -247,7 +254,7 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadFirst() async {
+  Future<void> _loadFirst({int depth = 1}) async {
     final generation = ++_generation;
     _searchTimer?.cancel();
     // A load-more of the previous query is now stale; its own `finally`
@@ -259,10 +266,17 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     _notify();
     final query = _query;
     try {
-      final page = await _fetch(1);
+      final pages = [await _fetch(1)];
+      while (pages.length < depth &&
+          pages.last.currentPage < pages.last.lastPage) {
+        if (generation != _generation) return;
+        pages.add(await _fetch(pages.length + 1));
+      }
       if (generation != _generation) return;
       _items.clear();
-      _apply(page, append: false);
+      for (final page in pages) {
+        _apply(page, append: true);
+      }
       _itemsQuery = query;
       _loaded = true;
     } on Object catch (e, st) {

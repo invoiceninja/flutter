@@ -253,6 +253,31 @@ void main() {
         );
       },
     );
+
+    test('DocuNinja keeps its pages and strips its records', () {
+      final roots = EntityRegistry({
+        EntityType.client: _handler(EntityType.client, 'client', '/clients'),
+      }).uiRoutePaths.toList();
+      // A document belongs to the company whose token fetched it.
+      expect(companySafeLocation('/docuninja/d1', roots), '/docuninja');
+      expect(companySafeLocation('/docuninja/d1/builder', roots), '/docuninja');
+      // Templates, users and settings are keyed by the company: a restart
+      // or a switch keeps them, and a record under them goes to its page.
+      for (final page in const ['templates', 'users', 'settings']) {
+        expect(
+          companySafeLocation('/docuninja/$page', roots),
+          '/docuninja/$page',
+        );
+      }
+      expect(
+        companySafeLocation('/docuninja/templates/t1/builder', roots),
+        '/docuninja/templates',
+      );
+      expect(
+        companySafeLocation('/docuninja/users/u1', roots),
+        '/docuninja/users',
+      );
+    });
   });
 
   // The Integrations destinations moved under Account Management (issue #8) so

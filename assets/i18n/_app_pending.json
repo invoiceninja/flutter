@@ -1717,6 +1717,8 @@
   "docuninja_join_integration_help": "Works with invoices, quotes & orders",
   "docuninja_creating_account": "Creating your account...",
   "docuninja_company_setup_help": "Your account exists but this company is not set up yet. Please click the button below to set it up.",
+  "docuninja_builder_unavailable": "The editor couldn't open here. Continue in your browser.",
+  "open_in_browser": "Open in browser",
   "signatories": "Signatories",
   "send_emails_to_following": "We're going to send emails to the following:",
   "widget_defaults": "Widget Defaults",

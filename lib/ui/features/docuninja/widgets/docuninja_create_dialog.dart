@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,9 +8,11 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/data/services/shared_intake_files.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -52,10 +55,30 @@ class _CreateDialogState extends State<_CreateDialog> {
   String? _nameError;
   String? _filesError;
 
+  /// The app's photo folder, read up front: a photo taken here sits in it
+  /// until handed back, and the dialog hands back every one it took (sent,
+  /// removed, refused or abandoned) when it closes, since the upload reads
+  /// them before it does. A receipt or contract is personal data, and the
+  /// launch sweep would otherwise leave it on the device for a day.
+  SharedIntakeFiles? _intake;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _intake ??= intakeOf(context);
+  }
+
   @override
   void dispose() {
+    unawaited(releaseCapturedPhotos(_intake, _files));
     _name.dispose();
     super.dispose();
+  }
+
+  void _remove(int i) {
+    final removed = _files[i];
+    setState(() => _files.removeAt(i));
+    unawaited(releaseCapturedPhotos(_intake, [removed]));
   }
 
   Future<void> _add(List<UploadSource> sources) async {
@@ -63,6 +86,12 @@ class _CreateDialogState extends State<_CreateDialog> {
       for (final s in sources)
         if (kDnUploadExtensions.contains(_extension(s.fileName))) s,
     ];
+    unawaited(
+      releaseCapturedPhotos(
+        _intake,
+        sources.where((s) => !accepted.contains(s)),
+      ),
+    );
     if (accepted.length < sources.length) {
       Notify.error(context, context.tr('invalid_file'));
     }
@@ -243,9 +272,7 @@ class _CreateDialogState extends State<_CreateDialog> {
                         InputChip(
                           label: Text(_files[i].fileName),
                           deleteButtonTooltipMessage: context.tr('remove'),
-                          onDeleted: _saving
-                              ? null
-                              : () => setState(() => _files.removeAt(i)),
+                          onDeleted: _saving ? null : () => _remove(i),
                         ),
                     ],
                   ),

@@ -36,7 +36,13 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
   bool get isOffline => _error is NetworkException;
   bool get isMissing =>
       _error is DocuNinjaException &&
-      const {403, 404}.contains((_error! as DocuNinjaException).statusCode);
+      (_error! as DocuNinjaException).statusCode == 404;
+
+  /// DocuNinja refused this user the document (no permission on it): not
+  /// the same as a document that is gone.
+  bool get isForbidden =>
+      _error is DocuNinjaException &&
+      (_error! as DocuNinjaException).statusCode == 403;
 
   bool _disposed = false;
 

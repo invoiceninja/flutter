@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 
 /// Whether this platform can embed the builder: `webview_flutter` runs on
 /// iOS, Android and macOS. Windows, Linux and the web open it in the
@@ -64,6 +66,44 @@ Future<bool> openDocuNinjaBuilder(
       fromTemplate: fromTemplate,
     ).toString(),
   );
+}
+
+/// After an await (an upload, a clone, a new template): the [message]
+/// toast, then the builder. On the web the browser tab can't be opened
+/// from here: `window.open` outside the tap's user activation is blocked,
+/// silently (url_launcher opens with `noopener`, so it can't tell). There
+/// the toast carries an Edit button instead, whose tap is a fresh
+/// activation. docs/docuninja.md § On the web a builder opened after an
+/// await is a toast button.
+void notifyAndOpenDocuNinjaBuilder(
+  BuildContext context, {
+  required String message,
+  required String documentId,
+  required String companyId,
+  bool template = false,
+  bool fromTemplate = false,
+}) {
+  void open() {
+    if (!context.mounted) return;
+    openDocuNinjaBuilder(
+      context,
+      documentId: documentId,
+      companyId: companyId,
+      template: template,
+      fromTemplate: fromTemplate,
+    );
+  }
+
+  if (kIsWeb && !(kDnEmbeddedBuilder && dnEmbedSupported)) {
+    Notify.success(
+      context,
+      message,
+      action: NotifyAction(context.tr('edit'), open),
+    );
+    return;
+  }
+  Notify.success(context, message);
+  open();
 }
 
 /// Opens React's sign page for the user's own invitation: embedded where

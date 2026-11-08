@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
@@ -15,6 +16,7 @@ import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/domain/docuninja/docuninja_users.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -25,6 +27,7 @@ import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 final _log = Logger('DocuNinjaUsersScreen');
@@ -67,14 +70,7 @@ class _OwnerGateState extends State<_OwnerGate> {
             state.access == DocuNinjaAccess.unavailable) {
           body = const Center(child: CircularProgressIndicator());
         } else if (!state.isReady || state.company == null) {
-          body = EmptyState(
-            icon: Icons.draw_outlined,
-            title: context.tr('docuninja'),
-            action: TextButton(
-              onPressed: () => context.go('/docuninja'),
-              child: Text(context.tr('docuninja')),
-            ),
-          );
+          body = DocuNinjaGoHomeState(access: state.access);
         } else if (!owner) {
           body = EmptyState(
             icon: Icons.lock_outline,
@@ -213,6 +209,7 @@ class _UsersListState extends State<_UsersList> {
   }
 
   List<EntityActionItem<_UserAction>> _items(DnUser u) {
+    if (_lifecycleLocked(u, widget.state)) return const [];
     final subject = u.name.isEmpty ? u.email : u.name;
     EntityActionItem<_UserAction> item(
       _UserAction kind,
@@ -453,8 +450,16 @@ class _UsersListState extends State<_UsersList> {
                               color: tokens.ink,
                             ),
                           ),
-                          EntityActionsPopupButton<_UserAction>(
-                            items: _items(u),
+                          // The owner's and the user's own row keep the slot
+                          // (the column stays aligned) with nothing in it.
+                          Visibility(
+                            visible: !_lifecycleLocked(u, widget.state),
+                            maintainSize: true,
+                            maintainAnimation: true,
+                            maintainState: true,
+                            child: EntityActionsPopupButton<_UserAction>(
+                              items: _items(u),
+                            ),
                           ),
                         ],
                       ),
@@ -476,6 +481,12 @@ class _UsersListState extends State<_UsersList> {
   }
 }
 
+/// The account owner and the signed-in user can't be archived or deleted
+/// here: either would lock the owner out of the screen that restores users.
+/// React offers both. docs/docuninja.md § Users.
+bool _lifecycleLocked(DnUser u, DocuNinjaState state) =>
+    u.isOwner || (u.id.isNotEmpty && u.id == state.login?.user.id);
+
 /// React's user edit page (`users/edit/Edit.tsx`): the details read-only,
 /// then the role and permissions and the notifications. React also edits a
 /// user's saved signature and initials here; the app shows them but does
@@ -488,14 +499,15 @@ class DocuNinjaUserScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _OwnerGate(
     title: context.tr('edit_user'),
-    builder: (context, state) => _UserEditor(id: id),
+    builder: (context, state) => _UserEditor(id: id, state: state),
   );
 }
 
 class _UserEditor extends StatefulWidget {
-  const _UserEditor({required this.id});
+  const _UserEditor({required this.id, required this.state});
 
   final String id;
+  final DocuNinjaState state;
 
   @override
   State<_UserEditor> createState() => _UserEditorState();
@@ -536,7 +548,54 @@ class _UserEditorState extends State<_UserEditor> {
     }
   }
 
+  /// Bumped on every change, so the unsaved-changes guard re-asks.
+  final _revision = ValueNotifier<int>(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _revision.value++;
+  }
+
+  @override
+  void dispose() {
+    _revision.dispose();
+    super.dispose();
+  }
+
+  static String _grantsKey(List<DnPermission> grants) =>
+      (grants
+              .map((p) => '${p.model}|${p.permissionId}|${p.permissionableId}')
+              .toList()
+            ..sort())
+          .join(',');
+
+  /// The role, a grant or a notification differs from the user as last
+  /// read: leaving asks first, as every other edit screen does.
+  bool get _isDirty {
+    final u = _user;
+    if (u == null) return false;
+    return _isAdmin != u.isAdmin ||
+        _grantsKey(_permissions) != _grantsKey(u.permissions) ||
+        !listEquals(
+          _notify.encode()..sort(),
+          DnNotificationChoice.decode(u.notifications).encode()..sort(),
+        );
+  }
+
+  /// Back to the user as last read (the user chose Discard).
+  void _discard() {
+    final u = _user;
+    if (u == null) return;
+    setState(() {
+      _isAdmin = u.isAdmin;
+      _permissions = u.permissions;
+      _notify = DnNotificationChoice.decode(u.notifications);
+    });
+  }
+
   List<EntityActionItem<_UserAction>> _lifecycleItems(DnUser u) {
+    if (_lifecycleLocked(u, widget.state)) return const [];
     final subject = u.name.isEmpty ? u.email : u.name;
     EntityActionItem<_UserAction> item(
       _UserAction kind,
@@ -646,6 +705,15 @@ class _UserEditorState extends State<_UserEditor> {
     }
     if (u == null) return const Center(child: CircularProgressIndicator());
     final tokens = context.inTheme;
+    return UnsavedChangesScope(
+      isDirty: () => _isDirty,
+      source: _revision,
+      onDiscard: _discard,
+      child: _body(context, u, tokens),
+    );
+  }
+
+  Widget _body(BuildContext context, DnUser u, InTheme tokens) {
     return ListView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
@@ -738,10 +806,12 @@ class _UserEditorState extends State<_UserEditor> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       // React's edit page actions: archive, restore, delete.
-                      EntityActionsPopupButton<_UserAction>(
-                        items: _lifecycleItems(u),
-                      ),
-                      SizedBox(width: InSpacing.md(context)),
+                      if (!_lifecycleLocked(u, widget.state)) ...[
+                        EntityActionsPopupButton<_UserAction>(
+                          items: _lifecycleItems(u),
+                        ),
+                        SizedBox(width: InSpacing.md(context)),
+                      ],
                       FilledButton(
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(64, 44),

@@ -50,6 +50,39 @@ void main() {
     expect(api.calls.map((c) => c.page), [1, 2]);
   });
 
+  test('a refresh reloads the pages on screen, not just the first', () async {
+    final api = _Api()..answer = (page, _) async => _page(page, 4);
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await vm.refresh();
+    await vm.loadMore();
+    await vm.loadMore();
+    expect(vm.items, hasLength(6));
+    api.calls.clear();
+    await vm.refresh();
+    // The user three pages down stays three pages down.
+    expect(api.calls.map((c) => c.page), [1, 2, 3]);
+    expect(vm.items, hasLength(6));
+    expect(vm.hasMore, isTrue);
+    await vm.loadMore();
+    expect(api.calls.last.page, 4);
+    expect(vm.items, hasLength(8));
+  });
+
+  test('a refresh stops at the last page the server has now', () async {
+    var last = 3;
+    final api = _Api()..answer = (page, _) async => _page(page, last);
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await vm.refresh();
+    await vm.loadMore();
+    await vm.loadMore();
+    last = 1;
+    api.calls.clear();
+    await vm.refresh();
+    expect(api.calls.map((c) => c.page), [1]);
+    expect(vm.items, hasLength(2));
+    expect(vm.hasMore, isFalse);
+  });
+
   test('a search is debounced and drops an older answer', () async {
     final api = _Api();
     final slow = Completer<DnPage<DnDocument>>();

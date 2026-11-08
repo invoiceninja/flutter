@@ -11,10 +11,12 @@ class _Api implements DocuNinjaApi {
   final pending = <Completer<DnDocument>>[];
   bool queueReads = false;
   Object? sendError;
+  Object? readError;
 
   @override
   Future<DnDocument> document(String id) {
     reads++;
+    if (readError != null) return Future.error(readError!);
     if (!queueReads) {
       return Future.value(
         DnDocument.fromJson({
@@ -43,6 +45,19 @@ class _Api implements DocuNinjaApi {
 
 /// The document page's view model.
 void main() {
+  test('no permission on a document is not a missing document', () async {
+    final api = _Api()..readError = const DocuNinjaException(403, 'no');
+    final vm = DocuNinjaDocumentViewModel(api: api, id: 'd1');
+    await vm.load();
+    expect(vm.isForbidden, isTrue);
+    expect(vm.isMissing, isFalse);
+    api.readError = const DocuNinjaException(404, 'gone');
+    await vm.load();
+    expect(vm.isForbidden, isFalse);
+    expect(vm.isMissing, isTrue);
+    vm.dispose();
+  });
+
   test('a failed send re-reads: it may have landed all the same', () async {
     final api = _Api();
     final vm = DocuNinjaDocumentViewModel(api: api, id: 'd1');

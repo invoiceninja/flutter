@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
@@ -13,12 +12,14 @@ import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 final _log = Logger('DocuNinjaSettingsScreen');
@@ -71,14 +72,7 @@ class _DocuNinjaSettingsScreenState extends State<DocuNinjaSettingsScreen> {
             state.access == DocuNinjaAccess.unavailable) {
           body = const Center(child: CircularProgressIndicator());
         } else if (!state.isReady || company == null) {
-          body = EmptyState(
-            icon: Icons.draw_outlined,
-            title: context.tr('docuninja'),
-            action: TextButton(
-              onPressed: () => context.go('/docuninja'),
-              child: Text(context.tr('docuninja')),
-            ),
-          );
+          body = DocuNinjaGoHomeState(access: state.access);
         } else if (!admin) {
           body = EmptyState(
             icon: Icons.lock_outline,
@@ -161,19 +155,32 @@ class _TabBody extends StatelessWidget {
 }
 
 class _SaveRow extends StatelessWidget {
-  const _SaveRow({required this.saving, required this.onSave});
+  const _SaveRow({
+    required this.saving,
+    required this.onSave,
+    this.companyLock = false,
+  });
 
   final bool saving;
   final VoidCallback? onSave;
 
+  /// A company tab's Save: off while another company tab saves (one save
+  /// at a time lays its edits over the company the last one left).
+  final bool companyLock;
+
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: companyLock ? _companySaveLock : _kNeverLocked,
+    builder: (context, locked, _) => _button(context, saving || locked),
+  );
+
+  Widget _button(BuildContext context, bool disabled) => Padding(
     padding: EdgeInsets.only(top: InSpacing.lg(context)),
     child: Align(
       alignment: AlignmentDirectional.centerEnd,
       child: FilledButton(
         style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-        onPressed: saving ? null : onSave,
+        onPressed: disabled ? null : onSave,
         child: saving
             ? const SizedBox.square(
                 dimension: 18,
@@ -190,6 +197,22 @@ enum _CompanyTab { email, notifications, widgets }
 /// Held while one of the company tabs saves (one screen at a time shows
 /// them).
 final _companySaveLock = ValueNotifier<bool>(false);
+
+final _kNeverLocked = ValueNotifier<bool>(false);
+
+/// Two settings values the same to the user: a flag DocuNinja holds as 1
+/// is the `true` a switch writes, and a missing one is off.
+bool _sameSetting(Object? a, Object? b) {
+  bool? flag(Object? v) => switch (v) {
+    true || 1 => true,
+    false || 0 || null => false,
+    _ => null,
+  };
+  final fa = flag(a);
+  final fb = flag(b);
+  if (fa != null && fb != null) return fa == fb;
+  return '${a ?? ''}' == '${b ?? ''}';
+}
 
 /// React's three company pages (email settings, notifications, widget
 /// defaults): each edits `company.settings` and puts the whole company
@@ -230,6 +253,48 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
     ..._edits,
   };
 
+  /// The company's settings as saved, with the same display defaults.
+  Map<String, dynamic> get _saved => {
+    'widget_border_style': 'hidden',
+    'widget_border_color': '#FF5733',
+    ...widget.company.settings,
+  };
+
+  String _savedText(String key) => '${_saved[key] ?? ''}'.trim();
+
+  /// Bumped on every change, so the unsaved-changes guard re-asks.
+  final _revision = ValueNotifier<int>(0);
+  late final Listenable _changes = Listenable.merge([
+    _revision,
+    _fromName,
+    _replyTo,
+  ]);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _revision.value++;
+  }
+
+  /// Something on this tab differs from the company as saved.
+  bool get _isDirty {
+    final saved = _saved;
+    if (_edits.entries.any((e) => !_sameSetting(saved[e.key], e.value))) {
+      return true;
+    }
+    if (widget.kind != _CompanyTab.email) return false;
+    return _fromName.text.trim() != _savedText('email_from_name') ||
+        _replyTo.text.trim() != _savedText('reply_to_email');
+  }
+
+  /// Back to the company as saved (the user chose Discard).
+  void _discard() => setState(() {
+    _edits.clear();
+    _fieldErrors = const {};
+    _fromName.text = _savedText('email_from_name');
+    _replyTo.text = _savedText('reply_to_email');
+  });
+
   void _set(String key, Object? value) => setState(() => _edits[key] = value);
   late final _fromName = TextEditingController(
     text: '${_settings['email_from_name'] ?? ''}',
@@ -246,6 +311,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   void dispose() {
     _fromName.dispose();
     _replyTo.dispose();
+    _revision.dispose();
     super.dispose();
   }
 
@@ -323,6 +389,15 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return UnsavedChangesScope(
+      isDirty: () => _isDirty,
+      source: _changes,
+      onDiscard: _discard,
+      child: _tab(context),
+    );
+  }
+
+  Widget _tab(BuildContext context) {
     switch (widget.kind) {
       case _CompanyTab.email:
         return FormSaveScope(
@@ -357,7 +432,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                   ),
                 ],
               ),
-              _SaveRow(saving: _saving, onSave: _save),
+              _SaveRow(saving: _saving, onSave: _save, companyLock: true),
             ],
           ),
         );
@@ -399,7 +474,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                 ),
               ],
             ),
-            _SaveRow(saving: _saving, onSave: _save),
+            _SaveRow(saving: _saving, onSave: _save, companyLock: true),
           ],
         );
       case _CompanyTab.widgets:
@@ -451,7 +526,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                 ),
               ],
             ),
-            _SaveRow(saving: _saving, onSave: _save),
+            _SaveRow(saving: _saving, onSave: _save, companyLock: true),
           ],
         );
     }
@@ -478,6 +553,33 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   bool _failed = false;
   bool _saving = false;
 
+  /// Bumped on every change, so the unsaved-changes guard re-asks; merged
+  /// with the text fields once they exist.
+  final _revision = ValueNotifier<int>(0);
+  late Listenable _changes = _revision;
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _revision.value++;
+  }
+
+  /// A subject or body differs from the templates as last read or saved.
+  bool get _isDirty =>
+      _templates?.any(
+        (t) =>
+            _subjects[t.id]?.text != t.subject || _bodies[t.id]?.text != t.body,
+      ) ??
+      false;
+
+  /// Back to the templates as saved (the user chose Discard).
+  void _discard() => setState(() {
+    for (final t in _templates ?? const <DnEmailTemplate>[]) {
+      _subjects[t.id]?.text = t.subject;
+      _bodies[t.id]?.text = t.body;
+    }
+  });
+
   @override
   bool get wantKeepAlive => true;
 
@@ -492,6 +594,7 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
     for (final c in [..._subjects.values, ..._bodies.values]) {
       c.dispose();
     }
+    _revision.dispose();
     super.dispose();
   }
 
@@ -506,7 +609,14 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
         _subjects[t.id] = TextEditingController(text: t.subject);
         _bodies[t.id] = TextEditingController(text: t.body);
       }
-      setState(() => _templates = templates);
+      setState(() {
+        _templates = templates;
+        _changes = Listenable.merge([
+          _revision,
+          ..._subjects.values,
+          ..._bodies.values,
+        ]);
+      });
     } on Object catch (e, st) {
       _log.warning('Reading DocuNinja email templates failed', e, st);
       if (mounted) setState(() => _failed = true);
@@ -518,11 +628,15 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
     if (templates == null || _saving) return;
     setState(() => _saving = true);
     try {
-      await widget.api.saveEmailTemplates([
+      final next = [
         for (final t in templates)
           t.copyWith(subject: _subjects[t.id]!.text, body: _bodies[t.id]!.text),
-      ]);
-      if (mounted) Notify.success(context, context.tr('template_updated'));
+      ];
+      await widget.api.saveEmailTemplates(next);
+      if (!mounted) return;
+      // Saved: what is on screen is now what the server holds.
+      setState(() => _templates = next);
+      Notify.success(context, context.tr('template_updated'));
     } on Object catch (e, st) {
       _log.warning('Saving DocuNinja email templates failed', e, st);
       if (mounted) {
@@ -536,6 +650,15 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return UnsavedChangesScope(
+      isDirty: () => _isDirty,
+      source: _changes,
+      onDiscard: _discard,
+      child: _tab(context),
+    );
+  }
+
+  Widget _tab(BuildContext context) {
     final templates = _templates;
     if (_failed) {
       return ErrorView(

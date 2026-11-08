@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 
@@ -249,4 +251,35 @@ class DocuNinjaPlanWallView extends StatelessWidget {
       child: Text(context.tr('upgrade_plan')),
     ),
   );
+}
+
+/// A DocuNinja page other than the home (a document, the templates, users
+/// or settings) when DocuNinja is not ready for this user: a sentence on
+/// why, and the way to DocuNinja's home, which shows Join, company setup,
+/// the plan wall or the error with what to do about it.
+class DocuNinjaGoHomeState extends StatelessWidget {
+  const DocuNinjaGoHomeState({super.key, required this.access});
+
+  final DocuNinjaAccess access;
+
+  @override
+  Widget build(BuildContext context) {
+    final why = switch (access) {
+      DocuNinjaAccess.notJoined => 'docuninja_join_tagline',
+      DocuNinjaAccess.companySetup => 'docuninja_company_setup_help',
+      DocuNinjaAccess.planWall => 'upgrade_plan_docuninja',
+      DocuNinjaAccess.offline => 'offline',
+      DocuNinjaAccess.failed => 'an_error_occurred_try_again',
+      _ => null,
+    };
+    return EmptyState(
+      icon: Icons.draw_outlined,
+      title: context.tr('docuninja'),
+      subtitle: why == null ? null : context.tr(why),
+      action: TextButton(
+        onPressed: () => context.go('/docuninja'),
+        child: Text(context.tr('docuninja')),
+      ),
+    );
+  }
 }

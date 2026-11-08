@@ -325,7 +325,13 @@ class EntityRegistry {
     // A DocuNinja document (`/docuninja/:id`) belongs to the company whose
     // DocuNinja token fetched it; after a switch its actions would run on the
     // old company's id with the new company's token. Back to `/docuninja`.
+    // Templates, users and settings are pages of their own, keyed by the
+    // company, so they survive a switch or a restart; a record under them
+    // (a template's builder, a user) goes back to its page.
     yield '/docuninja';
+    yield '/docuninja/templates';
+    yield '/docuninja/users';
+    yield '/docuninja/settings';
   }
 
   /// Overwrite the registry contents. Used by DI to break the construction

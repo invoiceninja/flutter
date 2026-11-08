@@ -11,6 +11,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
@@ -21,6 +22,7 @@ import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/widgets/app_selection_area.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -34,6 +36,7 @@ import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart'
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
 import 'package:admin/utils/bidi.dart';
 import 'package:admin/utils/file_names.dart';
@@ -192,13 +195,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         );
       }
       if (vm.isNoAccess) {
+        return DocuNinjaGoHomeState(
+          access:
+              context.read<DocuNinjaSession?>()?.value.access ??
+              DocuNinjaAccess.failed,
+        );
+      }
+      if (vm.isForbidden) {
         return EmptyState(
-          icon: Icons.draw_outlined,
-          title: context.tr('docuninja'),
-          action: TextButton(
-            onPressed: () => context.go('/docuninja'),
-            child: Text(context.tr('docuninja')),
-          ),
+          icon: Icons.lock_outline,
+          title: context.tr('unauthorized_action'),
         );
       }
       if (vm.isMissing) {
@@ -397,7 +403,6 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           Icons.copy_all_outlined,
           'clone_to_template',
           confirm: true,
-          confirmMessageKey: 'make_template_description',
         ),
       // The app's Share / Copy Link (every record has one): opens this
       // document in the app, on its company (`buildDocuNinjaDeepLink`).
@@ -519,9 +524,9 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           Notify.error(context, context.tr('an_error_occurred_try_again'));
           return;
         }
-        Notify.success(context, context.tr('template_created'));
-        await openDocuNinjaBuilder(
+        notifyAndOpenDocuNinjaBuilder(
           context,
+          message: context.tr('template_created'),
           documentId: templateId,
           companyId: companyId,
           template: true,
@@ -787,24 +792,22 @@ class _Invitations extends StatelessWidget {
                   ),
                   // React's per-signer Copy Link: the web app's sign page for
                   // this signer (behind its sign-in), for a signer linked to
-                  // a contact or user, until the document is finished.
+                  // a contact or user, until the document is finished. It
+                  // copies on every platform: the link is for the team, and
+                  // a share sheet beside a client's name invites sending it
+                  // to a client who would meet a sign-in wall.
                   if (showResend &&
                       (i.clientContactId.isNotEmpty || i.userId.isNotEmpty))
-                    Builder(
-                      // Its own context: the iPad share popover anchors to
-                      // this button.
-                      builder: (buttonContext) => IconButton(
-                        icon: const Icon(Icons.link),
-                        tooltip: context.tr(
-                          Env.isTouchPrimary ? 'share_link' : 'copy_link',
-                        ),
-                        onPressed: () => shareOrCopyLink(
-                          buttonContext,
-                          dnWebAppSignLink(
-                            documentId: document.id,
-                            invitationId: i.id,
-                          ).toString(),
-                        ),
+                    IconButton(
+                      icon: const Icon(Icons.link),
+                      tooltip: context.tr('copy_link'),
+                      onPressed: () => copyToClipboard(
+                        context,
+                        dnWebAppSignLink(
+                          documentId: document.id,
+                          invitationId: i.id,
+                        ).toString(),
+                        label: context.tr('link'),
                       ),
                     ),
                   if (showResend)

@@ -29,6 +29,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 
 final _log = Logger('DocuNinjaTemplatesScreen');
@@ -195,14 +196,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       default:
         // Join, setup, the plan wall and the errors live on DocuNinja's
         // home: send the user there.
-        return EmptyState(
-          icon: Icons.draw_outlined,
-          title: context.tr('docuninja'),
-          action: TextButton(
-            onPressed: () => context.go('/docuninja'),
-            child: Text(context.tr('docuninja')),
-          ),
-        );
+        return DocuNinjaGoHomeState(access: state.access);
     }
     if (!canView || vm == null) {
       return EmptyState(
@@ -427,8 +421,9 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     if (id.isEmpty) throw StateError('make_document returned no id');
     _session?.markDocumentsChanged();
     context.go('/docuninja/$id');
-    await openDocuNinjaBuilder(
+    notifyAndOpenDocuNinjaBuilder(
       context,
+      message: context.tr('document_created'),
       documentId: id,
       companyId: companyId,
       fromTemplate: true,
@@ -473,10 +468,10 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       Notify.error(context, context.tr('an_error_occurred_try_again'));
       return;
     }
-    Notify.success(context, context.tr('template_created'));
     unawaited(vm.refresh());
-    await openDocuNinjaBuilder(
+    notifyAndOpenDocuNinjaBuilder(
       context,
+      message: context.tr('template_created'),
       documentId: id,
       companyId: companyId,
       template: true,

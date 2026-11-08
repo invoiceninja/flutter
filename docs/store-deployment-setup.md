@@ -22,9 +22,10 @@ Six workflows publish the app. Every one of them:
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 8 |
 | macOS | `appstore-macos.yml` | TestFlight | 7 (3 shared with iOS) |
+| Linux Flatpak | `flathub.yml` (follows only) | Flathub, built by Flathub from the tag (once accepted; `docs/flatpak.md`) | none |
 | **All of the above** | `deploy-all.yml` | Every row above, release first | the union |
 
-**Deploy to all** (`deploy-all.yml`) is the one dispatch for a whole release. It runs `tools/check_release_ready.sh` (the release notes are written and the version bump has run, §5), then `appimage.yml` (its test gate is the run's only test run; the GitHub Release is created), then the five store workflows in parallel, each called with `skip_tests` so its nested `test` shows as skipped. A failed release skips every store; a failed store leaves the others alone. It includes **Microsoft**, which goes live with no manual gate. Its runs appear only under "Deploy to all" in the Actions sidebar, not in each store workflow's history.
+**Deploy to all** (`deploy-all.yml`) is the one dispatch for a whole release. It runs `tools/check_release_ready.sh` (the release notes are written and the version bump has run, §5), then `appimage.yml` (its test gate is the run's only test run; the GitHub Release is created), then the five store workflows in parallel, each called with `skip_tests` so its nested `test` shows as skipped. Once the repo variable `FLATHUB_ENABLED` is `true` (once the Flathub submission is accepted), a sixth leg follows the release onto Flathub, which builds it from the new tag in its own repo (`docs/flatpak.md` § Deploy to all follows the release). A failed release skips every store; a failed store leaves the others alone. It includes **Microsoft**, which goes live with no manual gate. Its runs appear only under "Deploy to all" in the Actions sidebar, not in each store workflow's history.
 
 All six additionally read `IN_SENTRY_DSN`, which is optional — 28 secret names in total (four of them the F-Droid signing key, kept in an Environment), plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
 
@@ -446,7 +447,7 @@ tools/check_release_ready.sh     # the notes are written and the bump agrees eve
 `tools/check_release_ready.sh` is the gate **Deploy to all** runs first, so run it before dispatching. It fails, naming the fix, unless:
 
 - `lib/domain/release_notes.dart` has a `kReleaseNotes` entry for the version, and the three F-Droid changelogs (`fastlane/metadata/android/en-US/changelogs/<build×10+1..3>.txt`) exist and match (`docs/release-notes.md` step 5);
-- `kClientVersion`, `snap/snapcraft.yaml` and the F-Droid recipe all name pubspec's version (the bump script writes all of them);
+- `kClientVersion`, `snap/snapcraft.yaml`, the F-Droid recipe and the Linux metainfo's `<release>` entry all name pubspec's version (the bump script writes all of them; the metainfo entry is the release notes Flathub shows, `docs/flatpak.md`);
 - no `v<version>` tag exists on GitHub yet, and the version and build number are above the newest tag's.
 
 `--offline` skips the two tag checks.

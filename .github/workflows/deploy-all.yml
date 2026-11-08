@@ -1,7 +1,7 @@
 name: Deploy to all
 
 # Manual only — one dispatch that ships a release everywhere, in place of the
-# six individual deploy dispatches (each of which runs the whole test suite):
+# individual deploy dispatches (each of which runs the whole test suite):
 #
 #   1. ready    — tools/check_release_ready.sh: the release notes are written
 #                 and tools/bump_client_version.sh has run (an unreleased
@@ -12,6 +12,9 @@ name: Deploy to all
 #                 AppImage + F-Droid APKs + v<version> tag on a GitHub Release.
 #   3. the five stores, in parallel, once the Release exists — each called
 #      with skip_tests, so its nested `test` job shows as skipped. Expected.
+#   4. flathub — beside them, once FLATHUB_ENABLED is set: it only follows the
+#      release onto Flathub, which builds the app itself from the new tag
+#      (flathub.yml, docs/flatpak.md). No test gate and no secrets: it reads.
 #
 # A failed release skips every store. A failed store leaves the others alone:
 # fix it (a secret, a console setting) and "Re-run failed jobs". Never
@@ -102,3 +105,13 @@ jobs:
     secrets: inherit
     with:
       skip_tests: true
+
+  # Flathub builds the release itself from the new tag (its own repo's update
+  # workflow); this leg follows it to published and reports. Skipped until the
+  # repo variable FLATHUB_ENABLED is 'true' (docs/going-live.md) — the app is
+  # on Flathub only once its submission is accepted. No secrets: it writes nothing.
+  flathub:
+    needs: release
+    if: vars.FLATHUB_ENABLED == 'true'
+    name: Flathub
+    uses: ./.github/workflows/flathub.yml

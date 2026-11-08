@@ -80,6 +80,10 @@ Alongside the Snap, the Linux app ships as an **AppImage** — a single self-con
 - **Release cadence.** No external secret — only the built-in `GITHUB_TOKEN` (with `contents: write`). Re-dispatching the same version updates the release in place (replaces the asset); cut a new release by bumping the version (`tools/bump_client_version.sh` → fresh `v5.1.x` tag). Dry-run with the workflow's `publish: false` input (build + artifact, no release). x86_64 only for now (like the snap; arm64 is a future addition).
 - **AppStream metadata.** `appimage/com.invoiceninja.admin.metainfo.xml` ships unvalidated on the first runs (`LDAI_NO_APPSTREAM=1`) because `appstreamcli validate` fails on warnings and the build can't be iterated locally; the workflow runs `appstreamcli validate` as a non-fatal diagnostic so the metainfo can be tightened and the flag dropped later. `<project_license>` is `AAL` (per `LICENSE.txt`) — confirm before flipping the release to stable.
 
+## Linux desktop / Flatpak
+
+The Linux app is also going to **Flathub**, the first platform to production, as `com.invoiceninja.admin`, succeeding v1's `com.invoiceninja.InvoiceNinja`. Flathub builds it from the release tag with flatpak-flutter, using the FOSS dependency graph (`tools/prepare_foss.sh --offline`) on x86_64 and aarch64. It installs the same metainfo, whose `<releases>` the bump script now writes, so the AppImage's build-time version stamp is gone. Flathub's AI policy keeps every Flathub-side file and PR human-written. Everything else is in `docs/flatpak.md`.
+
 ## Android release build
 
 The release `.aab` is large (~119 MB) mostly because the Dart AOT `libapp.so` ships **unstripped**: its debug symbols (~120 MB across the three ABIs) land in the bundle's `BUNDLE-METADATA/`. Before "fixing" that, two facts:

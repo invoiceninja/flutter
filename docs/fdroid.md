@@ -176,7 +176,8 @@ downloads the prebuilt `libsqlite3mc.so`.**
 When `sqlite3` moves, read `tool/download_sqlite.dart` at the new `sqlite3-<version>` tag of
 simolus3/sqlite3.dart. Copy its `sqliteMultipleCiphersSource` URL into `SQLITE3MC_URL`, then
 update the three sha256 values in `prepare_foss.sh` (zip, `.c`, `.h`). Also update the `SQLITE3MC_*` pins mentioned in
-`docs/setup.md` § Dependency updates.
+`docs/setup.md` § Dependency updates. The Flatpak reads the same pins from `prepare_foss.sh` at the release tag
+(`docs/flatpak.md` § Bumping a pinned dependency).
 
 ## Building it
 

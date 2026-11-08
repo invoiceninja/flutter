@@ -10,12 +10,15 @@ class DocuNinjaApi {
   final DocuNinjaClient _client;
 
   /// A page of documents, newest first. [status] is React's comma list of
-  /// document statuses and lifecycle states (`draft`, `sent`, `active`,
-  /// `archived`, `deleted`, …).
+  /// lifecycle states and document statuses (`active`, `archived`,
+  /// `deleted`, `draft`, `sent`, …): the service matches a document whose
+  /// state *and* status are listed, so a list always names a state. [search]
+  /// goes out as `search` (probed live: DocuNinja ignores `filter`, React's
+  /// tables set `filterParameterKey="search"`).
   Future<DnPage<DnDocument>> documents({
     int page = 1,
     int perPage = 20,
-    String filter = '',
+    String search = '',
     String status = '',
     String sort = 'id|desc',
   }) async {
@@ -25,7 +28,7 @@ class DocuNinjaApi {
         'page': '$page',
         'per_page': '$perPage',
         'sort': sort,
-        if (filter.isNotEmpty) 'filter': filter,
+        if (search.isNotEmpty) 'search': search,
         if (status.isNotEmpty) 'status': status,
       },
     );
@@ -55,15 +58,21 @@ class DocuNinjaApi {
     ];
   }
 
-  /// The settings modal (`DocumentSettingsModal.tsx`).
+  /// The settings modal (`DocumentSettingsModal.tsx`). `expires_at` is sent
+  /// only when [setExpiry]: `YYYY-MM-DD`, as React's date input sends it, or
+  /// null to clear it.
   Future<DnDocument> updateDocument(
     String id, {
     required String description,
+    bool setExpiry = false,
     String? expiresAt,
   }) async {
     final json = await _client.putJson(
       '/api/documents/$id',
-      body: {'description': description, 'expires_at': expiresAt},
+      body: {
+        'description': description,
+        if (setExpiry) 'expires_at': expiresAt,
+      },
     );
     return DnDocument.fromJson(_data(json));
   }

@@ -1652,5 +1652,6 @@
   "review_helps_others": "Det hjælper andre små virksomheder med at finde os.",
   "review_opens_store": "Åbner :store",
   "review_thanks": "Tak for din støtte!",
-  "no_thanks": "Nej tak"
+  "no_thanks": "Nej tak",
+  "docuninja_company_setup_help": "Din konto findes, men denne virksomhed er ikke sat op endnu. Klik på knappen nedenfor for at sætte den op."
 }

@@ -1696,5 +1696,16 @@
   "review_helps_others": "Det hjälper andra småföretag att hitta oss.",
   "review_opens_store": "Öppnar :store",
   "review_thanks": "Tack för ditt stöd!",
-  "no_thanks": "Nej tack"
+  "no_thanks": "Nej tack",
+  "docuninja_join_tagline": "Skapa, skicka och e-signera dokument direkt från Invoice Ninja.",
+  "docuninja_join_features_title": "Allt du får",
+  "docuninja_join_esignatures": "E-signaturer",
+  "docuninja_join_esignatures_help": "Samla in signaturer med spårning",
+  "docuninja_join_templates_help": "Återanvändbara dokumentmallar",
+  "docuninja_join_integration": "Djup integration",
+  "docuninja_join_integration_help": "Fungerar med fakturor, offerter och beställningar",
+  "docuninja_creating_account": "Skapar ditt konto...",
+  "docuninja_company_setup_help": "Ditt konto finns, men det här företaget är inte konfigurerat ännu. Klicka på knappen nedan för att konfigurera det.",
+  "signatories": "Undertecknare",
+  "send_emails_to_following": "Vi skickar e-post till följande:"
 }

@@ -127,10 +127,13 @@ void main() {
     final list = tester.widget<ReorderableListView>(
       find.byType(ReorderableListView),
     );
+    final hosted = fixture.services.auth.session.value?.isHosted ?? false;
     expect(
       list.itemCount,
-      fixture.services.entityRegistry.sidebarTop.length + 3,
-      reason: 'dashboard + every sidebar entity + reports + activity',
+      fixture.services.entityRegistry.sidebarTop.length + 3 + (hosted ? 1 : 0),
+      reason:
+          'dashboard + every sidebar entity + reports + activity, and '
+          'DocuNinja on a hosted server',
     );
     // A handle and a switch on each built row (the list is lazy).
     final handles = find.byIcon(Icons.drag_indicator);

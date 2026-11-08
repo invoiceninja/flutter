@@ -1648,5 +1648,6 @@
   "review_helps_others": "Ayuda a otras pequeñas empresas a encontrarnos.",
   "review_opens_store": "Abre :store",
   "review_thanks": "¡Gracias por tu apoyo!",
-  "no_thanks": "No, gracias"
+  "no_thanks": "No, gracias",
+  "docuninja_company_setup_help": "Tu cuenta existe, pero esta empresa aún no está configurada. Haz clic en el botón de abajo para configurarla."
 }

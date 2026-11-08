@@ -220,7 +220,14 @@ class FixedBranch extends BranchSpec {
 // independent from `kBranchOrder`'s branch indices. The sidebar's visual
 // order and the router's branch positions don't need to align with the
 // enum order; the registry resolves them via the `FixedBranch(kind)` spec.
-enum FixedBranchKind { dashboard, settings, outbox, reports, activity }
+enum FixedBranchKind {
+  dashboard,
+  settings,
+  outbox,
+  reports,
+  activity,
+  docuninja,
+}
 
 /// In-memory map populated at app start (DI). The map drives the entire
 /// per-entity machinery — sync engine, outbox screen, router branches,
@@ -315,6 +322,10 @@ class EntityRegistry {
     // one surviving a company switch would read from (and save to) the previous
     // company's user under company B's token. Strip it too.
     yield '/settings/users';
+    // A DocuNinja document (`/docuninja/:id`) belongs to the company whose
+    // DocuNinja token fetched it; after a switch its actions would run on the
+    // old company's id with the new company's token. Back to `/docuninja`.
+    yield '/docuninja';
   }
 
   /// Overwrite the registry contents. Used by DI to break the construction

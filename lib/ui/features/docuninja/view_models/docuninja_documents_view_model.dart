@@ -1,0 +1,190 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
+
+import 'package:admin/data/models/docuninja/dn_models.dart';
+import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/docuninja/docuninja_api.dart';
+
+final _log = Logger('DocuNinjaDocumentsViewModel');
+
+/// Why the documents list could not be read.
+enum DnListError { offline, failed }
+
+/// The DocuNinja documents list (React's `Documents.tsx` table): a page at a
+/// time from DocuNinja, newest first, with a search and a status filter.
+///
+/// Online-only and held in memory (docs/docuninja.md). Each query carries a
+/// generation, so a page that lands after the search or filter changed is
+/// dropped instead of mixed in.
+class DocuNinjaDocumentsViewModel extends ChangeNotifier {
+  DocuNinjaDocumentsViewModel({
+    required DocuNinjaApi api,
+    this.pageSize = 20,
+    this.searchDelay = const Duration(milliseconds: 300),
+  }) : _api = api;
+
+  final DocuNinjaApi _api;
+  final int pageSize;
+  final Duration searchDelay;
+
+  final List<DnDocument> _items = [];
+  List<DnDocument> get items => List.unmodifiable(_items);
+
+  String _search = '';
+  String get search => _search;
+
+  /// React's status filter values (`useDocumentFilters.ts`): draft, sent,
+  /// pending_approval, completed, approved, voided, expired, rejected.
+  Set<String> _statuses = const {};
+  Set<String> get statuses => _statuses;
+
+  /// The lifecycle states listed: active, archived, deleted. React's table
+  /// starts on `active` and always sends a state with the statuses; the
+  /// service matches a document whose state and status are both listed.
+  /// Never empty (an empty choice falls back to active).
+  Set<String> _states = const {'active'};
+  Set<String> get states => _states;
+
+  /// Filters other than the default (active, any status), for the filter
+  /// button's dot.
+  int get activeFilterCount =>
+      (_statuses.isEmpty ? 0 : 1) +
+      (setEquals(_states, const {'active'}) ? 0 : 1);
+
+  int _page = 0;
+  int _lastPage = 1;
+  int _total = 0;
+  int get total => _total;
+  bool get hasMore => _page < _lastPage;
+
+  bool _loading = false;
+  bool get isLoading => _loading;
+  bool _loadingMore = false;
+  bool get isLoadingMore => _loadingMore;
+
+  /// Set once the first page has answered.
+  bool _loaded = false;
+  bool get hasLoaded => _loaded;
+
+  DnListError? _error;
+  DnListError? get error => _error;
+
+  int _generation = 0;
+  Timer? _searchTimer;
+  bool _disposed = false;
+
+  /// Loads the first page again, keeping the rows on screen until it lands.
+  Future<void> refresh() => _loadFirst();
+
+  void setSearch(String value) {
+    if (value == _search) return;
+    _search = value;
+    // A page asked for under the old search must not land in the new list,
+    // even before the debounce fires.
+    _generation++;
+    _loadingMore = false;
+    _searchTimer?.cancel();
+    _searchTimer = Timer(searchDelay, _loadFirst);
+    _notify();
+  }
+
+  /// Sets the status and lifecycle filters (React's status picker and the
+  /// table's state filter). An empty [states] means active.
+  void setFilters({
+    required Set<String> statuses,
+    required Set<String> states,
+  }) {
+    final nextStates = states.isEmpty ? const {'active'} : states;
+    if (setEquals(statuses, _statuses) && setEquals(nextStates, _states)) {
+      return;
+    }
+    _statuses = Set.unmodifiable(statuses);
+    _states = Set.unmodifiable(nextStates);
+    _loadFirst();
+  }
+
+  /// The next page, near the end of the list.
+  Future<void> loadMore() async {
+    if (_loading || _loadingMore || !hasMore || _items.isEmpty) return;
+    final generation = _generation;
+    _loadingMore = true;
+    _notify();
+    try {
+      final page = await _fetch(_page + 1);
+      if (generation != _generation) return;
+      _apply(page, append: true);
+    } on Object catch (e, st) {
+      if (generation != _generation) return;
+      _fail(e, st);
+    } finally {
+      if (generation == _generation) {
+        _loadingMore = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> _loadFirst() async {
+    final generation = ++_generation;
+    _searchTimer?.cancel();
+    // A load-more of the previous query is now stale; its own `finally`
+    // won't clear the flag (the generation moved on), so clear it here or
+    // paging stops for good.
+    _loadingMore = false;
+    _loading = true;
+    _error = null;
+    _notify();
+    try {
+      final page = await _fetch(1);
+      if (generation != _generation) return;
+      _items.clear();
+      _apply(page, append: false);
+      _loaded = true;
+    } on Object catch (e, st) {
+      if (generation != _generation) return;
+      _fail(e, st);
+    } finally {
+      if (generation == _generation) {
+        _loading = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<DnPage<DnDocument>> _fetch(int page) => _api.documents(
+    page: page,
+    perPage: pageSize,
+    search: _search.trim(),
+    status: [..._states, ..._statuses].join(','),
+  );
+
+  void _apply(DnPage<DnDocument> page, {required bool append}) {
+    final seen = {for (final d in _items) d.id};
+    _items.addAll(page.items.where((d) => seen.add(d.id)));
+    _page = page.currentPage;
+    _lastPage = page.lastPage;
+    _total = page.total;
+  }
+
+  void _fail(Object e, StackTrace st) {
+    if (e is NetworkException) {
+      _error = DnListError.offline;
+    } else {
+      _log.warning('DocuNinja documents failed to load', e, st);
+      _error = DnListError.failed;
+    }
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+}

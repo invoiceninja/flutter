@@ -1700,5 +1700,16 @@
   "review_helps_others": "Aiuta altre piccole imprese a trovarci.",
   "review_opens_store": "Apre :store",
   "review_thanks": "Grazie per il tuo supporto!",
-  "no_thanks": "No, grazie"
+  "no_thanks": "No, grazie",
+  "docuninja_join_tagline": "Crea , invia e firma elettronicamente documenti direttamente da Fattura Ninja.",
+  "docuninja_join_features_title": "Tutto ciò che ricevi",
+  "docuninja_join_esignatures": "Firme elettroniche",
+  "docuninja_join_esignatures_help": "Raccogli le firme con tracciamento",
+  "docuninja_join_templates_help": "Modelli di documenti riutilizzabili",
+  "docuninja_join_integration": "Integrazione profonda",
+  "docuninja_join_integration_help": "Lavora con Fatture , preventivi e ordini",
+  "docuninja_creating_account": "Creazione dell'account...",
+  "docuninja_company_setup_help": "Il tuo account esiste, ma questa azienda non è ancora configurata. Fai clic sul pulsante qui sotto per configurarla.",
+  "signatories": "Firmatari",
+  "send_emails_to_following": "Invieremo email ai seguenti indirizzi:"
 }

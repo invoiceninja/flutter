@@ -1700,5 +1700,16 @@
   "review_helps_others": "Zo vinden andere kleine bedrijven ons ook.",
   "review_opens_store": "Opent :store",
   "review_thanks": "Bedankt voor je steun!",
-  "no_thanks": "Nee, bedankt"
+  "no_thanks": "Nee, bedankt",
+  "docuninja_join_tagline": "Maak, verstuur en onderteken documenten digitaal rechtstreeks vanuit Invoice Ninja.",
+  "docuninja_join_features_title": "Alles wat je krijgt",
+  "docuninja_join_esignatures": "E-handtekeningen",
+  "docuninja_join_esignatures_help": "Verzamel handtekeningen met tracking.",
+  "docuninja_join_templates_help": "Herbruikbare documentblauwdrukken",
+  "docuninja_join_integration": "Diepe integratie",
+  "docuninja_join_integration_help": "Werkt met facturen, offertes en bestellingen.",
+  "docuninja_creating_account": "Je account aanmaken...",
+  "docuninja_company_setup_help": "Uw account bestaat, maar dit bedrijf is nog niet ingesteld. Klik op de knop hieronder om het in te stellen.",
+  "signatories": "Ondertekenaars",
+  "send_emails_to_following": "We gaan e-mails versturen naar de volgende adressen:"
 }

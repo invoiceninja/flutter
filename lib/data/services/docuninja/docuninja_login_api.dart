@@ -31,6 +31,14 @@ class DocuNinjaLoginApi {
       rethrow;
     }
   }
+
+  /// Creates the DocuNinja account, or pairs this company with an existing
+  /// one (`POST /api/docuninja/create`): React's Join and company-setup
+  /// buttons, for an Invoice Ninja owner or admin. The server then turns on
+  /// the company's `enable_modules`, so the caller refreshes the session.
+  Future<void> createAccount() async {
+    await _api.postJson('/api/docuninja/create', body: const {});
+  }
 }
 
 /// The handshake's "no DocuNinja account for you" answer.

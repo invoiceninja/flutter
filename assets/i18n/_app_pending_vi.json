@@ -1614,5 +1614,6 @@
   "review_helps_others": "Điều này giúp các doanh nghiệp nhỏ khác tìm thấy chúng tôi.",
   "review_opens_store": "Mở :store",
   "review_thanks": "Cảm ơn bạn đã ủng hộ!",
-  "no_thanks": "Không, cảm ơn"
+  "no_thanks": "Không, cảm ơn",
+  "docuninja_company_setup_help": "Tài khoản của bạn đã tồn tại nhưng công ty này chưa được thiết lập. Vui lòng nhấp vào nút bên dưới để thiết lập."
 }

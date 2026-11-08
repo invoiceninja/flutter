@@ -1112,6 +1112,25 @@ class _InSidebarState extends State<InSidebar> {
           kind: FixedBranchKind.activity,
         ),
       ),
+      // DocuNinja — e-signatures, a hosted service, so hosted only. Shown to
+      // every hosted user, as React does: the screen itself decides between
+      // Join, no access, company setup, the plan wall and the documents
+      // (docs/docuninja.md).
+      if (session?.isHosted ?? false)
+        (
+          id: kSidebarMenuDocuNinjaId,
+          type: null,
+          build: ({required bool tile}) => _fixedNav(
+            context,
+            services,
+            compact: compact,
+            touch: touch,
+            tile: tile,
+            labelKey: kSidebarMenuDocuNinjaSpec.labelKey,
+            icon: kSidebarMenuDocuNinjaSpec.icon,
+            kind: FixedBranchKind.docuninja,
+          ),
+        ),
     ];
 
     final byId = {for (final entry in defaults) entry.id: entry};

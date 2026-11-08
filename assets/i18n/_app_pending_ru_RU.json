@@ -1700,5 +1700,16 @@
   "review_helps_others": "Это помогает другим небольшим компаниям найти нас.",
   "review_opens_store": "Открывает :store",
   "review_thanks": "Спасибо за поддержку!",
-  "no_thanks": "Нет, спасибо"
+  "no_thanks": "Нет, спасибо",
+  "docuninja_join_tagline": "Создавайте, отправляйте и подписывайте документы электронной подписью прямо из Invoice Ninja.",
+  "docuninja_join_features_title": "Всё, что вы получаете",
+  "docuninja_join_esignatures": "Электронные подписи",
+  "docuninja_join_esignatures_help": "Сбор подписей с отслеживанием",
+  "docuninja_join_templates_help": "Многоразовые шаблоны документов",
+  "docuninja_join_integration": "Глубокая интеграция",
+  "docuninja_join_integration_help": "Работает со счетами, предложениями и заказами",
+  "docuninja_creating_account": "Создание вашей учётной записи...",
+  "docuninja_company_setup_help": "Ваша учётная запись существует, но эта компания ещё не настроена. Нажмите кнопку ниже, чтобы настроить её.",
+  "signatories": "Подписанты",
+  "send_emails_to_following": "Мы отправим письма следующим получателям:"
 }

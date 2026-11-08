@@ -701,16 +701,16 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
-| DocuNinja — document list | ✅ | ❌ | ❌ |  | |
+| DocuNinja — document list | ✅ | ❌ | 🟡 |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging. Creating a document arrives with the builder |
 | DocuNinja — create document | ✅ | ❌ | ❌ |  | |
 | DocuNinja — create blueprint / template | ✅ | ❌ | ❌ |  | |
 | DocuNinja — drag-and-drop document builder | ✅ | ❌ | ❌ |  | |
 | DocuNinja — signature field mapping | ✅ | ❌ | ❌ |  | |
 | DocuNinja — sign document | ✅ | ❌ | ❌ |  | |
-| DocuNinja — PDF preview / render | ✅ | ❌ | ❌ |  | |
+| DocuNinja — PDF preview / render | ✅ | ❌ | ✅ |  | The signed PDF of a completed document; the audit log downloads |
 | DocuNinja — user management for docs | ✅ | ❌ | ❌ |  | |
 | DocuNinja — document email templates | ✅ | ❌ | ❌ |  | |
-| DocuNinja — delete document | ✅ | ❌ | ❌ |  | |
+| DocuNinja — delete document | ✅ | ❌ | ✅ |  | With send, resend, void, clone, options (description, expiry), archive and restore on the detail page |
 | DocuNinja — "Authorized to sign" per invited contact on invoices, quotes, credits, recurring invoices and POs (when DocuNinja is on) | ✅ | ❌ | ✅ | | An unread value shows as a dash; the contact forms' toggle shows only while DocuNinja is on |
 | DocuNinja — "Signed Document" pill on a signed invoice / quote / purchase order | ✅ | ❌ | ✅ | | Opens the signed PDF; React's opens the DocuNinja document (docs/docuninja.md) |
 

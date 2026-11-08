@@ -1700,5 +1700,16 @@
   "review_helps_others": "Тоа им помага на други мали бизниси да не најдат.",
   "review_opens_store": "Отвора :store",
   "review_thanks": "Ви благодариме за поддршката!",
-  "no_thanks": "Не, благодарам"
+  "no_thanks": "Не, благодарам",
+  "docuninja_join_tagline": "Креирајте, испраќајте и електронски потпишувајте документи директно од Invoice Ninja.",
+  "docuninja_join_features_title": "Сè што добивате",
+  "docuninja_join_esignatures": "Електронски потписи",
+  "docuninja_join_esignatures_help": "Собирајте потписи со следење",
+  "docuninja_join_templates_help": "Шаблони за документи за повеќекратна употреба",
+  "docuninja_join_integration": "Длабока интеграција",
+  "docuninja_join_integration_help": "Работи со фактури, понуди и нарачки",
+  "docuninja_creating_account": "Се креира вашата сметка...",
+  "docuninja_company_setup_help": "Вашата сметка постои, но оваа компанија сè уште не е поставена. Кликнете на копчето подолу за да ја поставите.",
+  "signatories": "Потписници",
+  "send_emails_to_following": "Ќе испратиме е-пошта до следниве:"
 }

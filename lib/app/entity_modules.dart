@@ -1106,7 +1106,9 @@ const kBranchOrder = <BranchSpec>[
   //     `/activity`; the dashboard card's "View All" target.
   EntityBranch(EntityType.document), // 22 — the Documents list at
   //     `/documents`; no create screen (`/new` redirects to the list).
-  // Future enabled entities append here (23, 24, …) so existing branch
+  FixedBranch(FixedBranchKind.docuninja), // 23 — DocuNinja e-signatures at
+  //     `/docuninja` (hosted only; docs/docuninja.md).
+  // Future enabled entities append here (24, 25, …) so existing branch
   // indices keep their meaning.
 ];
 

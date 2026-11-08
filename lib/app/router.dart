@@ -21,6 +21,9 @@ import 'package:admin/ui/features/auth/views/login_screen.dart';
 import 'package:admin/ui/features/auth/views/setup_wizard_screen.dart';
 import 'package:admin/ui/features/auth/views/signup_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_pdf_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_screen.dart';
 import 'package:admin/ui/features/reports/helpers/report_access.dart';
 import 'package:admin/ui/features/reports/views/report_screen.dart';
 import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
@@ -907,6 +910,37 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
           GoRoute(
             path: '/activity',
             builder: (context, state) => const ActivityScreen(),
+          ),
+        ],
+      );
+    case FixedBranchKind.docuninja:
+      return StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: '/docuninja',
+            // DocuNinja is a hosted service: a self-hosted session that
+            // reaches it (a typed or stale address) goes home.
+            redirect: (context, state) {
+              final session = context.read<Services>().auth.session.value;
+              return (session?.isHosted ?? true)
+                  ? null
+                  : defaultPostLoginRoute(session);
+            },
+            builder: (context, state) => const DocuNinjaScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) =>
+                    DocuNinjaDocumentScreen(id: state.pathParameters['id']!),
+                routes: [
+                  GoRoute(
+                    path: 'pdf',
+                    builder: (context, state) =>
+                        DocuNinjaPdfScreen(id: state.pathParameters['id']!),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       );

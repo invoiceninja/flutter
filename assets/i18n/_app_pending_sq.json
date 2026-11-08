@@ -1700,5 +1700,16 @@
   "review_helps_others": "Kjo ndihmon bizneset e tjera të vogla të na gjejnë.",
   "review_opens_store": "Hap :store",
   "review_thanks": "Faleminderit për mbështetjen!",
-  "no_thanks": "Jo, faleminderit"
+  "no_thanks": "Jo, faleminderit",
+  "docuninja_join_tagline": "Krijoni, dërgoni dhe nënshkruani elektronikisht dokumente drejtpërdrejt nga Invoice Ninja.",
+  "docuninja_join_features_title": "Gjithçka që merrni",
+  "docuninja_join_esignatures": "Nënshkrime elektronike",
+  "docuninja_join_esignatures_help": "Mblidhni nënshkrime me gjurmim",
+  "docuninja_join_templates_help": "Shabllone dokumentesh të ripërdorshme",
+  "docuninja_join_integration": "Integrim i thellë",
+  "docuninja_join_integration_help": "Funksionon me fatura, oferta dhe porosi",
+  "docuninja_creating_account": "Po krijohet llogaria juaj...",
+  "docuninja_company_setup_help": "Llogaria juaj ekziston, por kjo kompani nuk është konfiguruar ende. Ju lutemi klikoni butonin më poshtë për ta konfiguruar.",
+  "signatories": "Nënshkruesit",
+  "send_emails_to_following": "Do t'u dërgojmë email-e të mëposhtmëve:"
 }

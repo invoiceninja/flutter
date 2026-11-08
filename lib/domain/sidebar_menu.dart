@@ -39,6 +39,7 @@ const kSidebarMenuReportsId = 'reports';
 
 /// Menu id of the company Activity row.
 const kSidebarMenuActivityId = 'activity';
+const kSidebarMenuDocuNinjaId = 'docuninja';
 
 /// The three non-entity destinations in the reorderable block. Entity rows use
 /// `EntityType.name` as their id instead.
@@ -50,6 +51,7 @@ const kSidebarMenuFixedIds = <String>[
   kSidebarMenuDashboardId,
   kSidebarMenuReportsId,
   kSidebarMenuActivityId,
+  kSidebarMenuDocuNinjaId,
 ];
 
 /// One destination's preference: where it sits (its index in the list) and

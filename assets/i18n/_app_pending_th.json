@@ -1700,5 +1700,16 @@
   "review_helps_others": "ช่วยให้ธุรกิจขนาดเล็กอื่นๆ ค้นพบเรา",
   "review_opens_store": "เปิด :store",
   "review_thanks": "ขอบคุณสำหรับการสนับสนุน!",
-  "no_thanks": "ไม่ ขอบคุณ"
+  "no_thanks": "ไม่ ขอบคุณ",
+  "docuninja_join_tagline": "สร้าง ส่ง และลงนามเอกสารแบบอิเล็กทรอนิกส์ได้โดยตรงจาก Invoice Ninja",
+  "docuninja_join_features_title": "ทุกสิ่งที่คุณจะได้รับ",
+  "docuninja_join_esignatures": "ลายเซ็นอิเล็กทรอนิกส์",
+  "docuninja_join_esignatures_help": "รวบรวมลายเซ็นพร้อมการติดตาม",
+  "docuninja_join_templates_help": "แม่แบบเอกสารที่นำกลับมาใช้ได้",
+  "docuninja_join_integration": "การผสานรวมอย่างลึกซึ้ง",
+  "docuninja_join_integration_help": "ใช้ได้กับใบแจ้งหนี้ ใบเสนอราคา และใบสั่งซื้อ",
+  "docuninja_creating_account": "กำลังสร้างบัญชีของคุณ...",
+  "docuninja_company_setup_help": "บัญชีของคุณมีอยู่แล้ว แต่บริษัทนี้ยังไม่ได้ตั้งค่า โปรดคลิกปุ่มด้านล่างเพื่อตั้งค่า",
+  "signatories": "ผู้ลงนาม",
+  "send_emails_to_following": "เราจะส่งอีเมลถึงผู้รับต่อไปนี้:"
 }

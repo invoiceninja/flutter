@@ -21,6 +21,9 @@ class _LoginApi implements DocuNinjaLoginApi {
     calls++;
     return answer();
   }
+
+  @override
+  Future<void> createAccount() async {}
 }
 
 DnLogin _fixtureLogin() => DnLogin.fromJson(

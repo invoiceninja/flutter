@@ -81,12 +81,18 @@ class _CustomizeMenuBodyState extends State<_CustomizeMenuBody> {
   /// the sidebar's narrower view would silently erase the stored position of
   /// every entity whose module the company currently has switched off — and
   /// they would come back at the bottom of the menu when it was re-enabled.
-  List<String> _allIds(EntityRegistry registry) => <String>[
-    kSidebarMenuDashboardId,
-    for (final h in registry.sidebarTop) h.type.name,
-    kSidebarMenuReportsId,
-    kSidebarMenuActivityId,
-  ];
+  ///
+  /// DocuNinja is hosted-only, so a self-hosted install never lists it: the
+  /// sidebar would draw no row for it. Its stored position is harmless to
+  /// lose there, since a missing id goes back to its canonical rank.
+  List<String> _allIds(EntityRegistry registry, {required bool hosted}) =>
+      <String>[
+        kSidebarMenuDashboardId,
+        for (final h in registry.sidebarTop) h.type.name,
+        kSidebarMenuReportsId,
+        kSidebarMenuActivityId,
+        if (hosted) kSidebarMenuDocuNinjaId,
+      ];
 
   /// Store [next], or clear the preference outright when it *is* the default.
   ///
@@ -144,7 +150,10 @@ class _CustomizeMenuBodyState extends State<_CustomizeMenuBody> {
         available: isEntityModuleEnabledForCompany(h.type, enabledModules),
       );
     }
-    final allIds = _allIds(registry);
+    final allIds = _allIds(
+      registry,
+      hosted: services.auth.session.value?.isHosted ?? false,
+    );
 
     return ListenableBuilder(
       listenable: services.sidebarMenu,

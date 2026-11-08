@@ -1647,5 +1647,6 @@
   "review_helps_others": "To pomaže drugim malim firmama da nas pronađu.",
   "review_opens_store": "Otvara :store",
   "review_thanks": "Hvala na podršci!",
-  "no_thanks": "Ne, hvala"
+  "no_thanks": "Ne, hvala",
+  "docuninja_company_setup_help": "Vaš nalog postoji, ali ova kompanija još nije podešena. Kliknite na dugme ispod da biste je podesili."
 }

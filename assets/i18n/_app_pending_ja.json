@@ -1700,5 +1700,16 @@
   "review_helps_others": "ほかの小規模事業者が私たちを見つける助けになります。",
   "review_opens_store": ":store を開きます",
   "review_thanks": "ご支援ありがとうございます！",
-  "no_thanks": "いいえ、結構です"
+  "no_thanks": "いいえ、結構です",
+  "docuninja_join_tagline": "Invoice Ninjaから直接、文書の作成、送信、電子署名を行うことができます。",
+  "docuninja_join_features_title": "すべて",
+  "docuninja_join_esignatures": "電子署名",
+  "docuninja_join_esignatures_help": "追跡機能付きで署名を集める",
+  "docuninja_join_templates_help": "再利用可能な文書設計図",
+  "docuninja_join_integration": "ディープインテグレーション",
+  "docuninja_join_integration_help": "請求書、見積書、注文書に対応",
+  "docuninja_creating_account": "アカウントを作成しています...",
+  "docuninja_company_setup_help": "アカウントは存在しますが、この会社はまだ設定されていません。下のボタンをクリックして設定してください。",
+  "signatories": "署名者",
+  "send_emails_to_following": "以下の宛先にメールを送信します。"
 }

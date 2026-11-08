@@ -1700,5 +1700,16 @@
   "review_helps_others": "Cela aide d'autres petites entreprises à nous trouver.",
   "review_opens_store": "Ouvre :store",
   "review_thanks": "Merci de votre soutien !",
-  "no_thanks": "Non merci"
+  "no_thanks": "Non merci",
+  "docuninja_join_tagline": "Créez, envoyez et signez électroniquement des documents directement depuis Invoice Ninja.",
+  "docuninja_join_features_title": "Tout ce que vous obtenez",
+  "docuninja_join_esignatures": "Signatures électroniques",
+  "docuninja_join_esignatures_help": "Collectez des signatures avec suivi",
+  "docuninja_join_templates_help": "Plans de documents réutilisables",
+  "docuninja_join_integration": "Intégration profonde",
+  "docuninja_join_integration_help": "Gestion des factures, devis et commandes",
+  "docuninja_creating_account": "Créer votre compte...",
+  "docuninja_company_setup_help": "Votre compte existe, mais cette entreprise n'est pas encore configurée. Cliquez sur le bouton ci-dessous pour la configurer.",
+  "signatories": "Signataires",
+  "send_emails_to_following": "Nous allons envoyer des courriels aux personnes suivantes :"
 }

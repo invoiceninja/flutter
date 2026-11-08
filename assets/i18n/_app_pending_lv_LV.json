@@ -1700,5 +1700,16 @@
   "review_helps_others": "Tas palīdz citiem mazajiem uzņēmumiem mūs atrast.",
   "review_opens_store": "Atver :store",
   "review_thanks": "Paldies par atbalstu!",
-  "no_thanks": "Nē, paldies"
+  "no_thanks": "Nē, paldies",
+  "docuninja_join_tagline": "Izveidojiet, nosūtiet un elektroniski parakstiet dokumentus tieši no Invoice Ninja.",
+  "docuninja_join_features_title": "Viss, ko jūs saņemat",
+  "docuninja_join_esignatures": "Elektroniskie paraksti",
+  "docuninja_join_esignatures_help": "Vāciet parakstus ar izsekošanu",
+  "docuninja_join_templates_help": "Atkārtoti izmantojamas dokumentu veidnes",
+  "docuninja_join_integration": "Dziļa integrācija",
+  "docuninja_join_integration_help": "Darbojas ar rēķiniem, piedāvājumiem un pasūtījumiem",
+  "docuninja_creating_account": "Tiek izveidots jūsu konts...",
+  "docuninja_company_setup_help": "Jūsu konts pastāv, bet šis uzņēmums vēl nav iestatīts. Lūdzu, noklikšķiniet uz zemāk esošās pogas, lai to iestatītu.",
+  "signatories": "Parakstītāji",
+  "send_emails_to_following": "Mēs nosūtīsim e-pastus šiem adresātiem:"
 }

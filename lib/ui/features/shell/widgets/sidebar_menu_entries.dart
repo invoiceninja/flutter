@@ -43,12 +43,21 @@ const kSidebarMenuActivitySpec = SidebarMenuFixedSpec(
   labelKey: 'activity',
 );
 
-/// The three fixed destinations, in the app's default order relative to the
-/// entity block: Dashboard leads it, Reports and Activity trail it.
+/// DocuNinja e-signatures (hosted only; docs/docuninja.md). A pen signing,
+/// not the Documents list's folder: the two are different destinations.
+const kSidebarMenuDocuNinjaSpec = SidebarMenuFixedSpec(
+  id: kSidebarMenuDocuNinjaId,
+  icon: Icons.draw_outlined,
+  labelKey: 'docuninja',
+);
+
+/// The fixed destinations, in the app's default order relative to the entity
+/// block: Dashboard leads it; Reports, Activity and DocuNinja trail it.
 const kSidebarMenuFixedSpecs = <SidebarMenuFixedSpec>[
   kSidebarMenuDashboardSpec,
   kSidebarMenuReportsSpec,
   kSidebarMenuActivitySpec,
+  kSidebarMenuDocuNinjaSpec,
 ];
 
 /// The spec for [id], or null when [id] names an entity rather than one of the

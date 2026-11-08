@@ -1700,5 +1700,16 @@
   "review_helps_others": "ມັນຊ່ວຍໃຫ້ທຸລະກິດຂະໜາດນ້ອຍອື່ນໆພົບພວກເຮົາ.",
   "review_opens_store": "ເປີດ :store",
   "review_thanks": "ຂອບໃຈສຳລັບການສະໜັບສະໜູນ!",
-  "no_thanks": "ບໍ່, ຂອບໃຈ"
+  "no_thanks": "ບໍ່, ຂອບໃຈ",
+  "docuninja_join_tagline": "ສ້າງ, ສົ່ງ ແລະ ເຊັນເອກະສານແບບອີເລັກໂທຣນິກໄດ້ໂດຍກົງຈາກ Invoice Ninja.",
+  "docuninja_join_features_title": "ທຸກຢ່າງທີ່ທ່ານໄດ້ຮັບ",
+  "docuninja_join_esignatures": "ລາຍເຊັນອີເລັກໂທຣນິກ",
+  "docuninja_join_esignatures_help": "ເກັບລາຍເຊັນພ້ອມການຕິດຕາມ",
+  "docuninja_join_templates_help": "ແມ່ແບບເອກະສານທີ່ນຳໃຊ້ຄືນໄດ້",
+  "docuninja_join_integration": "ການເຊື່ອມໂຍງຢ່າງເລິກເຊິ່ງ",
+  "docuninja_join_integration_help": "ໃຊ້ໄດ້ກັບໃບແຈ້ງໜີ້, ໃບສະເໜີລາຄາ ແລະ ຄຳສັ່ງຊື້",
+  "docuninja_creating_account": "ກຳລັງສ້າງບັນຊີຂອງທ່ານ...",
+  "docuninja_company_setup_help": "ບັນຊີຂອງທ່ານມີຢູ່ແລ້ວ ແຕ່ບໍລິສັດນີ້ຍັງບໍ່ໄດ້ຕັ້ງຄ່າເທື່ອ. ກະລຸນາຄລິກປຸ່ມຂ້າງລຸ່ມນີ້ເພື່ອຕັ້ງຄ່າ.",
+  "signatories": "ຜູ້ລົງນາມ",
+  "send_emails_to_following": "ພວກເຮົາຈະສົ່ງອີເມວໄປຫາຜູ້ຕໍ່ໄປນີ້:"
 }

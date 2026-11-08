@@ -106,7 +106,10 @@ class DocuNinjaClient {
     Map<String, String>? query,
     Object? body,
   }) async {
-    var response = await _attempt(method, path, query, body, _tokens.token);
+    // No token yet (a screen opened before the handshake answered, or after
+    // a company switch): run the handshake before the first attempt.
+    final token = _tokens.token ?? await _tokens.refreshToken();
+    var response = await _attempt(method, path, query, body, token);
     if (response.statusCode == 401) {
       final fresh = await _tokens.refreshToken();
       if (fresh != null) {

@@ -1648,5 +1648,6 @@
   "review_helps_others": "See aitab teistel väikeettevõtetel meid leida.",
   "review_opens_store": "Avab :store",
   "review_thanks": "Aitäh toetuse eest!",
-  "no_thanks": "Ei, aitäh"
+  "no_thanks": "Ei, aitäh",
+  "docuninja_company_setup_help": "Teie konto on olemas, kuid see ettevõte pole veel seadistatud. Selle seadistamiseks klõpsake allolevat nuppu."
 }

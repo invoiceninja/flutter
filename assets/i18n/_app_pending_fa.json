@@ -1699,5 +1699,16 @@
   "review_helps_others": "این به دیگر کسب‌وکارهای کوچک کمک می‌کند ما را پیدا کنند.",
   "review_opens_store": ":store را باز می‌کند",
   "review_thanks": "از حمایت شما سپاسگزاریم!",
-  "no_thanks": "نه، ممنون"
+  "no_thanks": "نه، ممنون",
+  "docuninja_join_tagline": "اسناد را مستقیماً از Invoice Ninja ایجاد، ارسال و به‌صورت الکترونیکی امضا کنید.",
+  "docuninja_join_features_title": "همه آنچه دریافت می‌کنید",
+  "docuninja_join_esignatures": "امضای الکترونیکی",
+  "docuninja_join_esignatures_help": "جمع‌آوری امضا همراه با پیگیری",
+  "docuninja_join_templates_help": "قالب‌های قابل استفاده مجدد اسناد",
+  "docuninja_join_integration": "یکپارچگی عمیق",
+  "docuninja_join_integration_help": "با فاکتورها، پیش‌فاکتورها و سفارش‌ها کار می‌کند",
+  "docuninja_creating_account": "در حال ایجاد حساب شما...",
+  "docuninja_company_setup_help": "حساب شما وجود دارد اما این شرکت هنوز راه‌اندازی نشده است. لطفاً برای راه‌اندازی آن روی دکمه زیر کلیک کنید.",
+  "signatories": "امضاکنندگان",
+  "send_emails_to_following": "برای افراد زیر ایمیل ارسال خواهیم کرد:"
 }

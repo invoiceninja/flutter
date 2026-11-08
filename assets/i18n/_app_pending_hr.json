@@ -1648,5 +1648,6 @@
   "review_helps_others": "To pomaže drugim malim tvrtkama da nas pronađu.",
   "review_opens_store": "Otvara :store",
   "review_thanks": "Hvala na podršci!",
-  "no_thanks": "Ne, hvala"
+  "no_thanks": "Ne, hvala",
+  "docuninja_company_setup_help": "Vaš račun postoji, ali ova tvrtka još nije postavljena. Kliknite gumb u nastavku da biste je postavili."
 }

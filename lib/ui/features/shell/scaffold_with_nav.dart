@@ -285,6 +285,13 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
         final me = services.auth.session.value?.currentCompany;
         if (!(me?.can('view_reports') ?? false)) return;
       }
+      // DocuNinja is hosted-only, and the sidebar draws no row for it on a
+      // self-hosted server.
+      if (branch is FixedBranch &&
+          branch.kind == FixedBranchKind.docuninja &&
+          !(services.auth.session.value?.isHosted ?? false)) {
+        return;
+      }
     }
     final guard = services.unsavedChangesGuard;
     if (!await guard.confirmIfDirty(context)) return;

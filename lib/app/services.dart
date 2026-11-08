@@ -355,6 +355,7 @@ class Services implements SidebarBadgeContext {
     required this.passkeyReadiness,
     required this.docuNinja,
     required this.docuNinjaApi,
+    required this.docuNinjaLoginApi,
     required this.support,
     required this.smtp,
     required this.templates,
@@ -673,6 +674,9 @@ class Services implements SidebarBadgeContext {
 
   /// DocuNinja's document endpoints, on [docuNinja]'s token.
   final DocuNinjaApi docuNinjaApi;
+
+  /// The Invoice Ninja side of DocuNinja: the handshake and account creation.
+  final DocuNinjaLoginApi docuNinjaLoginApi;
   final SupportApi support;
 
   /// One-off probe behind Settings → Email Settings → "Send Test Email"
@@ -1903,8 +1907,9 @@ class Services implements SidebarBadgeContext {
     final twoFactorRepo = TwoFactorRepository(api: twoFactorApi, auth: auth);
     final passkeyRepo = PasskeyRepository(api: PasskeyApi(apiClient));
     final passkeyReadiness = PasskeyReadiness();
+    final docuNinjaLoginApi = DocuNinjaLoginApi(apiClient);
     final docuNinjaSession = DocuNinjaSession(
-      loginApi: DocuNinjaLoginApi(apiClient),
+      loginApi: docuNinjaLoginApi,
       auth: auth.session,
       companyKeyOf: (companyId) async =>
           (await db.companiesDao.byId(companyId))?.companyKey,
@@ -2530,6 +2535,7 @@ class Services implements SidebarBadgeContext {
       passkeyReadiness: passkeyReadiness,
       docuNinja: docuNinjaSession,
       docuNinjaApi: docuNinjaApi,
+      docuNinjaLoginApi: docuNinjaLoginApi,
       support: supportApi,
       smtp: smtpApi,
       templates: templatesApi,

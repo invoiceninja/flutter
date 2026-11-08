@@ -1649,5 +1649,6 @@
   "review_helps_others": "Se auttaa muita pienyrityksiä löytämään meidät.",
   "review_opens_store": "Avaa :store",
   "review_thanks": "Kiitos tuestasi!",
-  "no_thanks": "Ei kiitos"
+  "no_thanks": "Ei kiitos",
+  "docuninja_company_setup_help": "Tilisi on olemassa, mutta tätä yritystä ei ole vielä otettu käyttöön. Ota se käyttöön napsauttamalla alla olevaa painiketta."
 }

@@ -1700,5 +1700,16 @@
   "review_helps_others": "To pomaga drugim malim podjetjem, da nas najdejo.",
   "review_opens_store": "Odpre :store",
   "review_thanks": "Hvala za podporo!",
-  "no_thanks": "Ne, hvala"
+  "no_thanks": "Ne, hvala",
+  "docuninja_join_tagline": "Ustvarjajte, pošiljajte in elektronsko podpisujte dokumente neposredno iz Invoice Ninja.",
+  "docuninja_join_features_title": "Vse, kar dobite",
+  "docuninja_join_esignatures": "Elektronski podpisi",
+  "docuninja_join_esignatures_help": "Zbirajte podpise s sledenjem",
+  "docuninja_join_templates_help": "Predloge dokumentov za večkratno uporabo",
+  "docuninja_join_integration": "Globoka integracija",
+  "docuninja_join_integration_help": "Deluje z računi, ponudbami in naročili",
+  "docuninja_creating_account": "Ustvarjanje vašega računa...",
+  "docuninja_company_setup_help": "Vaš račun obstaja, vendar to podjetje še ni nastavljeno. Kliknite spodnji gumb, da ga nastavite.",
+  "signatories": "Podpisniki",
+  "send_emails_to_following": "E-pošto bomo poslali naslednjim:"
 }

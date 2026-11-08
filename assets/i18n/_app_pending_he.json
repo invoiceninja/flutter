@@ -1647,5 +1647,6 @@
   "review_helps_others": "זה עוזר לעסקים קטנים אחרים למצוא אותנו.",
   "review_opens_store": "פותח את :store",
   "review_thanks": "תודה על התמיכה!",
-  "no_thanks": "לא, תודה"
+  "no_thanks": "לא, תודה",
+  "docuninja_company_setup_help": "החשבון שלך קיים, אך החברה הזו עדיין לא הוגדרה. לחץ על הכפתור למטה כדי להגדיר אותה."
 }

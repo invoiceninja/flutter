@@ -1700,5 +1700,16 @@
   "review_helps_others": "Pomůže to dalším malým firmám nás najít.",
   "review_opens_store": "Otevře :store",
   "review_thanks": "Děkujeme za podporu!",
-  "no_thanks": "Ne, děkuji"
+  "no_thanks": "Ne, děkuji",
+  "docuninja_join_tagline": "Vytvářejte, odesílejte a elektronicky podepisujte dokumenty přímo z Invoice Ninja.",
+  "docuninja_join_features_title": "Vše, co získáte",
+  "docuninja_join_esignatures": "Elektronické podpisy",
+  "docuninja_join_esignatures_help": "Sbírejte podpisy se sledováním",
+  "docuninja_join_templates_help": "Opakovaně použitelné šablony dokumentů",
+  "docuninja_join_integration": "Hluboká integrace",
+  "docuninja_join_integration_help": "Funguje s fakturami, nabídkami a objednávkami",
+  "docuninja_creating_account": "Vytváření vašeho účtu...",
+  "docuninja_company_setup_help": "Váš účet existuje, ale tato společnost ještě není nastavena. Klikněte prosím na tlačítko níže a nastavte ji.",
+  "signatories": "Podepisující",
+  "send_emails_to_following": "Odešleme e-maily následujícím:"
 }

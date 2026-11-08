@@ -1700,5 +1700,16 @@
   "review_helps_others": "这能帮助其他小企业找到我们。",
   "review_opens_store": "打开 :store",
   "review_thanks": "感谢您的支持！",
-  "no_thanks": "不用了，谢谢"
+  "no_thanks": "不用了，谢谢",
+  "docuninja_join_tagline": "直接在 Invoice Ninja 中创建、发送和电子签署文档。",
+  "docuninja_join_features_title": "您将获得的一切",
+  "docuninja_join_esignatures": "电子签名",
+  "docuninja_join_esignatures_help": "收集签名并跟踪进度",
+  "docuninja_join_templates_help": "可重复使用的文档模板",
+  "docuninja_join_integration": "深度集成",
+  "docuninja_join_integration_help": "适用于发票、报价单和订单",
+  "docuninja_creating_account": "正在创建您的账户...",
+  "docuninja_company_setup_help": "您的账户已存在，但此公司尚未设置。请点击下方按钮进行设置。",
+  "signatories": "签署人",
+  "send_emails_to_following": "我们将向以下人员发送电子邮件："
 }

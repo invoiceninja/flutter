@@ -10,6 +10,9 @@ import 'package:provider/provider.dart';
 import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/entity_links.dart';
+import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
+import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/app/home_widgets/home_widgets_host.dart';
 import 'package:admin/app/app_deep_links.dart';
@@ -867,6 +870,13 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
           value: widget.services.passkeyReadiness,
         ),
         Provider<PasskeyRepository>.value(value: widget.services.passkeys),
+        // DocuNinja (docs/docuninja.md), read as `context.read<…?>()` for the
+        // same reason.
+        Provider<DocuNinjaSession>.value(value: widget.services.docuNinja),
+        Provider<DocuNinjaApi>.value(value: widget.services.docuNinjaApi),
+        Provider<DocuNinjaLoginApi>.value(
+          value: widget.services.docuNinjaLoginApi,
+        ),
         // For the shell's `SessionExpiryBanner`, read as
         // `context.read<IdleTimeoutController?>()` for the same reason.
         Provider<IdleTimeoutController>.value(value: _idleTimeout),

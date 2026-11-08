@@ -1700,5 +1700,16 @@
   "review_helps_others": "Diğer küçük işletmelerin bizi bulmasına yardımcı olur.",
   "review_opens_store": ":store açılır",
   "review_thanks": "Desteğiniz için teşekkürler!",
-  "no_thanks": "Hayır, teşekkürler"
+  "no_thanks": "Hayır, teşekkürler",
+  "docuninja_join_tagline": "Belgeleri doğrudan Invoice Ninja üzerinden oluşturun, gönderin ve e-imzalayın.",
+  "docuninja_join_features_title": "Elde ettiğiniz her şey",
+  "docuninja_join_esignatures": "E-imzalar",
+  "docuninja_join_esignatures_help": "İzleme ile imza toplayın",
+  "docuninja_join_templates_help": "Yeniden kullanılabilir belge şablonları",
+  "docuninja_join_integration": "Derin entegrasyon",
+  "docuninja_join_integration_help": "Faturalar, teklifler ve siparişlerle çalışır",
+  "docuninja_creating_account": "Hesabınız oluşturuluyor...",
+  "docuninja_company_setup_help": "Hesabınız mevcut ancak bu şirket henüz kurulmadı. Kurmak için lütfen aşağıdaki düğmeye tıklayın.",
+  "signatories": "İmzacılar",
+  "send_emails_to_following": "Aşağıdakilere e-posta göndereceğiz:"
 }

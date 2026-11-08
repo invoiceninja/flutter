@@ -66,6 +66,13 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
   final ValueListenable<AuthSession?> _auth;
   final Future<String?> Function(String companyId) _companyKeyOf;
 
+  /// Bumped after a document changes on the detail page (send, void,
+  /// archive, clone, delete…), so the list it came from re-reads DocuNinja,
+  /// as React refetches its documents query after every action.
+  final ValueNotifier<int> documentsChanged = ValueNotifier(0);
+
+  void markDocumentsChanged() => documentsChanged.value++;
+
   int _generation = 0;
   bool _loaded = false;
   Future<void>? _inFlight;

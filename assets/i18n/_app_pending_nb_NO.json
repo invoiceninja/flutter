@@ -1700,5 +1700,16 @@
   "review_helps_others": "Det hjelper andre små bedrifter med å finne oss.",
   "review_opens_store": "Åpner :store",
   "review_thanks": "Takk for støtten!",
-  "no_thanks": "Nei takk"
+  "no_thanks": "Nei takk",
+  "docuninja_join_tagline": "Opprett, send og signer dokumenter elektronisk direkte fra Invoice Ninja.",
+  "docuninja_join_features_title": "Alt du får",
+  "docuninja_join_esignatures": "E-signaturer",
+  "docuninja_join_esignatures_help": "Samle inn signaturer med sporing",
+  "docuninja_join_templates_help": "Gjenbrukbare dokumentmaler",
+  "docuninja_join_integration": "Dyp integrasjon",
+  "docuninja_join_integration_help": "Fungerer med fakturaer, tilbud og bestillinger",
+  "docuninja_creating_account": "Oppretter kontoen din...",
+  "docuninja_company_setup_help": "Kontoen din finnes, men dette firmaet er ikke satt opp ennå. Klikk på knappen nedenfor for å sette det opp.",
+  "signatories": "Signatarer",
+  "send_emails_to_following": "Vi sender e-post til følgende:"
 }

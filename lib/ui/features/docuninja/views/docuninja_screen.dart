@@ -1,0 +1,355 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
+import 'package:provider/provider.dart';
+
+import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
+import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
+import 'package:admin/domain/docuninja/docuninja_access.dart';
+import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/filter_icon_button.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
+import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+
+final _log = Logger('DocuNinjaScreen');
+
+/// DocuNinja's home (`/docuninja`): the screen React's `Documents.tsx`
+/// shows — Join, company setup, the plan wall, or the documents — decided
+/// by [DocuNinjaSession] (docs/docuninja.md).
+class DocuNinjaScreen extends StatefulWidget {
+  const DocuNinjaScreen({super.key});
+
+  @override
+  State<DocuNinjaScreen> createState() => _DocuNinjaScreenState();
+}
+
+class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
+  DocuNinjaSession? _session;
+  DocuNinjaDocumentsViewModel? _vm;
+  String? _vmCompanyId;
+  final _search = TextEditingController();
+  bool _creating = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = context.read<DocuNinjaSession?>();
+    if (identical(session, _session)) return;
+    _session?.removeListener(_onSession);
+    _session?.documentsChanged.removeListener(_onDocumentsChanged);
+    _session = session
+      ?..addListener(_onSession)
+      ..documentsChanged.addListener(_onDocumentsChanged);
+    session?.load();
+  }
+
+  /// A reset (company switch, sign-out) leaves the session unavailable:
+  /// load the new company's pairing, and drop the old company's list.
+  void _onSession() {
+    final session = _session;
+    if (session == null || !mounted) return;
+    final companyId = session.value.company?.id;
+    if (_vmCompanyId != null && companyId != _vmCompanyId) {
+      _vm?.dispose();
+      _vm = null;
+      _vmCompanyId = null;
+      _search.clear();
+    }
+    if (session.value.access == DocuNinjaAccess.unavailable &&
+        (context.read<Services>().auth.session.value?.isHosted ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) session.load();
+      });
+    }
+  }
+
+  /// A document changed on its detail page: re-read the list, as React
+  /// refetches its documents after every action.
+  void _onDocumentsChanged() => _vm?.refresh();
+
+  DocuNinjaDocumentsViewModel? _documents(DocuNinjaState state) {
+    final api = context.read<DocuNinjaApi?>();
+    final companyId = state.company?.id;
+    if (api == null || companyId == null) return null;
+    if (_vm == null || _vmCompanyId != companyId) {
+      _vm?.dispose();
+      _vmCompanyId = companyId;
+      _vm = DocuNinjaDocumentsViewModel(api: api)..refresh();
+    }
+    return _vm;
+  }
+
+  Future<void> _createAccount() async {
+    final session = _session;
+    if (session == null || _creating) return;
+    final services = context.read<Services>();
+    final loginApi = context.read<DocuNinjaLoginApi?>();
+    if (loginApi == null) return;
+    setState(() => _creating = true);
+    try {
+      await loginApi.createAccount();
+      // The server turns on the company's DocuNinja flag; re-read both.
+      await services.auth.refresh();
+      await session.load(force: true);
+    } on Object catch (e, st) {
+      _log.warning('Creating the DocuNinja account failed', e, st);
+      if (mounted) {
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  void _upgrade() => context.go('/settings/account_management');
+
+  @override
+  void dispose() {
+    _session?.removeListener(_onSession);
+    _session?.documentsChanged.removeListener(_onDocumentsChanged);
+    _vm?.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = _session;
+    final globalNav = Breakpoints.isGlobalNavVisible(context);
+    if (session == null) return const SizedBox.shrink();
+    return ValueListenableBuilder<DocuNinjaState>(
+      valueListenable: session,
+      builder: (context, state, _) {
+        final vm = state.isReady ? _documents(state) : null;
+        return Scaffold(
+          drawer: globalNav ? null : const AppDrawer(),
+          appBar: AppBar(
+            title: Text(context.tr('docuninja')),
+            leading: globalNav ? null : const DrawerHamburger(),
+            automaticallyImplyLeading: !globalNav,
+            actions: [
+              if (vm != null) ...[
+                ListenableBuilder(
+                  listenable: vm,
+                  builder: (context, _) => FilterIconButton(
+                    activeCount: vm.activeFilterCount,
+                    onPressed: () => _pickFilters(context, vm),
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: vm,
+                  builder: (context, _) => IconButton(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: context.tr('refresh'),
+                    onPressed: vm.isLoading ? null : vm.refresh,
+                  ),
+                ),
+              ],
+            ],
+            bottom: vm == null ? null : _searchBar(context, vm),
+          ),
+          body: _body(context, state, vm),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _searchBar(
+    BuildContext context,
+    DocuNinjaDocumentsViewModel vm,
+  ) => PreferredSize(
+    preferredSize: const Size.fromHeight(56),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: TextField(
+            controller: _search,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: context.tr('search'),
+              suffixIcon: ListenableBuilder(
+                listenable: _search,
+                builder: (context, _) => _search.text.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: context.tr('clear'),
+                        onPressed: () {
+                          _search.clear();
+                          vm.setSearch('');
+                        },
+                      ),
+              ),
+            ),
+            onChanged: vm.setSearch,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _body(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel? vm,
+  ) {
+    final auth = context.read<Services>().auth.session.value;
+    final me = auth?.currentCompany;
+    switch (state.access) {
+      // Self-hosted never gets here (the route redirects home), so
+      // unavailable is the moment before the first handshake.
+      case DocuNinjaAccess.unavailable:
+      case DocuNinjaAccess.loading:
+        return const Center(child: CircularProgressIndicator());
+      case DocuNinjaAccess.notJoined:
+        return DocuNinjaJoinView(
+          isAdmin: (me?.isAdmin ?? false) || (me?.isOwner ?? false),
+          isEligible: auth?.plan == 'pro' || auth?.plan == 'enterprise',
+          isCreating: _creating,
+          onCreate: _createAccount,
+          onUpgrade: _upgrade,
+        );
+      case DocuNinjaAccess.noAccess:
+        return const DocuNinjaNoAccessView();
+      case DocuNinjaAccess.companySetup:
+        return DocuNinjaCompanySetupView(
+          isWorking: _creating,
+          onSetUp: _createAccount,
+        );
+      case DocuNinjaAccess.planWall:
+        return DocuNinjaPlanWallView(onUpgrade: _upgrade);
+      case DocuNinjaAccess.offline:
+        return EmptyState(
+          icon: Icons.cloud_off_outlined,
+          title: context.tr('offline'),
+          action: TextButton(
+            onPressed: () => _session?.load(force: true),
+            child: Text(context.tr('retry')),
+          ),
+        );
+      case DocuNinjaAccess.failed:
+        return ErrorView(
+          message: context.tr('an_error_occurred_try_again'),
+          onRetry: () => _session?.load(force: true),
+        );
+      case DocuNinjaAccess.ready:
+        if (vm == null) return const SizedBox.shrink();
+        return DocuNinjaDocumentsList(
+          vm: vm,
+          onOpen: (doc) => context.go('/docuninja/${doc.id}'),
+        );
+    }
+  }
+
+  Future<void> _pickFilters(
+    BuildContext context,
+    DocuNinjaDocumentsViewModel vm,
+  ) async {
+    final picked =
+        await showDialog<({Set<String> states, Set<String> statuses})>(
+          context: context,
+          builder: (context) =>
+              _FilterDialog(states: vm.states, statuses: vm.statuses),
+        );
+    if (picked != null) {
+      vm.setFilters(statuses: picked.statuses, states: picked.states);
+    }
+  }
+}
+
+/// The table's lifecycle states, React's DataTable order.
+const kDocuNinjaStateFilters = <String>['active', 'archived', 'deleted'];
+
+/// React's status filter (`useDocumentFilters.ts`), in its order.
+const kDocuNinjaStatusFilters = <String>[
+  'draft',
+  'sent',
+  'pending_approval',
+  'completed',
+  'approved',
+  'voided',
+  'expired',
+  'rejected',
+];
+
+class _FilterDialog extends StatefulWidget {
+  const _FilterDialog({required this.states, required this.statuses});
+
+  final Set<String> states;
+  final Set<String> statuses;
+
+  @override
+  State<_FilterDialog> createState() => _FilterDialogState();
+}
+
+class _FilterDialogState extends State<_FilterDialog> {
+  late final Set<String> _states = {...widget.states};
+  late final Set<String> _statuses = {...widget.statuses};
+
+  Widget _box(Set<String> set, String key) => CheckboxListTile(
+    value: set.contains(key),
+    title: Text(context.tr(key)),
+    controlAffinity: ListTileControlAffinity.leading,
+    onChanged: (v) =>
+        setState(() => v == true ? set.add(key) : set.remove(key)),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final heading = Theme.of(context).textTheme.labelLarge;
+    Widget title(String key) => Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 12, 24, 4),
+      child: Semantics(
+        header: true,
+        headingLevel: 2,
+        child: Text(context.tr(key), style: heading),
+      ),
+    );
+    return AlertDialog(
+      title: Text(context.tr('filter')),
+      contentPadding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            title('entity_state'),
+            for (final s in kDocuNinjaStateFilters) _box(_states, s),
+            title('status'),
+            for (final s in kDocuNinjaStatusFilters) _box(_statuses, s),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(
+            context,
+          ).pop((states: const {'active'}, statuses: const <String>{})),
+          child: Text(context.tr('clear')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('apply'),
+          onPressed: () =>
+              Navigator.of(context).pop((states: _states, statuses: _statuses)),
+        ),
+      ],
+    );
+  }
+}

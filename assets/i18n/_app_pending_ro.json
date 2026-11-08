@@ -1697,5 +1697,16 @@
   "review_helps_others": "Ajută alte afaceri mici să ne găsească.",
   "review_opens_store": "Deschide :store",
   "review_thanks": "Îți mulțumim pentru sprijin!",
-  "no_thanks": "Nu, mulțumesc"
+  "no_thanks": "Nu, mulțumesc",
+  "docuninja_join_tagline": "Creați, trimiteți și semnați electronic documente direct din Invoice Ninja.",
+  "docuninja_join_features_title": "Tot ce primiți",
+  "docuninja_join_esignatures": "Semnături electronice",
+  "docuninja_join_esignatures_help": "Colectați semnături cu urmărire",
+  "docuninja_join_templates_help": "Șabloane de documente reutilizabile",
+  "docuninja_join_integration": "Integrare profundă",
+  "docuninja_join_integration_help": "Funcționează cu facturi, oferte și comenzi",
+  "docuninja_creating_account": "Se creează contul dvs....",
+  "docuninja_company_setup_help": "Contul dvs. există, dar această companie nu este încă configurată. Faceți clic pe butonul de mai jos pentru a o configura.",
+  "signatories": "Semnatari",
+  "send_emails_to_following": "Vom trimite e-mailuri următorilor:"
 }

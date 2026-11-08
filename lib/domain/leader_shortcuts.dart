@@ -69,6 +69,7 @@ const kLeaderTargets = <LeaderTarget>[
   LeaderTarget.entity('B', EntityType.transaction, 'transactions'),
   LeaderTarget.fixed('R', FixedBranchKind.reports, 'reports'),
   LeaderTarget.fixed('A', FixedBranchKind.activity, 'activity'),
+  LeaderTarget.fixed('N', FixedBranchKind.docuninja, 'docuninja'),
   LeaderTarget.fixed('S', FixedBranchKind.settings, 'settings'),
 ];
 

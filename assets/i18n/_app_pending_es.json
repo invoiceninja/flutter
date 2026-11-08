@@ -1700,5 +1700,16 @@
   "review_helps_others": "Ayuda a otras pequeñas empresas a encontrarnos.",
   "review_opens_store": "Abre :store",
   "review_thanks": "¡Gracias por tu apoyo!",
-  "no_thanks": "No, gracias"
+  "no_thanks": "No, gracias",
+  "docuninja_join_tagline": "Crea, envía y firma electrónicamente documentos directamente desde Invoice Ninja.",
+  "docuninja_join_features_title": "Todo lo que obtienes",
+  "docuninja_join_esignatures": "Firmas electrónicas",
+  "docuninja_join_esignatures_help": "Recopilación de firmas con seguimiento",
+  "docuninja_join_templates_help": "Planos de documentos reutilizables",
+  "docuninja_join_integration": "Integración profunda",
+  "docuninja_join_integration_help": "Trabaja con facturas, presupuestos y pedidos.",
+  "docuninja_creating_account": "Creando tu cuenta...",
+  "docuninja_company_setup_help": "Su cuenta existe, pero esta empresa aún no está configurada. Haga clic en el botón de abajo para configurarla.",
+  "signatories": "Firmantes",
+  "send_emails_to_following": "Vamos a enviar correos electrónicos a las siguientes personas:"
 }

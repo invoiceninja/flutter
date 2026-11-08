@@ -1707,5 +1707,16 @@
   "review_thanks": "Thanks for your support!",
   "no_thanks": "No thanks",
   "reset_review_schedule": "Reset review schedule",
-  "force_review_prompt": "Force review prompt"
+  "force_review_prompt": "Force review prompt",
+  "docuninja_join_tagline": "Create, send, and e-sign documents directly from Invoice Ninja.",
+  "docuninja_join_features_title": "Everything You Get",
+  "docuninja_join_esignatures": "E-Signatures",
+  "docuninja_join_esignatures_help": "Collect signatures with tracking",
+  "docuninja_join_templates_help": "Reusable document blueprints",
+  "docuninja_join_integration": "Deep Integration",
+  "docuninja_join_integration_help": "Works with invoices, quotes & orders",
+  "docuninja_creating_account": "Creating your account...",
+  "docuninja_company_setup_help": "Your account exists but this company is not set up yet. Please click the button below to set it up.",
+  "signatories": "Signatories",
+  "send_emails_to_following": "We're going to send emails to the following:"
 }

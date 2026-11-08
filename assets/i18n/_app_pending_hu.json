@@ -1668,5 +1668,15 @@
   "review_helps_others": "Ezzel más kisvállalkozások is ránk találnak.",
   "review_opens_store": "Megnyitja: :store",
   "review_thanks": "Köszönjük a támogatását!",
-  "no_thanks": "Nem, köszönöm"
+  "no_thanks": "Nem, köszönöm",
+  "docuninja_join_tagline": "Hozzon létre, küldjön el és írjon alá elektronikusan dokumentumokat közvetlenül az Invoice Ninjából.",
+  "docuninja_join_features_title": "Minden, amit kap",
+  "docuninja_join_esignatures": "Elektronikus aláírások",
+  "docuninja_join_esignatures_help": "Aláírások gyűjtése nyomon követéssel",
+  "docuninja_join_templates_help": "Újrafelhasználható dokumentumsablonok",
+  "docuninja_join_integration": "Mély integráció",
+  "docuninja_join_integration_help": "Számlákkal, árajánlatokkal és rendelésekkel is működik",
+  "docuninja_creating_account": "Fiók létrehozása...",
+  "docuninja_company_setup_help": "A fiókja létezik, de ez a cég még nincs beállítva. Kattintson az alábbi gombra a beállításához.",
+  "send_emails_to_following": "A következőknek küldünk e-mailt:"
 }

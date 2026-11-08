@@ -1667,5 +1667,15 @@
   "review_helps_others": "Tai padeda kitoms smulkioms įmonėms mus rasti.",
   "review_opens_store": "Atidaro :store",
   "review_thanks": "Ačiū už palaikymą!",
-  "no_thanks": "Ne, ačiū"
+  "no_thanks": "Ne, ačiū",
+  "docuninja_join_tagline": "Kurkite, siųskite ir elektroniniu būdu pasirašykite dokumentus tiesiai iš Invoice Ninja.",
+  "docuninja_join_features_title": "Viskas, ką gaunate",
+  "docuninja_join_esignatures": "Elektroniniai parašai",
+  "docuninja_join_esignatures_help": "Rinkite parašus su sekimu",
+  "docuninja_join_templates_help": "Pakartotinai naudojami dokumentų šablonai",
+  "docuninja_join_integration": "Glaudi integracija",
+  "docuninja_join_integration_help": "Veikia su sąskaitomis, pasiūlymais ir užsakymais",
+  "docuninja_creating_account": "Kuriama jūsų paskyra...",
+  "docuninja_company_setup_help": "Jūsų paskyra egzistuoja, tačiau ši įmonė dar nenustatyta. Spustelėkite žemiau esantį mygtuką, kad ją nustatytumėte.",
+  "send_emails_to_following": "Išsiųsime el. laiškus šiems asmenims:"
 }

@@ -1648,5 +1648,6 @@
   "review_helps_others": "這能幫助其他小型企業找到我們。",
   "review_opens_store": "開啟 :store",
   "review_thanks": "感謝您的支持！",
-  "no_thanks": "不用了，謝謝"
+  "no_thanks": "不用了，謝謝",
+  "docuninja_company_setup_help": "您的帳戶已存在，但此公司尚未設定。請點擊下方按鈕進行設定。"
 }

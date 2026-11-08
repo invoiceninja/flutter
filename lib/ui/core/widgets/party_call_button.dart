@@ -326,10 +326,12 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
       type: MaterialType.transparency,
       child: InkWell(
         onTap: () => _onTap(context),
-        // Touch-only. On desktop the detail body sits inside a `SelectionArea`
-        // and the tooltip below already claims long-press, so an unconditional
-        // handler would put three consumers in one subtree — and no test would
-        // see it, since `flutter test` reports android.
+        // Touch-only. On desktop the tooltip below already claims long-press,
+        // and an unconditional handler would put a second consumer beside it —
+        // no test would see it, since `flutter test` reports android. On touch
+        // the detail body is a `SelectionArea` too (invoiceninja/flutter#188):
+        // with nothing selected this, the deeper recognizer, wins the
+        // long-press; with a selection showing the region does, and extends it.
         onLongPress: Env.isTouchPrimary ? secondary : null,
         onSecondaryTap: Env.isTouchPrimary ? null : secondary,
         onHover: (value) {

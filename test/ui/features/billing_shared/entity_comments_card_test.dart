@@ -404,10 +404,10 @@ void main() {
     testWidgets('desktop keeps its selectable header and only the link taps', (
       tester,
     ) async {
-      // Everywhere but native mobile the detail body sits inside a
-      // `SelectionArea`, where an opaque tap over the header would claim the
-      // clicks `SelectableRegion` uses to place and clear a selection. Invisible
-      // by default: `flutter test` reports android.
+      // The detail body sits inside a `SelectionArea`, where with a mouse an
+      // opaque tap over the header would claim the clicks `SelectableRegion`
+      // uses to place and clear a selection. Invisible by default:
+      // `flutter test` reports android.
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       try {
         var viewedAll = 0;

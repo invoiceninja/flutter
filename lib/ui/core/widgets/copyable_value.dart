@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
 /// Writes [value] to the system clipboard, fires a light haptic on touch
@@ -106,14 +107,15 @@ class CopyIconButton extends StatelessWidget {
 ///   the value here — a click must still place a cursor / start a selection.
 /// - **Native mobile (touch):** no icon; tapping the value copies it (or
 ///   long-press, for values whose tap is already taken — e.g. a launchable
-///   link). A light haptic fires on copy.
+///   link). A light haptic fires on copy. Inside an [AppSelectionArea] a
+///   long-press on any other value selects a word instead, and a tap while a
+///   selection shows dismisses it without copying.
 ///
 /// Renders [child] unchanged (no affordance) when [value] is empty.
 ///
-/// The platform split is intentional: the hover icon shows whenever a mouse is
-/// present (`!Env.isMobile`, i.e. desktop + web), and tap-to-copy is limited to
-/// native mobile (`Env.isMobile`) so desktop-web value clicks keep selecting
-/// text instead of copying.
+/// The platform split is intentional: tap-to-copy is limited to touch
+/// (`Env.isTouchPrimary`), so a desktop click keeps placing a selection
+/// instead of copying, and every other platform gets the hover icon.
 class CopyableValue extends StatefulWidget {
   const CopyableValue({
     super.key,
@@ -166,8 +168,15 @@ class _CopyableValueState extends State<CopyableValue> {
     // platform channel. (Desktop web keeps the hover path, which preserves
     // text selection.)
     if (Env.isTouchPrimary) {
+      // Inside an `AppSelectionArea` with a selection showing, a tap is spent
+      // dismissing it — as a tap on text does natively — rather than also
+      // copying the whole value over the user's own selection. A long-press
+      // to copy is deliberate, so it always copies.
       final onTap = widget.enableTapToCopy
-          ? () => copyToClipboard(context, value)
+          ? () {
+              if (AppSelectionArea.dismissSelection(context)) return;
+              copyToClipboard(context, value);
+            }
           : null;
       final onLongPress = widget.enableLongPressToCopy
           ? () => copyToClipboard(context, value)

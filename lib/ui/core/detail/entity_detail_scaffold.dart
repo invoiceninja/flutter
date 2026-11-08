@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/ensure_loaded_outcome.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -13,6 +12,7 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 
@@ -602,11 +602,10 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
         child: Builder(
           builder: (context) {
             final body = widget.bodyBuilder(context, item);
-            // Desktop/web a11y + keyboard path: make the body's text selectable
-            // so keyboard and screen-reader users can select and Cmd/Ctrl+C (the
-            // hover copy icon is mouse-only). Skipped on touch, where the value's
-            // own tap-to-copy is the path and selection handles would fight it.
-            return Env.isMobile ? body : SelectionArea(child: body);
+            // Selectable on every platform: drag + Cmd/Ctrl+C with a mouse,
+            // long-press on touch (invoiceninja/flutter#188), where a value's
+            // tap-to-copy still copies the whole value in one tap.
+            return AppSelectionArea(child: body);
           },
         ),
       ),

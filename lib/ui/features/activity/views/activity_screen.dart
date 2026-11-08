@@ -10,6 +10,7 @@ import 'package:admin/domain/activity/activity_timeline.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/calendar_week_start.dart';
+import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
@@ -329,7 +330,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
     // Outside the `SelectionArea` on purpose: a mouse drag across the bars is
     // a range pick, and inside the region it would race text selection.
-    final feed = Env.isMobile ? scrollable : SelectionArea(child: scrollable);
+    final feed = AppSelectionArea(child: scrollable);
     final hasTimeline = _vm.timeline.buckets.isNotEmpty;
 
     if (rail) {

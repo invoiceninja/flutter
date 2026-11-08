@@ -61,8 +61,8 @@ class DashboardCardShell extends StatelessWidget {
   /// `Env.isTouchPrimary` at the call site — this is a thumb-ergonomics fix and
   /// on a pointer platform it buys nothing and costs an interaction. A host
   /// inside a `SelectionArea` (`EntityDetailScaffold` wraps every detail body
-  /// in one on everything but native mobile) hands this detector the single
-  /// clicks `SelectableRegion` uses to place and clear a selection, taking the
+  /// in one) hands this detector the single mouse clicks `SelectableRegion`
+  /// uses to place and clear a selection, taking the
   /// first click of a double-click-to-select-a-word with it. The gate belongs
   /// at the call site because only the host knows whether it is in such a
   /// region — a dashboard card is not. `party_call_button.dart` gates its

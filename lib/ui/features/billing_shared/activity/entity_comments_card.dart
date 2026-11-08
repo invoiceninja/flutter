@@ -179,17 +179,17 @@ class EntityCommentsCard extends StatelessWidget {
       //
       // Touch only, and the gate belongs here rather than in the shell because
       // it is a property of *this* host: `EntityDetailScaffold` wraps the whole
-      // detail body in a `SelectionArea` on everything but native mobile, and
+      // detail body in a `SelectionArea` (`AppSelectionArea`), and with a mouse
       // an opaque tap over the header would claim the single clicks
       // `SelectableRegion` uses to place and clear a selection — taking the
       // first click of a double-click-to-select-a-word with it. A dashboard
       // card sits in no such region, so the shell must not decide this.
       // `party_call_button.dart` gates its secondary gestures on the same flag
       // for the same reason, and carries the same warning: no test sees it,
-      // because `flutter test` reports android. Mobile **web** is the one
-      // configuration that gets both (`Env.isMobile` is native-only while
-      // `Env.isTouchPrimary` is not) — accepted, since drag-select still works
-      // and tap-to-place is not the touch interaction.
+      // because `flutter test` reports android. On touch the body is
+      // selectable too (invoiceninja/flutter#188) and both coexist: selection
+      // there is a long-press, tap-to-place is not the touch interaction, and
+      // `AppSelectionArea` dismisses a showing selection on the header's tap.
       onHeaderTap: Env.isTouchPrimary ? onViewAllTap : null,
       // The rows bring their own inset and a full-bleed bottom border — they
       // are built for `ActivityListCard`, which supplies no padding. Zeroing

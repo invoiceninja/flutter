@@ -109,7 +109,9 @@ class GoogleSignInClient {
     try {
       return await GoogleSignIn.instance.authenticate();
     } on GoogleSignInException catch (e) {
-      debugPrint('## authenticate failed: ${e.code}');
+      // The full exception, not just the code: `canceled` is also what a
+      // browser-side failure reports, and only the description tells them apart.
+      debugPrint('## authenticate failed: $e');
       return null;
     }
   }
@@ -128,7 +130,7 @@ class GoogleSignInClient {
       );
       return interactive.accessToken;
     } on GoogleSignInException catch (e) {
-      debugPrint('## authorizeScopes failed: ${e.code}');
+      debugPrint('## authorizeScopes failed: $e');
       return '';
     }
   }

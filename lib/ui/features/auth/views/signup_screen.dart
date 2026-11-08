@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/google_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/signup_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
@@ -214,7 +215,7 @@ class _SignupBody extends StatelessWidget {
                       onPressed: vm.busy
                           ? null
                           : () => _finish(context, vm.submitGoogle()),
-                      icon: const Icon(Icons.account_circle_outlined, size: 18),
+                      icon: const GoogleLogo(),
                       label: Text(context.tr('sign_up_with_google')),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),

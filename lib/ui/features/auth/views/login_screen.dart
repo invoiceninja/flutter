@@ -15,6 +15,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/dialogs/untrusted_certificate_dialog.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/google_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
@@ -446,7 +447,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: busy ? null : _onGoogle,
             icon: vm.busyAction == LoginAction.google
                 ? const _Spinner()
-                : const Icon(Icons.account_circle_outlined, size: 18),
+                : const GoogleLogo(),
             label: Text(context.tr('sign_in_with_google')),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),

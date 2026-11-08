@@ -1,0 +1,78 @@
+/// The field builder embedded in a web view: React's own builder page in the
+/// hosted web app, opened in embed mode (`?embed=1`), and the messages it and
+/// the app exchange. The React side is `src/common/helpers/embed.ts` in
+/// invoiceninja/ui. docs/docuninja.md § The field builder runs embedded where
+/// a web view can.
+library;
+
+import 'dart:convert';
+
+import 'package:admin/domain/docuninja/docuninja_create.dart';
+
+/// The message format both sides speak; React's `EMBED_PROTOCOL_VERSION`.
+/// A page that reports another version is not driven, and the builder opens
+/// in the browser instead.
+const kDnEmbedProtocolVersion = 1;
+
+/// Whether the app embeds the builder at all. Off until the React embed
+/// mode is live on the hosted web app (a page without it never answers, and
+/// the screen falls back to the browser after a wait); a build can turn it
+/// on with `--dart-define=DOCUNINJA_EMBED=true`.
+const kDnEmbeddedBuilder = bool.fromEnvironment('DOCUNINJA_EMBED');
+
+/// React's builder page in embed mode, on [companyId] (React's
+/// `?company=`, as for the browser link).
+Uri dnEmbedBuilderUri({
+  required String documentId,
+  required String companyId,
+}) => Uri.parse(
+  '$kDnHostedWebAppUrl/#/docuninja/'
+  '${Uri.encodeComponent(documentId)}/builder'
+  '?company=${Uri.encodeQueryComponent(companyId)}&embed=1',
+);
+
+/// Whether the web view may show [uri]: only the web app's own origin. Any
+/// other page (a help link, a payment page) opens in the browser instead,
+/// and nothing from another origin is ever handed the token.
+bool dnEmbedAllowed(Uri uri) {
+  final app = Uri.parse(kDnHostedWebAppUrl);
+  return uri.scheme == app.scheme &&
+      uri.host == app.host &&
+      uri.port == app.port;
+}
+
+/// One message from the embedded page: `{v, type, payload}`.
+class DnEmbedMessage {
+  const DnEmbedMessage(this.version, this.type, this.payload);
+
+  final int version;
+  final String type;
+  final Map<String, dynamic> payload;
+
+  /// Null for anything that is not a well-formed message.
+  static DnEmbedMessage? parse(String raw) {
+    try {
+      final json = jsonDecode(raw);
+      if (json is! Map) return null;
+      final type = json['type'];
+      final v = json['v'];
+      if (type is! String || v is! int) return null;
+      final payload = json['payload'];
+      return DnEmbedMessage(
+        v,
+        type,
+        payload is Map ? Map<String, dynamic>.from(payload) : const {},
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
+/// The script that hands the page its token, once it reported `ready`. The
+/// token is JSON-encoded, never spliced into the script as text.
+String dnEmbedInitScript(String token) {
+  final config = jsonEncode({'v': kDnEmbedProtocolVersion, 'token': token});
+  return 'window.InvoiceNinjaEmbed && window.InvoiceNinjaEmbed.init && '
+      'window.InvoiceNinjaEmbed.init($config);';
+}

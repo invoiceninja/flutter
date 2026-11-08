@@ -58,9 +58,14 @@ bool dnLooksPasswordProtected(Uint8List head, Uint8List tail) {
   return has(head) || has(tail);
 }
 
-/// The hosted web app, where the field builder runs until it is embedded
-/// in the app. It uses the hash router (`/#/…`), like the referral link.
-const kDnHostedWebAppUrl = 'https://app.invoicing.co';
+/// The hosted web app, where the field builder runs (in the browser, or
+/// embedded in a web view: `docuninja_embed.dart`). It uses the hash router
+/// (`/#/…`), like the referral link. `--dart-define=DOCUNINJA_WEB_APP_URL=…`
+/// points it at a local build of the React app for testing.
+const kDnHostedWebAppUrl = String.fromEnvironment(
+  'DOCUNINJA_WEB_APP_URL',
+  defaultValue: 'https://app.invoicing.co',
+);
 
 /// React's builder for [documentId] in the browser. `?company=` makes a
 /// fresh tab open on the right company (React's `resolveCompanyIndex`,

@@ -156,7 +156,7 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 | `PARTNER_CENTER_CLIENT_ID` | Entra application (client) ID | Same page |
 | `PARTNER_CENTER_CLIENT_SECRET` | Entra client secret **value** | Certificates & secrets → New client secret. The *value* is shown once. |
 | `PARTNER_CENTER_SELLER_ID` | Partner Center Seller ID | Partner Center account settings. **Not** the `9N…` Store ID. |
-| `MS_STORE_PRODUCT_ID` | Partner Center **Product ID** (~12 chars) | App Overview page, or `msstore apps list`. **Not** the `9N…` Store ID. |
+| `MS_STORE_PRODUCT_ID` | The app's **Store ID** (`9NG93WNXN797` for Invoice Ninja - Beta) | Product management → Product identity → Store ID, or `msstore apps list`. For an MSIX app it *is* the `9N…` value. Not `9N3F2BBCFDR6`, which is the old app. |
 
 ### Apple — shared by `appstore-ios.yml` and `appstore-macos.yml`
 
@@ -293,16 +293,18 @@ Map the rest: `storePassword` → `ANDROID_KEYSTORE_PASSWORD`, `keyPassword` →
 
 **One-time setup**
 
-1. Associate a **Microsoft Entra tenant** with your Partner Center account (Partner Center → Account settings → Tenants).
+1. Associate a **Microsoft Entra tenant** with your Partner Center account (Partner Center → Account settings → Tenants). **This needs an Entra *work* account with Global Administrator — a personal Microsoft account (the Partner Center login, `contact@invoiceninja.com`) is refused.** If the tenant is only that account's "Default Directory", create a user in it (`partner-admin@contactinvoiceninja.onmicrosoft.com` exists for this), give it Global Administrator, and sign in as it at the Associate prompt. **Error `530035`** there is security defaults blocking an admin with no MFA: register MFA for the user at `aka.ms/mfasetup` first.
 2. Entra admin center → **App registrations** → New registration. Record the **Directory (tenant) ID** and **Application (client) ID**.
-3. That app → **Certificates & secrets** → **New client secret**. Copy the **Value** immediately — it is shown once and cannot be retrieved later.
-4. Partner Center → **User management** → **Microsoft Entra applications** → add the app you registered with the **Manager** role.
-5. Record the **Seller ID** (Partner Center account settings) and the app's **Product ID** (app Overview page).
+3. That app → **Certificates & secrets** → **New client secret**. Copy the **Value** immediately — it is shown once and cannot be retrieved later. **The current one (app "Invoice Ninja GitHub Actions") expires in November 2028**; mint its replacement before then and re-set `PARTNER_CENTER_CLIENT_SECRET`.
+4. Partner Center → **User management** → **Sign in with Microsoft Entra ID** (as the work account above) → **Microsoft Entra applications** → add the app you registered with the **Manager** role (it shows as `Manager(Windows)`).
+5. Record the **Seller ID** (Account settings → Legal info → Developer) and the app's **Store ID** (Product management → Product identity).
 
 **Two ID traps** — both fail confusingly if you get them wrong:
 
-- `PARTNER_CENTER_SELLER_ID` is the Partner Center **Seller ID**, *not* the `9N…` Store ID.
-- `MS_STORE_PRODUCT_ID` is the ~12-character **Product ID**, *also* not the `9N…` Store ID from the `apps.microsoft.com/detail/...` URL. Run `msstore apps list` to print the correct value.
+- `PARTNER_CENTER_SELLER_ID` is the Partner Center **Seller ID** (a number), *not* the `9N…` Store ID.
+- `MS_STORE_PRODUCT_ID` is the **Store ID of Invoice Ninja - Beta, `9NG93WNXN797`** — the same `9N…` value as the `apps.microsoft.com/detail/...` URL, because for an MSIX app the submission API's application id *is* the Store ID (measured 2026-11-08: `GET /v1.0/my/applications` lists `9NG93WNXN797` and `9N3F2BBCFDR6`, the old app). The account has both apps, so the trap is picking the old one.
+
+**Check the credentials without publishing.** A dispatch here goes live, so prove the Entra app and its Manager role first: get a token with the client secret (`POST https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token`, `grant_type=client_credentials`, `scope=https://manage.devcenter.microsoft.com/.default`), then `GET https://manage.devcenter.microsoft.com/v1.0/my/applications` with it. A 200 listing `9NG93WNXN797` means the secrets are right; a 401 / 403 means the Manager role (step 4) is missing. The secret can be a temporary second one on the same app — access is granted per app, not per secret. `msstore publish` also fails when the app has a pending submission left in draft in Partner Center (`pendingApplicationSubmission` in that response).
 
 **Check the package identity matches Partner Center.** The `msix_config` block in `pubspec.yaml` must exactly match Partner Center → Product identity, or upload validation rejects the package:
 

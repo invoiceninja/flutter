@@ -4,12 +4,16 @@ import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_builder_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-String _msg(String type, [Map<String, dynamic> payload = const {}]) =>
-    jsonEncode({
-      'v': kDnEmbedProtocolVersion,
-      'type': type,
-      'payload': payload,
-    });
+String _msg(
+  String type, [
+  Map<String, dynamic> payload = const {},
+  String? nonce,
+]) => jsonEncode({
+  'v': kDnEmbedProtocolVersion,
+  'type': type,
+  'payload': payload,
+  'nonce': ?nonce,
+});
 
 /// The app's half of the embedded builder, without a web view.
 void main() {
@@ -52,7 +56,7 @@ void main() {
       expect(scripts, hasLength(2));
       expect(scripts.first, contains('company-token'));
       expect(b.phase, DnBuilderPhase.loading);
-      await b.handle(_msg('loaded'));
+      await b.handle(_msg('loaded', const {}, b.nonce));
       expect(b.phase, DnBuilderPhase.ready);
       b.dispose();
     },
@@ -94,9 +98,9 @@ void main() {
 
   test('unsaved work follows the page; a save clears it', () async {
     final b = vm();
-    await b.handle(_msg('dirty', {'dirty': true}));
+    await b.handle(_msg('dirty', {'dirty': true}, b.nonce));
     expect(b.isDirty, isTrue);
-    await b.handle(_msg('saved', {'documentId': 'D1'}));
+    await b.handle(_msg('saved', {'documentId': 'D1'}, b.nonce));
     expect(b.isDirty, isFalse);
     expect(changed, 1);
     b.dispose();
@@ -104,8 +108,8 @@ void main() {
 
   test('a send refreshes the document; mapping signatories closes', () async {
     final b = vm();
-    await b.handle(_msg('sent'));
-    await b.handle(_msg('mapSignatoriesSent'));
+    await b.handle(_msg('sent', const {}, b.nonce));
+    await b.handle(_msg('mapSignatoriesSent', const {}, b.nonce));
     expect(changed, 2);
     expect(closed, 1);
     b.dispose();
@@ -116,13 +120,17 @@ void main() {
     () async {
       final b = vm();
       await b.handle(
-        _msg('openExternal', {'url': 'https://app.invoicing.co/x'}),
+        _msg('openExternal', {'url': 'https://app.invoicing.co/x'}, b.nonce),
       );
       await b.handle(
-        _msg('openExternal', {'url': 'https://docuninja.co/help'}),
+        _msg('openExternal', {'url': 'https://docuninja.co/help'}, b.nonce),
       );
-      await b.handle(_msg('openExternal', {'url': 'javascript:alert(1)'}));
-      await b.handle(_msg('openExternal', {'url': 'file:///etc/passwd'}));
+      await b.handle(
+        _msg('openExternal', {'url': 'javascript:alert(1)'}, b.nonce),
+      );
+      await b.handle(
+        _msg('openExternal', {'url': 'file:///etc/passwd'}, b.nonce),
+      );
       expect(inPlace, [Uri.parse('https://app.invoicing.co/x')]);
       expect(opened, [Uri.parse('https://docuninja.co/help')]);
       b.dispose();
@@ -132,9 +140,9 @@ void main() {
   test('the sign page: loaded, then signed refreshes and closes', () async {
     final b = vm();
     await b.handle(_msg('ready'));
-    await b.handle(_msg('loaded'));
+    await b.handle(_msg('loaded', const {}, b.nonce));
     expect(b.phase, DnBuilderPhase.ready);
-    await b.handle(_msg('signed', {'documentId': 'D1'}));
+    await b.handle(_msg('signed', {'documentId': 'D1'}, b.nonce));
     expect(changed, 1);
     expect(closed, 1);
     b.dispose();
@@ -143,17 +151,41 @@ void main() {
   test('a page that cannot sign in offers the browser', () async {
     final b = vm();
     await b.handle(_msg('ready'));
-    await b.handle(_msg('error', {'status': 401}));
+    await b.handle(_msg('error', {'status': 401}, b.nonce));
     expect(b.phase, DnBuilderPhase.unavailable);
     b.dispose();
   });
 
   test('a reload starts clean: nothing on a new boot is unsaved', () async {
     final b = vm();
-    await b.handle(_msg('dirty', {'dirty': true}));
+    await b.handle(_msg('dirty', {'dirty': true}, b.nonce));
     expect(b.isDirty, isTrue);
     await b.handle(_msg('ready'));
     expect(b.isDirty, isFalse);
+    b.dispose();
+  });
+
+  test('a message without the page nonce is ignored', () async {
+    final b = vm();
+    await b.handle(_msg('ready'));
+    // Any frame on the page can post; only the page itself has the nonce.
+    await b.handle(_msg('signed'));
+    await b.handle(_msg('dirty', {'dirty': true}, 'wrong'));
+    expect(closed, 0);
+    expect(b.isDirty, isFalse);
+    await b.handle(_msg('dirty', {'dirty': true}, b.nonce));
+    expect(b.isDirty, isTrue);
+    b.dispose();
+  });
+
+  test('the token goes with the nonce, behind an origin check', () async {
+    final b = vm();
+    await b.handle(_msg('ready'));
+    expect(scripts.single, contains(b.nonce));
+    expect(
+      scripts.single,
+      startsWith('if (window.location.origin === "https://app.invoicing.co"'),
+    );
     b.dispose();
   });
 }

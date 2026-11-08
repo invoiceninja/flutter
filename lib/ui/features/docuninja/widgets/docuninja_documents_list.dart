@@ -412,9 +412,12 @@ class _NarrowRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: InSpacing.sm),
-              // Shrinks (and ellipsizes) before the title would: a long
-              // translated status at a large text size.
-              Flexible(child: DocuNinjaStatusPill(document: doc)),
+              // Capped, so a long translated status at a large text size
+              // ellipsizes inside the pill instead of squeezing the title.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: DocuNinjaStatusPill(document: doc),
+              ),
               ?actions,
             ],
           ),

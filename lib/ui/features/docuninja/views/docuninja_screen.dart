@@ -80,11 +80,17 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     final session = _session;
     if (session == null || !mounted) return;
     final companyId = session.value.company?.id;
-    // Only a change of company drops the list (and its search): a reset
-    // that is about to land on the same company keeps it.
+    // A change of company drops the list (and its search), and so does a
+    // reset that settles on no company (an unpaired one); a reset still
+    // on its way (unavailable, loading) keeps it, to land back on it.
+    final settledElsewhere =
+        companyId == null &&
+        session.value.access != DocuNinjaAccess.unavailable &&
+        session.value.access != DocuNinjaAccess.loading &&
+        !session.value.isReady;
     if (_vmCompanyId != null &&
-        companyId != null &&
-        companyId != _vmCompanyId) {
+        (settledElsewhere ||
+            (companyId != null && companyId != _vmCompanyId))) {
       _vm?.dispose();
       _vm = null;
       _vmCompanyId = null;
@@ -157,7 +163,12 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
         .value
         ?.currentCompanyId;
     if (api == null || companyId == null) return;
-    final doc = await showDocuNinjaCreateDialog(context, api: api);
+    final doc = await showDocuNinjaCreateDialog(
+      context,
+      api: api,
+      // A timed-out upload may have landed: re-read the list.
+      onMaybeCreated: () => _session?.markDocumentsChanged(),
+    );
     if (doc == null || !mounted) return;
     _session?.markDocumentsChanged();
     Notify.success(context, context.tr('document_created'));
@@ -250,7 +261,8 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                       kind: _MenuAction.refresh,
                       icon: Icons.refresh,
                       label: context.tr('refresh'),
-                      enabled: !vm.isLoading,
+                      // Always on: a refresh already in flight is reused.
+                      enabled: true,
                       startsGroup: true,
                       onTap: vm.refresh,
                     ),
@@ -491,7 +503,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           _RowAction.archive,
           Icons.archive_outlined,
           'archive',
-          () => _rowBulk(vm, doc, 'archive', 'archived_document'),
+          () => _rowBulk(vm, doc, 'archive', 'document_archived'),
           confirm: true,
           confirmMessageKey: 'archive_document_description',
           lifecycle: true,
@@ -501,7 +513,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           _RowAction.restore,
           Icons.restore_outlined,
           'restore',
-          () => _rowBulk(vm, doc, 'restore', 'restored_document'),
+          () => _rowBulk(vm, doc, 'restore', 'document_restored'),
           lifecycle: true,
         ),
       if (!doc.isDeleted)

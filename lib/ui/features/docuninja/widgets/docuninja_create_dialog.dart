@@ -23,15 +23,19 @@ final _log = Logger('DocuNinjaCreateDialog');
 Future<DnDocument?> showDocuNinjaCreateDialog(
   BuildContext context, {
   required DocuNinjaApi api,
+  VoidCallback? onMaybeCreated,
 }) => showDialog<DnDocument>(
   context: context,
-  builder: (_) => _CreateDialog(api: api),
+  builder: (_) => _CreateDialog(api: api, onMaybeCreated: onMaybeCreated),
 );
 
 class _CreateDialog extends StatefulWidget {
-  const _CreateDialog({required this.api});
+  const _CreateDialog({required this.api, this.onMaybeCreated});
 
   final DocuNinjaApi api;
+
+  /// The upload timed out and may have landed.
+  final VoidCallback? onMaybeCreated;
 
   @override
   State<_CreateDialog> createState() => _CreateDialogState();
@@ -156,8 +160,9 @@ class _CreateDialogState extends State<_CreateDialog> {
       if (!mounted) return;
       if (e.statusCode == 408) {
         // The upload timed out but may have landed: close rather than
-        // invite a second document; the list re-reads.
-        Notify.error(context, context.tr('an_error_occurred_try_again'));
+        // invite a second document (no "try again"), and the list re-reads.
+        Notify.error(context, context.tr('an_error_occurred'));
+        widget.onMaybeCreated?.call();
         Navigator.of(context).pop();
         return;
       }

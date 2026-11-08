@@ -516,13 +516,14 @@ class _UserEditorState extends State<_UserEditor> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool keepEdits = false}) async {
     setState(() => _failed = false);
     try {
       final u = await _api.user(widget.id);
       if (!mounted) return;
       setState(() {
         _user = u;
+        if (keepEdits) return;
         _isAdmin = u.isAdmin;
         // Every grant, the record-scoped ones too (the grid shows only the
         // global ones, and a save sends them all back, as React does).
@@ -591,7 +592,13 @@ class _UserEditorState extends State<_UserEditor> {
       await _api.userBulk(action, [widget.id]);
       if (!mounted) return;
       Notify.success(context, context.tr(toast));
-      await _load();
+      if (action == 'delete') {
+        // Back to the list, which shows the user deleted (with Restore).
+        context.pop();
+        return;
+      }
+      // Keep what the user changed but has not saved.
+      await _load(keepEdits: true);
     } on Object catch (e, st) {
       _log.warning('DocuNinja user $action failed', e, st);
       if (mounted) {

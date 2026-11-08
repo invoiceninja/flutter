@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -98,7 +100,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
       ..addJavaScriptChannel(
         'InvoiceNinjaApp',
         onMessageReceived: (m) {
-          if (mounted) vm.handle(m.message);
+          if (mounted) unawaited(vm.handle(m.message));
         },
       )
       ..setNavigationDelegate(
@@ -121,6 +123,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             }
             return NavigationDecision.prevent;
           },
+          onPageStarted: (_) => vm.pageStarted(),
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) vm.loadFailed();
           },
@@ -152,9 +155,10 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     });
   }
 
-  /// A file input in the builder (a document's files, an upload). iOS and
-  /// macOS answer one themselves; Android's web view needs the host to pick
-  /// the files.
+  /// A file input in the builder (a document's files, an upload). iOS
+  /// answers one itself; Android's web view needs the host to pick the
+  /// files. macOS's web view plugin has no open-panel support, so a file
+  /// input there does nothing (docs/docuninja.md).
   void _enableFileInputs(WebViewController web) {
     final platform = web.platform;
     if (platform is! AndroidWebViewController) return;
@@ -263,8 +267,19 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                 child: Stack(
                   children: [
                     WebViewWidget(controller: web),
+                    // Covered and inert until the builder is up: before the
+                    // handshake the page would be the web app's sign-in.
                     if (vm.phase == DnBuilderPhase.loading)
-                      const Center(child: CircularProgressIndicator()),
+                      Positioned.fill(
+                        child: AbsorbPointer(
+                          child: ColoredBox(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

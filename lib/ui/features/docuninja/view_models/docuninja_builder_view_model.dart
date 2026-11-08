@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -64,6 +65,20 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   Timer? _readyTimer;
   bool _disposed = false;
 
+  /// A secret for this screen: the page echoes it on every message after
+  /// `init`, so a message from any other frame on the page is ignored.
+  final String _nonce = List.generate(
+    32,
+    (_) => Random.secure().nextInt(16).toRadixString(16),
+  ).join();
+
+  /// A main-frame page started since the last `ready`: only a real boot
+  /// (a reload) clears the unsaved flag, not a `ready` some frame posts.
+  bool _pageStarted = true;
+
+  /// The web view started loading a page in its main frame.
+  void pageStarted() => _pageStarted = true;
+
   /// Starts the wait for the page: one that never asks for its token within
   /// [_readyTimeout] is not an embed (the server has no embed mode, or the
   /// load failed), and the builder opens in the browser. Once it has asked,
@@ -85,11 +100,22 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     _notify();
   }
 
+  /// The nonce, for tests.
+  @visibleForTesting
+  String get nonce => _nonce;
+
   /// One message from the page's `InvoiceNinjaApp` channel.
   Future<void> handle(String raw) async {
+    if (_disposed) return;
     final message = DnEmbedMessage.parse(raw);
     if (message == null) {
       _log.warning('DocuNinja builder: unreadable message');
+      return;
+    }
+    // Before the page has its nonce it may only say `ready`; after, every
+    // message must carry it back.
+    if (message.type != 'ready' && message.nonce != _nonce) {
+      _log.warning('DocuNinja builder: message without the page nonce');
       return;
     }
     if (message.version != kDnEmbedProtocolVersion) {
@@ -103,10 +129,11 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     switch (message.type) {
       case 'ready':
         // A new boot (a reload, or the first): nothing on it is unsaved.
-        if (_dirty) {
+        if (_pageStarted && _dirty) {
           _dirty = false;
           _notify();
         }
+        _pageStarted = false;
         await _handOver();
         if (_phase == DnBuilderPhase.loading) _readyTimer?.cancel();
       case 'loaded':
@@ -123,7 +150,9 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
         _onDocumentChanged();
       case 'mapSignatoriesSent' || 'signed':
         // A send from the builder, or the user's signature on React's sign
-        // page: the document changed, and this page is done.
+        // page: the document changed, and this page is done (nothing left
+        // unsaved to ask about).
+        _dirty = false;
         _onDocumentChanged();
         _onClose();
       case 'error':
@@ -159,7 +188,12 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
       _set(DnBuilderPhase.unavailable);
       return;
     }
-    await _runJavaScript(dnEmbedInitScript(token));
+    try {
+      await _runJavaScript(dnEmbedInitScript(token, _nonce));
+    } on Object catch (e) {
+      // The web view went away (the screen closed) meanwhile.
+      _log.fine('DocuNinja builder: handover failed: $e');
+    }
   }
 
   void _set(DnBuilderPhase phase) {

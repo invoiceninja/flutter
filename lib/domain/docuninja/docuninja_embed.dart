@@ -46,11 +46,14 @@ bool dnEmbedAllowed(Uri uri) {
 
 /// One message from the embedded page: `{v, type, payload}`.
 class DnEmbedMessage {
-  const DnEmbedMessage(this.version, this.type, this.payload);
+  const DnEmbedMessage(this.version, this.type, this.payload, [this.nonce]);
 
   final int version;
   final String type;
   final Map<String, dynamic> payload;
+
+  /// The host's secret echoed back (every message after `init`).
+  final String? nonce;
 
   /// Null for anything that is not a well-formed message.
   static DnEmbedMessage? parse(String raw) {
@@ -61,10 +64,12 @@ class DnEmbedMessage {
       final v = json['v'];
       if (type is! String || v is! int) return null;
       final payload = json['payload'];
+      final nonce = json['nonce'];
       return DnEmbedMessage(
         v,
         type,
         payload is Map ? Map<String, dynamic>.from(payload) : const {},
+        nonce is String ? nonce : null,
       );
     } on FormatException {
       return null;
@@ -72,10 +77,18 @@ class DnEmbedMessage {
   }
 }
 
-/// The script that hands the page its token, once it reported `ready`. The
-/// token is JSON-encoded, never spliced into the script as text.
-String dnEmbedInitScript(String token) {
-  final config = jsonEncode({'v': kDnEmbedProtocolVersion, 'token': token});
-  return 'window.InvoiceNinjaEmbed && window.InvoiceNinjaEmbed.init && '
-      'window.InvoiceNinjaEmbed.init($config);';
+/// The script that hands the page its token and the host's [nonce], once it
+/// reported `ready`. Both are JSON-encoded, never spliced in as text, and
+/// the script itself checks the document's origin: the main frame could
+/// have moved between the host's own check and the script running.
+String dnEmbedInitScript(String token, String nonce) {
+  final config = jsonEncode({
+    'v': kDnEmbedProtocolVersion,
+    'token': token,
+    'nonce': nonce,
+  });
+  final origin = jsonEncode(Uri.parse(kDnHostedWebAppUrl).origin);
+  return 'if (window.location.origin === $origin && window.InvoiceNinjaEmbed '
+      '&& window.InvoiceNinjaEmbed.init) { '
+      'window.InvoiceNinjaEmbed.init($config); }';
 }

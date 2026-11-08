@@ -565,6 +565,9 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       _changed();
       Notify.success(context, context.tr(successKey));
     } else {
+      // It may have landed all the same (a timed-out void): the list
+      // re-reads, as this page already has.
+      _changed();
       Notify.error(context, context.tr('an_error_occurred_try_again'));
     }
   }

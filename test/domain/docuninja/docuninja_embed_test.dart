@@ -41,11 +41,15 @@ void main() {
 
   test('the token reaches the page JSON-encoded, never as script text', () {
     const token = 'a"b\'c</script>';
-    final script = dnEmbedInitScript(token);
+    final script = dnEmbedInitScript(token, 'n1');
     final json = script.substring(
       script.indexOf('init(') + 5,
       script.lastIndexOf(')'),
     );
-    expect(jsonDecode(json), {'v': kDnEmbedProtocolVersion, 'token': token});
+    expect(jsonDecode(json), {
+      'v': kDnEmbedProtocolVersion,
+      'token': token,
+      'nonce': 'n1',
+    });
   });
 }

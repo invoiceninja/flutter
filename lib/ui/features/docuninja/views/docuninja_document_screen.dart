@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/entity_links.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -11,6 +13,7 @@ import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
 import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -55,6 +58,7 @@ enum _Action {
   auditLog,
   download,
   clone,
+  copyLink,
   voidIt,
   options,
   archive,
@@ -339,6 +343,15 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           confirm: true,
           confirmMessageKey: 'clone_document_description',
         ),
+      // The app's Share / Copy Link (every record has one): opens this
+      // document in the app, on its company (`buildDocuNinjaDeepLink`).
+      EntityActionItem<_Action>(
+        kind: _Action.copyLink,
+        icon: Icons.link,
+        label: context.tr(Env.isTouchPrimary ? 'share_link' : 'copy_link'),
+        enabled: true,
+        onTap: () => _onAction(context, vm, doc, _Action.copyLink),
+      ),
       if (dnCanVoid(doc))
         item(
           _Action.voidIt,
@@ -418,6 +431,18 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           Notify.success(context, context.tr('cloned_document'));
           context.go('/docuninja/$id');
         }
+      case _Action.copyLink:
+        final session = context.read<Services>().auth.session.value;
+        final link = buildDocuNinjaDeepLink(
+          documentId: doc.id,
+          companyId: session?.currentCompanyId ?? '',
+          baseUrl: session?.baseUrl,
+        );
+        if (link == null) {
+          Notify.error(context, context.tr('an_error_occurred'));
+          return;
+        }
+        await shareOrCopyLink(context, link);
       case _Action.voidIt:
         final ok = await vm.voidDocument();
         if (!context.mounted) return;

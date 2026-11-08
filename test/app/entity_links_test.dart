@@ -820,4 +820,42 @@ void main() {
       }
     });
   });
+
+  group('DocuNinja documents', () {
+    test('a document link round-trips to its page, on its company', () {
+      final link = buildDocuNinjaDeepLink(
+        documentId: '01KJ3K9XR77J3JEDMWSNZ47R23',
+        companyId: 'Xrtq1oa8Aq',
+        baseUrl: 'https://invoicing.co',
+      );
+      expect(
+        link,
+        'https://invoicing.co/app/docuninja/01KJ3K9XR77J3JEDMWSNZ47R23'
+        '?company=Xrtq1oa8Aq',
+      );
+      final target = parseAppDeepLink(Uri.parse(link!), _registry())!;
+      expect(target.path, '/docuninja/01KJ3K9XR77J3JEDMWSNZ47R23');
+      expect(target.companyId, 'Xrtq1oa8Aq');
+    });
+
+    test('the list opens; anything deeper or odd is refused', () {
+      Uri app(String route) => Uri.parse('invoiceninja://app$route');
+      expect(
+        parseAppDeepLink(app('/docuninja'), _registry())?.path,
+        '/docuninja',
+      );
+      expect(parseAppDeepLink(app('/docuninja/D1/pdf'), _registry()), isNull);
+      expect(parseAppDeepLink(app('/docuninja/../x'), _registry()), isNull);
+      expect(parseAppDeepLink(app('/docuninjax/D1'), _registry()), isNull);
+    });
+
+    test('no link without an id or a company', () {
+      expect(buildDocuNinjaDeepLink(documentId: '', companyId: 'C'), isNull);
+      expect(buildDocuNinjaDeepLink(documentId: 'D1', companyId: ' '), isNull);
+      expect(
+        buildDocuNinjaDeepLink(documentId: 'D1', companyId: 'C'),
+        'invoiceninja://app/docuninja/D1?company=C',
+      );
+    });
+  });
 }

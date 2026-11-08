@@ -50,6 +50,13 @@ Future<void> copyEntityLink(
     return;
   }
 
+  await shareOrCopyLink(context, link);
+}
+
+/// The share sheet on touch, the clipboard elsewhere: the second half of
+/// [copyEntityLink], for a link built another way (a DocuNinja document's,
+/// `buildDocuNinjaDeepLink`).
+Future<void> shareOrCopyLink(BuildContext context, String link) async {
   if (Env.isTouchPrimary && await _shareLink(context, link)) return;
   if (!context.mounted) return;
   // The toast is labelled `link` rather than the URL itself, so it reads

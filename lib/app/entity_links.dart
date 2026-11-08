@@ -215,6 +215,38 @@ String? buildEntityDeepLink({
     id: id,
     hasDetailScreen: handlers.detailBuilder != null,
   );
+  return _appLink(route: route, company: company, baseUrl: baseUrl);
+}
+
+/// The DocuNinja section's route: not an entity of this app's registry (its
+/// documents live on DocuNinja), but a link can still name one.
+const String kDocuNinjaRoute = '/docuninja';
+
+/// Shareable link to one DocuNinja document (`/docuninja/<id>`), the same
+/// grammar as [buildEntityDeepLink]: https on [baseUrl], else the
+/// `invoiceninja://` form, and always the company. Null for an id
+/// [parseAppDeepLink] would refuse, or no company.
+String? buildDocuNinjaDeepLink({
+  required String documentId,
+  required String companyId,
+  String? baseUrl,
+}) {
+  final id = documentId.trim();
+  if (!_isPlausibleRecordId(id)) return null;
+  final company = companyId.trim();
+  if (company.isEmpty) return null;
+  return _appLink(
+    route: '$kDocuNinjaRoute/$id',
+    company: company,
+    baseUrl: baseUrl,
+  );
+}
+
+String _appLink({
+  required String route,
+  required String company,
+  String? baseUrl,
+}) {
   final query = {'company': company};
   final base = appLinkBaseFrom(baseUrl);
   if (base != null) {
@@ -302,6 +334,19 @@ DeepLinkTarget? parseAppDeepLink(Uri uri, EntityRegistry registry) {
   // The one non-entity destination a link may name: the home-screen Business
   // snapshot widget opens it.
   if (route == kDashboardDeepLinkPath) {
+    return (path: route, companyId: _companyIdFrom(uri), listFilter: null);
+  }
+
+  // DocuNinja's list or one of its documents ([buildDocuNinjaDeepLink]). On
+  // a self-hosted server the route's own redirect sends it home.
+  if (route == kDocuNinjaRoute || route.startsWith('$kDocuNinjaRoute/')) {
+    final rest = route.substring(kDocuNinjaRoute.length);
+    if (rest.isNotEmpty) {
+      final segments = rest.split('/')..removeAt(0);
+      if (segments.length != 1 || !_isPlausibleRecordId(segments.single)) {
+        return null;
+      }
+    }
     return (path: route, companyId: _companyIdFrom(uri), listFilter: null);
   }
 

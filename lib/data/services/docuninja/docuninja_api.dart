@@ -119,6 +119,58 @@ class DocuNinjaApi {
     return '${_data(json)['id'] ?? ''}';
   }
 
+  /// The company's DocuNinja users (React's `Users.tsx`), by the Invoice
+  /// Ninja company they belong to.
+  Future<DnPage<DnUser>> users({
+    required String ninjaCompanyKey,
+    int page = 1,
+    int perPage = 20,
+    String search = '',
+    String status = 'active',
+  }) async {
+    final json = await _client.getJson(
+      '/api/users',
+      query: {
+        'page': '$page',
+        'per_page': '$perPage',
+        'sort': 'id|desc',
+        'ninjaCompanyKey': ninjaCompanyKey,
+        if (search.isNotEmpty) 'search': search,
+        if (status.isNotEmpty) 'status': status,
+      },
+    );
+    return DnPage.fromJson(_asMap(json), DnUser.fromJson);
+  }
+
+  Future<DnUser> user(String id) async =>
+      DnUser.fromJson(_data(await _client.getJson('/api/users/$id')));
+
+  /// React's user Save: the whole user back with the role, permissions and
+  /// notifications (an admin carries no permissions).
+  Future<DnUser> updateUser(
+    DnUser user, {
+    required bool isAdmin,
+    required List<DnPermission> permissions,
+    required List<String> notifications,
+  }) async {
+    final json = await _client.putJson(
+      '/api/users/${user.id}',
+      body: {
+        ...user.raw,
+        'is_admin': isAdmin,
+        'permissions': isAdmin
+            ? const <Object>[]
+            : [for (final p in permissions) p.toJson()],
+        'notifications': notifications,
+      },
+    );
+    return DnUser.fromJson(_data(json));
+  }
+
+  /// `archive`, `restore` or `delete` on several users.
+  Future<void> userBulk(String action, List<String> ids) =>
+      _client.postJson('/api/users/bulk', body: {'action': action, 'ids': ids});
+
   /// React's settings pages: the whole company back with its settings
   /// replaced (`PUT /api/companies/{id}`).
   Future<void> updateCompanySettings(

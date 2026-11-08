@@ -69,6 +69,37 @@ class DocuNinjaTemplatesViewModel extends DnListViewModel<DnBlueprint> {
   );
 }
 
+/// The DocuNinja users list (React's `Users.tsx`): the users of the
+/// DocuNinja company paired with [ninjaCompanyKey]'s Invoice Ninja company.
+class DocuNinjaUsersViewModel extends DnListViewModel<DnUser> {
+  DocuNinjaUsersViewModel({
+    required DocuNinjaApi api,
+    required this.ninjaCompanyKey,
+    super.pageSize,
+    super.searchDelay,
+  }) : _api = api;
+
+  final DocuNinjaApi _api;
+  final String ninjaCompanyKey;
+
+  @override
+  String idOf(DnUser item) => item.id;
+
+  @override
+  Future<DnPage<DnUser>> fetchPage({
+    required int page,
+    required int perPage,
+    required String search,
+    required String status,
+  }) => _api.users(
+    ninjaCompanyKey: ninjaCompanyKey,
+    page: page,
+    perPage: perPage,
+    search: search,
+    status: status,
+  );
+}
+
 /// A DocuNinja list: a page at a time, newest first, with a search, the
 /// lifecycle states and (documents only) React's status filter.
 ///
@@ -277,7 +308,7 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     if (e is NetworkException) {
       _error = DnListError.offline;
     } else {
-      _log.warning('DocuNinja documents failed to load', e, st);
+      _log.warning('DocuNinja list failed to load', e, st);
       _error = DnListError.failed;
     }
   }

@@ -142,4 +142,84 @@ void main() {
       expect(unauthorized, 0);
     },
   );
+
+  test(
+    'a 401 from stub_blueprint or create_user is an error, never a logout',
+    () async {
+      var unauthorized = 0;
+      final login = DocuNinjaLoginApi(
+        ApiClient(
+          credentials: ValueNotifier<ApiCredentials?>(
+            const ApiCredentials(baseUrl: 'https://invoicing.co', token: 't'),
+          ),
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async => unauthorized++,
+          httpClient: MockClient(
+            (_) async => http.Response(
+              jsonEncode({'message': 'Unauthenticated.'}),
+              401,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        ),
+      );
+      await expectLater(login.stubBlueprint('quote'), throwsA(anything));
+      await expectLater(
+        login.createUser(
+          userId: 'u1',
+          firstName: 'A',
+          lastName: 'B',
+          email: 'a@b.c',
+          isAdmin: false,
+          permissions: const [],
+        ),
+        throwsA(anything),
+      );
+      expect(unauthorized, 0);
+    },
+  );
+
+  test(
+    'the users list is by Invoice Ninja company; a save puts it back',
+    () async {
+      final a = api({
+        'data': [
+          {
+            'id': 'u1',
+            'first_name': 'Ann',
+            'email': 'ann@x.co',
+            'company_user': {
+              'is_admin': false,
+              'notifications': ['all_user'],
+            },
+            'permissions': [
+              {
+                'model': 'documents',
+                'permission_id': 1,
+                'permissionable_id': null,
+              },
+            ],
+          },
+        ],
+        'meta': {'current_page': 1, 'last_page': 1, 'total': 1},
+      });
+      final page = await a.users(ninjaCompanyKey: 'ck');
+      expect(sent.single.url.queryParameters['ninjaCompanyKey'], 'ck');
+      final u = page.items.single;
+      expect(u.notifications, ['all_user']);
+      expect(u.permissions.single.permissionableId, isNull);
+      await a.updateUser(
+        u,
+        isAdmin: true,
+        permissions: u.permissions,
+        notifications: const ['all'],
+      );
+      final body = jsonDecode(sent.last.body) as Map<String, dynamic>;
+      expect(sent.last.url.path, '/api/users/u1');
+      expect(body['first_name'], 'Ann');
+      expect(body['is_admin'], isTrue);
+      expect(body['permissions'], isEmpty, reason: 'an admin needs no grants');
+      expect(body['notifications'], ['all']);
+    },
+  );
 }

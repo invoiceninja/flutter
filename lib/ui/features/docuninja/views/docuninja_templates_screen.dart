@@ -25,7 +25,11 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
+import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/ui/core/widgets/filter_icon_button.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 
 final _log = Logger('DocuNinjaTemplatesScreen');
 
@@ -50,10 +54,14 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   final _scroll = ScrollController();
   bool _busy = false;
 
+  /// The template builder may run in the browser: re-read on coming back.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _lifecycle = dnRefreshOnReturn(() => _vm?.refresh());
   }
 
   @override
@@ -61,13 +69,19 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     super.didChangeDependencies();
     final session = context.read<DocuNinjaSession?>();
     if (identical(session, _session)) return;
-    _session = session;
+    _session?.documentsChanged.removeListener(_onChanged);
+    _session = session?..documentsChanged.addListener(_onChanged);
     // Opened directly (a restored route): the handshake may not have run.
     session?.load();
   }
 
+  /// A template saved in the embedded builder, or made from a document.
+  void _onChanged() => _vm?.refresh();
+
   @override
   void dispose() {
+    _lifecycle.dispose();
+    _session?.documentsChanged.removeListener(_onChanged);
     _vm?.dispose();
     _search.dispose();
     _scroll.dispose();
@@ -101,6 +115,19 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     if (position.pixels >= position.maxScrollExtent - 400) vm.loadMore();
   }
 
+  /// React's lifecycle filter: without it an archived or deleted template
+  /// could never be listed again, nor restored.
+  Future<void> _pickStates(DocuNinjaTemplatesViewModel vm) async {
+    final picked =
+        await showDialog<({Set<String> states, Set<String> statuses})>(
+          context: context,
+          builder: (_) => DnFilterDialog(states: vm.states),
+        );
+    if (picked != null) {
+      vm.setFilters(statuses: const {}, states: picked.states);
+    }
+  }
+
   String? get _companyId =>
       context.read<Services>().auth.session.value?.currentCompanyId;
 
@@ -123,6 +150,14 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
                   icon: const Icon(Icons.add),
                   tooltip: context.tr('new_template'),
                   onPressed: _busy ? null : () => _create(vm),
+                ),
+              if (vm != null)
+                ListenableBuilder(
+                  listenable: vm,
+                  builder: (context, _) => FilterIconButton(
+                    activeCount: vm.activeFilterCount,
+                    onPressed: () => _pickStates(vm),
+                  ),
                 ),
               if (vm != null)
                 ListenableBuilder(
@@ -257,9 +292,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) => _TemplateRow(
                 template: vm.items[i],
-                onTap: canCreate && !vm.items[i].isDeleted
-                    ? () => _edit(vm.items[i])
-                    : null,
+                // React opens every template's builder, a deleted one too.
+                onTap: canCreate ? () => _edit(vm.items[i]) : null,
                 actions: _items(context, vm, vm.items[i]),
               ),
             ),
@@ -385,7 +419,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     final companyId = _companyId;
     if (companyId == null) return;
     final id = await context.read<DocuNinjaApi>().makeDocument(t.id);
-    if (!mounted || id.isEmpty) return;
+    if (!mounted) return;
+    if (id.isEmpty) throw StateError('make_document returned no id');
     _session?.markDocumentsChanged();
     context.go('/docuninja/$id');
     await openDocuNinjaBuilder(
@@ -429,7 +464,11 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       context: context,
       builder: (_) => _TemplateWizard(api: api, loginApi: loginApi),
     );
-    if (id == null || id.isEmpty || !mounted) return;
+    if (id == null || !mounted) return;
+    if (id.isEmpty) {
+      Notify.error(context, context.tr('an_error_occurred_try_again'));
+      return;
+    }
     Notify.success(context, context.tr('template_created'));
     unawaited(vm.refresh());
     await openDocuNinjaBuilder(
@@ -664,6 +703,10 @@ class _TemplateWizardState extends State<_TemplateWizard> {
   final _description = TextEditingController();
   List<String>? _available;
   bool _loadFailed = false;
+  bool _loadOffline = false;
+
+  /// Drops a read that a later one (Back, then in again) overtook.
+  int _loadGeneration = 0;
   String? _entity;
   bool _saving = false;
   String? _nameError;
@@ -679,6 +722,7 @@ class _TemplateWizardState extends State<_TemplateWizard> {
   /// The document types that have no design template yet (React reads the
   /// first hundred active templates).
   Future<void> _loadAvailable() async {
+    final generation = ++_loadGeneration;
     setState(() {
       _available = null;
       _loadFailed = false;
@@ -686,7 +730,7 @@ class _TemplateWizardState extends State<_TemplateWizard> {
     try {
       final page = await widget.api.blueprints(perPage: 100);
       final made = {for (final b in page.items) b.entityType};
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(
         () => _available = [
           for (final e in _entities)
@@ -695,7 +739,12 @@ class _TemplateWizardState extends State<_TemplateWizard> {
       );
     } on Object catch (e, st) {
       _log.warning('Reading DocuNinja templates failed', e, st);
-      if (mounted) setState(() => _loadFailed = true);
+      if (mounted && generation == _loadGeneration) {
+        setState(() {
+          _loadFailed = true;
+          _loadOffline = e is NetworkException;
+        });
+      }
     }
   }
 
@@ -795,7 +844,10 @@ class _TemplateWizardState extends State<_TemplateWizard> {
       case _WizardStep.invoiceNinja:
         final available = _available;
         content = _loadFailed
-            ? DocuNinjaInlineError(offline: false, onRetry: _loadAvailable)
+            ? DocuNinjaInlineError(
+                offline: _loadOffline,
+                onRetry: _loadAvailable,
+              )
             : available == null
             ? const Padding(
                 padding: EdgeInsets.all(InSpacing.xl),

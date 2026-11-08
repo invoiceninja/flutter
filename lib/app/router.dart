@@ -24,6 +24,7 @@ import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_templates_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_settings_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_users_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
@@ -933,6 +934,29 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
             },
             builder: (context, state) => const DocuNinjaScreen(),
             routes: [
+              // DocuNinja's users (the DocuNinja owner's). Before `:id`.
+              GoRoute(
+                path: 'users',
+                builder: (context, state) => const DocuNinjaUsersScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'access',
+                    builder: (context, state) =>
+                        const DocuNinjaGrantAccessScreen(),
+                  ),
+                  GoRoute(
+                    path: ':userId',
+                    builder: (context, state) => KeyedSubtree(
+                      key: ValueKey(
+                        'docuninja-user:${state.pathParameters['userId']}',
+                      ),
+                      child: DocuNinjaUserScreen(
+                        id: state.pathParameters['userId']!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               // DocuNinja's own settings (a DocuNinja admin's). Before `:id`.
               GoRoute(
                 path: 'settings',

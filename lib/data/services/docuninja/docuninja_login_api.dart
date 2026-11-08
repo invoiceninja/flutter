@@ -47,6 +47,32 @@ class DocuNinjaLoginApi {
     );
   }
 
+  /// Gives an Invoice Ninja user DocuNinja access (React's
+  /// `UserSelection.tsx`, `POST /api/docuninja/create_user`), with a role and
+  /// permissions; an admin carries none. One call per user, as React makes.
+  Future<void> createUser({
+    required String userId,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required bool isAdmin,
+    required List<Map<String, dynamic>> permissions,
+  }) async {
+    await _api.postJson(
+      '/api/docuninja/create_user',
+      body: {
+        'id': userId,
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'is_admin': isAdmin,
+        'permissions': isAdmin ? const <Object>[] : permissions,
+        'notifications': const <String>[],
+      },
+      unauthorizedIsAnswer: true,
+    );
+  }
+
   /// A template from one of the company's Invoice Ninja designs, for one
   /// document type (`invoice`, `quote`, `credit`, `purchase_order`): React's
   /// "Invoice Ninja" template option (`POST /api/docuninja/stub_blueprint`).

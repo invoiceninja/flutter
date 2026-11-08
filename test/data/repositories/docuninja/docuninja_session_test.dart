@@ -27,6 +27,16 @@ class _LoginApi implements DocuNinjaLoginApi {
 
   @override
   Future<String> stubBlueprint(String entity) async => 'b1';
+
+  @override
+  Future<void> createUser({
+    required String userId,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required bool isAdmin,
+    required List<Map<String, dynamic>> permissions,
+  }) async {}
 }
 
 DnLogin _fixtureLogin() => DnLogin.fromJson(

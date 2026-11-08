@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
@@ -16,11 +15,11 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_create_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -184,14 +183,19 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             leading: globalNav ? null : const DrawerHamburger(),
             automaticallyImplyLeading: !globalNav,
             actions: [
-              // React's drop zone and New Document page, for a DocuNinja
-              // role that may create.
               // React's DocuNinja menu: the templates beside the documents.
               if (vm != null && state.can('blueprints', DnAction.view))
                 IconButton(
                   icon: const Icon(Icons.copy_all_outlined),
                   tooltip: context.tr('templates'),
                   onPressed: () => context.go('/docuninja/templates'),
+                ),
+              // React's users page, for the DocuNinja owner.
+              if (vm != null && (state.login?.companyUser.isOwner ?? false))
+                IconButton(
+                  icon: const Icon(Icons.group_outlined),
+                  tooltip: context.tr('users'),
+                  onPressed: () => context.go('/docuninja/users'),
                 ),
               // React's settings button, for a DocuNinja admin.
               if (vm != null &&
@@ -202,6 +206,8 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                   tooltip: context.tr('settings'),
                   onPressed: () => context.go('/docuninja/settings'),
                 ),
+              // React's drop zone and New Document page, for a DocuNinja
+              // role that may create.
               if (vm != null && state.can('documents', DnAction.create))
                 IconButton(
                   icon: const Icon(Icons.add),
@@ -337,91 +343,14 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     final picked =
         await showDialog<({Set<String> states, Set<String> statuses})>(
           context: context,
-          builder: (context) =>
-              _FilterDialog(states: vm.states, statuses: vm.statuses),
+          builder: (context) => DnFilterDialog(
+            states: vm.states,
+            statuses: vm.statuses,
+            statusOptions: kDocuNinjaStatusFilters,
+          ),
         );
     if (picked != null) {
       vm.setFilters(statuses: picked.statuses, states: picked.states);
     }
-  }
-}
-
-/// The table's lifecycle states, React's DataTable order.
-const kDocuNinjaStateFilters = <String>['active', 'archived', 'deleted'];
-
-/// React's status filter (`useDocumentFilters.ts`), in its order.
-const kDocuNinjaStatusFilters = <String>[
-  'draft',
-  'sent',
-  'pending_approval',
-  'completed',
-  'approved',
-  'voided',
-  'expired',
-  'rejected',
-];
-
-class _FilterDialog extends StatefulWidget {
-  const _FilterDialog({required this.states, required this.statuses});
-
-  final Set<String> states;
-  final Set<String> statuses;
-
-  @override
-  State<_FilterDialog> createState() => _FilterDialogState();
-}
-
-class _FilterDialogState extends State<_FilterDialog> {
-  late final Set<String> _states = {...widget.states};
-  late final Set<String> _statuses = {...widget.statuses};
-
-  Widget _box(Set<String> set, String key) => CheckboxListTile(
-    value: set.contains(key),
-    title: Text(context.tr(key)),
-    controlAffinity: ListTileControlAffinity.leading,
-    onChanged: (v) =>
-        setState(() => v == true ? set.add(key) : set.remove(key)),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final heading = Theme.of(context).textTheme.labelLarge;
-    Widget title(String key) => Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(24, 12, 24, 4),
-      child: Semantics(
-        header: true,
-        headingLevel: 2,
-        child: Text(context.tr(key), style: heading),
-      ),
-    );
-    return AlertDialog(
-      title: Text(context.tr('filter')),
-      contentPadding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            title('entity_state'),
-            for (final s in kDocuNinjaStateFilters) _box(_states, s),
-            title('status'),
-            for (final s in kDocuNinjaStatusFilters) _box(_statuses, s),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).pop((states: const {'active'}, statuses: const <String>{})),
-          child: Text(context.tr('clear')),
-        ),
-        PrimaryDialogAction(
-          label: context.tr('apply'),
-          onPressed: () =>
-              Navigator.of(context).pop((states: _states, statuses: _statuses)),
-        ),
-      ],
-    );
   }
 }

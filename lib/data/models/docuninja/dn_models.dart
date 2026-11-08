@@ -230,6 +230,14 @@ class DnPermission {
   final String model;
   final int permissionId;
 
+  /// React's grid writes a global grant (`permissionable_id: null`).
+  Map<String, dynamic> toJson() => {
+    'model': model,
+    'id': '',
+    'permission_id': permissionId,
+    'permissionable_id': permissionableId,
+  };
+
   /// Set on a grant scoped to one record. React counts only global grants:
   /// null here, and only when DocuNinja sent an explicit `null`.
   final String? permissionableId;
@@ -243,27 +251,64 @@ class DnUser {
     required this.email,
     required this.eSignature,
     required this.eInitials,
+    this.isDeleted = false,
+    this.archivedAt,
+    this.isAdmin = false,
+    this.isOwner = false,
+    this.permissions = const [],
+    this.notifications = const [],
+    this.raw = const {},
   });
 
-  factory DnUser.fromJson(Map<String, dynamic> json) => DnUser(
-    id: _str(json['id']),
-    firstName: _str(json['first_name']),
-    lastName: _str(json['last_name']),
-    email: _str(json['email']),
-    eSignature: _str(json['e_signature']),
-    eInitials: _str(json['e_initials']),
-  );
+  factory DnUser.fromJson(Map<String, dynamic> json) {
+    final cu = _map(json['company_user']);
+    return DnUser(
+      id: _str(json['id']),
+      firstName: _str(json['first_name']),
+      lastName: _str(json['last_name']),
+      email: _str(json['email']),
+      eSignature: _str(json['e_signature']),
+      eInitials: _str(json['e_initials']),
+      isDeleted: jsonScalarToBool(json['is_deleted']),
+      archivedAt: _strOrNull(json['archived_at']),
+      isAdmin: jsonScalarToBool(cu['is_admin']),
+      isOwner: jsonScalarToBool(cu['is_owner']),
+      permissions: [
+        for (final p in _maps(json['permissions'])) DnPermission.fromJson(p),
+      ],
+      notifications: _strings(cu['notifications']),
+      raw: json,
+    );
+  }
 
   final String id;
   final String firstName;
   final String lastName;
   final String email;
 
-  /// The saved signature / initials (a PNG data URL), or empty.
+  /// The saved signature / initials (an image data URL), or empty.
   final String eSignature;
   final String eInitials;
 
+  final bool isDeleted;
+  final String? archivedAt;
+
+  /// The DocuNinja role (`company_user`), not the Invoice Ninja one.
+  final bool isAdmin;
+  final bool isOwner;
+  final List<DnPermission> permissions;
+
+  /// React's notification codes: `all`, `all_user`, or `<type>` /
+  /// `<type>_user` per document event.
+  final List<String> notifications;
+
+  /// Every key, so a save writes back what the app does not model (React
+  /// puts the whole user back).
+  final Map<String, dynamic> raw;
+
   String get name => [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+  bool get isArchived => archivedAt != null && !isDeleted;
+  bool get isActive => !isDeleted && archivedAt == null;
 }
 
 /// A client contact as DocuNinja holds it: its own copy, with the IN
@@ -574,7 +619,6 @@ class DnTimelineEntry {
   final bool completed;
 }
 
-/// A page of a DocuNinja list (`data` + Laravel's `meta`).
 /// A DocuNinja template (React's "template", the API's blueprint): a
 /// document with its fields placed, from which new documents are made.
 class DnBlueprint {
@@ -720,6 +764,7 @@ class DnReminderSchedule {
   };
 }
 
+/// A page of a DocuNinja list (`data` + Laravel's `meta`).
 class DnPage<T> {
   const DnPage({
     required this.items,

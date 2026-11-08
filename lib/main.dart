@@ -871,8 +871,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         ),
         Provider<PasskeyRepository>.value(value: widget.services.passkeys),
         // DocuNinja (docs/docuninja.md), read as `context.read<…?>()` for the
-        // same reason.
-        Provider<DocuNinjaSession>.value(value: widget.services.docuNinja),
+        // same reason. The session is a `ValueNotifier`, which a plain
+        // `Provider` refuses in debug, so it rides a ChangeNotifierProvider.
+        ChangeNotifierProvider<DocuNinjaSession>.value(
+          value: widget.services.docuNinja,
+        ),
         Provider<DocuNinjaApi>.value(value: widget.services.docuNinjaApi),
         Provider<DocuNinjaLoginApi>.value(
           value: widget.services.docuNinjaLoginApi,

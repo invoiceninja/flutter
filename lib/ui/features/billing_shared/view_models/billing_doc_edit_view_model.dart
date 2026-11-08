@@ -563,21 +563,25 @@ abstract class GenericBillingDocEditViewModel<T>
     }
     return [
       for (final c in chosen)
-        Invitation(
-          id: '',
-          key: '',
-          link: '',
-          clientContactId: c.id,
-          vendorContactId: '',
-          sentDate: '',
-          viewedDate: '',
-          openedDate: '',
-          emailStatus: '',
-          emailError: '',
-          messageId: '',
-          // The contact's own "Authorized to sign", as React seeds it.
-          canSign: c.canSign,
-        ),
+        // Back on the saved document's own contacts (a client picked away
+        // and then back): the invitation it was, key and `can_sign`
+        // included, not a fresh one from the contact's default.
+        _originalInvitation((i) => i.clientContactId == c.id) ??
+            Invitation(
+              id: '',
+              key: '',
+              link: '',
+              clientContactId: c.id,
+              vendorContactId: '',
+              sentDate: '',
+              viewedDate: '',
+              openedDate: '',
+              emailStatus: '',
+              emailError: '',
+              messageId: '',
+              // The contact's own "Authorized to sign", as React seeds it.
+              canSign: c.canSign,
+            ),
     ];
   }
 

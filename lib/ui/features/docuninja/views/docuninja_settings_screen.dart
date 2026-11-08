@@ -186,6 +186,10 @@ class _SaveRow extends StatelessWidget {
 
 enum _CompanyTab { email, notifications, widgets }
 
+/// Held while one of the company tabs saves (one screen at a time shows
+/// them).
+final _companySaveLock = ValueNotifier<bool>(false);
+
 /// React's three company pages (email settings, notifications, widget
 /// defaults): each edits `company.settings` and puts the whole company
 /// back. The company is the one paired with this Invoice Ninja company
@@ -256,16 +260,22 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       _edits['email_from_name'] = name.isEmpty ? null : name;
       _edits['reply_to_email'] = reply.isEmpty ? null : reply;
     }
+    // One company save at a time across the tabs: each lays its edits over
+    // the company as the last save left it.
+    if (_companySaveLock.value) {
+      setState(() => _saving = false);
+      return;
+    }
+    _companySaveLock.value = true;
     try {
-      await widget.api.updateCompanySettings(widget.company, {
-        ...widget.company.settings,
-        ..._edits,
-      });
-      // Saved: the company the handshake re-reads now holds them.
+      final next = {...widget.company.settings, ..._edits};
+      await widget.api.updateCompanySettings(widget.company, next);
+      // Saved: the session holds the company as saved, so the other tabs
+      // build their next save on it (React refetches its login instead).
+      widget.session.replaceCompany(widget.company.withSettings(next));
       _edits.clear();
       if (!mounted) return;
       Notify.success(context, context.tr('updated_company'));
-      await widget.session.load(force: true);
     } on DocuNinjaException catch (e) {
       if (mounted) {
         final first = e.fieldErrors.values.expand((v) => v).firstOrNull;
@@ -280,6 +290,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
         Notify.error(context, context.tr('an_error_occurred_try_again'));
       }
     } finally {
+      _companySaveLock.value = false;
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -318,6 +329,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                     controller: _replyTo,
                     keyboardType: TextInputType.emailAddress,
                     autocorrect: false,
+                    enableSuggestions: false,
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: context.tr('reply_to_email'),
@@ -379,29 +391,40 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
               title: context.tr('widget_defaults'),
               children: [
                 _toggle('widget_show_label', 'show_label', 'show_label_help'),
-                DropdownButtonFormField<String>(
-                  initialValue:
+                // Three choices: a radio group (CLAUDE.md § Forms).
+                Text(context.tr('widget_border_style')),
+                RadioGroup<String>(
+                  groupValue:
                       const ['hidden', 'dotted', 'solid'].contains(style)
                       ? style
                       : 'hidden',
-                  decoration: InputDecoration(
-                    labelText: context.tr('widget_border_style'),
-                    helperText: context.tr('widget_border_style_help'),
+                  onChanged: (v) {
+                    if (!_saving && v != null) _set('widget_border_style', v);
+                  },
+                  child: Column(
+                    children: [
+                      for (final b in const ['hidden', 'dotted', 'solid'])
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          value: b,
+                          title: Text(context.tr(b)),
+                        ),
+                    ],
                   ),
-                  items: [
-                    for (final s in const ['hidden', 'dotted', 'solid'])
-                      DropdownMenuItem(value: s, child: Text(context.tr(s))),
-                  ],
-                  onChanged: _saving
-                      ? null
-                      : (v) => _set('widget_border_style', v),
                 ),
-                ColorInput(
-                  labelKey: 'widget_border_color',
-                  value: '${_settings['widget_border_color'] ?? ''}',
-                  defaultValue: '#FF5733',
-                  onChanged: (v) =>
-                      _set('widget_border_color', v.isEmpty ? '#FF5733' : v),
+                Text(
+                  context.tr('widget_border_style_help'),
+                  style: TextStyle(color: context.inTheme.ink3, fontSize: 12),
+                ),
+                IgnorePointer(
+                  ignoring: _saving,
+                  child: ColorInput(
+                    labelKey: 'widget_border_color',
+                    value: '${_settings['widget_border_color'] ?? ''}',
+                    defaultValue: '#FF5733',
+                    onChanged: (v) =>
+                        _set('widget_border_color', v.isEmpty ? '#FF5733' : v),
+                  ),
                 ),
                 Text(
                   context.tr('widget_border_color_help'),
@@ -735,10 +758,12 @@ class _ReminderSchedulesTabState extends State<_ReminderSchedulesTab>
       children: [
         FormSection(
           title: context.tr('reminder_schedules'),
-          trailing: FilledButton.tonal(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
+          // An icon: the header has no room for the label at a large text
+          // size on a phone.
+          trailing: IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: context.tr('add_reminder_schedule'),
             onPressed: _busy ? null : () => _edit(),
-            child: Text(context.tr('add_reminder_schedule')),
           ),
           children: [
             if (schedules.isEmpty)

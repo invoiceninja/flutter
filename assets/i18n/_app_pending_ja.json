@@ -1720,7 +1720,7 @@
   "widget_border_style_help": "ウィジェットエリアの枠線スタイル。",
   "widget_border_color": "ウィジェットの枠線の色",
   "widget_border_color_help": "ウィジェットエリアの周囲の枠線の色。",
-  "dotted": "点在",
+  "dotted": "点線",
   "add_reminder_schedule": "リマインダースケジュールを追加",
   "edit_reminder_schedule": "リマインダースケジュールを編集する",
   "no_reminder_schedules_found": "リマインダースケジュールは見つかりませんでした",

@@ -40,7 +40,13 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
 
   bool _disposed = false;
 
+  /// The newest read: an older one that lands later (a live update, a
+  /// return from the browser and an action's re-read can overlap) is
+  /// dropped, so the page never steps back to a state it already left.
+  int _loadGeneration = 0;
+
   Future<void> load() async {
+    final generation = ++_loadGeneration;
     _loading = true;
     _error = null;
     _notify();
@@ -52,18 +58,28 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
           return const <DnTimelineEntry>[];
         }),
       ]);
+      if (generation != _loadGeneration) return;
       _document = results[0] as DnDocument;
       _timeline = results[1] as List<DnTimelineEntry>;
     } on Object catch (e, st) {
+      if (generation != _loadGeneration) return;
       if (e is! NetworkException) {
         _log.warning('DocuNinja document failed', e, st);
       }
       _error = e;
     } finally {
-      _loading = false;
-      _notify();
+      if (generation == _loadGeneration) {
+        _loading = false;
+        _notify();
+      }
     }
   }
+
+  /// No DocuNinja access to read with (not joined, the company not set
+  /// up): DocuNinja's home says what to do, not "try again".
+  bool get isNoAccess =>
+      _error is DocuNinjaException &&
+      (_error! as DocuNinjaException).statusCode == 401;
 
   /// Runs [action], then re-reads the document. Returns whether it worked.
   Future<bool> _run(Future<void> Function() action) async {

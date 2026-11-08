@@ -80,7 +80,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     final session = _session;
     if (session == null || !mounted) return;
     final companyId = session.value.company?.id;
-    if (_vmCompanyId != null && companyId != _vmCompanyId) {
+    // Only a change of company drops the list (and its search): a reset
+    // that is about to land on the same company keeps it.
+    if (_vmCompanyId != null &&
+        companyId != null &&
+        companyId != _vmCompanyId) {
       _vm?.dispose();
       _vm = null;
       _vmCompanyId = null;
@@ -192,29 +196,6 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             leading: globalNav ? null : const DrawerHamburger(),
             automaticallyImplyLeading: !globalNav,
             actions: [
-              // React's DocuNinja menu: the templates beside the documents.
-              if (vm != null && state.can('blueprints', DnAction.view))
-                IconButton(
-                  icon: const Icon(Icons.copy_all_outlined),
-                  tooltip: context.tr('templates'),
-                  onPressed: () => context.go('/docuninja/templates'),
-                ),
-              // React's users page, for the DocuNinja owner.
-              if (vm != null && (state.login?.companyUser.isOwner ?? false))
-                IconButton(
-                  icon: const Icon(Icons.group_outlined),
-                  tooltip: context.tr('users'),
-                  onPressed: () => context.go('/docuninja/users'),
-                ),
-              // React's settings button, for a DocuNinja admin.
-              if (vm != null &&
-                  state.login != null &&
-                  dnIsAdmin(state.login!.companyUser))
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: context.tr('settings'),
-                  onPressed: () => context.go('/docuninja/settings'),
-                ),
               // React's drop zone and New Document page, for a DocuNinja
               // role that may create.
               if (vm != null && state.can('documents', DnAction.create))
@@ -223,7 +204,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                   tooltip: context.tr('new_document'),
                   onPressed: () => _create(state),
                 ),
-              if (vm != null) ...[
+              if (vm != null)
                 ListenableBuilder(
                   listenable: vm,
                   builder: (context, _) => FilterIconButton(
@@ -231,15 +212,50 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                     onPressed: () => _pickFilters(context, vm),
                   ),
                 ),
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) => IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: context.tr('refresh'),
-                    onPressed: vm.isLoading ? null : vm.refresh,
-                  ),
+              // React's DocuNinja menu (templates, users, settings) and a
+              // refresh, in one `⋮`: six icons would push the title off a
+              // phone's app bar.
+              if (vm != null)
+                EntityActionsPopupButton<_MenuAction>(
+                  items: [
+                    if (state.can('blueprints', DnAction.view))
+                      EntityActionItem(
+                        kind: _MenuAction.templates,
+                        icon: Icons.copy_all_outlined,
+                        label: context.tr('templates'),
+                        enabled: true,
+                        isNavigationOnly: true,
+                        onTap: () => context.go('/docuninja/templates'),
+                      ),
+                    if (state.login?.companyUser.isOwner ?? false)
+                      EntityActionItem(
+                        kind: _MenuAction.users,
+                        icon: Icons.group_outlined,
+                        label: context.tr('users'),
+                        enabled: true,
+                        isNavigationOnly: true,
+                        onTap: () => context.go('/docuninja/users'),
+                      ),
+                    if (state.login != null &&
+                        dnIsAdmin(state.login!.companyUser))
+                      EntityActionItem(
+                        kind: _MenuAction.settings,
+                        icon: Icons.settings_outlined,
+                        label: context.tr('settings'),
+                        enabled: true,
+                        isNavigationOnly: true,
+                        onTap: () => context.go('/docuninja/settings'),
+                      ),
+                    EntityActionItem(
+                      kind: _MenuAction.refresh,
+                      icon: Icons.refresh,
+                      label: context.tr('refresh'),
+                      enabled: !vm.isLoading,
+                      startsGroup: true,
+                      onTap: vm.refresh,
+                    ),
+                  ],
                 ),
-              ],
             ],
           ),
           // The search field sits in the body, not the app bar's fixed-height
@@ -537,7 +553,8 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       }
     } finally {
       if (mounted) setState(() => _rowBusy = false);
-      unawaited(vm.refresh());
+      // Not a list a company switch has since replaced.
+      if (identical(vm, _vm)) unawaited(vm.refresh());
     }
   }
 
@@ -571,3 +588,5 @@ enum _RowAction {
   restore,
   delete,
 }
+
+enum _MenuAction { templates, users, settings, refresh }

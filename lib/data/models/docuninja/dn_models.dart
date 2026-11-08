@@ -161,6 +161,20 @@ class DnCompany {
   /// Every key, as the login answer carried it: React's settings pages put
   /// the whole company back with `settings` changed.
   final Map<String, dynamic> raw;
+
+  /// This company with [next] as its settings: what a settings save leaves
+  /// it as, the token and everything else unchanged.
+  DnCompany withSettings(Map<String, dynamic> next) => DnCompany(
+    id: id,
+    name: name,
+    token: token,
+    ninjaCompanyKey: ninjaCompanyKey,
+    dateFormat: dateFormat,
+    documentLimit: documentLimit,
+    isPaid: isPaid,
+    settings: next,
+    raw: {...raw, 'settings': next},
+  );
 }
 
 class DnAccount {

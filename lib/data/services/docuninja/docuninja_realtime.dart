@@ -81,8 +81,11 @@ class DocuNinjaRealtime {
       return;
     }
     _connection.subscribe(wanted, _authorize);
-    _connection.connect();
+    // Not while the app is in the background: [resume] connects on return.
+    if (!_paused) _connection.connect();
   }
+
+  bool _paused = false;
 
   /// Laravel's broadcasting auth, on DocuNinja, with the company token.
   Future<String> _authorize(String socketId, String channel) async {
@@ -105,8 +108,13 @@ class DocuNinjaRealtime {
   }
 
   /// The app went to the background, or came back.
-  void pause() => _connection.disconnect();
+  void pause() {
+    _paused = true;
+    _connection.disconnect();
+  }
+
   void resume() {
+    _paused = false;
     if (_channel != null) _connection.connect();
   }
 

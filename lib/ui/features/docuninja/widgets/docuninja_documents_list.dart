@@ -6,6 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
@@ -138,7 +139,9 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                   SliverToBoxAdapter(
                     child: _TableHeader(
                       // Room for the rows' `⋮`, so the columns line up.
-                      trailingWidth: widget.actionsFor == null ? 0 : 48,
+                      trailingWidth: widget.actionsFor == null
+                          ? 0
+                          : actionButtonSize(),
                     ),
                   ),
                 if (vm.items.isEmpty)
@@ -400,7 +403,9 @@ class _NarrowRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: InSpacing.sm),
-              DocuNinjaStatusPill(document: doc),
+              // Shrinks (and ellipsizes) before the title would: a long
+              // translated status at a large text size.
+              Flexible(child: DocuNinjaStatusPill(document: doc)),
               ?actions,
             ],
           ),

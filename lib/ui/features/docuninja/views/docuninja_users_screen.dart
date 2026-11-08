@@ -315,6 +315,27 @@ class _UsersListState extends State<_UsersList> {
             ],
           ),
         ),
+        // React's table search.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: TextField(
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: context.tr('search'),
+                ),
+                onChanged: _vm.setSearch,
+              ),
+            ),
+          ),
+        ),
         Expanded(
           child: ListenableBuilder(
             listenable: _vm,
@@ -332,7 +353,11 @@ class _UsersListState extends State<_UsersList> {
     }
     if (vm.items.isEmpty && vm.error != null) {
       return ErrorView(
-        message: context.tr('an_error_occurred_try_again'),
+        message: context.tr(
+          vm.error == DnListError.offline
+              ? 'offline'
+              : 'an_error_occurred_try_again',
+        ),
         onRetry: _refresh,
       );
     }
@@ -514,15 +539,17 @@ class _UserEditorState extends State<_UserEditor> {
     if (u == null || _saving) return;
     setState(() => _saving = true);
     try {
-      final saved = await _api.updateUser(
+      await _api.updateUser(
         u,
         isAdmin: _isAdmin,
         permissions: _permissions,
         notifications: _notify.encode(),
       );
       if (!mounted) return;
-      setState(() => _user = saved);
       Notify.success(context, context.tr('updated_user'));
+      // Re-read, as React refetches its users: new grants come back with
+      // their ids, so the next save does not send them again as new.
+      await _load();
     } on Object catch (e, st) {
       _log.warning('Saving the DocuNinja user failed', e, st);
       if (mounted) {

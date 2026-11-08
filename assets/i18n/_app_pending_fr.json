@@ -1721,7 +1721,7 @@
   "widget_border_color": "Couleur de la bordure du widget",
   "widget_border_color_help": "Couleur de la bordure autour de la zone du widget.",
   "dotted": "Pointé",
-  "add_reminder_schedule": "Ajouter un rappel au calendrier",
+  "add_reminder_schedule": "Ajouter un calendrier de rappels",
   "edit_reminder_schedule": "Modifier le calendrier des rappels",
   "no_reminder_schedules_found": "Aucun rappel trouvé",
   "after_event": "après l'événement",

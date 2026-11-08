@@ -33,6 +33,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     required VoidCallback onDocumentChanged,
     required VoidCallback onClose,
     required void Function(Uri uri) openExternal,
+    required Future<void> Function(Uri uri) openInPlace,
     Duration readyTimeout = const Duration(seconds: 20),
   }) : _runJavaScript = runJavaScript,
        _currentUrl = currentUrl,
@@ -40,6 +41,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
        _onDocumentChanged = onDocumentChanged,
        _onClose = onClose,
        _openExternal = openExternal,
+       _openInPlace = openInPlace,
        _readyTimeout = readyTimeout;
 
   final Future<void> Function(String script) _runJavaScript;
@@ -48,6 +50,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   final VoidCallback _onDocumentChanged;
   final VoidCallback _onClose;
   final void Function(Uri uri) _openExternal;
+  final Future<void> Function(Uri uri) _openInPlace;
   final Duration _readyTimeout;
 
   DnBuilderPhase _phase = DnBuilderPhase.loading;
@@ -99,6 +102,11 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     }
     switch (message.type) {
       case 'ready':
+        // A new boot (a reload, or the first): nothing on it is unsaved.
+        if (_dirty) {
+          _dirty = false;
+          _notify();
+        }
         await _handOver();
         if (_phase == DnBuilderPhase.loading) _readyTimer?.cancel();
       case 'loaded':
@@ -113,12 +121,22 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
         _onDocumentChanged();
       case 'sent' || 'documentUpdated':
         _onDocumentChanged();
-      case 'mapSignatoriesSent':
+      case 'mapSignatoriesSent' || 'signed':
+        // A send from the builder, or the user's signature on React's sign
+        // page: the document changed, and this page is done.
         _onDocumentChanged();
         _onClose();
+      case 'error':
+        // The page could not sign in (a 401 or 429 it would otherwise
+        // reload on forever): the browser is the way on.
+        _set(DnBuilderPhase.unavailable);
       case 'openExternal':
         final uri = Uri.tryParse('${message.payload['url'] ?? ''}');
-        if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+        if (uri == null) return;
+        if (dnEmbedAllowed(uri)) {
+          // The web app's own page (React's Sign): here, signed in.
+          await _openInPlace(uri);
+        } else if (uri.scheme == 'https' || uri.scheme == 'http') {
           _openExternal(uri);
         }
       case 'saveError' || 'sendError':

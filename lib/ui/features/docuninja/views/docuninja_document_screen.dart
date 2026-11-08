@@ -190,6 +190,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           ),
         );
       }
+      if (vm.isNoAccess) {
+        return EmptyState(
+          icon: Icons.draw_outlined,
+          title: context.tr('docuninja'),
+          action: TextButton(
+            onPressed: () => context.go('/docuninja'),
+            child: Text(context.tr('docuninja')),
+          ),
+        );
+      }
       if (vm.isMissing) {
         return EmptyState(
           icon: Icons.draw_outlined,
@@ -950,6 +960,8 @@ class _OptionsDialogState extends State<_OptionsDialog> {
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
+        // Scrolls in a short landscape window with the keyboard up.
+        scrollable: true,
         title: Text(context.tr('options')),
         content: FormSaveScope(
           onSubmit: _save,

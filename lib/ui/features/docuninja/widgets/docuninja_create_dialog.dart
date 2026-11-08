@@ -281,6 +281,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text(context.tr('pdf_password_required')),
     content: FormSaveScope(
       onSubmit: _ok,

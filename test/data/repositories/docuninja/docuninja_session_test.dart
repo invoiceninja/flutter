@@ -197,4 +197,26 @@ void main() {
     await s.load();
     expect(s.value.company?.name, 'The Beatles');
   });
+
+  test('a forced reload that fails keeps the state that worked', () async {
+    api.answer = () async => _fixtureLogin();
+    final s = session();
+    await s.load();
+    expect(s.value.access, DocuNinjaAccess.ready);
+    final token = s.token;
+    api.answer = () async => throw const NetworkException('down');
+    await s.load(force: true);
+    expect(s.value.access, DocuNinjaAccess.ready);
+    expect(s.token, token);
+  });
+
+  test('a token refresh that spans a company switch hands back none', () async {
+    final answer = Completer<DnLogin>();
+    api.answer = () => answer.future;
+    final s = session();
+    final refreshed = s.refreshToken();
+    s.reset();
+    answer.complete(_fixtureLogin());
+    expect(await refreshed, isNull);
+  });
 }

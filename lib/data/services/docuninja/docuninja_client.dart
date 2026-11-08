@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show TlsException;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -195,8 +196,18 @@ class DocuNinjaClient {
       final streamed = await _http.send(request).timeout(timeout);
       return await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
-      throw const NetworkException('DocuNinja request timed out');
+      // A read that timed out never changed anything: offline. A write may
+      // still land (the timeout does not stop it), so it is an error, not
+      // "offline" — the screen re-reads instead of inviting a second send.
+      if (request.method == 'GET') {
+        throw const NetworkException('DocuNinja request timed out');
+      }
+      throw const DocuNinjaException(408, 'DocuNinja request timed out');
     } on http.ClientException catch (e) {
+      throw NetworkException(e.message);
+    } on TlsException catch (e) {
+      // A captive portal or a broken connection's TLS: not a client
+      // exception under `IOClient`, and offline all the same.
       throw NetworkException(e.message);
     }
   }

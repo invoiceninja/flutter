@@ -18,6 +18,7 @@ void main() {
   late int changed;
   late int closed;
   late List<Uri> opened;
+  late List<Uri> inPlace;
 
   DocuNinjaBuilderViewModel vm({
     String? token = 'company-token',
@@ -29,6 +30,7 @@ void main() {
     onDocumentChanged: () => changed++,
     onClose: () => closed++,
     openExternal: opened.add,
+    openInPlace: (u) async => inPlace.add(u),
     readyTimeout: timeout,
   );
 
@@ -38,6 +40,7 @@ void main() {
     changed = 0;
     closed = 0;
     opened = [];
+    inPlace = [];
   });
 
   test(
@@ -108,12 +111,49 @@ void main() {
     b.dispose();
   });
 
-  test('only web links open outside', () async {
+  test(
+    'the web app opens in place; other web links outside; nothing else',
+    () async {
+      final b = vm();
+      await b.handle(
+        _msg('openExternal', {'url': 'https://app.invoicing.co/x'}),
+      );
+      await b.handle(
+        _msg('openExternal', {'url': 'https://docuninja.co/help'}),
+      );
+      await b.handle(_msg('openExternal', {'url': 'javascript:alert(1)'}));
+      await b.handle(_msg('openExternal', {'url': 'file:///etc/passwd'}));
+      expect(inPlace, [Uri.parse('https://app.invoicing.co/x')]);
+      expect(opened, [Uri.parse('https://docuninja.co/help')]);
+      b.dispose();
+    },
+  );
+
+  test('the sign page: loaded, then signed refreshes and closes', () async {
     final b = vm();
-    await b.handle(_msg('openExternal', {'url': 'https://app.invoicing.co/x'}));
-    await b.handle(_msg('openExternal', {'url': 'javascript:alert(1)'}));
-    await b.handle(_msg('openExternal', {'url': 'file:///etc/passwd'}));
-    expect(opened, [Uri.parse('https://app.invoicing.co/x')]);
+    await b.handle(_msg('ready'));
+    await b.handle(_msg('loaded'));
+    expect(b.phase, DnBuilderPhase.ready);
+    await b.handle(_msg('signed', {'documentId': 'D1'}));
+    expect(changed, 1);
+    expect(closed, 1);
+    b.dispose();
+  });
+
+  test('a page that cannot sign in offers the browser', () async {
+    final b = vm();
+    await b.handle(_msg('ready'));
+    await b.handle(_msg('error', {'status': 401}));
+    expect(b.phase, DnBuilderPhase.unavailable);
+    b.dispose();
+  });
+
+  test('a reload starts clean: nothing on a new boot is unsaved', () async {
+    final b = vm();
+    await b.handle(_msg('dirty', {'dirty': true}));
+    expect(b.isDirty, isTrue);
+    await b.handle(_msg('ready'));
+    expect(b.isDirty, isFalse);
     b.dispose();
   });
 }

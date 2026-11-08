@@ -104,6 +104,9 @@ dependencies:
   # build needs no swap. Was already in the lockfile transitively.
   web_socket_channel: ^3.0.3
   webview_flutter: ^4.14.1
+  # The Android web view's file chooser: the embedded DocuNinja builder's
+  # file inputs (docs/docuninja.md).
+  webview_flutter_android: ^4.14.1
 
 dev_dependencies:
   build_runner: ^2.16.1

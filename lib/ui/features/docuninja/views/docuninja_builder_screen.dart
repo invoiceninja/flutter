@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
@@ -87,12 +89,17 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
         if (mounted) context.go(widget.exitRoute);
       },
       openExternal: launchExternalUri,
+      // A page of the web app opens here, keeping this page's sign-in (the
+      // browser has none).
+      openInPlace: web.loadRequest,
     );
     web
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
         'InvoiceNinjaApp',
-        onMessageReceived: (m) => vm.handle(m.message),
+        onMessageReceived: (m) {
+          if (mounted) vm.handle(m.message);
+        },
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -101,6 +108,10 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             if (uri != null && dnEmbedAllowed(uri)) {
               return NavigationDecision.navigate;
             }
+            // The page's own frames (a file preview, an embedded viewer)
+            // load where it put them; they never receive the token, which
+            // goes only to the main frame on the web app's origin.
+            if (!request.isMainFrame) return NavigationDecision.navigate;
             // Anything else (a help page, a payment page) opens in the
             // browser; the web view only ever shows the web app.
             if (uri != null &&
@@ -117,6 +128,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
       );
     _web = web;
     _vm = vm..start();
+    _enableFileInputs(web);
     // A fresh page every time: no token or company left over from an
     // earlier visit (React keeps the DocuNinja token in localStorage).
     web.clearLocalStorage().whenComplete(() {
@@ -140,12 +152,36 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     });
   }
 
+  /// A file input in the builder (a document's files, an upload). iOS and
+  /// macOS answer one themselves; Android's web view needs the host to pick
+  /// the files.
+  void _enableFileInputs(WebViewController web) {
+    final platform = web.platform;
+    if (platform is! AndroidWebViewController) return;
+    platform.setOnShowFileSelector((params) async {
+      final List<PlatformFile> files;
+      if (params.mode == FileSelectorMode.openMultiple) {
+        files = await FilePicker.pickFiles();
+      } else {
+        final one = await FilePicker.pickFile();
+        files = [?one];
+      }
+      return [
+        for (final f in files)
+          if (f.path != null) Uri.file(f.path!).toString(),
+      ];
+    });
+  }
+
   @override
   void dispose() {
     _web?.clearLocalStorage();
     _vm?.dispose();
     super.dispose();
   }
+
+  /// What "open in the browser" does here: sign, or edit.
+  String get _actionKey => widget.signInvitationId != null ? 'sign' : 'edit';
 
   String get _titleKey => widget.signInvitationId != null
       ? 'sign'
@@ -202,7 +238,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.open_in_new),
-                  tooltip: context.tr('edit'),
+                  tooltip: context.tr(_actionKey),
                   onPressed: _openInBrowser,
                 ),
               ],
@@ -217,7 +253,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                   ),
                   onPressed: _openInBrowser,
                   icon: const Icon(Icons.open_in_new, size: 18),
-                  label: Text(context.tr('edit')),
+                  label: Text(context.tr(_actionKey)),
                 ),
               ),
               _ => Stack(

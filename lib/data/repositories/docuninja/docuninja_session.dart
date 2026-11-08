@@ -144,6 +144,15 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
     // A reset (sign-out, company switch) while the handshake was out: this
     // answer belongs to a session that has ended.
     if (generation != _generation) return;
+    // A forced reload (Reconnect, a 401) that could not reach DocuNinja or
+    // failed keeps the state that worked: its token may still be good, and
+    // the screens, the socket and a half-typed search survive a blip.
+    if (_loaded &&
+        value.isReady &&
+        (outcome == DnLoginOutcome.offline ||
+            outcome == DnLoginOutcome.failed)) {
+      return;
+    }
     final company = login?.companyFor(companyKey);
     _loaded = true;
     value = DocuNinjaState(
@@ -159,9 +168,24 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
     );
   }
 
+  /// A settings save landed: the session now holds [company] as saved, so
+  /// every screen (and the builder's widget defaults) sees it at once,
+  /// without a second handshake that another tab's save could race and a
+  /// failure could turn into a lost screen. Ignored unless it is the paired
+  /// company.
+  void replaceCompany(DnCompany company) {
+    final state = value;
+    if (state.company?.id != company.id) return;
+    value = DocuNinjaState(state.access, login: state.login, company: company);
+  }
+
   @override
   Future<String?> refreshToken() async {
+    final generation = _generation;
     await load(force: true);
+    // A reset (company switch, sign-out) meanwhile: the token now belongs to
+    // another company, and the request that asked must not be sent with it.
+    if (generation != _generation) return null;
     return token;
   }
 

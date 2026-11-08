@@ -69,6 +69,17 @@ Already public on f-droid.org: each tagged release reaches users once F-Droid's 
 
 - [ ] Nothing beyond the app-name change. The listing title (`fastlane/metadata/android/en-US/title.txt`) already reads "Invoice Ninja".
 
+## One-click production releases
+
+Today one **Deploy to all** dispatch ships every store to its testing channel with no manual step: Play Open testing (track and rollout chosen in the dispatch form), TestFlight (built, What to Test set, added to "Beta - External" and submitted for beta review by `tools/testflight_release.py`), the restricted Microsoft Store listing (release notes set and committed by `tools/msstore_release_notes.py`), Snap `edge`, a GitHub pre-release, and F-Droid. The decision (2026-11-08) is to keep it that way until launch, then make the same single dispatch publish to production. That needs:
+
+- [ ] **Play:** grant the service account "Release to production" (Play Console → Users and permissions), add `production` to `playstore.yml`'s `track` options and to Deploy to all's `play_track`, and make it the default. The `play_rollout` input already stages it.
+- [ ] **App Store (iOS and macOS):** after the first version has been submitted and approved by hand (Apple needs its screenshots, description, privacy answers and age rating once), extend `tools/testflight_release.py` or add a sibling to: create the App Store version for the release, attach the build, set "What's New in This Version" from the same digest, and submit it for review with release-after-approval — plus a dispatch input choosing phased release (iOS, 7 days) or everyone at once.
+- [ ] **GitHub Release:** drop `--prerelease` in `appimage.yml` so the Release is marked Latest.
+- [ ] **Microsoft Store:** set the listing's visibility to Public in Partner Center and remove the beta guard in `tools/msstore_release_notes.py` (`ALLOWED_VISIBILITY`), which refuses to commit a Public submission; drop " - Beta" from the listing name with the app rename above.
+- [ ] **Snap:** stays on `edge` until § Snap's blocker is fixed; `stable` replaces v1 for every Snap user.
+- [ ] Flip each workflow's header comment and `docs/store-deployment-setup.md` from "testers" to "production".
+
 ## Decisions outside the code
 
 - [ ] **Moving v1 users over.** The v1 listings on Play, the App Store and Microsoft stay live after launch. Decide when to point v1 users at the new app and when to retire those listings.

@@ -289,7 +289,7 @@ Map the rest: `storePassword` → `ANDROID_KEYSTORE_PASSWORD`, `keyPassword` →
 
 ### D. Windows / Microsoft Store — 5 secrets
 
-> **This is the only pipeline with no manual gate.** A dispatch uploads *and commits* the submission: it enters Store certification automatically and goes live on the listing once certified. There is no `edge` / `internal` / TestFlight equivalent. If you want a gate, add `--noCommit` to the publish step in `microsoft-store.yml` (leaves it a draft you publish in Partner Center) or target a package flight with `-f <flightId>`.
+> **This is the only pipeline with no manual gate.** A dispatch uploads *and commits* the submission: it enters Store certification automatically and goes live on the listing once certified. There is no `edge` / `internal` / TestFlight equivalent. The upload runs with `--noCommit`; `tools/msstore_release_notes.py` then writes the version's digest (`changelogs/<build × 10 + 1>.txt`) into every listing's release notes and commits — so a failure there leaves a draft in Partner Center, never a submission without notes. If you want a gate, drop that script's commit (the draft then waits for you in Partner Center) or target a package flight with `-f <flightId>`. `tools/msstore_release_notes.py --dry-run` (with the four secrets in the environment) reads the submission without changing it.
 
 **One-time setup**
 
@@ -404,6 +404,8 @@ gh secret set APP_STORE_CONNECT_PRIVATE_KEY < AuthKey_ABC123XYZ.p8
 Confirm the iOS and macOS apps exist on App Store Connect. Unlike Google Play, ASC accepts the **first** build via API with no prior manual upload, as long as the record exists.
 
 **Verify** — dispatch `Deploy to TestFlight (iOS)`, then `Deploy to TestFlight (macOS)`. Success puts a build on TestFlight for testers. **Uploading to TestFlight does not submit for App Store review** — that's a separate manual action in App Store Connect.
+
+**Testers get the build with no clicks.** After the upload, `tools/testflight_release.py` does what used to be done by hand in App Store Connect: it waits for the build to be listed and sets its en-US "What to Test" to the version's digest (`changelogs/<build × 10 + 1>.txt`, the text Google Play gets) minus any line naming Android, Google Play or F-Droid; waits for Apple to process it (`VALID`); adds it to every external group ("Beta - External", the public TestFlight link); and submits it for beta app review. External testers are notified once Apple approves, usually within hours. Internal testers get every build on their own. The step is `continue-on-error`: the build is already up, so a failure there means finishing it by hand. `--dry-run` (with the three App Store Connect secrets in the environment) finds the build and prints what it would do. The App Store's own "What's New in This Version" is still set by hand at submission — the first version of an app can't carry one.
 
 > Your local Xcode projects are untouched by any of this. All their targets — the app, the Share Extension and the home-screen widgets, on both platforms — still use Automatic signing with an Apple Development identity (which also registers the extensions' App IDs and the App Group on your first device build or archive); CI forces manual signing via `xcodebuild` command-line overrides — plus, on iOS, the per-target profiles pinned on the runner — so local development keeps working.
 

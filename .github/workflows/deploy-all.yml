@@ -24,6 +24,18 @@ name: Deploy to all
 # docs/store-deployment-setup.md § 0 Start here.
 on:
   workflow_dispatch:
+    # Chosen in the "Run workflow" form. Today every store ships to testers
+    # (docs/going-live.md); these pick how far the Play release goes.
+    inputs:
+      play_track:
+        description: Google Play testing track
+        type: choice
+        options: [beta, alpha, internal]
+        default: beta
+      play_rollout:
+        description: Google Play rollout, percent of the track's users (100 = everyone; less = a staged rollout)
+        type: string
+        default: '100'
 
 permissions:
   contents: read
@@ -78,6 +90,8 @@ jobs:
     secrets: inherit
     with:
       skip_tests: true
+      track: ${{ inputs.play_track }}
+      rollout: ${{ inputs.play_rollout }}
 
   msstore:
     needs: release

@@ -41,7 +41,8 @@ jobs:
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     name: Build and Upload macOS to TestFlight
     runs-on: macos-26
-    timeout-minutes: 80
+    # 80 for the build and upload, plus the TestFlight step's waits.
+    timeout-minutes: 130
     # Job-level, not just on the --config-only step: `xcodebuild archive` runs
     # the Runner scheme's pre-action (tools/xcode_inject_sentry_dsn.sh), which
     # re-resolves both values from the environment (then dev.json, absent here)
@@ -265,6 +266,24 @@ jobs:
             --type macos \
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      # Hand the build to testers, as used to be done by hand in App Store
+      # Connect (tools/testflight_release.py): set its "What to Test" to the
+      # release's short digest, the list Google Play gets as "What's new"
+      # (changelogs/<build × 10 + 1>.txt) minus any line naming another
+      # platform; wait for Apple to process it; add it to the external group
+      # (the public TestFlight link); submit it for beta review. External
+      # testers are notified once Apple approves. continue-on-error: the build
+      # is already up, so a failure here means "finish it by hand in App Store
+      # Connect", not a failed release.
+      - name: Release to TestFlight testers
+        continue-on-error: true
+        timeout-minutes: 50
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: python3 tools/testflight_release.py --platform MAC_OS --timeout 2700
 
       # Wipe every piece of decoded signing material so it can't survive into a
       # later step, cache, or uploaded artifact. `if: always()` runs on failure too.

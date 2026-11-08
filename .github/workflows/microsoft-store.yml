@@ -3,13 +3,15 @@ name: Deploy to Microsoft Store
 # Manual only — building + packaging an MSIX and submitting it to the Store is a
 # deliberate release action, not a per-push gate. Mirrors playstore.yml /
 # appstore-ios.yml / appstore-macos.yml / snapcraft.yml. Auto-submits (commits)
-# the submission: a dispatch uploads the package AND commits it, so it enters
-# Store certification automatically and goes live on the (restricted/beta)
-# listing once certified — there is NO manual gate. The Microsoft Store has no
-# testers-only channel (no snap `edge` / Play `internal` / TestFlight); to add a
-# safety gate later, append `--noCommit` to keep the submission a draft (publish
-# by hand in Partner Center), or target a closed-beta package flight with
-# `-f <flightId>`.
+# the submission: a dispatch uploads the package, sets the listing's release
+# notes, and commits, so it enters Store certification automatically and goes
+# live on the (restricted/beta) listing once certified — there is NO manual
+# gate. The Microsoft Store has no testers-only channel (no snap `edge` / Play
+# `internal` / TestFlight). The upload itself runs with `--noCommit`; the commit
+# is tools/msstore_release_notes.py's last step, so a failure before it leaves a
+# draft in Partner Center, never a submission without notes. To add a safety
+# gate, drop that script's commit (publish by hand in Partner Center), or target
+# a closed-beta package flight with `-f <flightId>`.
 on:
   workflow_dispatch:
   # Also called by deploy-all.yml, whose release job has already run the
@@ -46,7 +48,8 @@ jobs:
     # windows-latest is REQUIRED: `flutter build windows` needs the MSVC
     # toolchain and the `msstore` CLI is a Windows .NET tool.
     runs-on: windows-latest
-    timeout-minutes: 40
+    # The build and upload, plus the commit's status poll (up to 10 minutes).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -56,6 +59,12 @@ jobs:
           channel: stable
           flutter-version: 3.47.7
           cache: true
+
+      # The listing's release notes are the version's short digest
+      # (changelogs/<build × 10 + 1>.txt, the text Google Play gets). Checked
+      # before the build, so a missing digest costs seconds, not a Windows build.
+      - name: Check the release notes
+        run: python tools/msstore_release_notes.py --print-notes
 
       - name: Install dependencies
         run: flutter pub get
@@ -116,18 +125,30 @@ jobs:
           --clientId "$env:MSSTORE_CLIENT_ID"
           --clientSecret "$env:MSSTORE_CLIENT_SECRET"
 
-      # Upload the MSIX and COMMIT the submission (no --noCommit): it goes to
-      # certification automatically and publishes to the live (restricted)
-      # listing once certified.
+      # Upload the MSIX into the app's pending submission and STOP there
+      # (--noCommit): the next step adds the release notes, then commits.
       #   -i      : the exact .msix to publish.
-      #   --appId : the Partner Center PRODUCT ID (~12 chars, app Overview page) —
-      #             NOT the 9NG93WNXN797 Store ID. Required (repo never ran
-      #             `msstore init`).
-      - name: Publish MSIX to Microsoft Store
+      #   --appId : the app's Store ID, 9NG93WNXN797 (for an MSIX app the
+      #             submission API's application id is the 9N… Store ID; the
+      #             account's other app, 9N3F2BBCFDR6, is the old one).
+      #             Required (repo never ran `msstore init`).
+      - name: Upload MSIX to Microsoft Store (draft)
         shell: pwsh
         env:
           MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
-        run: msstore publish -i "${{ steps.msix.outputs.path }}" --appId "$env:MS_STORE_PRODUCT_ID"
+        run: msstore publish -i "${{ steps.msix.outputs.path }}" --appId "$env:MS_STORE_PRODUCT_ID" --noCommit
+
+      # Write the digest into every listing's release notes and COMMIT the
+      # submission: it goes to certification automatically and publishes to the
+      # live (restricted) listing once certified. Fails, leaving the draft for
+      # Partner Center, rather than ever committing without notes.
+      - name: Set release notes and commit the submission
+        env:
+          PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+          PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+          MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
+        run: python tools/msstore_release_notes.py
 
       # msstore stores the client secret in the Windows Credential Vault (not a
       # file), so `reconfigure --reset` is the only thing that actually clears it.

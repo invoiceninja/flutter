@@ -264,7 +264,7 @@ const List<ReleaseNotes> kReleaseNotes = [
         "vendor, such as a payment's client city.",
       ),
       ReleaseNoteItem(
-        "Updated: Taxes on invoices, quotes and other documents are picked from "
+        'Updated: Taxes on invoices, quotes and other documents are picked from '
         "the company's saved tax rates, on a phone's line items too.",
       ),
       ReleaseNoteItem(

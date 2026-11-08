@@ -569,6 +569,58 @@ class DnTimelineEntry {
 }
 
 /// A page of a DocuNinja list (`data` + Laravel's `meta`).
+/// A DocuNinja template (React's "template", the API's blueprint): a
+/// document with its fields placed, from which new documents are made.
+class DnBlueprint {
+  const DnBlueprint({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.isDeleted,
+    required this.designHash,
+    required this.entityType,
+    required this.raw,
+    this.archivedAt,
+  });
+
+  factory DnBlueprint.fromJson(Map<String, dynamic> json) {
+    final document = _map(json['document']);
+    final metadata = _map(document['metadata']);
+    return DnBlueprint(
+      id: _str(json['id']),
+      name: _str(json['name']),
+      description: _str(json['description']),
+      isDeleted: jsonScalarToBool(json['is_deleted']),
+      archivedAt: _strOrNull(json['archived_at']),
+      designHash: _str(json['design_hash']),
+      entityType: _str(metadata['entity_type']),
+      raw: json,
+    );
+  }
+
+  final String id;
+  final String name;
+  final String description;
+  final bool isDeleted;
+  final String? archivedAt;
+
+  /// Set on a template made from an Invoice Ninja design
+  /// (`/api/docuninja/stub_blueprint`); empty on one the user made.
+  final String designHash;
+
+  /// The Invoice Ninja document type a design template is for (`invoice`,
+  /// `quote`, `credit`, `purchase_order`), or empty.
+  final String entityType;
+
+  /// Every key, so an edit writes back what the app does not model (React's
+  /// Options modal sends the whole blueprint).
+  final Map<String, dynamic> raw;
+
+  bool get isArchived => archivedAt != null && !isDeleted;
+  bool get isActive => !isDeleted && archivedAt == null;
+  bool get isInvoiceNinjaDesign => designHash.isNotEmpty;
+}
+
 class DnPage<T> {
   const DnPage({
     required this.items,

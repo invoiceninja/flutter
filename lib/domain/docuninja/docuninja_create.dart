@@ -67,13 +67,39 @@ const kDnHostedWebAppUrl = String.fromEnvironment(
   defaultValue: 'https://app.invoicing.co',
 );
 
-/// React's builder for [documentId] in the browser. `?company=` makes a
-/// fresh tab open on the right company (React's `resolveCompanyIndex`,
-/// read once on load), so a user with several companies lands on the one
-/// the document belongs to.
-Uri dnBuilderWebUri({required String documentId, required String companyId}) =>
-    Uri.parse(
-      '$kDnHostedWebAppUrl/#/docuninja/'
-      '${Uri.encodeComponent(documentId)}/builder'
-      '?company=${Uri.encodeQueryComponent(companyId)}',
-    );
+/// React's builder in the hosted web app, as a path and query under its
+/// hash router: a document's (`docuninja/<id>/builder`, with
+/// `from_template=true` for one just made from a template, which starts
+/// React's template tour) or a template's (`docuninja/templates/<id>/edit`).
+/// `?company=` makes a fresh tab open on the right company (React's
+/// `resolveCompanyIndex`, read once on load).
+Uri dnWebAppBuilderUri({
+  required String id,
+  required String companyId,
+  bool template = false,
+  bool fromTemplate = false,
+  bool embed = false,
+}) {
+  final path = template
+      ? 'docuninja/templates/${Uri.encodeComponent(id)}/edit'
+      : 'docuninja/${Uri.encodeComponent(id)}/builder';
+  final query = [
+    'company=${Uri.encodeQueryComponent(companyId)}',
+    if (fromTemplate && !template) 'from_template=true',
+    if (embed) 'embed=1',
+  ].join('&');
+  return Uri.parse('$kDnHostedWebAppUrl/#/$path?$query');
+}
+
+/// React's builder for [documentId] in the browser ([dnWebAppBuilderUri]).
+Uri dnBuilderWebUri({
+  required String documentId,
+  required String companyId,
+  bool template = false,
+  bool fromTemplate = false,
+}) => dnWebAppBuilderUri(
+  id: documentId,
+  companyId: companyId,
+  template: template,
+  fromTemplate: fromTemplate,
+);

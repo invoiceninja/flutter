@@ -186,6 +186,13 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             actions: [
               // React's drop zone and New Document page, for a DocuNinja
               // role that may create.
+              // React's DocuNinja menu: the templates beside the documents.
+              if (vm != null && state.can('blueprints', DnAction.view))
+                IconButton(
+                  icon: const Icon(Icons.copy_all_outlined),
+                  tooltip: context.tr('templates'),
+                  onPressed: () => context.go('/docuninja/templates'),
+                ),
               if (vm != null && state.can('documents', DnAction.create))
                 IconButton(
                   icon: const Icon(Icons.add),

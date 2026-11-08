@@ -20,15 +20,18 @@ const kDnEmbedProtocolVersion = 1;
 /// on with `--dart-define=DOCUNINJA_EMBED=true`.
 const kDnEmbeddedBuilder = bool.fromEnvironment('DOCUNINJA_EMBED');
 
-/// React's builder page in embed mode, on [companyId] (React's
-/// `?company=`, as for the browser link).
+/// React's builder page in embed mode ([dnWebAppBuilderUri]).
 Uri dnEmbedBuilderUri({
   required String documentId,
   required String companyId,
-}) => Uri.parse(
-  '$kDnHostedWebAppUrl/#/docuninja/'
-  '${Uri.encodeComponent(documentId)}/builder'
-  '?company=${Uri.encodeQueryComponent(companyId)}&embed=1',
+  bool template = false,
+  bool fromTemplate = false,
+}) => dnWebAppBuilderUri(
+  id: documentId,
+  companyId: companyId,
+  template: template,
+  fromTemplate: fromTemplate,
+  embed: true,
 );
 
 /// Whether the web view may show [uri]: only the web app's own origin. Any

@@ -703,7 +703,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 |---|---|---|---|---|---|
 | DocuNinja — document list | ✅ | ❌ | 🟡 |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging. No row actions or bulk actions yet |
 | DocuNinja — create document | ✅ | ❌ | 🟡 |  | Upload (name, files, password-protected PDFs) is native; the fields are placed in the builder, which opens in the browser for now |
-| DocuNinja — create blueprint / template | ✅ | ❌ | ❌ |  | |
+| DocuNinja — create blueprint / template | ✅ | ❌ | 🟡 |  | Templates list, Invoice Ninja design or your own, Options, Use Template, Clone to Template; fields are placed in the builder (browser for now) |
 | DocuNinja — drag-and-drop document builder | ✅ | ❌ | 🟡 |  | Opens React's builder in the browser, on the document's company; the in-app builder is next |
 | DocuNinja — signature field mapping | ✅ | ❌ | ❌ |  | |
 | DocuNinja — sign document | ✅ | ❌ | ❌ |  | |

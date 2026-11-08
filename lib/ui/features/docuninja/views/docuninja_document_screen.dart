@@ -11,6 +11,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
@@ -59,6 +60,7 @@ enum _Action {
   auditLog,
   download,
   clone,
+  makeTemplate,
   copyLink,
   voidIt,
   options,
@@ -344,6 +346,21 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           confirm: true,
           confirmMessageKey: 'clone_document_description',
         ),
+      // React's Clone to Template: a template from this document, opened in
+      // the template builder. It creates the template at once, so it asks.
+      if (!doc.isDeleted &&
+          (context.read<DocuNinjaSession?>()?.value.can(
+                'blueprints',
+                DnAction.create,
+              ) ??
+              false))
+        item(
+          _Action.makeTemplate,
+          Icons.copy_all_outlined,
+          'clone_to_template',
+          confirm: true,
+          confirmMessageKey: 'make_template_description',
+        ),
       // The app's Share / Copy Link (every record has one): opens this
       // document in the app, on its company (`buildDocuNinjaDeepLink`).
       EntityActionItem<_Action>(
@@ -432,6 +449,26 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           Notify.success(context, context.tr('cloned_document'));
           context.go('/docuninja/$id');
         }
+      case _Action.makeTemplate:
+        final companyId = context
+            .read<Services>()
+            .auth
+            .session
+            .value
+            ?.currentCompanyId;
+        final templateId = await vm.makeTemplate();
+        if (!context.mounted) return;
+        if (templateId == null || companyId == null) {
+          Notify.error(context, context.tr('an_error_occurred_try_again'));
+          return;
+        }
+        Notify.success(context, context.tr('template_created'));
+        await openDocuNinjaBuilder(
+          context,
+          documentId: templateId,
+          companyId: companyId,
+          template: true,
+        );
       case _Action.copyLink:
         final session = context.read<Services>().auth.session.value;
         final link = buildDocuNinjaDeepLink(

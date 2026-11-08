@@ -145,6 +145,23 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
     }
   }
 
+  /// React's Clone to Template; returns the new template's id, or null.
+  Future<String?> makeTemplate() async {
+    if (_busy) return null;
+    _busy = true;
+    _notify();
+    try {
+      final templateId = await _api.makeBlueprint(id);
+      return templateId.isEmpty ? null : templateId;
+    } on Object catch (e, st) {
+      _log.warning('DocuNinja make template failed', e, st);
+      return null;
+    } finally {
+      _busy = false;
+      _notify();
+    }
+  }
+
   /// Deletes the document. Like React, the page stays, now showing it
   /// deleted, with Restore.
   Future<bool> delete() => _run(() => _api.bulk('delete', [id]));

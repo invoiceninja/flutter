@@ -22,6 +22,7 @@ import 'package:admin/ui/features/auth/views/setup_wizard_screen.dart';
 import 'package:admin/ui/features/auth/views/signup_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_templates_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
@@ -931,6 +932,31 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
             },
             builder: (context, state) => const DocuNinjaScreen(),
             routes: [
+              // The templates (React's blueprints). Before `:id`, which would
+              // otherwise take `templates` for a document id.
+              GoRoute(
+                path: 'templates',
+                builder: (context, state) => const DocuNinjaTemplatesScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id/builder',
+                    redirect: (context, state) =>
+                        kDnEmbeddedBuilder && dnEmbedSupported
+                        ? null
+                        : '/docuninja/templates',
+                    onExit: _confirmExitIfDirty,
+                    builder: (context, state) => KeyedSubtree(
+                      key: ValueKey(
+                        'docuninja-template:${state.pathParameters['id']}',
+                      ),
+                      child: DocuNinjaBuilderScreen(
+                        id: state.pathParameters['id']!,
+                        template: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               // Keyed by id, as the entity detail routes are: go_router keys
               // a page by the route pattern, so going from one document to
               // another (a clone) would otherwise keep the first one's State
@@ -963,6 +989,9 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                       ),
                       child: DocuNinjaBuilderScreen(
                         id: state.pathParameters['id']!,
+                        fromTemplate:
+                            state.uri.queryParameters['from_template'] ==
+                            'true',
                       ),
                     ),
                   ),

@@ -42,4 +42,24 @@ void main() {
       'https://app.invoicing.co/#/docuninja/D1/builder?company=Xyz9',
     );
   });
+
+  test('a template\'s builder, and a document just made from one', () {
+    expect(
+      dnBuilderWebUri(
+        documentId: 'B1',
+        companyId: 'C',
+        template: true,
+      ).toString(),
+      'https://app.invoicing.co/#/docuninja/templates/B1/edit?company=C',
+    );
+    expect(
+      dnBuilderWebUri(
+        documentId: 'D1',
+        companyId: 'C',
+        fromTemplate: true,
+      ).toString(),
+      'https://app.invoicing.co/#/docuninja/D1/builder'
+      '?company=C&from_template=true',
+    );
+  });
 }

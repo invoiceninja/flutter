@@ -7,30 +7,98 @@ import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 
-final _log = Logger('DocuNinjaDocumentsViewModel');
+final _log = Logger('DnListViewModel');
 
 /// Why the documents list could not be read.
 enum DnListError { offline, failed }
 
 /// The DocuNinja documents list (React's `Documents.tsx` table): a page at a
-/// time from DocuNinja, newest first, with a search and a status filter.
+/// time from DocuNinja, newest first, with a search, the lifecycle states
+/// and React's status filter.
+class DocuNinjaDocumentsViewModel extends DnListViewModel<DnDocument> {
+  DocuNinjaDocumentsViewModel({
+    required DocuNinjaApi api,
+    super.pageSize,
+    super.searchDelay,
+  }) : _api = api;
+
+  final DocuNinjaApi _api;
+
+  @override
+  String idOf(DnDocument item) => item.id;
+
+  @override
+  Future<DnPage<DnDocument>> fetchPage({
+    required int page,
+    required int perPage,
+    required String search,
+    required String status,
+  }) => _api.documents(
+    page: page,
+    perPage: perPage,
+    search: search,
+    status: status,
+  );
+}
+
+/// The DocuNinja templates list (React's `Blueprints.tsx`): the same paging,
+/// search and lifecycle states, no status filter.
+class DocuNinjaTemplatesViewModel extends DnListViewModel<DnBlueprint> {
+  DocuNinjaTemplatesViewModel({
+    required DocuNinjaApi api,
+    super.pageSize,
+    super.searchDelay,
+  }) : _api = api;
+
+  final DocuNinjaApi _api;
+
+  @override
+  String idOf(DnBlueprint item) => item.id;
+
+  @override
+  Future<DnPage<DnBlueprint>> fetchPage({
+    required int page,
+    required int perPage,
+    required String search,
+    required String status,
+  }) => _api.blueprints(
+    page: page,
+    perPage: perPage,
+    search: search,
+    status: status,
+  );
+}
+
+/// A DocuNinja list: a page at a time, newest first, with a search, the
+/// lifecycle states and (documents only) React's status filter.
 ///
 /// Online-only and held in memory (docs/docuninja.md). Each query carries a
 /// generation, so a page that lands after the search or filter changed is
 /// dropped instead of mixed in.
-class DocuNinjaDocumentsViewModel extends ChangeNotifier {
-  DocuNinjaDocumentsViewModel({
-    required DocuNinjaApi api,
+abstract class DnListViewModel<T> extends ChangeNotifier {
+  DnListViewModel({
     this.pageSize = 20,
     this.searchDelay = const Duration(milliseconds: 300),
-  }) : _api = api;
+  });
 
-  final DocuNinjaApi _api;
   final int pageSize;
   final Duration searchDelay;
 
-  final List<DnDocument> _items = [];
-  List<DnDocument> get items => List.unmodifiable(_items);
+  /// One page, as DocuNinja's list endpoints take it.
+  @protected
+  Future<DnPage<T>> fetchPage({
+    required int page,
+    required int perPage,
+    required String search,
+    required String status,
+  });
+
+  /// The row's id, so a page that overlaps the last one adds no duplicate.
+  @protected
+  String idOf(T item);
+
+  final List<T> _items = [];
+  List<T> get items => List.unmodifiable(_items);
 
   String _search = '';
   String get search => _search;
@@ -190,16 +258,16 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
   /// Asks again for what failed: the next page, or the first.
   Future<void> retry() => _errorFromMore ? loadMore() : _loadFirst();
 
-  Future<DnPage<DnDocument>> _fetch(int page) => _api.documents(
+  Future<DnPage<T>> _fetch(int page) => fetchPage(
     page: page,
     perPage: pageSize,
     search: _search.trim(),
     status: [..._states, ..._statuses].join(','),
   );
 
-  void _apply(DnPage<DnDocument> page, {required bool append}) {
-    final seen = {for (final d in _items) d.id};
-    _items.addAll(page.items.where((d) => seen.add(d.id)));
+  void _apply(DnPage<T> page, {required bool append}) {
+    final seen = {for (final d in _items) idOf(d)};
+    _items.addAll(page.items.where((d) => seen.add(idOf(d))));
     _page = page.currentPage;
     _lastPage = page.lastPage;
     _total = page.total;

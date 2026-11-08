@@ -46,6 +46,23 @@ class DocuNinjaLoginApi {
       unauthorizedIsAnswer: true,
     );
   }
+
+  /// A template from one of the company's Invoice Ninja designs, for one
+  /// document type (`invoice`, `quote`, `credit`, `purchase_order`): React's
+  /// "Invoice Ninja" template option (`POST /api/docuninja/stub_blueprint`).
+  /// Returns the new template's id. Like the handshake, a 401 here never
+  /// ends the Invoice Ninja session.
+  Future<String> stubBlueprint(String entity) async {
+    final json = await _api.postJson(
+      '/api/docuninja/stub_blueprint',
+      body: {'entity': entity},
+      unauthorizedIsAnswer: true,
+    );
+    final data = json is Map ? json['data'] : null;
+    final id = data is Map ? '${data['id'] ?? ''}' : '';
+    if (id.isEmpty) throw StateError('stub_blueprint returned no id');
+    return id;
+  }
 }
 
 /// The handshake's "no DocuNinja account for you" answer.

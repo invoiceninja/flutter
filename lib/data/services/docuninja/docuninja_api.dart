@@ -48,6 +48,77 @@ class DocuNinjaApi {
     return DnDocument.fromJson(_data(json));
   }
 
+  /// The templates, newest first (React's `Blueprints.tsx`). [status] is
+  /// the lifecycle list (`active`, `archived`, `deleted`), comma-separated.
+  Future<DnPage<DnBlueprint>> blueprints({
+    int page = 1,
+    int perPage = 20,
+    String search = '',
+    String status = 'active',
+  }) async {
+    final json = await _client.getJson(
+      '/api/blueprints',
+      query: {
+        'page': '$page',
+        'per_page': '$perPage',
+        'sort': 'id|desc',
+        if (search.isNotEmpty) 'search': search,
+        if (status.isNotEmpty) 'status': status,
+      },
+    );
+    return DnPage.fromJson(_asMap(json), DnBlueprint.fromJson);
+  }
+
+  /// A template of the user's own (React's "Create your own"); its PDF is
+  /// uploaded in the template builder.
+  Future<DnBlueprint> createBlueprint({
+    required String name,
+    required String description,
+  }) async {
+    final json = await _client.postJson(
+      '/api/blueprints',
+      body: {'name': name, 'description': description},
+    );
+    return DnBlueprint.fromJson(_data(json));
+  }
+
+  /// React's template Options: the whole template back, with the new name
+  /// and description.
+  Future<DnBlueprint> updateBlueprint(
+    DnBlueprint blueprint, {
+    required String name,
+    required String description,
+  }) async {
+    final json = await _client.putJson(
+      '/api/blueprints/${blueprint.id}',
+      body: {...blueprint.raw, 'name': name, 'description': description},
+    );
+    return DnBlueprint.fromJson(_data(json));
+  }
+
+  /// `archive`, `restore` or `delete` on several templates.
+  Future<void> blueprintBulk(String action, List<String> ids) => _client
+      .postJson('/api/blueprints/bulk', body: {'action': action, 'ids': ids});
+
+  /// React's Use Template: a new document from the template, whose signers
+  /// are mapped in the builder. Returns the new document's id.
+  Future<String> makeDocument(String blueprintId) async {
+    final json = await _client.postJson(
+      '/api/blueprints/$blueprintId/action',
+      body: const {'action': 'make_document'},
+    );
+    return '${_data(json)['id'] ?? ''}';
+  }
+
+  /// React's Clone to Template: a template from a document. Returns its id.
+  Future<String> makeBlueprint(String documentId) async {
+    final json = await _client.postJson(
+      '/api/documents/$documentId/action',
+      body: {'action': 'make_blueprint', 'id': documentId},
+    );
+    return '${_data(json)['id'] ?? ''}';
+  }
+
   /// Creates a document from uploaded files (`POST /api/documents`,
   /// React's `Create.tsx` and drop zone): its fields are placed later, in
   /// the builder.

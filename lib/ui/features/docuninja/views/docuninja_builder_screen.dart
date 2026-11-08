@@ -33,9 +33,24 @@ Future<void> clearDocuNinjaWebStorage() async {
 /// can). The app draws the title and Back; the page draws the builder and
 /// its Send / Save for later buttons.
 class DocuNinjaBuilderScreen extends StatefulWidget {
-  const DocuNinjaBuilderScreen({super.key, required this.id});
+  const DocuNinjaBuilderScreen({
+    super.key,
+    required this.id,
+    this.template = false,
+    this.fromTemplate = false,
+  });
 
   final String id;
+
+  /// A template's builder (React's `BlueprintBuilder`), not a document's.
+  final bool template;
+
+  /// A document just made from a template: React starts its template tour
+  /// and maps the template's signers.
+  final bool fromTemplate;
+
+  /// Where the screen leaves to: the document, or the templates.
+  String get exitRoute => template ? '/docuninja/templates' : '/docuninja/$id';
 
   @override
   State<DocuNinjaBuilderScreen> createState() => _DocuNinjaBuilderScreenState();
@@ -63,7 +78,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
       token: () => services.auth.credentials.value?.token,
       onDocumentChanged: () => session?.markDocumentsChanged(),
       onClose: () {
-        if (mounted) context.go('/docuninja/${widget.id}');
+        if (mounted) context.go(widget.exitRoute);
       },
       openExternal: launchExternalUri,
     );
@@ -101,7 +116,12 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     web.clearLocalStorage().whenComplete(() {
       if (!mounted) return;
       web.loadRequest(
-        dnEmbedBuilderUri(documentId: widget.id, companyId: companyId),
+        dnEmbedBuilderUri(
+          documentId: widget.id,
+          companyId: companyId,
+          template: widget.template,
+          fromTemplate: widget.fromTemplate,
+        ),
       );
     });
   }
@@ -120,6 +140,8 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
       context,
       documentId: widget.id,
       companyId: companyId,
+      template: widget.template,
+      fromTemplate: widget.fromTemplate,
       embedded: false,
     );
   }
@@ -141,11 +163,13 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             if (didPop) return;
             if (!await showDiscardChangesDialog(context)) return;
             vm.discard();
-            if (context.mounted) context.go('/docuninja/${widget.id}');
+            if (context.mounted) context.go(widget.exitRoute);
           },
           child: Scaffold(
             appBar: AppBar(
-              title: Text(context.tr('edit_document')),
+              title: Text(
+                context.tr(widget.template ? 'edit_template' : 'edit_document'),
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.open_in_new),
@@ -157,7 +181,9 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             body: switch (vm.phase) {
               DnBuilderPhase.unavailable => EmptyState(
                 icon: Icons.open_in_new,
-                title: context.tr('edit_document'),
+                title: context.tr(
+                  widget.template ? 'edit_template' : 'edit_document',
+                ),
                 action: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(64, 44),

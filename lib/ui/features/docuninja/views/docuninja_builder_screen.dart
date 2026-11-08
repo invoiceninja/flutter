@@ -14,6 +14,19 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_builder_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 
+/// Clears what the embedded builder's web view stored, at sign-out. A no-op
+/// where the builder is never embedded. The web view store is the
+/// platform's default one, so this clears every origin in it, which is only
+/// the web app (the template preview loads its HTML without an origin).
+Future<void> clearDocuNinjaWebStorage() async {
+  if (!kDnEmbeddedBuilder || !dnEmbedSupported) return;
+  try {
+    await WebViewController().clearLocalStorage();
+  } on Object {
+    // No web view implementation (a test): nothing was stored either.
+  }
+}
+
 /// React's field builder for one document (`/docuninja/:id/builder`), in a
 /// web view: the hosted web app's own builder page in embed mode
 /// (docs/docuninja.md § The field builder runs embedded where a web view

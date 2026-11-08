@@ -22,6 +22,8 @@ import 'package:admin/ui/features/auth/views/setup_wizard_screen.dart';
 import 'package:admin/ui/features/auth/views/signup_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
+import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_pdf_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_screen.dart';
@@ -942,9 +944,19 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                   ),
                 ),
                 routes: [
-                  // The field builder, embedded (docs/docuninja.md).
+                  // The field builder, embedded (docs/docuninja.md). Where
+                  // it cannot be (the embed is off, or no web view: Windows,
+                  // Linux, the web), a restored or typed address lands on the
+                  // document instead of a screen that cannot draw.
                   GoRoute(
                     path: 'builder',
+                    redirect: (context, state) =>
+                        kDnEmbeddedBuilder && dnEmbedSupported
+                        ? null
+                        : '/docuninja/${state.pathParameters['id']}',
+                    // Unplaced fields are lost on leaving: ask, as an edit
+                    // screen does, whatever the navigation.
+                    onExit: _confirmExitIfDirty,
                     builder: (context, state) => KeyedSubtree(
                       key: ValueKey(
                         'docuninja-builder:${state.pathParameters['id']}',

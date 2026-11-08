@@ -29,6 +29,7 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_document_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
 import 'package:admin/utils/bidi.dart';
@@ -78,7 +79,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onResume: () => _vm?.load());
+    _lifecycle = dnRefreshOnReturn(() => _vm?.load());
   }
 
   @override

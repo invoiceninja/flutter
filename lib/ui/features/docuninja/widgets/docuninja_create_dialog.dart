@@ -82,6 +82,11 @@ class _CreateDialogState extends State<_CreateDialog> {
 
   /// React asks for a password-protected PDF's password and uploads it as
   /// `name.pdf|password`. Null when the user cancels.
+  ///
+  /// The check here only sees that the file is encrypted. A PDF with just an
+  /// owner password (permissions, no password to open it) is encrypted too,
+  /// and React would not ask; so the prompt takes an empty answer as "it
+  /// opens without one" and uploads the file as it is.
   Future<List<DnUploadPart>?> _parts() async {
     final parts = <DnUploadPart>[];
     for (final f in _files) {
@@ -90,7 +95,9 @@ class _CreateDialogState extends State<_CreateDialog> {
         if (!mounted) return null;
         final password = await _askPassword(f.fileName);
         if (password == null) return null;
-        filename = dnProtectedFileName(f.fileName, password);
+        if (password.isNotEmpty) {
+          filename = dnProtectedFileName(f.fileName, password);
+        }
       }
       parts.add((field: 'files[]', source: f, filename: filename));
     }
@@ -269,11 +276,8 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     super.dispose();
   }
 
-  void _ok() {
-    final value = _password.text;
-    if (value.isEmpty) return;
-    Navigator.of(context).pop(value);
-  }
+  /// Empty is an answer: the file opens without a password.
+  void _ok() => Navigator.of(context).pop(_password.text);
 
   @override
   Widget build(BuildContext context) => AlertDialog(

@@ -162,6 +162,7 @@ import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
 import 'package:admin/ui/core/detail/related_tab_counts.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
@@ -1999,6 +2000,10 @@ class Services implements SidebarBadgeContext {
       calendarConnectionRepo.resetSessionState();
       // The DocuNinja token belongs to the user who just left.
       docuNinjaSession.reset();
+      // So does what the embedded builder's web view stored (React keeps
+      // the DocuNinja token in localStorage); the screen clears it on close,
+      // and this covers an app killed with it open.
+      unawaited(clearDocuNinjaWebStorage());
       // A deliberate sign-out: a share held at the gate, and a create draft
       // staged but never opened, belonged to the account that just left.
       // (The identity-change wipe doesn't run this — see `endSession`.)

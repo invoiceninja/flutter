@@ -21,6 +21,7 @@ import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_create_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 
@@ -50,7 +51,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onResume: () => _vm?.refresh());
+    _lifecycle = dnRefreshOnReturn(() => _vm?.refresh());
   }
 
   @override

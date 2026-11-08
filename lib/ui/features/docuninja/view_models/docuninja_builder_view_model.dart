@@ -59,11 +59,13 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   bool get isDirty => _dirty;
 
   Timer? _readyTimer;
-  bool _handedOver = false;
   bool _disposed = false;
 
   /// Starts the wait for the page: one that never asks for its token within
-  /// [_readyTimeout] is not an embed, and the builder opens in the browser.
+  /// [_readyTimeout] is not an embed (the server has no embed mode, or the
+  /// load failed), and the builder opens in the browser. Once it has asked,
+  /// it is an embed however long the builder then takes (previews of a big
+  /// upload can take minutes).
   void start() {
     _readyTimer?.cancel();
     _readyTimer = Timer(_readyTimeout, () {
@@ -98,6 +100,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     switch (message.type) {
       case 'ready':
         await _handOver();
+        if (_phase == DnBuilderPhase.loading) _readyTimer?.cancel();
       case 'loaded':
         _readyTimer?.cancel();
         _set(DnBuilderPhase.ready);
@@ -126,10 +129,11 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     }
   }
 
-  /// Hands the page its token, once, and only while the web view is on the
-  /// web app's own origin: a message is no proof of where it came from.
+  /// Hands the page its token, on every `ready` (React reloads itself, on a
+  /// 401 or after an update, and each boot waits for it), and only while the
+  /// web view is on the web app's own origin: a message is no proof of where
+  /// it came from.
   Future<void> _handOver() async {
-    if (_handedOver) return;
     final url = Uri.tryParse(await _currentUrl() ?? '');
     final token = _token();
     if (url == null || !dnEmbedAllowed(url) || token == null || token.isEmpty) {
@@ -137,7 +141,6 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
       _set(DnBuilderPhase.unavailable);
       return;
     }
-    _handedOver = true;
     await _runJavaScript(dnEmbedInitScript(token));
   }
 

@@ -92,10 +92,8 @@ class DocuNinjaApi {
     return DnDocument.fromJson(_data(json));
   }
 
-  Future<void> deleteDocument(String id) =>
-      _client.deleteJson('/api/documents/$id');
-
-  /// `archive` or `restore` on several documents.
+  /// `archive`, `restore` or `delete` on several documents. React deletes
+  /// through here too; its `DELETE /api/documents/{id}` is unreachable code.
   Future<void> bulk(String action, List<String> ids) => _client.postJson(
     '/api/documents/bulk',
     body: {'action': action, 'ids': ids},

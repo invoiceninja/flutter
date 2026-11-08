@@ -147,7 +147,7 @@ class DocuNinjaDocumentViewModel extends ChangeNotifier {
 
   /// Deletes the document. Like React, the page stays, now showing it
   /// deleted, with Restore.
-  Future<bool> delete() => _run(() => _api.deleteDocument(id));
+  Future<bool> delete() => _run(() => _api.bulk('delete', [id]));
 
   Future<DnFileBytes> download() => _api.download(id);
 

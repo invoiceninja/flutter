@@ -41,13 +41,13 @@ void main() {
   });
 
   test(
-    'ready hands over the token once, then loaded shows the builder',
+    'every ready gets the token (a reload boots again), then loaded shows it',
     () async {
       final b = vm();
       await b.handle(_msg('ready'));
       await b.handle(_msg('ready'));
-      expect(scripts, hasLength(1));
-      expect(scripts.single, contains('company-token'));
+      expect(scripts, hasLength(2));
+      expect(scripts.first, contains('company-token'));
       expect(b.phase, DnBuilderPhase.loading);
       await b.handle(_msg('loaded'));
       expect(b.phase, DnBuilderPhase.ready);
@@ -66,9 +66,19 @@ void main() {
 
   test('another protocol version is not driven', () async {
     final b = vm();
-    await b.handle(jsonEncode({'v': 99, 'type': 'ready', 'payload': {}}));
+    await b.handle(
+      jsonEncode({'v': 99, 'type': 'ready', 'payload': <String, dynamic>{}}),
+    );
     expect(scripts, isEmpty);
     expect(b.phase, DnBuilderPhase.unavailable);
+    b.dispose();
+  });
+
+  test('a page that asked is an embed, however slow the builder is', () async {
+    final b = vm(timeout: const Duration(milliseconds: 10))..start();
+    await b.handle(_msg('ready'));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(b.phase, DnBuilderPhase.loading);
     b.dispose();
   });
 

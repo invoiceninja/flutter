@@ -1108,7 +1108,9 @@ const kSettingsSearchKeywords = <String, String>{
   'user_details': 'profile account me',
   'user_details/password': 'security login credentials change password',
   'user_details/connect': 'oauth google microsoft gmail outlook social login',
-  'user_details/enable_two_factor': '2fa mfa totp authenticator otp security',
+  'user_details/enable_two_factor':
+      '2fa mfa totp authenticator otp security passkey passkeys webauthn '
+      'face id touch id fingerprint biometric',
   'user_details/notifications': 'alerts emails notify',
   'user_details/preferences': 'options accent colour color',
   'localization':

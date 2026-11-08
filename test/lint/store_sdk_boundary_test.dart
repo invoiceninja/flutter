@@ -164,11 +164,15 @@ void main() {
     // The FOSS graph: everything the root depends on, with store_services
     // read from its twin, walked through each package's own pubspec.
     final config = File('.dart_tool/package_config.json').readAsStringSync();
+    // Hosted packages have absolute `file://` roots; path packages
+    // (`packages/passkeys_native`) are relative to `.dart_tool/`.
     final roots = {
       for (final m in RegExp(
-        r'"name":\s*"([^"]+)",\s*"rootUri":\s*"file://([^"]+)"',
+        r'"name":\s*"([^"]+)",\s*"rootUri":\s*"([^"]+)"',
       ).allMatches(config))
-        m.group(1)!: Uri.decodeFull(m.group(2)!),
+        m.group(1)!: m.group(2)!.startsWith('file://')
+            ? Uri.decodeFull(m.group(2)!.substring('file://'.length))
+            : Uri.decodeFull(m.group(2)!).replaceFirst(RegExp(r'^\.\./'), ''),
       'store_services': 'packages/store_services_foss',
     };
     expect(

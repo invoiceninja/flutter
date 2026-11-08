@@ -1,5 +1,6 @@
 // The store build's Android-only half of store_services: on-device receipt
-// OCR with Google ML Kit (docs/receipt-ocr.md). ML Kit is non-free, so this
+// OCR with Google ML Kit (docs/receipt-ocr.md) and passkeys through Credential
+// Manager (docs/passkeys.md). Both are non-free, so this
 // folder must never reach the F-Droid build — tools/prepare_foss.sh deletes
 // it before F-Droid's scan, and the FOSS twin has no android/ at all.
 plugins {
@@ -34,4 +35,9 @@ dependencies {
     // Bundled model: works offline on first use, no Play Services download.
     implementation 'com.google.mlkit:text-recognition:16.0.1'
     implementation 'androidx.exifinterface:exifinterface:1.4.1'
+    // Passkeys. The Play Services provider is what serves them below
+    // Android 14, and it is the non-free half. Same version google_sign_in
+    // already pulls, so Gradle resolves one copy.
+    implementation 'androidx.credentials:credentials:1.6.0'
+    implementation 'androidx.credentials:credentials-play-services-auth:1.6.0'
 }

@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -35,9 +36,12 @@ import 'package:admin/ui/features/auth/widgets/disable_two_factor_dialogs.dart';
 ///  * the self-hosted secret is labelled "API secret" (React: "Secret" with
 ///    an "(optional)" placeholder), and shows — as optional — whenever the
 ///    precheck couldn't say whether it is needed;
-///  * no "Login with a Passkey" button (passkeys are deferred: the server
-///    binds them to the React app's domain) and no Microsoft sign-in (never
-///    implemented in v2) — both tracked in FEATURES.md.
+///  * "Login with a Passkey" sits on the credentials step, not the email
+///    step (the passkey routes need the self-hosted secret, which lives
+///    there), and shows only where a passkey has been proven to work against
+///    this server on this device (docs/passkeys.md);
+///  * no Microsoft sign-in (never implemented in v2) — tracked in
+///    FEATURES.md.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -64,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _vm = LoginViewModel(
       auth: context.read<Services>().auth,
       certificateTrust: context.read<CertificateTrustStore?>(),
+      passkeyReadiness: context.read<PasskeyReadiness?>(),
     );
   }
 
@@ -201,6 +206,25 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     await _reportFailure(_onRecover);
+  }
+
+  Future<void> _onPasskey() async {
+    // The passkey routes check the self-hosted secret as /login does; an
+    // empty required one is a certain 403.
+    if (_secretRequired && _vm.secret.isEmpty) {
+      _secretFocus.requestFocus();
+      return;
+    }
+    final ok = await _vm.submitPasskey();
+    if (!mounted || ok) return;
+    if (_vm.untrustedCertificate != null) {
+      await _reportFailure(_onPasskey);
+      return;
+    }
+    // A dismissed sheet sets no error, so this says nothing.
+    final noPasskeys = _vm.errorKey == 'no_passkeys_registered';
+    _toastRequestError();
+    if (noPasskeys) _passwordFocus.requestFocus();
   }
 
   Future<void> _onGoogle() async {
@@ -587,6 +611,30 @@ class _LoginScreenState extends State<LoginScreen> {
         spinning: vm.busyAction == LoginAction.login,
         onPressed: busy ? null : _onLogin,
       ),
+      // On this step, not the email step: the passkey routes need the
+      // self-hosted secret too, and it lives here. Shown only once
+      // `PasskeyReadiness` has proven a passkey can work against this server
+      // on this device (docs/passkeys.md). Never reached by Enter — that
+      // stays the password login.
+      if (vm.passkeyEnabled) ...[
+        SizedBox(height: InSpacing.lg(context)),
+        const AuthOrDivider(),
+        SizedBox(height: InSpacing.lg(context)),
+        OutlinedButton.icon(
+          key: const ValueKey('login_passkey'),
+          onPressed: busy ? null : _onPasskey,
+          icon: vm.busyAction == LoginAction.passkey
+              ? const _Spinner()
+              : const Icon(Icons.key, size: 18),
+          label: Text(context.tr('login_with_passkey')),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+          ),
+        ),
+      ],
     ];
   }
 }

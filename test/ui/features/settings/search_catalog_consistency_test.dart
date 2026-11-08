@@ -42,6 +42,7 @@ import 'package:admin/ui/features/settings/views/basic/workflow_settings/workflo
 import 'package:admin/ui/features/settings/views/basic/workflow_settings/workflow_settings_quotes_body.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/templates_reminders_body.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_edit_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/user_details/two_factor_screen.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.dart';
 
 /// Verifies that the per-screen `kSearchKeys` constants stay in sync with the
@@ -161,6 +162,13 @@ class _TabUnderTest {
 }
 
 final List<_TabUnderTest> _tabsUnderTest = [
+  const _TabUnderTest(
+    label: 'user_details/enable_two_factor',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/user_details/two_factor_screen.dart',
+    ],
+    keys: kUserDetailsTwoFactorSearchKeys,
+  ),
   const _TabUnderTest(
     label: 'device_settings/appearance',
     // Every badge-mode label is a `labelKey:` literal in the domain catalog.

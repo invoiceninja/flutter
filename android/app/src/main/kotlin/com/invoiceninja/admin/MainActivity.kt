@@ -46,6 +46,9 @@ class MainActivity : FlutterFragmentActivity() {
     /** Same name as `appSettingsChannel` (`document_capture.dart`). */
     const val APP_SETTINGS_CHANNEL = "invoice_ninja/app_settings"
 
+    /** Same name as `kAppIdentityChannel` (`passkey_readiness.dart`). */
+    const val APP_IDENTITY_CHANNEL = "invoice_ninja/app_identity"
+
     /** Same folder as `ShareReceiverActivity` / `SharedIntakeFiles.kFolderName`. */
     const val INTAKE_FOLDER = "shared_intake"
   }
@@ -53,6 +56,7 @@ class MainActivity : FlutterFragmentActivity() {
   private var shareChannel: MethodChannel? = null
   private var linkChannel: MethodChannel? = null
   private var appSettingsChannel: MethodChannel? = null
+  private var appIdentityChannel: MethodChannel? = null
   private var homeWidgetsChannel: HomeWidgetsChannel? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +91,19 @@ class MainActivity : FlutterFragmentActivity() {
             }
           }
         }
+    // The origins this install presents to a passkey relying party
+    // (docs/passkeys.md): the app checks the server lists one before it opens
+    // the OS sheet, so a build signed with a key the server does not trust
+    // never spends a login-lockout strike.
+    appIdentityChannel =
+        MethodChannel(messenger, APP_IDENTITY_CHANNEL).apply {
+          setMethodCallHandler { call, result ->
+            when (call.method) {
+              "apkKeyHashes" -> result.success(apkKeyHashes())
+              else -> result.notImplemented()
+            }
+          }
+        }
     // The home-screen widgets' snapshot and queued commands (HomeWidgetBridge).
     homeWidgetsChannel = HomeWidgetsChannel(this, messenger)
     // A camera permission refused for good ("Don't ask again") can only be
@@ -114,6 +131,36 @@ class MainActivity : FlutterFragmentActivity() {
         }
   }
 
+  /**
+   * Unpadded base64url SHA-256 of each certificate this install is signed
+   * with now — what Credential Manager puts after `android:apk-key-hash:`.
+   * Current signers only, never the rotation history: the origin is the
+   * current signer's, so a server listing only a retired one must fail the
+   * pre-check, not the sign-in. Empty below API 28, where Credential Manager
+   * has no passkeys anyway.
+   */
+  private fun apkKeyHashes(): List<String> {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) return emptyList()
+    return try {
+      val signing =
+          packageManager
+              .getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+              .signingInfo ?: return emptyList()
+      signing.apkContentsSigners
+          .orEmpty()
+          .toList()
+          .map { cert ->
+            android.util.Base64.encodeToString(
+                java.security.MessageDigest.getInstance("SHA-256").digest(cert.toByteArray()),
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP,
+            )
+          }
+          .distinct()
+    } catch (e: Exception) {
+      emptyList()
+    }
+  }
+
   override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
     shareChannel?.setMethodCallHandler(null)
     shareChannel = null
@@ -121,6 +168,8 @@ class MainActivity : FlutterFragmentActivity() {
     linkChannel = null
     appSettingsChannel?.setMethodCallHandler(null)
     appSettingsChannel = null
+    appIdentityChannel?.setMethodCallHandler(null)
+    appIdentityChannel = null
     homeWidgetsChannel?.dispose()
     homeWidgetsChannel = null
     super.cleanUpFlutterEngine(flutterEngine)

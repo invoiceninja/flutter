@@ -77,7 +77,7 @@ Measured by scanning every Android plugin's `build.gradle` (2026-09):
 | `in_app_purchase_storekit` | none (iOS only) | rides with `in_app_purchase` |
 | `in_app_review` | `com.google.android.play:review`, `play-services-base` | Play's In-App Review sheet (`docs/review-prompt.md`); the twin's `StoreReview.isStoreBuild` is false, so F-Droid asks through the app's own card instead |
 | `sentry_flutter` | sentry-android (MIT) | Free, but F-Droid tags it with the *Tracking* anti-feature, and it is inert anyway without the `IN_SENTRY_DSN` define |
-| `store_services`' own Android plugin | `com.google.mlkit:text-recognition` (+ `datatransport` telemetry) | Google's proprietary OCR — receipt reading (`docs/receipt-ocr.md`) |
+| `store_services`' own Android plugin | `com.google.mlkit:text-recognition` (+ `datatransport` telemetry); `credentials-play-services-auth` | Google's proprietary OCR — receipt reading (`docs/receipt-ocr.md`); Play Services' Credential Manager provider for passkeys, so the F-Droid build has no passkey channel on Android and shows no passkey UI (`docs/passkeys.md`) |
 
 Everything else is androidx, Kotlin, Tink (`flutter_secure_storage`) or Apache Tika
 (`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 15
@@ -92,9 +92,11 @@ packages no longer depended on. `tools/foss/pubspec.lock` is the store lock with
 3. Add the same declarations, as stubs, to `packages/store_services_foss`.
 4. Call it from `lib/` through `package:store_services`.
 
-**A native-only (Gradle) SDK** — ML Kit — goes in `packages/store_services/android`, the package's
-Android plugin, and answers a method channel the app owns (`invoice_ninja/receipt_ocr`); the twin
-is no plugin at all, so the FOSS build gets a `MissingPluginException` and hides the feature. The
+**A native-only (Gradle) SDK** — ML Kit, Credential Manager's Play Services provider — goes in
+`packages/store_services/android`, the package's Android plugin, and answers a method channel the
+app owns (`invoice_ninja/receipt_ocr`, `invoice_ninja/passkeys`); the twin is no plugin at all, so
+the FOSS build gets a `MissingPluginException` and hides the feature. (The passkey channel's iOS,
+macOS and Windows halves are OS APIs only, so they live in the free `packages/passkeys_native`.) The
 pub-level checks can't see a Gradle artifact, so three others do:
 
 - **`prepare_foss.sh` deletes `packages/store_services/android`** once the twin is in place (step

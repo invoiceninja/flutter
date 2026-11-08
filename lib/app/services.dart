@@ -104,6 +104,7 @@ import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/data/repositories/tax_rate_repository.dart';
 import 'package:admin/data/repositories/token_repository.dart';
 import 'package:admin/data/repositories/transaction_rule_repository.dart';
+import 'package:admin/data/repositories/passkey_repository.dart';
 import 'package:admin/data/repositories/two_factor_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
@@ -143,6 +144,8 @@ import 'package:admin/data/services/templates_api.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/token_storage_factory.dart';
+import 'package:admin/data/services/passkey_api.dart';
+import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/two_factor_api.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/data/services/user_settings_api.dart';
@@ -344,6 +347,8 @@ class Services implements SidebarBadgeContext {
     required this.user,
     required this.savedViews,
     required this.twoFactor,
+    required this.passkeys,
+    required this.passkeyReadiness,
     required this.support,
     required this.smtp,
     required this.templates,
@@ -643,6 +648,16 @@ class Services implements SidebarBadgeContext {
   final SavedViewsRepository savedViews;
 
   final TwoFactorRepository twoFactor;
+
+  /// The signed-in user's passkeys (Settings → User Details → Two-Factor).
+  /// Widgets read it as `context.read<PasskeyRepository?>()` — the test fakes
+  /// of `Services` throw on a new member.
+  final PasskeyRepository passkeys;
+
+  /// Whether passkeys can work on this device against a given server, proven
+  /// at runtime (docs/passkeys.md). Read as `context.read<PasskeyReadiness?>()`
+  /// for the same reason.
+  final PasskeyReadiness passkeyReadiness;
   final SupportApi support;
 
   /// One-off probe behind Settings → Email Settings → "Send Test Email"
@@ -1871,6 +1886,8 @@ class Services implements SidebarBadgeContext {
     );
     final twoFactorApi = TwoFactorApi(apiClient);
     final twoFactorRepo = TwoFactorRepository(api: twoFactorApi, auth: auth);
+    final passkeyRepo = PasskeyRepository(api: PasskeyApi(apiClient));
+    final passkeyReadiness = PasskeyReadiness();
     final supportApi = SupportApi(apiClient);
     final smtpApi = SmtpApi(apiClient);
     final templatesApi = TemplatesApi(apiClient);
@@ -2480,6 +2497,8 @@ class Services implements SidebarBadgeContext {
       user: userRepo,
       savedViews: savedViewsRepo,
       twoFactor: twoFactorRepo,
+      passkeys: passkeyRepo,
+      passkeyReadiness: passkeyReadiness,
       support: supportApi,
       smtp: smtpApi,
       templates: templatesApi,

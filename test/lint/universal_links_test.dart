@@ -204,6 +204,21 @@ void main() {
       }
     });
 
+    test('iOS and macOS Release can use the hosted passkey relying party', () {
+      // The compile-time half of docs/passkeys.md: without it the OS refuses
+      // every passkey for app.invoicing.co, whatever its AASA says.
+      for (final path in const [
+        'ios/Runner/Runner.entitlements',
+        'macos/Runner/Release.entitlements',
+      ]) {
+        expect(
+          flat(path),
+          contains('<string>webcredentials:$kHostedPasskeyRpId</string>'),
+          reason: '$path should claim the hosted passkey relying party',
+        );
+      }
+    });
+
     test('macOS DebugProfile deliberately does NOT claim it', () {
       expect(
         flat('macos/Runner/DebugProfile.entitlements'),

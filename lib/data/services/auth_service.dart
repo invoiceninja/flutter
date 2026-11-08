@@ -120,6 +120,67 @@ class AuthService {
     return LoginResponseApi.fromFullSnapshot(json);
   }
 
+  /// POST `/api/v1/passkeys/login/options` — the WebAuthn request options for
+  /// signing [email] in with a passkey (docs/passkeys.md).
+  ///
+  /// Throws [ServerException] 400 when the email has no passkeys — the server
+  /// answers an unknown email the same way — and 404 / 405 on a server that
+  /// predates passkeys. The route sits behind `api_secret_check`, so the
+  /// self-hosted [secret] travels with it, as it does with [login].
+  Future<PasskeyLoginOptions> passkeyLoginOptions({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    String? secret,
+  }) async {
+    final response = await _post(
+      Uri.parse(baseUrl).resolve('/api/v1/passkeys/login/options'),
+      headers: _headers(
+        isHosted: isHosted,
+        contentTypeJson: true,
+        secret: secret,
+      ),
+      body: jsonEncode({'email': email}),
+      timeout: interactiveTimeout,
+    );
+    _raiseIfError(response);
+    return PasskeyLoginOptions.parse(response);
+  }
+
+  /// POST `/api/v1/login` with a passkey assertion instead of a password:
+  /// `{email, passkey_challenge_token, passkey_authentication}`, the last being
+  /// the `PublicKeyCredential` flattened as React sends it. The server skips
+  /// TOTP for a passkey, and treats any request carrying a password as a
+  /// password login — so none is sent.
+  ///
+  /// A rejected assertion is a 400 `invalid_credentials`, which also counts
+  /// toward the server's per-email lockout: callers must never retry it.
+  Future<LoginResponseApi> loginWithPasskey({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    required String challengeToken,
+    required Map<String, dynamic> credential,
+    String? secret,
+  }) async {
+    final response = await _post(
+      Uri.parse(baseUrl).resolve('/api/v1/login'),
+      headers: _headers(
+        isHosted: isHosted,
+        contentTypeJson: true,
+        secret: secret,
+      ),
+      body: jsonEncode({
+        'email': email,
+        'passkey_challenge_token': challengeToken,
+        'passkey_authentication': flattenPasskeyCredential(credential),
+      }),
+    );
+    _raiseIfError(response);
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return LoginResponseApi.fromFullSnapshot(json);
+  }
+
   /// Bound on the interactive pre-auth calls the login screen waits on with
   /// its controls locked — Continue ([precheck]), "Forgot your password?"
   /// ([recoverPassword]) and the SMS-reset dialogs — so a server that never
@@ -453,4 +514,86 @@ class LoginPrecheck {
     methods: methods.difference(const {'totp'}),
     secretRequired: secretRequired,
   );
+}
+
+/// What `/api/v1/passkeys/login/options` and
+/// `/api/v1/settings/passkeys/options` return: the WebAuthn options under
+/// `data.publicKey`, the single-use token naming the challenge the server
+/// cached for five minutes, and the Android app origins the server accepts.
+class PasskeyLoginOptions {
+  const PasskeyLoginOptions({
+    required this.publicKey,
+    required this.challengeToken,
+    this.androidOrigins = const [],
+  });
+
+  /// Reads a response body `{data: {...}}` — see [PasskeyLoginOptions.fromData].
+  factory PasskeyLoginOptions.parse(http.Response response) {
+    Object? data;
+    try {
+      final json = jsonDecode(response.body);
+      if (json is Map<String, dynamic>) data = json['data'];
+    } catch (_) {
+      /* non-JSON body */
+    }
+    return PasskeyLoginOptions.fromData(data, statusCode: response.statusCode);
+  }
+
+  /// Reads `{publicKey: {...}, challenge_token: '...', android_origins: [...]}`.
+  /// Anything without the first two is a [ServerException]: a ceremony started
+  /// on half an answer could only fail later, inside the OS sheet.
+  factory PasskeyLoginOptions.fromData(Object? data, {int statusCode = 200}) {
+    final publicKey = data is Map<String, dynamic> ? data['publicKey'] : null;
+    final token = data is Map<String, dynamic> ? data['challenge_token'] : null;
+    if (publicKey is! Map<String, dynamic> ||
+        token is! String ||
+        token.isEmpty) {
+      throw ServerException(statusCode, 'Malformed passkey options');
+    }
+    final origins = data is Map<String, dynamic>
+        ? data['android_origins']
+        : null;
+    return PasskeyLoginOptions(
+      publicKey: publicKey,
+      challengeToken: token,
+      androidOrigins: [
+        if (origins is List)
+          for (final origin in origins)
+            if (origin is String) origin,
+      ],
+    );
+  }
+
+  /// The `PublicKeyCredentialRequestOptions` (or `…CreationOptions`) JSON.
+  final Map<String, dynamic> publicKey;
+
+  final String challengeToken;
+
+  /// The `android:apk-key-hash:…` origins the server will verify. Empty on a
+  /// server that predates native Android passkeys, where an Android ceremony
+  /// must not be started (docs/passkeys.md).
+  final List<String> androidOrigins;
+
+  /// The relying party these options are for: `rpId` on a sign-in, `rp.id`
+  /// on a registration. Empty when the server named none.
+  String get relyingPartyId {
+    final rpId = publicKey['rpId'];
+    if (rpId is String) return rpId;
+    final rp = publicKey['rp'];
+    if (rp is Map && rp['id'] is String) return rp['id'] as String;
+    return '';
+  }
+}
+
+/// A `PublicKeyCredential` in WebAuthn JSON flattened the way the server's
+/// passkey routes read it: `{id, rawId, type, clientDataJSON, …}` with the
+/// `response` fields at the top, as React sends it.
+Map<String, dynamic> flattenPasskeyCredential(Map<String, dynamic> credential) {
+  final response = credential['response'];
+  return {
+    'id': credential['id'],
+    'rawId': credential['rawId'] ?? credential['id'],
+    'type': credential['type'] ?? 'public-key',
+    if (response is Map) ...response.cast<String, dynamic>(),
+  };
 }

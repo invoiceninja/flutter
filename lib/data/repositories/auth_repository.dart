@@ -502,6 +502,49 @@ class AuthRepository {
     );
   }
 
+  /// The WebAuthn options for signing [email] in with a passkey — see
+  /// [AuthService.passkeyLoginOptions].
+  Future<PasskeyLoginOptions> passkeyLoginOptions({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    String? secret,
+  }) => _auth.passkeyLoginOptions(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+    secret: secret,
+  );
+
+  /// Sign in with a passkey assertion — the same tail as [login]: the
+  /// identity-change wipe, then session activation. The server skips TOTP for
+  /// a passkey.
+  Future<void> loginWithPasskey({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    required String challengeToken,
+    required Map<String, dynamic> credential,
+    String? secret,
+  }) async {
+    final response = await _auth.loginWithPasskey(
+      baseUrl: baseUrl,
+      isHosted: isHosted,
+      email: email,
+      challengeToken: challengeToken,
+      credential: credential,
+      secret: secret,
+    );
+    // A different user (or a brand-new signup) on this device must not inherit
+    // the previous session's preserved database — see [_wipeIfIdentityChanged].
+    await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
+    await _persistAndActivate(
+      response: response,
+      baseUrl: baseUrl,
+      isHosted: isHosted,
+    );
+  }
+
   /// Bootstrap a session from a pre-issued API token instead of an
   /// email/password login. Calls `/api/v1/refresh` with the token, then runs
   /// the same `_persistAndActivate` tail as [login]. The server echoes the

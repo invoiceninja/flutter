@@ -66,6 +66,10 @@ dependencies:
   logging: ^1.2.0
   overflow_view: ^0.5.0
   package_info_plus: ^10.2.2
+  # Our own passkey plugin for iOS, macOS and Windows (docs/passkeys.md); its
+  # Android half is in store_services, since it pulls Play Services.
+  passkeys_native:
+    path: packages/passkeys_native
   path: ^1.9.1
   path_provider: ^2.1.6
   printing: ^5.15.1

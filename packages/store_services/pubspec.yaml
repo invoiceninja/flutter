@@ -1,7 +1,8 @@
 name: store_services
 description: >-
   The store builds' non-free SDKs (Google Sign-In, Play Billing / StoreKit,
-  Sentry, the native review sheets, and ML Kit text recognition on Android) behind a narrow API. The F-Droid build swaps this package for its
+  Sentry, the native review sheets, and on Android ML Kit text recognition and
+  Credential Manager passkeys) behind a narrow API. The F-Droid build swaps this package for its
   FOSS twin in ../store_services_foss — see docs/fdroid.md.
 publish_to: 'none'
 version: 1.0.0
@@ -18,12 +19,13 @@ dependencies:
   in_app_review: ^2.0.10
   sentry_flutter: ^9.30.1
 
-# An Android-only plugin, for ML Kit receipt OCR (docs/receipt-ocr.md). Its
-# Dart side is `ReceiptTextRecognizer` in the app, over the shared channel;
-# the FOSS twin is no plugin at all.
+# An Android-only plugin, for ML Kit receipt OCR (docs/receipt-ocr.md) and
+# Credential Manager passkeys (docs/passkeys.md). Their Dart sides are
+# `ReceiptTextRecognizer` and `NativePasskeys` in the app, over channels; the
+# FOSS twin is no plugin at all.
 flutter:
   plugin:
     platforms:
       android:
         package: com.invoiceninja.store_services
-        pluginClass: ReceiptOcrPlugin
+        pluginClass: StoreServicesPlugin

@@ -1,0 +1,29 @@
+# The OS passkey sheet on iOS, macOS and Windows behind the app's
+# `invoice_ninja/passkeys` channel (docs/passkeys.md): AuthenticationServices
+# and webauthn.dll, both part of the OS, so this ships in the F-Droid build
+# too (which has no iOS / macOS / Windows half to use it). Android's half is
+# Credential Manager in packages/store_services, which is non-free.
+name: passkeys_native
+description: The OS passkey sheet on iOS, macOS and Windows for the Invoice Ninja app.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.5
+  flutter: ">=3.35.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: PasskeysNativePlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: PasskeysNativePlugin
+        sharedDarwinSource: true
+      windows:
+        pluginClass: PasskeysNativePlugin

@@ -10,6 +10,7 @@ import 'package:admin/ui/core/utils/field_text_direction.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/qr_code_image.dart';
+import 'package:admin/ui/features/settings/views/basic/user_details/passkeys_section.dart';
 import 'package:admin/ui/features/settings/views/basic/user_details/view_models/two_factor_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -24,6 +25,10 @@ import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 const kUserDetailsTwoFactorSearchKeys = <String>[
   'enable_two_factor',
   'two_factor_authentication',
+  // Not 'manage_passkeys': the Passkeys card is often absent (demo, an older
+  // server, a device that can't add one), and a hit must reveal a label that
+  // is there. 'passkey' is a keyword of this tab instead
+  // (settings_search_catalog.dart).
 ];
 
 class UserDetailsTwoFactorScreen extends StatefulWidget {
@@ -75,7 +80,7 @@ class _UserDetailsTwoFactorScreenState
         }
         return ListenableBuilder(
           listenable: _vm!,
-          builder: (context, _) => _Body(vm: _vm!),
+          builder: (context, _) => _Body(vm: _vm!, session: session),
         );
       },
     );
@@ -83,9 +88,10 @@ class _UserDetailsTwoFactorScreenState
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.vm});
+  const _Body({required this.vm, required this.session});
 
   final TwoFactorViewModel vm;
+  final AuthSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +110,12 @@ class _Body extends StatelessWidget {
           ],
         ),
         if (enabled) _DisableSection(vm: vm) else ..._enableSections(context),
+        // Keyed on the server, so switching accounts rebuilds its list.
+        PasskeysSection(
+          key: ValueKey('passkeys_${session.baseUrl}_${session.userId}'),
+          apiBaseUrl: session.baseUrl,
+          isHosted: session.isHosted,
+        ),
       ],
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -6,10 +7,15 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/passkey_authenticator.dart';
+import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 import 'package:admin/utils/local_network_host.dart';
+import 'package:admin/data/services/passkey_failure.dart';
+
+final _passkeyLog = Logger('LoginViewModel.passkey');
 
 /// The two pages of the login form, mirroring React's `Login.tsx`: the email
 /// (plus, here, the server) first, then only the credentials that account
@@ -18,7 +24,14 @@ enum LoginStep { email, credentials }
 
 /// Which action is in flight, so the view spins only the button that was
 /// pressed. [LoginViewModel.busy] is "any of them".
-enum LoginAction { continueToCredentials, login, google, apple, recover }
+enum LoginAction {
+  continueToCredentials,
+  login,
+  passkey,
+  google,
+  apple,
+  recover,
+}
 
 /// Result of one step of the login screen's lost-authenticator (SMS) reset.
 /// The dialog resolves [errorKey] via `context.tr(errorKey!, errorParams)`;
@@ -50,8 +63,13 @@ typedef TwoFactorResetResult = ({
 /// [urlErrorKey], [otpErrorKey], [fieldErrors]) render under their field and
 /// are never also toasted.
 class LoginViewModel extends ChangeNotifier {
-  LoginViewModel({required this.auth, this.certificateTrust, bool? isWeb})
-    : _isWeb = isWeb ?? kIsWeb {
+  LoginViewModel({
+    required this.auth,
+    this.certificateTrust,
+    this.passkeyReadiness,
+    this.passkeyAuthenticator = const PlatformPasskeyAuthenticator(),
+    bool? isWeb,
+  }) : _isWeb = isWeb ?? kIsWeb {
     // Dev-machine credential pre-fill. Allowed in debug + profile builds so
     // perf testing with `flutter run --profile` keeps working, but blocked in
     // release so a stray `--dart-define-from-file=dev.json` at release build
@@ -60,9 +78,24 @@ class LoginViewModel extends ChangeNotifier {
       if (Env.devEmail.isNotEmpty) email = Env.devEmail.trim();
       if (Env.devPassword.isNotEmpty) password = Env.devPassword;
     }
+    // Warm the hosted answer while the user types an email, so the passkey
+    // button is there when the credentials step opens rather than a moment
+    // later. Only the cache is touched; the step's own check sets the state.
+    passkeyReadiness
+        ?.isReady(apiBaseUrl: Env.hostedApiUrl, isHosted: true)
+        .catchError((Object _) => false)
+        .ignore();
   }
 
   final AuthRepository auth;
+
+  /// Whether a passkey can sign in against the chosen server on this device
+  /// (docs/passkeys.md). Null — a test, or a host without it — hides the
+  /// passkey button.
+  final PasskeyReadiness? passkeyReadiness;
+
+  /// The OS / browser passkey sheet.
+  final PasskeyAuthenticator passkeyAuthenticator;
 
   /// Where a self-hosted server's refused certificate can be trusted, and
   /// what is trusted already. Null leaves the explanation without the offer.
@@ -85,6 +118,17 @@ class LoginViewModel extends ChangeNotifier {
 
   /// Whether to offer the Apple button — see [AppleSignIn.isSupported].
   bool get appleEnabled => AppleSignIn.isSupported;
+
+  /// Whether to offer "Login with a Passkey" on the credentials step: only
+  /// once [passkeyReadiness] has proven it can work against this server —
+  /// before the server and hosting changes it depends on are deployed, a
+  /// ceremony would fail after the OS had already used a credential.
+  bool get passkeyEnabled => _passkeyReady && !Env.demoMode;
+  bool _passkeyReady = false;
+
+  /// The server the last readiness answer is for; a newer question drops an
+  /// older answer that lands late.
+  String _passkeyReadyFor = '';
 
   String urlOverride = '';
   String email = '';
@@ -252,6 +296,7 @@ class LoginViewModel extends ChangeNotifier {
     _urlErrorKey = null;
     // Different origin → the previous host's answer no longer applies.
     _invalidatePrecheck();
+    _forgetPasskeyReadiness();
     _notify();
   }
 
@@ -262,6 +307,7 @@ class LoginViewModel extends ChangeNotifier {
     urlOverride = next;
     // The answer belongs to the previous server.
     _invalidatePrecheck();
+    _forgetPasskeyReadiness();
     if (_urlErrorKey != null ||
         trustedCertificateForUrl?.key != trustedBefore) {
       _urlErrorKey = null;
@@ -419,6 +465,7 @@ class LoginViewModel extends ChangeNotifier {
     // React re-asks here; hosted's 4/min precheck throttle makes that costly.
     if (target == _precheckedEmail) {
       _step = LoginStep.credentials;
+      _checkPasskeyReadiness(baseUrl);
       _notify();
       return true;
     }
@@ -446,6 +493,7 @@ class LoginViewModel extends ChangeNotifier {
       // Only a real answer is cached — see [_precheckedEmail].
       _precheckedEmail = result == null ? '' : target;
       _step = LoginStep.credentials;
+      _checkPasskeyReadiness(baseUrl);
       return true;
     } on NetworkException catch (e) {
       // Before `ApiException`, which it extends.
@@ -587,6 +635,133 @@ class LoginViewModel extends ChangeNotifier {
       // and to Drift, and an unexpected response shape gives a `TypeError`.
       // Every other mutation in the app gets this net from
       // `runMutationWithNotify`.
+      _setError(message: formatNotifyError(e));
+      return false;
+    } finally {
+      _busyAction = null;
+      _notify();
+    }
+  }
+
+  /// The server changed: hide the button, and drop any answer still in
+  /// flight for the old one (it would otherwise land and show it again).
+  void _forgetPasskeyReadiness() {
+    _passkeyReady = false;
+    _passkeyReadyFor = '';
+  }
+
+  /// Asks [passkeyReadiness] about [baseUrl] and shows or hides the passkey
+  /// button with the answer. Never throws; a late answer for a server the
+  /// form has moved away from is dropped.
+  void _checkPasskeyReadiness(String baseUrl) {
+    final readiness = passkeyReadiness;
+    if (readiness == null) return;
+    final key = '$isHosted|$baseUrl';
+    _passkeyReadyFor = key;
+    readiness
+        .isReady(apiBaseUrl: baseUrl, isHosted: isHosted)
+        .then((ready) {
+          if (_disposed || _passkeyReadyFor != key || ready == _passkeyReady) {
+            return;
+          }
+          _passkeyReady = ready;
+          _notify();
+        })
+        .catchError((Object _) {});
+  }
+
+  /// Sign in with a passkey instead of the password (docs/passkeys.md).
+  ///
+  /// The server skips TOTP for a passkey, so a required code field does not
+  /// hold this back, and no password is sent — with one the server treats the
+  /// request as a password login. Returns false without an error when the
+  /// user dismissed the OS sheet.
+  ///
+  /// A rejected assertion counts toward the server's per-email lockout, so
+  /// nothing here retries, and the ceremony never starts against options this
+  /// device cannot use ([PasskeyReadiness.allowsCeremony]).
+  Future<bool> submitPasskey() async {
+    if (busy || !passkeyEnabled) return false;
+    _clearErrors();
+    final baseUrl = _checkedBaseUrl();
+    if (baseUrl == null) {
+      _notify();
+      return false;
+    }
+    final readiness = passkeyReadiness!;
+    final secretHeader = (isHosted || secret.isEmpty) ? null : secret;
+    _busyAction = LoginAction.passkey;
+    _notify();
+    PasskeyLoginOptions? options;
+    try {
+      options = await auth.passkeyLoginOptions(
+        baseUrl: baseUrl,
+        isHosted: isHosted,
+        email: email,
+        secret: secretHeader,
+      );
+      if (_disposed) return false;
+      if (!await readiness.allowsCeremony(
+        apiBaseUrl: baseUrl,
+        isHosted: isHosted,
+        options: options,
+      )) {
+        _setError(key: 'passkey_unavailable');
+        return false;
+      }
+      final credential = await passkeyAuthenticator.authenticate(
+        options.publicKey,
+      );
+      if (_disposed) return false;
+      await auth.loginWithPasskey(
+        baseUrl: baseUrl,
+        isHosted: isHosted,
+        email: email,
+        challengeToken: options.challengeToken,
+        credential: credential,
+        secret: secretHeader,
+      );
+      return true;
+    } on PasskeyException catch (e) {
+      switch (e.failure) {
+        case PasskeyFailure.cancelled:
+          break;
+        case PasskeyFailure.notAssociated:
+        case PasskeyFailure.noCredentials:
+        case PasskeyFailure.unsupported:
+        case PasskeyFailure.alreadyRegistered:
+          _setError(key: 'passkey_unavailable');
+        case PasskeyFailure.failed:
+          // The platform's text is for the log: on Windows it is an HRESULT.
+          _passkeyLog.warning('Passkey sign-in failed: ${e.message}');
+          _setError(key: 'an_error_occurred_try_again');
+      }
+      return false;
+    } on NetworkException catch (e) {
+      // Before `ApiException`, which it extends.
+      _onNetworkError(e, baseUrl: baseUrl);
+      return false;
+    } on ServerException catch (e) {
+      if (options == null && e.statusCode == 400) {
+        // The email has no passkeys — or no account; the server answers both
+        // alike. The password is the way in.
+        _setError(key: 'no_passkeys_registered');
+      } else if (options == null &&
+          (e.statusCode == 404 || e.statusCode == 405)) {
+        // A server from before passkeys. Only Windows and web can get here
+        // (nothing proves server support there before the options), and the
+        // button goes for the rest of the session: it cannot start working.
+        _setError(key: 'passkeys_not_supported_by_server');
+        _passkeyReady = false;
+      } else {
+        _setError(message: e.message);
+      }
+      return false;
+    } on ApiException catch (e) {
+      _setError(message: e.message);
+      return false;
+    } on Object catch (e) {
+      // Same catch-all as [submit]: never end on a silent spinner.
       _setError(message: formatNotifyError(e));
       return false;
     } finally {

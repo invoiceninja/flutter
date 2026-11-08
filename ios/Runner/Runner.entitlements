@@ -9,6 +9,10 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:invoicing.co</string>
+		<!-- Passkeys bound to the hosted relying party (REACT_URL's host),
+		     docs/passkeys.md. app.invoicing.co must list the app under
+		     `webcredentials` in its apple-app-site-association. -->
+		<string>webcredentials:app.invoicing.co</string>
 	</array>
 	<key>com.apple.developer.applesignin</key>
 	<array>

@@ -95,7 +95,8 @@ bool mobilePromoEligible(
 }
 
 /// A server only this machine can reach — `localhost`, `127.*`, `0.0.0.0`,
-/// `::1`.
+/// `::1`, `::`. Also the passkey readiness gate's test for a relying party no
+/// app can use (`isLoopbackRelyingParty`).
 bool isLoopbackHost(String url) {
   final host = _host(url);
   if (host == null) return false;
@@ -103,7 +104,9 @@ bool isLoopbackHost(String url) {
   if (host.contains(':')) {
     try {
       final bytes = Uri.parseIPv6Address(host);
-      return bytes[15] == 1 && bytes.take(15).every((b) => b == 0);
+      // ::1, or :: (the IPv6 0.0.0.0).
+      return bytes.take(15).every((b) => b == 0) &&
+          (bytes[15] == 1 || bytes[15] == 0);
     } on FormatException {
       return false;
     }

@@ -78,7 +78,7 @@ the honest default.
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
 | Two-step login (email → Continue → only the credentials the account needs, via `/login/precheck`) | ✅ | ❌ | ✅ | | |
 | Self-hosted server with an untrusted TLS certificate (plain-language reason and fix; trust that exact certificate; revoke in Device Settings) | — | 🟡 | ✅ | | |
-| Passkey login | ✅ | ❌ | ❌ | | |
+| Passkey login | ✅ | ❌ | 🟡 | | App complete; shown per platform only once proven to work (docs/passkeys.md): Windows and web now, iOS/macOS once app.invoicing.co serves `webcredentials`, Android once the server PR and that host's `get_login_creds` are live; never F-Droid/Linux |
 | Generic OIDC sign-in (self-hosted identity provider) | ✅ | ❌ | ❌ | | Blocked: the server returns the code to React's own `/oauth-callback` only (BACKEND.md § OIDC) |
 | Disable 2FA from login (SMS reset for a lost authenticator) | ✅ | ✅ | ✅ | | |
 | Two-factor SMS verification | ✅ | ✅ | ✅ | ✅ | |
@@ -898,6 +898,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 |---|---|---|---|---|---|
 | Enable Two-Factor Authentication | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor setup / verification | ✅ | ✅ | ✅ | ✅ | |
+| Manage passkeys (list, add this device, remove) | ✅ | ❌ | 🟡 | | Add gated like passkey login (docs/passkeys.md); list and remove work wherever the server has the routes |
 
 #### User Details — Notifications tab
 
@@ -1742,8 +1743,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Record screens — one layout for every entity: quick-action tiles for what is done most (only those that apply), a standing card of the figures that matter, profile cards always shown and level on a wide window, the tab strip pinned with counts, one banner for deleted / archived / not-yet-synced | — | — | ✅ | | Client first (§ Clients), then vendor, project, task, expense, recurring expense, product, payment, invoice, quote, credit, recurring invoice, purchase order, bank account, transaction, expense category, gateway, payment link — docs/detail-screen-layout.md |
 | Record screens — pull-to-refresh / `R` and a quiet re-check on open, on every entity | — | ✅ | ✅ | | v1 has pull-to-refresh on its view screens; `R` and the re-check on open are new. Bank accounts and transactions gained a by-id re-fetch for this |
 | Record screens — a total the device adds up itself is shown only once every row behind it is in (a vendor's total expenses, a project's hours and uninvoiced amount) | — | — | ✅ | | Fetches the missing pages scoped to the record; withheld past 1,000 rows |
-| Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | Select and copy text on a record screen (long-press on touch, drag with a mouse; tap a labelled value to copy it whole) | ✅ | 🟡 | ✅ | | v1 copies a whole value on tap only; touch list rows stay unselectable (tap = open, long-press = multi-select); #188 |
+| Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | Responsive layout — mobile | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — tablet | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — desktop | ✅ | ✅ | ✅ | ✅ | |

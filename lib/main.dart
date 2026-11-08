@@ -46,6 +46,8 @@ import 'package:admin/app/script_fonts.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/passkey_repository.dart';
+import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/data/services/tls/certificate_trust_seam.dart';
@@ -858,6 +860,13 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         ChangeNotifierProvider<CertificateTrustStore>.value(
           value: widget.services.certificateTrust,
         ),
+        // For the sign-in screen and the Two-Factor tab's Passkeys section,
+        // read as `context.read<PasskeyReadiness?>()` /
+        // `context.read<PasskeyRepository?>()` for the same reason.
+        Provider<PasskeyReadiness>.value(
+          value: widget.services.passkeyReadiness,
+        ),
+        Provider<PasskeyRepository>.value(value: widget.services.passkeys),
         // For the shell's `SessionExpiryBanner`, read as
         // `context.read<IdleTimeoutController?>()` for the same reason.
         Provider<IdleTimeoutController>.value(value: _idleTimeout),

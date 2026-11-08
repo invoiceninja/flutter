@@ -113,8 +113,22 @@ invoiceninja/invoiceninja#13365 adds it to the `config/ninja.php` default; a
 server that sets `APP_LINKS_ANDROID_FINGERPRINTS` overrides that default and
 must append it itself.
 
-> This repo records neither the Play fingerprints nor whether Play App Signing
-> is enrolled. Write the answer down here once it is known.
+**Verified (2026-11-07, Play Console → Test and release → App integrity → App
+signing):** Play App Signing is enrolled, and the app signing key certificate is
+`BB:BC:8B:FB:72:4E:F2:56:77:30:31:B1:C9:22:C0:51:D3:5D:EE:3F:CE:BD:59:3A:F7:11:2F:AB:46:7D:E8:88`
+— the first `config/ninja.php` default, and the one hosted's
+`invoicing.co/.well-known/assetlinks.json` lists. Every Play install is signed
+with it.
+
+**Passkeys use the same fingerprints, on another host** (docs/passkeys.md). The
+passkey relying party is `app.invoicing.co` (REACT_URL's host), not
+`invoicing.co`, so its `/.well-known/assetlinks.json` must grant
+`delegate_permission/common.get_login_creds` and its
+`apple-app-site-association` must list the app under `webcredentials`, both as
+`application/json`. They ship with the React deploy (invoiceninja/ui
+`public/.well-known/`), a second copy of these values to keep in step. The
+server derives the Android origins it accepts from
+`APP_LINKS_ANDROID_FINGERPRINTS` too.
 
 Set them on the server as a comma-separated list — `APP_LINKS_ANDROID_FINGERPRINTS`
 — or as the default in `config/ninja.php` (`ninja.app_links.android_fingerprints`).

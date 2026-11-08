@@ -3279,3 +3279,13 @@ own changes, and a pass over the cached `documents` columns), and shows a dash o
 files are removed by a parent whose array no longer lists them, by a full Sync that walked the whole
 list, or when a download 400s; the list never sends a lifecycle status or `excludeDeletedClients`;
 and it offers no `type:` filter.
+
+## Native passkeys — Android origin, `get_login_creds`, excludeCredentials — **PR ready (`feature/native-passkeys`)**
+
+The apps' passkeys (docs/passkeys.md) need three small server changes, each a commit with its own tests, on `hillelcoren/invoiceninja-backend` branch `feature/native-passkeys` (worktree `~/Code/invoiceninja-backend-passkeys`):
+
+1. **Accept the Android app's origin.** lbuchs/webauthn accepts `android:apk-key-hash:<hash>` only for hashes passed to `addAndroidKeyHashes()`, which nothing called, so every native Android ceremony died on `in_array(): … null given`. The hashes now derive from `APP_LINKS_ANDROID_FINGERPRINTS`, and both options responses list them as `android_origins` — the app refuses to start an Android ceremony unless they include its own (a rejected sign-in counts toward the login lockout).
+2. **`get_login_creds` in `assetlinks.json`**, only on the host that is the passkey relying party. Hosted output is byte-identical (its RP is `app.invoicing.co`, which serves its own files).
+3. **excludeCredentials at registration**, so iCloud Keychain / Google Password Manager stop silently replacing an account's passkey and leaving a dead row.
+
+A self-hosted server still on `.env.example`'s `REACT_URL=http://localhost:3001` has RP ID `localhost`, which no app or browser elsewhere can use; the fix is to set `REACT_URL` to APP_URL. A server-side fallback was written and left out to keep the PR minimal (branch `backup/native-passkeys-v3`).

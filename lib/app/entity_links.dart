@@ -83,6 +83,14 @@ const String kAppLinkPathPrefix = '/$kAppLinkHost';
 /// manifest and both entitlements by `test/lint/universal_links_test.dart`.
 const String kHostedAppLinkHost = 'invoicing.co';
 
+/// The hosted service's passkey relying party: the host of its `REACT_URL`,
+/// where React serves `/.well-known/apple-app-site-association`
+/// (`webcredentials`) and `assetlinks.json` (`get_login_creds`) for the apps
+/// (docs/passkeys.md). Not [kHostedAppLinkHost]: passkeys registered in React
+/// are bound to this host, and moving it would orphan them. Pinned against the
+/// `webcredentials:` entitlements by `test/lint/universal_links_test.dart`.
+const String kHostedPasskeyRpId = 'app.invoicing.co';
+
 /// OAuth-return host used by the calendar connection handshake.
 const String kCalendarLinkHost = 'calendar_connection';
 

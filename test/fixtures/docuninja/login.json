@@ -1,0 +1,190 @@
+{
+ "data": {
+  "id": "01KJ3K8779QYEZVD836TA0Q4SP",
+  "first_name": "Test",
+  "last_name": "User",
+  "email": "signer@example.com",
+  "avatar": "",
+  "phone_number": "",
+  "phone_number_verified": 0,
+  "is_deleted": 0,
+  "has_password": false,
+  "e_signature": "",
+  "e_initials": "",
+  "email_verified_at": "2026-02-22T21:14:25.000000Z",
+  "created_at": "2026-02-22T21:14:25.000000Z",
+  "updated_at": "2026-02-22T21:14:25.000000Z",
+  "archived_at": null,
+  "companies": [
+   {
+    "id": "01KJ3K877AT9RE75X0YNPF34BB",
+    "notifications": [],
+    "token": "dn-test-token",
+    "logo": "https://api.docuninja.test/files/logo",
+    "name": "Test Company",
+    "subdomain": "",
+    "currency_id": 1,
+    "language_id": 1,
+    "timezone_id": 396,
+    "address1": "",
+    "address2": "",
+    "city": "",
+    "state": "",
+    "postal_code": "",
+    "country_id": 840,
+    "is_default": true,
+    "templates": [
+     {
+      "id": "01KJ3K87HX16M3JCPFMYFSKE44",
+      "name": "Signature Request",
+      "subject": "Document signature request from {{sender.name}} for {{document.description}}",
+      "body": "# Signature request\n\n{{company.name}} has sent you a document to sign.\n\nPlease review and sign {{document.link}}.",
+      "type_id": 1,
+      "is_deleted": false,
+      "created_at": "2026-02-22 21:14:25",
+      "updated_at": "2026-02-22 21:14:25"
+     },
+     {
+      "id": "01KJ3K87HYN79XXRB71Y6CRM2A",
+      "name": "Signature Completed",
+      "subject": "{{document.description}} has been completed.",
+      "body": "{{document.description}} has been completed by {{signatory.name}}",
+      "type_id": 2,
+      "is_deleted": false,
+      "created_at": "2026-02-22 21:14:25",
+      "updated_at": "2026-02-22 21:14:25"
+     }
+    ],
+    "onboarding_completed_at": null,
+    "ninja_company_key": "ninja-company-key-1",
+    "settings": {
+     "email_client_when_completed": true,
+     "attach_audit_log_to_completed_email": true,
+     "ninja_quote_notification": false,
+     "ninja_invoice_notification": false,
+     "ninja_credit_notification": false,
+     "ninja_purchase_order_notification": false,
+     "email_from_name": null,
+     "reply_to_email": null,
+     "reply_to_name": null,
+     "force_des_signature": false,
+     "widget_show_label": false,
+     "widget_border_style": "hidden",
+     "widget_border_color": "#FF5733"
+    },
+    "date_format": "d/M/Y",
+    "document_limit": 4,
+    "is_paid": false
+   },
+   {
+    "id": "01M6X62AR0TK7VM17QB822XYNY",
+    "notifications": [],
+    "token": "dn-test-token",
+    "logo": "https://api.docuninja.test/files/logo",
+    "name": "The Beatles",
+    "subdomain": "",
+    "currency_id": 1,
+    "language_id": 1,
+    "timezone_id": 245,
+    "address1": "",
+    "address2": "",
+    "city": "",
+    "state": "",
+    "postal_code": "",
+    "country_id": 840,
+    "is_default": true,
+    "templates": [
+     {
+      "id": "01M6X62B2AH6SGSNFG3AEW4J85",
+      "name": "Signature Request",
+      "subject": "Document signature request from {{sender.name}} for {{document.description}}",
+      "body": "# Signature request\n\n{{company.name}} has sent you a document to sign.\n\nPlease review and sign {{document.link}}.",
+      "type_id": 1,
+      "is_deleted": false,
+      "created_at": "2026-11-08 08:58:12",
+      "updated_at": "2026-11-08 08:58:12"
+     },
+     {
+      "id": "01M6X62B2BYAXN6KTVV9MT0SPD",
+      "name": "Signature Completed",
+      "subject": "{{document.description}} has been completed.",
+      "body": "{{document.description}} has been completed by {{signatory.name}}",
+      "type_id": 2,
+      "is_deleted": false,
+      "created_at": "2026-11-08 08:58:12",
+      "updated_at": "2026-11-08 08:58:12"
+     }
+    ],
+    "onboarding_completed_at": null,
+    "ninja_company_key": "ninja-company-key-2",
+    "settings": {
+     "email_client_when_completed": true,
+     "attach_audit_log_to_completed_email": true,
+     "ninja_quote_notification": false,
+     "ninja_invoice_notification": false,
+     "ninja_credit_notification": false,
+     "ninja_purchase_order_notification": false,
+     "email_from_name": null,
+     "reply_to_email": null,
+     "reply_to_name": null,
+     "force_des_signature": false,
+     "widget_show_label": false,
+     "widget_border_style": "hidden",
+     "widget_border_color": "#FF5733"
+    },
+    "date_format": "j. M. Y",
+    "document_limit": 5,
+    "is_paid": false
+   }
+  ],
+  "company_user": {
+   "is_admin": true,
+   "is_owner": true,
+   "notifications": [],
+   "created_at": "2026-02-22T21:14:25.000000Z",
+   "updated_at": "2026-02-22T21:14:25.000000Z",
+   "archived_at": null
+  },
+  "account": {
+   "id": "01KJ3K8778K8T7GS6R7CWG5APV",
+   "plan": "pro",
+   "plan_term": "year",
+   "plan_expires": "2027-02-22T00:00:00.000000Z",
+   "plan_paid": "",
+   "trial_ends_at": "",
+   "is_active": true,
+   "ninja_account_key": "ninja-key-673",
+   "num_users": 1,
+   "pending_downgrade": false,
+   "gateway_tokens": [],
+   "users": [
+    {
+     "id": "01KJ3K8779QYEZVD836TA0Q4SP",
+     "first_name": "Test",
+     "last_name": "User",
+     "email": "signer@example.com",
+     "avatar": "",
+     "phone_number": "",
+     "phone_number_verified": 0,
+     "is_deleted": 0,
+     "e_signature": "",
+     "e_initials": "",
+     "email_verified_at": "2026-02-22T21:14:25.000000Z",
+     "created_at": "2026-02-22T21:14:25.000000Z",
+     "updated_at": "2026-02-22T21:14:25.000000Z",
+     "archived_at": null,
+     "permissions": [],
+     "company_user": {
+      "is_admin": true,
+      "is_owner": true,
+      "notifications": [],
+      "created_at": "2026-02-22T21:14:25.000000Z",
+      "updated_at": "2026-02-22T21:14:25.000000Z",
+      "archived_at": null
+     }
+    }
+   ]
+  },
+  "permissions": []
+ }
+}

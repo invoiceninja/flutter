@@ -33,6 +33,10 @@ import 'package:admin/app/phone_actions_controller.dart';
 import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/home_widgets/home_widget_commands.dart';
+import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
+import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/home_widgets/widget_command.dart'
     show WidgetCommandKind;
 import 'package:admin/app/home_widgets/home_widget_publisher.dart';
@@ -349,6 +353,8 @@ class Services implements SidebarBadgeContext {
     required this.twoFactor,
     required this.passkeys,
     required this.passkeyReadiness,
+    required this.docuNinja,
+    required this.docuNinjaApi,
     required this.support,
     required this.smtp,
     required this.templates,
@@ -658,6 +664,15 @@ class Services implements SidebarBadgeContext {
   /// at runtime (docs/passkeys.md). Read as `context.read<PasskeyReadiness?>()`
   /// for the same reason.
   final PasskeyReadiness passkeyReadiness;
+
+  /// The DocuNinja handshake for the active company (docs/docuninja.md), held
+  /// in memory and reset on sign-out and company change. Widgets read it as
+  /// `context.read<DocuNinjaSession?>()`: the test fakes of `Services` throw
+  /// on a new member.
+  final DocuNinjaSession docuNinja;
+
+  /// DocuNinja's document endpoints, on [docuNinja]'s token.
+  final DocuNinjaApi docuNinjaApi;
   final SupportApi support;
 
   /// One-off probe behind Settings → Email Settings → "Send Test Email"
@@ -1888,6 +1903,15 @@ class Services implements SidebarBadgeContext {
     final twoFactorRepo = TwoFactorRepository(api: twoFactorApi, auth: auth);
     final passkeyRepo = PasskeyRepository(api: PasskeyApi(apiClient));
     final passkeyReadiness = PasskeyReadiness();
+    final docuNinjaSession = DocuNinjaSession(
+      loginApi: DocuNinjaLoginApi(apiClient),
+      auth: auth.session,
+      companyKeyOf: (companyId) async =>
+          (await db.companiesDao.byId(companyId))?.companyKey,
+    );
+    final docuNinjaApi = DocuNinjaApi(
+      DocuNinjaClient(tokens: docuNinjaSession),
+    );
     final supportApi = SupportApi(apiClient);
     final smtpApi = SmtpApi(apiClient);
     final templatesApi = TemplatesApi(apiClient);
@@ -1968,6 +1992,8 @@ class Services implements SidebarBadgeContext {
     // calendar email — cross-user leak).
     auth.onSessionReset = () {
       calendarConnectionRepo.resetSessionState();
+      // The DocuNinja token belongs to the user who just left.
+      docuNinjaSession.reset();
       // A deliberate sign-out: a share held at the gate, and a create draft
       // staged but never opened, belonged to the account that just left.
       // (The identity-change wipe doesn't run this — see `endSession`.)
@@ -1985,6 +2011,9 @@ class Services implements SidebarBadgeContext {
     final priorOnActiveCompanyChangedForCalendar = auth.onActiveCompanyChanged;
     auth.onActiveCompanyChanged = (companyId) {
       calendarConnectionRepo.resetSessionState();
+      // Each Invoice Ninja company pairs with its own DocuNinja company and
+      // token, picked by company_key.
+      docuNinjaSession.reset();
       priorOnActiveCompanyChangedForCalendar?.call(companyId);
     };
     // Fan-out the bundled per-entity arrays the /refresh envelope carries
@@ -2499,6 +2528,8 @@ class Services implements SidebarBadgeContext {
       twoFactor: twoFactorRepo,
       passkeys: passkeyRepo,
       passkeyReadiness: passkeyReadiness,
+      docuNinja: docuNinjaSession,
+      docuNinjaApi: docuNinjaApi,
       support: supportApi,
       smtp: smtpApi,
       templates: templatesApi,

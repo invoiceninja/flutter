@@ -87,6 +87,7 @@ class _FakeApi implements ApiClient {
     bool readOnly = false,
     bool requiresPassword = false,
     Duration? timeout,
+    bool unauthorizedIsAnswer = false,
   }) async {
     posts.add((path, body));
     final error = postError;

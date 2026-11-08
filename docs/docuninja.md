@@ -26,3 +26,34 @@ A quote or purchase order stored before the app kept `sync` has none until it is
 A tap opens the document's PDF route (`/<entity>/<id>/pdf`). For a signed document that PDF is the signed copy: the stored-PDF route serves the DocuNinja-signed file in place of a fresh render (`lib/data/services/stored_pdf.dart`). React's badge opens the DocuNinja document (`/docuninja/{sync.invitations[0].dn_id}`, read by `docuNinjaDocumentId`); the app's pill gains that destination once it has DocuNinja screens and the user has access.
 
 Clones drop `sync` (`sync: null` in the invoice, quote and PO clone actions; the cross-entity clones start from an empty document), so a copy of a signed quote is not marked signed.
+
+## DocuNinja talks only through `DocuNinjaClient` (`api.docuninja.co`, its own token); its IN-side handshake passes `unauthorizedIsAnswer`, so no DocuNinja 401 ever ends the IN session
+
+Phase 1a, shipped: the session and the client, with no screens yet.
+
+**The handshake.** `DocuNinjaLoginApi` posts `/api/docuninja/login` to the Invoice Ninja host root (not `/api/v1`), through `ApiClient` with `unauthorizedIsAnswer: true` and `readOnly: true`. A user with no DocuNinja account gets a 400 or 401, and on `ApiClient`'s normal path a 401 runs the permission sniff, a `/ping` and, if that ping fails (offline, a captive portal), a forced logout. The flag skips that whole block, so the refusal arrives as `DocuNinjaRefused`. React does the same with `skipIntercept`. `docuninja_login_api_test` pins that no 400 / 401 reaches `onUnauthorized` or sends a `/ping`.
+
+**What it answers** (probed live on a hosted test account, Nov 2026; fixtures in `test/fixtures/docuninja/`, with tokens, keys, emails and signed URLs replaced):
+
+- One answer per *user*, the same whichever Invoice Ninja company asks: the DocuNinja user, `companies[]` (each with its own `token` and `ninja_company_key`), and the user's `company_user` (`is_admin`, `is_owner`), `account` (`plan`, `num_users`) and `permissions`, once at the top level, not per company.
+- The DocuNinja company for the active Invoice Ninja company is the one whose `ninja_company_key` equals the company's `company_key` (`DnLogin.companyFor`). Only the Invoice Ninja companies with `enable_modules` on had one; the others are React's company-setup step.
+- The DocuNinja plan was `pro`, with a per-company `document_limit`.
+
+**The session.** `DocuNinjaSession` (`Services.docuNinja`) holds the answer in memory only and maps it to a `DocuNinjaAccess`, as React's provider, Join and Documents pages decide:
+
+| State | When |
+|---|---|
+| `unavailable` | self-hosted (DocuNinja is hosted-only); the server is never asked |
+| `notJoined` | the handshake refused and the account bought no seats (`docuninja_num_users == 0`): Join |
+| `noAccess` | refused, but the account has seats: this user was not given one (React's Join sends such a user back, so a loop would follow) |
+| `companySetup` | an answer with no company paired to this one |
+| `planWall` | a DocuNinja admin whose DocuNinja plan is not `pro` (`useDocuNinjaAdmin`, the DocuNinja role, not the IN one) |
+| `ready` | everything else |
+| `offline` / `failed` | the handshake could not reach the server / failed otherwise |
+
+It resets on sign-out and on every company change (`Services.build`, beside the calendar connection), and a generation counter drops an answer that lands after a reset, so a late handshake never hands company A's token to company B. A forced reload (Reconnect, a 401) keeps the current state and token until the new answer lands.
+
+**The client.** `DocuNinjaClient` uses its own `http.Client` (`createDefaultHttpClient`), never `ApiClient`, whose 401 handling belongs to the Invoice Ninja session. It sends `Authorization: Bearer <company token>`; a 401 re-runs the handshake once (`DocuNinjaSession.refreshToken`) and retries, and a second one surfaces as `DocuNinjaException`, which the screens answer with Reconnect. Server messages are logged, never shown raw. `DocuNinjaApi` holds the document endpoints the list and detail screens use.
+
+**Online-only.** DocuNinja data is not in Drift and does not go through the outbox (both are exceptions in CLAUDE.md): it is another service whose state machines (send, sign, void) run server-side, and a queued write against them could not be replayed safely. Page previews are signed URLs that expire after an hour (`DnFile.previews`), so they are re-read with the document, never stored; they send `Access-Control-Allow-Origin: *`, so the web build can draw them.
+

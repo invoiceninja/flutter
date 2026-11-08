@@ -258,6 +258,14 @@ class ApiClient {
   ///
   /// [timeout] replaces the client's request timeout for a call the server
   /// legitimately works on for minutes (`POST /self-update`).
+  ///
+  /// [unauthorizedIsAnswer] skips the whole 401 path — the permission sniff,
+  /// the `/ping` check and the forced logout — and throws a plain
+  /// `ServerException(401)` the caller reads as an answer. For an endpoint
+  /// whose 401 means "not for you" rather than "signed out": DocuNinja's
+  /// login handshake (`/api/docuninja/login`) answers every user without a
+  /// DocuNinja account that way, and must never end the session
+  /// (docs/docuninja.md).
   Future<dynamic> postJson(
     String path, {
     Map<String, dynamic>? body,
@@ -265,6 +273,7 @@ class ApiClient {
     bool readOnly = false,
     bool requiresPassword = false,
     Duration? timeout,
+    bool unauthorizedIsAnswer = false,
   }) async {
     if (!readOnly && Env.demoMode) {
       throw const DemoModeException();
@@ -278,6 +287,7 @@ class ApiClient {
       password: credential?.password,
       oauthToken: credential?.oauthToken,
       timeout: timeout,
+      unauthorizedIsAnswer: unauthorizedIsAnswer,
     );
     if (raw.isEmpty) return null;
     return _decodeBody(raw);
@@ -676,6 +686,7 @@ class ApiClient {
     String? password,
     String? oauthToken,
     Duration? timeout,
+    bool unauthorizedIsAnswer = false,
   }) async {
     final creds = _requireCreds();
     var uri = Uri.parse(creds.baseUrl).resolve(path);
@@ -736,7 +747,13 @@ class ApiClient {
       responseBody: responseBody,
       responseHeaders: response.headers,
     );
-    await _postFlight(response, creds, method: method.toUpperCase(), uri: uri);
+    await _postFlight(
+      response,
+      creds,
+      method: method.toUpperCase(),
+      uri: uri,
+      unauthorizedIsAnswer: unauthorizedIsAnswer,
+    );
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return responseBody;
     }
@@ -844,6 +861,7 @@ class ApiClient {
     ApiCredentials creds, {
     required String method,
     required Uri uri,
+    bool unauthorizedIsAnswer = false,
   }) async {
     // Any response at all means the TLS handshake with this server passed.
     _trust?.noteReached(uri.host, uri.port);
@@ -878,7 +896,7 @@ class ApiClient {
         statusCode: response.statusCode,
       );
     }
-    if (response.statusCode == 401) {
+    if (response.statusCode == 401 && !unauthorizedIsAnswer) {
       // Defensive: a 401 carrying `error_type: "plan_required"` is a
       // plan-gating signal, not a logged-out signal. Surface it as such
       // before triggering the unauthorized-logout machinery. The body

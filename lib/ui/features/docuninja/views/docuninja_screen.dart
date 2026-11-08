@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
@@ -8,7 +10,11 @@ import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
+import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
+import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
+import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -335,7 +341,203 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
         return DocuNinjaDocumentsList(
           vm: vm,
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
+          actionsFor: (doc) => EntityActionsPopupButton<_RowAction>(
+            items: _rowItems(state, vm, doc),
+          ),
         );
+    }
+  }
+
+  bool _rowBusy = false;
+
+  /// React's list row actions (`documents/common/hooks/useActions.tsx`)
+  /// that act at once; Send, Options and the downloads open dialogs that
+  /// live on the document page, a tap away.
+  List<EntityActionItem<_RowAction>> _rowItems(
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel vm,
+    DnDocument doc,
+  ) {
+    final title = doc.description.isEmpty
+        ? context.tr('untitled_document')
+        : doc.description;
+    final completed = dnIsCompleted(doc);
+    EntityActionItem<_RowAction> item(
+      _RowAction kind,
+      IconData icon,
+      String key,
+      Future<void> Function() run, {
+      bool confirm = false,
+      String? confirmMessageKey,
+      bool destructive = false,
+      bool lifecycle = false,
+      bool enabled = true,
+    }) => EntityActionItem<_RowAction>(
+      kind: kind,
+      icon: icon,
+      label: context.tr(key),
+      enabled: enabled && !_rowBusy,
+      confirm: confirm,
+      confirmMessageKey: confirmMessageKey,
+      isDestructive: destructive,
+      isLifecycle: lifecycle,
+      confirmSubject: title,
+      onTap: run,
+    );
+    return [
+      if (!doc.isDeleted)
+        item(
+          _RowAction.edit,
+          Icons.edit_outlined,
+          'edit',
+          () => _openBuilder(doc),
+          enabled: !completed && doc.status != DnDocumentStatus.voided,
+        ),
+      item(
+        _RowAction.open,
+        Icons.timeline,
+        'timeline',
+        () async => context.go('/docuninja/${doc.id}'),
+      ),
+      if (completed && !doc.isDeleted && doc.files.isNotEmpty)
+        item(
+          _RowAction.viewPdf,
+          Icons.picture_as_pdf_outlined,
+          'view_pdf',
+          () async => context.go('/docuninja/${doc.id}/pdf'),
+        ),
+      if (!doc.isDeleted)
+        item(
+          _RowAction.clone,
+          Icons.copy_outlined,
+          'clone',
+          () => _rowRun(vm, () async {
+            final json = await context.read<DocuNinjaApi>().action(
+              doc.id,
+              'clone',
+            );
+            final data = json is Map ? json['data'] : null;
+            final id = data is Map ? '${data['id'] ?? ''}' : '';
+            if (!mounted) return;
+            Notify.success(context, context.tr('cloned_document'));
+            if (id.isNotEmpty) context.go('/docuninja/$id');
+          }),
+          confirm: true,
+          confirmMessageKey: 'clone_document_description',
+        ),
+      if (!doc.isDeleted && state.can('blueprints', DnAction.create))
+        item(
+          _RowAction.makeTemplate,
+          Icons.copy_all_outlined,
+          'clone_to_template',
+          () => _rowRun(vm, () async {
+            final companyId = context
+                .read<Services>()
+                .auth
+                .session
+                .value
+                ?.currentCompanyId;
+            final id = await context.read<DocuNinjaApi>().makeBlueprint(doc.id);
+            if (!mounted) return;
+            if (id.isEmpty || companyId == null) {
+              throw StateError('make_blueprint returned no id');
+            }
+            Notify.success(context, context.tr('template_created'));
+            await openDocuNinjaBuilder(
+              context,
+              documentId: id,
+              companyId: companyId,
+              template: true,
+            );
+          }),
+          confirm: true,
+          confirmMessageKey: 'make_template_description',
+        ),
+      if (dnCanVoid(doc))
+        item(
+          _RowAction.voidIt,
+          Icons.block_outlined,
+          'void',
+          () => _rowRun(vm, () async {
+            await context.read<DocuNinjaApi>().action(doc.id, 'void');
+            if (mounted) Notify.success(context, context.tr('voided_document'));
+          }),
+          confirm: true,
+          destructive: true,
+        ),
+      if (!doc.isArchived && !doc.isDeleted)
+        item(
+          _RowAction.archive,
+          Icons.archive_outlined,
+          'archive',
+          () => _rowBulk(vm, doc, 'archive', 'document_archived'),
+          confirm: true,
+          confirmMessageKey: 'archive_document_description',
+          lifecycle: true,
+        ),
+      if (doc.isArchived || doc.isDeleted)
+        item(
+          _RowAction.restore,
+          Icons.restore_outlined,
+          'restore',
+          () => _rowBulk(vm, doc, 'restore', 'document_restored'),
+          lifecycle: true,
+        ),
+      if (!doc.isDeleted)
+        item(
+          _RowAction.delete,
+          Icons.delete_outline,
+          'delete',
+          () => _rowBulk(vm, doc, 'delete', 'deleted_document'),
+          confirm: true,
+          destructive: true,
+          lifecycle: true,
+        ),
+    ];
+  }
+
+  Future<void> _openBuilder(DnDocument doc) async {
+    final companyId = context
+        .read<Services>()
+        .auth
+        .session
+        .value
+        ?.currentCompanyId;
+    if (companyId == null) return;
+    await openDocuNinjaBuilder(
+      context,
+      documentId: doc.id,
+      companyId: companyId,
+    );
+  }
+
+  Future<void> _rowBulk(
+    DocuNinjaDocumentsViewModel vm,
+    DnDocument doc,
+    String action,
+    String successKey,
+  ) => _rowRun(vm, () async {
+    await context.read<DocuNinjaApi>().bulk(action, [doc.id]);
+    if (mounted) Notify.success(context, context.tr(successKey));
+  });
+
+  /// One row action at a time; the list re-reads after it either way.
+  Future<void> _rowRun(
+    DocuNinjaDocumentsViewModel vm,
+    Future<void> Function() run,
+  ) async {
+    if (_rowBusy) return;
+    setState(() => _rowBusy = true);
+    try {
+      await run();
+    } on Object catch (e, st) {
+      _log.warning('DocuNinja row action failed', e, st);
+      if (mounted) {
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+      }
+    } finally {
+      if (mounted) setState(() => _rowBusy = false);
+      unawaited(vm.refresh());
     }
   }
 
@@ -356,4 +558,16 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       vm.setFilters(statuses: picked.statuses, states: picked.states);
     }
   }
+}
+
+enum _RowAction {
+  edit,
+  open,
+  viewPdf,
+  clone,
+  makeTemplate,
+  voidIt,
+  archive,
+  restore,
+  delete,
 }

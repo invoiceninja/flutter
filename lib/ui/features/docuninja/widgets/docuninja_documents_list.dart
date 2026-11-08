@@ -26,10 +26,14 @@ class DocuNinjaDocumentsList extends StatefulWidget {
     super.key,
     required this.vm,
     required this.onOpen,
+    this.actionsFor,
   });
 
   final DocuNinjaDocumentsViewModel vm;
   final ValueChanged<DnDocument> onOpen;
+
+  /// A row's `⋮` menu (React's row actions), or none.
+  final Widget Function(DnDocument doc)? actionsFor;
 
   @override
   State<DocuNinjaDocumentsList> createState() => _DocuNinjaDocumentsListState();
@@ -130,7 +134,13 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                 // next page says so under the rows.
                 if (_showError(vm) && !vm.errorFromMore)
                   SliverToBoxAdapter(child: _errorNotice(vm)),
-                if (table) const SliverToBoxAdapter(child: _TableHeader()),
+                if (table)
+                  SliverToBoxAdapter(
+                    child: _TableHeader(
+                      // Room for the rows' `⋮`, so the columns line up.
+                      trailingWidth: widget.actionsFor == null ? 0 : 48,
+                    ),
+                  ),
                 if (vm.items.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
@@ -150,11 +160,13 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                               doc: doc,
                               created: _date(_createdAt(doc)),
                               onTap: () => widget.onOpen(doc),
+                              actions: widget.actionsFor?.call(doc),
                             )
                           : _NarrowRow(
                               doc: doc,
                               created: _date(_createdAt(doc)),
                               onTap: () => widget.onOpen(doc),
+                              actions: widget.actionsFor?.call(doc),
                             );
                     },
                   ),
@@ -224,7 +236,9 @@ String _files(BuildContext context, DnDocument doc) {
 const _flex = [3, 3, 4, 2, 2, 2];
 
 class _TableHeader extends StatelessWidget {
-  const _TableHeader();
+  const _TableHeader({this.trailingWidth = 0});
+
+  final double trailingWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +263,7 @@ class _TableHeader extends StatelessWidget {
               flex: _flex[i],
               child: Text(context.tr(labels[i]), style: style),
             ),
+          if (trailingWidth > 0) SizedBox(width: trailingWidth),
         ],
       ),
     );
@@ -260,11 +275,13 @@ class _TableRow extends StatelessWidget {
     required this.doc,
     required this.created,
     required this.onTap,
+    this.actions,
   });
 
   final DnDocument doc;
   final String created;
   final VoidCallback onTap;
+  final Widget? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +333,7 @@ class _TableRow extends StatelessWidget {
                 ),
               ),
               cell(5, value(created, color: tokens.ink2)),
+              ?actions,
             ],
           ),
         ),
@@ -329,11 +347,13 @@ class _NarrowRow extends StatelessWidget {
     required this.doc,
     required this.created,
     required this.onTap,
+    this.actions,
   });
 
   final DnDocument doc;
   final String created;
   final VoidCallback onTap;
+  final Widget? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -381,6 +401,7 @@ class _NarrowRow extends StatelessWidget {
               ),
               const SizedBox(width: InSpacing.sm),
               DocuNinjaStatusPill(document: doc),
+              ?actions,
             ],
           ),
         ),

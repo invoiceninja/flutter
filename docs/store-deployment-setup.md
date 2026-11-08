@@ -203,6 +203,8 @@ The only workflow that needs no store credential — it still reads the optional
 1. Settings → Actions → General → **Workflow permissions** → **Read and write permissions**. Without it, `preflight` cannot see draft Releases and `publish` cannot create the Release — the latter fails at the very end, after a full build.
 2. Nothing else. GitHub Releases need no enabling.
 
+The Release body is the version's `kReleaseNotes` bullets (`tools/release_notes_markdown.py`, read in preflight, so a version with no notes fails before anything is built), followed by GitHub's generated Full Changelog link. A re-dispatch onto an existing Release leaves its body alone (docs/release-notes.md).
+
 **Verify** — dispatch `Deploy to GitHub Releases` with the **`publish` checkbox unchecked**. That's a build-only dry run: it still runs the test gate, builds the AppImage, smoke-checks it, and uploads it as a run artifact — but creates no tag and no Release. Download the artifact from the run summary to confirm.
 
 This single dry run exercises checkout → test gate → Flutter build → packaging → artifact upload. If it's green, the shared half of every other workflow is known good.

@@ -20,7 +20,7 @@ When the user asks for "release notes" (or "releasenotes"), generate the notes f
    - Merge related commits into a single bullet.
    - When a commit references an issue/PR number (e.g. `#7`), link it inline: `[#7](https://github.com/invoiceninja/flutter/issues/7)`.
 
-4. **Output.** Print the version as the title followed by the bullet body, as markdown in chat, ready to paste into GitHub's release form — **and** write the same text to `release-notes-vX.Y.Z.md` in the repo root (gitignored) so it can be copied.
+4. **Output.** Print the version as the title followed by the bullet body, as markdown in chat, ready to paste into GitHub's release form — **and** write the same text to `release-notes-vX.Y.Z.md` in the repo root (gitignored) so it can be copied. Pasting is needed only to edit a Release after the fact: **Deploy to GitHub Releases** writes the new Release's body itself, from the version's `kReleaseNotes` items (step 5) via `tools/release_notes_markdown.py`, ahead of GitHub's Full Changelog link. `--generate-notes` alone left the body empty, because it lists merged PRs and releases are committed straight to `main`. `test/tools/release_notes_markdown_test.dart` checks the script reads every release exactly as the compiler does.
 
 5. **Bundle them for the What's New dialog** (`docs/whats-new-dialog.md`) — **before the version is bumped**: `tools/bump_client_version.sh` refuses a version with no entry and changes nothing. Add a `ReleaseNotes` entry for the version at the top of `kReleaseNotes` in `lib/domain/release_notes.dart`:
    - `items`: the same bullets, verbatim, one `ReleaseNoteItem` each — links and all; the dialog strips them.

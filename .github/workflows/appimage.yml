@@ -60,6 +60,7 @@ jobs:
     outputs:
       version: ${{ steps.check.outputs.version }}
       fdroid_needed: ${{ steps.check.outputs.fdroid_needed }}
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
       - uses: actions/checkout@v5
 
@@ -107,6 +108,25 @@ jobs:
             *) echo "::error::$tag carries $apks of its 3 F-Droid APKs. Delete them by hand and re-dispatch."
                exit 1 ;;
           esac
+
+      # The Release body is the version's kReleaseNotes bullets, verbatim
+      # (docs/release-notes.md). --generate-notes alone gave an empty body: it
+      # lists merged PRs, and releases are committed straight to main. Read
+      # here, before anything is built, so a version with no notes fails early.
+      - name: Release notes
+        id: notes
+        if: inputs.publish
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes="$(python3 tools/release_notes_markdown.py "$VERSION")"
+          printf '%s\n' "$notes"
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            printf '%s\n' "$notes"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   # Test gate — mirrors appstore-ios.yml, and matters most here: this is the one
   # workflow that tags the repo and publishes a public GitHub Release. CI is
@@ -359,6 +379,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.preflight.outputs.version }}
       ATTACH_APKS: ${{ needs.preflight.outputs.fdroid_needed }}
+      NOTES: ${{ needs.preflight.outputs.notes }}
     steps:
       - name: Download the AppImage
         uses: actions/download-artifact@v4
@@ -393,8 +414,13 @@ jobs:
             gh release upload "$tag" assets/*.AppImage --clobber
             if [ "$ATTACH_APKS" = true ]; then gh release upload "$tag" assets/*.apk; fi
           else
+            # GitHub puts the given body ahead of the generated notes, so the
+            # Release reads the bullets and then the Full Changelog link.
+            test -n "$NOTES"
+            printf '%s\n' "$NOTES" > notes.md
             gh release create "$tag" assets/* --draft --prerelease \
-              --target "$GITHUB_SHA" --title "Invoice Ninja $VERSION" --generate-notes
+              --target "$GITHUB_SHA" --title "Invoice Ninja $VERSION" \
+              --notes-file notes.md --generate-notes
             # A draft has no tag yet, so it is found by listing, not by tag.
             id="$(gh api "repos/$GH_REPO/releases?per_page=100" \
               --jq "[.[] | select(.draft and .tag_name == \"$tag\")][0].id")"

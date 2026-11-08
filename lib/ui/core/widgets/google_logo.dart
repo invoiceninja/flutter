@@ -6,6 +6,11 @@ import 'package:flutter/widgets.dart';
 /// crisp at any size and text scale. The paths are Google's own 48×48 "G" from
 /// its Sign-In branding kit, transcribed command for command.
 ///
+/// [size] is the slot, the way an [Icon]'s size is: Material glyphs leave a
+/// margin inside it (`Icons.apple` inks about 75% of its box), so the G is
+/// drawn at [_inkFraction] of the slot, centred. Without that it filled its
+/// whole box and looked a size larger than the Apple logo beside it.
+///
 /// The colours are Google's brand colours, which its branding guidelines fix
 /// in light and dark mode alike — so, unlike every other colour in the app,
 /// they deliberately live here rather than in `InTheme` and never theme.
@@ -25,6 +30,10 @@ class GoogleLogo extends StatelessWidget {
   }
 }
 
+/// The share of the slot the G inks, matching `Icons.apple` (measured: 135 of
+/// 180 px at size 180).
+const double _inkFraction = 0.75;
+
 class _GoogleLogoPainter extends CustomPainter {
   const _GoogleLogoPainter();
 
@@ -35,7 +44,10 @@ class _GoogleLogoPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 48, size.height / 48);
+    final ink = size.shortestSide * _inkFraction;
+    canvas
+      ..translate((size.width - ink) / 2, (size.height - ink) / 2)
+      ..scale(ink / 48);
     final paint = Paint()..isAntiAlias = true;
 
     // M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0

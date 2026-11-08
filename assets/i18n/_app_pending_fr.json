@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Créer votre compte...",
   "docuninja_company_setup_help": "Votre compte existe, mais cette entreprise n'est pas encore configurée. Cliquez sur le bouton ci-dessous pour la configurer.",
   "signatories": "Signataires",
-  "send_emails_to_following": "Nous allons envoyer des courriels aux personnes suivantes :"
+  "send_emails_to_following": "Nous allons envoyer des courriels aux personnes suivantes :",
+  "widget_defaults": "Valeurs par défaut du widget",
+  "reminder_schedules": "Calendriers de rappels",
+  "show_label": "Afficher l'étiquette",
+  "show_label_help": "Afficher l'étiquette du widget à côté de sa valeur.",
+  "widget_border_style": "Style de bordure du widget",
+  "widget_border_style_help": "Style de bordure de la zone de widgets.",
+  "widget_border_color": "Couleur de la bordure du widget",
+  "widget_border_color_help": "Couleur de la bordure autour de la zone du widget.",
+  "dotted": "Pointé",
+  "add_reminder_schedule": "Ajouter un rappel au calendrier",
+  "edit_reminder_schedule": "Modifier le calendrier des rappels",
+  "no_reminder_schedules_found": "Aucun rappel trouvé",
+  "after_event": "après l'événement",
+  "before_event": "avant l'événement",
+  "created_reminder_schedule": "Plan de rappel créé",
+  "updated_reminder_schedule": "Calendrier des rappels mis à jour",
+  "deleted_reminder_schedule": "Rappel supprimé"
 }

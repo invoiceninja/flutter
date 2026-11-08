@@ -119,6 +119,64 @@ class DocuNinjaApi {
     return '${_data(json)['id'] ?? ''}';
   }
 
+  /// React's settings pages: the whole company back with its settings
+  /// replaced (`PUT /api/companies/{id}`).
+  Future<void> updateCompanySettings(
+    DnCompany company,
+    Map<String, dynamic> settings,
+  ) => _client.putJson(
+    '/api/companies/${company.id}',
+    body: {...company.raw, 'settings': settings},
+  );
+
+  /// The company's email templates.
+  Future<List<DnEmailTemplate>> emailTemplates() async {
+    final json = await _client.getJson('/api/templates');
+    final rows = _asMap(json)['data'];
+    return [
+      if (rows is List)
+        for (final r in rows)
+          if (r is Map) DnEmailTemplate.fromJson(Map<String, dynamic>.from(r)),
+    ];
+  }
+
+  /// Saves every email template at once, as React does.
+  Future<void> saveEmailTemplates(List<DnEmailTemplate> templates) =>
+      _client.postJson(
+        '/api/templates/bulk',
+        body: {
+          'action': 'update',
+          'templates': [for (final t in templates) t.toJson()],
+        },
+      );
+
+  /// The live reminder schedules (React hides archived and deleted ones).
+  Future<List<DnReminderSchedule>> reminderSchedules() async {
+    final json = await _client.getJson('/api/reminder_schedules');
+    final rows = _asMap(json)['data'];
+    return [
+      if (rows is List)
+        for (final r in rows)
+          if (r is Map)
+            DnReminderSchedule.fromJson(Map<String, dynamic>.from(r)),
+    ].where((r) => !r.isDeleted && r.archivedAt == null).toList();
+  }
+
+  /// Creates a reminder schedule, or updates the one with [id].
+  Future<void> saveReminderSchedule(
+    DnReminderSchedule schedule, {
+    String? id,
+  }) => id == null
+      ? _client.postJson('/api/reminder_schedules', body: schedule.toJson())
+      : _client.putJson('/api/reminder_schedules/$id', body: schedule.toJson());
+
+  /// React's row toggle: only `enabled`.
+  Future<void> setReminderScheduleEnabled(String id, bool enabled) => _client
+      .putJson('/api/reminder_schedules/$id', body: {'enabled': enabled});
+
+  Future<void> deleteReminderSchedule(String id) =>
+      _client.deleteJson('/api/reminder_schedules/$id');
+
   /// Creates a document from uploaded files (`POST /api/documents`,
   /// React's `Create.tsx` and drop zone): its fields are placed later, in
   /// the builder.

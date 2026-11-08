@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Hesabınız oluşturuluyor...",
   "docuninja_company_setup_help": "Hesabınız mevcut ancak bu şirket henüz kurulmadı. Kurmak için lütfen aşağıdaki düğmeye tıklayın.",
   "signatories": "İmzacılar",
-  "send_emails_to_following": "Aşağıdakilere e-posta göndereceğiz:"
+  "send_emails_to_following": "Aşağıdakilere e-posta göndereceğiz:",
+  "widget_defaults": "Widget varsayılanları",
+  "reminder_schedules": "Hatırlatma planları",
+  "show_label": "Etiketi göster",
+  "show_label_help": "Widget etiketini değerinin yanında göster.",
+  "widget_border_style": "Widget kenarlık stili",
+  "widget_border_style_help": "Widget alanının kenarlık stili.",
+  "widget_border_color": "Widget kenarlık rengi",
+  "widget_border_color_help": "Widget alanının çevresindeki kenarlığın rengi.",
+  "dotted": "Noktalı",
+  "add_reminder_schedule": "Hatırlatma planı ekle",
+  "edit_reminder_schedule": "Hatırlatma planını düzenle",
+  "no_reminder_schedules_found": "Hatırlatma planı bulunamadı",
+  "after_event": "olaydan sonra",
+  "before_event": "olaydan önce",
+  "created_reminder_schedule": "Hatırlatma planı oluşturuldu",
+  "updated_reminder_schedule": "Hatırlatma planı güncellendi",
+  "deleted_reminder_schedule": "Hatırlatma planı silindi"
 }

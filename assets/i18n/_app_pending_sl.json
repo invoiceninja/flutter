@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Ustvarjanje vašega računa...",
   "docuninja_company_setup_help": "Vaš račun obstaja, vendar to podjetje še ni nastavljeno. Kliknite spodnji gumb, da ga nastavite.",
   "signatories": "Podpisniki",
-  "send_emails_to_following": "E-pošto bomo poslali naslednjim:"
+  "send_emails_to_following": "E-pošto bomo poslali naslednjim:",
+  "widget_defaults": "Privzete nastavitve gradnikov",
+  "reminder_schedules": "Urniki opomnikov",
+  "show_label": "Prikaži oznako",
+  "show_label_help": "Prikaži oznako gradnika poleg njegove vrednosti.",
+  "widget_border_style": "Slog obrobe gradnika",
+  "widget_border_style_help": "Slog obrobe območja gradnika.",
+  "widget_border_color": "Barva obrobe gradnika",
+  "widget_border_color_help": "Barva obrobe okoli območja gradnika.",
+  "dotted": "Pikčasta",
+  "add_reminder_schedule": "Dodaj urnik opomnikov",
+  "edit_reminder_schedule": "Uredi urnik opomnikov",
+  "no_reminder_schedules_found": "Ni najdenih urnikov opomnikov",
+  "after_event": "po dogodku",
+  "before_event": "pred dogodkom",
+  "created_reminder_schedule": "Urnik opomnikov je ustvarjen",
+  "updated_reminder_schedule": "Urnik opomnikov je posodobljen",
+  "deleted_reminder_schedule": "Urnik opomnikov je izbrisan"
 }

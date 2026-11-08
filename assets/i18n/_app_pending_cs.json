@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Vytváření vašeho účtu...",
   "docuninja_company_setup_help": "Váš účet existuje, ale tato společnost ještě není nastavena. Klikněte prosím na tlačítko níže a nastavte ji.",
   "signatories": "Podepisující",
-  "send_emails_to_following": "Odešleme e-maily následujícím:"
+  "send_emails_to_following": "Odešleme e-maily následujícím:",
+  "widget_defaults": "Výchozí nastavení widgetů",
+  "reminder_schedules": "Plány připomenutí",
+  "show_label": "Zobrazit popisek",
+  "show_label_help": "Zobrazit popisek widgetu vedle jeho hodnoty.",
+  "widget_border_style": "Styl ohraničení widgetu",
+  "widget_border_style_help": "Styl ohraničení oblasti widgetu.",
+  "widget_border_color": "Barva ohraničení widgetu",
+  "widget_border_color_help": "Barva ohraničení kolem oblasti widgetu.",
+  "dotted": "Tečkovaný",
+  "add_reminder_schedule": "Přidat plán připomenutí",
+  "edit_reminder_schedule": "Upravit plán připomenutí",
+  "no_reminder_schedules_found": "Nebyly nalezeny žádné plány připomenutí",
+  "after_event": "po události",
+  "before_event": "před událostí",
+  "created_reminder_schedule": "Plán připomenutí vytvořen",
+  "updated_reminder_schedule": "Plán připomenutí aktualizován",
+  "deleted_reminder_schedule": "Plán připomenutí smazán"
 }

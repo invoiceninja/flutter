@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Tiek izveidots jūsu konts...",
   "docuninja_company_setup_help": "Jūsu konts pastāv, bet šis uzņēmums vēl nav iestatīts. Lūdzu, noklikšķiniet uz zemāk esošās pogas, lai to iestatītu.",
   "signatories": "Parakstītāji",
-  "send_emails_to_following": "Mēs nosūtīsim e-pastus šiem adresātiem:"
+  "send_emails_to_following": "Mēs nosūtīsim e-pastus šiem adresātiem:",
+  "widget_defaults": "Logrīku noklusējumi",
+  "reminder_schedules": "Atgādinājumu grafiki",
+  "show_label": "Rādīt etiķeti",
+  "show_label_help": "Rādīt logrīka etiķeti blakus tā vērtībai.",
+  "widget_border_style": "Logrīka apmales stils",
+  "widget_border_style_help": "Logrīka apgabala apmales stils.",
+  "widget_border_color": "Logrīka apmales krāsa",
+  "widget_border_color_help": "Apmales krāsa ap logrīka apgabalu.",
+  "dotted": "Punktēts",
+  "add_reminder_schedule": "Pievienot atgādinājumu grafiku",
+  "edit_reminder_schedule": "Rediģēt atgādinājumu grafiku",
+  "no_reminder_schedules_found": "Atgādinājumu grafiki nav atrasti",
+  "after_event": "pēc notikuma",
+  "before_event": "pirms notikuma",
+  "created_reminder_schedule": "Atgādinājumu grafiks izveidots",
+  "updated_reminder_schedule": "Atgādinājumu grafiks atjaunināts",
+  "deleted_reminder_schedule": "Atgādinājumu grafiks dzēsts"
 }

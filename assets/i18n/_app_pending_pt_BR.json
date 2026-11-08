@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Criar sua conta...",
   "docuninja_company_setup_help": "Sua conta existe, mas esta empresa ainda não foi configurada. Clique no botão abaixo para configurá-la.",
   "signatories": "Signatários",
-  "send_emails_to_following": "Enviaremos e-mails para os seguintes endereços:"
+  "send_emails_to_following": "Enviaremos e-mails para os seguintes endereços:",
+  "widget_defaults": "Configurações padrão do widget",
+  "reminder_schedules": "Agendamentos de lembretes",
+  "show_label": "Mostrar rótulo",
+  "show_label_help": "Exiba o rótulo do widget ao lado do seu valor.",
+  "widget_border_style": "Estilo da borda do widget",
+  "widget_border_style_help": "Estilo da borda da área do widget.",
+  "widget_border_color": "Cor da borda do widget",
+  "widget_border_color_help": "Cor da borda ao redor da área do widget.",
+  "dotted": "Pontilhado",
+  "add_reminder_schedule": "Adicionar lembrete à programação",
+  "edit_reminder_schedule": "Editar agendamento de lembretes",
+  "no_reminder_schedules_found": "Não foram encontrados horários de lembrete",
+  "after_event": "após o evento",
+  "before_event": "antes do evento",
+  "created_reminder_schedule": "Cronograma de lembretes criado",
+  "updated_reminder_schedule": "Cronograma de lembretes atualizado",
+  "deleted_reminder_schedule": "Agendamento de lembretes excluído"
 }

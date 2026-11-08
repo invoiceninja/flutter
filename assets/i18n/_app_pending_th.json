@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "กำลังสร้างบัญชีของคุณ...",
   "docuninja_company_setup_help": "บัญชีของคุณมีอยู่แล้ว แต่บริษัทนี้ยังไม่ได้ตั้งค่า โปรดคลิกปุ่มด้านล่างเพื่อตั้งค่า",
   "signatories": "ผู้ลงนาม",
-  "send_emails_to_following": "เราจะส่งอีเมลถึงผู้รับต่อไปนี้:"
+  "send_emails_to_following": "เราจะส่งอีเมลถึงผู้รับต่อไปนี้:",
+  "widget_defaults": "ค่าเริ่มต้นของวิดเจ็ต",
+  "reminder_schedules": "กำหนดการแจ้งเตือน",
+  "show_label": "แสดงป้ายกำกับ",
+  "show_label_help": "แสดงป้ายกำกับของวิดเจ็ตถัดจากค่าของวิดเจ็ต",
+  "widget_border_style": "รูปแบบขอบของวิดเจ็ต",
+  "widget_border_style_help": "รูปแบบขอบของพื้นที่วิดเจ็ต",
+  "widget_border_color": "สีขอบของวิดเจ็ต",
+  "widget_border_color_help": "สีของขอบรอบพื้นที่วิดเจ็ต",
+  "dotted": "เส้นประจุด",
+  "add_reminder_schedule": "เพิ่มกำหนดการแจ้งเตือน",
+  "edit_reminder_schedule": "แก้ไขกำหนดการแจ้งเตือน",
+  "no_reminder_schedules_found": "ไม่พบกำหนดการแจ้งเตือน",
+  "after_event": "หลังเหตุการณ์",
+  "before_event": "ก่อนเหตุการณ์",
+  "created_reminder_schedule": "สร้างกำหนดการแจ้งเตือนแล้ว",
+  "updated_reminder_schedule": "อัปเดตกำหนดการแจ้งเตือนแล้ว",
+  "deleted_reminder_schedule": "ลบกำหนดการแจ้งเตือนแล้ว"
 }

@@ -126,9 +126,11 @@ class DnCompany {
     required this.documentLimit,
     required this.isPaid,
     required this.settings,
+    this.raw = const {},
   });
 
   factory DnCompany.fromJson(Map<String, dynamic> json) => DnCompany(
+    raw: json,
     id: _str(json['id']),
     name: _str(json['name']),
     token: _str(json['token']),
@@ -155,6 +157,10 @@ class DnCompany {
 
   /// The company's DocuNinja settings, raw (written back whole).
   final Map<String, dynamic> settings;
+
+  /// Every key, as the login answer carried it: React's settings pages put
+  /// the whole company back with `settings` changed.
+  final Map<String, dynamic> raw;
 }
 
 class DnAccount {
@@ -619,6 +625,99 @@ class DnBlueprint {
   bool get isArchived => archivedAt != null && !isDeleted;
   bool get isActive => !isDeleted && archivedAt == null;
   bool get isInvoiceNinjaDesign => designHash.isNotEmpty;
+}
+
+/// One of the company's DocuNinja email templates (the emails DocuNinja
+/// sends signers), edited as subject and body.
+class DnEmailTemplate {
+  const DnEmailTemplate({
+    required this.id,
+    required this.name,
+    required this.subject,
+    required this.body,
+    required this.raw,
+  });
+
+  factory DnEmailTemplate.fromJson(Map<String, dynamic> json) =>
+      DnEmailTemplate(
+        id: _str(json['id']),
+        name: _str(json['name']),
+        subject: _str(json['subject']),
+        body: _str(json['body']),
+        raw: json,
+      );
+
+  final String id;
+
+  /// The server's own name for the email ("Document Sent", ...): shown as
+  /// is, as React does.
+  final String name;
+  final String subject;
+  final String body;
+  final Map<String, dynamic> raw;
+
+  DnEmailTemplate copyWith({String? subject, String? body}) => DnEmailTemplate(
+    id: id,
+    name: name,
+    subject: subject ?? this.subject,
+    body: body ?? this.body,
+    raw: raw,
+  );
+
+  Map<String, dynamic> toJson() => {...raw, 'subject': subject, 'body': body};
+}
+
+/// A DocuNinja reminder schedule: an email [numDays] days before or after
+/// an event.
+class DnReminderSchedule {
+  const DnReminderSchedule({
+    required this.id,
+    required this.name,
+    required this.subject,
+    required this.body,
+    required this.numDays,
+    required this.direction,
+    required this.enabled,
+    required this.isDeleted,
+    this.archivedAt,
+  });
+
+  factory DnReminderSchedule.fromJson(Map<String, dynamic> json) =>
+      DnReminderSchedule(
+        id: _str(json['id']),
+        name: _str(json['name']),
+        subject: _str(json['subject']),
+        body: _str(json['body']),
+        numDays: _int(json['num_days']),
+        direction: _str(json['schedule_direction']).isEmpty
+            ? 'after_event'
+            : _str(json['schedule_direction']),
+        enabled: jsonScalarToBool(json['enabled']),
+        isDeleted: jsonScalarToBool(json['is_deleted']),
+        archivedAt: _strOrNull(json['archived_at']),
+      );
+
+  final String id;
+  final String name;
+  final String subject;
+  final String body;
+  final int numDays;
+
+  /// `after_event` or `before_event`.
+  final String direction;
+  final bool enabled;
+  final bool isDeleted;
+  final String? archivedAt;
+
+  /// What React's create and update send.
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'subject': subject,
+    'body': body,
+    'num_days': numDays,
+    'schedule_direction': direction,
+    'enabled': enabled,
+  };
 }
 
 class DnPage<T> {

@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Создание вашей учётной записи...",
   "docuninja_company_setup_help": "Ваша учётная запись существует, но эта компания ещё не настроена. Нажмите кнопку ниже, чтобы настроить её.",
   "signatories": "Подписанты",
-  "send_emails_to_following": "Мы отправим письма следующим получателям:"
+  "send_emails_to_following": "Мы отправим письма следующим получателям:",
+  "widget_defaults": "Настройки виджетов по умолчанию",
+  "reminder_schedules": "Расписания напоминаний",
+  "show_label": "Показывать подпись",
+  "show_label_help": "Показывать подпись виджета рядом с его значением.",
+  "widget_border_style": "Стиль рамки виджета",
+  "widget_border_style_help": "Стиль рамки области виджета.",
+  "widget_border_color": "Цвет рамки виджета",
+  "widget_border_color_help": "Цвет рамки вокруг области виджета.",
+  "dotted": "Пунктирная",
+  "add_reminder_schedule": "Добавить расписание напоминаний",
+  "edit_reminder_schedule": "Изменить расписание напоминаний",
+  "no_reminder_schedules_found": "Расписания напоминаний не найдены",
+  "after_event": "после события",
+  "before_event": "до события",
+  "created_reminder_schedule": "Расписание напоминаний создано",
+  "updated_reminder_schedule": "Расписание напоминаний обновлено",
+  "deleted_reminder_schedule": "Расписание напоминаний удалено"
 }

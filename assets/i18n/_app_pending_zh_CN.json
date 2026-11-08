@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "正在创建您的账户...",
   "docuninja_company_setup_help": "您的账户已存在，但此公司尚未设置。请点击下方按钮进行设置。",
   "signatories": "签署人",
-  "send_emails_to_following": "我们将向以下人员发送电子邮件："
+  "send_emails_to_following": "我们将向以下人员发送电子邮件：",
+  "widget_defaults": "控件默认设置",
+  "reminder_schedules": "提醒计划",
+  "show_label": "显示标签",
+  "show_label_help": "在控件的值旁边显示其标签。",
+  "widget_border_style": "控件边框样式",
+  "widget_border_style_help": "控件区域的边框样式。",
+  "widget_border_color": "控件边框颜色",
+  "widget_border_color_help": "控件区域周围边框的颜色。",
+  "dotted": "点线",
+  "add_reminder_schedule": "添加提醒计划",
+  "edit_reminder_schedule": "编辑提醒计划",
+  "no_reminder_schedules_found": "未找到提醒计划",
+  "after_event": "事件之后",
+  "before_event": "事件之前",
+  "created_reminder_schedule": "提醒计划已创建",
+  "updated_reminder_schedule": "提醒计划已更新",
+  "deleted_reminder_schedule": "提醒计划已删除"
 }

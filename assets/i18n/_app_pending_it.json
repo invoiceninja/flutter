@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Creazione dell'account...",
   "docuninja_company_setup_help": "Il tuo account esiste, ma questa azienda non è ancora configurata. Fai clic sul pulsante qui sotto per configurarla.",
   "signatories": "Firmatari",
-  "send_emails_to_following": "Invieremo email ai seguenti indirizzi:"
+  "send_emails_to_following": "Invieremo email ai seguenti indirizzi:",
+  "widget_defaults": "Impostazioni predefinite del widget",
+  "reminder_schedules": "Promemoria Programmi",
+  "show_label": "Mostra etichetta",
+  "show_label_help": "Visualizza l'etichetta del widget accanto al suo valore.",
+  "widget_border_style": "Stile del bordo del widget",
+  "widget_border_style_help": "Stile del bordo dell'area widget.",
+  "widget_border_color": "Colore del bordo del widget",
+  "widget_border_color_help": "Colore del bordo attorno all'area del widget.",
+  "dotted": "Punteggiato",
+  "add_reminder_schedule": "Aggiungi promemoria Programma",
+  "edit_reminder_schedule": "Modifica la pianificazione dei promemoria",
+  "no_reminder_schedules_found": "Nessun programma di promemoria trovato",
+  "after_event": "dopo l'evento",
+  "before_event": "prima dell'evento",
+  "created_reminder_schedule": "creato di promemoria",
+  "updated_reminder_schedule": "Programma dei promemoria aggiornato",
+  "deleted_reminder_schedule": "Programma promemoria Eliminato"
 }

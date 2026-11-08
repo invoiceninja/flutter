@@ -193,6 +193,15 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                   tooltip: context.tr('templates'),
                   onPressed: () => context.go('/docuninja/templates'),
                 ),
+              // React's settings button, for a DocuNinja admin.
+              if (vm != null &&
+                  state.login != null &&
+                  dnIsAdmin(state.login!.companyUser))
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: context.tr('settings'),
+                  onPressed: () => context.go('/docuninja/settings'),
+                ),
               if (vm != null && state.can('documents', DnAction.create))
                 IconButton(
                   icon: const Icon(Icons.add),

@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Je account aanmaken...",
   "docuninja_company_setup_help": "Uw account bestaat, maar dit bedrijf is nog niet ingesteld. Klik op de knop hieronder om het in te stellen.",
   "signatories": "Ondertekenaars",
-  "send_emails_to_following": "We gaan e-mails versturen naar de volgende adressen:"
+  "send_emails_to_following": "We gaan e-mails versturen naar de volgende adressen:",
+  "widget_defaults": "Widget-standaardwaarden",
+  "reminder_schedules": "Herinneringsschema's",
+  "show_label": "Toon label",
+  "show_label_help": "Toon het label van de widget naast de bijbehorende waarde.",
+  "widget_border_style": "Widgetrandstijl",
+  "widget_border_style_help": "Randstijl van het widgetgebied.",
+  "widget_border_color": "Widgetrandkleur",
+  "widget_border_color_help": "De kleur van de rand rond het widgetgebied.",
+  "dotted": "Gestippeld",
+  "add_reminder_schedule": "Voeg een herinneringsschema toe",
+  "edit_reminder_schedule": "Herinneringsschema bewerken",
+  "no_reminder_schedules_found": "Er zijn geen herinneringsschema's gevonden.",
+  "after_event": "na het evenement",
+  "before_event": "voor het evenement",
+  "created_reminder_schedule": "Herinneringsschema aangemaakt",
+  "updated_reminder_schedule": "Herinneringsschema bijgewerkt",
+  "deleted_reminder_schedule": "Herinneringsschema verwijderd"
 }

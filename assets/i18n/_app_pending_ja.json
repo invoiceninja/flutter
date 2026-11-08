@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "アカウントを作成しています...",
   "docuninja_company_setup_help": "アカウントは存在しますが、この会社はまだ設定されていません。下のボタンをクリックして設定してください。",
   "signatories": "署名者",
-  "send_emails_to_following": "以下の宛先にメールを送信します。"
+  "send_emails_to_following": "以下の宛先にメールを送信します。",
+  "widget_defaults": "ウィジェットのデフォルト設定",
+  "reminder_schedules": "リマインダースケジュール",
+  "show_label": "ラベルを表示",
+  "show_label_help": "ウィジェットの値の横に、そのラベルを表示します。",
+  "widget_border_style": "ウィジェットの枠線スタイル",
+  "widget_border_style_help": "ウィジェットエリアの枠線スタイル。",
+  "widget_border_color": "ウィジェットの枠線の色",
+  "widget_border_color_help": "ウィジェットエリアの周囲の枠線の色。",
+  "dotted": "点在",
+  "add_reminder_schedule": "リマインダースケジュールを追加",
+  "edit_reminder_schedule": "リマインダースケジュールを編集する",
+  "no_reminder_schedules_found": "リマインダースケジュールは見つかりませんでした",
+  "after_event": "イベント後",
+  "before_event": "イベント前",
+  "created_reminder_schedule": "リマインダースケジュールが作成されました",
+  "updated_reminder_schedule": "リマインダーのスケジュールが更新されました",
+  "deleted_reminder_schedule": "リマインダーのスケジュールが削除されました"
 }

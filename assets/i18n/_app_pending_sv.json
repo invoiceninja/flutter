@@ -1707,5 +1707,15 @@
   "docuninja_creating_account": "Skapar ditt konto...",
   "docuninja_company_setup_help": "Ditt konto finns, men det här företaget är inte konfigurerat ännu. Klicka på knappen nedan för att konfigurera det.",
   "signatories": "Undertecknare",
-  "send_emails_to_following": "Vi skickar e-post till följande:"
+  "send_emails_to_following": "Vi skickar e-post till följande:",
+  "reminder_schedules": "Påminnelsescheman",
+  "dotted": "Prickad",
+  "add_reminder_schedule": "Lägg till påminnelseschema",
+  "edit_reminder_schedule": "Redigera påminnelseschema",
+  "no_reminder_schedules_found": "Inga påminnelsescheman hittades",
+  "after_event": "efter händelsen",
+  "before_event": "före händelsen",
+  "created_reminder_schedule": "Påminnelseschema skapat",
+  "updated_reminder_schedule": "Påminnelseschema uppdaterat",
+  "deleted_reminder_schedule": "Påminnelseschema raderat"
 }

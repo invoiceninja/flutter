@@ -1678,5 +1678,14 @@
   "docuninja_join_integration_help": "Számlákkal, árajánlatokkal és rendelésekkel is működik",
   "docuninja_creating_account": "Fiók létrehozása...",
   "docuninja_company_setup_help": "A fiókja létezik, de ez a cég még nincs beállítva. Kattintson az alábbi gombra a beállításához.",
-  "send_emails_to_following": "A következőknek küldünk e-mailt:"
+  "send_emails_to_following": "A következőknek küldünk e-mailt:",
+  "reminder_schedules": "Emlékeztető ütemezések",
+  "add_reminder_schedule": "Emlékeztető ütemezés hozzáadása",
+  "edit_reminder_schedule": "Emlékeztető ütemezés szerkesztése",
+  "no_reminder_schedules_found": "Nem található emlékeztető ütemezés",
+  "after_event": "az esemény után",
+  "before_event": "az esemény előtt",
+  "created_reminder_schedule": "Emlékeztető ütemezés létrehozva",
+  "updated_reminder_schedule": "Emlékeztető ütemezés frissítve",
+  "deleted_reminder_schedule": "Emlékeztető ütemezés törölve"
 }

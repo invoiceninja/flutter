@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Kontoerstellung...",
   "docuninja_company_setup_help": "Ihr Konto existiert, aber diese Firma ist noch nicht eingerichtet. Bitte klicken Sie auf die Schaltfläche unten, um sie einzurichten.",
   "signatories": "Unterzeichner",
-  "send_emails_to_following": "Wir werden E-Mails an folgende Adressen senden:"
+  "send_emails_to_following": "Wir werden E-Mails an folgende Adressen senden:",
+  "widget_defaults": "Widget-Standardeinstellungen",
+  "reminder_schedules": "Erinnerungspläne",
+  "show_label": "Label anzeigen",
+  "show_label_help": "Die Beschriftung des Widgets soll neben seinem Wert angezeigt werden.",
+  "widget_border_style": "Widget-Rahmenstil",
+  "widget_border_style_help": "Rahmenstil des Widget-Bereichs.",
+  "widget_border_color": "Widget-Rahmenfarbe",
+  "widget_border_color_help": "Farbe des Rahmens um den Widget-Bereich.",
+  "dotted": "Gepunktet",
+  "add_reminder_schedule": "Erinnerungsplan hinzufügen",
+  "edit_reminder_schedule": "Erinnerungsplan bearbeiten",
+  "no_reminder_schedules_found": "Es wurden keine Erinnerungspläne gefunden.",
+  "after_event": "nach dem Ereignis",
+  "before_event": "vor dem Ereignis",
+  "created_reminder_schedule": "Erinnerungsplan erstellt",
+  "updated_reminder_schedule": "Erinnerungsplan aktualisiert",
+  "deleted_reminder_schedule": "Erinnerungsplan gelöscht"
 }

@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Се креира вашата сметка...",
   "docuninja_company_setup_help": "Вашата сметка постои, но оваа компанија сè уште не е поставена. Кликнете на копчето подолу за да ја поставите.",
   "signatories": "Потписници",
-  "send_emails_to_following": "Ќе испратиме е-пошта до следниве:"
+  "send_emails_to_following": "Ќе испратиме е-пошта до следниве:",
+  "widget_defaults": "Стандардни поставки за виџети",
+  "reminder_schedules": "Распореди за потсетници",
+  "show_label": "Прикажи ознака",
+  "show_label_help": "Прикажи ја ознаката на виџетот до неговата вредност.",
+  "widget_border_style": "Стил на рамка на виџет",
+  "widget_border_style_help": "Стил на рамката на областа на виџетот.",
+  "widget_border_color": "Боја на рамка на виџет",
+  "widget_border_color_help": "Боја на рамката околу областа на виџетот.",
+  "dotted": "Точкест",
+  "add_reminder_schedule": "Додај распоред за потсетници",
+  "edit_reminder_schedule": "Уреди распоред за потсетници",
+  "no_reminder_schedules_found": "Не се пронајдени распореди за потсетници",
+  "after_event": "по настанот",
+  "before_event": "пред настанот",
+  "created_reminder_schedule": "Распоредот за потсетници е креиран",
+  "updated_reminder_schedule": "Распоредот за потсетници е ажуриран",
+  "deleted_reminder_schedule": "Распоредот за потсетници е избришан"
 }

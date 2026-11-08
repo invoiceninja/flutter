@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Po krijohet llogaria juaj...",
   "docuninja_company_setup_help": "Llogaria juaj ekziston, por kjo kompani nuk është konfiguruar ende. Ju lutemi klikoni butonin më poshtë për ta konfiguruar.",
   "signatories": "Nënshkruesit",
-  "send_emails_to_following": "Do t'u dërgojmë email-e të mëposhtmëve:"
+  "send_emails_to_following": "Do t'u dërgojmë email-e të mëposhtmëve:",
+  "widget_defaults": "Parazgjedhjet e widget-it",
+  "reminder_schedules": "Oraret e kujtesave",
+  "show_label": "Shfaq etiketën",
+  "show_label_help": "Shfaq etiketën e widget-it pranë vlerës së tij.",
+  "widget_border_style": "Stili i kufirit të widget-it",
+  "widget_border_style_help": "Stili i kufirit të zonës së widget-it.",
+  "widget_border_color": "Ngjyra e kufirit të widget-it",
+  "widget_border_color_help": "Ngjyra e kufirit rreth zonës së widget-it.",
+  "dotted": "Me pika",
+  "add_reminder_schedule": "Shto orar kujtesash",
+  "edit_reminder_schedule": "Ndrysho orarin e kujtesave",
+  "no_reminder_schedules_found": "Nuk u gjetën orare kujtesash",
+  "after_event": "pas ngjarjes",
+  "before_event": "para ngjarjes",
+  "created_reminder_schedule": "Orari i kujtesave u krijua",
+  "updated_reminder_schedule": "Orari i kujtesave u përditësua",
+  "deleted_reminder_schedule": "Orari i kujtesave u fshi"
 }

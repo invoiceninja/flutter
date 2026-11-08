@@ -1710,5 +1710,22 @@
   "docuninja_creating_account": "در حال ایجاد حساب شما...",
   "docuninja_company_setup_help": "حساب شما وجود دارد اما این شرکت هنوز راه‌اندازی نشده است. لطفاً برای راه‌اندازی آن روی دکمه زیر کلیک کنید.",
   "signatories": "امضاکنندگان",
-  "send_emails_to_following": "برای افراد زیر ایمیل ارسال خواهیم کرد:"
+  "send_emails_to_following": "برای افراد زیر ایمیل ارسال خواهیم کرد:",
+  "widget_defaults": "پیش‌فرض‌های ویجت",
+  "reminder_schedules": "زمان‌بندی‌های یادآوری",
+  "show_label": "نمایش برچسب",
+  "show_label_help": "نمایش برچسب ویجت در کنار مقدار آن.",
+  "widget_border_style": "سبک حاشیه ویجت",
+  "widget_border_style_help": "سبک حاشیه ناحیه ویجت.",
+  "widget_border_color": "رنگ حاشیه ویجت",
+  "widget_border_color_help": "رنگ حاشیه دور ناحیه ویجت.",
+  "dotted": "نقطه‌چین",
+  "add_reminder_schedule": "افزودن زمان‌بندی یادآوری",
+  "edit_reminder_schedule": "ویرایش زمان‌بندی یادآوری",
+  "no_reminder_schedules_found": "هیچ زمان‌بندی یادآوری یافت نشد",
+  "after_event": "پس از رویداد",
+  "before_event": "پیش از رویداد",
+  "created_reminder_schedule": "زمان‌بندی یادآوری ایجاد شد",
+  "updated_reminder_schedule": "زمان‌بندی یادآوری به‌روزرسانی شد",
+  "deleted_reminder_schedule": "زمان‌بندی یادآوری حذف شد"
 }

@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Creando tu cuenta...",
   "docuninja_company_setup_help": "Su cuenta existe, pero esta empresa aún no está configurada. Haga clic en el botón de abajo para configurarla.",
   "signatories": "Firmantes",
-  "send_emails_to_following": "Vamos a enviar correos electrónicos a las siguientes personas:"
+  "send_emails_to_following": "Vamos a enviar correos electrónicos a las siguientes personas:",
+  "widget_defaults": "Valores predeterminados del widget",
+  "reminder_schedules": "Horarios de recordatorio",
+  "show_label": "Mostrar etiqueta",
+  "show_label_help": "Muestra la etiqueta del widget junto a su valor.",
+  "widget_border_style": "Estilo de borde del widget",
+  "widget_border_style_help": "Estilo del borde del área de widgets.",
+  "widget_border_color": "Color del borde del widget",
+  "widget_border_color_help": "Color del borde que rodea el área del widget.",
+  "dotted": "Punteado",
+  "add_reminder_schedule": "Agregar recordatorio",
+  "edit_reminder_schedule": "Editar calendario de recordatorios",
+  "no_reminder_schedules_found": "No se encontraron horarios de recordatorio",
+  "after_event": "después del evento",
+  "before_event": "antes del evento",
+  "created_reminder_schedule": "Se ha creado un calendario de recordatorios.",
+  "updated_reminder_schedule": "Calendario de recordatorios actualizado",
+  "deleted_reminder_schedule": "Se eliminó el calendario de recordatorios."
 }

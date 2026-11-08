@@ -1649,5 +1649,6 @@
   "review_opens_store": "Otwiera :store",
   "review_thanks": "Dziękujemy za wsparcie!",
   "no_thanks": "Nie, dziękuję",
-  "docuninja_company_setup_help": "Twoje konto istnieje, ale ta firma nie jest jeszcze skonfigurowana. Kliknij przycisk poniżej, aby ją skonfigurować."
+  "docuninja_company_setup_help": "Twoje konto istnieje, ale ta firma nie jest jeszcze skonfigurowana. Kliknij przycisk poniżej, aby ją skonfigurować.",
+  "before_event": "przed zdarzeniem"
 }

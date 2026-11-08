@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "Oppretter kontoen din...",
   "docuninja_company_setup_help": "Kontoen din finnes, men dette firmaet er ikke satt opp ennå. Klikk på knappen nedenfor for å sette det opp.",
   "signatories": "Signatarer",
-  "send_emails_to_following": "Vi sender e-post til følgende:"
+  "send_emails_to_following": "Vi sender e-post til følgende:",
+  "widget_defaults": "Standardinnstillinger for widgeter",
+  "reminder_schedules": "Påminnelsesplaner",
+  "show_label": "Vis etikett",
+  "show_label_help": "Vis widgetens etikett ved siden av verdien.",
+  "widget_border_style": "Kantstil for widget",
+  "widget_border_style_help": "Kantstil for widgetområdet.",
+  "widget_border_color": "Kantfarge for widget",
+  "widget_border_color_help": "Fargen på kanten rundt widgetområdet.",
+  "dotted": "Prikket",
+  "add_reminder_schedule": "Legg til påminnelsesplan",
+  "edit_reminder_schedule": "Rediger påminnelsesplan",
+  "no_reminder_schedules_found": "Fant ingen påminnelsesplaner",
+  "after_event": "etter hendelsen",
+  "before_event": "før hendelsen",
+  "created_reminder_schedule": "Påminnelsesplan opprettet",
+  "updated_reminder_schedule": "Påminnelsesplan oppdatert",
+  "deleted_reminder_schedule": "Påminnelsesplan slettet"
 }

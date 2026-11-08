@@ -1711,5 +1711,22 @@
   "docuninja_creating_account": "ກຳລັງສ້າງບັນຊີຂອງທ່ານ...",
   "docuninja_company_setup_help": "ບັນຊີຂອງທ່ານມີຢູ່ແລ້ວ ແຕ່ບໍລິສັດນີ້ຍັງບໍ່ໄດ້ຕັ້ງຄ່າເທື່ອ. ກະລຸນາຄລິກປຸ່ມຂ້າງລຸ່ມນີ້ເພື່ອຕັ້ງຄ່າ.",
   "signatories": "ຜູ້ລົງນາມ",
-  "send_emails_to_following": "ພວກເຮົາຈະສົ່ງອີເມວໄປຫາຜູ້ຕໍ່ໄປນີ້:"
+  "send_emails_to_following": "ພວກເຮົາຈະສົ່ງອີເມວໄປຫາຜູ້ຕໍ່ໄປນີ້:",
+  "widget_defaults": "ຄ່າເລີ່ມຕົ້ນຂອງວິດເຈັດ",
+  "reminder_schedules": "ກຳນົດເວລາແຈ້ງເຕືອນ",
+  "show_label": "ສະແດງປ້າຍກຳກັບ",
+  "show_label_help": "ສະແດງປ້າຍກຳກັບຂອງວິດເຈັດຖັດຈາກຄ່າຂອງມັນ.",
+  "widget_border_style": "ຮູບແບບຂອບວິດເຈັດ",
+  "widget_border_style_help": "ຮູບແບບຂອບຂອງພື້ນທີ່ວິດເຈັດ.",
+  "widget_border_color": "ສີຂອບວິດເຈັດ",
+  "widget_border_color_help": "ສີຂອງຂອບອ້ອມພື້ນທີ່ວິດເຈັດ.",
+  "dotted": "ເສັ້ນຈຸດ",
+  "add_reminder_schedule": "ເພີ່ມກຳນົດເວລາແຈ້ງເຕືອນ",
+  "edit_reminder_schedule": "ແກ້ໄຂກຳນົດເວລາແຈ້ງເຕືອນ",
+  "no_reminder_schedules_found": "ບໍ່ພົບກຳນົດເວລາແຈ້ງເຕືອນ",
+  "after_event": "ຫຼັງເຫດການ",
+  "before_event": "ກ່ອນເຫດການ",
+  "created_reminder_schedule": "ສ້າງກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ",
+  "updated_reminder_schedule": "ອັບເດດກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ",
+  "deleted_reminder_schedule": "ລຶບກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ"
 }

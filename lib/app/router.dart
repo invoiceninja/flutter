@@ -23,6 +23,7 @@ import 'package:admin/ui/features/auth/views/signup_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_templates_screen.dart';
+import 'package:admin/ui/features/docuninja/views/docuninja_settings_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
@@ -932,6 +933,11 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
             },
             builder: (context, state) => const DocuNinjaScreen(),
             routes: [
+              // DocuNinja's own settings (a DocuNinja admin's). Before `:id`.
+              GoRoute(
+                path: 'settings',
+                builder: (context, state) => const DocuNinjaSettingsScreen(),
+              ),
               // The templates (React's blueprints). Before `:id`, which would
               // otherwise take `templates` for a document id.
               GoRoute(

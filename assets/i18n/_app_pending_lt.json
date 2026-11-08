@@ -1677,5 +1677,14 @@
   "docuninja_join_integration_help": "Veikia su sąskaitomis, pasiūlymais ir užsakymais",
   "docuninja_creating_account": "Kuriama jūsų paskyra...",
   "docuninja_company_setup_help": "Jūsų paskyra egzistuoja, tačiau ši įmonė dar nenustatyta. Spustelėkite žemiau esantį mygtuką, kad ją nustatytumėte.",
-  "send_emails_to_following": "Išsiųsime el. laiškus šiems asmenims:"
+  "send_emails_to_following": "Išsiųsime el. laiškus šiems asmenims:",
+  "reminder_schedules": "Priminimų tvarkaraščiai",
+  "add_reminder_schedule": "Pridėti priminimų tvarkaraštį",
+  "edit_reminder_schedule": "Redaguoti priminimų tvarkaraštį",
+  "no_reminder_schedules_found": "Priminimų tvarkaraščių nerasta",
+  "after_event": "po įvykio",
+  "before_event": "prieš įvykį",
+  "created_reminder_schedule": "Priminimų tvarkaraštis sukurtas",
+  "updated_reminder_schedule": "Priminimų tvarkaraštis atnaujintas",
+  "deleted_reminder_schedule": "Priminimų tvarkaraštis ištrintas"
 }

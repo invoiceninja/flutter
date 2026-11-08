@@ -1708,5 +1708,15 @@
   "docuninja_creating_account": "Se creează contul dvs....",
   "docuninja_company_setup_help": "Contul dvs. există, dar această companie nu este încă configurată. Faceți clic pe butonul de mai jos pentru a o configura.",
   "signatories": "Semnatari",
-  "send_emails_to_following": "Vom trimite e-mailuri următorilor:"
+  "send_emails_to_following": "Vom trimite e-mailuri următorilor:",
+  "reminder_schedules": "Programări de mementouri",
+  "dotted": "Punctat",
+  "add_reminder_schedule": "Adaugă programare de mementouri",
+  "edit_reminder_schedule": "Editează programarea de mementouri",
+  "no_reminder_schedules_found": "Nu s-au găsit programări de mementouri",
+  "after_event": "după eveniment",
+  "before_event": "înainte de eveniment",
+  "created_reminder_schedule": "Programare de mementouri creată",
+  "updated_reminder_schedule": "Programare de mementouri actualizată",
+  "deleted_reminder_schedule": "Programare de mementouri ștearsă"
 }

@@ -1718,5 +1718,22 @@
   "docuninja_creating_account": "Creating your account...",
   "docuninja_company_setup_help": "Your account exists but this company is not set up yet. Please click the button below to set it up.",
   "signatories": "Signatories",
-  "send_emails_to_following": "We're going to send emails to the following:"
+  "send_emails_to_following": "We're going to send emails to the following:",
+  "widget_defaults": "Widget Defaults",
+  "reminder_schedules": "Reminder Schedules",
+  "show_label": "Show Label",
+  "show_label_help": "Display the label of the widget next to its value.",
+  "widget_border_style": "Widget Border Style",
+  "widget_border_style_help": "Border style of the widget area.",
+  "widget_border_color": "Widget Border Color",
+  "widget_border_color_help": "Color of the border around the widget area.",
+  "dotted": "Dotted",
+  "add_reminder_schedule": "Add Reminder Schedule",
+  "edit_reminder_schedule": "Edit Reminder Schedule",
+  "no_reminder_schedules_found": "No reminder schedules found",
+  "after_event": "after event",
+  "before_event": "before event",
+  "created_reminder_schedule": "Reminder schedule created",
+  "updated_reminder_schedule": "Reminder schedule updated",
+  "deleted_reminder_schedule": "Reminder schedule deleted"
 }

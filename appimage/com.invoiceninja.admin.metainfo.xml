@@ -1,37 +1,157 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AppStream metainfo for the Invoice Ninja Linux AppImage.
+  AppStream metainfo for the Linux builds: the AppImage installs it, and so
+  does the Flatpak, which Flathub builds from the release tag (docs/flatpak.md).
   - metadata_license licenses THIS file and must be permissive (CC0-1.0).
   - project_license is the app's license: AAL (Attribution Assurance License,
-    per LICENSE.txt). If the team treats the app as closed-source, switch this
-    to LicenseRef-proprietary.
-  - The <release> version/date below are placeholders; tools/build_appimage.sh
-    rewrites them (in the staged AppDir copy only) from pubspec at build time.
+    per LICENSE.txt).
+  - <provides>/<replaces> name v1's Flathub ID: this app succeeds it, and
+    Flathub's end-of-life rebase moves v1's users here (docs/flatpak.md).
+  - <releases> is written by tools/bump_client_version.sh (through
+    tools/metainfo_release.py) from each release's store digest, newest first.
+    Don't hand-edit an entry; check_release_ready.sh requires one per release.
+  - Screenshot URLs must point at a commit SHA, never a branch (Flathub's
+    metainfo guidelines); they are added from the Flatpak build before the
+    Flathub submission (docs/flatpak.md).
 -->
 <component type="desktop-application">
   <id>com.invoiceninja.admin</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AAL</project_license>
   <name>Invoice Ninja</name>
-  <summary>Create invoices, accept payments, track expenses &amp; time tasks</summary>
+  <summary>Invoices, payments and expenses</summary>
   <description>
     <p>
       Invoice Ninja is a suite of invoicing and payment tools for freelancers and
-      small businesses. Send branded invoices, accept online payments, track
-      expenses and vendors, and time billable tasks across projects — with
-      multi-company support and offline editing that syncs when you reconnect.
+      small businesses. Send branded invoices and quotes, accept online payments,
+      track expenses and vendors, and time billable tasks across projects.
+    </p>
+    <ul>
+      <li>Invoices, quotes, credits, recurring invoices and purchase orders</li>
+      <li>Payments, expenses, vendors, projects and time tracking</li>
+      <li>Several companies in one app</li>
+      <li>Edit offline; your changes sync when you reconnect</li>
+      <li>Works with invoicing.co or your own self-hosted Invoice Ninja server</li>
+    </ul>
+    <p>
+      An Invoice Ninja account is required: sign up free in the app, or sign in to
+      a hosted or self-hosted server.
     </p>
   </description>
   <launchable type="desktop-id">com.invoiceninja.admin.desktop</launchable>
-  <developer_name>Invoice Ninja</developer_name>
+  <developer id="com.invoiceninja">
+    <name>Invoice Ninja</name>
+  </developer>
   <url type="homepage">https://invoiceninja.com</url>
   <url type="bugtracker">https://github.com/invoiceninja/flutter/issues</url>
+  <url type="vcs-browser">https://github.com/invoiceninja/flutter</url>
+  <url type="help">https://invoiceninja.github.io/docs</url>
+  <url type="translate">https://explore.transifex.com/invoice-ninja/invoice-ninja/</url>
+  <provides>
+    <id>com.invoiceninja.InvoiceNinja</id>
+  </provides>
+  <replaces>
+    <id>com.invoiceninja.InvoiceNinja</id>
+  </replaces>
   <categories>
     <category>Office</category>
     <category>Finance</category>
   </categories>
+  <keywords>
+    <keyword>invoice</keyword>
+    <keyword>invoicing</keyword>
+    <keyword>billing</keyword>
+    <keyword>payments</keyword>
+    <keyword>expenses</keyword>
+    <keyword>quotes</keyword>
+    <keyword>time tracking</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#a9cdee</color>
+    <color type="primary" scheme_preference="dark">#1c4a74</color>
+  </branding>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
   <releases>
-    <release version="5.1.4" date="2026-06-29"/>
+    <release version="5.1.23" date="2026-11-08">
+      <description>
+        <ul>
+          <li>Sign in with a passkey, and manage passkeys</li>
+          <li>Attach documents while creating any record</li>
+          <li>Pick the company's saved tax rates on documents</li>
+          <li>Report columns from the client, contact or vendor</li>
+          <li>Select and copy text on record screens</li>
+          <li>Device Settings split into tabs</li>
+          <li>Line-item search, payment and task fixes</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.1.22" date="2026-11-03">
+      <description>
+        <ul>
+          <li>Apply a payment or credit to a draft invoice</li>
+          <li>Deleted records stay out of the dashboard lists</li>
+          <li>A task's project stays on its invoice line</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.1.21" date="2026-11-01">
+      <description>
+        <ul>
+          <li>Update a self-hosted server from the app</li>
+          <li>Tap a line item on a record screen to edit it</li>
+          <li>Last Sent Date column on invoices and quotes</li>
+          <li>Show Seconds setting for task timers</li>
+          <li>The PDF preview refreshes after an edit</li>
+          <li>Negative-total invoices and quotes save</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.1.20" date="2026-10-25">
+      <description>
+        <ul>
+          <li>Read a receipt photo or PDF into a new expense</li>
+          <li>Add documents from the camera or Photos, and Scan Receipt</li>
+          <li>36 more languages, with right-to-left Arabic, Hebrew and Persian</li>
+          <li>Create a vendor, category or client from its picker</li>
+          <li>Credit Items, Recurring Expenses and Transactions reports</li>
+          <li>Add a line of plain text to an invoice on a phone</li>
+          <li>The dashboard layout follows you across devices</li>
+          <li>New documents start with the default tax rates</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.1.19" date="2026-10-21">
+      <description>
+        <ul>
+          <li>Client Portal settings show a QR code for the login and registration links</li>
+          <li>List search ignores case and accents, so "mu" finds "Müller"</li>
+          <li>Recurring invoices no longer offer Send Email, which always failed</li>
+          <li>Custom invoice designs and tax rates save again</li>
+          <li>Dragging on an invoice's notes scrolls the page on a phone</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.1.18" date="2026-10-19">
+      <description>
+        <p>Fixes and improvements</p>
+      </description>
+    </release>
+    <release version="5.1.17" date="2026-10-19">
+      <description>
+        <ul>
+          <li>Activity timeline: tap or drag a period to filter, or narrow by category</li>
+          <li>Comments and activity on recurring expenses</li>
+          <li>Contacts sync only changes contacts it created, never your own</li>
+          <li>The Expenses tab no longer duplicates typed lines</li>
+          <li>Lists no longer miss their newest records</li>
+          <li>Dashboard figures for a period in progress run to today</li>
+        </ul>
+      </description>
+    </release>
   </releases>
   <content_rating type="oars-1.1"/>
 </component>

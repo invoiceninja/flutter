@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// CI lint: `.github/workflows/deploy-all.yml` ships a release everywhere from
 /// one dispatch — the readiness check, then appimage.yml (whose test gate is
 /// the one test run), then the five store workflows with their own test gate
-/// skipped (docs/store-deployment-setup.md § 0 Start here).
+/// skipped, and the Flathub leg that follows the release onto Flathub
+/// (docs/store-deployment-setup.md § 0 Start here, docs/flatpak.md).
 ///
 /// GitHub validates none of this until a real release is dispatched, and the
 /// worst ways it drifts are silent: a store call without `secrets: inherit`
@@ -120,6 +121,34 @@ void main() {
         );
       }
     }
+  });
+
+  test('the Flathub leg only reads, and waits for the launch flag', () {
+    final call = callOf('flathub.yml');
+    expect(call.value, contains('    needs: release\n'));
+    expect(
+      call.value,
+      contains("    if: vars.FLATHUB_ENABLED == 'true'\n"),
+      reason:
+          'Until the submission is accepted there is no flathub/com.invoiceninja.admin, and every '
+          'deploy would fail waiting for it (docs/going-live.md).',
+    );
+    expect(
+      call.value,
+      isNot(contains('secrets: inherit')),
+      reason: 'It writes nothing anywhere, so it gets no secrets.',
+    );
+    final text = File('$dir/flathub.yml').readAsStringSync();
+    expect(text, contains('\n  workflow_call:\n'));
+    expect(
+      text,
+      contains('\npermissions:\n  contents: read\n\njobs:\n'),
+      reason:
+          'Read-only, and a called workflow cannot ask for more than '
+          "deploy-all.yml's contents: read.",
+    );
+    expect(text, isNot(contains('secrets.')));
+    expect(text, contains('run: tools/follow_flathub_release.sh'));
   });
 
   test('appimage.yml declares publish on the call trigger too', () {

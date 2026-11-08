@@ -14,7 +14,8 @@ set -euo pipefail
 #       1..3), non-empty and identical — the bump script doesn't write these.
 #  2. tools/bump_client_version.sh has run:
 #     - every file it writes names the same version (kClientVersion, the snap's
-#       display version, the F-Droid recipe's CurrentVersion / Code);
+#       display version, the F-Droid recipe's CurrentVersion / Code, the Linux
+#       metainfo's <release> entry — Flathub builds from the tag);
 #     - no v<version> tag exists yet — re-releasing a version re-runs every
 #       store into a duplicate-build rejection;
 #     - the version and the build number are both above the newest tag's.
@@ -97,6 +98,10 @@ recipe_version="$(sed -n 's/^CurrentVersion:[[:space:]]*\(.*\)$/\1/p' "$recipe")
 recipe_code="$(sed -n 's/^CurrentVersionCode:[[:space:]]*\(.*\)$/\1/p' "$recipe")"
 if [[ "$recipe_version" != "$version" || "$recipe_code" != "$((build * 10 + 3))" ]]; then
   fail "$recipe names $recipe_version ($recipe_code), not $version ($((build * 10 + 3))): $bump_hint."
+fi
+
+if ! python3 tools/metainfo_release.py --check "$version" 2>/dev/null; then
+  fail "appimage/com.invoiceninja.admin.metainfo.xml has no <release> for $version: $bump_hint."
 fi
 
 # --- 2. The bump: the version is new, and above the newest release ---

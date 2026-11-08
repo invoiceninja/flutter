@@ -140,11 +140,10 @@ mkdir -p "$appdir/usr/bin" "$appdir/usr/share/metainfo" "$tools_dir"
 cp -r "$bundle/lib"  "$appdir/usr/bin/"
 cp -r "$bundle/data" "$appdir/usr/bin/"
 
-# linuxdeploy has no metainfo flag — install it ourselves, then stamp the real
-# version/date into the AppDir COPY ONLY (never the tracked source -> no drift).
+# linuxdeploy has no metainfo flag — install it ourselves. Its <releases> are
+# already real: tools/bump_client_version.sh writes each release's entry
+# (tools/metainfo_release.py), and the Flatpak installs the same file.
 install -Dm644 "$repo_root/appimage/com.invoiceninja.admin.metainfo.xml" \
-  "$appdir/usr/share/metainfo/com.invoiceninja.admin.metainfo.xml"
-sed -i -E "s|<release[^/]*/>|<release version=\"$version\" date=\"$(date +%F)\"/>|" \
   "$appdir/usr/share/metainfo/com.invoiceninja.admin.metainfo.xml"
 
 # crashpad_handler (sentry_flutter) is installed mode 0644 by Flutter's

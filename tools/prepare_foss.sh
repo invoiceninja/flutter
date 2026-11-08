@@ -10,6 +10,11 @@
 #   tools/prepare_foss.sh --update-lock
 #                                    regenerate tools/foss/pubspec.lock after
 #                                    pubspec.lock changes; touches nothing else.
+#   tools/prepare_foss.sh --offline  the same prepare with no network, for the
+#                                    Flatpak build on Flathub (docs/flatpak.md):
+#                                    the sqlite3mc amalgamation must already be
+#                                    in native/sqlite3mc and the pub cache
+#                                    already hold every locked package.
 #
 # Four steps:
 #   1. `store_services` → its FOSS twin, via a root pubspec_overrides.yaml
@@ -26,7 +31,7 @@
 #      plugin, whose build.gradle F-Droid's scan would read (docs/fdroid.md).
 #
 # Needs network for the sqlite3mc download and pub get — run it where F-Droid
-# runs `prebuild`. Set FLUTTER to the SDK's flutter binary if it isn't on PATH.
+# runs `prebuild` — except with --offline, which needs none. Set FLUTTER to the SDK's flutter binary if it isn't on PATH.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -35,12 +40,14 @@ FLUTTER="${FLUTTER:-flutter}"
 # Anything else would fall through to a full prepare, which rewrites the
 # checkout — the wrong outcome for a mistyped --update-lock.
 case "${1:-}" in
-  "" | --restore | --update-lock) ;;
+  "" | --restore | --update-lock | --offline) ;;
   *)
-    echo "usage: tools/prepare_foss.sh [--restore [--force] | --update-lock]" >&2
+    echo "usage: tools/prepare_foss.sh [--offline | --restore [--force] | --update-lock]" >&2
     exit 2
     ;;
 esac
+OFFLINE=false
+[[ "${1:-}" == "--offline" ]] && OFFLINE=true
 
 # Keep in lockstep with the SQLite3MultipleCiphers release that the resolved
 # `sqlite3` package ships prebuilt (its tool/download_sqlite.dart at the
@@ -219,6 +226,12 @@ echo "Wrote pubspec_overrides.yaml (store_services -> packages/store_services_fo
 # 2. sqlite3mc from source.
 if sqlite3mc_present; then
   echo "sqlite3mc amalgamation already present."
+elif $OFFLINE; then
+  # Flathub's builder has no network: the manifest declares the pinned zip as
+  # a source, unpacked into native/sqlite3mc (docs/flatpak.md).
+  echo "--offline: no sqlite3mc amalgamation matching the pinned sha256 in" >&2
+  echo "$SQLITE3MC_DIR — the build must supply $SQLITE3MC_URL there." >&2
+  exit 1
 else
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
@@ -255,7 +268,9 @@ fi
 # 3. Resolve exactly the committed FOSS lock, then prove it is free and pinned
 # as the store build is. The snapshot still holds the store lock.
 cp "$FOSS_LOCK" pubspec.lock
-if ! "$FLUTTER" pub get --enforce-lockfile; then
+pub_get_flags=(--enforce-lockfile)
+$OFFLINE && pub_get_flags+=(--offline)
+if ! "$FLUTTER" pub get "${pub_get_flags[@]}"; then
   echo "$FOSS_LOCK no longer satisfies pubspec.yaml. Run" >&2
   echo "tools/prepare_foss.sh --update-lock on the store build and commit it." >&2
   exit 1

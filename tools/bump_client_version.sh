@@ -17,6 +17,14 @@ set -euo pipefail
 # same MAJOR.MINOR.PATCH — it was a documented manual step that demonstrably
 # never happened (drifted 4 releases behind).
 #
+# And the Linux metainfo (appimage/com.invoiceninja.admin.metainfo.xml): a
+# <release> entry for the new version, dated today, holding the release's
+# store digest (tools/metainfo_release.py) — Flathub and GNOME Software show it
+# as the changelog, and Flathub builds from the tag, so it must be committed
+# with the bump (docs/flatpak.md). So the digest
+# (fastlane/metadata/android/en-US/changelogs/<new build x 10 + 1>.txt) is
+# written before the bump too, as docs/release-notes.md step 5 already has it.
+#
 # And the F-Droid recipe (tools/foss/com.invoiceninja.admin.yml): each ABI
 # block's versionName, versionCode (build x 10 + abi digit) and commit
 # (v<version>), plus CurrentVersion/CurrentVersionCode — so the recipe already
@@ -86,6 +94,17 @@ if ! grep -qE "^[[:space:]]*(ReleaseNotes\()?version: '${new_version//./\\.}'" "
   echo "!! no release notes for $new_version — add its ReleaseNotes entry to the top" >&2
   echo "   of kReleaseNotes in $notes first (docs/release-notes.md step 5)," >&2
   echo "   run flutter test test/domain/release_notes_test.dart, then bump again" >&2
+  exit 1
+fi
+
+# The store digest the metainfo entry is written from: checked here, before
+# anything changes, like the notes above. The build is pubspec's +N plus one.
+next_build="$(sed -n 's/^version:[^+]*+\([0-9]*\).*$/\1/p' pubspec.yaml)"
+next_build=$(( ${next_build:-0} + 1 ))
+digest="fastlane/metadata/android/en-US/changelogs/$(( next_build * 10 + 1 )).txt"
+if [[ ! -s "$digest" ]]; then
+  echo "!! no store digest $digest — write the F-Droid changelogs for build" >&2
+  echo "   $next_build first (docs/release-notes.md step 5), then bump again" >&2
   exit 1
 fi
 
@@ -166,6 +185,13 @@ if [[ "$(grep -c "^  - versionName: ${new_version}\$" "$recipe")" != 3 ||
   echo "!! F-Droid recipe update failed — check $recipe (versionCodes: $recipe_codes)" >&2
   exit 1
 fi
+
+# --- Linux metainfo: this release's <release> entry ---
+if [[ "$new_build" != "$next_build" ]]; then
+  echo "!! build number moved while bumping ($next_build -> $new_build) — check $pubspec" >&2
+  exit 1
+fi
+python3 tools/metainfo_release.py "$new_version" "$new_build"
 
 echo "==> kClientVersion: $current -> $new_version"
 echo "==> pubspec version: $pubspec_line -> $new_pubspec"

@@ -59,6 +59,17 @@ Both apps are the `invoiceninja` snap, so this replaces v1 for every snap user.
 - [ ] Ship the launch release with `grade: stable` (§ App changes in the launch release).
 - [ ] Change `release: edge` to `release: stable` in `snapcraft.yml`, or promote the revision with `snapcraft release invoiceninja <rev> stable`.
 
+### Flathub
+
+**Flathub goes first** (decided 2026-11-08): the new app joins Flathub as `com.invoiceninja.admin` straight into production, ahead of the other stores. Flathub's stable repo takes only stable software, and a new app can't start on its beta repo. v1 is `com.invoiceninja.InvoiceNinja`. Two listings of one app are refused, so v1 retires the same day. **Hillel does every step here by hand.** Flathub's AI policy bars agents from its manifests and PRs, so an agent can explain a step but never take it. The background is in `docs/flatpak.md`.
+
+- [ ] Before launch: prove the offline build on a fork, for both arches, with `flatpak-builder-lint` clean (`docs/flatpak.md` § Submitting). Commit screenshots of the Flatpak and name them in the metainfo by URLs pinned to a commit SHA. Record the video for the PR.
+- [ ] Once a release carries the screenshots: open the submission PR on `flathub/flathub` from the `new-pr` branch (Hillel's fork, `hillelcoren/flathub`), building from that tag. Fill in the whole checklist, including the AI disclosure, and give reviewers a demo login.
+- [ ] When it merges: append the new verification token to `invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` as a new line, keeping v1's. Add the update workflow to `flathub/com.invoiceninja.admin`, and ask Flathub to enable auto-merge there.
+- [ ] The day the new ID publishes: merge v1's end-of-life rebase PR, which adds `end-of-life` and `end-of-life-rebase` to its existing `flathub.json`. Then check the switch prompt in GNOME Software and Discover.
+- [ ] Set the repo variable `FLATHUB_ENABLED` to `true`, so Deploy to all follows each release onto Flathub.
+- [ ] Add the Flathub install link to `README.md`, and flip the Flatpak row in `FEATURES.md`.
+
 ### GitHub Releases
 
 - [ ] Decide whether releases stay marked pre-release. If not, remove `--prerelease` from `appimage.yml`.

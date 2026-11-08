@@ -1,0 +1,48 @@
+name: Follow the release onto Flathub
+
+# Deploy to all's `flathub` leg. Flathub builds and publishes the app itself,
+# from flathub/com.invoiceninja.admin: that repo's own update workflow sees the
+# new release tag within the hour, regenerates the offline sources from it, and
+# opens branch update-v<version> with auto-merge on; Flathub's bot test-builds
+# it for x86_64 and aarch64, and the merge publishes. The release notes are
+# already in the tag: tools/bump_client_version.sh wrote the version's
+# <release> into the metainfo, which Flathub shows as the changelog.
+#
+# So this workflow only reads — tools/follow_flathub_release.sh waits for the
+# PR, fails on a failed test build, and reports merged / published in the job
+# summary. It never writes to Flathub, and nothing in this repo may: Flathub's
+# generative-AI policy keeps every Flathub-side file and PR human-written
+# (docs/flatpak.md). No secrets, no test gate (it builds nothing).
+#
+# deploy-all.yml runs it only once the repo variable FLATHUB_ENABLED is 'true'
+# — set at the Flathub launch (docs/going-live.md). Dispatch it by hand to
+# re-follow a release, e.g. after merging a fixed update PR.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to follow (MAJOR.MINOR.PATCH; default pubspec's)
+        type: string
+        default: ''
+  workflow_call:
+
+# Reading another owner's public PRs needs no grant on this repo, and a called
+# workflow can't ask for more than deploy-all.yml's `contents: read`.
+permissions:
+  contents: read
+
+jobs:
+  follow:
+    name: Flathub
+    runs-on: ubuntu-latest
+    # The waits add up to about 5.8 h (PR 1.5 h, build and merge 3.5 h,
+    # listing 0.75 h), inside the 6 h job limit.
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Follow the release onto Flathub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: tools/follow_flathub_release.sh "$VERSION"

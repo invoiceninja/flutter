@@ -212,9 +212,11 @@ class DnPermission {
     required this.model,
     required this.permissionId,
     this.permissionableId,
+    this.id = '',
   });
 
   factory DnPermission.fromJson(Map<String, dynamic> json) => DnPermission(
+    id: _str(json['id']),
     model: _str(json['model']),
     permissionId: _int(json['permission_id']),
     // React counts a grant as global only when this is exactly `null`
@@ -230,10 +232,14 @@ class DnPermission {
   final String model;
   final int permissionId;
 
-  /// React's grid writes a global grant (`permissionable_id: null`).
+  /// The grant's own id, kept on a save; empty for one the grid just added.
+  final String id;
+
+  /// What React's grid sends back: an existing grant with its id, a new one
+  /// with an empty id; record-scoped grants untouched.
   Map<String, dynamic> toJson() => {
     'model': model,
-    'id': '',
+    'id': id,
     'permission_id': permissionId,
     'permissionable_id': permissionableId,
   };

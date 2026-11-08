@@ -32,6 +32,19 @@ void main() {
       ]);
     });
 
+    test('codes the app does not know survive a save', () {
+      final c = DnNotificationChoice.decode([
+        'document_signed',
+        'document_reminded_user',
+      ]);
+      expect(c.encode(), ['document_signed', 'document_reminded_user']);
+      expect(c.withType('document_sent', DnNotify.all).encode(), [
+        'document_sent',
+        'document_signed',
+        'document_reminded_user',
+      ]);
+    });
+
     test('a master choice clears the types; a type makes it custom', () {
       final c = DnNotificationChoice.decode([
         'document_signed',

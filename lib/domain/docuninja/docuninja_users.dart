@@ -25,7 +25,11 @@ enum DnNotify { none, all, allUser, custom }
 /// React's notification settings: a master choice and, when it is custom,
 /// one per type.
 class DnNotificationChoice {
-  const DnNotificationChoice(this.master, [this.perType = const {}]);
+  const DnNotificationChoice(
+    this.master, [
+    this.perType = const {},
+    this.extra = const [],
+  ]);
 
   /// React's `useNotifications` decode.
   factory DnNotificationChoice.decode(List<String> codes) {
@@ -34,29 +38,44 @@ class DnNotificationChoice {
       return const DnNotificationChoice(DnNotify.allUser);
     }
     if (codes.isEmpty) return const DnNotificationChoice(DnNotify.none);
-    return DnNotificationChoice(DnNotify.custom, {
-      for (final (type, _) in kDnNotificationTypes)
-        type: codes.contains('${type}_user')
-            ? DnNotify.allUser
-            : codes.contains(type)
-            ? DnNotify.all
-            : DnNotify.none,
-    });
+    final known = {
+      for (final (type, _) in kDnNotificationTypes) ...[type, '${type}_user'],
+    };
+    return DnNotificationChoice(
+      DnNotify.custom,
+      {
+        for (final (type, _) in kDnNotificationTypes)
+          type: codes.contains('${type}_user')
+              ? DnNotify.allUser
+              : codes.contains(type)
+              ? DnNotify.all
+              : DnNotify.none,
+      },
+      // Codes for events this app does not list: kept, as React keeps
+      // whatever it is given, so a save never drops them.
+      [
+        for (final c in codes)
+          if (!known.contains(c)) c,
+      ],
+    );
   }
 
   final DnNotify master;
   final Map<String, DnNotify> perType;
 
+  /// Custom codes the app does not know, sent back as they came.
+  final List<String> extra;
+
   DnNotify of(String type) => perType[type] ?? DnNotify.none;
 
   /// Picking all, own or none clears the per-type choices (React).
   DnNotificationChoice withMaster(DnNotify m) => m == DnNotify.custom
-      ? DnNotificationChoice(m, perType)
+      ? DnNotificationChoice(m, perType, extra)
       : DnNotificationChoice(m);
 
   /// Changing one type makes the master custom (React).
   DnNotificationChoice withType(String type, DnNotify value) =>
-      DnNotificationChoice(DnNotify.custom, {...perType, type: value});
+      DnNotificationChoice(DnNotify.custom, {...perType, type: value}, extra);
 
   /// React's payload.
   List<String> encode() => switch (master) {
@@ -69,6 +88,7 @@ class DnNotificationChoice {
           type
         else if (of(type) == DnNotify.allUser)
           '${type}_user',
+      ...extra,
     ],
   };
 }

@@ -103,12 +103,18 @@ class _Seats {
   final int used;
   final int max;
 
-  bool get full => max > 0 && used >= max;
+  /// React's rule: no seat left once the users reach `num_users`, and an
+  /// account without `num_users` has none.
+  bool get full => used >= max;
+
+  int get left => max <= used ? 0 : max - used;
 }
 
 Future<_Seats> _seats(DocuNinjaApi api, DocuNinjaState state) async {
+  // `num_users` is the account's, so count across it, as React's alert does
+  // (an empty company key).
   final page = await api.users(
-    ninjaCompanyKey: state.company!.ninjaCompanyKey,
+    ninjaCompanyKey: '',
     perPage: 1,
     status: 'active,archived',
   );
@@ -268,7 +274,7 @@ class _UsersListState extends State<_UsersList> {
             children: [
               FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(minimumSize: const Size(64, 40)),
-                onPressed: seats == null || seats.full || _busy
+                onPressed: (seats != null && seats.full) || _busy
                     ? null
                     : () async {
                         await context.push('/docuninja/users/access');
@@ -296,7 +302,7 @@ class _UsersListState extends State<_UsersList> {
                   },
                 ),
               ),
-              if (seats != null && seats.max > 0)
+              if (seats != null)
                 LtrText(
                   '${seats.used} / ${seats.max}',
                   style: TextStyle(color: context.inTheme.ink2),
@@ -304,10 +310,7 @@ class _UsersListState extends State<_UsersList> {
               if (seats != null && seats.full)
                 TextButton(
                   onPressed: () => context.go('/settings/account_management'),
-                  child: Text(
-                    '${context.tr('user_limit_reached')} · '
-                    '${context.tr('upgrade')}',
-                  ),
+                  child: Text(context.tr('user_limit_reached')),
                 ),
             ],
           ),
@@ -495,10 +498,9 @@ class _UserEditorState extends State<_UserEditor> {
       setState(() {
         _user = u;
         _isAdmin = u.isAdmin;
-        _permissions = [
-          for (final p in u.permissions)
-            if (p.permissionableId == null) p,
-        ];
+        // Every grant, the record-scoped ones too (the grid shows only the
+        // global ones, and a save sends them all back, as React does).
+        _permissions = u.permissions;
         _notify = DnNotificationChoice.decode(u.notifications);
       });
     } on Object catch (e, st) {
@@ -801,9 +803,12 @@ class DnPermissionsGrid extends StatelessWidget {
         style: TextStyle(color: tokens.ink3, fontSize: 12),
       ),
     );
+    // A fixed label column: the grid scrolls sideways on a narrow pane, so
+    // its rows have no width to share out with an Expanded.
     Widget row(String label, List<Widget> cells) => Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(child: Text(label)),
+        SizedBox(width: 140, child: Text(label)),
         ...cells,
       ],
     );
@@ -919,7 +924,10 @@ class _GrantAccessState extends State<_GrantAccess> {
     setState(() => _failed = false);
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
-    if (companyId == null) return;
+    if (companyId == null) {
+      setState(() => _failed = true);
+      return;
+    }
     try {
       final key = widget.state.company!.ninjaCompanyKey;
       final results = await Future.wait([
@@ -948,6 +956,7 @@ class _GrantAccessState extends State<_GrantAccess> {
               u,
         ];
         _seats0 = results[2] as _Seats;
+        _selected.removeWhere((id) => !_available!.any((u) => u.id == id));
       });
     } on Object catch (e, st) {
       _log.warning('Reading users to grant DocuNinja access failed', e, st);
@@ -955,12 +964,7 @@ class _GrantAccessState extends State<_GrantAccess> {
     }
   }
 
-  int get _left {
-    final s = _seats0;
-    if (s == null) return 0;
-    if (s.max <= 0) return _available?.length ?? 0;
-    return (s.max - s.used).clamp(0, 1 << 20);
-  }
+  int get _left => _seats0?.left ?? 0;
 
   Future<void> _grant() async {
     final loginApi = context.read<DocuNinjaLoginApi?>();
@@ -971,31 +975,43 @@ class _GrantAccessState extends State<_GrantAccess> {
       return;
     }
     setState(() => _saving = true);
-    try {
-      await Future.wait([
-        for (final u in available)
-          if (_selected.contains(u.id))
-            loginApi.createUser(
-              userId: u.id,
-              firstName: u.firstName,
-              lastName: u.lastName,
-              email: u.email,
-              isAdmin: _isAdmin,
-              permissions: [for (final p in _permissions) p.toJson()],
-            ),
-      ]);
-      if (!mounted) return;
+    // One at a time, remembering who went through: a failure part-way
+    // leaves only the users still without access selected, so a retry never
+    // grants anyone twice.
+    final failed = <String>{};
+    for (final u in available) {
+      if (!_selected.contains(u.id)) continue;
+      try {
+        await loginApi.createUser(
+          userId: u.id,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          email: u.email,
+          isAdmin: _isAdmin,
+          permissions: [for (final p in _permissions) p.toJson()],
+        );
+      } on Object catch (e, st) {
+        _log.warning('Granting DocuNinja access failed', e, st);
+        failed.add(u.id);
+      }
+    }
+    if (!mounted) return;
+    if (failed.isEmpty) {
       Notify.success(
         context,
         context.tr('docuninja_access_granted_successfully'),
       );
       context.pop();
-    } on Object catch (e, st) {
-      _log.warning('Granting DocuNinja access failed', e, st);
-      if (!mounted) return;
-      setState(() => _saving = false);
-      Notify.error(context, context.tr('docuninja_access_grant_failed'));
+      return;
     }
+    Notify.error(context, context.tr('an_error_occurred_try_again'));
+    setState(() {
+      _saving = false;
+      _selected
+        ..clear()
+        ..addAll(failed);
+    });
+    await _load();
   }
 
   @override
@@ -1066,12 +1082,10 @@ class _GrantAccessState extends State<_GrantAccess> {
                 SizedBox(height: InSpacing.md(context)),
                 FormSection(
                   title: context.tr('users'),
-                  trailing: seats.max > 0
-                      ? LtrText(
-                          '${seats.used + _selected.length} / ${seats.max}',
-                          style: TextStyle(color: tokens.ink2),
-                        )
-                      : null,
+                  trailing: LtrText(
+                    '${seats.used + _selected.length} / ${seats.max}',
+                    style: TextStyle(color: tokens.ink2),
+                  ),
                   children: [users],
                 ),
                 if (_selected.isNotEmpty) ...[

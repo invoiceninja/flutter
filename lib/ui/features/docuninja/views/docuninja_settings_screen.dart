@@ -210,14 +210,22 @@ class _CompanySettingsTab extends StatefulWidget {
 
 class _CompanySettingsTabState extends State<_CompanySettingsTab>
     with AutomaticKeepAliveClientMixin {
-  late final Map<String, dynamic> _settings = {
-    // React's defaults before the company loads.
-    'attach_audit_log_to_completed_email': true,
-    'widget_show_label': false,
+  /// What the user changed on this tab, and only that: a save lays it over
+  /// the company's current settings (which another tab's save may have
+  /// changed since this one opened), so one tab never writes back another's
+  /// stale values, nor a default the server never held.
+  final Map<String, dynamic> _edits = {};
+
+  /// What the controls show: the company's settings, under this tab's
+  /// edits, with React's display defaults for a key the company lacks.
+  Map<String, dynamic> get _settings => {
     'widget_border_style': 'hidden',
     'widget_border_color': '#FF5733',
     ...widget.company.settings,
+    ..._edits,
   };
+
+  void _set(String key, Object? value) => setState(() => _edits[key] = value);
   late final _fromName = TextEditingController(
     text: '${_settings['email_from_name'] ?? ''}',
   );
@@ -245,11 +253,16 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       // React sends an empty value as null.
       final name = _fromName.text.trim();
       final reply = _replyTo.text.trim();
-      _settings['email_from_name'] = name.isEmpty ? null : name;
-      _settings['reply_to_email'] = reply.isEmpty ? null : reply;
+      _edits['email_from_name'] = name.isEmpty ? null : name;
+      _edits['reply_to_email'] = reply.isEmpty ? null : reply;
     }
     try {
-      await widget.api.updateCompanySettings(widget.company, _settings);
+      await widget.api.updateCompanySettings(widget.company, {
+        ...widget.company.settings,
+        ..._edits,
+      });
+      // Saved: the company the handshake re-reads now holds them.
+      _edits.clear();
       if (!mounted) return;
       Notify.success(context, context.tr('updated_company'));
       await widget.session.load(force: true);
@@ -276,7 +289,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
     value: _flag(key),
     title: Text(context.tr(label)),
     subtitle: Text(context.tr(help)),
-    onChanged: _saving ? null : (v) => setState(() => _settings[key] = v),
+    onChanged: _saving ? null : (v) => _set(key, v),
   );
 
   @override
@@ -299,6 +312,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                     decoration: InputDecoration(
                       labelText: context.tr('from_name'),
                     ),
+                    onSubmitted: (_) => _save(),
                   ),
                   TextField(
                     controller: _replyTo,
@@ -308,6 +322,7 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                     decoration: InputDecoration(
                       labelText: context.tr('reply_to_email'),
                     ),
+                    onSubmitted: (_) => _save(),
                   ),
                 ],
               ),
@@ -379,19 +394,14 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                   ],
                   onChanged: _saving
                       ? null
-                      : (v) => setState(
-                          () => _settings['widget_border_style'] = v,
-                        ),
+                      : (v) => _set('widget_border_style', v),
                 ),
                 ColorInput(
                   labelKey: 'widget_border_color',
                   value: '${_settings['widget_border_color'] ?? ''}',
                   defaultValue: '#FF5733',
-                  onChanged: (v) => setState(
-                    () => _settings['widget_border_color'] = v.isEmpty
-                        ? '#FF5733'
-                        : v,
-                  ),
+                  onChanged: (v) =>
+                      _set('widget_border_color', v.isEmpty ? '#FF5733' : v),
                 ),
                 Text(
                   context.tr('widget_border_color_help'),
@@ -519,7 +529,9 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
               key: ValueKey('subject:${current.id}'),
               controller: _subjects[current.id],
               textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
               decoration: InputDecoration(labelText: context.tr('subject')),
+              onSubmitted: (_) => _save(),
             ),
             TextField(
               key: ValueKey('body:${current.id}'),
@@ -886,6 +898,7 @@ class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
                   labelText: context.tr('name'),
                   errorText: _error('name'),
                 ),
+                onSubmitted: (_) => _save(),
               ),
               TextField(
                 controller: _subject,
@@ -895,6 +908,7 @@ class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
                   labelText: context.tr('subject'),
                   errorText: _error('subject'),
                 ),
+                onSubmitted: (_) => _save(),
               ),
               TextField(
                 controller: _body,
@@ -915,6 +929,7 @@ class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
                   labelText: context.tr('num_days'),
                   errorText: _error('num_days'),
                 ),
+                onSubmitted: (_) => _save(),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

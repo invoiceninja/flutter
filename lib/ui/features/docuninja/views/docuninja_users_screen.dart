@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
@@ -577,9 +576,9 @@ class _UserEditorState extends State<_UserEditor> {
     if (u == null) return false;
     return _isAdmin != u.isAdmin ||
         _grantsKey(_permissions) != _grantsKey(u.permissions) ||
-        !listEquals(
-          _notify.encode()..sort(),
-          DnNotificationChoice.decode(u.notifications).encode()..sort(),
+        !dnSameNotifications(
+          _notify,
+          DnNotificationChoice.decode(u.notifications),
         );
   }
 

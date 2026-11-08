@@ -68,6 +68,35 @@ void main() {
     expect(vm.items, hasLength(8));
   });
 
+  test('refreshes in a burst share one load', () async {
+    final api = _Api();
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await Future.wait([vm.refresh(), vm.refresh(), vm.refresh()]);
+    expect(api.calls.map((c) => c.page), [1]);
+  });
+
+  test('retrying a failed deep refresh keeps the depth', () async {
+    var failPage = 0;
+    final api = _Api()
+      ..answer = (page, _) async {
+        if (page == failPage) throw StateError('boom');
+        return _page(page, 4);
+      };
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await vm.refresh();
+    await vm.loadMore();
+    await vm.loadMore();
+    failPage = 2;
+    await vm.refresh();
+    expect(vm.error, isNotNull);
+    expect(vm.items, hasLength(6), reason: 'the rows on screen stay');
+    failPage = 0;
+    api.calls.clear();
+    await vm.retry();
+    expect(api.calls.map((c) => c.page), [1, 2, 3]);
+    expect(vm.items, hasLength(6));
+  });
+
   test('a refresh stops at the last page the server has now', () async {
     var last = 3;
     final api = _Api()..answer = (page, _) async => _page(page, last);

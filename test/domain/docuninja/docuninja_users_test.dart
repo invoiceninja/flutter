@@ -100,4 +100,16 @@ void main() {
       expect(approval.map((x) => x.model), ['documents']);
     });
   });
+
+  test('notification choices compare without sorting a const list', () {
+    const none = DnNotificationChoice(DnNotify.none);
+    const all = DnNotificationChoice(DnNotify.all);
+    // `encode` answers these with const lists; a sort in place throws.
+    expect(dnSameNotifications(none, none), isTrue);
+    expect(dnSameNotifications(all, all), isTrue);
+    expect(dnSameNotifications(all, none), isFalse);
+    final a = DnNotificationChoice.decode(['document_signed', 'all_user']);
+    final b = DnNotificationChoice.decode(['all_user', 'document_signed']);
+    expect(dnSameNotifications(a, b), isTrue);
+  });
 }

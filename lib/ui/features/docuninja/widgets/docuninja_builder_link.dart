@@ -83,10 +83,14 @@ void notifyAndOpenDocuNinjaBuilder(
   bool template = false,
   bool fromTemplate = false,
 }) {
+  // The root navigator's context outlives the caller's page, which a
+  // `go` to the new document may already have replaced by the time the
+  // toast's button is tapped (Use Template does).
+  final host = Navigator.of(context, rootNavigator: true).context;
   void open() {
-    if (!context.mounted) return;
+    if (!host.mounted) return;
     openDocuNinjaBuilder(
-      context,
+      host,
       documentId: documentId,
       companyId: companyId,
       template: template,

@@ -162,3 +162,12 @@ List<DnPermission> dnSetPermissionForAll(
   }
   return out;
 }
+
+/// Whether two notification choices send the same codes, in any order.
+/// `encode` answers most choices with a const list, so this compares sets
+/// and never sorts in place (which throws on a const list).
+bool dnSameNotifications(DnNotificationChoice a, DnNotificationChoice b) {
+  final x = a.encode().toSet();
+  final y = b.encode().toSet();
+  return x.length == y.length && x.containsAll(y);
+}

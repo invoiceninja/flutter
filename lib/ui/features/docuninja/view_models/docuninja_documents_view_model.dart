@@ -197,7 +197,20 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   /// and as many pages as are showing (up to [kRefreshMaxPages]): a refresh
   /// a teammate's event or a return from the browser starts must not drop a
   /// user sixty rows down back to the first page.
-  Future<void> refresh() => _loadFirst(depth: _page.clamp(1, kRefreshMaxPages));
+  ///
+  /// A refresh while one for the same query is in flight shares it, so a
+  /// burst of live events never keeps restarting a five-page load.
+  Future<void> refresh() {
+    final inFlight = _inFlight;
+    if (_loading && inFlight != null && _inFlightQuery == _query) {
+      return inFlight;
+    }
+    return _loadFirst(depth: _refreshDepth);
+  }
+
+  int get _refreshDepth => _page.clamp(1, kRefreshMaxPages);
+  Future<void>? _inFlight;
+  String? _inFlightQuery;
 
   void setSearch(String value) {
     if (value == _search) return;
@@ -254,7 +267,14 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadFirst({int depth = 1}) async {
+  Future<void> _loadFirst({int depth = 1}) {
+    final load = _loadPages(depth);
+    _inFlight = load;
+    _inFlightQuery = _query;
+    return load;
+  }
+
+  Future<void> _loadPages(int depth) async {
     final generation = ++_generation;
     _searchTimer?.cancel();
     // A load-more of the previous query is now stale; its own `finally`
@@ -301,7 +321,8 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   }
 
   /// Asks again for what failed: the next page, or the first.
-  Future<void> retry() => _errorFromMore ? loadMore() : _loadFirst();
+  Future<void> retry() =>
+      _errorFromMore ? loadMore() : _loadFirst(depth: _refreshDepth);
 
   Future<DnPage<T>> _fetch(int page) => fetchPage(
     page: page,

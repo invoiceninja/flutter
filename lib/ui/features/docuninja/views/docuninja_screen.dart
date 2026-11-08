@@ -63,14 +63,12 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   /// once visited (and the list stays under a document opened from it), so
   /// a refresh a live event, a return to the app or a company switch asks
   /// for while the user is elsewhere waits until the list shows again:
-  /// one catch-up, not a stream of background requests.
+  /// one catch-up, not a stream of background requests. The company's
+  /// handshake is not held: the pages over the list need it.
   bool _onStage = true;
 
   /// A list refresh was asked for while off screen.
   bool _stale = false;
-
-  /// The handshake for a new company was asked for while off screen.
-  bool _sessionLoadPending = false;
 
   void _refreshList() {
     if (_onStage) {
@@ -81,10 +79,6 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   }
 
   void _catchUp() {
-    if (_sessionLoadPending) {
-      _sessionLoadPending = false;
-      _session?.load();
-    }
     if (_stale) {
       _stale = false;
       _vm?.refresh();
@@ -140,13 +134,10 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     }
     if (session.value.access == DocuNinjaAccess.unavailable &&
         (context.read<Services>().auth.session.value?.isHosted ?? false)) {
+      // Even off screen: Templates, Users or Settings may be showing over
+      // this list, and they wait on this handshake (one call a switch).
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_onStage) {
-          session.load();
-        } else {
-          _sessionLoadPending = true;
-        }
+        if (mounted) session.load();
       });
     }
   }
@@ -308,7 +299,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                       kind: _MenuAction.refresh,
                       icon: Icons.refresh,
                       label: context.tr('refresh'),
-                      // Always on: a refresh already in flight is reused.
+                      // Always on: a refresh already in flight is shared.
                       enabled: true,
                       startsGroup: true,
                       onTap: vm.refresh,

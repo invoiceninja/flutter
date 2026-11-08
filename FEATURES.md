@@ -72,7 +72,7 @@ the honest default.
 | Email / password login | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Signup / account creation | ✅ | ✅ | ✅ | ✅ | |
 | Sign up with Google / Apple (`oauth_login?create=true` + terms) | ✅ | ✅ | ✅ | | |
-| OAuth — Google | ✅ | ✅ | 🟡 | ✅ | |
+| OAuth — Google | ✅ | ✅ | ✅ | ✅ | |
 | OAuth — Microsoft / Azure | ✅ | ✅ | ❌ |  | |
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
@@ -98,7 +98,7 @@ the honest default.
 | GDPR data export / account closure flow | ✅ | ❌ | ✅ | ✅ | |
 | OAuth user confirms without a password (skipped when `oauth_password_required` is off; Apple re-auth; "set a password" otherwise) | ❌ | ✅ | ✅ | | |
 
-> Google sign-in / sign-up is 🟡 only for want of configuration: the code is complete on iOS and Android, but the buttons stay hidden until a build carries the client IDs for `com.invoiceninja.admin` (v1's are bound to `com.invoiceninja.app`) — `docs/setup.md` § Google Sign-In client IDs. Microsoft sign-in was web-only in v1 (MSAL popup); v2's web build is email/password only by decision.
+> Google sign-in / sign-up runs on Android, iOS and macOS (v1: Android and iOS only); the Mac signs in with the iOS client ID. The client IDs are per-build dart-defines, so a build without them (a fork, F-Droid) hides the buttons — `docs/setup.md` § Google Sign-In client IDs. Microsoft sign-in was web-only in v1 (MSAL popup); v2's web build is email/password only by decision.
 
 ---
 

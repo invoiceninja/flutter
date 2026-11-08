@@ -29,9 +29,16 @@
 	<true/>
 	<key>com.apple.security.print</key>
 	<true/>
+	<!-- The FIRST group is the default one: kSecureStorage names no access
+	     group, so the token and the database key live in it. Keep the app's own
+	     group first, or an update can no longer read them. The second is the
+	     Google Sign-In SDK's (google_sign_in_ios README → macOS integration);
+	     without it sign-in fails with a keychain error. The Mac App Store
+	     profile allows NPC44Y2C98.*, so it needs no new profile. -->
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.invoiceninja.admin</string>
+		<string>$(AppIdentifierPrefix)com.google.GIDSignIn</string>
 	</array>
 </dict>
 </plist>

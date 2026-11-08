@@ -93,11 +93,13 @@ class Env {
   );
 
   /// Google OAuth **iOS** client ID for bundle `com.invoiceninja.admin`,
-  /// passed to `initialize(clientId:)`. Empty = Google sign-in hidden on iOS —
-  /// it used to show anyway and fail, because nothing configured it. Its
-  /// reversed form (`com.googleusercontent.apps.<id>`) must also be a
-  /// `CFBundleURLSchemes` entry in `ios/Runner/Info.plist`, or the SDK throws
-  /// before showing the chooser. Injected via
+  /// passed to `initialize(clientId:)` on iOS **and macOS** (Google's SDK
+  /// uses an iOS-type client on the Mac, and both apps are that bundle).
+  /// Empty = Google sign-in hidden on both — it used to show anyway and fail,
+  /// because nothing configured it. Its reversed form
+  /// (`com.googleusercontent.apps.<id>`) must also be a `CFBundleURLSchemes`
+  /// entry in `ios/Runner/Info.plist` and `macos/Runner/Info.plist`, or the
+  /// SDK throws before showing the chooser. Injected via
   /// `--dart-define=IN_GOOGLE_IOS_CLIENT_ID=…`.
   static const String googleIosClientId = String.fromEnvironment(
     'IN_GOOGLE_IOS_CLIENT_ID',

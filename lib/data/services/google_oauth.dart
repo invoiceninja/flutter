@@ -5,7 +5,8 @@ import 'package:admin/app/env.dart';
 /// Google sign-in for the Invoice Ninja API (`/api/v1/oauth_login`).
 ///
 /// Mirrors `admin-portal/lib/utils/oauth.dart` (the working Android/iOS
-/// implementation) 1:1, with one deliberate change: the client IDs come from
+/// implementation) 1:1 — plus macOS, which v1 lacked and which signs in with
+/// the iOS client ID — with one deliberate change: the client IDs come from
 /// [Env.googleServerClientId] / [Env.googleIosClientId] (per-build
 /// dart-defines) instead of hardcoded constants — an iOS or Android client is
 /// bound to one bundle / package id, and this app's (`com.invoiceninja.admin`)

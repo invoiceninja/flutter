@@ -44,12 +44,14 @@ jobs:
     timeout-minutes: 80
     # Job-level, not just on the --config-only step: `xcodebuild archive` runs
     # the Runner scheme's pre-action (tools/xcode_inject_sentry_dsn.sh), which
-    # re-resolves the DSN from the environment (then dev.json, absent here) and
-    # patches it into the generated xcconfig the compile reads. With it unset
-    # the pre-action used to DROP the entry --config-only had written, so every
-    # CI archive shipped with Sentry off.
+    # re-resolves both values from the environment (then dev.json, absent here)
+    # and patches them into the generated xcconfig the compile reads. With the
+    # DSN unset the pre-action used to DROP the entry --config-only had
+    # written, so every CI archive shipped with Sentry off. The Mac signs in to
+    # Google with the iOS client (same bundle id); unset hides the button.
     env:
       IN_SENTRY_DSN: ${{ secrets.IN_SENTRY_DSN }}
+      IN_GOOGLE_IOS_CLIENT_ID: ${{ secrets.IN_GOOGLE_IOS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v5
 
@@ -133,13 +135,42 @@ jobs:
           echo "$APP_STORE_CONNECT_PRIVATE_KEY" \
             > "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 
-      # --config-only writes the build settings (incl. the IN_SENTRY_DSN
-      # dart-define, base64'd into macos/Flutter/ephemeral/Flutter-Generated.xcconfig
-      # as DART_DEFINES=) that the xcodebuild Flutter phase reads — so the DSN is
-      # baked into the AOT binary even though the compile happens under xcodebuild
-      # below. Empty/unset secret is a safe no-op (Sentry stays disabled).
+      # --config-only writes the build settings (incl. the IN_SENTRY_DSN and
+      # IN_GOOGLE_IOS_CLIENT_ID dart-defines, base64'd into
+      # macos/Flutter/ephemeral/Flutter-Generated.xcconfig as DART_DEFINES=)
+      # that the xcodebuild Flutter phase reads — so both are baked into the AOT
+      # binary even though the compile happens under xcodebuild below. An empty
+      # or unset secret is a safe no-op (Sentry off / Google button hidden).
       - name: Configure macOS release build
-        run: flutter build macos --release --config-only --dart-define=IN_SENTRY_DSN="$IN_SENTRY_DSN"
+        run: >-
+          flutter build macos --release --config-only
+          --dart-define=IN_SENTRY_DSN="$IN_SENTRY_DSN"
+          --dart-define=IN_GOOGLE_IOS_CLIENT_ID="$IN_GOOGLE_IOS_CLIENT_ID"
+
+      # Guard: a build that shows "Sign in with Google" (the secret is set) but
+      # has no reversed-client-ID URL scheme crashes on the first tap. The
+      # scheme is committed in macos/Runner/Info.plist, so this trips only when
+      # the secret names a different client than the one committed there
+      # (docs/setup.md § Google Sign-In client IDs).
+      - name: Check the Google Sign-In URL scheme
+        run: |
+          set -euo pipefail
+          if [ -z "${IN_GOOGLE_IOS_CLIENT_ID:-}" ]; then
+            echo "IN_GOOGLE_IOS_CLIENT_ID is not set — Sign in with Google stays hidden."
+            exit 0
+          fi
+          suffix=".apps.googleusercontent.com"
+          prefix="${IN_GOOGLE_IOS_CLIENT_ID%"$suffix"}"
+          if [ "$prefix" = "$IN_GOOGLE_IOS_CLIENT_ID" ] || [ -z "$prefix" ]; then
+            echo "::error::IN_GOOGLE_IOS_CLIENT_ID must be an iOS OAuth client ID ending in $suffix." >&2
+            exit 1
+          fi
+          scheme="com.googleusercontent.apps.$prefix"
+          if ! plutil -extract CFBundleURLTypes json -o - macos/Runner/Info.plist | grep -qF "\"$scheme\""; then
+            echo "::error::IN_GOOGLE_IOS_CLIENT_ID is set but macos/Runner/Info.plist has no $scheme URL scheme — Sign in with Google would crash." >&2
+            exit 1
+          fi
+          echo "The Google Sign-In URL scheme is registered."
 
       # Real distribution signing — the INVERSE of the unsigned CI gate (which
       # forces CODE_SIGN_IDENTITY="-" / CODE_SIGNING_ALLOWED=NO). The tracked
@@ -168,16 +199,13 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=NPC44Y2C98
 
-      # Prove the DSN reached the shipped binary — see the same step in
-      # appstore-ios.yml. The xcconfig decode is a quick pointed diagnosis; the
-      # binary grep is the authoritative check. Skipped when the secret is unset.
-      - name: Verify the Sentry DSN in the archived binary
+      # Prove the DSN and the Google client ID reached the shipped binary — see
+      # the same step in appstore-ios.yml. The xcconfig decode is a quick pointed
+      # diagnosis; the binary grep is the authoritative check. A key whose
+      # secret is unset is skipped.
+      - name: Verify the dart-defines in the archived binary
         run: |
           set -euo pipefail
-          if [ -z "${IN_SENTRY_DSN:-}" ]; then
-            echo "IN_SENTRY_DSN is not set — nothing to verify."
-            exit 0
-          fi
           archive=build/macos-release/Runner.xcarchive
           app_bin=$(find "$archive/Products/Applications" -path '*/App.framework/App' \( -type f -o -type l \) | head -n1)
           if [ -z "$app_bin" ]; then
@@ -185,21 +213,26 @@ jobs:
             exit 1
           fi
           defines=$(grep -E '^DART_DEFINES=' macos/Flutter/ephemeral/Flutter-Generated.xcconfig | head -n1 | sed 's/^DART_DEFINES=//' || true)
-          found=0
+          decoded=""
           IFS=',' read -ra entries <<< "$defines"
           for e in ${entries[@]+"${entries[@]}"}; do
-            if [ "$(printf '%s' "$e" | /usr/bin/base64 -D 2>/dev/null || true)" = "IN_SENTRY_DSN=$IN_SENTRY_DSN" ]; then
-              found=1
-            fi
+            decoded="$decoded$(printf '%s' "$e" | /usr/bin/base64 -D 2>/dev/null || true)"$'\n'
           done
-          if [ "$found" -ne 1 ]; then
-            echo "::warning::IN_SENTRY_DSN is missing from DART_DEFINES in macos/Flutter/ephemeral/Flutter-Generated.xcconfig."
-          fi
-          if ! grep -qaF -- "$IN_SENTRY_DSN" "$app_bin"; then
-            echo "::error::IN_SENTRY_DSN is set but not in the archived $app_bin — the build would ship with Sentry disabled." >&2
-            exit 1
-          fi
-          echo "The Sentry DSN is in the archived binary."
+          for key in IN_SENTRY_DSN IN_GOOGLE_IOS_CLIENT_ID; do
+            value="${!key:-}"
+            if [ -z "$value" ]; then
+              echo "$key is not set — nothing to verify."
+              continue
+            fi
+            if ! printf '%s' "$decoded" | grep -qxF -- "$key=$value"; then
+              echo "::warning::$key is missing from DART_DEFINES in macos/Flutter/ephemeral/Flutter-Generated.xcconfig."
+            fi
+            if ! grep -qaF -- "$value" "$app_bin"; then
+              echo "::error::$key is set but not in the archived $app_bin — the build would ship without it." >&2
+              exit 1
+            fi
+            echo "$key is in the archived binary."
+          done
 
       # method=app-store on a macOS archive emits a signed Mac App Store .pkg
       # (installer-signed) via the committed macos/ExportOptions.plist, which

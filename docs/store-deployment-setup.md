@@ -26,7 +26,7 @@ Six workflows publish the app. Every one of them:
 
 **Deploy to all** (`deploy-all.yml`) is the one dispatch for a whole release. It runs `tools/check_release_ready.sh` (the release notes are written and the version bump has run, §5), then `appimage.yml` (its test gate is the run's only test run; the GitHub Release is created), then the five store workflows in parallel, each called with `skip_tests` so its nested `test` shows as skipped. A failed release skips every store; a failed store leaves the others alone. It includes **Microsoft**, which goes live with no manual gate. Its runs appear only under "Deploy to all" in the Actions sidebar, not in each store workflow's history.
 
-All six additionally read `IN_SENTRY_DSN`, which is optional — 28 secret names in total (four of them the F-Droid signing key, kept in an Environment), plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
+All six additionally read `IN_SENTRY_DSN`, which is optional — 28 secret names in total (four of them the F-Droid signing key, kept in an Environment), plus two optional Google Sign-In client IDs (Android, and iOS + macOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
 
 ### First: find out what's already set
 
@@ -165,6 +165,7 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 | `APP_STORE_CONNECT_ISSUER_ID` | ASC API issuer UUID | App Store Connect → Users and Access → Integrations |
 | `APP_STORE_CONNECT_KEY_ID` | ASC API key ID | Same page |
 | `APP_STORE_CONNECT_PRIVATE_KEY` | The `.p8` private key, **raw text — NOT base64** | `gh secret set APP_STORE_CONNECT_PRIVATE_KEY < AuthKey_<KEYID>.p8` |
+| `IN_GOOGLE_IOS_CLIENT_ID` | *Optional.* Google OAuth **iOS** client ID for `com.invoiceninja.admin` — the Mac app signs in with the same one | `docs/setup.md` § Google Sign-In client IDs — its reversed form must also be in `ios/Runner/Info.plist` and `macos/Runner/Info.plist`. Unset hides "Sign in with Google" on iOS and macOS. |
 
 ### Apple — iOS only
 
@@ -175,7 +176,6 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile | `base64 -i profile.mobileprovision` |
 | `IOS_SHARE_EXTENSION_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile for the Share Extension (`com.invoiceninja.admin.ShareExtension`) | `base64 -i share-extension.mobileprovision` |
 | `IOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile for the home-screen widgets (`com.invoiceninja.admin.HomeWidgets`) | `base64 -i home-widgets.mobileprovision` |
-| `IN_GOOGLE_IOS_CLIENT_ID` | *Optional.* Google OAuth **iOS** client ID for `com.invoiceninja.admin` | `docs/setup.md` § Google Sign-In client IDs — its reversed form must also be in `ios/Runner/Info.plist`. Unset hides "Sign in with Google" on iOS. |
 
 ### Apple — macOS only
 

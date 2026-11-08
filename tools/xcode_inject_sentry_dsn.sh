@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Xcode IDE pre-action: bake the Sentry DSN (and, on iOS, the Google Sign-In
-# iOS client ID — IN_GOOGLE_IOS_CLIENT_ID, Env.googleIosClientId) into a
+# Xcode IDE pre-action: bake the Sentry DSN (and the Google Sign-In iOS client
+# ID — IN_GOOGLE_IOS_CLIENT_ID, Env.googleIosClientId, used on macOS too) into a
 # Product > Archive build. Both are lost the same way, described below for the
 # DSN; the name stays for the scheme files that invoke it.
 #
@@ -97,11 +97,10 @@ elif [[ -f "$dev_json" ]]; then
 fi
 dsn="$(resolve_define IN_SENTRY_DSN)"
 # Google Sign-In's iOS client ID (Env.googleIosClientId) is lost the same way
-# the DSN is. macOS has no Google sign-in, so it is only managed on iOS.
-google_ios_client_id=""
-if [[ "$platform" == "ios" ]]; then
-  google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
-fi
+# the DSN is. The Mac app signs in with the same iOS-type client (one bundle
+# id, com.invoiceninja.admin), so it is managed on both platforms.
+google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
+info_plist="$repo_root/$platform/Runner/Info.plist"
 
 # --- locate the platform's generated xcconfig ---
 case "$platform" in
@@ -184,26 +183,24 @@ current="$(xcconfig_get DART_DEFINES)"
 # was already in DART_DEFINES. CI registers the scheme on the runner before it
 # archives, so this never trips there. docs/setup.md § Google Sign-In client IDs.
 google_scheme_missing=0
-if [[ "$platform" == "ios" ]]; then
-  google_effective="$google_ios_client_id"
-  if [[ -z "$google_effective" ]]; then
-    saved_ifs="$IFS"
-    IFS=','
-    for entry in $current; do
-      decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
-      if [[ "$decoded" == "IN_GOOGLE_IOS_CLIENT_ID="?* ]]; then
-        google_effective="${decoded#IN_GOOGLE_IOS_CLIENT_ID=}"
-      fi
-    done
-    IFS="$saved_ifs"
-  fi
-  if [[ -n "$google_effective" ]]; then
-    google_scheme="com.googleusercontent.apps.${google_effective%.apps.googleusercontent.com}"
-    if ! /usr/bin/plutil -extract CFBundleURLTypes json -o - "$repo_root/ios/Runner/Info.plist" 2>/dev/null \
-        | /usr/bin/grep -qF "\"$google_scheme\""; then
-      google_scheme_missing=1
-      google_ios_client_id=""
+google_effective="$google_ios_client_id"
+if [[ -z "$google_effective" ]]; then
+  saved_ifs="$IFS"
+  IFS=','
+  for entry in $current; do
+    decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
+    if [[ "$decoded" == "IN_GOOGLE_IOS_CLIENT_ID="?* ]]; then
+      google_effective="${decoded#IN_GOOGLE_IOS_CLIENT_ID=}"
     fi
+  done
+  IFS="$saved_ifs"
+fi
+if [[ -n "$google_effective" ]]; then
+  google_scheme="com.googleusercontent.apps.${google_effective%.apps.googleusercontent.com}"
+  if ! /usr/bin/plutil -extract CFBundleURLTypes json -o - "$info_plist" 2>/dev/null \
+      | /usr/bin/grep -qF "\"$google_scheme\""; then
+    google_scheme_missing=1
+    google_ios_client_id=""
   fi
 fi
 
@@ -264,14 +261,12 @@ else
   echo "warning: [sentry-dsn] IN_SENTRY_DSN is empty (not in environment, dev.json or DART_DEFINES)." >&2
   echo "warning: [sentry-dsn] This $platform build will ship with Sentry DISABLED." >&2
 fi
-if [[ "$platform" == "ios" ]]; then
-  if [[ "$google_scheme_missing" -eq 1 ]]; then
-    echo "warning: [google] ios/Runner/Info.plist has no $google_scheme URL scheme — left IN_GOOGLE_IOS_CLIENT_ID out, so Sign in with Google is hidden instead of crashing. Add the scheme (docs/setup.md § Google Sign-In client IDs)." >&2
-  elif [[ -n "$google_ios_client_id" ]]; then
-    echo "==> [google] Baked the Google Sign-In iOS client ID into the build."
-  elif [[ "$kept_google" -eq 1 ]]; then
-    echo "==> [google] IN_GOOGLE_IOS_CLIENT_ID is not in the environment or dev.json — kept the one already in DART_DEFINES."
-  else
-    echo "warning: [google] IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden in this build." >&2
-  fi
+if [[ "$google_scheme_missing" -eq 1 ]]; then
+  echo "warning: [google] $platform/Runner/Info.plist has no $google_scheme URL scheme — left IN_GOOGLE_IOS_CLIENT_ID out, so Sign in with Google is hidden instead of crashing. Add the scheme (docs/setup.md § Google Sign-In client IDs)." >&2
+elif [[ -n "$google_ios_client_id" ]]; then
+  echo "==> [google] Baked the Google Sign-In iOS client ID into the build."
+elif [[ "$kept_google" -eq 1 ]]; then
+  echo "==> [google] IN_GOOGLE_IOS_CLIENT_ID is not in the environment or dev.json — kept the one already in DART_DEFINES."
+else
+  echo "warning: [google] IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden in this build." >&2
 fi

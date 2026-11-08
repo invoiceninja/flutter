@@ -15,7 +15,7 @@ set -euo pipefail
 #   3. empty -> Sentry stays disabled (safe no-op; Env.sentryDsn defaults to '').
 #
 # The Google Sign-In client IDs resolve the same way (env > dev.json > empty):
-#   IN_GOOGLE_SERVER_CLIENT_ID (Android) and IN_GOOGLE_IOS_CLIENT_ID (iOS).
+#   IN_GOOGLE_SERVER_CLIENT_ID (Android) and IN_GOOGLE_IOS_CLIENT_ID (iOS and macOS).
 # Empty hides "Sign in with Google" on that platform — see docs/setup.md
 # § Google Sign-In client IDs.
 #
@@ -136,8 +136,8 @@ google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
 if [[ "$platform" == "appbundle" && -z "$google_server_client_id" ]]; then
   echo "WARNING: IN_GOOGLE_SERVER_CLIENT_ID is empty — Sign in with Google is hidden on Android."
 fi
-if [[ "$platform" == "ios" && -z "$google_ios_client_id" ]]; then
-  echo "WARNING: IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden on iOS."
+if [[ ( "$platform" == "ios" || "$platform" == "macos" ) && -z "$google_ios_client_id" ]]; then
+  echo "WARNING: IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden on $platform."
 fi
 
 # --- map the platform to `flutter build` args ---

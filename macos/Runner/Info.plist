@@ -54,6 +54,14 @@
 				<string>invoiceninja</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.invoiceninja.google-sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.320847535584-rngt9prv8vu9v509cqke54ddutkq7fr0</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

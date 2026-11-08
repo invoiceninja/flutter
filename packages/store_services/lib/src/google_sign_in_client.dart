@@ -18,16 +18,19 @@ class GoogleSignInClient {
   /// Each platform needs its own client ID, and an empty one means "not
   /// configured for this build" — so the button is hidden rather than shown
   /// and failing. Android: the Web/server client ID (Credential Manager can't
-  /// resolve it from `google-services.json`). iOS: the iOS client ID, passed
-  /// to `initialize(clientId:)` so no `GoogleService-Info.plist` is needed —
-  /// though its reversed form must still be a registered URL scheme in
-  /// `Info.plist`. Web/desktop are out of scope (login is hosted-only).
+  /// resolve it from `google-services.json`). iOS and macOS: the *iOS* client
+  /// ID — Google's SDK uses an iOS-type client on the Mac too, and both apps
+  /// are bundle `com.invoiceninja.admin` — passed to `initialize(clientId:)`
+  /// so no `GoogleService-Info.plist` is needed, though its reversed form must
+  /// still be a registered URL scheme in each platform's `Info.plist` (and the
+  /// Mac needs the `com.google.GIDSignIn` keychain group). Web, Windows and
+  /// Linux are out of scope.
   static bool isSupported({
     required String androidServerClientId,
     required String iosClientId,
   }) {
     if (kIsWeb) return false;
-    if (Platform.isIOS) return iosClientId.isNotEmpty;
+    if (Platform.isIOS || Platform.isMacOS) return iosClientId.isNotEmpty;
     if (Platform.isAndroid) return androidServerClientId.isNotEmpty;
     return false;
   }
@@ -43,7 +46,7 @@ class GoogleSignInClient {
       await GoogleSignIn.instance.initialize(
         serverClientId: androidServerClientId,
       );
-    } else if (!kIsWeb && Platform.isIOS) {
+    } else if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
       // Never `serverClientId` here: that asks Google for a server auth code
       // bound to another client, which this app doesn't use.
       await GoogleSignIn.instance.initialize(clientId: iosClientId);

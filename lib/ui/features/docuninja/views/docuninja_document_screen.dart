@@ -95,6 +95,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       // document opened on a cold start, before the list screen loaded it).
       _vm = DocuNinjaDocumentViewModel(api: api, id: widget.id)..load();
     }
+    // DocuNinja's live updates (a signature landed): re-read, as React's
+    // detail page refetches on `DocumentWasSigned`.
+    _remote = context.read<DocuNinjaSession?>()?.remoteChanged
+      ?..addListener(_onRemote);
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId != null) {
@@ -104,8 +108,13 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     }
   }
 
+  ValueNotifier<int>? _remote;
+
+  void _onRemote() => _vm?.load();
+
   @override
   void dispose() {
+    _remote?.removeListener(_onRemote);
     _lifecycle.dispose();
     _vm?.dispose();
     super.dispose();

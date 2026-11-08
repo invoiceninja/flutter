@@ -70,7 +70,10 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     final session = context.read<DocuNinjaSession?>();
     if (identical(session, _session)) return;
     _session?.documentsChanged.removeListener(_onChanged);
-    _session = session?..documentsChanged.addListener(_onChanged);
+    _session?.remoteChanged.removeListener(_onChanged);
+    _session = session
+      ?..documentsChanged.addListener(_onChanged)
+      ..remoteChanged.addListener(_onChanged);
     // Opened directly (a restored route): the handshake may not have run.
     session?.load();
   }
@@ -82,6 +85,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   void dispose() {
     _lifecycle.dispose();
     _session?.documentsChanged.removeListener(_onChanged);
+    _session?.remoteChanged.removeListener(_onChanged);
     _vm?.dispose();
     _search.dispose();
     _scroll.dispose();

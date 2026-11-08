@@ -73,6 +73,13 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
 
   void markDocumentsChanged() => documentsChanged.value++;
 
+  /// Bumped when DocuNinja itself says something changed (a signature, new
+  /// page previews: `DocuNinjaRealtime`), so every open DocuNinja screen
+  /// re-reads, the document page included.
+  final ValueNotifier<int> remoteChanged = ValueNotifier(0);
+
+  void markRemoteChanged() => remoteChanged.value++;
+
   int _generation = 0;
   bool _loaded = false;
   Future<void>? _inFlight;

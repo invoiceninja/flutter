@@ -60,9 +60,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     if (identical(session, _session)) return;
     _session?.removeListener(_onSession);
     _session?.documentsChanged.removeListener(_onDocumentsChanged);
+    _session?.remoteChanged.removeListener(_onDocumentsChanged);
     _session = session
       ?..addListener(_onSession)
-      ..documentsChanged.addListener(_onDocumentsChanged);
+      ..documentsChanged.addListener(_onDocumentsChanged)
+      ..remoteChanged.addListener(_onDocumentsChanged);
     session?.load();
   }
 
@@ -162,6 +164,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     _lifecycle.dispose();
     _session?.removeListener(_onSession);
     _session?.documentsChanged.removeListener(_onDocumentsChanged);
+    _session?.remoteChanged.removeListener(_onDocumentsChanged);
     _vm?.dispose();
     _search.dispose();
     super.dispose();

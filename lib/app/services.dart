@@ -36,6 +36,7 @@ import 'package:admin/app/home_widgets/home_widget_commands.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/data/services/docuninja/docuninja_realtime.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/home_widgets/widget_command.dart'
     show WidgetCommandKind;
@@ -1915,9 +1916,8 @@ class Services implements SidebarBadgeContext {
       companyKeyOf: (companyId) async =>
           (await db.companiesDao.byId(companyId))?.companyKey,
     );
-    final docuNinjaApi = DocuNinjaApi(
-      DocuNinjaClient(tokens: docuNinjaSession),
-    );
+    final docuNinjaClient = DocuNinjaClient(tokens: docuNinjaSession);
+    final docuNinjaApi = DocuNinjaApi(docuNinjaClient);
     final supportApi = SupportApi(apiClient);
     final smtpApi = SmtpApi(apiClient);
     final templatesApi = TemplatesApi(apiClient);
@@ -2227,6 +2227,11 @@ class Services implements SidebarBadgeContext {
       enabled: realtimeUpdates,
     );
     connectivity.onOnline.listen((_) => realtime.onOnline());
+    // DocuNinja's own socket (docs/docuninja.md § Live updates), on the same
+    // opt-in: it follows the DocuNinja session and lives as long as the app.
+    if (realtimeUpdates) {
+      DocuNinjaRealtime(session: docuNinjaSession, client: docuNinjaClient);
+    }
     final priorOnBeforeLogout = auth.onBeforeLogout;
     auth.onBeforeLogout = () async {
       // Logout wipes every Drift table, and the remaining entities of an

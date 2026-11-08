@@ -75,3 +75,6 @@ Probed against production on 2026-09-28 with a throwaway `dart:io` script (scrat
 Two fake-time traps these tests step around:
 - A bare `tester.pump()` flushes microtasks but elapses no time, so a zero-delay timer never fires. Pump `Duration.zero`.
 - `await subscription.cancel()` inside `testWidgets` can hang forever on a root-zone future. Don't await it.
+
+DocuNinja has its own socket, to its own host, outside this rule: its events only ask the open DocuNinja screens to re-read (`DocuNinjaSession.remoteChanged`) and never schedule `/refresh`. docs/docuninja.md § Live updates.
+

@@ -92,7 +92,7 @@ Phases 1b–1d, shipped: the sidebar entry, the screens before the documents, th
   - **Delete stays on the page**: the document reloads deleted, with Restore. It goes through `POST /api/documents/bulk` with `delete`, like archive and restore: that is the call React's list makes, while its `DELETE /api/documents/{id}` sits in code no route reaches (React's own detail page never shows archive, restore or delete, because its action hook checks for a `/documents` path; the app offers them).
   - **Options saves from inside the dialog**, cannot be dismissed while it saves, and stays open on a refusal, showing the field errors, so an edit is never lost. The expiry is the stored string's calendar day, and it is sent only when it changed while the document can still expire — an untouched field is never re-sent shifted a day.
   - The signed PDF opens at `/docuninja/:id/pdf` in `PdfPreview`. Downloads go through `downloadPdf` under DocuNinja's own file name, with `sanitizeFileName` (docs/file-downloads.md); one runs at a time.
-- **Not yet:** the field builder inside the app (it opens in the browser, below), live updates over DocuNinja's socket, a row `⋮` and bulk actions on the list, a signer's Copy link and React's "Client contact:" / "User:" labels on the signers, and editing a user's saved signature and initials. Until then the refresh button and pull to refresh re-read DocuNinja.
+- **Not yet:** the field builder inside the app (it opens in the browser, below), a row `⋮` and bulk actions on the list, a signer's Copy link and React's "Client contact:" / "User:" labels on the signers, and editing a user's saved signature and initials. Until then the refresh button and pull to refresh re-read DocuNinja.
 - **Strings** are React's keys. The handful missing from this app's `en.json` (`docuninja_join_*`, `docuninja_creating_account`, `signatories`, `send_emails_to_following`, and `docuninja_company_setup_help` for the sentence React hard-codes) have their English in `_app_pending.json`. Most locale bundles already translate them (they came from the server's language files), so a locale's `_app_pending_<locale>.json` carries one only where its bundle does not: React's own translation where it has a real one, the app's otherwise (Serbian is Latin script here, so never React's Cyrillic).
 
 ## The field builder opens in the browser for now
@@ -162,4 +162,13 @@ React lets the signed-in user sign a document they are a signer of from its buil
 
 - **It opens React's own sign page**, `/#/docuninja/sign/<document>/<invitation>?sig=<invitation>&company=<company>` (`dnWebAppSignUri`): embedded at `/docuninja/:id/sign/:invitationId` where the builder is (`DocuNinjaBuilderScreen(signInvitationId:)`, the same handshake and allow-list), else in the browser, where the web app needs its own sign-in.
 - **Unverified.** React's builder sends the invitation id as `sig`, and its sign page passes no `sig` at all; whether DocuNinja answers that with the `x-signer-token` the submit needs could not be checked (the server is not open source). The native signer the plan describes waits on that answer.
+
+## Live updates
+
+DocuNinja broadcasts on its own Pusher host, not Invoice Ninja's (the public Invoice Ninja server never sends these events, though React's list listens for them there). `DocuNinjaRealtime` (`lib/data/services/docuninja/docuninja_realtime.dart`) is a second `PusherConnection`:
+
+- `wss://socket.docuninja.co/app/docuninja-key`, React's builder package's host and key; the channel is the paired DocuNinja company's `private-company-<id>`, signed by DocuNinja's `/broadcasting/auth` with the company token (`DocuNinjaClient`, so a 401 re-runs the handshake, never the Invoice Ninja logout).
+- It follows `DocuNinjaSession`: connected while the session is ready, dropped on any reset (sign-out, company switch) or refusal, and closed in the background.
+- `DocumentWasSigned` and `DocumentFilePreviewGenerated` only bump `DocuNinjaSession.remoteChanged`; the documents list, the templates list and an open document re-read on it (React's detail page refetches on `DocumentWasSigned`). Nothing is written, and no Invoice Ninja `/refresh` is scheduled.
+- Like the Invoice Ninja socket it exists only with `Services.build(realtimeUpdates: true)`, which only `main.dart` passes (`realtime_opt_in_test`).
 

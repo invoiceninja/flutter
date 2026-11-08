@@ -113,6 +113,17 @@ Uri dnWebAppSignUri({
   );
 }
 
+/// The sign-page link React's signer card copies: the web app's
+/// `/docuninja/sign/<document>/<invitation>`, with no `sig` (it opens
+/// behind the web app's sign-in, so it is for the team, not the signer).
+Uri dnWebAppSignLink({
+  required String documentId,
+  required String invitationId,
+}) => Uri.parse(
+  '$kDnHostedWebAppUrl/#/docuninja/sign/'
+  '${Uri.encodeComponent(documentId)}/${Uri.encodeComponent(invitationId)}',
+);
+
 /// React's builder for [documentId] in the browser ([dnWebAppBuilderUri]).
 Uri dnBuilderWebUri({
   required String documentId,

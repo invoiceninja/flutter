@@ -11,6 +11,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
 import 'package:admin/l10n/localization.dart';
@@ -706,6 +707,12 @@ class _Invitations extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // React's "Client contact:" / "User:" over each
+                        // signer: who on whose side is asked to sign.
+                        Text(
+                          '${context.tr(i.clientContactId.isNotEmpty ? 'client_contact' : 'user')}:',
+                          style: TextStyle(color: tokens.ink3, fontSize: 12),
+                        ),
                         LtrText(
                           i.signerName.isNotEmpty
                               ? i.signerName
@@ -725,6 +732,21 @@ class _Invitations extends StatelessWidget {
                           ),
                         _StateLine(invitation: i, formatter: formatter),
                       ],
+                    ),
+                  ),
+                  // React's per-signer Copy Link: the web app's sign page for
+                  // this signer, which opens behind its sign-in.
+                  IconButton(
+                    icon: const Icon(Icons.link),
+                    tooltip: context.tr(
+                      Env.isTouchPrimary ? 'share_link' : 'copy_link',
+                    ),
+                    onPressed: () => shareOrCopyLink(
+                      context,
+                      dnWebAppSignLink(
+                        documentId: document.id,
+                        invitationId: i.id,
+                      ).toString(),
                     ),
                   ),
                   if (showResend)

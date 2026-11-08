@@ -73,4 +73,11 @@ void main() {
       'https://app.invoicing.co/#/docuninja/sign/D1/I1?sig=I1&company=C',
     );
   });
+
+  test('a signer\'s copied link is the web app\'s sign page, no sig', () {
+    expect(
+      dnWebAppSignLink(documentId: 'D1', invitationId: 'I1').toString(),
+      'https://app.invoicing.co/#/docuninja/sign/D1/I1',
+    );
+  });
 }

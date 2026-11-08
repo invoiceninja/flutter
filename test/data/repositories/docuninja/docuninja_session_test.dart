@@ -91,7 +91,7 @@ void main() {
     expect(s.token, isNull);
   });
 
-  test('a refusal is Join, or no access when the account has seats', () async {
+  test('a refusal is Join, with or without seats bought', () async {
     final s = session();
     await s.load();
     expect(s.value.access, DocuNinjaAccess.notJoined);
@@ -99,7 +99,42 @@ void main() {
     auth.value = _auth(seats: 2);
     s.reset();
     await s.load();
-    expect(s.value.access, DocuNinjaAccess.noAccess);
+    expect(s.value.access, DocuNinjaAccess.notJoined);
+  });
+
+  test('a company with no key fails with Retry, never offers Set up', () async {
+    api.answer = () async => _fixtureLogin();
+    keys.remove('co1');
+    final s = session();
+    await s.load();
+    expect(s.value.access, DocuNinjaAccess.failed);
+    // Nothing to pair by, so DocuNinja is not even asked.
+    expect(api.calls, 0);
+  });
+
+  test('a failed company-key read fails instead of loading forever', () async {
+    api.answer = () async => _fixtureLogin();
+    final s = DocuNinjaSession(
+      loginApi: api,
+      auth: auth,
+      companyKeyOf: (_) async => throw StateError('database closed'),
+    );
+    await s.load();
+    expect(s.value.access, DocuNinjaAccess.failed);
+  });
+
+  test('a failure after a reset does not land in the next session', () async {
+    final read = Completer<String?>();
+    final s = DocuNinjaSession(
+      loginApi: api,
+      auth: auth,
+      companyKeyOf: (_) => read.future,
+    );
+    final pending = s.load();
+    s.reset();
+    read.completeError(StateError('database closed'));
+    await pending;
+    expect(s.value.access, DocuNinjaAccess.unavailable);
   });
 
   test('offline is offline, and self-hosted never calls the server', () async {

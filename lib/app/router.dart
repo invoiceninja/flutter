@@ -928,15 +928,29 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
             },
             builder: (context, state) => const DocuNinjaScreen(),
             routes: [
+              // Keyed by id, as the entity detail routes are: go_router keys
+              // a page by the route pattern, so going from one document to
+              // another (a clone) would otherwise keep the first one's State
+              // and view model.
               GoRoute(
                 path: ':id',
-                builder: (context, state) =>
-                    DocuNinjaDocumentScreen(id: state.pathParameters['id']!),
+                builder: (context, state) => KeyedSubtree(
+                  key: ValueKey('docuninja:${state.pathParameters['id']}'),
+                  child: DocuNinjaDocumentScreen(
+                    id: state.pathParameters['id']!,
+                  ),
+                ),
                 routes: [
                   GoRoute(
                     path: 'pdf',
-                    builder: (context, state) =>
-                        DocuNinjaPdfScreen(id: state.pathParameters['id']!),
+                    builder: (context, state) => KeyedSubtree(
+                      key: ValueKey(
+                        'docuninja-pdf:${state.pathParameters['id']}',
+                      ),
+                      child: DocuNinjaPdfScreen(
+                        id: state.pathParameters['id']!,
+                      ),
+                    ),
                   ),
                 ],
               ),

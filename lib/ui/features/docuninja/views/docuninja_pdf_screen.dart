@@ -37,7 +37,10 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
     if (api == null) throw StateError('No DocuNinja');
     final file = await api.download(widget.id);
     final name = sanitizeFileName(
-      (file.filename ?? 'document').replaceAll(RegExp(r'\.pdf$'), ''),
+      (file.filename ?? 'document').replaceAll(
+        RegExp(r'\.pdf$', caseSensitive: false),
+        '',
+      ),
     );
     return (bytes: file.bytes, name: '$name.pdf');
   }

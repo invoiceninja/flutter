@@ -15,15 +15,19 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_document_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
+import 'package:admin/utils/bidi.dart';
 import 'package:admin/utils/file_names.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -168,74 +172,89 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       onResend: (i) => _resend(context, vm, i),
     );
     final timeline = _Timeline(entries: vm.timeline, formatter: _formatter);
-    return RefreshIndicator(
-      onRefresh: vm.load,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.all(InSpacing.lg(context)),
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.surface,
-                  border: Border.all(color: tokens.border),
-                  borderRadius: BorderRadius.circular(InRadii.r3),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(InSpacing.lg(context)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Wrap(
-                        spacing: InSpacing.sm,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Semantics(
-                            header: true,
-                            headingLevel: 1,
-                            child: Text(
-                              _title(context, doc),
-                              style: theme.textTheme.titleLarge,
-                            ),
-                          ),
-                          DocuNinjaStatusPill(document: doc),
-                        ],
-                      ),
-                      if (vm.isBusy || _downloading)
-                        const Padding(
-                          padding: EdgeInsets.only(top: InSpacing.sm),
-                          child: LinearProgressIndicator(minHeight: 2),
-                        ),
-                      SizedBox(height: InSpacing.lg(context)),
-                      LayoutBuilder(
-                        builder: (context, c) => c.maxWidth >= 760
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 2, child: signers),
-                                  SizedBox(width: InSpacing.lg(context)),
-                                  Expanded(flex: 3, child: timeline),
-                                ],
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  signers,
-                                  SizedBox(height: InSpacing.lg(context)),
-                                  timeline,
-                                ],
+    return AppSelectionArea(
+      child: RefreshIndicator(
+        onRefresh: vm.load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(InSpacing.lg(context)),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: tokens.surface,
+                    border: Border.all(color: tokens.border),
+                    borderRadius: BorderRadius.circular(InRadii.r3),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(InSpacing.lg(context)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          spacing: InSpacing.sm,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Semantics(
+                              header: true,
+                              headingLevel: 1,
+                              child: Text(
+                                _title(context, doc),
+                                style: theme.textTheme.titleLarge,
                               ),
-                      ),
-                    ],
+                            ),
+                            // React shows Deleted / Archived beside the status.
+                            DocuNinjaLifecyclePill(document: doc),
+                            DocuNinjaStatusPill(
+                              document: doc,
+                              statusOnly: true,
+                            ),
+                          ],
+                        ),
+                        // The action worked but the re-read did not (or a
+                        // pull to refresh failed): what's shown may be stale.
+                        if (vm.error != null && !vm.isLoading)
+                          DocuNinjaInlineError(
+                            offline: vm.isOffline,
+                            onRetry: vm.load,
+                          ),
+                        if (vm.isBusy || _downloading)
+                          const Padding(
+                            padding: EdgeInsets.only(top: InSpacing.sm),
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
+                        SizedBox(height: InSpacing.lg(context)),
+                        LayoutBuilder(
+                          builder: (context, c) => c.maxWidth >= 760
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 2, child: signers),
+                                    SizedBox(width: InSpacing.lg(context)),
+                                    Expanded(flex: 3, child: timeline),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    signers,
+                                    SizedBox(height: InSpacing.lg(context)),
+                                    timeline,
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -255,6 +274,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       IconData icon,
       String key, {
       bool confirm = false,
+      String? confirmMessageKey,
       bool destructive = false,
       bool lifecycle = false,
     }) => EntityActionItem<_Action>(
@@ -263,13 +283,15 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       label: context.tr(key),
       enabled: idle,
       confirm: confirm,
+      confirmMessageKey: confirmMessageKey,
       isDestructive: destructive,
       isLifecycle: lifecycle,
       confirmSubject: title,
       onTap: () => _onAction(context, vm, doc, kind),
     );
     return [
-      if (completed)
+      // React's `shouldShowPdf`: completed, not deleted, and with a file.
+      if (completed && !doc.isDeleted && doc.files.isNotEmpty)
         item(_Action.viewPdf, Icons.picture_as_pdf_outlined, 'view_pdf'),
       if (_sendable(doc) && doc.invitations.isNotEmpty)
         item(_Action.send, Icons.send_outlined, 'send'),
@@ -277,7 +299,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         item(_Action.auditLog, Icons.fact_check_outlined, 'audit_log'),
       if (completed)
         item(_Action.download, Icons.download_outlined, 'download'),
-      if (!doc.isDeleted) item(_Action.clone, Icons.copy_outlined, 'clone'),
+      // Unlike the app's other Clones (an unsaved edit screen), this creates
+      // the copy on DocuNinja at once, so it confirms as React's does.
+      if (!doc.isDeleted)
+        item(
+          _Action.clone,
+          Icons.copy_outlined,
+          'clone',
+          confirm: true,
+          confirmMessageKey: 'clone_document_description',
+        ),
       if (dnCanVoid(doc))
         item(
           _Action.voidIt,
@@ -292,6 +323,8 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           _Action.archive,
           Icons.archive_outlined,
           'archive',
+          confirm: true,
+          confirmMessageKey: 'archive_document_description',
           lifecycle: true,
         ),
       if (doc.isArchived || doc.isDeleted)
@@ -406,6 +439,8 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        // One line per signer: long lists scroll instead of overflowing.
+        scrollable: true,
         title: Text(context.tr('send_confirmation')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -419,7 +454,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
                 child: Text(
                   [
                     i.signerName,
-                    i.signerEmail,
+                    if (i.signerEmail.isNotEmpty) ltrIsolate(i.signerEmail),
                   ].where((s) => s.isNotEmpty).join(' · '),
                 ),
               ),
@@ -530,16 +565,18 @@ class _Invitations extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        LtrText(
                           i.signerName.isNotEmpty
                               ? i.signerName
                               : i.signerEmail,
+                          // A name may be Arabic or Hebrew; an email is not.
+                          keepRtlScript: true,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
                         if (i.signerName.isNotEmpty && i.signerEmail.isNotEmpty)
-                          Text(
+                          LtrText(
                             i.signerEmail,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -577,7 +614,9 @@ class _Invitations extends StatelessWidget {
       DnInvitationState.pending => ('created', '${i.raw['created_at'] ?? ''}'),
     };
     final on = dnLocalDate(formatter, at);
-    return on.isEmpty ? context.tr(key) : '${context.tr(key)}: $on';
+    return on.isEmpty
+        ? context.tr(key)
+        : '${context.tr(key)}: ${ltrIsolate(on)}';
   }
 }
 
@@ -635,7 +674,7 @@ class _Timeline extends StatelessWidget {
                       // `YYYY-MM-DD HH:MM:SS` in UTC; the formatter shows it
                       // in local time, in the company's date format.
                       if (e.time.isNotEmpty && f != null)
-                        Text(
+                        LtrText(
                           f.date(e.time, showTime: true, showSeconds: false),
                           style: TextStyle(color: tokens.ink3, fontSize: 12),
                         ),
@@ -728,52 +767,58 @@ class _OptionsDialogState extends State<_OptionsDialog> {
   @override
   Widget build(BuildContext context) {
     final canExpire = dnCanSetExpiry(widget.document);
-    return AlertDialog(
-      title: Text(context.tr('options')),
-      content: FormSaveScope(
-        onSubmit: _save,
-        enabled: !_saving,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _description,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: context.tr('description'),
-                errorText: _descriptionError,
+    // Not dismissed mid-save (barrier, Escape, Android back): the answer
+    // would land with no dialog to show it, and a refusal's field errors
+    // and the user's edit would be lost.
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        title: Text(context.tr('options')),
+        content: FormSaveScope(
+          onSubmit: _save,
+          enabled: !_saving,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _description,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: context.tr('description'),
+                  errorText: _descriptionError,
+                ),
+                onSubmitted: (_) => _save(),
               ),
-              onSubmitted: (_) => _save(),
-            ),
-            if (canExpire) ...[
-              const SizedBox(height: InSpacing.sm),
-              InDateField(
-                value: _expires,
-                formatter: widget.formatter,
-                labelText: context.tr('expiry_date'),
-                clearable: true,
-                errorText: _expiryError,
-                onChanged: (d) => setState(() => _expires = d),
-              ),
+              if (canExpire) ...[
+                const SizedBox(height: InSpacing.sm),
+                InDateField(
+                  value: _expires,
+                  formatter: widget.formatter,
+                  labelText: context.tr('expiry_date'),
+                  clearable: true,
+                  errorText: _expiryError,
+                  onChanged: (d) => setState(() => _expires = d),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+            child: Text(context.tr('cancel')),
+          ),
+          PrimaryDialogAction(
+            label: context.tr('save'),
+            // The description field holds the focus.
+            autofocus: false,
+            busy: _saving,
+            onPressed: _save,
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: Text(context.tr('cancel')),
-        ),
-        PrimaryDialogAction(
-          label: context.tr('save'),
-          // The description field holds the focus.
-          autofocus: false,
-          busy: _saving,
-          onPressed: _save,
-        ),
-      ],
     );
   }
 }

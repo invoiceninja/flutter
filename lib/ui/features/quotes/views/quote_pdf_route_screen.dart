@@ -11,12 +11,22 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_screen.dart
 
 /// Route wrapper for `/quotes/:id/pdf`. Mirrors `InvoicePdfRouteScreen`.
 class QuotePdfRouteScreen extends StatefulWidget {
-  const QuotePdfRouteScreen({super.key, required this.id, this.activityId});
+  const QuotePdfRouteScreen({
+    super.key,
+    required this.id,
+    this.activityId,
+    this.signedCopy = false,
+  });
   final String id;
 
   /// When set (route `?activity_id=`), the preview opens on that saved
   /// version rather than the live document.
   final String? activityId;
+
+  /// When true (route `?signed=1`, the Signed Document pill), the preview is
+  /// the stored DocuNinja-signed copy, even while the record has unsynced
+  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  final bool signedCopy;
 
   @override
   State<QuotePdfRouteScreen> createState() => _QuotePdfRouteScreenState();
@@ -63,7 +73,7 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? quote : null,
-          hasUnsyncedChanges: quote.isDirty,
+          hasUnsyncedChanges: quote.isDirty && !widget.signedCopy,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -75,7 +85,9 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
                       designId:
                           designId ??
                           (quote.designId.isEmpty ? null : quote.designId),
-                      storedPdfKey: quote.storedPdfInvitationKey,
+                      storedPdfKey: widget.signedCopy
+                          ? quote.signedPdfInvitationKey
+                          : quote.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

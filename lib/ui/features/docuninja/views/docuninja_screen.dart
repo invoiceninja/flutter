@@ -98,17 +98,24 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     setState(() => _creating = true);
     try {
       await loginApi.createAccount();
-      // The server turns on the company's DocuNinja flag; re-read both.
-      await services.auth.refresh();
-      await session.load(force: true);
     } on Object catch (e, st) {
       _log.warning('Creating the DocuNinja account failed', e, st);
       if (mounted) {
         Notify.error(context, context.tr('an_error_occurred_try_again'));
+        setState(() => _creating = false);
       }
-    } finally {
-      if (mounted) setState(() => _creating = false);
+      return;
     }
+    // The account exists now. The server also turned on the company's
+    // DocuNinja flag: re-read the company, but whether or not that works,
+    // re-run the handshake so the screen leaves Join.
+    try {
+      await services.auth.refresh();
+    } on Object catch (e, st) {
+      _log.warning('Refreshing after the DocuNinja account failed', e, st);
+    }
+    await session.load(force: true);
+    if (mounted) setState(() => _creating = false);
   }
 
   void _upgrade() => context.go('/settings/account_management');
@@ -156,54 +163,58 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                 ),
               ],
             ],
-            bottom: vm == null ? null : _searchBar(context, vm),
           ),
-          body: _body(context, state, vm),
+          // The search field sits in the body, not the app bar's fixed-height
+          // `bottom`, so it grows with the text size instead of clipping.
+          body: vm == null
+              ? _body(context, state, vm)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _searchBar(context, vm),
+                    Expanded(child: _body(context, state, vm)),
+                  ],
+                ),
         );
       },
     );
   }
 
-  PreferredSizeWidget _searchBar(
-    BuildContext context,
-    DocuNinjaDocumentsViewModel vm,
-  ) => PreferredSize(
-    preferredSize: const Size.fromHeight(56),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: TextField(
-            controller: _search,
-            autocorrect: false,
-            enableSuggestions: false,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-              hintText: context.tr('search'),
-              suffixIcon: ListenableBuilder(
-                listenable: _search,
-                builder: (context, _) => _search.text.isEmpty
-                    ? const SizedBox.shrink()
-                    : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        tooltip: context.tr('clear'),
-                        onPressed: () {
-                          _search.clear();
-                          vm.setSearch('');
-                        },
-                      ),
+  Widget _searchBar(BuildContext context, DocuNinjaDocumentsViewModel vm) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: TextField(
+              controller: _search,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search, size: 18),
+                hintText: context.tr('search'),
+                suffixIcon: ListenableBuilder(
+                  listenable: _search,
+                  builder: (context, _) => _search.text.isEmpty
+                      ? const SizedBox.shrink()
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: context.tr('clear'),
+                          onPressed: () {
+                            _search.clear();
+                            vm.setSearch('');
+                          },
+                        ),
+                ),
               ),
+              onChanged: vm.setSearch,
             ),
-            onChanged: vm.setSearch,
           ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget _body(
     BuildContext context,
@@ -226,8 +237,6 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           onCreate: _createAccount,
           onUpgrade: _upgrade,
         );
-      case DocuNinjaAccess.noAccess:
-        return const DocuNinjaNoAccessView();
       case DocuNinjaAccess.companySetup:
         return DocuNinjaCompanySetupView(
           isWorking: _creating,

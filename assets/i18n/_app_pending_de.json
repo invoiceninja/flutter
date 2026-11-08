@@ -1707,7 +1707,7 @@
   "docuninja_join_esignatures_help": "Unterschriften mit Sendungsverfolgung sammeln",
   "docuninja_join_templates_help": "Wiederverwendbare Dokumentenvorlagen",
   "docuninja_join_integration": "Tiefe Integration",
-  "docuninja_join_integration_help": "Bearbeitet Rechnungen, Angebote und Bestellungen",
+  "docuninja_join_integration_help": "Funktioniert mit Rechnungen, Angeboten und Bestellungen",
   "docuninja_creating_account": "Kontoerstellung...",
   "docuninja_company_setup_help": "Ihr Konto existiert, aber diese Firma ist noch nicht eingerichtet. Bitte klicken Sie auf die Schaltfläche unten, um sie einzurichten.",
   "signatories": "Unterzeichner",

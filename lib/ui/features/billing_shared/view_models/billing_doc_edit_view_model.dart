@@ -436,9 +436,9 @@ abstract class GenericBillingDocEditViewModel<T>
 
   /// The saved document's invitation for a contact being re-ticked, so a
   /// contact unticked and ticked again in one edit is the invitation it was,
-  /// with its `key` and `can_sign`. A fresh one would carry no key, and the
-  /// server's restore path ignores a key-less invitation's `can_sign`
-  /// (docs/contacts-and-invitations.md).
+  /// with its `key` and `can_sign`. A fresh one would carry no key, and a
+  /// server older than invoiceninja/invoiceninja#13430 ignores a key-less
+  /// invitation's `can_sign` on restore (docs/contacts-and-invitations.md).
   Invitation? _originalInvitation(bool Function(Invitation) matches) {
     final saved = original;
     if (saved == null) return null;

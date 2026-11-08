@@ -127,6 +127,8 @@ List<Invitation> _freshInvitations(List<Invitation> src) => [
       emailStatus: '',
       emailError: '',
       messageId: '',
+      // Who signs carries over (see `InvitationClone.freshClone`).
+      canSign: i.canSign,
     ),
 ];
 

@@ -123,4 +123,43 @@ void main() {
     await vm.refresh();
     expect(vm.error, DnListError.failed);
   });
+
+  test('a failed next page can be retried, and paging resumes', () async {
+    final api = _Api();
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await vm.refresh();
+    api.answer = (_, _) async => throw const NetworkException('x');
+    await vm.loadMore();
+    expect(vm.error, DnListError.offline);
+    expect(vm.items, hasLength(2), reason: 'the rows on screen stay');
+    api.answer = (page, _) async => _page(page, 2);
+    await vm.retry();
+    expect(vm.error, isNull);
+    expect(vm.items, hasLength(4));
+  });
+
+  test('a failed new search drops the old search\'s rows', () async {
+    final api = _Api();
+    final vm = DocuNinjaDocumentsViewModel(
+      api: api,
+      searchDelay: Duration.zero,
+    );
+    await vm.refresh();
+    expect(vm.items, isNotEmpty);
+    api.answer = (_, _) async => throw StateError('boom');
+    vm.setSearch('acme');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(vm.error, DnListError.failed);
+    expect(vm.items, isEmpty, reason: 'they answer another search');
+  });
+
+  test('a failed refresh of the same query keeps its rows', () async {
+    final api = _Api();
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    await vm.refresh();
+    api.answer = (_, _) async => throw const NetworkException('x');
+    await vm.refresh();
+    expect(vm.error, DnListError.offline);
+    expect(vm.items, hasLength(2));
+  });
 }

@@ -460,9 +460,14 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
         // Unconditional on purpose: it collapses to nothing itself, so the
         // tree shape doesn't change when the reason resolves.
         banner: InvoiceLockBanner(invoice: invoice, companyId: _companyId),
-        signedPill: showSignedDocumentPill(invoice.sync, company)
+        signedPill:
+            showSignedDocumentPill(
+              invoice.sync,
+              company,
+              planActive: docuNinjaPlanActive(_services.auth.session.value),
+            )
             ? SignedDocumentPill(
-                onTap: () => context.go('/invoices/${invoice.id}/pdf'),
+                onTap: () => context.go('/invoices/${invoice.id}/pdf?signed=1'),
               )
             : null,
         statusPill: ViewedStatusPillLink(

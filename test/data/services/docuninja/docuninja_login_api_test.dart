@@ -82,4 +82,17 @@ void main() {
     await expectLater(login.login(), throwsA(isA<ServerException>()));
     expect(unauthorizedCalls, 0);
   });
+
+  test('creating the account: a 401 is an error, never a logout', () async {
+    final create = api(
+      (_) => http.Response(
+        jsonEncode({'message': 'Unauthenticated.'}),
+        401,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+    await expectLater(create.createAccount(), throwsA(isA<ServerException>()));
+    expect(unauthorizedCalls, 0);
+    expect(requests.single.path, '/api/docuninja/create');
+  });
 }

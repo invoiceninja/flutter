@@ -50,14 +50,12 @@ void main() {
     DocuNinjaAccess resolve({
       bool hosted = true,
       DnLoginOutcome outcome = DnLoginOutcome.ok,
-      int seats = 0,
       bool matched = true,
       bool admin = false,
       String plan = 'pro',
     }) => resolveDocuNinjaAccess(
       isHosted: hosted,
       outcome: outcome,
-      seatsBought: seats,
       companyMatched: matched,
       dnAdmin: admin,
       dnPlan: plan,
@@ -67,14 +65,12 @@ void main() {
       expect(resolve(hosted: false), DocuNinjaAccess.unavailable);
     });
 
-    test('a refusal is Join with no seats, no-access with seats bought', () {
+    test('every refusal is Join, as React sends it there with ie=true', () {
+      // Join offers Create to an eligible owner or admin and tells everyone
+      // else to ask their admin, whether or not the account has seats.
       expect(
         resolve(outcome: DnLoginOutcome.refused),
         DocuNinjaAccess.notJoined,
-      );
-      expect(
-        resolve(outcome: DnLoginOutcome.refused, seats: 1),
-        DocuNinjaAccess.noAccess,
       );
     });
 
@@ -84,6 +80,11 @@ void main() {
 
     test('only a DocuNinja admin off the pro plan hits the plan wall', () {
       expect(resolve(admin: true, plan: 'free'), DocuNinjaAccess.planWall);
+      // Before company setup, in `Documents.tsx`'s order.
+      expect(
+        resolve(admin: true, plan: 'free', matched: false),
+        DocuNinjaAccess.planWall,
+      );
       expect(resolve(admin: false, plan: 'free'), DocuNinjaAccess.ready);
       expect(resolve(admin: true), DocuNinjaAccess.ready);
     });

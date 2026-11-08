@@ -357,9 +357,15 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         type: BillingDocType.purchaseOrder,
         doc: po,
         formatter: formatter,
-        signedPill: showSignedDocumentPill(po.sync, company)
+        signedPill:
+            showSignedDocumentPill(
+              po.sync,
+              company,
+              planActive: docuNinjaPlanActive(_services.auth.session.value),
+            )
             ? SignedDocumentPill(
-                onTap: () => context.go('/purchase_orders/${po.id}/pdf'),
+                onTap: () =>
+                    context.go('/purchase_orders/${po.id}/pdf?signed=1'),
               )
             : null,
         statusPill: ViewedStatusPillLink(

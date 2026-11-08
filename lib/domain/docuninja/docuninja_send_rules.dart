@@ -59,5 +59,8 @@ bool dnCanVoid(DnDocument d) =>
 bool dnIsCompleted(DnDocument d) => d.status == DnDocumentStatus.completed;
 
 /// Expiry can be changed until the document is sent (`DocumentSettingsModal`).
-bool dnCanSetExpiry(DnDocument d) =>
-    (d.status?.id ?? 0) <= DnDocumentStatus.sent.id;
+/// An unknown status is not editable.
+bool dnCanSetExpiry(DnDocument d) {
+  final status = d.status;
+  return status != null && status.id <= DnDocumentStatus.sent.id;
+}

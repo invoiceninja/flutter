@@ -26,11 +26,15 @@ void main() {
   /// fixture's `Services` keep timers running, and the binding's
   /// still-pending-Timer assertion fires before a `tearDown` would get the
   /// chance to stop them.
-  Future<void> setUpFixture({int enabledModules = 32767}) async {
+  Future<void> setUpFixture({
+    int enabledModules = 32767,
+    bool isHosted = true,
+  }) async {
     fixture = await buildFixture(
       companies: [
         FakeCompany(id: 'co1', name: 'Acme', enabledModules: enabledModules),
       ],
+      isHosted: isHosted,
     );
     addTearDown(fixture.dispose);
   }
@@ -127,13 +131,13 @@ void main() {
     final list = tester.widget<ReorderableListView>(
       find.byType(ReorderableListView),
     );
-    final hosted = fixture.services.auth.session.value?.isHosted ?? false;
+    // The fixture is hosted, so DocuNinja is listed too.
+    expect(fixture.services.auth.session.value?.isHosted, isTrue);
     expect(
       list.itemCount,
-      fixture.services.entityRegistry.sidebarTop.length + 3 + (hosted ? 1 : 0),
+      fixture.services.entityRegistry.sidebarTop.length + 4,
       reason:
-          'dashboard + every sidebar entity + reports + activity, and '
-          'DocuNinja on a hosted server',
+          'dashboard + every sidebar entity + reports + activity + DocuNinja',
     );
     // A handle and a switch on each built row (the list is lazy).
     final handles = find.byIcon(Icons.drag_indicator);
@@ -142,6 +146,24 @@ void main() {
     // The rows trailing the entity block are reachable by scrolling.
     await scrollTo(tester, 'Activity');
     expect(find.text('Activity'), findsOneWidget);
+    await _disposeTree(tester);
+  });
+
+  testWidgets('self-hosted lists no DocuNinja, a hosted-only service', (
+    tester,
+  ) async {
+    await setUpFixture(isHosted: false);
+    await pumpEditor(tester);
+    final list = tester.widget<ReorderableListView>(
+      find.byType(ReorderableListView),
+    );
+    expect(
+      list.itemCount,
+      fixture.services.entityRegistry.sidebarTop.length + 3,
+      reason: 'dashboard + every sidebar entity + reports + activity',
+    );
+    await scrollTo(tester, 'Activity');
+    expect(find.text('DocuNinja'), findsNothing);
     await _disposeTree(tester);
   });
 

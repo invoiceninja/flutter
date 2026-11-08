@@ -18,13 +18,21 @@ void main() {
     const off = Company(id: 'c');
     const signed = {'dn_completed': true};
 
-    test('needs both a signed document and DocuNinja on', () {
-      expect(showSignedDocumentPill(signed, on), isTrue);
-      expect(showSignedDocumentPill({'dn_completed': false}, on), isFalse);
-      expect(showSignedDocumentPill(null, on), isFalse);
+    bool show(
+      Map<String, dynamic>? sync,
+      Company? company, {
+      bool plan = true,
+    }) => showSignedDocumentPill(sync, company, planActive: plan);
+
+    test('needs a signed document and DocuNinja active', () {
+      expect(show(signed, on), isTrue);
+      expect(show({'dn_completed': false}, on), isFalse);
+      expect(show(null, on), isFalse);
       // Off, the server serves an unsigned render, so the pill would lie.
-      expect(showSignedDocumentPill(signed, off), isFalse);
-      expect(showSignedDocumentPill(signed, null), isFalse);
+      expect(show(signed, off), isFalse);
+      expect(show(signed, null), isFalse);
+      // So it does after the plan lapses, though `enable_modules` stays on.
+      expect(show(signed, on, plan: false), isFalse);
     });
   });
 

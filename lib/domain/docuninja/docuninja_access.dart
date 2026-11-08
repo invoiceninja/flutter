@@ -14,10 +14,6 @@ enum DocuNinjaAccess {
   /// No DocuNinja account: React's Join page.
   notJoined,
 
-  /// The account has DocuNinja seats but none for this user. React's Join
-  /// redirects such a user away and the module refuses them; the app says so.
-  noAccess,
-
   /// DocuNinja knows the user but has no company paired with this Invoice
   /// Ninja company yet: React's company-setup step (`/api/docuninja/create`).
   companySetup,
@@ -41,15 +37,16 @@ enum DnLoginOutcome { ok, refused, offline, failed }
 
 /// Maps the handshake's outcome to the screen React would show.
 ///
-/// [refused] is the handshake's 400 / 401, which React reads as "no DocuNinja
-/// account" and answers with Join. [seatsBought] is IN's
-/// `account.docuninja_num_users`: Join itself sends a user whose account
-/// already has seats back to the module (`Join.tsx`, when not `ie`), so a
-/// refusal with seats bought means this user was not given one.
+/// [refused] is the handshake's 400 / 401. React's provider sends every one
+/// to Join with `ie=true`, which skips Join's "the account has seats"
+/// redirect, so a refused owner or admin is still offered Create and
+/// everyone else is told to ask their admin.
+///
+/// Once DocuNinja answers, the plan wall comes before company setup, in
+/// `Documents.tsx`'s order.
 DocuNinjaAccess resolveDocuNinjaAccess({
   required bool isHosted,
   required DnLoginOutcome outcome,
-  int seatsBought = 0,
   bool companyMatched = false,
   bool dnAdmin = false,
   String dnPlan = '',
@@ -61,12 +58,10 @@ DocuNinjaAccess resolveDocuNinjaAccess({
     case DnLoginOutcome.failed:
       return DocuNinjaAccess.failed;
     case DnLoginOutcome.refused:
-      return seatsBought > 0
-          ? DocuNinjaAccess.noAccess
-          : DocuNinjaAccess.notJoined;
+      return DocuNinjaAccess.notJoined;
     case DnLoginOutcome.ok:
-      if (!companyMatched) return DocuNinjaAccess.companySetup;
       if (dnAdmin && dnPlan != 'pro') return DocuNinjaAccess.planWall;
+      if (!companyMatched) return DocuNinjaAccess.companySetup;
       return DocuNinjaAccess.ready;
   }
 }

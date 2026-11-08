@@ -211,14 +211,21 @@ class DnPermission {
   factory DnPermission.fromJson(Map<String, dynamic> json) => DnPermission(
     model: _str(json['model']),
     permissionId: _int(json['permission_id']),
-    permissionableId: _strOrNull(json['permissionable_id']),
+    // React counts a grant as global only when this is exactly `null`
+    // (`permission.ts`); a missing key or `""` is not, so both stay scoped
+    // here and the check fails closed.
+    permissionableId:
+        json.containsKey('permissionable_id') &&
+            json['permissionable_id'] == null
+        ? null
+        : jsonScalarToString(json['permissionable_id']) ?? '',
   );
 
   final String model;
   final int permissionId;
 
-  /// Set on a grant scoped to one record. React counts only global grants
-  /// (null here).
+  /// Set on a grant scoped to one record. React counts only global grants:
+  /// null here, and only when DocuNinja sent an explicit `null`.
   final String? permissionableId;
 }
 
@@ -306,7 +313,9 @@ class DnDocument {
   factory DnDocument.fromJson(Map<String, dynamic> json) => DnDocument(
     id: _str(json['id']),
     description: _str(json['description']),
-    statusId: _int(json['status_id'], DnDocumentStatus.draft.id),
+    // A missing status is not a draft: 0 matches no status, so nothing is
+    // offered on a document whose state is unknown.
+    statusId: _int(json['status_id']),
     isDeleted: jsonScalarToBool(json['is_deleted']),
     userId: _str(json['user_id']),
     createdAt: _str(json['created_at']),

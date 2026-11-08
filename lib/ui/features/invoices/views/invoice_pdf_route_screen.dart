@@ -23,6 +23,7 @@ class InvoicePdfRouteScreen extends StatefulWidget {
     required this.id,
     this.initialDeliveryNote = false,
     this.activityId,
+    this.signedCopy = false,
   });
   final String id;
 
@@ -33,6 +34,11 @@ class InvoicePdfRouteScreen extends StatefulWidget {
   /// When set (route `?activity_id=`), the preview opens on that saved
   /// version rather than the live document.
   final String? activityId;
+
+  /// When true (route `?signed=1`, the Signed Document pill), the preview is
+  /// the stored DocuNinja-signed copy, even while the record has unsynced
+  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  final bool signedCopy;
 
   @override
   State<InvoicePdfRouteScreen> createState() => _InvoicePdfRouteScreenState();
@@ -80,7 +86,7 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? invoice : null,
-          hasUnsyncedChanges: invoice.isDirty,
+          hasUnsyncedChanges: invoice.isDirty && !widget.signedCopy,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -93,7 +99,9 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
                           designId ??
                           (invoice.designId.isEmpty ? null : invoice.designId),
                       deliveryNote: deliveryNote,
-                      storedPdfKey: invoice.storedPdfInvitationKey,
+                      storedPdfKey: widget.signedCopy
+                          ? invoice.signedPdfInvitationKey
+                          : invoice.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

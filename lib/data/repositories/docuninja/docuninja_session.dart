@@ -112,9 +112,20 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
     if (!_loaded) value = DocuNinjaState.loading;
     DnLoginOutcome outcome;
     DnLogin? login;
+    String companyKey = '';
     try {
-      login = await _loginApi.login();
-      outcome = DnLoginOutcome.ok;
+      // The pairing is by company key, so without one there is nothing to
+      // ask: an empty key would read as "no company paired" and offer a
+      // Set up that posts `/create` for a company that may be paired
+      // already. React refuses the same way ("No company key").
+      companyKey = await _companyKeyOf(companyId) ?? '';
+      if (companyKey.isEmpty) {
+        _log.warning('DocuNinja: the active company has no company key');
+        outcome = DnLoginOutcome.failed;
+      } else {
+        login = await _loginApi.login();
+        outcome = DnLoginOutcome.ok;
+      }
     } on DocuNinjaRefused {
       outcome = DnLoginOutcome.refused;
     } on NetworkException {
@@ -123,17 +134,15 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
       _log.warning('DocuNinja handshake failed', e, st);
       outcome = DnLoginOutcome.failed;
     }
-    final companyKey = login == null ? null : await _companyKeyOf(companyId);
     // A reset (sign-out, company switch) while the handshake was out: this
     // answer belongs to a session that has ended.
     if (generation != _generation) return;
-    final company = login?.companyFor(companyKey ?? '');
+    final company = login?.companyFor(companyKey);
     _loaded = true;
     value = DocuNinjaState(
       resolveDocuNinjaAccess(
         isHosted: true,
         outcome: outcome,
-        seatsBought: auth.docuninjaNumUsers,
         companyMatched: company != null,
         dnAdmin: login != null && dnIsAdmin(login.companyUser),
         dnPlan: login?.account.plan ?? '',

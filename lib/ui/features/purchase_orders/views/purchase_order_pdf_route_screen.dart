@@ -16,12 +16,18 @@ class PurchaseOrderPdfRouteScreen extends StatefulWidget {
     super.key,
     required this.id,
     this.activityId,
+    this.signedCopy = false,
   });
   final String id;
 
   /// When set (route `?activity_id=`), the preview opens on that saved
   /// version rather than the live document.
   final String? activityId;
+
+  /// When true (route `?signed=1`, the Signed Document pill), the preview is
+  /// the stored DocuNinja-signed copy, even while the record has unsynced
+  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  final bool signedCopy;
 
   @override
   State<PurchaseOrderPdfRouteScreen> createState() =>
@@ -73,7 +79,7 @@ class _PurchaseOrderPdfRouteScreenState
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? po : null,
-          hasUnsyncedChanges: po.isDirty,
+          hasUnsyncedChanges: po.isDirty && !widget.signedCopy,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -85,7 +91,9 @@ class _PurchaseOrderPdfRouteScreenState
                       designId:
                           designId ??
                           (po.designId.isEmpty ? null : po.designId),
-                      storedPdfKey: po.storedPdfInvitationKey,
+                      storedPdfKey: widget.signedCopy
+                          ? po.signedPdfInvitationKey
+                          : po.storedPdfInvitationKey,
                     )
               : ({String? designId, required bool deliveryNote}) =>
                     _services.documentVersions.downloadVersionPdf(activityId),

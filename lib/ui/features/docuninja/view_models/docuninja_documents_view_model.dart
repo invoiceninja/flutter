@@ -71,6 +71,17 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
   DnListError? _error;
   DnListError? get error => _error;
 
+  /// The failure was the next page's, not the first page's: [retry] asks
+  /// for that page again.
+  bool _errorFromMore = false;
+
+  /// The query the rows on screen answer. A failed first page for another
+  /// query clears them, so they never sit under a search they don't match.
+  String? _itemsQuery;
+  String get _query =>
+      '${_search.trim()}|${(_states.toList()..sort()).join(',')}|'
+      '${(_statuses.toList()..sort()).join(',')}';
+
   int _generation = 0;
   Timer? _searchTimer;
   bool _disposed = false;
@@ -110,6 +121,7 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
     if (_loading || _loadingMore || !hasMore || _items.isEmpty) return;
     final generation = _generation;
     _loadingMore = true;
+    _error = null;
     _notify();
     try {
       final page = await _fetch(_page + 1);
@@ -118,6 +130,7 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
     } on Object catch (e, st) {
       if (generation != _generation) return;
       _fail(e, st);
+      _errorFromMore = true;
     } finally {
       if (generation == _generation) {
         _loadingMore = false;
@@ -136,15 +149,27 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
     _loading = true;
     _error = null;
     _notify();
+    final query = _query;
     try {
       final page = await _fetch(1);
       if (generation != _generation) return;
       _items.clear();
       _apply(page, append: false);
+      _itemsQuery = query;
       _loaded = true;
     } on Object catch (e, st) {
       if (generation != _generation) return;
       _fail(e, st);
+      _errorFromMore = false;
+      if (_itemsQuery != query) {
+        // The rows answer another search or filter; showing them under
+        // this one would read as its results.
+        _items.clear();
+        _page = 0;
+        _lastPage = 1;
+        _total = 0;
+        _itemsQuery = null;
+      }
     } finally {
       if (generation == _generation) {
         _loading = false;
@@ -152,6 +177,9 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
       }
     }
   }
+
+  /// Asks again for what failed: the next page, or the first.
+  Future<void> retry() => _errorFromMore ? loadMore() : _loadFirst();
 
   Future<DnPage<DnDocument>> _fetch(int page) => _api.documents(
     page: page,

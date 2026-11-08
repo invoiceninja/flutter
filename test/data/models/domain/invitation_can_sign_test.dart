@@ -64,13 +64,19 @@ void main() {
     });
   });
 
-  test('a clone forgets can_sign, like every other per-send field', () {
+  test('a clone keeps who signs, and drops the per-send fields', () {
     const i = Invitation(
       id: 'i',
       key: 'k',
       clientContactId: 'c',
       canSign: true,
     );
-    expect(i.freshClone().canSign, isNull);
+    final clone = i.freshClone();
+    expect(clone.canSign, isTrue);
+    expect(clone.id, isEmpty);
+    expect(clone.key, isEmpty);
+    // A new invitation: can_sign is sent without a key.
+    expect(clone.toApiJson(), {'client_contact_id': 'c', 'can_sign': true});
+    expect(const Invitation(clientContactId: 'c').freshClone().canSign, isNull);
   });
 }

@@ -210,9 +210,16 @@ extension InvitationClone on Invitation {
   /// the delivery status/error/`messageId`. Without this a clone inherits the
   /// source's sent/viewed/bounced state (e.g. a bounce badge or a vendor-portal
   /// link pointing at the original doc) onto a brand-new draft.
+  ///
+  /// [canSign] is the recipient's role, not a per-send field, so it carries
+  /// over: the clone asks the same contacts to sign, as the server's
+  /// `ConvertQuote` and `SendRecurring` keep it. Dropping it would send no
+  /// `can_sign`, which the server stores as false before making the primary
+  /// contact the signer.
   Invitation freshClone() => Invitation(
     clientContactId: clientContactId,
     vendorContactId: vendorContactId,
+    canSign: canSign,
   );
 }
 

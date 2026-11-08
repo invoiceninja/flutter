@@ -351,9 +351,14 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
         type: BillingDocType.quote,
         doc: quote,
         formatter: formatter,
-        signedPill: showSignedDocumentPill(quote.sync, company)
+        signedPill:
+            showSignedDocumentPill(
+              quote.sync,
+              company,
+              planActive: docuNinjaPlanActive(_services.auth.session.value),
+            )
             ? SignedDocumentPill(
-                onTap: () => context.go('/quotes/${quote.id}/pdf'),
+                onTap: () => context.go('/quotes/${quote.id}/pdf?signed=1'),
               )
             : null,
         statusPill: ViewedStatusPillLink(

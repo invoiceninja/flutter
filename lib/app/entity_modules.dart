@@ -549,6 +549,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
           initialDeliveryNote:
               state.uri.queryParameters['delivery_note'] == 'true',
           activityId: state.uri.queryParameters['activity_id'],
+          signedCopy: state.uri.queryParameters['signed'] == '1',
         ),
       ),
       GoRoute(
@@ -605,6 +606,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
         builder: (context, state) => QuotePdfRouteScreen(
           id: state.pathParameters['id']!,
           activityId: state.uri.queryParameters['activity_id'],
+          signedCopy: state.uri.queryParameters['signed'] == '1',
         ),
       ),
       GoRoute(
@@ -714,6 +716,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
         builder: (context, state) => PurchaseOrderPdfRouteScreen(
           id: state.pathParameters['id']!,
           activityId: state.uri.queryParameters['activity_id'],
+          signedCopy: state.uri.queryParameters['signed'] == '1',
         ),
       ),
       GoRoute(

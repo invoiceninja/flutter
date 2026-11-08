@@ -8,8 +8,11 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
+import 'package:admin/utils/bidi.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// The pane width from which the list is React's table.
@@ -50,11 +53,25 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
   }
 
   void _onScroll() {
-    if (!_scroll.hasClients) return;
-    final position = _scroll.position;
-    if (position.pixels >= position.maxScrollExtent - 400) {
-      widget.vm.loadMore();
+    final vm = widget.vm;
+    if (!_scroll.hasClients ||
+        !vm.hasMore ||
+        vm.isLoading ||
+        vm.isLoadingMore ||
+        vm.error != null) {
+      return;
     }
+    final position = _scroll.position;
+    if (position.pixels >= position.maxScrollExtent - 400) vm.loadMore();
+  }
+
+  /// A page that does not fill the pane never scrolls, so the scroll
+  /// listener alone would never ask for the next one: check after each
+  /// layout too. A failed page stops this (the error guard) until Retry.
+  void _checkAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onScroll();
+    });
   }
 
   @override
@@ -88,6 +105,7 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                 onRetry: vm.refresh,
               );
       }
+      _checkAfterLayout();
       return LayoutBuilder(
         builder: (context, c) {
           final table = c.maxWidth >= kDocuNinjaTableMinWidth;
@@ -124,6 +142,16 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                               onTap: () => widget.onOpen(doc),
                             );
                     },
+                  ),
+                if (vm.error != null && vm.items.isNotEmpty && !vm.isLoading)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: DocuNinjaInlineError(
+                        offline: vm.error == DnListError.offline,
+                        onRetry: vm.retry,
+                      ),
+                    ),
                   ),
                 if (vm.isLoadingMore)
                   const SliverToBoxAdapter(
@@ -242,6 +270,13 @@ class _TableRow extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: color ?? tokens.ink),
     );
+    // A date or a count reads left-to-right in every language.
+    Widget value(String s, {Color? color}) => LtrText(
+      s.isEmpty ? '—' : s,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: color ?? tokens.ink),
+    );
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -264,7 +299,7 @@ class _TableRow extends StatelessWidget {
                   ),
                 ),
               ),
-              cell(3, text(_files(context, doc), color: tokens.ink2)),
+              cell(3, value(_files(context, doc), color: tokens.ink2)),
               cell(
                 4,
                 Align(
@@ -272,7 +307,7 @@ class _TableRow extends StatelessWidget {
                   child: DocuNinjaStatusPill(document: doc),
                 ),
               ),
-              cell(5, text(created, color: tokens.ink2)),
+              cell(5, value(created, color: tokens.ink2)),
             ],
           ),
         ),
@@ -298,7 +333,10 @@ class _NarrowRow extends StatelessWidget {
     final who = _contactName(doc).isNotEmpty
         ? _contactName(doc)
         : _userName(doc);
-    final subtitle = [who, created].where((s) => s.isNotEmpty).join(' · ');
+    final subtitle = [
+      who,
+      if (created.isNotEmpty) ltrIsolate(created),
+    ].where((s) => s.isNotEmpty).join(' · ');
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(

@@ -96,6 +96,19 @@ extension BillingDocStoredPdf on BillingDocFields {
     }
     return null;
   }
+
+  /// The invitation whose stored render is the DocuNinja-signed copy,
+  /// whatever the local edits: for a signed document the server returns the
+  /// stored signed file before any render (`CreateRawPdf`), so an unsynced
+  /// edit cannot change it. The Signed Document pill opens this; everything
+  /// else goes through [storedPdfInvitationKey].
+  String? get signedPdfInvitationKey {
+    if (id.isEmpty || id.startsWith('tmp_')) return null;
+    for (final invitation in invitations) {
+      if (invitation.key.isNotEmpty) return invitation.key;
+    }
+    return null;
+  }
 }
 
 /// A billing document that can ask for a partial payment (a deposit) —

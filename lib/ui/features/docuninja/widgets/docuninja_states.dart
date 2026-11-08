@@ -250,14 +250,3 @@ class DocuNinjaPlanWallView extends StatelessWidget {
     ),
   );
 }
-
-/// The account has DocuNinja, but not for this user.
-class DocuNinjaNoAccessView extends StatelessWidget {
-  const DocuNinjaNoAccessView({super.key});
-
-  @override
-  Widget build(BuildContext context) => EmptyState(
-    icon: Icons.lock_outline,
-    title: context.tr('docuninja_contact_admin_for_access'),
-  );
-}

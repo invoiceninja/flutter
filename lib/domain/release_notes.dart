@@ -221,6 +221,89 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.23',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.attach_file,
+        title: 'Attach files as you create',
+        body: 'Add documents to any new record before you save it.',
+      ),
+      ReleaseHighlight(
+        icon: Icons.receipt_outlined,
+        title: 'Your saved tax rates',
+        body: "Pick the company's tax rates on documents and line items.",
+        target: ReleaseHighlightRoute('/invoices', module: EntityType.invoice),
+      ),
+      ReleaseHighlight(
+        icon: Icons.bar_chart_outlined,
+        title: 'More report columns',
+        body: "Add fields from each row's client, contact or vendor.",
+        target: ReleaseHighlightRoute('/reports', permission: 'view_reports'),
+      ),
+      ReleaseHighlight(
+        icon: Icons.devices_outlined,
+        title: 'Device Settings in tabs',
+        body:
+            'Appearance, Security, Phone, Forms and Data, each on its own tab.',
+        target: ReleaseHighlightRoute('/settings/device_settings'),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Passkeys. Sign in with your face, fingerprint or screen lock '
+        'instead of your password, and add or remove passkeys in User Details '
+        '> Two-Factor. They appear on a device once it is supported there.',
+      ),
+      ReleaseNoteItem(
+        'Added: Documents can be attached while creating any record, not just '
+        'an expense, and upload when it is saved '
+        '[#173](https://github.com/invoiceninja/flutter/issues/173)',
+      ),
+      ReleaseNoteItem(
+        "Added: A report can add fields from each row's client, contact or "
+        "vendor, such as a payment's client city.",
+      ),
+      ReleaseNoteItem(
+        "Updated: Taxes on invoices, quotes and other documents are picked from "
+        "the company's saved tax rates, on a phone's line items too.",
+      ),
+      ReleaseNoteItem(
+        'Updated: Record screens are denser on phones, and their text can be '
+        'selected and copied with a long-press '
+        '[#187](https://github.com/invoiceninja/flutter/issues/187) '
+        '[#188](https://github.com/invoiceninja/flutter/issues/188)',
+      ),
+      ReleaseNoteItem(
+        'Updated: Device Settings is split into tabs: Appearance, Security, '
+        'Phone, Forms and Data.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: Invoices and quotes can be found by their line items again, '
+        "and selecting records on a client's screen shows the bulk actions "
+        '[#185](https://github.com/invoiceninja/flutter/issues/185) '
+        '[#186](https://github.com/invoiceninja/flutter/issues/186)',
+      ),
+      ReleaseNoteItem(
+        "Fixed: A phone's task list shows the full duration, and a designer "
+        'image block set to the company logo now prints on the invoice '
+        '[#183](https://github.com/invoiceninja/flutter/issues/183) '
+        '[#184](https://github.com/invoiceninja/flutter/issues/184)',
+      ),
+      ReleaseNoteItem(
+        "Fixed: A payment for less than an invoice's balance saves instead of "
+        'failing to balance, and a price typed as 3,00 no longer saves as 300.',
+      ),
+      ReleaseNoteItem(
+        'Fixed: A time entry keeps its description when its editor is closed, '
+        "and a task's project can be picked before its client.",
+      ),
+      ReleaseNoteItem(
+        'Fixed: A plan bought in the app completes only once the server has '
+        'recorded it.',
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.22',
     highlights: [
       ReleaseHighlight(

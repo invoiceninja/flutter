@@ -1,0 +1,7 @@
+- Sign in with a passkey, and manage passkeys
+- Attach documents while creating any record
+- Pick the company's saved tax rates on documents
+- Report columns from the client, contact or vendor
+- Select and copy text on record screens
+- Device Settings split into tabs
+- Line-item search, payment and task fixes

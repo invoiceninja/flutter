@@ -85,12 +85,16 @@ void main() {
         reason: '$workflow: deploy-all.yml passes skip_tests',
       );
       // Under workflow_call only: a manual dispatch can never skip the suite.
+      // (A dispatch may take other inputs, such as playstore.yml's track.)
+      final dispatch = RegExp(
+        r'^  workflow_dispatch:\n(.*?)^  workflow_call:',
+        multiLine: true,
+        dotAll: true,
+      ).firstMatch(text);
+      expect(dispatch, isNotNull, reason: workflow);
       expect(
-        RegExp(
-          r'^  workflow_dispatch:\n    inputs:',
-          multiLine: true,
-        ).hasMatch(text),
-        isFalse,
+        dispatch!.group(1),
+        isNot(matches(RegExp(r'^\s+skip_tests:', multiLine: true))),
         reason: workflow,
       );
       expect(

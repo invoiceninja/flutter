@@ -1,14 +1,25 @@
 name: Deploy to Google Play
 
 # Manual only — building + uploading an Android App Bundle is a deliberate
-# release action, not a per-push gate. Mirrors snapcraft.yml. Publishes to the
-# `internal` testing track with status `completed`: the bundle is released to
-# internal testers automatically, the Play analogue of the snap's `edge`
-# channel + `grade: devel` (the service account is granted only "Release apps
-# to testing tracks", so this workflow is structurally incapable of touching
-# production). Promote internal -> closed -> production by hand in the Console.
+# release action, not a per-push gate. Releases straight to the `production`
+# track by default (a testing track can be picked instead), with Play's
+# "What's new" set from the version's short release notes, the F-Droid
+# changelog digest (docs/release-notes.md step 5). `rollout` below 100 makes it
+# a staged rollout, finished by hand in the Console. Production needs the
+# service account to hold "Release to production" (docs/setup.md § Android /
+# Google Play); with only the testing-track permission the upload is refused.
 on:
   workflow_dispatch:
+    inputs:
+      track:
+        description: Play track to release to
+        type: choice
+        options: [production, beta, alpha, internal]
+        default: production
+      rollout:
+        description: Percent of users to roll out to (100 = everyone; less = a staged rollout)
+        type: string
+        default: '100'
   # Also called by deploy-all.yml, whose release job has already run the
   # suite once for this commit. `skip_tests` exists only on the call: a manual
   # dispatch cannot skip the test gate.
@@ -18,6 +29,14 @@ on:
         description: Set only by deploy-all.yml, whose release job already ran _test.yaml.
         type: boolean
         default: false
+      track:
+        description: Play track to release to (production, beta, alpha or internal)
+        type: string
+        default: production
+      rollout:
+        description: Percent of users to roll out to (100 = everyone)
+        type: string
+        default: '100'
 
 # Least privilege: this job only checks out code, builds, and uploads to an
 # external store. It never writes back to the repo.
@@ -42,6 +61,44 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+
+      # Checked before the build, so a bad input or missing notes costs seconds.
+      # Play shows at most 500 characters of "What's new" per language; the
+      # F-Droid digest is the short version and has the same limit. All three
+      # per-ABI copies are identical (tools/check_release_ready.sh).
+      - name: Release plan and What's new
+        id: plan
+        env:
+          TRACK: ${{ inputs.track || 'production' }}
+          ROLLOUT: ${{ inputs.rollout || '100' }}
+        run: |
+          set -euo pipefail
+          case "$TRACK" in
+            production|beta|alpha|internal) ;;
+            *) echo "::error::Unknown track '$TRACK'."; exit 1 ;;
+          esac
+          if ! [[ "$ROLLOUT" =~ ^[0-9]+$ ]] || [ "$ROLLOUT" -lt 1 ] || [ "$ROLLOUT" -gt 100 ]; then
+            echo "::error::rollout must be a whole percent from 1 to 100, not '$ROLLOUT'."
+            exit 1
+          fi
+          raw="$(grep -m1 '^version:' pubspec.yaml)"
+          build="${raw##*+}"; build="${build//[^0-9]/}"
+          notes="fastlane/metadata/android/en-US/changelogs/$((build * 10 + 1)).txt"
+          if [ ! -s "$notes" ]; then
+            echo "::error::$notes is missing or empty: write the release's short notes first (docs/release-notes.md step 5)."
+            exit 1
+          fi
+          chars="$(wc -m < "$notes")"
+          if [ "$chars" -gt 500 ]; then
+            echo "::error::$notes is $chars characters; Play's What's new takes at most 500."
+            exit 1
+          fi
+          mkdir -p distribution/whatsnew
+          cp "$notes" distribution/whatsnew/whatsnew-en-US
+          cat distribution/whatsnew/whatsnew-en-US
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+          echo "rollout=$ROLLOUT" >> "$GITHUB_OUTPUT"
+          echo "fraction=$(awk -v p="$ROLLOUT" 'BEGIN { printf "%.2f", p / 100 }')" >> "$GITHUB_OUTPUT"
 
       # JDK 17 pinned explicitly. AGP 8.11.1 + Gradle require JDK 17, and
       # android/app/build.gradle.kts compiles against JavaVersion.VERSION_17.
@@ -111,24 +168,37 @@ jobs:
       # Upload to the Play Console via the de-facto community action
       # (r0adkll/upload-google-play, @v1 = latest v1.1.x, Play Developer API v3).
       # Credentials: a Google Cloud service-account JSON with the Play Developer
-      # API enabled and "Release apps to testing tracks" granted in the Play
-      # Console, stored verbatim in the PLAY_SERVICE_ACCOUNT_JSON secret.
-      #   track:  internal   — the safest testing track; promote by hand after.
-      #   status: completed  — released to internal testers automatically (the
-      #                        action default), the closest mirror of snap edge.
-      # NOTE: the app must already have >=1 release created in the Console (it
-      # does — it's live on the testing track), or the first API upload is
-      # rejected. If a run ever fails with "Changes cannot be sent for review
+      # API enabled, stored verbatim in the PLAY_SERVICE_ACCOUNT_JSON secret; it
+      # needs "Release to production" for the production track.
+      #   status: completed   — released to everyone on the track;
+      #   status: inProgress  — a staged rollout to `userFraction` of them.
+      # Two steps rather than one with computed inputs: the action rejects a
+      # userFraction on a completed release.
+      # If a run ever fails with "Changes cannot be sent for review
       # automatically. Please set the query parameter changesNotSentForReview to
       # true.", add `changesNotSentForReview: true` below (see docs/setup.md).
-      - name: Publish to Google Play (internal)
+      - name: Publish to Google Play (${{ steps.plan.outputs.track }})
+        if: steps.plan.outputs.rollout == '100'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.invoiceninja.admin
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: internal
+          track: ${{ steps.plan.outputs.track }}
           status: completed
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Publish to Google Play (${{ steps.plan.outputs.track }}, ${{ steps.plan.outputs.rollout }}% rollout)
+        if: steps.plan.outputs.rollout != '100'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.invoiceninja.admin
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: ${{ steps.plan.outputs.track }}
+          status: inProgress
+          userFraction: ${{ steps.plan.outputs.fraction }}
+          whatsNewDirectory: distribution/whatsnew
 
       # Best practice even on an ephemeral runner: wipe the decoded signing
       # material so it can't survive into a later step, a cache, or an uploaded

@@ -12,13 +12,13 @@ Six workflows publish the app. Every one of them:
 
 - is **manual only** — GitHub → **Actions** → pick the workflow → **Run workflow** (on the default branch). There is no push, tag, or schedule trigger anywhere in this repo.
 - **runs the full test suite first** (`_test.yaml`, always on `ubuntu-latest`, ~8–12 min). A red suite stops the release before anything is built or uploaded. Under **Deploy to all** (below) it runs once, inside the release, and the stores skip their copy.
-- ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
+- ships to a **testing channel**, not straight to users — with **three exceptions**. **Google Play** releases to the **production** track by default, with the version's short notes as "What's new" (§3C; pick a testing track or a staged `rollout` on dispatch). **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
 
 | Target | Workflow | Lands in | Store credentials |
 |---|---|---|---|
 | Linux AppImage + F-Droid APKs | `appimage.yml` | GitHub Release (prerelease) → F-Droid | a repo setting, plus the F-Droid signing key (4, in an Environment) |
 | Linux Snap | `snapcraft.yml` | Snap Store `edge` | 1 |
-| Android | `playstore.yml` | Play **Internal testing** | 5 |
+| Android | `playstore.yml` | Play **production** (or a chosen testing track) | 5 |
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 8 |
 | macOS | `appstore-macos.yml` | TestFlight | 7 (3 shared with iOS) |
@@ -279,13 +279,13 @@ Map the rest: `storePassword` → `ANDROID_KEYSTORE_PASSWORD`, `keyPassword` →
 
 1. Google Cloud Console → create or select a project → enable the **Google Play Android Developer API**.
 2. Create a **service account** in that project → add a **JSON key** → download it.
-3. Play Console → **Users and permissions** → invite the service-account email → grant **app-level** permission on `com.invoiceninja.admin`: **"Release apps to testing tracks"**.
+3. Play Console → **Users and permissions** → invite the service-account email → grant **app-level** permission on `com.invoiceninja.admin`: **"Release to production, exclude devices, and use Play App Signing"** and **"Release apps to testing tracks"**.
 
-> Grant **only** the testing-track permission. That's what makes this workflow structurally incapable of touching production, which is the whole safety model here.
+> The workflow releases to **production** by default, so it needs the production permission. With only the testing-track one, a production upload is refused (a dispatch with `track: internal` still works).
 
 4. Paste the JSON file's full text into `PLAY_SERVICE_ACCOUNT_JSON`.
 
-**Verify** — dispatch `Deploy to Google Play`. Success lands a release on the **Internal testing** track. Promote internal → closed → production by hand in the Console.
+**Verify** — dispatch `Deploy to Google Play` with `track: internal` first. Success lands a release on the **Internal testing** track with the version's short notes under "What's new". The default dispatch (and **Deploy to all**) releases to **production**; `rollout` below 100 makes it a staged rollout you finish in the Console.
 
 ### D. Windows / Microsoft Store — 5 secrets
 
@@ -428,7 +428,7 @@ Once each target is green on its own, ship whole releases with **Deploy to all**
 |---|---|---|
 | AppImage | GitHub Release `v<version>`, marked prerelease | Uncheck "pre-release" on the Release |
 | Snap | `edge` channel | `snapcraft release invoiceninja <rev> <channel>` — blocked for stable while `grade: devel` |
-| Play | Internal testing track | Play Console: internal → closed → production |
+| Play | Production (or the dispatched track), reviewed by Google | Automatic once reviewed; a staged rollout is finished in the Console |
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
 | Microsoft | Certification, then the live listing | Automatic — no promotion step |
 

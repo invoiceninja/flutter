@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
+import 'package:admin/data/services/upload_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -144,5 +145,42 @@ void main() {
     final file = await client.postForFile('/api/documents/1/download');
     expect(file.filename, 'Signed contract.pdf');
     expect(file.bytes, [37, 80, 68, 70]);
+  });
+
+  test('an upload is multipart, rebuilt for the retry after a 401', () async {
+    final tokens = _Tokens('stale', next: 'fresh');
+    final bodies = <String>[];
+    final client = DocuNinjaClient(
+      tokens: tokens,
+      httpClient: MockClient((r) async {
+        bodies.add(utf8.decode(r.bodyBytes, allowMalformed: true));
+        expect(r.headers['content-type'], startsWith('multipart/form-data'));
+        return r.headers['Authorization'] == 'Bearer fresh'
+            ? http.Response('{"data":{"id":"d1"}}', 200)
+            : http.Response('{"message":"Unauthenticated."}', 401);
+      }),
+    );
+    final json = await client.postMultipart(
+      '/api/documents',
+      fields: {'description': 'Contract'},
+      files: [
+        (
+          field: 'files[]',
+          source: BytesUploadSource(utf8.encode('%PDF-1.7'), 'a.pdf'),
+          filename: 'a.pdf|secret',
+        ),
+      ],
+    );
+    expect(json, {
+      'data': {'id': 'd1'},
+    });
+    // The retry sent the whole body again, not an empty, spent stream.
+    expect(bodies, hasLength(2));
+    for (final body in bodies) {
+      expect(body, contains('name="description"'));
+      expect(body, contains('Contract'));
+      expect(body, contains('filename="a.pdf|secret"'));
+      expect(body, contains('%PDF-1.7'));
+    }
   });
 }

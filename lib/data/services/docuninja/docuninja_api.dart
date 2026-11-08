@@ -48,6 +48,21 @@ class DocuNinjaApi {
     return DnDocument.fromJson(_data(json));
   }
 
+  /// Creates a document from uploaded files (`POST /api/documents`,
+  /// React's `Create.tsx` and drop zone): its fields are placed later, in
+  /// the builder.
+  Future<DnDocument> createDocument({
+    required String description,
+    required List<DnUploadPart> files,
+  }) async {
+    final json = await _client.postMultipart(
+      '/api/documents',
+      fields: {'description': description},
+      files: files,
+    );
+    return DnDocument.fromJson(_data(json));
+  }
+
   Future<List<DnTimelineEntry>> timeline(String id) async {
     final json = await _client.postJson('/api/documents/$id/timeline');
     final rows = json is List ? json : (json is Map ? json['data'] : null);

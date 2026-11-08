@@ -24,6 +24,7 @@ import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_document_view_model.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
@@ -48,6 +49,7 @@ class DocuNinjaDocumentScreen extends StatefulWidget {
 }
 
 enum _Action {
+  edit,
   viewPdf,
   send,
   auditLog,
@@ -64,6 +66,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
   DocuNinjaDocumentViewModel? _vm;
   Formatter? _formatter;
   bool _downloading = false;
+
+  /// The builder runs in the browser for now: re-read the document when the
+  /// user comes back to the app, so fields placed there show up here.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: () => _vm?.load());
+  }
 
   @override
   void didChangeDependencies() {
@@ -86,6 +98,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _vm?.dispose();
     super.dispose();
   }
@@ -124,6 +137,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
               if (doc != null)
                 EntityActionsPopupButton<_Action>(
                   items: _items(context, vm, doc),
+                  splitEditAction: true,
                 ),
             ],
           ),
@@ -280,11 +294,14 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       String? confirmMessageKey,
       bool destructive = false,
       bool lifecycle = false,
+      bool primary = false,
+      bool enabled = true,
     }) => EntityActionItem<_Action>(
       kind: kind,
       icon: icon,
       label: context.tr(key),
-      enabled: idle,
+      enabled: idle && enabled,
+      isPrimary: primary,
       confirm: confirm,
       confirmMessageKey: confirmMessageKey,
       isDestructive: destructive,
@@ -293,6 +310,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       onTap: () => _onAction(context, vm, doc, kind),
     );
     return [
+      // React's Edit (the field builder): beside the menu, disabled once the
+      // document is completed or voided. It opens in the browser for now.
+      if (!doc.isDeleted)
+        item(
+          _Action.edit,
+          Icons.edit_outlined,
+          'edit',
+          primary: true,
+          enabled: !completed && doc.status != DnDocumentStatus.voided,
+        ),
       // React's `shouldShowPdf`: completed, not deleted, and with a file.
       if (completed && !doc.isDeleted && doc.files.isNotEmpty)
         item(_Action.viewPdf, Icons.picture_as_pdf_outlined, 'view_pdf'),
@@ -357,6 +384,19 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
   ) async {
     final title = _title(context, doc);
     switch (action) {
+      case _Action.edit:
+        final companyId = context
+            .read<Services>()
+            .auth
+            .session
+            .value
+            ?.currentCompanyId;
+        if (companyId == null) return;
+        await openDocuNinjaBuilder(
+          context,
+          documentId: doc.id,
+          companyId: companyId,
+        );
       case _Action.viewPdf:
         context.go('/docuninja/${doc.id}/pdf');
       case _Action.send:

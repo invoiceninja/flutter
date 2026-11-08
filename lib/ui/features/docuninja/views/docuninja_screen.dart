@@ -9,6 +9,7 @@ import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
+import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -17,6 +18,8 @@ import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_create_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -39,6 +42,16 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   String? _vmCompanyId;
   final _search = TextEditingController();
   bool _creating = false;
+
+  /// Fields are placed in the browser for now: re-read the list when the
+  /// user comes back to the app.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: () => _vm?.refresh());
+  }
 
   @override
   void didChangeDependencies() {
@@ -120,8 +133,33 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
 
   void _upgrade() => context.go('/settings/account_management');
 
+  /// Uploads a new document, then (as React does) opens its field builder:
+  /// in the browser until the builder is embedded (docs/docuninja.md). The
+  /// app lands on the new document, which re-reads when the user returns.
+  Future<void> _create(DocuNinjaState state) async {
+    final api = context.read<DocuNinjaApi?>();
+    final companyId = context
+        .read<Services>()
+        .auth
+        .session
+        .value
+        ?.currentCompanyId;
+    if (api == null || companyId == null) return;
+    final doc = await showDocuNinjaCreateDialog(context, api: api);
+    if (doc == null || !mounted) return;
+    _session?.markDocumentsChanged();
+    Notify.success(context, context.tr('document_created'));
+    context.go('/docuninja/${doc.id}');
+    await openDocuNinjaBuilder(
+      context,
+      documentId: doc.id,
+      companyId: companyId,
+    );
+  }
+
   @override
   void dispose() {
+    _lifecycle.dispose();
     _session?.removeListener(_onSession);
     _session?.documentsChanged.removeListener(_onDocumentsChanged);
     _vm?.dispose();
@@ -145,6 +183,14 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             leading: globalNav ? null : const DrawerHamburger(),
             automaticallyImplyLeading: !globalNav,
             actions: [
+              // React's drop zone and New Document page, for a DocuNinja
+              // role that may create.
+              if (vm != null && state.can('documents', DnAction.create))
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: context.tr('new_document'),
+                  onPressed: () => _create(state),
+                ),
               if (vm != null) ...[
                 ListenableBuilder(
                   listenable: vm,

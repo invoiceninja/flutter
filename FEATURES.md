@@ -701,10 +701,10 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
-| DocuNinja — document list | ✅ | ❌ | 🟡 |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging. Creating a document arrives with the builder |
-| DocuNinja — create document | ✅ | ❌ | ❌ |  | |
+| DocuNinja — document list | ✅ | ❌ | 🟡 |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging. No row actions or bulk actions yet |
+| DocuNinja — create document | ✅ | ❌ | 🟡 |  | Upload (name, files, password-protected PDFs) is native; the fields are placed in the builder, which opens in the browser for now |
 | DocuNinja — create blueprint / template | ✅ | ❌ | ❌ |  | |
-| DocuNinja — drag-and-drop document builder | ✅ | ❌ | ❌ |  | |
+| DocuNinja — drag-and-drop document builder | ✅ | ❌ | 🟡 |  | Opens React's builder in the browser, on the document's company; the in-app builder is next |
 | DocuNinja — signature field mapping | ✅ | ❌ | ❌ |  | |
 | DocuNinja — sign document | ✅ | ❌ | ❌ |  | |
 | DocuNinja — PDF preview / render | ✅ | ❌ | ✅ |  | The signed PDF of a completed document; the audit log downloads |

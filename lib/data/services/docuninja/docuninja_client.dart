@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/http_client_factory.dart';
+import 'package:admin/data/services/upload_source.dart';
 
 final _log = Logger('DocuNinjaClient');
 
@@ -51,6 +52,11 @@ class DocuNinjaException implements Exception {
 /// A file the service sent back (`/download`, `/audit_log`).
 typedef DnFileBytes = ({Uint8List bytes, String? filename});
 
+/// One file of a multipart upload: [source] sent as [field], under
+/// [filename] when given (React sends a password-protected PDF as
+/// `name.pdf|password`).
+typedef DnUploadPart = ({String field, UploadSource source, String? filename});
+
 /// The app's only way to talk to DocuNinja. Its own `http.Client`, never
 /// `ApiClient`: that client's 401 handling ends the Invoice Ninja session,
 /// and a DocuNinja 401 says nothing about it. A 401 here re-runs the login
@@ -91,6 +97,37 @@ class DocuNinjaClient {
   Future<Object?> deleteJson(String path, {Object? body}) async =>
       _decode(await _send('DELETE', path, body: body));
 
+  /// A `multipart/form-data` POST: [fields] plus [files] (a new document's
+  /// upload). The body is rebuilt for the retry after a 401, since a
+  /// multipart stream can be sent only once.
+  Future<Object?> postMultipart(
+    String path, {
+    Map<String, String> fields = const {},
+    required List<DnUploadPart> files,
+  }) async => _decode(
+    await _sendWith((token) async {
+      final request = http.MultipartRequest('POST', _uri(path, null))
+        ..followRedirects = false
+        ..headers.addAll(_headers(token, json: false))
+        ..fields.addAll(fields);
+      for (final f in files) {
+        final part = await f.source.toMultipartFile(f.field);
+        request.files.add(
+          f.filename == null
+              ? part
+              : http.MultipartFile(
+                  f.field,
+                  part.finalize(),
+                  part.length,
+                  filename: f.filename,
+                  contentType: part.contentType,
+                ),
+        );
+      }
+      return request;
+    }, timeout: _uploadTimeout),
+  );
+
   /// POST for a file response (the signed PDF, the audit log).
   Future<DnFileBytes> postForFile(String path, {Object? body}) async {
     final response = await _send('POST', path, body: body ?? const {});
@@ -100,20 +137,43 @@ class DocuNinjaClient {
     );
   }
 
+  /// An upload can take far longer than a JSON call.
+  static const _uploadTimeout = Duration(minutes: 5);
+
   Future<http.Response> _send(
     String method,
     String path, {
     Map<String, String>? query,
     Object? body,
+  }) => _sendWith((token) async {
+    final request = http.Request(method, _uri(path, query))
+      ..followRedirects = false
+      ..headers.addAll(_headers(token, json: body != null));
+    if (body != null) request.body = jsonEncode(body);
+    return request;
+  });
+
+  Map<String, String> _headers(String token, {required bool json}) => {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $token',
+    'X-Requested-With': 'XMLHttpRequest',
+    if (json) 'Content-Type': 'application/json',
+  };
+
+  /// Sends the request [build] makes for a token, re-running the handshake
+  /// once on a 401 and building the request again for the retry.
+  Future<http.Response> _sendWith(
+    Future<http.BaseRequest> Function(String token) build, {
+    Duration? timeout,
   }) async {
     // No token yet (a screen opened before the handshake answered, or after
     // a company switch): run the handshake before the first attempt.
     final token = _tokens.token ?? await _tokens.refreshToken();
-    var response = await _attempt(method, path, query, body, token);
+    var response = await _attempt(build, token, timeout ?? _timeout);
     if (response.statusCode == 401) {
       final fresh = await _tokens.refreshToken();
       if (fresh != null) {
-        response = await _attempt(method, path, query, body, fresh);
+        response = await _attempt(build, fresh, timeout ?? _timeout);
       }
     }
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -123,27 +183,17 @@ class DocuNinjaClient {
   }
 
   Future<http.Response> _attempt(
-    String method,
-    String path,
-    Map<String, String>? query,
-    Object? body,
+    Future<http.BaseRequest> Function(String token) build,
     String? token,
+    Duration timeout,
   ) async {
     if (token == null || token.isEmpty) {
       throw const DocuNinjaException(401, 'No DocuNinja token');
     }
-    final request = http.Request(method, _uri(path, query))
-      ..followRedirects = false
-      ..headers.addAll({
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-        'X-Requested-With': 'XMLHttpRequest',
-        if (body != null) 'Content-Type': 'application/json',
-      });
-    if (body != null) request.body = jsonEncode(body);
+    final request = await build(token);
     try {
-      final streamed = await _http.send(request).timeout(_timeout);
-      return await http.Response.fromStream(streamed).timeout(_timeout);
+      final streamed = await _http.send(request).timeout(timeout);
+      return await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const NetworkException('DocuNinja request timed out');
     } on http.ClientException catch (e) {

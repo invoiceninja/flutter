@@ -184,6 +184,29 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
 
+    IconButton editButton(WidgetTester tester) => tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byTooltip('Edit'),
+        matching: find.byType(IconButton),
+      ),
+    );
+
+    testWidgets('Edit (the builder) is beside the menu until completed', (
+      tester,
+    ) async {
+      await pump(tester, _doc(status: 1));
+      expect(editButton(tester).onPressed, isNotNull);
+      await dispose(tester);
+
+      await pump(tester, _doc(status: 6));
+      expect(
+        editButton(tester).onPressed,
+        isNull,
+        reason: 'React disables Edit on a completed or voided document',
+      );
+      await dispose(tester);
+    });
+
     testWidgets('View PDF needs a completed document with a file', (
       tester,
     ) async {

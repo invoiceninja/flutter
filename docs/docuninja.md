@@ -91,6 +91,21 @@ Phases 1b–1d, shipped: the sidebar entry, the screens before the documents, th
   - **Delete stays on the page**, as React's does: the document reloads deleted, with Restore.
   - **Options saves from inside the dialog**, cannot be dismissed while it saves, and stays open on a refusal, showing the field errors, so an edit is never lost. The expiry is the stored string's calendar day, and it is sent only when it changed while the document can still expire — an untouched field is never re-sent shifted a day.
   - The signed PDF opens at `/docuninja/:id/pdf` in `PdfPreview`. Downloads go through `downloadPdf` under DocuNinja's own file name, with `sanitizeFileName` (docs/file-downloads.md); one runs at a time.
-- **Not yet:** creating and editing a document and Make template (the builder and templates phases), live updates over DocuNinja's socket, `/app/docuninja/…` deep links and Copy link, a row `⋮` and bulk actions on the list, a signer's Copy link and React's "Client contact:" / "User:" labels on the signers, and DocuNinja's settings. Until then the refresh button and pull to refresh re-read DocuNinja.
+- **Not yet:** the field builder inside the app (it opens in the browser, below), Make template (the templates phase), live updates over DocuNinja's socket, `/app/docuninja/…` deep links and Copy link, a row `⋮` and bulk actions on the list, a signer's Copy link and React's "Client contact:" / "User:" labels on the signers, and DocuNinja's settings. Until then the refresh button and pull to refresh re-read DocuNinja.
 - **Strings** are React's keys. The handful missing from this app's `en.json` (`docuninja_join_*`, `docuninja_creating_account`, `signatories`, `send_emails_to_following`, and `docuninja_company_setup_help` for the sentence React hard-codes) have their English in `_app_pending.json`. Most locale bundles already translate them (they came from the server's language files), so a locale's `_app_pending_<locale>.json` carries one only where its bundle does not: React's own translation where it has a real one, the app's otherwise (Serbian is Latin script here, so never React's Cyrillic).
+
+## The field builder opens in the browser for now
+
+Phase 2 embeds React's field builder in the app (a React-hosted embed page in a WebView). Until that ships, the app does what React's own pages do around the builder and hands the builder itself to the browser.
+
+- **New Document** (`showDocuNinjaCreateDialog`, the list's `+`, shown when the DocuNinja role may create documents) is React's `Create.tsx`: a name and the files, uploaded in one `multipart/form-data` `POST /api/documents` (`DocuNinjaApi.createDocument`, `DocuNinjaClient.postMultipart`).
+  - The accepted types are the drop zone's: pdf, doc, docx, odt, xls, xlsx, png, jpg and jpeg (`kDnUploadExtensions`). React accepts `image/jpeg` by MIME type.
+  - The name starts as the first file's, as React's `getDocumentNameFromFile` writes it (`dnDocumentNameFromFile`), until the user types one.
+  - A password-protected PDF is asked for its password and uploaded as `name.pdf|password`, as React does. The app detects the `/Encrypt` trailer entry (`dnLooksPasswordProtected`) where React asks pdf.js.
+  - **A multipart body can be sent only once,** so the client rebuilds the request for its retry after a 401 (`_sendWith`). An upload gets five minutes, not a JSON call's sixty seconds.
+  - Then, as React navigates to the builder, the app lands on the new document and opens its builder.
+- **Edit** (the detail page's edit button, React's) opens the builder. As in React it is disabled once the document is completed or voided.
+- **The builder opens in the browser** at `https://app.invoicing.co/#/docuninja/<id>/builder?company=<company id>` (`dnBuilderWebUri`, `openDocuNinjaBuilder`). The hosted web app uses the hash router. `?company=` makes a fresh tab open on the document's company (React's `resolveCompanyIndex` reads it once on load and pins that tab), so a user with several companies does not land on the wrong one.
+- **Coming back re-reads.** The list and the detail page refresh on `AppLifecycleListener.onResume`, so fields placed and documents sent in the browser show up when the user returns.
+- **Rows still open the detail page**, where React opens the builder, and Clone still lands on the copy's detail page. Opening a browser from a row tap would be a surprise; both move to the builder once it is in the app.
 

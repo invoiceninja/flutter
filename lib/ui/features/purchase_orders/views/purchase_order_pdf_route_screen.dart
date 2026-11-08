@@ -8,6 +8,7 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/history/document_version_route_mixin.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_screen.dart';
+import 'package:admin/ui/features/billing_shared/pdf/signed_copy_route_mixin.dart';
 
 /// Route wrapper for `/purchase_orders/:id/pdf`. Mirrors
 /// `CreditPdfRouteScreen`.
@@ -26,7 +27,8 @@ class PurchaseOrderPdfRouteScreen extends StatefulWidget {
 
   /// When true (route `?signed=1`, the Signed Document pill), the preview is
   /// the stored DocuNinja-signed copy, even while the record has unsynced
-  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  /// edits, for as long as the server would still serve it
+  /// ([SignedCopyRouteMixin]).
   final bool signedCopy;
 
   @override
@@ -36,7 +38,7 @@ class PurchaseOrderPdfRouteScreen extends StatefulWidget {
 
 class _PurchaseOrderPdfRouteScreenState
     extends State<PurchaseOrderPdfRouteScreen>
-    with FormatterHostMixin, DocumentVersionRouteMixin {
+    with FormatterHostMixin, DocumentVersionRouteMixin, SignedCopyRouteMixin {
   late final Services _services;
   late final Stream<PurchaseOrder?> _stream;
   late final String _companyId;
@@ -58,6 +60,7 @@ class _PurchaseOrderPdfRouteScreenState
     );
     loadFormatter(_services, _companyId);
     initVersions(_services, basePath: _services.purchaseOrders.api.basePath);
+    initSignedCopy(_services, _companyId, widget.signedCopy);
   }
 
   @override
@@ -71,6 +74,17 @@ class _PurchaseOrderPdfRouteScreenState
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        if (!signedCopyReady) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final signedCopy = opensSignedCopy(
+          services: _services,
+          requested: widget.signedCopy,
+          sync: po.sync,
+          documents: po.documents,
+        );
         final activityId = selectedActivityId;
         return BillingDocPdfScreen(
           entity: BillingDocType.purchaseOrder,
@@ -79,7 +93,7 @@ class _PurchaseOrderPdfRouteScreenState
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? po : null,
-          hasUnsyncedChanges: po.isDirty && !widget.signedCopy,
+          hasUnsyncedChanges: po.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -91,7 +105,7 @@ class _PurchaseOrderPdfRouteScreenState
                       designId:
                           designId ??
                           (po.designId.isEmpty ? null : po.designId),
-                      storedPdfKey: widget.signedCopy
+                      storedPdfKey: signedCopy
                           ? po.signedPdfInvitationKey
                           : po.storedPdfInvitationKey,
                     )

@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/credit_status.dart';
@@ -124,5 +125,31 @@ void main() {
 
     final po = cloneToPurchaseOrder(billingCloneFromInvoice(hourly));
     expect(po.lineItems.single.typeId, LineItemType.standard);
+  });
+
+  test('a cross-clone keeps who signs and drops the per-send fields', () {
+    final signed = source.copyWith(
+      invitations: const [
+        Invitation(
+          id: 'i1',
+          key: 'k1',
+          clientContactId: 'c1',
+          sentDate: '2026-11-01',
+          canSign: true,
+        ),
+        Invitation(id: 'i2', key: 'k2', clientContactId: 'c2', canSign: false),
+        Invitation(id: 'i3', key: 'k3', clientContactId: 'c3'),
+      ],
+    );
+    final credit = cloneToCredit(billingCloneFromInvoice(signed));
+    expect(
+      [for (final i in credit.invitations) i.canSign],
+      [true, false, null],
+    );
+    for (final i in credit.invitations) {
+      expect(i.id, isEmpty);
+      expect(i.key, isEmpty);
+      expect(i.sentDate, isEmpty);
+    }
   });
 }

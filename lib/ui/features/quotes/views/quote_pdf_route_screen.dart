@@ -8,6 +8,7 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/history/document_version_route_mixin.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_screen.dart';
+import 'package:admin/ui/features/billing_shared/pdf/signed_copy_route_mixin.dart';
 
 /// Route wrapper for `/quotes/:id/pdf`. Mirrors `InvoicePdfRouteScreen`.
 class QuotePdfRouteScreen extends StatefulWidget {
@@ -25,7 +26,8 @@ class QuotePdfRouteScreen extends StatefulWidget {
 
   /// When true (route `?signed=1`, the Signed Document pill), the preview is
   /// the stored DocuNinja-signed copy, even while the record has unsynced
-  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  /// edits, for as long as the server would still serve it
+  /// ([SignedCopyRouteMixin]).
   final bool signedCopy;
 
   @override
@@ -33,7 +35,7 @@ class QuotePdfRouteScreen extends StatefulWidget {
 }
 
 class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
-    with FormatterHostMixin, DocumentVersionRouteMixin {
+    with FormatterHostMixin, DocumentVersionRouteMixin, SignedCopyRouteMixin {
   late final Services _services;
   late final Stream<Quote?> _stream;
   late final String _companyId;
@@ -52,6 +54,7 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
     _stream = _services.quotes.watch(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
     initVersions(_services, basePath: _services.quotes.api.basePath);
+    initSignedCopy(_services, _companyId, widget.signedCopy);
   }
 
   @override
@@ -65,6 +68,17 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        if (!signedCopyReady) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final signedCopy = opensSignedCopy(
+          services: _services,
+          requested: widget.signedCopy,
+          sync: quote.sync,
+          documents: quote.documents,
+        );
         final activityId = selectedActivityId;
         return BillingDocPdfScreen(
           entity: BillingDocType.quote,
@@ -73,7 +87,7 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? quote : null,
-          hasUnsyncedChanges: quote.isDirty && !widget.signedCopy,
+          hasUnsyncedChanges: quote.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -85,7 +99,7 @@ class _QuotePdfRouteScreenState extends State<QuotePdfRouteScreen>
                       designId:
                           designId ??
                           (quote.designId.isEmpty ? null : quote.designId),
-                      storedPdfKey: widget.signedCopy
+                      storedPdfKey: signedCopy
                           ? quote.signedPdfInvitationKey
                           : quote.storedPdfInvitationKey,
                     )

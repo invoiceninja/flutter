@@ -82,6 +82,17 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
 
   String _date(String iso) => dnLocalDate(_formatter, iso);
 
+  bool _showError(DocuNinjaDocumentsViewModel vm) =>
+      vm.error != null && vm.items.isNotEmpty && !vm.isLoading;
+
+  Widget _errorNotice(DocuNinjaDocumentsViewModel vm) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: DocuNinjaInlineError(
+      offline: vm.error == DnListError.offline,
+      onRetry: vm.retry,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.vm,
@@ -115,6 +126,10 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
               controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                // A failed refresh says so where the pull happened; a failed
+                // next page says so under the rows.
+                if (_showError(vm) && !vm.errorFromMore)
+                  SliverToBoxAdapter(child: _errorNotice(vm)),
                 if (table) const SliverToBoxAdapter(child: _TableHeader()),
                 if (vm.items.isEmpty)
                   SliverFillRemaining(
@@ -143,16 +158,8 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                             );
                     },
                   ),
-                if (vm.error != null && vm.items.isNotEmpty && !vm.isLoading)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: DocuNinjaInlineError(
-                        offline: vm.error == DnListError.offline,
-                        onRetry: vm.retry,
-                      ),
-                    ),
-                  ),
+                if (_showError(vm) && vm.errorFromMore)
+                  SliverToBoxAdapter(child: _errorNotice(vm)),
                 if (vm.isLoadingMore)
                   const SliverToBoxAdapter(
                     child: Padding(
@@ -299,7 +306,8 @@ class _TableRow extends StatelessWidget {
                   ),
                 ),
               ),
-              cell(3, value(_files(context, doc), color: tokens.ink2)),
+              // Holds a translated word, so it keeps the reading direction.
+              cell(3, text(_files(context, doc), color: tokens.ink2)),
               cell(
                 4,
                 Align(

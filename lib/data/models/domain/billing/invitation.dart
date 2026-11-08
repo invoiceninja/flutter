@@ -28,7 +28,7 @@ abstract class Invitation with _$Invitation {
 
     /// Whether DocuNinja asks this contact to sign (`can_sign`). **Tri-state
     /// on purpose.** Null means the app never learned the value (the row was
-    /// stored before the app read the field, or is a fresh clone), and then
+    /// stored before the app read the field), and then
     /// the save sends neither `key` nor `can_sign`, so the server keeps
     /// whatever it holds. The server applies a `key` as `can_sign ?? false`
     /// on a DocuNinja company, so a `key` sent alone would silently move the

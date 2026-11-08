@@ -29,3 +29,12 @@ String? docuNinjaDocumentId(Map<String, dynamic>? sync) {
   if (id is! String || id.isEmpty) return null;
   return id;
 }
+
+/// Whether the signed file the server would serve is still attached: it
+/// looks the file up by `sync.dn_document_hashed_id` among the record's own
+/// documents (`BaseModel::getSignedPdfDocument`) and renders afresh when it
+/// is gone, for example deleted from the Documents tab.
+bool hasSignedFile(Map<String, dynamic>? sync, Iterable<String> documentIds) {
+  final id = sync?['dn_document_hashed_id'];
+  return id is String && id.isNotEmpty && documentIds.contains(id);
+}

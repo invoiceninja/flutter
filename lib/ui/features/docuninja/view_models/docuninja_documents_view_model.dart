@@ -75,6 +75,10 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
   /// for that page again.
   bool _errorFromMore = false;
 
+  /// The failure was the next page's (shown under the rows), not a refresh
+  /// of the first one (shown above them, where the pull happened).
+  bool get errorFromMore => _errorFromMore;
+
   /// The query the rows on screen answer. A failed first page for another
   /// query clears them, so they never sit under a search they don't match.
   String? _itemsQuery;
@@ -118,7 +122,12 @@ class DocuNinjaDocumentsViewModel extends ChangeNotifier {
 
   /// The next page, near the end of the list.
   Future<void> loadMore() async {
-    if (_loading || _loadingMore || !hasMore || _items.isEmpty) return;
+    // While a search waits out its debounce, the rows and the page count
+    // are the old search's: a next page now would be the new search's
+    // page N+1 appended to them.
+    final searchPending = _searchTimer?.isActive ?? false;
+    if (_loading || _loadingMore || searchPending || !hasMore) return;
+    if (_items.isEmpty) return;
     final generation = _generation;
     _loadingMore = true;
     _error = null;

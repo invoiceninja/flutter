@@ -8,6 +8,7 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/history/document_version_route_mixin.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_screen.dart';
+import 'package:admin/ui/features/billing_shared/pdf/signed_copy_route_mixin.dart';
 
 /// Route wrapper for `/invoices/:id/pdf`. Watches the invoice (to pick up
 /// the latest number / design after a save round-trips) and renders the
@@ -37,7 +38,8 @@ class InvoicePdfRouteScreen extends StatefulWidget {
 
   /// When true (route `?signed=1`, the Signed Document pill), the preview is
   /// the stored DocuNinja-signed copy, even while the record has unsynced
-  /// edits ([BillingDocStoredPdf.signedPdfInvitationKey]).
+  /// edits, for as long as the server would still serve it
+  /// ([SignedCopyRouteMixin]).
   final bool signedCopy;
 
   @override
@@ -45,7 +47,7 @@ class InvoicePdfRouteScreen extends StatefulWidget {
 }
 
 class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
-    with FormatterHostMixin, DocumentVersionRouteMixin {
+    with FormatterHostMixin, DocumentVersionRouteMixin, SignedCopyRouteMixin {
   late final Services _services;
   late final Stream<Invoice?> _stream;
   late final String _companyId;
@@ -64,6 +66,7 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
     _stream = _services.invoices.watch(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
     initVersions(_services, basePath: _services.invoices.api.basePath);
+    initSignedCopy(_services, _companyId, widget.signedCopy);
   }
 
   @override
@@ -77,6 +80,17 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        if (!signedCopyReady) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final signedCopy = opensSignedCopy(
+          services: _services,
+          requested: widget.signedCopy,
+          sync: invoice.sync,
+          documents: invoice.documents,
+        );
         final activityId = selectedActivityId;
         return BillingDocPdfScreen(
           entity: BillingDocType.invoice,
@@ -86,7 +100,7 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
           deliveryNoteAvailable: activityId == null,
           revision: activityId,
           contentRevision: activityId == null ? invoice : null,
-          hasUnsyncedChanges: invoice.isDirty && !widget.signedCopy,
+          hasUnsyncedChanges: invoice.isDirty,
           versions: versions,
           selectedActivityId: activityId,
           onVersionChanged: selectVersion,
@@ -99,7 +113,7 @@ class _InvoicePdfRouteScreenState extends State<InvoicePdfRouteScreen>
                           designId ??
                           (invoice.designId.isEmpty ? null : invoice.designId),
                       deliveryNote: deliveryNote,
-                      storedPdfKey: widget.signedCopy
+                      storedPdfKey: signedCopy
                           ? invoice.signedPdfInvitationKey
                           : invoice.storedPdfInvitationKey,
                     )

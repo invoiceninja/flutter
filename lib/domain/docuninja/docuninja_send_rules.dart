@@ -34,7 +34,10 @@ bool dnIsSendable({
 
 /// Whether a signer's Resend is shown: not once the document is completed or
 /// voided (`Invitations.tsx`).
+///
+/// An unknown status offers no Resend: it emails a customer.
 bool dnShowsResend(DnDocument d) =>
+    d.status != null &&
     d.status != DnDocumentStatus.completed &&
     d.status != DnDocumentStatus.voided &&
     !d.isDeleted;

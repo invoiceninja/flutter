@@ -162,4 +162,21 @@ void main() {
     expect(vm.error, DnListError.offline);
     expect(vm.items, hasLength(2));
   });
+
+  test('no next page while a search waits out its debounce', () async {
+    final api = _Api();
+    final vm = DocuNinjaDocumentsViewModel(
+      api: api,
+      searchDelay: const Duration(milliseconds: 50),
+    );
+    await vm.refresh();
+    vm.setSearch('acme');
+    // The rows and the page count are still the old search's: a next page
+    // now would be the new search's page 2 appended to them.
+    await vm.loadMore();
+    expect(api.calls.map((c) => c.page), [1]);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    expect(api.calls.last.search, 'acme');
+    expect(api.calls.last.page, 1);
+  });
 }

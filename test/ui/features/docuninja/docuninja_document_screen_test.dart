@@ -12,7 +12,10 @@ import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
 
 import '../shell/_shell_test_helpers.dart';
 
@@ -32,6 +35,33 @@ class _Api implements DocuNinjaApi {
 }
 
 /// A real document (captured live), unwrapped from its `data` envelope.
+class _ListApi implements DocuNinjaApi {
+  final pages = <int>[];
+
+  @override
+  Future<DnPage<DnDocument>> documents({
+    int page = 1,
+    int perPage = 20,
+    String search = '',
+    String status = '',
+    String sort = 'id|desc',
+  }) async {
+    pages.add(page);
+    return DnPage(
+      items: [
+        for (var i = 0; i < 2; i++)
+          DnDocument.fromJson({'id': 'd$page-$i', 'status_id': 1}),
+      ],
+      currentPage: page,
+      lastPage: 3,
+      total: 6,
+    );
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 Map<String, dynamic> _fixture() {
   final json =
       jsonDecode(
@@ -204,5 +234,73 @@ void main() {
       expect(find.text('Clone to a new document'), findsOneWidget);
       await dispose(tester);
     });
+  });
+
+  group('header', () {
+    testWidgets('an active document shows only its status beside the title', (
+      tester,
+    ) async {
+      final fixture = await buildFixture(
+        companies: [FakeCompany(id: 'co1', name: 'Acme')],
+      );
+      addTearDown(fixture.dispose);
+      Future<int> headerChildren(DnDocument doc) async {
+        await tester.pumpWidget(
+          wrapWithShell(
+            fixture.services,
+            Provider<DocuNinjaApi>.value(
+              value: _Api(doc),
+              child: DocuNinjaDocumentScreen(key: UniqueKey(), id: 'doc1'),
+            ),
+          ),
+        );
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        final wrap = tester.widget<Wrap>(
+          find
+              .ancestor(
+                of: find.byType(DocuNinjaStatusPill),
+                matching: find.byType(Wrap),
+              )
+              .first,
+        );
+        return wrap.children.length;
+      }
+
+      // A hidden pill would still cost the Wrap a gap, so none is passed.
+      expect(await headerChildren(_doc()), 2);
+      final archived = _fixture()..['archived_at'] = '2026-11-01T00:00:00Z';
+      expect(await headerChildren(DnDocument.fromJson(archived)), 3);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    });
+  });
+
+  testWidgets('a first page that fits the window still pages on', (
+    tester,
+  ) async {
+    final fixture = await buildFixture(
+      companies: [FakeCompany(id: 'co1', name: 'Acme')],
+    );
+    addTearDown(fixture.dispose);
+    final api = _ListApi();
+    final vm = DocuNinjaDocumentsViewModel(api: api);
+    addTearDown(vm.dispose);
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        DocuNinjaDocumentsList(vm: vm, onOpen: (_) {}),
+      ),
+    );
+    await vm.refresh();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    // Two rows never scroll, so only the after-layout check can ask for
+    // more; it keeps going while the window is still not full.
+    expect(api.pages, [1, 2, 3]);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
   });
 }

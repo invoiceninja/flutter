@@ -207,7 +207,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
                               ),
                             ),
                             // React shows Deleted / Archived beside the status.
-                            DocuNinjaLifecyclePill(document: doc),
+                            // Only when there is one: the Wrap spaces even a
+                            // zero-size child.
+                            if (doc.isDeleted || doc.isArchived)
+                              DocuNinjaLifecyclePill(document: doc),
                             DocuNinjaStatusPill(
                               document: doc,
                               statusOnly: true,
@@ -582,10 +585,7 @@ class _Invitations extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: tokens.ink3, fontSize: 12),
                           ),
-                        Text(
-                          _stateLine(context, i),
-                          style: TextStyle(color: tokens.ink2, fontSize: 12),
-                        ),
+                        _StateLine(invitation: i, formatter: formatter),
                       ],
                     ),
                   ),
@@ -603,10 +603,21 @@ class _Invitations extends StatelessWidget {
       ],
     );
   }
+}
 
-  /// React's status line: signed / viewed / sent with the date, or created
-  /// with the date while it waits.
-  String _stateLine(BuildContext context, DnInvitation i) {
+/// React's status line under a signer: signed / viewed / sent with the
+/// date, or created with the date while it waits. The date is its own
+/// left-to-right run, not a direction mark inside the string, so a copy from
+/// the selectable page carries no invisible characters.
+class _StateLine extends StatelessWidget {
+  const _StateLine({required this.invitation, required this.formatter});
+
+  final DnInvitation invitation;
+  final Formatter? formatter;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = invitation;
     final (key, at) = switch (i.state) {
       DnInvitationState.signed => ('signed', i.signedDate),
       DnInvitationState.viewed => ('viewed', i.viewedDate),
@@ -614,9 +625,15 @@ class _Invitations extends StatelessWidget {
       DnInvitationState.pending => ('created', '${i.raw['created_at'] ?? ''}'),
     };
     final on = dnLocalDate(formatter, at);
-    return on.isEmpty
-        ? context.tr(key)
-        : '${context.tr(key)}: ${ltrIsolate(on)}';
+    final style = TextStyle(color: context.inTheme.ink2, fontSize: 12);
+    if (on.isEmpty) return Text(context.tr(key), style: style);
+    return Wrap(
+      spacing: 4,
+      children: [
+        Text('${context.tr(key)}:', style: style),
+        LtrText(on, style: style),
+      ],
+    );
   }
 }
 

@@ -154,11 +154,16 @@ class DocuNinjaApi {
     required bool isAdmin,
     required List<DnPermission> permissions,
     required List<String> notifications,
+    String? eSignature,
+    String? eInitials,
   }) async {
     final json = await _client.putJson(
       '/api/users/${_seg(user.id)}',
       body: {
         ...user.raw,
+        // React's saved signature and initials: data URLs, empty for none.
+        'e_signature': ?eSignature,
+        'e_initials': ?eInitials,
         'is_admin': isAdmin,
         'permissions': isAdmin
             ? const <Object>[]

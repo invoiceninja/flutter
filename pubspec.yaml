@@ -43,6 +43,10 @@ dependencies:
   go_router: ^17.5.0
   google_fonts: ^8.2.1
   http: ^1.5.0
+  # A DocuNinja user's saved signature is a JPEG data URL, as React stores it
+  # (docs/docuninja.md § Users); only its JPEG encoder is used at runtime.
+  # Also used by tools/gen_app_icons.dart and test/lint/app_icons_test.dart.
+  image: ^4.12.0
   # Camera and photo-library picks on a phone's document surfaces (Camera /
   # Photos tiles, Scan Receipt). First-party and androidx-only, so the F-Droid
   # build needs no swap; its one Play Services manifest hint is stripped in
@@ -117,11 +121,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   freezed: ^4.0.1
-  # Used by tools/gen_app_icons.dart to build the multi-size Windows .ico, and
-  # by test/lint/app_icons_test.dart to inspect the committed icon rasters.
-  # Already resolved transitively (via flutter_launcher_icons); pinned direct so
-  # the script's import is explicit. No lock change — stays 4.8.0.
-  image: ^4.12.0
   json_serializable: ^6.15.2
   msix: ^3.18.0
 

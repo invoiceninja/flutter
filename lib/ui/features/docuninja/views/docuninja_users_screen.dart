@@ -12,6 +12,7 @@ import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
+import 'package:admin/domain/docuninja/docuninja_signature.dart';
 import 'package:admin/domain/docuninja/docuninja_users.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -28,6 +29,7 @@ import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_signature_field.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
@@ -552,9 +554,9 @@ bool _lifecycleLocked(DnUser u, DocuNinjaState state) =>
     u.isOwner || (u.id.isNotEmpty && u.id == state.login?.user.id);
 
 /// React's user edit page (`users/edit/Edit.tsx`): the details read-only,
-/// then the role and permissions and the notifications. React also edits a
-/// user's saved signature and initials here; the app shows them but does
-/// not edit them yet (docs/docuninja.md § Users).
+/// with the saved signature and initials (drawn, uploaded or typed), then
+/// the role and permissions and the notifications.
+/// docs/docuninja.md § Users.
 class DocuNinjaUserScreen extends StatelessWidget {
   const DocuNinjaUserScreen({super.key, required this.id});
 
@@ -586,6 +588,10 @@ class _UserEditorState extends State<_UserEditor> {
   List<DnPermission> _permissions = const [];
   DnNotificationChoice _notify = const DnNotificationChoice(DnNotify.none);
 
+  /// The saved signature and initials (data URLs, empty for none).
+  String _eSignature = '';
+  String _eInitials = '';
+
   @override
   void initState() {
     super.initState();
@@ -605,6 +611,8 @@ class _UserEditorState extends State<_UserEditor> {
         // global ones, and a save sends them all back, as React does).
         _permissions = u.permissions;
         _notify = DnNotificationChoice.decode(u.notifications);
+        _eSignature = u.eSignature;
+        _eInitials = u.eInitials;
       });
     } on Object catch (e, st) {
       _log.warning('Reading the DocuNinja user failed', e, st);
@@ -640,6 +648,8 @@ class _UserEditorState extends State<_UserEditor> {
     final u = _user;
     if (u == null) return false;
     return _isAdmin != u.isAdmin ||
+        _eSignature != u.eSignature ||
+        _eInitials != u.eInitials ||
         _grantsKey(_permissions) != _grantsKey(u.permissions) ||
         !dnSameNotifications(
           _notify,
@@ -655,6 +665,8 @@ class _UserEditorState extends State<_UserEditor> {
       _isAdmin = u.isAdmin;
       _permissions = u.permissions;
       _notify = DnNotificationChoice.decode(u.notifications);
+      _eSignature = u.eSignature;
+      _eInitials = u.eInitials;
     });
   }
 
@@ -745,6 +757,8 @@ class _UserEditorState extends State<_UserEditor> {
         isAdmin: _isAdmin,
         permissions: _permissions,
         notifications: _notify.encode(),
+        eSignature: _eSignature,
+        eInitials: _eInitials,
       );
       if (!mounted) return;
       Notify.success(context, context.tr('updated_user'));
@@ -809,16 +823,24 @@ class _UserEditorState extends State<_UserEditor> {
                       value: u.email,
                       ltr: true,
                     ),
-                    if (u.eSignature.isNotEmpty)
-                      _SavedImage(
-                        label: context.tr('signature'),
-                        dataUrl: u.eSignature,
-                      ),
-                    if (u.eInitials.isNotEmpty)
-                      _SavedImage(
-                        label: context.tr('initials'),
-                        dataUrl: u.eInitials,
-                      ),
+                    // React's signature and initials, saved with the user
+                    // and offered when they sign. `signature` reads "Email
+                    // Signature" here (and in React); `invoice_signature`
+                    // is the plain word.
+                    DnSignatureField(
+                      label: context.tr('invoice_signature'),
+                      value: _eSignature,
+                      kind: DnSignatureKind.signature,
+                      enabled: !_saving,
+                      onChanged: (v) => setState(() => _eSignature = v),
+                    ),
+                    DnSignatureField(
+                      label: context.tr('initials'),
+                      value: _eInitials,
+                      kind: DnSignatureKind.initials,
+                      enabled: !_saving,
+                      onChanged: (v) => setState(() => _eInitials = v),
+                    ),
                   ],
                 ),
                 SizedBox(height: InSpacing.lg(context)),
@@ -922,47 +944,6 @@ class _ReadOnly extends StatelessWidget {
       children: [
         Text(label, style: TextStyle(color: tokens.ink3, fontSize: 12)),
         if (ltr) LtrText(shown) else Text(shown),
-      ],
-    );
-  }
-}
-
-/// A saved signature or initials, as React shows them (an image up to
-/// 128 px tall).
-class _SavedImage extends StatelessWidget {
-  const _SavedImage({required this.label, required this.dataUrl});
-
-  final String label;
-  final String dataUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final data = Uri.tryParse(dataUrl)?.data;
-    final bytes = data?.contentAsBytes();
-    if (bytes == null || bytes.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: context.inTheme.ink3, fontSize: 12),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          constraints: const BoxConstraints(maxHeight: 128),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: context.inTheme.border),
-            borderRadius: BorderRadius.circular(InRadii.r1),
-          ),
-          padding: const EdgeInsets.all(InSpacing.sm),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.contain,
-            semanticLabel: label,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
-        ),
       ],
     );
   }

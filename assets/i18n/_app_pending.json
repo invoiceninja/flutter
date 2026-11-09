@@ -1720,6 +1720,8 @@
   "archived_templates": "Successfully archived :value templates",
   "deleted_templates": "Successfully deleted :value templates",
   "restored_templates": "Successfully restored :value templates",
+  "draw": "Draw",
+  "enter_initials": "Enter initials",
   "docuninja_builder_unavailable": "The editor couldn't open here. Continue in your browser.",
   "open_in_browser": "Open in browser",
   "signatories": "Signatories",

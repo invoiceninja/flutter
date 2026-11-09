@@ -1,4 +1,5 @@
 import 'package:admin/data/services/connectivity_watcher.dart';
+import 'package:admin/data/services/system_bus_probe_io.dart' as io;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -136,4 +137,75 @@ void main() {
       },
     );
   });
+
+  group('ConnectivityWatcher.unavailable — no system bus (a Flatpak)', () {
+    test('reports online at once, without waiting out a probe', () async {
+      final watcher = ConnectivityWatcher.unavailable();
+      final started = DateTime.now();
+      expect(await watcher.isOnline, isTrue);
+      expect(
+        DateTime.now().difference(started),
+        lessThan(const Duration(seconds: 1)),
+      );
+    });
+
+    test('never fires onOnline, and its state stream is one true', () async {
+      final watcher = ConnectivityWatcher.unavailable();
+      expect(await watcher.onOnline.toList(), isEmpty);
+      expect(await watcher.isOnlineStream.toList(), [true]);
+    });
+  });
+
+  group('systemBusMissing', () {
+    bool missing(
+      Map<String, String> env,
+      Set<String> files, {
+      bool linux = true,
+    }) => io.systemBusMissing(
+      environment: env,
+      fileExists: files.contains,
+      isLinux: linux,
+    );
+
+    test('a Flatpak with no system bus socket is missing it', () {
+      expect(missing({'FLATPAK_ID': 'com.invoiceninja.admin'}, {}), isTrue);
+    });
+
+    test('the well-known socket, or its /var/run alias, is a bus', () {
+      expect(missing({}, {'/run/dbus/system_bus_socket'}), isFalse);
+      expect(missing({}, {'/var/run/dbus/system_bus_socket'}), isFalse);
+    });
+
+    test('DBUS_SYSTEM_BUS_ADDRESS names the socket to look for', () {
+      const env = {'DBUS_SYSTEM_BUS_ADDRESS': 'unix:path=/custom/bus,guid=1'};
+      expect(missing(env, {'/custom/bus'}), isFalse);
+      expect(missing(env, {'/run/dbus/system_bus_socket'}), isTrue);
+    });
+
+    test('an address that is not a unix path is left to the plugin', () {
+      expect(
+        missing({'DBUS_SYSTEM_BUS_ADDRESS': 'tcp:host=localhost,port=1'}, {}),
+        isFalse,
+      );
+    });
+
+    test('off Linux the plugin is always asked', () {
+      expect(missing({}, {}, linux: false), isFalse);
+    });
+
+    test('a probe that throws answers false — ask the plugin as before', () {
+      expect(
+        io.systemBusMissing(
+          environment: const {},
+          fileExists: (_) => throw const FileSystemExceptionLike(),
+          isLinux: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+}
+
+class FileSystemExceptionLike implements Exception {
+  const FileSystemExceptionLike();
 }

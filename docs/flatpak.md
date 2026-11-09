@@ -171,7 +171,11 @@ Each one is justified in the submission:
 Two are deliberately absent:
 
 - No `--system-talk-name=org.freedesktop.NetworkManager`. `connectivity_plus` can't see network
-  state from the sandbox, and the app assumes it is online, as it does on the Snap.
+  state from the sandbox, and the app assumes it is online, as it does on the Snap. It doesn't
+  even ask: the sandbox has no system bus socket, so `ConnectivityWatcher.live` skips the plugin
+  (`systemBusMissing`, `lib/data/services/system_bus_probe.dart`). Asking anyway made the
+  plugin's failed connect escape as an uncaught zone error on every probe, and left the probe to
+  run into its 5-second timeout. The first run of the Flatpak in Docker found it (2026-11-09).
 - No `pulseaudio`, `xdg-pictures` or `xdg-documents`, which v1 asked for and this app doesn't
   use.
 

@@ -275,7 +275,8 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
 
   /// Fetch the server's first page of matches for [query] into the cache.
   /// [phrase] sends [query] whole rather than its most selective word.
-  Future<void> fetchMatches(String query, {bool phrase = false});
+  /// Returns whether more pages remain.
+  Future<bool> fetchMatches(String query, {bool phrase = false});
 
   /// The cached rows the repository's local search finds for [query] — the
   /// same field set the server's `?filter=` matches.
@@ -345,7 +346,7 @@ class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
       projects.ensureLoaded(companyId: companyId, id: id);
 
   @override
-  Future<void> fetchMatches(String query, {bool phrase = false}) =>
+  Future<bool> fetchMatches(String query, {bool phrase = false}) =>
       projects.ensurePageLoaded(
         companyId: companyId,
         page: 1,
@@ -387,7 +388,7 @@ class ExpenseVendorFilterKey extends _RecordMembershipFilterKey {
       vendors.ensureLoaded(companyId: companyId, id: id);
 
   @override
-  Future<void> fetchMatches(String query, {bool phrase = false}) =>
+  Future<bool> fetchMatches(String query, {bool phrase = false}) =>
       vendors.ensurePageLoaded(
         companyId: companyId,
         page: 1,

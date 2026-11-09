@@ -23,6 +23,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/repositories/create_already_landed_exception.dart';
+import 'package:admin/data/repositories/search_fetch_memo.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/utils/perf_trace.dart';
 import 'package:admin/utils/search_fold.dart';
@@ -80,6 +81,11 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// text would match it as one phrase and find nothing for `s22 120hz`.
   /// See docs/local-search-matching.md.
   bool get serverSplitsSearchWords => false;
+
+  /// What this session's search-scoped fetches already put in Drift — lets a
+  /// search the cache holds in full skip the server ([SearchFetchMemo]).
+  @visibleForTesting
+  final SearchFetchMemo searchFetchMemo = SearchFetchMemo();
 
   /// The `filter=` value for [search]: the text itself when the server splits
   /// words ([serverSplitsSearchWords]) or the caller wants the exact phrase
@@ -1457,10 +1463,43 @@ abstract class BaseEntityRepository<TDomain, TApi> {
           entry.key: (entry.value.toList()..sort()).join(','),
     };
 
+    // A search whose answer this session already put in Drift asks nothing:
+    // a term paged to the end that the search's words contain, or this very
+    // page of the same wire term (docs/local-search-matching.md § A search
+    // the cache already holds in full makes no request).
+    final wireTerm = wireSearchTerm(search, phraseOnWire: phraseOnWire);
+    final memoScope = isSearchScoped
+        ? _searchMemoScope(companyId, pageSize, filters)
+        : null;
+    if (memoScope != null) {
+      final known = searchFetchMemo.answer(
+        scope: memoScope,
+        generation: db.dataGeneration,
+        search: search!,
+        wireTerm: wireTerm!,
+        page: page,
+      );
+      if (known != null) return known;
+    }
+    // Taken before the request: a wipe while it is in flight makes the
+    // answer describe rows that are gone.
+    final generation = db.dataGeneration;
+    void remember(bool hasMore) {
+      if (memoScope == null) return;
+      searchFetchMemo.record(
+        scope: memoScope,
+        generation: generation,
+        wireTerm: wireTerm!,
+        serverSplits: serverSplitsSearchWords,
+        page: page,
+        hasMore: hasMore,
+      );
+    }
+
     final result = await listCall(
       page: page,
       perPage: pageSize,
-      search: wireSearchTerm(search, phraseOnWire: phraseOnWire),
+      search: wireTerm,
       sinceUpdatedAt: cursor?.updatedAt,
       sinceId: cursor?.id,
       filters: filters,
@@ -1493,11 +1532,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
 
     final apiRows = itemsOf(result.data);
     if (apiRows.isEmpty) {
-      return hasMoreAfterPage(
+      final hasMore = hasMoreAfterPage(
         rowCount: 0,
         cursorApplied: cursor?.isEmpty == false,
         pageSize: pageSize,
       );
+      remember(hasMore);
+      return hasMore;
     }
 
     // Server-refresh: skip ids whose existing local row has is_dirty=true,
@@ -1546,11 +1587,30 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     // next page, which drops the cursor (see the `page > 1` guard above) and
     // reads true offset rows. A cold page 1 (no cursor) still concludes
     // normally from the row count.
-    return hasMoreAfterPage(
+    final hasMore = hasMoreAfterPage(
       rowCount: apiRows.length,
       cursorApplied: cursor?.isEmpty == false,
       pageSize: pageSize,
     );
+    remember(hasMore);
+    return hasMore;
+  }
+
+  /// The [SearchFetchMemo] scope of a search-scoped fetch: the company, the
+  /// page size (page numbers mean nothing across sizes) and every filter that
+  /// went on the wire, keys sorted, so a status tab or a parent scope never
+  /// borrows another view's answer.
+  static String _searchMemoScope(
+    String companyId,
+    int pageSize,
+    Map<String, String> filters,
+  ) {
+    final keys = filters.keys.toList()..sort();
+    return [
+      companyId,
+      '$pageSize',
+      for (final k in keys) '$k=${filters[k]}',
+    ].join('\u0000');
   }
 
   /// Shared shape for `refreshAll` across every paginated repo: walk the whole
@@ -1592,6 +1652,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     fetchPage,
     int maxPages = 1000,
   }) async {
+    // A refresh is the user (or a Sync) asking the server again — a search
+    // typed after it must not be answered by what an earlier one fetched.
+    searchFetchMemo.clear();
     if (full) {
       await db.syncStateDao.reset(
         companyId: companyId,

@@ -789,20 +789,21 @@ deployed code, so the header can be trusted. Drop the self-hosted gate once ever
 install is past 5.13.44. The same helper gates the task calendar's `activity_dates` month fetch
 at 5.13.43, with the same hosted exemption.
 
-### H4. Free-text `filter=` matches one phrase everywhere but clients — **O, PR open** ([invoiceninja/invoiceninja#13433](https://github.com/invoiceninja/invoiceninja/pull/13433); client works around it)
+### H4. Free-text `filter=` matches one phrase everywhere but clients — **Declined** ([invoiceninja/invoiceninja#13433](https://github.com/invoiceninja/invoiceninja/pull/13433), closed 2026-11-09; client works around it, permanently)
 
 `ClientFilters::filter` splits the search on spaces and requires every word to match some column;
 every other entity's `filter()` LIKEs the whole text, so `filter=s22 120hz` finds nothing for
-"Samsung Galaxy S22 5G OLED 120Hz Screen" (user feedback, 2026-11). **Ask:** a protected
-`QueryFilters::whereEveryWord()` — AND of words, each word OR'd across the filter's existing columns,
-deduped case-insensitively, capped at 8, longest first, a `"0"` word kept — used by every entity's
-`filter()` (all 32 that search text; `SystemLogFilters::filter` is a no-op). It also qualifies
-`projects.name`, which 500'd (`Column 'name' in WHERE is ambiguous`) when a project search met the
-`project_tag_ids` sort. **Client today:** every local search already matches each word on its own,
-and every repository but clients sends only its most selective word (`serverSearchTerms`), paging
-through the superset (`docs/local-search-matching.md` § Every list search matches each word on its
-own). **Once a release carries it:** gate `serverSplitsSearchWords` on that version through the
-`ServerFeatures` helper (`lib/app/version.dart`), as § H3 does, so list pages are exact again.
+"Samsung Galaxy S22 5G OLED 120Hz Screen" (user feedback, 2026-11). The PR gave every `filter()` a
+`QueryFilters::whereEveryWord()` (AND of words, each OR'd across the filter's columns). **Declined for
+cost:** on a production dataset the filter already takes ~3 s to establish that nothing matches
+(it scans joined tables and JSON columns, so no B-tree index helps), and repeating the OR chain per
+word took the page SELECT from 3.1 s to 6.0 s for two words and to 13.0 s for five; the maintainer's
+view is that this workload wants Elasticsearch. **Client, for good:** every local search matches
+each word on its own, every repository but clients sends only its most selective word
+(`serverSearchTerms`) and pages through the superset, and a search whose answer is already local
+makes no request at all (`SearchFetchMemo`) — `docs/local-search-matching.md` § Every list search
+matches each word on its own and § A search the cache already holds in full makes no request.
+`serverSplitsSearchWords` stays `true` only on `ClientRepository`.
 
 ### R. Reports — what the client works around — **O**
 

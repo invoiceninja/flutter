@@ -292,6 +292,9 @@ void main() {
         search: 'zed',
       );
       api.searches.clear();
+      // The row stays cached, but nothing vouches any more that it is every
+      // match (a memo answer expired, or the row came from a list page).
+      searchRepo.searchFetchMemo.clear();
       final key = ClientFilterKey(clients: searchRepo, companyId: 'co');
       final first = await key
           .watchValueSuggestions(vm, _NoContext(), 'Zed')
@@ -309,6 +312,21 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 350));
       await sub.cancel();
       expect(api.searches, ['Zed']);
+      vm.dispose();
+    });
+
+    test('a search an earlier complete one covers asks the server nothing — '
+        'every match is already cached', () async {
+      final vm = await makeVm();
+      await searchRepo.ensurePageLoaded(companyId: 'co', page: 1, search: 'ze');
+      api.searches.clear();
+      final key = ClientFilterKey(clients: searchRepo, companyId: 'co');
+      final sub = key
+          .watchValueSuggestions(vm, _NoContext(), 'Zed corp')
+          .listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await sub.cancel();
+      expect(api.searches, isEmpty);
       vm.dispose();
     });
   });

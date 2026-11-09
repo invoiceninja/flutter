@@ -31,7 +31,10 @@ void main() {
     final rows = await namesWithServerSearch(
       names: Stream.value(const [acme, beta]),
       query: '  ',
-      fetch: (_, {phrase = false}) async => fetched.add('x'),
+      fetch: (_, {phrase = false}) async {
+        fetched.add('x');
+        return false;
+      },
       searchedIds: (_) => const Stream.empty(),
     ).first;
     expect(rows, const [acme, beta]);
@@ -49,6 +52,7 @@ void main() {
         fetched.add(q);
         // Only on the server until the fetch writes it to the cache.
         names.add(const [acme, acmeCorp, beta]);
+        return false;
       },
       searchedIds: (_) => Stream.value(const ['c1', 'c7']),
       debounce: Duration.zero,
@@ -71,6 +75,7 @@ void main() {
         fetched.add(q);
         // The fetch writes the hit to the cache.
         names.add(const [acme, beta, zed]);
+        return false;
       },
       searchedIds: (_) => Stream.value(const ['c9']),
       debounce: Duration.zero,
@@ -90,7 +95,10 @@ void main() {
     final sub = namesWithServerSearch(
       names: namesFrom(const [acme, beta]),
       query: 'jane@zed.example',
-      fetch: (_, {phrase = false}) async => names.add(const [acme, beta, zed]),
+      fetch: (_, {phrase = false}) async {
+        names.add(const [acme, beta, zed]);
+        return false;
+      },
       searchedIds: (_) => Stream.value(const ['c9']),
       debounce: Duration.zero,
     ).listen(emissions.add);
@@ -115,7 +123,10 @@ void main() {
     final sub = namesWithServerSearch(
       names: Stream.value(const [acme]),
       query: 'z',
-      fetch: (q, {phrase = false}) async => fetched.add(q),
+      fetch: (q, {phrase = false}) async {
+        fetched.add(q);
+        return false;
+      },
       searchedIds: (_) => const Stream.empty(),
       debounce: const Duration(milliseconds: 40),
     ).listen((_) {});

@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/models/api/vendor_api_model.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
@@ -363,7 +364,8 @@ void main() {
     test(
       'a multi-word search sends one word; phraseOnWire the whole text',
       () async {
-        final api = _SearchVendorsApi();
+        // Full pages, so no answer is complete and every call is asked.
+        final api = _SearchVendorsApi(rowsPerPage: 50);
         final repo = VendorRepository(db: db, api: api);
         expect(repo.serverSplitsSearchWords, isFalse);
         await repo.ensurePageLoaded(
@@ -391,6 +393,113 @@ void main() {
         ]);
       },
     );
+
+    // invoiceninja/invoiceninja#13433 (every-word server search) was declined
+    // for its cost, so the client skips a search whose answer is local.
+    group('a search the cache already holds in full makes no request', () {
+      test(
+        'a term paged to the end covers every search containing it',
+        () async {
+          final api = _SearchVendorsApi(rowsPerPage: 3);
+          final repo = VendorRepository(db: db, api: api);
+          expect(
+            await repo.ensurePageLoaded(
+              companyId: 'co',
+              page: 1,
+              search: 'sams',
+            ),
+            isFalse,
+          );
+          for (final search in [
+            'samsung',
+            'Samsung S22',
+            's22 120hz samsung',
+          ]) {
+            expect(
+              await repo.ensurePageLoaded(
+                companyId: 'co',
+                page: 1,
+                search: search,
+              ),
+              isFalse,
+              reason: search,
+            );
+          }
+          // A picker's phrase fetch is covered too.
+          await repo.ensurePageLoaded(
+            companyId: 'co',
+            page: 1,
+            search: 'samsung galaxy',
+            phraseOnWire: true,
+          );
+          // Not covered: no word holds `sams`.
+          await repo.ensurePageLoaded(
+            companyId: 'co',
+            page: 1,
+            search: 'galaxy',
+          );
+          expect(api.searches, ['sams', 'galaxy']);
+        },
+      );
+
+      test('a page of the same wire term is answered from the memo', () async {
+        final api = _SearchVendorsApi(rowsPerPage: 50);
+        final repo = VendorRepository(db: db, api: api);
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'samsung',
+        );
+        // `galaxy` is shorter, so `samsung` is still the word sent.
+        expect(
+          await repo.ensurePageLoaded(
+            companyId: 'co',
+            page: 1,
+            search: 'samsung galaxy',
+          ),
+          isTrue,
+        );
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 2,
+          search: 'samsung galaxy',
+        );
+        expect(api.searches, ['samsung', 'samsung']);
+      });
+
+      test(
+        'another filter scope or company never borrows the answer',
+        () async {
+          final api = _SearchVendorsApi(rowsPerPage: 3);
+          final repo = VendorRepository(db: db, api: api);
+          await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'acme');
+          await repo.ensurePageLoaded(
+            companyId: 'co',
+            page: 1,
+            search: 'acme',
+            states: EntityState.values.toSet(),
+          );
+          await repo.ensurePageLoaded(
+            companyId: 'co2',
+            page: 1,
+            search: 'acme',
+          );
+          await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'acme');
+          expect(api.searches, ['acme', 'acme', 'acme']);
+        },
+      );
+
+      test('a wipe forgets every answer', () async {
+        final api = _SearchVendorsApi(rowsPerPage: 3);
+        final repo = VendorRepository(db: db, api: api);
+        await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'acme');
+        await db.wipe();
+        await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'acme');
+        await db.wipeForCompany('co');
+        await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'acme');
+        expect(api.searches, ['acme', 'acme', 'acme']);
+      });
+    });
 
     test('repo can be constructed against an in-memory DB', () {
       final repo = VendorRepository(db: db, api: _FakeVendorsApi());
@@ -615,8 +724,12 @@ class _FakeVendorsApi implements VendorsApi {
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-/// Records the `filter=` each list call sends; every page is empty.
+/// Records the `filter=` each list call sends; every page holds
+/// [rowsPerPage] vendors (empty by default), so 50 means more pages remain.
 class _SearchVendorsApi implements VendorsApi {
+  _SearchVendorsApi({this.rowsPerPage = 0});
+
+  final int rowsPerPage;
   final searches = <String?>[];
 
   @override
@@ -630,7 +743,16 @@ class _SearchVendorsApi implements VendorsApi {
   }) async {
     searches.add(search);
     return (
-      data: const VendorListApi(data: []),
+      data: VendorListApi(
+        data: [
+          for (var i = 0; i < rowsPerPage; i++)
+            VendorApi(
+              id: 'v_${search}_${page}_$i',
+              name: '$search $i',
+              updatedAt: 1700000000,
+            ),
+        ],
+      ),
       cursorUpdatedAt: null,
       cursorId: null,
     );

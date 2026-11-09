@@ -559,6 +559,13 @@ class AppDatabase extends _$AppDatabase {
     await m.addColumn(table, column);
   }
 
+  int _dataGeneration = 0;
+
+  /// Bumped by [wipe] and [wipeForCompany], before and after the delete.
+  /// Anything in memory that vouches for rows being in this store (the search
+  /// memo, `SearchFetchMemo`) compares it and forgets itself on a change.
+  int get dataGeneration => _dataGeneration;
+
   /// Wipe every table — except the device's own preferences. Called only by
   /// `LocalDataDisposer.wipeAll`.
   ///
@@ -569,6 +576,7 @@ class AppDatabase extends _$AppDatabase {
   /// (the theme, the language, …) and loses the rest: what describes the
   /// signed-in account goes with the account.
   Future<void> wipe() async {
+    _dataGeneration++;
     await transaction(() async {
       for (final table in allTables) {
         if (table == devicePrefs) continue;
@@ -578,6 +586,7 @@ class AppDatabase extends _$AppDatabase {
         devicePrefs,
       )..where((p) => p.key.isNotIn(DevicePrefKeys.keptOnWipe))).go();
     });
+    _dataGeneration++;
   }
 
   /// Wipe rows for a single company across every `company_id`-scoped table.
@@ -591,6 +600,7 @@ class AppDatabase extends _$AppDatabase {
   /// the account record, not "to itself"), so it's never touched here. Use
   /// `companiesDao` if you need to remove the row.
   Future<void> wipeForCompany(String companyId) async {
+    _dataGeneration++;
     await transaction(() async {
       for (final table in allTables) {
         final hasCompanyId = table.$columns.any((c) => c.name == 'company_id');
@@ -605,6 +615,7 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     });
+    _dataGeneration++;
   }
 }
 

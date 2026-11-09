@@ -5,13 +5,22 @@ import 'package:admin/data/repositories/search_fetch.dart';
 typedef Call = ({String term, bool phrase});
 
 void main() {
-  Future<List<Call>> run(String search, {required bool serverSplits}) async {
+  /// [hasMore] is what every fetch answers, unless [hasMoreFor] names the
+  /// call (`'<term>|<phrase>'`).
+  Future<List<Call>> run(
+    String search, {
+    required bool serverSplits,
+    bool hasMore = true,
+    Map<String, bool> hasMoreFor = const {},
+  }) async {
     final asked = <Call>[];
     await ensureSearchLoaded(
       search,
       serverSplits: serverSplits,
-      fetchPage1: (t, {phrase = false}) async =>
-          asked.add((term: t, phrase: phrase)),
+      fetchPage1: (t, {phrase = false}) async {
+        asked.add((term: t, phrase: phrase));
+        return hasMoreFor['$t|$phrase'] ?? hasMore;
+      },
     );
     return asked;
   }
@@ -21,15 +30,40 @@ void main() {
     () async {
       final asked = await run('galaxy s22 oled screen', serverSplits: false);
       // The phrase lands a record whose name is the text (no duplicate Create);
-      // the words land the rest, the model number first.
+      // the words land the rest, the model number first. The first word is
+      // asked as the whole text: the repository sends `s22` on the wire, and
+      // checks its memo against every word.
       expect(asked, [
         (term: 'galaxy s22 oled screen', phrase: true),
-        (term: 's22', phrase: false),
+        (term: 'galaxy s22 oled screen', phrase: false),
         (term: 'galaxy', phrase: false),
       ]);
       expect(asked, hasLength(1 + kSearchFetchWords));
     },
   );
+
+  test('the second word is not asked when the first one\'s page 1 was its '
+      'last — every row the search can match is already local', () async {
+    final asked = await run(
+      'galaxy s22 oled screen',
+      serverSplits: false,
+      hasMoreFor: {'galaxy s22 oled screen|false': false},
+    );
+    expect(asked, [
+      (term: 'galaxy s22 oled screen', phrase: true),
+      (term: 'galaxy s22 oled screen', phrase: false),
+    ]);
+  });
+
+  test('the phrase being complete does not skip the words: it misses the '
+      'words in another order', () async {
+    final asked = await run(
+      'galaxy s22',
+      serverSplits: false,
+      hasMoreFor: {'galaxy s22|true': false},
+    );
+    expect(asked, hasLength(3));
+  });
 
   test(
     'a server that splits words is asked once, with the whole text',

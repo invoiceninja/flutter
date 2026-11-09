@@ -51,6 +51,7 @@ class _FakeRepo implements ReportsRepository {
   /// selection (F1).
   final List<List<String>> previewReportKeys = [];
   final List<List<String>> exportReportKeys = [];
+  final List<List<String>> emailReportKeys = [];
 
   @override
   Future<ReportPreview> runPreview({
@@ -150,6 +151,7 @@ class _FakeRepo implements ReportsRepository {
     String? groupBy,
   }) async {
     sendEmailCalls++;
+    emailReportKeys.add(reportKeys);
     emailGroupBys.add(groupBy);
     if (sendEmailError != null) throw sendEmailError!;
   }
@@ -639,6 +641,28 @@ void main() {
         vm.setVisibleColumns({'a', 'c'});
         await vm.runExport();
         expect(repo.exportReportKeys.single, unorderedEquals(['a', 'c']));
+      },
+    );
+
+    test(
+      'export and email send the columns in the order the reader chose',
+      () async {
+        // The server writes the file's columns in `report_keys` order
+        // (`BaseExport::buildHeader`), so an unordered set put a reordered
+        // report back into the server's default order in the download and
+        // the email.
+        final repo = _FakeRepo();
+        final g1 = _Trigger()..release();
+        repo.queue(g1, colsPreview(['a', 'b', 'c']));
+        final vm = ReportsViewModel(repo: repo, statics: statics);
+
+        await vm.runReport();
+        vm.setVisibleColumns({'a', 'b', 'c'}, order: ['c', 'a', 'b']);
+        await vm.runExport();
+        await vm.sendEmail();
+
+        expect(repo.exportReportKeys.single, ['c', 'a', 'b']);
+        expect(repo.emailReportKeys.single, ['c', 'a', 'b']);
       },
     );
 

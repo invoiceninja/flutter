@@ -2785,7 +2785,7 @@ class ReportsViewModel extends ChangeNotifier {
         payload: templateId == null
             ? _payload.copyWith(templateId: () => null)
             : _payload.copyWith(templateId: () => templateId),
-        reportKeys: serverReportKeys(),
+        reportKeys: serverReportKeys(ordered: true),
         isCancelled: () => _disposed || _exportEpoch != epoch,
       );
       if (_disposed || epoch != _exportEpoch) return null;
@@ -2868,7 +2868,7 @@ class ReportsViewModel extends ChangeNotifier {
           pdfEmailAttachment: attachPdfs,
           documentEmailAttachment: attachDocuments,
         ),
-        reportKeys: serverReportKeys(),
+        reportKeys: serverReportKeys(ordered: true),
         groupBy: serverGroupBy,
       );
     } finally {
@@ -3157,8 +3157,12 @@ class ReportsViewModel extends ChangeNotifier {
   /// the visible selection minus any column the server can't render into a
   /// file — the client-computed `stock_value`, and the optional date column,
   /// whose value arrives as a raw epoch int the CSV has no way to format.
-  /// Pass [ordered] to honor the user's column order — the schedule flow
-  /// needs it; export/email don't.
+  /// Pass [ordered] to honor the user's column order: every file the server
+  /// writes — export, email, schedule — lays its columns out in the order of
+  /// `report_keys` (`BaseExport::buildHeader`), so an unordered set handed the
+  /// reader back the server's default order after they had dragged the
+  /// columns into their own. Only a caller that compares the selection as a
+  /// set may leave it off.
   List<String> serverReportKeys({bool ordered = false}) {
     final base = ordered && _columnOrder.isNotEmpty
         ? _columnOrder.where(_visibleColumnIds.contains)

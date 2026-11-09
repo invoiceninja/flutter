@@ -880,7 +880,10 @@ void goToCreateRoute(BuildContext context, String route) {
 /// screen — full-width (`?view=full`) when this entity's editor opened
 /// full-width (see [editOpensFullWidth]), so the record stays on the wide
 /// canvas the user just saved from instead of collapsing into the narrow
-/// slide-over preview. After an **edit**, pop back where they came from.
+/// slide-over preview. After an **edit**, pop back where they came from — or,
+/// when the editor is the bottom of its stack (restored at launch, opened by
+/// a deep link or a `go`), go to the record's detail: go_router throws
+/// `GoError: There is nothing to pop` there (Sentry FLUTTER-ADMIN-K).
 ///
 /// `?view=full` is harmless for the slide-over entities (we don't append it)
 /// and on narrow viewports (the layout ignores `viewMode` there and always
@@ -892,11 +895,15 @@ void goAfterEntitySave(
   required String basePath,
   required String savedId,
 }) {
+  final detail = '$basePath/$savedId';
   if (!isCreate) {
-    context.pop();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(detail);
+    }
     return;
   }
-  final detail = '$basePath/$savedId';
   context.go(editOpensFullWidth(basePath) ? '$detail?view=full' : detail);
 }
 

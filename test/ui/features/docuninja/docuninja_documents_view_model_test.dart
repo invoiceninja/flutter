@@ -116,6 +116,28 @@ void main() {
     expect(vm.items, hasLength(6));
   });
 
+  test(
+    'a refresh queued behind a load a new filter replaced adds none',
+    () async {
+      final api = _Api()
+        ..answer = (page, _) async {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          return _page(page, 1);
+        };
+      final vm = DocuNinjaDocumentsViewModel(api: api);
+      final first = vm.refresh();
+      final queued = vm.refresh();
+      // A new filter while the first load is out: its own load reads fresh.
+      vm.setFilters(statuses: const {'sent'}, states: const {'active'});
+      await Future.wait([first, queued]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // The first load, the filter's load, and no third one.
+      expect(api.calls, hasLength(2));
+      expect(api.calls.last.status, contains('sent'));
+      vm.dispose();
+    },
+  );
+
   test('a refresh stops at the last page the server has now', () async {
     var last = 3;
     final api = _Api()..answer = (page, _) async => _page(page, last);

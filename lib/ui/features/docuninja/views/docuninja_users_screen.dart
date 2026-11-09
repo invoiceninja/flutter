@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
@@ -213,14 +215,18 @@ class _UsersListState extends State<_UsersList> {
       await _api.userBulk(action, [u.id]);
       if (!mounted) return;
       Notify.success(context, context.tr(successKey));
-      await _refresh();
     } on Object catch (e, st) {
       _log.warning('DocuNinja user $action failed', e, st);
       if (mounted) {
         Notify.error(context, context.tr('an_error_occurred_try_again'));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        // Whether or not it answered: a request that timed out may have
+        // landed, and the seats with it.
+        unawaited(_refresh());
+      }
     }
   }
 

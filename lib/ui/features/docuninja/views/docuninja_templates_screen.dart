@@ -486,10 +486,15 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     String action,
     String successKey,
   ) => _guarded(() async {
-    await context.read<DocuNinjaApi>().blueprintBulk(action, [t.id]);
-    if (!mounted) return;
-    Notify.success(context, context.tr(successKey));
-    await vm.refresh();
+    try {
+      await context.read<DocuNinjaApi>().blueprintBulk(action, [t.id]);
+      if (!mounted) return;
+      Notify.success(context, context.tr(successKey));
+    } finally {
+      // Whether or not it answered: a request that timed out may have
+      // landed. Not a list a company switch has since replaced.
+      if (mounted && identical(vm, _vm)) unawaited(vm.refresh());
+    }
   });
 
   /// React's Use Template: a new document from the template, opened in the
@@ -497,8 +502,12 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   Future<void> _use(DnBlueprint t) => _guarded(() async {
     final companyId = _companyId;
     if (companyId == null) return;
+    final vm = _vm;
     final id = await context.read<DocuNinjaApi>().makeDocument(t.id);
-    if (!mounted) return;
+    // Gone, or a company switch replaced the list meanwhile: the new
+    // document is the other company's, and would open under this one's
+    // DocuNinja session as "not found". It is there when they go back.
+    if (!mounted || !identical(vm, _vm)) return;
     if (id.isEmpty) throw StateError('make_document returned no id');
     _session?.markDocumentsChanged();
     context.go('/docuninja/$id');

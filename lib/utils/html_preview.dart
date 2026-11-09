@@ -12,14 +12,16 @@
 ///   theme (`color-scheme: light only`), unless the email sets its own
 ///   colours.
 ///
-/// These go first in the `<head>` that comes before `<body>`. The server's
-/// email wrapper has no `<head>` at all (it strips it), and a full HTML
-/// email pasted into a template's body brings its own `<head>` *inside*
-/// the wrapper's body, where a policy is ignored, so a `<head>` after
-/// `<body>`, or inside a comment, is not the head: the tags then go in
-/// first, after any doctype, where the parser puts them into the head it
-/// makes. A `<meta http-equiv="refresh">` is dropped too: no policy stops
-/// it, and it would send the preview off to its address.
+/// These go first in the document, right after its doctype (before any
+/// comment or prolog-free markup), where the HTML parser puts them into the
+/// head it makes, whatever follows: a document's own `<head>` then merges
+/// into that one, and the server's email wrapper, which has no `<head>` (it
+/// strips it), works the same. Inserting inside a `<head>` was wrong twice
+/// over: markup before that head (`<html><script>…<head>`) ran first, and a
+/// full HTML email pasted into a template's body brings a `<head>` *inside*
+/// the wrapper's body, where a policy is ignored. A doctype inside a comment
+/// is not the doctype. A `<meta http-equiv="refresh">` is dropped too: no
+/// policy stops it, and it would send the preview off to its address.
 String previewHtml(String html) {
   const head =
       '<meta http-equiv="Content-Security-Policy" '
@@ -46,15 +48,17 @@ String previewHtml(String html) {
     return null;
   }
 
-  final headTag = first(RegExp(r'<head(\s[^>]*)?>', caseSensitive: false));
-  final bodyTag = first(RegExp(r'<body[\s>]', caseSensitive: false));
-  if (headTag != null && (bodyTag == null || headTag.start < bodyTag.start)) {
-    return doc.replaceRange(headTag.end, headTag.end, head);
+  // After the doctype, or quirks mode would follow. Only the document's
+  // own doctype counts: one with nothing but comments, white space or an
+  // XML prolog before it, not one a pasted email brings into the body.
+  final doctype = first(RegExp(r'<!doctype[^>]*>', caseSensitive: false));
+  var at = 0;
+  if (doctype != null) {
+    final before = doc
+        .substring(0, doctype.start)
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
+        .replaceAll(RegExp(r'<\?xml[^>]*\?>', caseSensitive: false), '');
+    if (before.trim().isEmpty) at = doctype.end;
   }
-  final doctype = RegExp(
-    r'^\s*<!doctype[^>]*>',
-    caseSensitive: false,
-  ).firstMatch(doc);
-  final at = doctype?.end ?? 0;
   return doc.replaceRange(at, at, head);
 }

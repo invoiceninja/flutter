@@ -233,7 +233,11 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     if (_loading && inFlight != null && _inFlightQuery == _query) {
       return _again ??= inFlight.then((_) {
         _again = null;
-        if (_disposed || _inFlightQuery != _query) return null;
+        if (_disposed) return null;
+        // A load that started after the request (a new search or filter)
+        // already reads fresh rows: that one, not a second load over it.
+        final latest = _inFlight;
+        if (!identical(latest, inFlight)) return latest;
         return _loadFirst(depth: _refreshDepth);
       });
     }

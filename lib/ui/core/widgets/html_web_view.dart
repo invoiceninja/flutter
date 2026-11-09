@@ -92,11 +92,15 @@ class _HtmlWebViewState extends State<HtmlWebView> {
       ..setJavaScriptMode(JavaScriptMode.disabled)
       ..setNavigationDelegate(
         NavigationDelegate(
-          // Only the document itself loads (`about:blank` or a `data:` URL,
-          // by platform); a tapped link goes nowhere.
+          // Only the document itself loads (exactly `about:blank`, or a
+          // `data:` URL, by platform); a tapped link goes nowhere. A `#`
+          // link counts as a link: with `<base target="_blank">` it arrives
+          // here as a new window (`about:blank#…` on Android), and loading
+          // that would blank the preview.
           onNavigationRequest: (request) =>
-              request.url.startsWith('about:') ||
-                  request.url.startsWith('data:')
+              request.url == 'about:blank' ||
+                  (request.url.startsWith('data:') &&
+                      !request.url.contains('#'))
               ? NavigationDecision.navigate
               : NavigationDecision.prevent,
         ),
@@ -129,23 +133,36 @@ class _HtmlWebViewState extends State<HtmlWebView> {
         unawaited(controller.loadStringContent(_document));
       }
     });
-    await controller.setBackgroundColor(widget.background);
-    if (!mounted) return _release();
-    // The document as it is now: an edit while WebView2 was starting must
-    // not leave the one from before showing.
-    final document = _document;
-    if (!_fitsWindows(document)) {
+    final String document;
+    try {
+      await controller.setBackgroundColor(widget.background);
+      if (!mounted) return _release();
+      // The document as it is now: an edit while WebView2 was starting
+      // must not leave the one from before showing.
+      document = _document;
+      if (!_fitsWindows(document)) {
+        _release();
+        setState(() => _tooLarge = true);
+        return;
+      }
+      await controller.loadStringContent(document);
+    } on Object {
+      // A WebView2 that started but will not take the page (its browser
+      // process failed): the fallback, not a blank box.
       _release();
-      setState(() => _tooLarge = true);
+      if (mounted) setState(() => _failed = true);
       return;
     }
-    await controller.loadStringContent(document);
     if (!mounted) return _release();
     setState(() => _windows = controller);
-    // Changed during that last load: the newest one.
+    // Changed during that last load: the newest one, or the fallback.
     final now = _document;
-    if (now != document && _fitsWindows(now)) {
+    if (now == document) return;
+    if (_fitsWindows(now)) {
       unawaited(controller.loadStringContent(now));
+    } else {
+      _release();
+      setState(() => _tooLarge = true);
     }
   }
 

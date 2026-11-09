@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
@@ -250,6 +251,9 @@ class _DrawDialogState extends State<_DrawDialog> {
   final _strokes = <List<Offset>>[];
   bool _saving = false;
 
+  /// The pointer drawing the current stroke.
+  int? _pointer;
+
   Offset _norm(Offset p, Size size) =>
       Offset((p.dx / size.width).clamp(0, 1), (p.dy / size.height).clamp(0, 1));
 
@@ -312,14 +316,30 @@ class _DrawDialogState extends State<_DrawDialog> {
                 child: Listener(
                   key: const ValueKey('dn-signature-pad'),
                   behavior: HitTestBehavior.opaque,
-                  onPointerDown: (e) => setState(
-                    () => _strokes.add([_norm(e.localPosition, size)]),
-                  ),
+                  // One pointer draws at a time: a second finger (a palm on
+                  // a tablet) and a mouse's other buttons draw nothing.
+                  onPointerDown: (e) {
+                    if (_pointer != null) return;
+                    if (e.kind == PointerDeviceKind.mouse &&
+                        e.buttons != kPrimaryButton) {
+                      return;
+                    }
+                    _pointer = e.pointer;
+                    setState(
+                      () => _strokes.add([_norm(e.localPosition, size)]),
+                    );
+                  },
                   onPointerMove: (e) {
-                    if (_strokes.isEmpty) return;
+                    if (e.pointer != _pointer || _strokes.isEmpty) return;
                     setState(
                       () => _strokes.last.add(_norm(e.localPosition, size)),
                     );
+                  },
+                  onPointerUp: (e) {
+                    if (e.pointer == _pointer) _pointer = null;
+                  },
+                  onPointerCancel: (e) {
+                    if (e.pointer == _pointer) _pointer = null;
                   },
                   child: DecoratedBox(
                     // Paper is white in either theme: the ink is black.

@@ -4,12 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const policy = "script-src 'none'";
 
-  test('the preview tags go first in <head>', () {
+  test('the preview tags go first, ahead of the document\'s own head', () {
     final out = previewHtml(
-      '<html><head lang="en"><script>x()</script></head><body></body></html>',
+      '<html><script>y()</script><head lang="en"><script>x()</script></head>'
+      '<body></body></html>',
     );
+    // Ahead of a script before the head too, which ran first.
+    expect(out, startsWith('<meta'));
     expect(out.indexOf(policy), lessThan(out.indexOf('<script>')));
-    expect(out, startsWith('<html><head lang="en"><meta'));
     expect(out, contains('<base target="_blank">'));
     expect(out, contains("form-action 'none'"));
     expect(out, contains('color-scheme: light only'));
@@ -49,11 +51,27 @@ void main() {
     expect(out, startsWith('<meta'));
   });
 
-  test('a <head> inside a comment is not the head', () {
-    final out = previewHtml(
-      '<!-- <head> --><html><head><script>x()</script></head></html>',
+  test('a doctype after a comment or a prolog still leads', () {
+    expect(
+      previewHtml('<!-- x --><!DOCTYPE html><html></html>'),
+      startsWith('<!-- x --><!DOCTYPE html><meta'),
     );
-    expect(out, startsWith('<!-- <head> --><html><head><meta'));
+    expect(
+      previewHtml('<?xml version="1.0"?>\n<!DOCTYPE html><html></html>'),
+      contains('<!DOCTYPE html><meta'),
+    );
+  });
+
+  test('a doctype a pasted email brings into the body is not the doctype', () {
+    final out = previewHtml(
+      '<html><body><!DOCTYPE html><html><body>x</body></html></body></html>',
+    );
+    expect(out, startsWith('<meta'));
+  });
+
+  test('a doctype inside a comment is not the doctype', () {
+    final out = previewHtml('<!-- <!DOCTYPE html> --><html></html>');
+    expect(out, startsWith('<meta'));
   });
 
   test('a meta refresh is dropped', () {

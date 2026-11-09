@@ -66,7 +66,8 @@ abstract class DnEmbedSurface {
 
 /// Clears what the embedded builder stored, at sign-out (a builder that
 /// closed normally cleared after itself; this is for one the app was killed
-/// with open). A no-op where the builder is never embedded.
+/// with open). On Windows it also clears the email previews' WebView2 data,
+/// embed or not; elsewhere a no-op where the builder is never embedded.
 Future<void> clearDocuNinjaWebStorage() async {
   try {
     // On Windows the folder also holds the email previews' cache, so it goes

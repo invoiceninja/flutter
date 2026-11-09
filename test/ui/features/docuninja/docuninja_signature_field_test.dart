@@ -127,4 +127,52 @@ void main() {
     await tester.pump();
     expect(doneEnabled(), isTrue, reason: 'the dot is ink');
   });
+
+  testWidgets('a second finger draws nothing', (tester) async {
+    final fixture = await buildFixture(
+      companies: [FakeCompany(id: 'co1', name: 'Acme')],
+    );
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        Scaffold(
+          body: SingleChildScrollView(
+            child: DnSignatureField(
+              label: 'Signature',
+              value: '',
+              kind: DnSignatureKind.signature,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Draw'));
+    await tester.pumpAndSettle();
+    final pad = tester.getRect(find.byKey(const ValueKey('dn-signature-pad')));
+    final one = await tester.startGesture(pad.center, pointer: 1);
+    await one.moveBy(const Offset(10, 0));
+    // A palm comes down and moves while the first finger draws.
+    final two = await tester.startGesture(
+      pad.center + const Offset(0, 30),
+      pointer: 2,
+    );
+    await two.moveBy(const Offset(10, 0));
+    await one.up();
+    await two.up();
+    await tester.pump();
+    final painter = tester
+        .widgetList<CustomPaint>(
+          find.descendant(
+            of: find.byKey(const ValueKey('dn-signature-pad')),
+            matching: find.byType(CustomPaint),
+          ),
+        )
+        .map((c) => c.painter)
+        .whereType<CustomPainter>()
+        .single;
+    // One stroke, from the first finger only.
+    expect((painter as dynamic).strokes.length, 1);
+  });
 }

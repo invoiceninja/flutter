@@ -118,7 +118,7 @@ Future<void> runDnBulkAction<T>(
   VoidCallback? onDone,
 }) async {
   if (vm.bulkInFlight) return;
-  // Captured now: the selection must not change under the dialog.
+  // Captured now for the dialog's count; read again after it (below).
   var selected = vm.countSelected;
   var ids = vm.selectedIdsWhere(action.eligible);
   if (ids.isEmpty) {

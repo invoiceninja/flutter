@@ -44,7 +44,9 @@ class DesignDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((d) => searchLike(d.name, search));
+      q.where(
+        (d) => everyWordMatches(search, (word) => searchLike(d.name, word)),
+      );
     }
 
     q.orderBy([

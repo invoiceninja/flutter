@@ -50,7 +50,10 @@ class PaymentLinkDao extends DatabaseAccessor<AppDatabase>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (s) => searchLike(s.name, search) | searchLike(s.purchasePage, search),
+        (s) => everyWordMatches(
+          search,
+          (word) => searchLike(s.name, word) | searchLike(s.purchasePage, word),
+        ),
       );
     }
 

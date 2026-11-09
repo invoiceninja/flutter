@@ -31,7 +31,7 @@ void main() {
     final rows = await namesWithServerSearch(
       names: Stream.value(const [acme, beta]),
       query: '  ',
-      fetch: (_) async => fetched.add('x'),
+      fetch: (_, {phrase = false}) async => fetched.add('x'),
       searchedIds: (_) => const Stream.empty(),
     ).first;
     expect(rows, const [acme, beta]);
@@ -45,7 +45,7 @@ void main() {
     final sub = namesWithServerSearch(
       names: namesFrom(const [acme, beta]),
       query: 'ACM',
-      fetch: (q) async {
+      fetch: (q, {phrase = false}) async {
         fetched.add(q);
         // Only on the server until the fetch writes it to the cache.
         names.add(const [acme, acmeCorp, beta]);
@@ -67,7 +67,7 @@ void main() {
     final sub = namesWithServerSearch(
       names: namesFrom(const [acme, beta]),
       query: 'zed',
-      fetch: (q) async {
+      fetch: (q, {phrase = false}) async {
         fetched.add(q);
         // The fetch writes the hit to the cache.
         names.add(const [acme, beta, zed]);
@@ -90,7 +90,7 @@ void main() {
     final sub = namesWithServerSearch(
       names: namesFrom(const [acme, beta]),
       query: 'jane@zed.example',
-      fetch: (_) async => names.add(const [acme, beta, zed]),
+      fetch: (_, {phrase = false}) async => names.add(const [acme, beta, zed]),
       searchedIds: (_) => Stream.value(const ['c9']),
       debounce: Duration.zero,
     ).listen(emissions.add);
@@ -103,7 +103,7 @@ void main() {
     final rows = await namesWithServerSearch(
       names: Stream.value(const [acme, beta]),
       query: 'zed',
-      fetch: (_) async => throw StateError('offline'),
+      fetch: (_, {phrase = false}) async => throw StateError('offline'),
       searchedIds: (_) => Stream.value(const <String>[]),
       debounce: Duration.zero,
     ).first;
@@ -115,7 +115,7 @@ void main() {
     final sub = namesWithServerSearch(
       names: Stream.value(const [acme]),
       query: 'z',
-      fetch: (q) async => fetched.add(q),
+      fetch: (q, {phrase = false}) async => fetched.add(q),
       searchedIds: (_) => const Stream.empty(),
       debounce: const Duration(milliseconds: 40),
     ).listen((_) {});

@@ -31,6 +31,13 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 ///   One button, not two side by side: the record is rarely deleted, and a
 ///   third outlined button pushed the row to two lines on a phone.
 ///
+/// * **Load more** leads them when the search is not finished: a multi-word
+///   search (or a `stock:` / `tag:` filter) pages through the server's
+///   superset on its own, a few pages at a time, and an empty list with
+///   [GenericListViewModel.autoChainExhausted] true only means none of
+///   *those* pages matched. Without it the empty state was a dead end — no
+///   list to scroll — while matches sat on the next page.
+///
 /// A `Wrap`, not a `Row`: three German labels do not fit at 360 px.
 class NoMatchActions extends StatelessWidget {
   const NoMatchActions({
@@ -63,6 +70,13 @@ class NoMatchActions extends StatelessWidget {
       spacing: InSpacing.md(context),
       runSpacing: InSpacing.sm,
       children: [
+        if (vm.autoChainExhausted)
+          OutlinedButton.icon(
+            style: style,
+            onPressed: vm.continueAutoChain,
+            icon: const Icon(Icons.expand_more),
+            label: Text(context.tr('load_more')),
+          ),
         if (vm.activeBadgeModeId != null && _narrowedBeyondTab)
           OutlinedButton.icon(
             style: style,

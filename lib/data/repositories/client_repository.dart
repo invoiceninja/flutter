@@ -249,6 +249,11 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       .watchById(companyId: companyId, id: id)
       .map((row) => row == null ? null : _fromRow(row));
 
+  /// `ClientFilters::filter` splits the search into words itself, so the
+  /// whole text goes on the wire and the server's page is already exact.
+  @override
+  bool get serverSplitsSearchWords => true;
+
   /// Fetch one page from the server and upsert into Drift.
   ///
   /// Idempotent: calling for the same page repeatedly is safe (Drift upserts

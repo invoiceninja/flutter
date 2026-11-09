@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Modal sheet with a search field + scrollable checkbox list. Returns
 /// the selected ids on Apply, `null` on Cancel. Used by the match panel
@@ -98,13 +99,14 @@ class _MultiPickSheetState<T> extends State<_MultiPickSheet<T>> {
   }
 
   Iterable<T> get _visibleItems {
-    if (_query.isEmpty) return widget.items;
-    final needle = _query.toLowerCase();
-    return widget.items.where((item) {
-      final label = widget.displayString(item).toLowerCase();
-      final subtitle = widget.subtitleOf?.call(item).toLowerCase() ?? '';
-      return label.contains(needle) || subtitle.contains(needle);
-    });
+    final words = foldedSearchWords(_query);
+    if (words.isEmpty) return widget.items;
+    return widget.items.where(
+      (item) => fieldsMatchEveryWord(words, [
+        widget.displayString(item),
+        widget.subtitleOf?.call(item),
+      ]),
+    );
   }
 
   Decimal get _selectedTotal {

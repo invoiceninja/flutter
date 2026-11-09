@@ -47,7 +47,10 @@ class WebhookDao extends DatabaseAccessor<AppDatabase>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (w) => searchLike(w.targetUrl, search) | searchLike(w.eventId, search),
+        (w) => everyWordMatches(
+          search,
+          (word) => searchLike(w.targetUrl, word) | searchLike(w.eventId, word),
+        ),
       );
     }
 

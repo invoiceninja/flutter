@@ -47,9 +47,9 @@ Future<ExpenseCategory?> createExpenseCategoryInline(
         )
         .first;
     if (!context.mounted) return null;
-    final want = foldSearchText(name);
+    final want = foldSearchText(squashWhitespace(name));
     for (final c in rows) {
-      if (foldSearchText(c.name.trim()) != want) continue;
+      if (foldSearchText(squashWhitespace(c.name)) != want) continue;
       if (c.archivedAt == null && !c.isDeleted) {
         Notify.info(
           context,

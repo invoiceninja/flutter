@@ -23,6 +23,7 @@ import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Build the filter keys exposed in the expenses list's search field.
 ///
@@ -154,7 +155,13 @@ class ExpenseStatusFilterKey extends MembershipFilterKey {
     ];
     final filtered = q.isEmpty
         ? all
-        : all.where((s) => s.displayLabel.toLowerCase().contains(q)).toList();
+        : all
+              .where(
+                (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                  s.displayLabel,
+                ]),
+              )
+              .toList();
     return Stream.value(filtered);
   }
 }
@@ -218,7 +225,9 @@ class ExpenseCategoryFilterKey extends MembershipFilterKey {
     return categories.watchActive(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(50)
-          : all.where((c) => c.name.toLowerCase().contains(q));
+          : all.where(
+              (c) => fieldsMatchEveryWord(foldedSearchWords(q), [c.name]),
+            );
       return [
         for (final c in filtered)
           FilterValueSuggestion(
@@ -265,7 +274,8 @@ abstract class _RecordMembershipFilterKey extends MembershipFilterKey {
   Future<EnsureLoadedOutcome> ensureLoaded(String id);
 
   /// Fetch the server's first page of matches for [query] into the cache.
-  Future<void> fetchMatches(String query);
+  /// [phrase] sends [query] whole rather than its most selective word.
+  Future<void> fetchMatches(String query, {bool phrase = false});
 
   /// The cached rows the repository's local search finds for [query] — the
   /// same field set the server's `?filter=` matches.
@@ -335,8 +345,13 @@ class ExpenseProjectFilterKey extends _RecordMembershipFilterKey {
       projects.ensureLoaded(companyId: companyId, id: id);
 
   @override
-  Future<void> fetchMatches(String query) =>
-      projects.ensurePageLoaded(companyId: companyId, page: 1, search: query);
+  Future<void> fetchMatches(String query, {bool phrase = false}) =>
+      projects.ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        search: query,
+        phraseOnWire: phrase,
+      );
 
   @override
   Stream<List<String>> searchedIds(String query) => projects
@@ -372,8 +387,13 @@ class ExpenseVendorFilterKey extends _RecordMembershipFilterKey {
       vendors.ensureLoaded(companyId: companyId, id: id);
 
   @override
-  Future<void> fetchMatches(String query) =>
-      vendors.ensurePageLoaded(companyId: companyId, page: 1, search: query);
+  Future<void> fetchMatches(String query, {bool phrase = false}) =>
+      vendors.ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        search: query,
+        phraseOnWire: phrase,
+      );
 
   @override
   Stream<List<String>> searchedIds(String query) => vendors

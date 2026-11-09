@@ -47,7 +47,9 @@ class TransactionRuleDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((r) => searchLike(r.name, search));
+      q.where(
+        (r) => everyWordMatches(search, (word) => searchLike(r.name, word)),
+      );
     }
 
     q.orderBy([

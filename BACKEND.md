@@ -789,6 +789,21 @@ deployed code, so the header can be trusted. Drop the self-hosted gate once ever
 install is past 5.13.44. The same helper gates the task calendar's `activity_dates` month fetch
 at 5.13.43, with the same hosted exemption.
 
+### H4. Free-text `filter=` matches one phrase everywhere but clients — **O, PR open** ([invoiceninja/invoiceninja#13433](https://github.com/invoiceninja/invoiceninja/pull/13433); client works around it)
+
+`ClientFilters::filter` splits the search on spaces and requires every word to match some column;
+every other entity's `filter()` LIKEs the whole text, so `filter=s22 120hz` finds nothing for
+"Samsung Galaxy S22 5G OLED 120Hz Screen" (user feedback, 2026-11). **Ask:** a protected
+`QueryFilters::whereEveryWord()` — AND of words, each word OR'd across the filter's existing columns,
+deduped case-insensitively, capped at 8, longest first, a `"0"` word kept — used by every entity's
+`filter()` (all 32 that search text; `SystemLogFilters::filter` is a no-op). It also qualifies
+`projects.name`, which 500'd (`Column 'name' in WHERE is ambiguous`) when a project search met the
+`project_tag_ids` sort. **Client today:** every local search already matches each word on its own,
+and every repository but clients sends only its most selective word (`serverSearchTerms`), paging
+through the superset (`docs/local-search-matching.md` § Every list search matches each word on its
+own). **Once a release carries it:** gate `serverSplitsSearchWords` on that version through the
+`ServerFeatures` helper (`lib/app/version.dart`), as § H3 does, so list pages are exact again.
+
 ### R. Reports — what the client works around — **O**
 
 Found while rebuilding the Reports screen (2026-10), from `app/Export/CSV/BaseExport.php`, the

@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_field_bindings.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Cascade-aware multi-select list with drag-to-reorder, backing one slice
 /// of `company.settings.pdf_variables` (e.g. `pdf_variables.client_details`).
@@ -264,16 +265,16 @@ class _AddVariableDialogState extends State<_AddVariableDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _query.isEmpty
+    // Every word in the variable or its readable label, in any order.
+    final words = foldedSearchWords(_query);
+    final filtered = words.isEmpty
         ? widget.available
         : widget.available
               .where(
-                (v) =>
-                    v.toLowerCase().contains(_query.toLowerCase()) ||
-                    _humanizeVariable(
-                      context,
-                      v,
-                    ).toLowerCase().contains(_query.toLowerCase()),
+                (v) => fieldsMatchEveryWord(words, [
+                  v,
+                  _humanizeVariable(context, v),
+                ]),
               )
               .toList();
     return AlertDialog(

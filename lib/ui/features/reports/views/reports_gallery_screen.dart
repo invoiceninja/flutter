@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/reports/helpers/report_access.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Where a report lives.
 String reportRoutePath(String identifier) => '/reports/$identifier';
@@ -84,11 +85,12 @@ class _ReportsGalleryScreenState extends State<ReportsGalleryScreen> {
     final vm = context.watch<ReportsViewModel>();
     final all = reportsInGalleryOrder(availableReports(company));
     final needle = _query.trim().toLowerCase();
+    final words = foldedSearchWords(needle);
     final shown = needle.isEmpty
         ? all
         : [
             for (final d in all)
-              if (context.tr(d.labelKey).toLowerCase().contains(needle)) d,
+              if (fieldsMatchEveryWord(words, [context.tr(d.labelKey)])) d,
           ];
 
     final searchField = _SearchField(
@@ -364,8 +366,9 @@ class _SavedViewsState extends State<_SavedViews> {
         final views = [
           for (final v in snapshot.data ?? const <SavedReportView>[])
             if (widget.canOpen(v.reportIdentifier) &&
-                (widget.needle.isEmpty ||
-                    v.name.toLowerCase().contains(widget.needle)))
+                fieldsMatchEveryWord(foldedSearchWords(widget.needle), [
+                  v.name,
+                ]))
               v,
         ];
         if (views.isEmpty) return const SizedBox.shrink();

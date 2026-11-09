@@ -249,31 +249,34 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (e) =>
-            searchLike(e.number, search) |
-            searchLike(e.poNumber, search) |
-            e.notesLikePayload(search) |
-            searchLike(e.customValue1, search) |
-            searchLike(e.customValue2, search) |
-            searchLike(e.customValue3, search) |
-            searchLike(e.customValue4, search) |
-            // The server also LIKEs these (`InvoiceFilters`).
-            serverDateLike(e.date, search) |
-            serverDecimalLike(e.amount, search) |
-            serverDecimalLike(e.balance, search) |
-            clientNameMatchesFilter(
-              clientId: e.clientId,
-              companyId: companyId,
-              search: search,
-              includeContacts: true,
-            ) |
-            projectNameMatchesFilter(
-              projectId: e.projectId,
-              companyId: companyId,
-              search: search,
-            ) |
-            // invoiceninja/flutter#185: the server searches line items too.
-            lineItemSearchMatches(payload: e.payload, search: search),
+        (e) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(e.number, word) |
+              searchLike(e.poNumber, word) |
+              e.notesLikePayload(word) |
+              searchLike(e.customValue1, word) |
+              searchLike(e.customValue2, word) |
+              searchLike(e.customValue3, word) |
+              searchLike(e.customValue4, word) |
+              // The server also LIKEs these (`InvoiceFilters`).
+              serverDateLike(e.date, word) |
+              serverDecimalLike(e.amount, word) |
+              serverDecimalLike(e.balance, word) |
+              clientNameMatchesFilter(
+                clientId: e.clientId,
+                companyId: companyId,
+                search: word,
+                includeContacts: true,
+              ) |
+              projectNameMatchesFilter(
+                projectId: e.projectId,
+                companyId: companyId,
+                search: word,
+              ) |
+              // invoiceninja/flutter#185: the server searches line items too.
+              lineItemSearchMatches(payload: e.payload, search: word),
+        ),
       );
     }
 

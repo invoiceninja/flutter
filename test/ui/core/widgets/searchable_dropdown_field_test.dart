@@ -164,6 +164,26 @@ void main() {
     expect(find.widgetWithText(TextField, 'Apricot'), findsOneWidget);
   });
 
+  testWidgets('every word must match, in any order', (tester) async {
+    await _pump(
+      tester,
+      items: const [
+        _Option('1', 'Samsung Galaxy S22 5G OLED 120Hz Screen (TCGJ)'),
+        _Option('2', 'Samsung Galaxy S23 OLED 120Hz Screen'),
+        _Option('3', 'iPhone 13 Screen'),
+      ],
+    );
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), '120HZ s22');
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Samsung Galaxy S22 5G OLED 120Hz Screen (TCGJ)'),
+      findsOneWidget,
+    );
+    expect(find.text('Samsung Galaxy S23 OLED 120Hz Screen'), findsNothing);
+    expect(find.text('iPhone 13 Screen'), findsNothing);
+  });
+
   testWidgets('onChanged fires the selected item', (tester) async {
     _Option? captured;
     await tester.pumpWidget(
@@ -1192,6 +1212,35 @@ void main() {
         'Dragonfruit',
       );
       expect(createRow('Dragonfruit'), findsNothing);
+    });
+
+    testWidgets('words in another order still offer a create', (tester) async {
+      await pumpCreate(
+        tester,
+        onCreate: (_) async => null,
+        items: const [_Option('1', 'Acme Corp')],
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'corp acme');
+      await tester.pumpAndSettle();
+      // Listed — every word matches — but not the same name, so creatable.
+      expect(find.text('Acme Corp'), findsOneWidget);
+      expect(createRow('corp acme'), findsOneWidget);
+    });
+
+    testWidgets('extra spaces are still an exact match, not a create', (
+      tester,
+    ) async {
+      await pumpCreate(
+        tester,
+        onCreate: (_) async => null,
+        items: const [_Option('1', 'Acme Corp')],
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'acme   corp');
+      await tester.pumpAndSettle();
+      expect(find.text('Acme Corp'), findsOneWidget);
+      expect(find.textContaining('Create "'), findsNothing);
     });
 
     testWidgets('an exact match is not offered as a create', (tester) async {

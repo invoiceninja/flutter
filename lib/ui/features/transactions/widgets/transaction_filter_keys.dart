@@ -9,6 +9,7 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Per-key cap on the synchronous `quickValueSuggestions` lookup. Mirrors
 /// the constant in `client_filter_keys.dart` so the picker stays balanced
@@ -84,9 +85,10 @@ class TransactionStatusFilterKey extends FilterKey {
         ? all
         : all
               .where(
-                (s) =>
-                    s.displayLabel.toLowerCase().contains(q) ||
-                    s.rawValue.toLowerCase().contains(q),
+                (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                  s.displayLabel,
+                  s.rawValue,
+                ]),
               )
               .toList();
     return Stream.value(filtered);
@@ -245,9 +247,10 @@ class TransactionTypeFilterKey extends FilterKey {
           ? all
           : all
                 .where(
-                  (s) =>
-                      s.displayLabel.toLowerCase().contains(q) ||
-                      s.rawValue.toLowerCase().contains(q),
+                  (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                    s.displayLabel,
+                    s.rawValue,
+                  ]),
                 )
                 .toList(),
     );

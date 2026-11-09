@@ -48,6 +48,10 @@
       "budgetMs": 36,
       "since": "2026-11-05"
     },
+    "invoices.list_search_one_word": {
+      "budgetMs": 30,
+      "since": "2026-11-09"
+    },
     "invoices.list_status_tab": {
       "budgetMs": 3.8
     },

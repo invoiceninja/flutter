@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/currency.dart';
+import 'package:admin/data/repositories/search_fetch.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
@@ -28,6 +29,7 @@ import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_pick
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_summary.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/quick_product_dialog.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Tabbed multi-select picker body for the billing-doc edit screens.
 ///
@@ -470,19 +472,34 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
     }
     // Best-effort server-side fetch — failures don't block; Drift's
     // existing rows (and the watch stream) keep working.
-    unawaited(
-      services.products
-          .ensurePageLoaded(
-            companyId: widget.companyId,
-            page: 1,
-            search: _productSearch.isEmpty ? null : _productSearch,
-          )
-          .catchError((_) => false),
-    );
+    // A multi-word search fetches page 1 per selective word — the server
+    // matches `filter=` as one phrase (see `ensureSearchLoaded`).
+    final products = services.products;
+    Future<bool> page1(String? term, {bool phrase = false}) =>
+        products.ensurePageLoaded(
+          companyId: widget.companyId,
+          page: 1,
+          search: term,
+          phraseOnWire: phrase,
+        );
+    Future<void> fetch() async {
+      if (_productSearch.isEmpty) {
+        await page1(null);
+        return;
+      }
+      await ensureSearchLoaded(
+        _productSearch,
+        serverSplits: products.serverSplitsSearchWords,
+        fetchPage1: page1,
+      );
+    }
+
+    unawaited(fetch().catchError((_) {}));
     _productSub = services.products
         .watchPage(
           companyId: widget.companyId,
           search: _productSearch.isEmpty ? null : _productSearch,
+          rankSearch: true,
           // 4 pages worth of rows (200) is generous for the picker; the
           // typical pick-from-recent flow finds the product near the top.
           loadedPages: 4,
@@ -513,29 +530,29 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
 
   // ── Filtered views ───────────────────────────────────────────────────
 
-  String _lower(String s) => s.toLowerCase();
+  // Every word in some field, in any order, accents folded — the rule the
+  // Products tab's SQL search follows (`everyWordMatches`).
+  List<String> get _filterWords => foldedSearchWords(_filter);
 
-  bool _taskMatches(Task t, String f) {
-    if (f.isEmpty) return true;
-    return _lower(t.description).contains(f) || _lower(t.number).contains(f);
-  }
+  bool _taskMatches(Task t, List<String> words) =>
+      words.isEmpty ||
+      containsEveryWord(foldedSearchLines([t.description, t.number]), words);
 
-  bool _expenseMatches(Expense e, String f) {
-    if (f.isEmpty) return true;
-    return _lower(e.publicNotes).contains(f) || _lower(e.number).contains(f);
-  }
+  bool _expenseMatches(Expense e, List<String> words) =>
+      words.isEmpty ||
+      containsEveryWord(foldedSearchLines([e.publicNotes, e.number]), words);
 
   List<Task> get _filteredTasks {
-    final f = _lower(_filter.trim());
-    if (f.isEmpty) return _tasks;
-    return _tasks.where((t) => _taskMatches(t, f)).toList(growable: false);
+    final words = _filterWords;
+    if (words.isEmpty) return _tasks;
+    return _tasks.where((t) => _taskMatches(t, words)).toList(growable: false);
   }
 
   List<Expense> get _filteredExpenses {
-    final f = _lower(_filter.trim());
-    if (f.isEmpty) return _expenses;
+    final words = _filterWords;
+    if (words.isEmpty) return _expenses;
     return _expenses
-        .where((e) => _expenseMatches(e, f))
+        .where((e) => _expenseMatches(e, words))
         .toList(growable: false);
   }
 
@@ -855,9 +872,11 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
   /// empty: a search for "Web" that matches "Web Hosting" still wants a way
   /// to make a product called "Web".
   bool get _showCreateProduct {
-    final q = _filter.trim().toLowerCase();
+    final q = foldSearchText(squashWhitespace(_filter));
     if (!_canCreateProducts || q.isEmpty || _loadingProducts) return false;
-    return !_products.any((p) => p.productKey.trim().toLowerCase() == q);
+    return !_products.any(
+      (p) => foldSearchText(squashWhitespace(p.productKey)) == q,
+    );
   }
 
   Future<void> _createProduct() async {
@@ -899,16 +918,14 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
   }
 
   Map<_TabKind, int?> _tabCounts() {
-    final f = _lower(_filter.trim());
+    final words = _filterWords;
     return {
       // Server-paged — total unknown without an extra count query.
       _TabKind.products: null,
-      _TabKind.tasks: f.isEmpty
-          ? _tasks.length
-          : _tasks.where((t) => _taskMatches(t, f)).length,
-      _TabKind.expenses: f.isEmpty
-          ? _expenses.length
-          : _expenses.where((e) => _expenseMatches(e, f)).length,
+      _TabKind.tasks: _tasks.where((t) => _taskMatches(t, words)).length,
+      _TabKind.expenses: _expenses
+          .where((e) => _expenseMatches(e, words))
+          .length,
     };
   }
 

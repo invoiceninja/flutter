@@ -50,7 +50,10 @@ class BankAccountDao extends DatabaseAccessor<AppDatabase>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (b) => searchLike(b.name, search) | searchLike(b.provider, search),
+        (b) => everyWordMatches(
+          search,
+          (word) => searchLike(b.name, word) | searchLike(b.provider, word),
+        ),
       );
     }
 

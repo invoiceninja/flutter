@@ -8,6 +8,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// `tag:foo` — multi-valued membership filter resolved through the tag cache
 /// for [entityType] (`task` / `project`). `serverKey` is `tag_ids`
@@ -76,7 +77,9 @@ class TagFilterKey extends MembershipFilterKey {
     ) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((t) => t.name.toLowerCase().contains(q));
+          : all.where(
+              (t) => fieldsMatchEveryWord(foldedSearchWords(q), [t.name]),
+            );
       return [
         for (final t in filtered)
           FilterValueSuggestion(

@@ -6,6 +6,7 @@ import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// What the user chose in [showTemplateVariablePicker].
 sealed class TemplateVariablePick {
@@ -148,22 +149,14 @@ class _TemplateVariablePickerBodyState
             v,
       ];
 
-  /// Joins the searchable fields with a character the user cannot type, so a
-  /// query can never match across the label/token/value boundary. Written as
-  /// the escape, never as the byte: a raw NUL makes the whole file binary to
-  /// `file`, to `grep`/`ripgrep` (every source-scanning lint silently stops
-  /// covering it) and to git — see `test/lint/no_control_bytes_test.dart`.
-  static const _fieldGap = '\u0000';
-
-  bool _matches(TemplateVariable v, String query) {
-    if (query.isEmpty) return true;
-    final haystack = [
-      templateVariableLabel(context, v),
-      v.token,
-      _valueText(v.token) ?? '',
-    ].join(_fieldGap).toLowerCase();
-    return haystack.contains(query);
-  }
+  /// Every word of [query] in the label, the token or the sample value — the
+  /// rule every search in the app follows (`docs/local-search-matching.md`).
+  /// No word can match across two fields: a word never holds the newline
+  /// [fieldsMatchEveryWord] joins them with.
+  bool _matches(TemplateVariable v, String query) => fieldsMatchEveryWord(
+    foldedSearchWords(query),
+    [templateVariableLabel(context, v), v.token, _valueText(v.token)],
+  );
 
   /// Enter picks the first visible row only when the user has typed
   /// something — on an empty query it would silently insert whatever sorts

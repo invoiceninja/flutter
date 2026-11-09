@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/db/app_database.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_body.dart';
 
 import '../shell/_shell_test_helpers.dart';
@@ -13,6 +16,7 @@ void main() {
     WidgetTester tester, {
     String permissions = '',
     bool isAdmin = true,
+    Future<void> Function(ShellFixture fixture)? seed,
   }) async {
     final fixture = await buildFixture(
       companies: [
@@ -47,6 +51,10 @@ void main() {
       ),
     );
     await _settle(tester);
+    if (seed != null) {
+      await tester.runAsync(() => seed(fixture));
+      await _settle(tester);
+    }
     return fixture;
   }
 
@@ -64,6 +72,35 @@ void main() {
     await search(tester, 'Widget');
 
     expect(find.text('Create "Widget"'), findsOneWidget);
+    await _disposeTree(tester);
+  });
+
+  // User feedback: `s22 120hz` must find "Samsung Galaxy S22 … 120Hz Screen".
+  testWidgets('every word matches, in any order, best match first', (
+    tester,
+  ) async {
+    await pumpPicker(tester, seed: _seedProducts);
+    await search(tester, '120hz s22');
+
+    // The Samsung key holds both words, so it leads S22-SCR (which sorts
+    // first by key but matches 120hz only through its notes).
+    final samsung = find.text('Samsung Galaxy S22 5G OLED 120Hz Screen (TCGJ)');
+    final scr = find.text('S22-SCR');
+    expect(samsung, findsOneWidget);
+    expect(scr, findsOneWidget);
+    expect(tester.getTopLeft(samsung).dy, lessThan(tester.getTopLeft(scr).dy));
+    expect(find.text('Samsung Galaxy S23 OLED 120Hz Screen'), findsNothing);
+    // Not an exact name, so it can still be created.
+    expect(find.text('Create "120hz s22"'), findsOneWidget);
+    await _disposeTree(tester);
+  });
+
+  testWidgets('an exact name with extra spaces is not offered as a create', (
+    tester,
+  ) async {
+    await pumpPicker(tester, seed: _seedProducts);
+    await search(tester, 's22-scr  ');
+    expect(find.textContaining('Create "'), findsNothing);
     await _disposeTree(tester);
   });
 
@@ -104,6 +141,32 @@ void main() {
     await _disposeTree(tester);
   });
 }
+
+Future<void> _seedProducts(ShellFixture fixture) =>
+    fixture.db.productDao.upsertAll([
+      for (final (id, key, notes) in [
+        ('p1', 'S22-SCR', 'OLED 120Hz panel'),
+        ('p2', 'Samsung Galaxy S22 5G OLED 120Hz Screen (TCGJ)', ''),
+        ('p3', 'Samsung Galaxy S23 OLED 120Hz Screen', ''),
+      ])
+        ProductsCompanion.insert(
+          id: id,
+          companyId: 'co1',
+          productKey: key,
+          notes: notes,
+          price: '0',
+          cost: '0',
+          quantity: '1',
+          updatedAt: 1,
+          // The row renders the decoded payload, not the columns.
+          payload: jsonEncode({
+            'id': id,
+            'product_key': key,
+            'notes': notes,
+            'updated_at': 1,
+          }),
+        ),
+    ]);
 
 /// `pumpAndSettle` never settles over a live Drift watch stream — step the
 /// clock instead, letting the real async work run between frames.

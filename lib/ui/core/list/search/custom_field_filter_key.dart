@@ -5,6 +5,7 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// `custom1:foo` … `custom4:bar` — multi-valued, hidden when the company
 /// hasn't configured a label for that slot. Suggestions stream from
@@ -94,7 +95,9 @@ class CustomFieldFilterKey extends FilterKey {
     return vm.watchDistinctCustomValues(columnIndex).map((values) {
       final filtered = q.isEmpty
           ? values
-          : values.where((v) => v.toLowerCase().contains(q)).toList();
+          : values
+                .where((v) => fieldsMatchEveryWord(foldedSearchWords(q), [v]))
+                .toList();
       return [
         for (final v in filtered)
           FilterValueSuggestion(rawValue: v, displayLabel: v),

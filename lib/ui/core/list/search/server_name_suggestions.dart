@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:admin/data/repositories/search_fetch.dart';
 import 'package:admin/utils/search_fold.dart';
 
 /// One `(id, name)` row of an entity's active-names stream
@@ -37,17 +38,24 @@ typedef NameRow = ({String id, String name});
 ///   so they keep that stream's name fallback, ordering and active-only rule.
 /// * **A failed fetch** (offline) ends where the cache did.
 ///
+/// * **Every word, in any order.** A name matches when it holds each word of
+///   [query] (`acme ltd` → "Acme Holdings Ltd"), as the list search does. A
+///   server that matches `?filter=` as one phrase ([serverSplitsWords] false —
+///   every entity but clients) is asked once per selective word
+///   ([ensureSearchLoaded]), so [fetch] runs up to three times.
+///
 /// [query] is matched case-insensitively; an empty one returns [names] as is.
 Stream<List<NameRow>> namesWithServerSearch({
   required Stream<List<NameRow>> names,
   required String query,
-  required Future<void> Function(String query) fetch,
+  required SearchPageFetch fetch,
   required Stream<List<String>> Function(String query) searchedIds,
+  bool serverSplitsWords = false,
   Duration debounce = const Duration(milliseconds: 280),
 }) {
   final typed = query.trim();
-  final q = foldSearchText(typed);
-  if (q.isEmpty) return names;
+  final words = foldedSearchWords(typed);
+  if (words.isEmpty) return names;
 
   late final StreamController<List<NameRow>> out;
   StreamSubscription<List<NameRow>>? namesSub;
@@ -63,7 +71,7 @@ Stream<List<NameRow>> namesWithServerSearch({
     final ids = serverIds;
     final hits = [
       for (final r in rows)
-        if (foldSearchText(r.name).contains(q) ||
+        if (containsEveryWord(foldSearchText(r.name), words) ||
             (ids?.contains(r.id) ?? false))
           r,
     ];
@@ -74,7 +82,11 @@ Stream<List<NameRow>> namesWithServerSearch({
 
   Future<void> askServer() async {
     try {
-      await fetch(typed);
+      await ensureSearchLoaded(
+        typed,
+        serverSplits: serverSplitsWords,
+        fetchPage1: fetch,
+      );
     } catch (_) {
       // Offline, or the server refused: the cache's answer stands.
     }

@@ -102,10 +102,13 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (u) =>
-            searchLike(u.firstName, search) |
-            searchLike(u.lastName, search) |
-            searchLike(u.email, search),
+        (u) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(u.firstName, word) |
+              searchLike(u.lastName, word) |
+              searchLike(u.email, word),
+        ),
       );
     }
 

@@ -21,6 +21,7 @@ import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Tasks expose state (active/archived/deleted) as their built-in
 /// filter dimension plus per-client, per-project and per-status filters
@@ -135,7 +136,9 @@ class StatusFilterKey extends MembershipFilterKey {
     return statuses.watchAll(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((s) => s.name.toLowerCase().contains(q));
+          : all.where(
+              (s) => fieldsMatchEveryWord(foldedSearchWords(q), [s.name]),
+            );
       return [
         for (final s in filtered)
           FilterValueSuggestion(
@@ -225,8 +228,12 @@ class ProjectFilterKey extends MembershipFilterKey {
     return namesWithServerSearch(
       names: projects.watchActiveNames(companyId: companyId),
       query: query,
-      fetch: (q) =>
-          projects.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      fetch: (q, {phrase = false}) => projects.ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        search: q,
+        phraseOnWire: phrase,
+      ),
       searchedIds: (q) => projects
           .watchPage(companyId: companyId, search: q)
           .map((rows) => [for (final p in rows) p.id]),

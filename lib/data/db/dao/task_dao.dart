@@ -299,24 +299,27 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
       // custom_value1-4, client name and contacts, project name). `time_log`
       // stays server-only.
       q.where(
-        (t) =>
-            searchLike(t.taskNumber, search) |
-            searchLike(t.description, search) |
-            searchLike(t.customValue1, search) |
-            searchLike(t.customValue2, search) |
-            searchLike(t.customValue3, search) |
-            searchLike(t.customValue4, search) |
-            clientNameMatchesFilter(
-              clientId: t.clientId,
-              companyId: companyId,
-              search: search,
-              includeContacts: true,
-            ) |
-            projectNameMatchesFilter(
-              projectId: t.projectId,
-              companyId: companyId,
-              search: search,
-            ),
+        (t) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(t.taskNumber, word) |
+              searchLike(t.description, word) |
+              searchLike(t.customValue1, word) |
+              searchLike(t.customValue2, word) |
+              searchLike(t.customValue3, word) |
+              searchLike(t.customValue4, word) |
+              clientNameMatchesFilter(
+                clientId: t.clientId,
+                companyId: companyId,
+                search: word,
+                includeContacts: true,
+              ) |
+              projectNameMatchesFilter(
+                projectId: t.projectId,
+                companyId: companyId,
+                search: word,
+              ),
+        ),
       );
     }
 

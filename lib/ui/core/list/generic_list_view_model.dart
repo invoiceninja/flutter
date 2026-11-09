@@ -19,6 +19,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
+import 'package:admin/utils/search_fold.dart';
 
 final _log = Logger('GenericListViewModel');
 
@@ -216,8 +217,52 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// found" while matches sit on unfetched pages. Bounded by
   /// [_kAutoChainMaxPages] per filter/search/sort change so completeness
   /// stays page-bounded (by design) instead of sweeping the whole table.
+  ///
+  /// A multi-word search counts too: most servers match `filter=` as one
+  /// phrase, so the repository sends one word and the local every-word
+  /// search narrows the page it returns (docs/local-search-matching.md).
   @protected
-  bool get localOnlyFilterActive => tagFilterActive || localOnlyBadgeModeActive;
+  bool get localOnlyFilterActive =>
+      tagFilterActive || localOnlyBadgeModeActive || multiWordSearchActive;
+
+  /// Whether the applied search has more than one word ([searchWords]).
+  bool get multiWordSearchActive => searchWords(_search).length > 1;
+
+  /// Whether a local-only filter's refill ([localOnlyFilterActive]) spent its
+  /// page budget with the server still holding more and the list still short
+  /// of a page — the state where nothing on screen can scroll, so the list
+  /// would end on a "No records found" or a short page that is not the whole
+  /// answer. The list offers [continueAutoChain] there.
+  bool get autoChainExhausted =>
+      localOnlyFilterActive &&
+      hasMore &&
+      !isLoadingPage &&
+      _autoChainBudget <= 0 &&
+      _items.length < pageSize;
+
+  /// Whether the last page fetch threw — it produces no Drift emission, so a
+  /// refill it interrupted will not resume on its own.
+  bool _lastFetchFailed = false;
+
+  /// Whether a local-only filter's refill is between pages: the list is short,
+  /// the server has more, budget remains, and the next emission will chain
+  /// the next page. The list shows its loading footer rather than "No records
+  /// found" here — without it the empty state flashed between every chained
+  /// page of a multi-word search. False after a failed fetch, which ends the
+  /// chain, so a spinner never outlives it.
+  bool get refillPending =>
+      localOnlyFilterActive &&
+      hasMore &&
+      !_lastFetchFailed &&
+      _autoChainBudget > 0 &&
+      _items.length < pageSize;
+
+  /// Re-arm the refill budget and fetch the next page — the list's "Load
+  /// more" once [autoChainExhausted].
+  Future<void> continueAutoChain() {
+    _autoChainBudget = _kAutoChainMaxPages;
+    return loadMore();
+  }
 
   /// True while a status tab is selected whose rows the Drift query still has
   /// to narrow after the fetch — either because the tab has no server filter at
@@ -1321,6 +1366,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       // `_resubscribe` triggers recomputes it.
       _localWindowSaturated = false;
       hasMore = more;
+      _lastFetchFailed = false;
       // Re-subscribe so the Drift watch widens its `LIMIT` to the new
       // `pageSize * loadedPages` window. watchPage() captures `loadedPages`
       // at subscription time, so without this the newly-fetched rows land in
@@ -1328,6 +1374,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       _resubscribe();
     } catch (e) {
       if (_fetchEpoch != epoch) return;
+      _lastFetchFailed = true;
       _flashError('load_more', e);
     } finally {
       if (_fetchEpoch == epoch) {
@@ -1602,6 +1649,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Future<void> _loadInitialPage() async {
     final epoch = ++_fetchEpoch;
     _autoChainBudget = _kAutoChainMaxPages;
+    _lastFetchFailed = false;
     isLoadingPage = true;
     notifyListeners();
     try {
@@ -1616,6 +1664,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       hasMore = more;
     } catch (e) {
       if (_fetchEpoch != epoch) return;
+      _lastFetchFailed = true;
       if (!_isBenign(e)) initialError = formatNotifyError(e);
     } finally {
       if (_fetchEpoch == epoch) {
@@ -1636,6 +1685,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Future<void> _resetAndReload({required bool ignoreCursor}) async {
     final epoch = ++_fetchEpoch;
     _autoChainBudget = _kAutoChainMaxPages;
+    _lastFetchFailed = false;
     _selectedIds.clear();
     _selectionMode = false;
     loadedPages = 1;
@@ -1661,6 +1711,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       hasMore = more;
     } catch (e) {
       if (_fetchEpoch != epoch) return;
+      _lastFetchFailed = true;
       // Store the error MESSAGE (exception-type prefix stripped); the UI
       // prepends a localized "Failed to load:" prefix when rendering — a
       // bare toString() leaked "NetworkException: ClientException with

@@ -29,7 +29,15 @@ class _FakeVm implements GenericListViewModel<dynamic> {
     this.customFilters = const {},
     this.extraFilters = const {},
     this.hasEntityStates = true,
+    this.autoChainExhausted = false,
   });
+
+  @override
+  final bool autoChainExhausted;
+  var continued = false;
+
+  @override
+  Future<void> continueAutoChain() async => continued = true;
 
   @override
   final bool hasEntityStates;
@@ -189,6 +197,22 @@ void main() {
     expect(find.text('NO MATCHES'), findsOneWidget);
     await tester.tap(find.text('Clear Filters'));
     expect(vm.cleared, isTrue);
+  });
+
+  // A multi-word search (or a stock: / tag: filter) pages through the server's
+  // superset a few pages at a time; an empty list once that budget is spent
+  // is not "no matches", and nothing on screen could scroll for more.
+  testWidgets('Load more is offered only while the refill can go on', (
+    tester,
+  ) async {
+    final idle = _FakeVm(search: 's22 120hz');
+    await pump(tester, idle);
+    expect(find.text('Load more'), findsNothing);
+
+    final spent = _FakeVm(search: 's22 120hz', autoChainExhausted: true);
+    await pump(tester, spent);
+    await tester.tap(find.text('Load more'));
+    expect(spent.continued, isTrue);
   });
 
   group('the no-match branch offers the narrowing it can undo', () {

@@ -1076,6 +1076,102 @@ void main() {
       expect(vm.fetchPageCalls, afterReset + 1);
     });
 
+    // A multi-word search is a local-only narrowing too: the server is sent one
+    // word (it matches `filter=` as a phrase), and the local every-word search
+    // can filter its page down to a few rows with no scroll extent.
+    group('a multi-word search', () {
+      Future<_SearchChainFakeVm> makeSearchVm() async {
+        final vm = _SearchChainFakeVm(
+          companyId: 'co',
+          navStateDao: db.navStateDao,
+          userSettings: UserSettingsRepository(db: db),
+          searchDebounce: const Duration(milliseconds: 1),
+          persistDebounce: const Duration(milliseconds: 1),
+        );
+        await settle();
+        addTearDown(() {
+          vm.dispose();
+          vm.controller.close();
+        });
+        return vm;
+      }
+
+      test('chains a short page; a one-word search does not', () async {
+        final vm = await makeSearchVm();
+        vm.setSearch('acme', immediate: true);
+        await settle();
+        expect(vm.multiWordSearchActive, isFalse);
+        var before = vm.fetchPageCalls;
+        vm.controller.add(short);
+        await settle();
+        expect(vm.fetchPageCalls, before);
+
+        vm.setSearch('s22 120hz', immediate: true);
+        await settle();
+        expect(vm.multiWordSearchActive, isTrue);
+        before = vm.fetchPageCalls;
+        vm.controller.add(short);
+        await settle();
+        expect(vm.fetchPageCalls, before + 1);
+      });
+
+      test('a spent budget offers Load more, which re-arms it', () async {
+        final vm = await makeSearchVm();
+        vm.setSearch('s22 120hz', immediate: true);
+        await settle();
+        expect(vm.autoChainExhausted, isFalse);
+        for (var i = 0; i < 6; i++) {
+          vm.controller.add(short);
+          await settle();
+        }
+        expect(vm.autoChainExhausted, isTrue);
+
+        final spent = vm.fetchPageCalls;
+        await vm.continueAutoChain();
+        await settle();
+        expect(vm.fetchPageCalls, spent + 1);
+        expect(vm.autoChainExhausted, isFalse);
+        // The re-armed budget chains the next short page on its own again.
+        vm.controller.add(short);
+        await settle();
+        expect(vm.fetchPageCalls, spent + 2);
+      });
+
+      // Between chained pages the list is still filling: the scaffold shows
+      // its loading footer, not a flash of "No records found" — until a fetch
+      // fails, which ends the chain, so no spinner can outlive it.
+      test(
+        'refillPending while chaining, never after a failed fetch',
+        () async {
+          final vm = await makeSearchVm();
+          vm.setSearch('s22 120hz', immediate: true);
+          await settle();
+          vm.controller.add(short);
+          await settle();
+          expect(vm.refillPending, isTrue);
+
+          vm.fetchThrows = true;
+          vm.controller.add(short);
+          await settle();
+          expect(vm.refillPending, isFalse);
+
+          vm.setSearch('acme', immediate: true);
+          await settle();
+          expect(vm.refillPending, isFalse, reason: 'one word arms no refill');
+        },
+      );
+
+      test('never offered once the server has nothing more', () async {
+        final vm = await makeSearchVm();
+        vm.serverHasMore = false;
+        vm.setSearch('s22 120hz', immediate: true);
+        await settle();
+        vm.controller.add(short);
+        await settle();
+        expect(vm.autoChainExhausted, isFalse);
+      });
+    });
+
     // #25 regression: the chain must fire from the INITIAL load, not only from
     // later emissions. A real Drift watch re-runs its query on every write AND
     // re-emits on re-subscribe; the page-1 upsert emits *mid-load* (while
@@ -1519,6 +1615,42 @@ class _LocalFilterFakeVm extends FakeInvoiceListViewModel {
   Future<void> refreshAll() async {
     if (fetchThrows) throw Exception('offline');
   }
+}
+
+/// A multi-word search fake: unlike [_LocalFilterFakeVm] it keeps the real
+/// `localOnlyFilterActive`, so only the applied search arms the chain.
+class _SearchChainFakeVm extends FakeInvoiceListViewModel {
+  _SearchChainFakeVm({
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.searchDebounce,
+    super.persistDebounce,
+  });
+
+  bool serverHasMore = true;
+  bool fetchThrows = false;
+  final StreamController<List<FakeInvoice>> controller =
+      StreamController<List<FakeInvoice>>.broadcast();
+
+  @override
+  Stream<List<FakeInvoice>> watchPage() => controller.stream;
+
+  @override
+  Future<bool> fetchPage({
+    required int page,
+    required String? search,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+    required bool ignoreCursor,
+  }) async {
+    fetchPageCalls++;
+    if (fetchThrows) throw Exception('offline');
+    return serverHasMore;
+  }
+
+  @override
+  Future<void> refreshAll() async {}
 }
 
 /// #25 fake: `watchPage()` returns a fresh `Stream.value(short)` on EVERY call,

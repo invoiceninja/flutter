@@ -45,7 +45,9 @@ class TokenDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((t) => searchLike(t.name, search));
+      q.where(
+        (t) => everyWordMatches(search, (word) => searchLike(t.name, word)),
+      );
     }
 
     q.orderBy([

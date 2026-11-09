@@ -329,12 +329,23 @@ class _SearchableDropdownFieldState<T extends Object>
     // typed nothing, so there is no query — offer the whole list rather than
     // the one item they already have (invoiceninja/flutter#34).
     if (_isPristine(text)) return (_idleOptions(), false);
-    final q = foldSearchText(text.trim());
+    // Every word, in any order (`acme ltd` finds "Acme Holdings Ltd"), the
+    // rule the list searches follow; the whole text, whitespace collapsed,
+    // is what an exact match compares against.
+    final q = foldSearchText(squashWhitespace(text));
     if (q.isEmpty) return (_idleOptions(), false);
+    final words = foldedSearchWords(text);
     if (widget.onCreateRequested == null) {
-      // Lazy: stops at [maxResults] matches, which is all a plain picker needs.
+      // Lazy: stops at [maxResults] matches, which is all a plain picker
+      // needs — and folds only the items it reaches, so a host that hands
+      // over a fresh `items` list per build doesn't re-fold all of them.
       final matches = widget.items
-          .where((it) => foldSearchText(widget.displayString(it)).contains(q))
+          .where(
+            (it) => containsEveryWord(
+              foldSearchText(widget.displayString(it)),
+              words,
+            ),
+          )
           .take(widget.maxResults)
           .toList(growable: false);
       return (matches, false);
@@ -352,7 +363,8 @@ class _SearchableDropdownFieldState<T extends Object>
       final name = folded[i];
       if (name == q) {
         exact.add(widget.items[i]);
-      } else if (partial.length < widget.maxResults && name.contains(q)) {
+      } else if (partial.length < widget.maxResults &&
+          containsEveryWord(name, words)) {
         partial.add(widget.items[i]);
       }
     }
@@ -365,15 +377,15 @@ class _SearchableDropdownFieldState<T extends Object>
   List<T>? _foldedFor;
   List<String> _folded = const [];
 
-  /// Every item's display name, folded and trimmed — recomputed only when the
-  /// parent hands over a different `items` list. Hosts rebuild per keystroke
-  /// but pass the same list instance until their stream emits.
+  /// Every item's display name, folded and whitespace-collapsed — recomputed
+  /// only when the parent hands over a different `items` list. Hosts rebuild
+  /// per keystroke but pass the same list instance until their stream emits.
   List<String> get _foldedNames {
     if (!identical(_foldedFor, widget.items)) {
       _foldedFor = widget.items;
       _folded = [
         for (final it in widget.items)
-          foldSearchText(widget.displayString(it)).trim(),
+          foldSearchText(squashWhitespace(widget.displayString(it))),
       ];
     }
     return _folded;

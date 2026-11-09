@@ -44,7 +44,9 @@ class TaskStatusDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((s) => searchLike(s.name, search));
+      q.where(
+        (s) => everyWordMatches(search, (word) => searchLike(s.name, word)),
+      );
     }
 
     q.orderBy([

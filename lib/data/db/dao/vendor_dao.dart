@@ -164,21 +164,24 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (v) =>
-            searchLike(v.name, search) |
-            searchLike(v.number, search) |
-            searchLike(v.displayName, search) |
-            searchLike(v.idNumber, search) |
-            searchLike(v.customValue1, search) |
-            searchLike(v.customValue2, search) |
-            searchLike(v.customValue3, search) |
-            searchLike(v.customValue4, search) |
-            contactSearchMatches(
-              column: v.contactSearch,
-              payload: v.payload,
-              keys: kVendorContactSearchKeys,
-              search: search,
-            ),
+        (v) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(v.name, word) |
+              searchLike(v.number, word) |
+              searchLike(v.displayName, word) |
+              searchLike(v.idNumber, word) |
+              searchLike(v.customValue1, word) |
+              searchLike(v.customValue2, word) |
+              searchLike(v.customValue3, word) |
+              searchLike(v.customValue4, word) |
+              contactSearchMatches(
+                column: v.contactSearch,
+                payload: v.payload,
+                keys: kVendorContactSearchKeys,
+                search: word,
+              ),
+        ),
       );
     }
 

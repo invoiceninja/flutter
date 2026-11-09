@@ -329,6 +329,19 @@ void main() {
         expect(await dao.search('PO-55'), ['e']);
         expect(await dao.search('blue'), ['e']);
       });
+
+      // Every word must match some field — any field, in any order.
+      test('words match across fields, in any order', () async {
+        expect(await dao.search('blue wasche'), ['e']);
+        expect(await dao.search('wasche INV-77'), ['e']);
+        expect(await dao.search('fenster glass-9'), ['a']);
+        expect(await dao.search('glass-9   replaced'), ['a']);
+      });
+
+      test('one word that matches nothing excludes the document', () async {
+        expect(await dao.search('blue fenster'), isEmpty);
+        expect(await dao.search('wasche nothing-here'), isEmpty);
+      });
     });
   }
 }

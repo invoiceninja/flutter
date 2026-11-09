@@ -111,7 +111,9 @@ class DocumentDao
     final q = select(documentRecords)
       ..where((d) => d.companyId.equals(companyId) & d.isDeleted.equals(false));
     if (search != null && search.isNotEmpty) {
-      q.where((d) => searchLike(d.name, search));
+      q.where(
+        (d) => everyWordMatches(search, (word) => searchLike(d.name, word)),
+      );
     }
     q.orderBy([
       (d) => OrderingTerm(

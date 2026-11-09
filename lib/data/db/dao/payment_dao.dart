@@ -239,20 +239,23 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (p) =>
-            searchLike(p.number, search) |
-            searchLike(p.transactionReference, search) |
-            p.privateNotesLikePayload(search) |
-            searchLike(p.customValue1, search) |
-            searchLike(p.customValue2, search) |
-            searchLike(p.customValue3, search) |
-            searchLike(p.customValue4, search) |
-            clientNameMatchesFilter(
-              clientId: p.clientId,
-              companyId: companyId,
-              search: search,
-              includeContacts: true,
-            ),
+        (p) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(p.number, word) |
+              searchLike(p.transactionReference, word) |
+              p.privateNotesLikePayload(word) |
+              searchLike(p.customValue1, word) |
+              searchLike(p.customValue2, word) |
+              searchLike(p.customValue3, word) |
+              searchLike(p.customValue4, word) |
+              clientNameMatchesFilter(
+                clientId: p.clientId,
+                companyId: companyId,
+                search: word,
+                includeContacts: true,
+              ),
+        ),
       );
     }
 

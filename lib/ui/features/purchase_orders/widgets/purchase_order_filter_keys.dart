@@ -18,6 +18,7 @@ import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/record_chip_names.dart';
 import 'package:admin/ui/core/list/search/server_name_suggestions.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// The purchase orders list's search-field filters.
 ///
@@ -151,7 +152,13 @@ class PurchaseOrderStatusFilterKey extends MembershipFilterKey {
     ];
     final filtered = q.isEmpty
         ? all
-        : all.where((s) => s.displayLabel.toLowerCase().contains(q)).toList();
+        : all
+              .where(
+                (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                  s.displayLabel,
+                ]),
+              )
+              .toList();
     return Stream.value(filtered);
   }
 }
@@ -223,8 +230,12 @@ class PurchaseOrderVendorFilterKey extends MembershipFilterKey {
     return namesWithServerSearch(
       names: vendors.watchActiveNames(companyId: companyId),
       query: query,
-      fetch: (q) =>
-          vendors.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      fetch: (q, {phrase = false}) => vendors.ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        search: q,
+        phraseOnWire: phrase,
+      ),
       searchedIds: (q) => vendors
           .watchPage(companyId: companyId, search: q)
           .map((rows) => [for (final v in rows) v.id]),

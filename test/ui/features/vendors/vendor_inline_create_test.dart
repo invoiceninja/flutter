@@ -34,6 +34,7 @@ class _FakeVendors implements VendorRepository {
   bool failing = false;
   bool stalled = false;
   int fetches = 0;
+  bool? lastPhraseOnWire;
 
   /// The page [server] lands on, and how many pages the search has in all.
   int serverPage = 1;
@@ -48,8 +49,10 @@ class _FakeVendors implements VendorRepository {
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    bool phraseOnWire = false,
   }) async {
     fetches++;
+    lastPhraseOnWire = phraseOnWire;
     if (failing) throw Exception('offline');
     if (stalled) return Completer<bool>().future;
     if (page == serverPage) local = [...local, ...server];
@@ -172,6 +175,28 @@ void main() {
     final vendors = _FakeVendors(server: [_vendor('v9', 'ACME Supply')]);
     await host(tester, vendors);
     final v = await run(tester, 'acme supply');
+    expect(vendors.created, isEmpty);
+    expect(v?.id, 'v9');
+  });
+
+  testWidgets('the duplicate search sends the whole name, not one word', (
+    tester,
+  ) async {
+    // A list search sends only its most selective word; for an exact-name
+    // lookup that word ("International") can fill every page searched before
+    // the vendor that already exists is reached.
+    final vendors = _FakeVendors(
+      server: [_vendor('v9', 'Acme Holdings International')],
+    );
+    await host(tester, vendors);
+    await run(tester, 'Acme Holdings International');
+    expect(vendors.lastPhraseOnWire, isTrue);
+  });
+
+  testWidgets('extra spaces are still the same name', (tester) async {
+    final vendors = _FakeVendors(server: [_vendor('v9', 'ACME Supply')]);
+    await host(tester, vendors);
+    final v = await run(tester, 'acme   supply');
     expect(vendors.created, isEmpty);
     expect(v?.id, 'v9');
   });

@@ -107,6 +107,8 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     String? groupField,
     // Status-tab filter — see `list_status_tabs.dart`.
     String? badgeModeId,
+    // Best match first — the line-item pickers; see `ProductDao.watchPage`.
+    bool rankSearch = false,
   }) {
     assert(
       loadedPages >= 1,
@@ -127,6 +129,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
           groupField: groupField,
+          rankSearch: rankSearch,
         )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
@@ -197,6 +200,8 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    // The whole text on the wire, not one word — see `ensureSearchLoaded`.
+    bool phraseOnWire = false,
   }) => ensurePageLoadedTemplate(
     companyId: companyId,
     page: page,
@@ -205,6 +210,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     states: states,
     extraFilters: extraFilters,
     ignoreCursor: ignoreCursor,
+    phraseOnWire: phraseOnWire,
     // `?include=documents` — see `ClientRepository.ensurePageLoaded` for
     // the rationale.
     staticFilters: const {'include': 'documents'},

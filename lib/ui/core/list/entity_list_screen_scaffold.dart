@@ -1762,7 +1762,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         onRetry: _vm.retryInitial,
       );
     }
-    if (_vm.items.isEmpty && !_vm.isLoadingPage) {
+    // `refillPending`: a multi-word search or local-only filter is between
+    // chained pages — not "No records found" yet.
+    if (_vm.items.isEmpty && !_vm.isLoadingPage && !_vm.refillPending) {
       // Embedded: no own scroll, no pull-to-refresh — render the empty
       // state at intrinsic height so the page (and the slim toolbar above
       // it, so the user can still create the first row) stays put.
@@ -1975,9 +1977,27 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   }
 
   Widget _footer() {
-    if (_vm.isLoadingPage) return const EntityListLoadingFooter();
+    if (_vm.isLoadingPage || _vm.refillPending) {
+      return const EntityListLoadingFooter();
+    }
     // A search that matches some active rows never reaches the no-match empty
     // state, so this is the only place it learns archived ones were left out.
+    // A short list from a search or local-only filter that paged through
+    // its budget with the server holding more: nothing scrolls, so the next
+    // page needs a button (see `NoMatchActions`).
+    if (_vm.autoChainExhausted) {
+      return Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Center(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            onPressed: _vm.continueAutoChain,
+            icon: const Icon(Icons.expand_more),
+            label: Text(context.tr('load_more')),
+          ),
+        ),
+      );
+    }
     if (ArchivedHiddenFooter.shows(_vm)) return ArchivedHiddenFooter(vm: _vm);
     return const SizedBox.shrink();
   }

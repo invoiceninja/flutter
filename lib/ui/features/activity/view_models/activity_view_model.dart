@@ -516,6 +516,18 @@ class ActivityViewModel extends ChangeNotifier {
   String _title(DashboardActivity a) =>
       _titleCache[a.id] ??= foldSearchText(_titleResolver?.call(a) ?? '');
 
+  String? _wordsFor;
+  List<String> _words = const [];
+
+  /// [search]'s folded words, split once per search rather than per row.
+  List<String> _searchWords(String search) {
+    if (search != _wordsFor) {
+      _wordsFor = search;
+      _words = foldedSearchWords(search);
+    }
+    return _words;
+  }
+
   bool matches(DashboardActivity a) =>
       _matchesBase(a) && _inRange(a) && _inCategories(a);
 
@@ -554,14 +566,15 @@ class ActivityViewModel extends ChangeNotifier {
     }
     // Folded on both sides, as every Dart-side matcher is
     // (docs/local-search-matching.md): case, accents and bidi controls.
-    final needle = foldSearchText(f.search.trim());
-    if (needle.isEmpty) return true;
-    if (_title(a).contains(needle)) return true;
-    if (foldSearchText(a.notes).contains(needle)) return true;
-    for (final label in a.labels.values) {
-      if (foldSearchText(label).contains(needle)) return true;
-    }
-    return false;
+    // Every word in the title, the notes or a label, in any order.
+    final words = _searchWords(f.search);
+    if (words.isEmpty) return true;
+    final haystack = [
+      _title(a),
+      foldSearchText(a.notes),
+      for (final label in a.labels.values) foldSearchText(label),
+    ].join('\n');
+    return containsEveryWord(haystack, words);
   }
 
   void _recompute() {

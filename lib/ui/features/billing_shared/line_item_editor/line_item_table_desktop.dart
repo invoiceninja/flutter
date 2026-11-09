@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/custom_field_types.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
+import 'package:admin/data/repositories/search_fetch.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/custom_field_input.dart';
@@ -29,6 +30,7 @@ import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/core/utils/session_permissions.dart';
 
@@ -2292,10 +2294,18 @@ class _ProductCellState extends State<_ProductCell> {
           companyId: widget.companyId,
           search: query.isEmpty ? null : query,
           loadedPages: 1,
+          // Every word in the key first — Tab / Enter takes the top row.
+          rankSearch: true,
         )
         .first;
+    // An exact key leads even those: typing a whole key picks that product.
+    final typedKey = foldSearchText(squashWhitespace(query));
+    bool isExact(Product p) =>
+        typedKey.isNotEmpty &&
+        foldSearchText(squashWhitespace(p.productKey)) == typedKey;
+    final ordered = [...rows.where(isExact), ...rows.where((p) => !isExact(p))];
     final options = <_ProductOption>[
-      for (final p in rows.take(20)) _ProductExisting(p),
+      for (final p in ordered.take(20)) _ProductExisting(p),
     ];
     // Appended for EVERY user, not just those who may create — then rendered
     // as a muted "no records found" row, and inert, when they may not.
@@ -2306,11 +2316,37 @@ class _ProductCellState extends State<_ProductCell> {
     // Gating the row out of the LIST (rather than out of the interaction) left
     // a user without `create_product` typing a name, losing the network, and
     // getting nothing whatsoever: no spinner, no error, no "no results".
-    if (query.isNotEmpty &&
-        !rows.any((p) => p.productKey.toLowerCase() == query.toLowerCase())) {
+    if (query.isNotEmpty && !rows.any(isExact)) {
       options.add(_ProductCreate(query));
     }
     return options;
+  }
+
+  /// Page 1 of the server's matches for [query], landed in Drift. A
+  /// multi-word query fetches once per selective word ([ensureSearchLoaded]):
+  /// the server matches its `filter=` as one phrase, and the one word a list
+  /// search would send can fill page 1 without the wanted product.
+  ///
+  /// `async` on purpose: a `Future<bool>` returned as `Future<void>` would
+  /// reject the background refresh's void `catchError` handler at runtime.
+  Future<void> _fetchSearch(Services services, String query) async {
+    final products = services.products;
+    Future<bool> page1(String? term, {bool phrase = false}) =>
+        products.ensurePageLoaded(
+          companyId: widget.companyId,
+          page: 1,
+          search: term,
+          phraseOnWire: phrase,
+        );
+    if (query.isEmpty) {
+      await page1(null);
+      return;
+    }
+    await ensureSearchLoaded(
+      query,
+      serverSplits: products.serverSplitsSearchWords,
+      fetchPage1: page1,
+    );
   }
 
   /// Best-effort server refresh fired from the instant path so a large
@@ -2319,15 +2355,7 @@ class _ProductCellState extends State<_ProductCell> {
   void _scheduleBackgroundRefresh(Services services, String query) {
     _bgRefreshTimer?.cancel();
     _bgRefreshTimer = Timer(const Duration(milliseconds: 280), () {
-      unawaited(
-        services.products
-            .ensurePageLoaded(
-              companyId: widget.companyId,
-              page: 1,
-              search: query.isEmpty ? null : query,
-            )
-            .catchError((_) => false),
-      );
+      unawaited(_fetchSearch(services, query).catchError((_) {}));
     });
   }
 
@@ -2495,11 +2523,7 @@ class _ProductCellState extends State<_ProductCell> {
         await Future<void>.delayed(const Duration(milliseconds: 200));
         if (!mounted || seq != _searchSeq) return const <_ProductOption>[];
         try {
-          await services.products.ensurePageLoaded(
-            companyId: widget.companyId,
-            page: 1,
-            search: query.isEmpty ? null : query,
-          );
+          await _fetchSearch(services, query);
         } catch (_) {
           // ignore — fall back to the local snapshot
         }
@@ -3034,10 +3058,10 @@ class _ChoiceSearchCellState extends State<_ChoiceSearchCell> {
       _optionsText = text.text;
       _resetHighlight = true;
     }
-    final q = text.text.trim().toLowerCase();
-    if (q.isEmpty || text.text == widget.value) return _idle();
+    final words = foldedSearchWords(text.text);
+    if (words.isEmpty || text.text == widget.value) return _idle();
     return widget.options.where(
-      (o) => o.isNotEmpty && o.toLowerCase().contains(q),
+      (o) => o.isNotEmpty && fieldsMatchEveryWord(words, [o]),
     );
   }
 
@@ -3327,10 +3351,10 @@ class _TaxCellState extends State<_TaxCell> {
           // ~48 px sliver. The other four pickers already pass this.
           optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
           optionsBuilder: (value) {
-            final q = value.text.trim().toLowerCase();
-            final filtered = q.isEmpty
+            final words = foldedSearchWords(value.text);
+            final filtered = words.isEmpty
                 ? rates
-                : rates.where((r) => r.name.toLowerCase().contains(q));
+                : rates.where((r) => fieldsMatchEveryWord(words, [r.name]));
             return [
               const _TaxOption.none(),
               for (final r in filtered) _TaxOption.rate(r),

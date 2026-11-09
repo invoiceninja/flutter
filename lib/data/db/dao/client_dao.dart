@@ -138,9 +138,10 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
     // Anything narrower hides a row the server found ("Hans Müller", or a
     // contact's name) once the page is re-read from Drift.
     if (search != null && search.isNotEmpty) {
-      for (final word in search.split(' ').where((w) => w.isNotEmpty)) {
-        q.where(
-          (c) =>
+      q.where(
+        (c) => everyWordMatches(
+          search,
+          (word) =>
               searchLike(c.name, word) |
               searchLike(c.number, word) |
               searchLike(c.email, word) |
@@ -155,8 +156,8 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
                 keys: kClientContactSearchKeys,
                 search: word,
               ),
-        );
-      }
+        ),
+      );
     }
 
     // Mirrors the server's `name=value` filter (SQL LIKE %value%) so the

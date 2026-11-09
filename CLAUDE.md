@@ -419,6 +419,7 @@ Every surface calls `guardedOnTap(context, item)`, never `item.onTap`; surfaces 
 - **A bulk re-download re-arms mounted lists.** → `docs/sync.md`
 - **Lists sort newest-first where the sort key is monotonic.** → `docs/sync.md`
 - **Every local search predicate goes through `searchLike` (a contact through `contactSearchMatches`) — SQLite folds case for ASCII only, so a raw `.like()` or `.lower()` hides every capital umlaut the server matched.** → `docs/local-search-matching.md`
+- **Every list and picker search matches each word on its own, in any field (`everyWordMatches` in SQL, `containsEveryWord` in Dart), and a server whose filter matches a phrase — all but clients — is sent `serverSearchTerms(...).first`, never the whole text.** → `docs/local-search-matching.md`
 - **A `tmp_` id is a *display* problem too, not just a wire problem.** → `docs/sync.md`
 - **Offline never dead-letters.** → `docs/sync.md`
 - **A page or a mutation is bound to the company whose token fetched it, and the binding is a `throw`.** → `docs/sync.md`

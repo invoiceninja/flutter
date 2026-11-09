@@ -99,8 +99,11 @@ class ClientFilterKey extends MembershipFilterKey {
     return namesWithServerSearch(
       names: clients.watchActiveNames(companyId: companyId),
       query: query,
-      fetch: (q) =>
+      // ClientFilters splits words itself, so the text goes on the wire whole
+      // either way and `phrase` changes nothing.
+      fetch: (q, {phrase = false}) =>
           clients.ensurePageLoaded(companyId: companyId, page: 1, search: q),
+      serverSplitsWords: clients.serverSplitsSearchWords,
       searchedIds: (q) => clients
           .watchPage(companyId: companyId, search: q)
           .map((rows) => [for (final c in rows) c.id]),

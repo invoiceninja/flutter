@@ -221,28 +221,33 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (e) =>
-            searchLike(e.number, search) |
-            e.transactionReferenceLikePayload(search) |
-            searchLike(e.customValue1, search) |
-            searchLike(e.customValue2, search) |
-            searchLike(e.customValue3, search) |
-            searchLike(e.customValue4, search) |
-            clientNameMatchesFilter(
-              clientId: e.clientId,
-              companyId: companyId,
-              search: search,
-            ) |
-            vendorNameMatchesFilter(
-              vendorId: e.vendorId,
-              companyId: companyId,
-              search: search,
-            ) |
-            categoryNameMatchesFilter(
-              categoryId: e.categoryId,
-              companyId: companyId,
-              search: search,
-            ),
+        (e) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(e.number, word) |
+              // `ExpenseFilters` / `RecurringExpenseFilters` LIKE the amount.
+              serverDecimalLike(e.amount, word) |
+              e.transactionReferenceLikePayload(word) |
+              searchLike(e.customValue1, word) |
+              searchLike(e.customValue2, word) |
+              searchLike(e.customValue3, word) |
+              searchLike(e.customValue4, word) |
+              clientNameMatchesFilter(
+                clientId: e.clientId,
+                companyId: companyId,
+                search: word,
+              ) |
+              vendorNameMatchesFilter(
+                vendorId: e.vendorId,
+                companyId: companyId,
+                search: word,
+              ) |
+              categoryNameMatchesFilter(
+                categoryId: e.categoryId,
+                companyId: companyId,
+                search: word,
+              ),
+        ),
       );
     }
 

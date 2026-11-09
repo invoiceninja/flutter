@@ -153,6 +153,11 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
 
   /// Watch a windowed slice of products. Filters: state (active/archived/
   /// deleted), free-text search across product_key + notes.
+  ///
+  /// [rankSearch] (the line-item pickers only — a list keeps the user's sort)
+  /// leads the order with the rows whose product key alone holds every word
+  /// of [search]: Tab / Enter takes the first row, so `s22` should land on
+  /// the product keyed `S22` before one that only mentions it in its notes.
   Stream<List<ProductRow>> watchPage({
     required String companyId,
     required int offset,
@@ -167,6 +172,7 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
     Set<String> customValues4 = const {},
     String? groupField,
     String? badgeModeId,
+    bool rankSearch = false,
   }) {
     final q = select(products)..where((p) => p.companyId.equals(companyId));
     // Status-tab strip (#98): the SAME predicate the tab's count uses, so
@@ -203,17 +209,29 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (p) =>
-            searchLike(p.productKey, search) |
-            searchLike(p.notes, search) |
-            searchLike(p.customValue1, search) |
-            searchLike(p.customValue2, search) |
-            searchLike(p.customValue3, search) |
-            searchLike(p.customValue4, search),
+        (p) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(p.productKey, word) |
+              searchLike(p.notes, word) |
+              searchLike(p.customValue1, word) |
+              searchLike(p.customValue2, word) |
+              searchLike(p.customValue3, word) |
+              searchLike(p.customValue4, word),
+        ),
       );
     }
 
+    final ranked = rankSearch && search != null && search.isNotEmpty;
     q.orderBy([
+      if (ranked)
+        (p) => OrderingTerm(
+          expression: everyWordMatches(
+            search,
+            (word) => searchLike(p.productKey, word),
+          ),
+          mode: OrderingMode.desc,
+        ),
       // Grouping leads the ORDER BY so each group's rows are contiguous and
       // the screen can print a header on every value change; the user's sort
       // then applies *within* a group. Two terms, not one:

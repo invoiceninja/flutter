@@ -59,7 +59,9 @@ class GroupSettingDao
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((g) => searchLike(g.name, search));
+      q.where(
+        (g) => everyWordMatches(search, (word) => searchLike(g.name, word)),
+      );
     }
 
     q.orderBy([

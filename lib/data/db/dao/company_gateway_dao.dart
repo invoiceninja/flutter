@@ -51,7 +51,9 @@ class CompanyGatewayDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((g) => searchLike(g.label, search));
+      q.where(
+        (g) => everyWordMatches(search, (word) => searchLike(g.label, word)),
+      );
     }
 
     q.orderBy([

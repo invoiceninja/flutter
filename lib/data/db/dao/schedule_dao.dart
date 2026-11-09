@@ -50,7 +50,10 @@ class ScheduleDao extends DatabaseAccessor<AppDatabase>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (t) => searchLike(t.name, search) | searchLike(t.template, search),
+        (t) => everyWordMatches(
+          search,
+          (word) => searchLike(t.name, word) | searchLike(t.template, word),
+        ),
       );
     }
 

@@ -50,7 +50,9 @@ class ExpenseCategoryDao extends DatabaseAccessor<AppDatabase>
     }
 
     if (search != null && search.isNotEmpty) {
-      q.where((c) => searchLike(c.name, search));
+      q.where(
+        (c) => everyWordMatches(search, (word) => searchLike(c.name, word)),
+      );
     }
 
     q.orderBy([

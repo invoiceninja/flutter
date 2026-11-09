@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/utils/date_ranges.dart';
+import 'package:admin/utils/search_fold.dart';
 
 final _log = Logger('ReportEngine');
 
@@ -415,12 +416,14 @@ class ReportEngine {
     final visible = _visibleColumns(preview, ui);
 
     // 2. Column filters, then the row search.
-    final needle = ui.search.trim().toLowerCase();
+    // Every word in some cell, in any order, accents folded — the rule every
+    // search in the app follows (docs/local-search-matching.md).
+    final words = foldedSearchWords(ui.search);
     var filtered = preview.rows
         .where(
           (row) =>
               _passesFilters(row, preview.columns, ui) &&
-              (needle.isEmpty || _matchesSearch(row, needle)),
+              (words.isEmpty || _matchesSearch(row, words)),
         )
         .toList(growable: false);
 
@@ -579,12 +582,10 @@ class ReportEngine {
     return out;
   }
 
-  bool _matchesSearch(ReportRow row, String needle) {
-    for (final cell in row.cells) {
-      if (cell.filterText.contains(needle)) return true;
-    }
-    return false;
-  }
+  bool _matchesSearch(ReportRow row, List<String> words) =>
+      fieldsMatchEveryWord(words, [
+        for (final cell in row.cells) cell.filterText,
+      ]);
 
   int _columnIndex(List<ReportColumn> columns, String identifier) {
     for (var i = 0; i < columns.length; i++) {

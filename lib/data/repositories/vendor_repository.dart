@@ -195,6 +195,10 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
   /// Fetch one page from the server and upsert into Drift. Idempotent: calling
   /// for the same page repeatedly is safe (Drift upserts are by id). Advances
   /// the cursor only on a successful page that returned data.
+  ///
+  /// [phraseOnWire] sends [search] whole rather than its most selective word
+  /// — for an exact-name lookup (the inline-create duplicate check), where
+  /// the phrase is the narrowest term the server can be given.
   Future<bool> ensurePageLoaded({
     required String companyId,
     required int page,
@@ -202,12 +206,14 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    bool phraseOnWire = false,
   }) => ensurePageLoadedTemplate(
     companyId: companyId,
     page: page,
     pageSize: pageSize,
     search: search,
     states: states,
+    phraseOnWire: phraseOnWire,
     // A Created / Updated window travels as `created_between` /
     // `updated_between`, as the clients list's does.
     extraFilters: timestampWindowsForServer(extraFilters, now: now()),

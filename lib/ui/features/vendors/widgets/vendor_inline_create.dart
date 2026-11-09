@@ -97,8 +97,10 @@ Future<Vendor?> createVendorInline(
 Future<Vendor?> _findExactVendor(
   Services services,
   String companyId,
-  String name,
+  String typed,
 ) async {
+  // `Acme  Corp` is `Acme Corp` — on the wire and in the comparison.
+  final name = squashWhitespace(typed);
   const allStates = {...EntityState.values};
   try {
     if (await services.connectivity.isOnline) {
@@ -109,6 +111,9 @@ Future<Vendor?> _findExactVendor(
             page: page,
             search: name,
             states: allStates,
+            // The whole name: its longest word alone ("International") can
+            // fill three pages without reaching the vendor that already exists.
+            phraseOnWire: true,
           );
           if (!more) break;
         }
@@ -131,7 +136,7 @@ Future<Vendor?> _findExactVendor(
   final want = foldSearchText(name);
   Vendor? inactive;
   for (final v in rows) {
-    if (foldSearchText(v.name.trim()) != want) continue;
+    if (foldSearchText(squashWhitespace(v.name)) != want) continue;
     // An active match wins over an archived namesake.
     if (v.archivedAt == null && !v.isDeleted) return v;
     inactive ??= v;

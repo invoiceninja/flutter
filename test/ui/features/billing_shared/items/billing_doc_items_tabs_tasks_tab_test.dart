@@ -94,7 +94,11 @@ class _StubProductRepo implements ProductRepository {
     Map<int, Set<String>> customFilters = const {},
     String? groupField,
     String? badgeModeId,
+    bool rankSearch = false,
   }) => const Stream<List<Product>>.empty();
+
+  @override
+  bool get serverSplitsSearchWords => false;
 
   @override
   Future<bool> ensurePageLoaded({
@@ -104,6 +108,7 @@ class _StubProductRepo implements ProductRepository {
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    bool phraseOnWire = false,
   }) async => false;
 
   @override

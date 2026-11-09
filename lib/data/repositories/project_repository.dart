@@ -250,6 +250,8 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
+    // The whole text on the wire, not one word — see `ensureSearchLoaded`.
+    bool phraseOnWire = false,
   }) => ensurePageLoadedTemplate(
     companyId: companyId,
     page: page,
@@ -258,6 +260,7 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     states: states,
     extraFilters: extraFilters,
     ignoreCursor: ignoreCursor,
+    phraseOnWire: phraseOnWire,
     excludeDeletedClients: true,
     // `?include=documents` — same rationale as Client/Product.
     staticFilters: const {'include': 'documents'},

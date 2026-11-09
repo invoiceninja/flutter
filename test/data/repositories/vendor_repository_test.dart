@@ -357,6 +357,41 @@ void main() {
       await db.close();
     });
 
+    // The server's `VendorFilters::filter` matches its text as one phrase, so
+    // a multi-word search sends its most selective word and the local
+    // every-word search narrows what comes back.
+    test(
+      'a multi-word search sends one word; phraseOnWire the whole text',
+      () async {
+        final api = _SearchVendorsApi();
+        final repo = VendorRepository(db: db, api: api);
+        expect(repo.serverSplitsSearchWords, isFalse);
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'Acme Holdings International',
+        );
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'acme b2b',
+        );
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'Acme Holdings International',
+          phraseOnWire: true,
+        );
+        await repo.ensurePageLoaded(companyId: 'co', page: 1);
+        expect(api.searches, [
+          'International',
+          'b2b',
+          'Acme Holdings International',
+          null,
+        ]);
+      },
+    );
+
     test('repo can be constructed against an in-memory DB', () {
       final repo = VendorRepository(db: db, api: _FakeVendorsApi());
       expect(repo.entityTypeName, 'vendor');
@@ -576,6 +611,31 @@ class _FlakyVendorsApi implements VendorsApi {
 }
 
 class _FakeVendorsApi implements VendorsApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Records the `filter=` each list call sends; every page is empty.
+class _SearchVendorsApi implements VendorsApi {
+  final searches = <String?>[];
+
+  @override
+  Future<({VendorListApi data, int? cursorUpdatedAt, String? cursorId})> list({
+    required int page,
+    int perPage = 50,
+    String? search,
+    int? sinceUpdatedAt,
+    String? sinceId,
+    Map<String, String> filters = const {},
+  }) async {
+    searches.add(search);
+    return (
+      data: const VendorListApi(data: []),
+      cursorUpdatedAt: null,
+      cursorId: null,
+    );
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

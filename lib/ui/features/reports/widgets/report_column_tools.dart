@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// The age buckets a column of invoice ages filters by, as the engine names
 /// them (`ReportEngine._matchAge`), with what each is called on screen.
@@ -339,12 +340,12 @@ class _ValuesDialogState extends State<_ValuesDialog> {
     final tokens = context.inTheme;
     final tr = context.tr;
     final pad = InSpacing.lg(context);
-    final needle = _query.trim().toLowerCase();
-    final shown = needle.isEmpty
+    final words = foldedSearchWords(_query);
+    final shown = words.isEmpty
         ? widget.values
         : [
             for (final v in widget.values)
-              if (v.$1.toLowerCase().contains(needle)) v,
+              if (fieldsMatchEveryWord(words, [v.$1])) v,
           ];
     return Dialog(
       child: ConstrainedBox(
@@ -502,12 +503,12 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
     final tr = context.tr;
     final vm = widget.vm;
     final pad = InSpacing.lg(context);
-    final needle = _query.trim().toLowerCase();
-    final searching = needle.isNotEmpty;
+    final words = foldedSearchWords(_query);
+    final searching = words.isNotEmpty;
     final shown = searching
         ? [
             for (final c in _order)
-              if (c.displayLabel.toLowerCase().contains(needle)) c,
+              if (fieldsMatchEveryWord(words, [c.displayLabel])) c,
           ]
         : _order;
     final offerable = vm.offerableDateColumnId;
@@ -518,9 +519,10 @@ class _ColumnsDialogState extends State<_ColumnsDialog> {
       for (final group in vm.relatedColumnGroups)
         if ([
               for (final o in group.columns)
-                if (!searching ||
-                    offerLabel(o).toLowerCase().contains(needle) ||
-                    tr(group.labelKey).toLowerCase().contains(needle))
+                if (fieldsMatchEveryWord(words, [
+                  offerLabel(o),
+                  tr(group.labelKey),
+                ]))
                   o,
             ]
             case final offers when offers.isNotEmpty)

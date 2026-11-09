@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// One choice a filter offers.
 typedef ReportFilterChoice = ({String id, String name});
@@ -316,12 +317,12 @@ class _ChoicePickerState extends State<_ChoicePicker> {
               if (all == null) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final needle = _query.trim().toLowerCase();
-              final shown = needle.isEmpty
+              final words = foldedSearchWords(_query);
+              final shown = words.isEmpty
                   ? all
                   : [
                       for (final c in all)
-                        if (c.name.toLowerCase().contains(needle)) c,
+                        if (fieldsMatchEveryWord(words, [c.name])) c,
                     ];
               if (shown.isEmpty) {
                 return Center(

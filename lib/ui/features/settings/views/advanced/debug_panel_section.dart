@@ -23,6 +23,7 @@ import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/review_prompt/review_prompt_host.dart';
 import 'package:admin/ui/features/settings/views/advanced/debug_panel_window_controls.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Hidden Debug Panel revealed from the About dialog's "Debug Panel" button.
 /// Renders as a Chrome DevTools-style band pinned to the bottom of the
@@ -472,14 +473,10 @@ class _NetworkTabState extends State<_NetworkTab>
   }
 
   List<NetworkCaptureEntry> _applyFilter(List<NetworkCaptureEntry> entries) {
-    final q = _filter.text.trim().toLowerCase();
-    if (q.isEmpty) return entries;
+    final words = foldedSearchWords(_filter.text);
+    if (words.isEmpty) return entries;
     return entries
-        .where(
-          (e) =>
-              e.method.toLowerCase().contains(q) ||
-              e.url.toLowerCase().contains(q),
-        )
+        .where((e) => fieldsMatchEveryWord(words, [e.method, e.url]))
         .toList(growable: false);
   }
 

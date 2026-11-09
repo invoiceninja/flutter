@@ -1784,6 +1784,20 @@ void main() {
       },
     );
 
+    test(
+      'a multi-word search goes on the wire whole — ClientFilters splits it',
+      () async {
+        final (:repo, :api) = makeRepo(pages: {1: const <ClientApi>[]});
+        expect(repo.serverSplitsSearchWords, isTrue);
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'hans müller',
+        );
+        expect(api.calls.single.search, 'hans müller');
+      },
+    );
+
     test('ensurePageLoaded passes the lifecycle `status` filter for '
         'non-default state sets', () async {
       final (:repo, :api) = makeRepo(pages: {1: const <ClientApi>[]});

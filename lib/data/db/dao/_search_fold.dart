@@ -48,6 +48,26 @@ Expression<bool> searchLike(Expression<String> value, String search) {
   );
 }
 
+/// Whether every word of [search] ([searchWords]) satisfies [anyField] — the
+/// shape of every list search: each word must match *some* field, words in
+/// any order, different words in different fields. `s22 120hz` finds a
+/// product whose key holds `S22` and whose notes hold `120Hz`.
+///
+/// This is a superset of matching [search] as one phrase — a field holding
+/// the phrase holds each of its words — so a row the old search found is
+/// never hidden. The groups run longest word first: the most selective word
+/// rejects most rows before the others are tried.
+/// See docs/local-search-matching.md.
+Expression<bool> everyWordMatches(
+  String search,
+  Expression<bool> Function(String word) anyField,
+) {
+  final words = [...searchWords(search)]
+    ..sort((a, b) => b.length.compareTo(a.length));
+  if (words.isEmpty) return const Constant(true);
+  return words.map(anyField).reduce((a, b) => a & b);
+}
+
 /// The contact fields a client's `contact_search` column holds — what
 /// `ClientFilters::filter` searches. The billing documents' server filters
 /// search only the first three; the phone on top is a harmless superset.
@@ -125,8 +145,10 @@ const kLineItemSearchKeys = ['notes', 'product_key'];
 ///
 /// The five billing lists' local search left line items out, so every server
 /// match found through one was fetched and then hidden (invoiceninja/flutter
-/// #185). Each value is matched on its own, so a search never spans two items
-/// or two fields; a payload that isn't a JSON object, or has no `line_items`,
+/// #185). Each value is matched on its own, so one search word never spans two
+/// items or two fields (a list search calls this once per word, through
+/// [everyWordMatches], so different words may match different items); a
+/// payload that isn't a JSON object, or has no `line_items`,
 /// matches nothing. See docs/local-search-matching.md.
 Expression<bool> lineItemSearchMatches({
   required Expression<String> payload,

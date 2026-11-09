@@ -252,13 +252,14 @@ class CountryFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     final all = statics.countries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
-                foldSearchText(c.name).contains(q) ||
+                containsEveryWord(foldSearchText(c.name), words) ||
                 c.iso2.toLowerCase() == q ||
                 c.iso3.toLowerCase() == q,
           );
@@ -387,10 +388,11 @@ class GroupFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     return groups.watchAll(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((g) => foldSearchText(g.name).contains(q));
+          : all.where((g) => containsEveryWord(foldSearchText(g.name), words));
       return [
         for (final g in filtered)
           FilterValueSuggestion(
@@ -442,11 +444,12 @@ class IndustryFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     final all = statics.industries.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((i) => foldSearchText(i.name).contains(q));
+        : all.where((i) => containsEveryWord(foldSearchText(i.name), words));
     return Stream.value([
       for (final i in filtered)
         FilterValueSuggestion(rawValue: i.id, displayLabel: i.name),
@@ -510,11 +513,12 @@ class SizeFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     final all = statics.sizes.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((s) => foldSearchText(s.name).contains(q));
+        : all.where((s) => containsEveryWord(foldSearchText(s.name), words));
     return Stream.value([
       for (final s in filtered)
         FilterValueSuggestion(rawValue: s.id, displayLabel: s.name),
@@ -599,10 +603,13 @@ class AssignedFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     return users.watchAllForPicker(companyId: companyId).map((all) {
       final filtered = q.isEmpty
           ? all.take(idleSuggestionCap!)
-          : all.where((u) => foldSearchText(u.displayName).contains(q));
+          : all.where(
+              (u) => containsEveryWord(foldSearchText(u.displayName), words),
+            );
       return [
         for (final u in filtered)
           FilterValueSuggestion(
@@ -964,14 +971,15 @@ class CurrencyFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     final all = statics.currencies.values.toList()
       ..sort((a, b) => a.code.compareTo(b.code));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
         : all.where(
             (c) =>
-                foldSearchText(c.code).contains(q) ||
-                foldSearchText(c.name).contains(q),
+                containsEveryWord(foldSearchText(c.code), words) ||
+                containsEveryWord(foldSearchText(c.name), words),
           );
     return Stream.value([
       for (final c in filtered)
@@ -1047,11 +1055,12 @@ class LanguageFilterKey extends MembershipFilterKey {
     String query,
   ) {
     final q = foldSearchText(query.trim());
+    final words = foldedSearchWords(query);
     final all = statics.languages.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final filtered = q.isEmpty
         ? all.take(idleSuggestionCap!)
-        : all.where((l) => foldSearchText(l.name).contains(q));
+        : all.where((l) => containsEveryWord(foldSearchText(l.name), words));
     return Stream.value([
       for (final l in filtered)
         FilterValueSuggestion(rawValue: l.id, displayLabel: l.name),

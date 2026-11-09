@@ -17,6 +17,7 @@ import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/ui/features/reports/widgets/report_column_tools.dart';
 import 'package:admin/ui/features/reports/widgets/report_filters.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// The controls that decide what a report covers and how it is cut — sitting
 /// directly above the figures, chart and table they all change.
@@ -510,11 +511,12 @@ class _GroupDialogState extends State<_GroupDialog> {
     final pad = InSpacing.lg(context);
     final columns = vm.run.preview?.columns ?? const <ReportColumn>[];
     final needle = _query.trim().toLowerCase();
+    final words = foldedSearchWords(needle);
     final shown = needle.isEmpty
         ? columns
         : [
             for (final c in columns)
-              if (c.displayLabel.toLowerCase().contains(needle)) c,
+              if (fieldsMatchEveryWord(words, [c.displayLabel])) c,
           ];
     final offerable = vm.offerableDateColumnId;
     final dateKeyLabel = reportDateKeyLabelKey(vm.definition.dateRangeKey);
@@ -568,7 +570,7 @@ class _GroupDialogState extends State<_GroupDialog> {
                   for (final c in shown) option(c.identifier, c.displayLabel),
                   if (offerable != null &&
                       dateKeyLabel != null &&
-                      tr(dateKeyLabel).toLowerCase().contains(needle))
+                      fieldsMatchEveryWord(words, [tr(dateKeyLabel)]))
                     option(
                       offerable,
                       tr(dateKeyLabel),

@@ -5,6 +5,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Per-key cap on the synchronous `quickValueSuggestions` lookup powering
 /// the key-mode picker's cross-key value matches. Mirrors the constant in
@@ -147,9 +148,10 @@ class IsFilterKey extends FilterKey {
         ? all
         : all
               .where(
-                (s) =>
-                    s.displayLabel.toLowerCase().contains(q) ||
-                    s.rawValue.toLowerCase().contains(q),
+                (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                  s.displayLabel,
+                  s.rawValue,
+                ]),
               )
               .toList();
     return Stream.value(filtered);

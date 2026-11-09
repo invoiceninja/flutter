@@ -27,6 +27,7 @@ import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
 import 'package:admin/ui/features/review_prompt/review_listing.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
 /// header via `context.tr` — `link` is an existing translated key.
@@ -406,14 +407,14 @@ class _CommandPaletteState extends State<_CommandPalette> {
   /// of them. Filtered by [availableReports], the same rule the gallery and
   /// the route apply, so a report this user may not open is not offered.
   List<SearchResult> _localReportHits(String query) {
-    final needle = query.trim().toLowerCase();
-    if (needle.isEmpty) return const [];
+    final words = foldedSearchWords(query);
+    if (words.isEmpty) return const [];
     final l10n = Localization.of(context);
     if (l10n == null) return const [];
     final company = context.read<Services>().auth.session.value?.currentCompany;
     return [
       for (final definition in reportsInGalleryOrder(availableReports(company)))
-        if (l10n.lookup(definition.labelKey).toLowerCase().contains(needle))
+        if (fieldsMatchEveryWord(words, [l10n.lookup(definition.labelKey)]))
           SearchResult(
             group: kReportsSearchGroup,
             name: l10n.lookup(definition.labelKey),

@@ -189,25 +189,28 @@ class PurchaseOrderDao
     }
     if (search != null && search.isNotEmpty) {
       q.where(
-        (e) =>
-            searchLike(e.number, search) |
-            searchLike(e.poNumber, search) |
-            e.notesLikePayload(search) |
-            searchLike(e.customValue1, search) |
-            searchLike(e.customValue2, search) |
-            searchLike(e.customValue3, search) |
-            searchLike(e.customValue4, search) |
-            // The server also LIKEs these (`PurchaseOrderFilters`).
-            serverDateLike(e.date, search) |
-            serverDecimalLike(e.amount, search) |
-            serverDecimalLike(e.balance, search) |
-            vendorNameMatchesFilter(
-              vendorId: e.vendorId,
-              companyId: companyId,
-              search: search,
-            ) |
-            // invoiceninja/flutter#185: the server searches line items too.
-            lineItemSearchMatches(payload: e.payload, search: search),
+        (e) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(e.number, word) |
+              searchLike(e.poNumber, word) |
+              e.notesLikePayload(word) |
+              searchLike(e.customValue1, word) |
+              searchLike(e.customValue2, word) |
+              searchLike(e.customValue3, word) |
+              searchLike(e.customValue4, word) |
+              // The server also LIKEs these (`PurchaseOrderFilters`).
+              serverDateLike(e.date, word) |
+              serverDecimalLike(e.amount, word) |
+              serverDecimalLike(e.balance, word) |
+              vendorNameMatchesFilter(
+                vendorId: e.vendorId,
+                companyId: companyId,
+                search: word,
+              ) |
+              // invoiceninja/flutter#185: the server searches line items too.
+              lineItemSearchMatches(payload: e.payload, search: word),
+        ),
       );
     }
     q.orderBy([

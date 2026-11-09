@@ -74,6 +74,7 @@ import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
 import 'package:admin/ui/features/settings/widgets/home_widgets_section.dart';
+import 'package:admin/utils/search_fold.dart';
 
 // Single source of truth for the settings sidebar layout and the in-app
 // settings search. `SettingsListSidebar` reads `kSettingsSections` to render
@@ -1323,7 +1324,9 @@ List<SettingsSearchHit> searchSettings(
 }) {
   final q = _normalize(query);
   if (q.isEmpty) return const [];
-  final words = q.split(' ');
+  // The app-wide word rules (`searchWords`): punctuation-only words dropped,
+  // duplicates and words inside other words merged, accents folded.
+  final words = foldedSearchWords(query);
 
   final ranked = <String, _Ranked>{};
   var order = 0;
@@ -1451,9 +1454,9 @@ SettingsSearchHit _withTabNotDistinct(SettingsSearchHit hit) =>
       tabIsDistinct: false,
     );
 
-/// Lower-cased, trimmed, with runs of whitespace collapsed to one space.
-String _normalize(String s) =>
-    s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+/// Folded ([foldSearchText]: case and accents), trimmed, with runs of
+/// whitespace collapsed to one space — what every search compares.
+String _normalize(String s) => foldSearchText(squashWhitespace(s));
 
 /// The best tier at which [labels] (localized first, then English) match the
 /// query, or null for no match.
@@ -1474,7 +1477,7 @@ int? _rank(
 }) {
   int? best;
   for (final (i, raw) in labels.indexed) {
-    final label = raw.toLowerCase();
+    final label = foldSearchText(raw);
     int? tier;
     if (label.startsWith(q)) {
       tier = _tierPrefix;
@@ -1490,8 +1493,8 @@ int? _rank(
   }
   if (best != null) return best;
 
-  final lowerLabels = [for (final l in labels) l.toLowerCase()];
-  final ctx = context.toLowerCase();
+  final lowerLabels = [for (final l in labels) foldSearchText(l)];
+  final ctx = foldSearchText(context);
   bool inLabel(String w) => lowerLabels.any((l) => l.contains(w));
   if (words.any(inLabel) && words.every((w) => inLabel(w) || ctx.contains(w))) {
     return _tierLoose;
@@ -1499,7 +1502,7 @@ int? _rank(
   if (contextAlone && words.every((w) => inLabel(w) || ctx.contains(w))) {
     return _tierLoose;
   }
-  final kw = keywords.toLowerCase();
+  final kw = foldSearchText(keywords);
   if (kw.isNotEmpty && words.every((w) => inLabel(w) || kw.contains(w))) {
     return _tierLoose;
   }

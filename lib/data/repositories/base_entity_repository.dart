@@ -25,6 +25,7 @@ import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/utils/perf_trace.dart';
+import 'package:admin/utils/search_fold.dart';
 
 export 'package:admin/data/services/company_switched_exception.dart';
 
@@ -71,6 +72,26 @@ abstract class BaseEntityRepository<TDomain, TApi> {
        _passwordRequiredKinds = requiresPasswordFor;
 
   final AppDatabase db;
+
+  /// Whether this entity's server `filter=` already splits the text into
+  /// words that must each match some column (only `ClientFilters` does today).
+  /// When it doesn't, a list search sends one word ([serverSearchTerms]) and
+  /// the local every-word search narrows what comes back — sending the whole
+  /// text would match it as one phrase and find nothing for `s22 120hz`.
+  /// See docs/local-search-matching.md.
+  bool get serverSplitsSearchWords => false;
+
+  /// The `filter=` value for [search]: the text itself when the server splits
+  /// words ([serverSplitsSearchWords]) or the caller wants the exact phrase
+  /// ([phraseOnWire], an exact-name lookup), else its most selective word.
+  @protected
+  String? wireSearchTerm(String? search, {bool phraseOnWire = false}) {
+    if (search == null || search.isEmpty) return search;
+    if (phraseOnWire || serverSplitsSearchWords) return search;
+    final terms = serverSearchTerms(search);
+    return terms.isEmpty ? search : terms.first;
+  }
+
   final EntityType entityType;
   final Uuid uuid;
   final DateTime Function() _now;
@@ -1337,6 +1358,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     Map<String, String> staticFilters = const {},
     bool ignoreCursor = false,
     bool excludeDeletedClients = false,
+    bool phraseOnWire = false,
     required Future<({TList data, int? cursorUpdatedAt, String? cursorId})>
     Function({
       required int page,
@@ -1438,7 +1460,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     final result = await listCall(
       page: page,
       perPage: pageSize,
-      search: search,
+      search: wireSearchTerm(search, phraseOnWire: phraseOnWire),
       sinceUpdatedAt: cursor?.updatedAt,
       sinceId: cursor?.id,
       filters: filters,

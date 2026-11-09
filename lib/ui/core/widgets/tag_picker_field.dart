@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/core/widgets/tag_pill.dart';
+import 'package:admin/utils/search_fold.dart';
 
 final _log = Logger('TagPickerField');
 
@@ -363,8 +364,12 @@ class _TagPickerFieldState extends State<TagPickerField> {
                   );
                   final raw = value.text.trim();
                   if (q.isEmpty) return pool.take(20);
+                  // Every word, in any order, accents folded.
+                  final words = foldedSearchWords(q);
                   final matches = pool
-                      .where((t) => t.name.toLowerCase().contains(q))
+                      .where(
+                        (t) => containsEveryWord(foldSearchText(t.name), words),
+                      )
                       .take(50);
                   // Keep the list non-empty so the overlay — and with it the
                   // create row — can mount at all. See [_kCreatePrefix].

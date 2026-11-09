@@ -15,6 +15,7 @@ import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// Per-key cap on the synchronous `quickValueSuggestions` lookup. Three rows
 /// matches `IsFilterKey` so the picker stays consistent across keys.
@@ -227,7 +228,13 @@ class InvoiceStatusFilterKey extends FilterKey {
     ];
     final filtered = q.isEmpty
         ? all
-        : all.where((s) => s.displayLabel.toLowerCase().contains(q)).toList();
+        : all
+              .where(
+                (s) => fieldsMatchEveryWord(foldedSearchWords(q), [
+                  s.displayLabel,
+                ]),
+              )
+              .toList();
     return Stream.value(filtered);
   }
 

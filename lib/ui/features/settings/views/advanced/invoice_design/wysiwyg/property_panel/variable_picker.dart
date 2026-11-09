@@ -6,6 +6,7 @@ import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/sample/sample_data.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/search_fold.dart';
 
 /// A field the user picked: its `$token`, and the name it was listed under.
 class VariablePick {
@@ -114,7 +115,8 @@ class _VariablePickerBodyState extends State<_VariablePickerBody> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final needle = _query.text.trim().toLowerCase();
+    // Every word in the label, the token or the example, in any order.
+    final words = foldedSearchWords(_query.text);
     final sections = <Widget>[];
     for (final category in widget.categories) {
       final rows = <Widget>[];
@@ -134,10 +136,7 @@ class _VariablePickerBodyState extends State<_VariablePickerBody> {
           data: widget.sample,
           formatter: widget.formatter,
         );
-        if (needle.isNotEmpty &&
-            !label.toLowerCase().contains(needle) &&
-            !entry.token.toLowerCase().contains(needle) &&
-            !example.toLowerCase().contains(needle)) {
+        if (!fieldsMatchEveryWord(words, [label, entry.token, example])) {
           continue;
         }
         rows.add(

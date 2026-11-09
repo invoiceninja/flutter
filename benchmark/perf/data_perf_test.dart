@@ -330,6 +330,20 @@ void main() {
     }),
   );
 
+  // One word, the shape every search had before multi-word matching — kept
+  // beside the two-word case above so the per-word cost stays visible.
+  benchmark(
+    'invoices.list_search_one_word',
+    title: 'Invoices list — one-word search across 5,000',
+    batch: 2,
+    run: () => _query(() async {
+      final rows = await invoices
+          .watchPage(companyId: _co, search: 'Region')
+          .first;
+      return _expectSome(rows);
+    }),
+  );
+
   benchmark(
     'invoices.list_search',
     title: 'Invoices list — free-text search across 5,000',

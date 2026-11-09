@@ -96,10 +96,13 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
     }
     if (search != null && search.isNotEmpty) {
       q.where(
-        (t) =>
-            searchLike(t.description, search) |
-            searchLike(t.participantName, search) |
-            searchLike(t.participant, search),
+        (t) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(t.description, word) |
+              searchLike(t.participantName, word) |
+              searchLike(t.participant, word),
+        ),
       );
     }
 

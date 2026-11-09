@@ -517,6 +517,20 @@ void main() {
       expect(found, ['v-contact']);
     });
 
+    test('a vendor matches every word across its name and contacts', () async {
+      Future<List<String>> vendorsFor(String search) => ids(
+        db.vendorDao.watchPage(
+          companyId: 'co',
+          offset: 0,
+          limit: 50,
+          search: search,
+        ),
+      );
+      expect(await vendorsFor('ozturk globex'), ['v-contact']);
+      expect(await vendorsFor('globex jorg'), ['v-contact']);
+      expect(await vendorsFor('globex acme'), isEmpty);
+    });
+
     test('an invoice is found through its client name and contacts', () async {
       Future<List<String>> invoicesFor(String term) => ids(
         db.invoiceDao.watchPage(

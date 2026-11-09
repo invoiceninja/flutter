@@ -176,18 +176,21 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
 
     if (search != null && search.isNotEmpty) {
       q.where(
-        (p) =>
-            searchLike(p.name, search) |
-            searchLike(p.number, search) |
-            searchLike(p.customValue1, search) |
-            searchLike(p.customValue2, search) |
-            searchLike(p.customValue3, search) |
-            searchLike(p.customValue4, search) |
-            clientNameMatchesFilter(
-              clientId: p.clientId,
-              companyId: companyId,
-              search: search,
-            ),
+        (p) => everyWordMatches(
+          search,
+          (word) =>
+              searchLike(p.name, word) |
+              searchLike(p.number, word) |
+              searchLike(p.customValue1, word) |
+              searchLike(p.customValue2, word) |
+              searchLike(p.customValue3, word) |
+              searchLike(p.customValue4, word) |
+              clientNameMatchesFilter(
+                clientId: p.clientId,
+                companyId: companyId,
+                search: word,
+              ),
+        ),
       );
     }
 

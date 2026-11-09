@@ -60,6 +60,13 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   DnBuilderPhase _phase = DnBuilderPhase.loading;
   DnBuilderPhase get phase => _phase;
 
+  String? _loadedDocumentId;
+
+  /// The document (or template) the page last reported up (`loaded`). In a
+  /// template's builder, React's Use Template moves the page on to the new
+  /// document's builder, and this follows it.
+  String? get loadedDocumentId => _loadedDocumentId;
+
   bool _dirty = false;
 
   /// Fields placed or changed since the last save (the page reports it).
@@ -165,6 +172,8 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
           });
         }
       case 'loaded':
+        final id = message.payload['documentId'];
+        if (id is String && id.isNotEmpty) _loadedDocumentId = id;
         _readyTimer?.cancel();
         _set(DnBuilderPhase.ready);
       case 'dirty':

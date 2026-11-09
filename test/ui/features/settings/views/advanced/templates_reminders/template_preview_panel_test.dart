@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:admin/ui/core/widgets/html_web_view.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -48,18 +49,18 @@ void main() {
   }
 
   testWidgets(
-    'success branch off mobile-native renders the body via HtmlWidget, never '
-    'a WebView',
+    'success branch without a web view renders the body via HtmlWidget, '
+    'never a WebView',
     (tester) async {
-      // macOS stands in for every non-mobile-native target. The web path
+      // Linux stands in for every target without a web view. The web path
       // (kIsWeb true) routes here too, but kIsWeb is a compile-time const we
       // can't flip in a VM test — it's exercised by the Chrome integration
       // suite. The guarantee under test: the success branch must NOT
-      // instantiate a WebView unless it's truly mobile-native. (The default
-      // test platform is android, which WOULD take the WebView path — hence
-      // the override is required, reset in a finally so the foundation-var
+      // instantiate a WebView where there is none. (The default test
+      // platform is android, which WOULD take the WebView path — hence the
+      // override is required, reset in a finally so the foundation-var
       // invariant check at the end of the body passes.)
-      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
         final controller = PreviewController(api: _FakeTemplatesApi());
         addTearDown(controller.dispose);
@@ -77,6 +78,29 @@ void main() {
         expect(find.byType(WebViewWidget), findsNothing);
         // Subject bar reflects the server-substituted subject.
         expect(find.text('Welcome'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  test(
+    'the email preview has a web view on iOS, Android, macOS and Windows',
+    () {
+      try {
+        for (final p in TargetPlatform.values) {
+          debugDefaultTargetPlatformOverride = p;
+          expect(
+            HtmlWebView.supported,
+            {
+              TargetPlatform.iOS,
+              TargetPlatform.android,
+              TargetPlatform.macOS,
+              TargetPlatform.windows,
+            }.contains(p),
+            reason: '$p',
+          );
+        }
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

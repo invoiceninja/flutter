@@ -1,11 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/services/templates_api.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/html_web_view.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/preview_controller.dart';
 
 /// Live preview of the rendered email template. Listens to a
@@ -14,22 +13,22 @@ import 'package:admin/ui/features/settings/views/advanced/templates_reminders/pr
 ///
 /// Platform switch on the success branch:
 ///
-/// * iOS / Android (native) — `WebViewWidget` loads the full HTML wrapper
-///   returned from `/api/v1/templates` via `loadHtmlString`. CSS, inline
-///   images, and the server's template chrome all render correctly.
-/// * Web (incl. mobile browsers) + macOS / Windows / Linux — `webview_flutter`
-///   has no web/desktop implementation, and a web `<iframe>` platform view
-///   hits a skwasm positioning bug under the project's `--wasm` build, so we
-///   render the server-substituted body HTML with `flutter_widget_from_html_core`
-///   (`HtmlWidget`). Inline styles apply; `<style>`-block CSS from the wrapper
-///   does not — acceptable for a preview and a clear step up from the prior
-///   markdown-strip path. The server-side variable substitution still happens
-///   (the `/templates` POST runs on every debounced edit); only the rendering
+/// * iOS / Android / macOS / Windows — [HtmlWebView] loads the full HTML
+///   wrapper returned from `/api/v1/templates` in a native web view (WebView2
+///   on Windows). CSS, inline images, and the server's template chrome all
+///   render as a mail client renders them; no script runs.
+/// * Web (incl. mobile browsers) + Linux, and a Windows whose WebView2
+///   runtime is missing — a web `<iframe>` platform view hits a skwasm
+///   positioning bug under the project's `--wasm` build, and Linux has no web
+///   view the app ships, so we render the server-substituted body HTML with
+///   `flutter_widget_from_html_core` (`HtmlWidget`). Inline styles apply;
+///   `<style>`-block CSS from the wrapper does not — acceptable for a
+///   preview. The server-side variable substitution still happens (the
+///   `/templates` POST runs on every debounced edit); only the rendering
 ///   layer differs.
 ///
-/// The `!kIsWeb` guard is load-bearing: without it a mobile browser (where
-/// `defaultTargetPlatform` reports iOS/Android) would hit the WebView path and
-/// throw, since `webview_flutter` is unimplemented on web.
+/// [HtmlWebView.supported] checks `kIsWeb` first, and that is load-bearing:
+/// a mobile browser reports iOS/Android as its `defaultTargetPlatform`.
 class TemplatePreviewPanel extends StatelessWidget {
   const TemplatePreviewPanel({super.key, required this.controller});
 
@@ -170,18 +169,14 @@ class _PreviewBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Native mobile only — web (incl. a mobile browser, where
-    // defaultTargetPlatform reports iOS/Android) has no webview_flutter
-    // implementation, so it must NOT take the WebView branch. See the class doc.
-    final isMobileNative =
-        !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.android);
     return LayoutBuilder(
       builder: (context, c) {
-        final body = isMobileNative
-            ? _MobileWebView(wrapper: preview.wrapper)
-            : _HtmlPreview(body: preview.body);
+        // A native web view where there is one; the HtmlWidget render
+        // elsewhere. See the class doc.
+        final body = HtmlWebView(
+          html: preview.wrapper,
+          fallback: (_) => _HtmlPreview(body: preview.body),
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -239,42 +234,9 @@ class _PreviewSubjectBar extends StatelessWidget {
   }
 }
 
-class _MobileWebView extends StatefulWidget {
-  const _MobileWebView({required this.wrapper});
-
-  final String wrapper;
-
-  @override
-  State<_MobileWebView> createState() => _MobileWebViewState();
-}
-
-class _MobileWebViewState extends State<_MobileWebView> {
-  late WebViewController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.disabled)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..loadHtmlString(widget.wrapper);
-  }
-
-  @override
-  void didUpdateWidget(covariant _MobileWebView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.wrapper != widget.wrapper) {
-      _controller.loadHtmlString(widget.wrapper);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => WebViewWidget(controller: _controller);
-}
-
 /// Renders the server-substituted email body HTML via
-/// `flutter_widget_from_html_core` on web + desktop (anywhere without a usable
-/// WebView). Rebuilds re-parse the new HTML — no manual lifecycle needed.
+/// `flutter_widget_from_html_core` on the web and Linux (anywhere without a
+/// usable web view). Rebuilds re-parse the new HTML — no manual lifecycle needed.
 class _HtmlPreview extends StatelessWidget {
   const _HtmlPreview({required this.body});
 

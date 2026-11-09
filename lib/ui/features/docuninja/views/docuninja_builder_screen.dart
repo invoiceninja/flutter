@@ -3,9 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
@@ -18,19 +15,7 @@ import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_builder_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
-
-/// Clears what the embedded builder's web view stored, at sign-out. A no-op
-/// where the builder is never embedded. The web view store is the
-/// platform's default one, so this clears every origin in it, which is only
-/// the web app (the template preview loads its HTML without an origin).
-Future<void> clearDocuNinjaWebStorage() async {
-  if (!kDnEmbeddedBuilder || !dnEmbedSupported) return;
-  try {
-    await WebViewController().clearLocalStorage();
-  } on Object {
-    // No web view implementation (a test): nothing was stored either.
-  }
-}
+import 'package:admin/ui/features/docuninja/widgets/docuninja_embed_surface.dart';
 
 /// React's field builder for one document (`/docuninja/:id/builder`), in a
 /// web view: the hosted web app's own builder page in embed mode
@@ -67,7 +52,7 @@ class DocuNinjaBuilderScreen extends StatefulWidget {
 }
 
 class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
-  WebViewController? _web;
+  DnEmbedSurface? _web;
   DocuNinjaBuilderViewModel? _vm;
   String? _companyId;
 
@@ -81,63 +66,37 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
     final companyId = _companyId;
     if (companyId == null) return;
 
-    final web = WebViewController();
+    // The view model and the surface need each other: the surface's events
+    // go to the view model, and the view model drives the surface.
+    late final DnEmbedSurface web;
     final vm = DocuNinjaBuilderViewModel(
-      runJavaScript: web.runJavaScript,
-      currentUrl: web.currentUrl,
+      runJavaScript: (script) => web.runJavaScript(script),
+      currentUrl: () => web.currentUrl(),
       token: () => services.auth.credentials.value?.token,
       onDocumentChanged: () => session?.markDocumentsChanged(),
       onClose: () {
-        if (mounted) context.go(widget.exitRoute);
+        if (mounted) context.go(_exitRoute);
       },
       openExternal: launchExternalUri,
       // A page of the web app opens here, keeping this page's sign-in (the
       // browser has none).
-      openInPlace: web.loadRequest,
+      openInPlace: (uri) => web.load(uri),
     );
-    web
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(
-        'InvoiceNinjaApp',
-        onMessageReceived: (m) {
-          if (mounted) unawaited(vm.handle(m.message));
+    web = DnEmbedSurface(
+      DnEmbedEvents(
+        onMessage: (raw) {
+          if (mounted) unawaited(vm.handle(raw));
         },
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) {
-            final uri = Uri.tryParse(request.url);
-            if (uri != null && dnEmbedAllowed(uri)) {
-              return NavigationDecision.navigate;
-            }
-            // The page's own frames (a file preview, an embedded viewer)
-            // load where it put them; they never receive the token, which
-            // goes only to the main frame on the web app's origin.
-            if (!request.isMainFrame) return NavigationDecision.navigate;
-            // Anything else (a help page, a payment page) opens in the
-            // browser; the web view only ever shows the web app.
-            if (uri != null &&
-                request.isMainFrame &&
-                (uri.scheme == 'https' || uri.scheme == 'http')) {
-              launchExternalUri(uri);
-            }
-            return NavigationDecision.prevent;
-          },
-          onPageStarted: (_) => vm.pageStarted(),
-          onWebResourceError: (error) {
-            if (error.isForMainFrame ?? false) vm.loadFailed();
-          },
-        ),
-      );
+        onPageStarted: vm.pageStarted,
+        onLoadFailed: vm.loadFailed,
+        openExternal: launchExternalUri,
+      ),
+    );
     _web = web;
     _vm = vm..start();
-    _enableFileInputs(web);
-    // A fresh page every time: no token or company left over from an
-    // earlier visit (React keeps the DocuNinja token in localStorage).
-    web.clearLocalStorage().whenComplete(() {
-      if (!mounted) return;
-      final sign = widget.signInvitationId;
-      web.loadRequest(
+    final sign = widget.signInvitationId;
+    unawaited(
+      web.open(
         sign != null
             ? dnWebAppSignUri(
                 documentId: widget.id,
@@ -151,37 +110,26 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                 template: widget.template,
                 fromTemplate: widget.fromTemplate,
               ),
-      );
-    });
-  }
-
-  /// A file input in the builder (a document's files, an upload). iOS
-  /// answers one itself; Android's web view needs the host to pick the
-  /// files. macOS's web view plugin has no open-panel support, so a file
-  /// input there does nothing (docs/docuninja.md).
-  void _enableFileInputs(WebViewController web) {
-    final platform = web.platform;
-    if (platform is! AndroidWebViewController) return;
-    platform.setOnShowFileSelector((params) async {
-      final List<PlatformFile> files;
-      if (params.mode == FileSelectorMode.openMultiple) {
-        files = await FilePicker.pickFiles();
-      } else {
-        final one = await FilePicker.pickFile();
-        files = [?one];
-      }
-      return [
-        for (final f in files)
-          if (f.path != null) Uri.file(f.path!).toString(),
-      ];
-    });
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _web?.clearLocalStorage();
+    _web?.dispose();
     _vm?.dispose();
     super.dispose();
+  }
+
+  /// Where leaving goes. A template's builder that React's Use Template
+  /// moved on to a new document's builder leaves to that document, not to
+  /// the templates.
+  String get _exitRoute {
+    final loaded = _vm?.loadedDocumentId;
+    if (widget.template && loaded != null && loaded != widget.id) {
+      return '/docuninja/$loaded';
+    }
+    return widget.exitRoute;
   }
 
   /// What "open in the browser" does here: sign, or edit.
@@ -234,7 +182,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
             if (didPop) return;
             if (!await showDiscardChangesDialog(context)) return;
             vm.discard();
-            if (context.mounted) context.go(widget.exitRoute);
+            if (context.mounted) context.go(_exitRoute);
           },
           child: Scaffold(
             appBar: AppBar(
@@ -268,7 +216,7 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                 top: false,
                 child: Stack(
                   children: [
-                    WebViewWidget(controller: web),
+                    web.build(context),
                     // Covered and inert until the builder is up: before the
                     // handshake the page would be the web app's sign-in.
                     // The opaque listener keeps every tap off the page

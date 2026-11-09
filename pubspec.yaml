@@ -111,6 +111,12 @@ dependencies:
   # The Android web view's file chooser: the embedded DocuNinja builder's
   # file inputs (docs/docuninja.md).
   webview_flutter_android: ^4.14.1
+  # The web view on Windows (WebView2, drawn into Flutter's own surface, so
+  # dialogs and covers paint over it): the embedded DocuNinja builder and
+  # the email previews (docs/windows-web-view.md). webview_flutter has no
+  # Windows implementation. Pinned exactly: a small fork of webview_windows,
+  # so an upgrade is a deliberate, reviewed change.
+  webview_flutter_windows: 1.3.1
 
 dev_dependencies:
   build_runner: ^2.16.1

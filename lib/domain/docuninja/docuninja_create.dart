@@ -136,3 +136,42 @@ Uri dnBuilderWebUri({
   template: template,
   fromTemplate: fromTemplate,
 );
+
+/// The file extensions a web page's file input accepts (its `accept`
+/// tokens: `.pdf`, `application/pdf`, `image/*`), for a native file picker,
+/// or null for any file: no tokens, `*/*`, or one this list cannot name (the
+/// picker would otherwise hide a file the page takes). The server still
+/// checks what arrives.
+List<String>? dnAcceptedExtensions(List<String> acceptTypes) {
+  const images = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+  const byMime = <String, List<String>>{
+    'application/pdf': ['pdf'],
+    'application/msword': ['doc'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+      'docx',
+    ],
+    'application/vnd.oasis.opendocument.text': ['odt'],
+    'application/vnd.ms-excel': ['xls'],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+      'xlsx',
+    ],
+    'image/png': ['png'],
+    'image/jpeg': ['jpg', 'jpeg'],
+    'image/gif': ['gif'],
+    'image/webp': ['webp'],
+    'image/*': images,
+  };
+  final out = <String>{};
+  for (final raw in acceptTypes.expand((t) => t.split(','))) {
+    final token = raw.trim().toLowerCase();
+    if (token.isEmpty) continue;
+    if (token.startsWith('.') && token.length > 1) {
+      out.add(token.substring(1));
+      continue;
+    }
+    final known = byMime[token];
+    if (known == null) return null;
+    out.addAll(known);
+  }
+  return out.isEmpty ? null : out.toList();
+}

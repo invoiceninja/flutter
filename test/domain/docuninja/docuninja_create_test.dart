@@ -80,4 +80,19 @@ void main() {
       'https://app.invoicing.co/#/docuninja/sign/D1/I1',
     );
   });
+
+  test('a file input\'s accept list names the picker\'s extensions', () {
+    expect(dnAcceptedExtensions(const []), isNull);
+    expect(dnAcceptedExtensions(const ['']), isNull);
+    expect(dnAcceptedExtensions(const ['.pdf', '.DOCX']), ['pdf', 'docx']);
+    expect(dnAcceptedExtensions(const ['application/pdf,image/jpeg']), [
+      'pdf',
+      'jpg',
+      'jpeg',
+    ]);
+    expect(dnAcceptedExtensions(const ['image/*']), contains('png'));
+    // One the list cannot name: any file, rather than hide one it takes.
+    expect(dnAcceptedExtensions(const ['.pdf', 'text/csv']), isNull);
+    expect(dnAcceptedExtensions(const ['*/*']), isNull);
+  });
 }

@@ -144,6 +144,7 @@ See `docs/architecture.md` for the offline-first write pipeline (Drift→outbox�
 - **A home-screen widget reads only the app-written snapshot (no token, no network, no Dart), and its taps are deep links through the trampoline.** → `docs/home-screen-widgets.md`
 - **The only write a widget makes is a queued command that only the app's own code can create (never a URL), applied by the app through the outbox — a Stop at the time of the tap, a Start through the task's own start once the app has opened on it.** → `docs/home-screen-widgets.md`
 - **Every session end leaves the widget snapshot signed out, after cancelling any pending write.** → `docs/home-screen-widgets.md`
+- **A web view on Windows is WebView2 through the pinned `webview_flutter_windows` (`webview_flutter` has none), and every web view surface keeps the same rules on both packages — `HtmlWebView` for a document, `DnEmbedSurface` for the builder.** → `docs/windows-web-view.md`
 
 ## Design system (v2)
 

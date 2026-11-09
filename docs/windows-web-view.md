@@ -1,0 +1,32 @@
+# Web views on Windows, and where the app uses one
+
+Companion to CLAUDE.md § Architecture — at a glance. Which package draws a web view on each platform, why Windows has its own, and the two places the app shows one: the embedded DocuNinja builder and the email previews.
+
+## On Windows the web view is WebView2 through `webview_flutter_windows`, pinned, and every web view surface keeps one set of rules on both packages
+
+`webview_flutter` has no Windows implementation. iOS, Android and macOS use it; Windows uses [`webview_flutter_windows`](https://pub.dev/packages/webview_flutter_windows) (WebView2), behind `lib/ui/core/widgets/windows_web_view.dart`. Linux and the web have no web view the app ships, and fall back.
+
+- **Why this package.** It renders off screen into a Flutter `Texture`, so a dialog, a loading cover or a toast paints over it and it scrolls and clips like any widget. The alternative that implements `webview_flutter`'s interface (`webview_win_floating`) floats a native window over the app: no Flutter widget can draw above it, so the builder's "discard changes?" dialog and its loading cover would sit behind the page, and a preview inside a scrolling pane would not clip. It also hands keyboard focus to the page properly, which the app's shortcut layer depends on (typing in the builder must never fire a `G` jump).
+- **It is pinned exactly** (`webview_flutter_windows: 1.3.1`). It is a small fork of `webview_windows` (the original, with the same API, has not been released since 2024); an upgrade is a deliberate, reviewed change, not a `pub upgrade` side effect. It needs WebView2 SDK headers from NuGet at build time, which its CMake fetches with pinned hashes.
+- **Its own API**, not `webview_flutter`'s: `WebviewController` / `Webview`, `loadUrl` / `loadStringContent`, `executeScript`, `addScriptToExecuteOnDocumentCreated`, `webMessage` (from `chrome.webview.postMessage`), and `url` / `loadingState` / `onLoadError` streams. It cannot refuse a navigation or name a JavaScript channel, so each surface rebuilds those two (below).
+- **A data folder of the app's own.** WebView2's default sits beside the executable, which an MSIX (Microsoft Store) install keeps read-only, so the first web view would fail to start. `ensureWindowsWebViewEnvironment` points it at `<application support>/WebView2` once, before the first controller.
+- **No runtime, no web view.** WebView2's runtime ships with Windows 11 and comes to Windows 10 with Edge; where it is missing, `startWindowsWebView` returns null and every caller shows what the platforms without a web view show.
+- **Not verified on a Windows machine yet.** The Dart side is analysed and tested on the others; CI's `build-windows` job (`ci.yaml`, dispatched by hand) proves it builds. Check on a device: the builder handshake, a file input, typing in a field with the app's shortcuts on, the previews, and a sign-out clearing the data folder.
+
+## The embedded builder keeps the same rules on WebView2: only the web app shows, the page talks over `InvoiceNinjaApp`, nothing it stored outlives the screen
+
+`DnEmbedSurface` (`lib/ui/features/docuninja/widgets/docuninja_embed_surface.dart`) is the builder's web view, with one implementation per package; the screen and its view model do not know which.
+
+- **The channel.** On Windows a script WebView2 runs before the page's own (`addScriptToExecuteOnDocumentCreated`), in the main frame on the web app's origin only, defines `window.InvoiceNinjaApp.postMessage` and forwards to `chrome.webview.postMessage`. React's embed mode looks for that object before it boots, exactly as it finds the `webview_flutter` channel elsewhere. Every message after `init` still has to carry the screen's nonce (docs/docuninja.md).
+- **Only the web app shows.** `webview_flutter` refuses a main-frame navigation off the web app. WebView2 cannot, so when the main frame's address leaves the web app it is opened in the browser and the web view goes back. The page that briefly loaded never had the token: it lives in the web app's own session storage, and the init script hands it over only on the web app's origin.
+- **Storage.** The same pre-page script clears the web app's local storage on the first page of each screen (a reload keeps session storage, so it does not clear again mid-session), the screen clears it again as it closes, and a sign-out deletes the whole WebView2 data folder (`clearDocuNinjaWebStorage`), since no web view is alive then.
+- **File inputs** are WebView2's own open dialog. Android's go through the app's picker, now limited to the types the input accepts (`dnAcceptedExtensions`); macOS's web view still has none.
+- **Pop-ups** are refused (`WebviewPopupWindowPolicy.deny`); React's new-tab links already come as `openExternal`.
+
+## An email preview is a native web view wherever there is one, and a picture, not a page
+
+`HtmlWebView` (`lib/ui/core/widgets/html_web_view.dart`) shows a finished HTML document in a native web view on iOS, Android, macOS and Windows, so an email's `<style>` blocks, tables and images render as a mail client renders them. `TemplatePreviewPanel` uses it, so both email previews do: Settings → Templates & Reminders, and an invoice, quote, credit or purchase order's Email screen. The web and Linux (and a Windows without WebView2) keep the `HtmlWidget` render of the body.
+
+- **macOS had a web view all along.** The preview used one only on iOS and Android, on the belief that `webview_flutter` had no desktop implementation; it has one for macOS (`webview_flutter_wkwebview`), which the builder already used.
+- **No script runs.** `htmlWithoutScripts` puts a Content-Security-Policy (`script-src 'none'`) first in `<head>`: a custom template is user-written HTML, and WebView2 has no switch to turn JavaScript off. `webview_flutter`'s is off as well.
+- **A tapped link goes nowhere.** `webview_flutter` refuses every navigation but the document's own load; on WebView2 a main-frame address that leaves the document puts the document back.

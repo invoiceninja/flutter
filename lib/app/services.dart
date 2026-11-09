@@ -163,7 +163,7 @@ import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/domain/quick_create.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
-import 'package:admin/ui/features/docuninja/views/docuninja_builder_screen.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_embed_surface.dart';
 import 'package:admin/ui/core/detail/related_tab_counts.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';

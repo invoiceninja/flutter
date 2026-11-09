@@ -8,15 +8,16 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
-/// Whether this platform can embed the builder: `webview_flutter` runs on
-/// iOS, Android and macOS. Windows, Linux and the web open it in the
-/// browser.
+/// Whether this platform can embed the builder: `webview_flutter` on iOS,
+/// Android and macOS, WebView2 on Windows (docs/windows-web-view.md). Linux
+/// and the web open it in the browser.
 bool get dnEmbedSupported {
   if (kIsWeb) return false;
   return switch (defaultTargetPlatform) {
     TargetPlatform.iOS ||
     TargetPlatform.android ||
-    TargetPlatform.macOS => true,
+    TargetPlatform.macOS ||
+    TargetPlatform.windows => true,
     _ => false,
   };
 }

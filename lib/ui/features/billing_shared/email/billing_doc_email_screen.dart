@@ -69,8 +69,8 @@ typedef ScheduleEmailCallback =
 /// behaviors arrive as plain values + callbacks from
 /// [BillingDocEmailRouteScreen]. The live preview reuses [PreviewController]
 /// + [TemplatePreviewPanel] (the same engine as Settings → Templates):
-/// WebView-rendered HTML on iOS/Android, `HtmlWidget` on desktop/web — the PDF
-/// panel is the rendered-fidelity anchor on desktop.
+/// a native web view on iOS, Android, macOS and Windows, `HtmlWidget` on the
+/// web and Linux, where the PDF panel is the rendered-fidelity anchor.
 class BillingDocEmailScreen extends StatefulWidget {
   const BillingDocEmailScreen({
     super.key,
@@ -918,8 +918,8 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   }
 
   /// Standalone preview tab. Deliberately kept OUT of the compose scroll:
-  /// `TemplatePreviewPanel` is a `WebViewWidget` on mobile-native and an
-  /// `HtmlWidget` elsewhere, and its frame falls back to a hard 600 px when
+  /// `TemplatePreviewPanel` is a native web view (`HtmlWebView`) or an
+  /// `HtmlWidget`, and its frame falls back to a hard 600 px when
   /// its height is unbounded — inside the compose `SingleChildScrollView`
   /// that is a 600 px block with a nested scroll inside it.
   Widget _previewTab(BuildContext context) => Padding(

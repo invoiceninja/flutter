@@ -99,6 +99,19 @@ void main() {
     b.dispose();
   });
 
+  test('loaded remembers the document the page moved on to', () async {
+    final b = vm();
+    await b.handle(_msg('ready'));
+    await b.handle(_msg('loaded', const {'documentId': 'T1'}, b.nonce));
+    expect(b.loadedDocumentId, 'T1');
+    // React's Use Template, inside the template builder.
+    await b.handle(_msg('loaded', const {'documentId': 'D9'}, b.nonce));
+    expect(b.loadedDocumentId, 'D9');
+    await b.handle(_msg('loaded', const {}, b.nonce));
+    expect(b.loadedDocumentId, 'D9', reason: 'no id keeps the last one');
+    b.dispose();
+  });
+
   test('another protocol version is not driven', () async {
     final b = vm();
     await b.handle(

@@ -68,6 +68,7 @@ class BillingDocItemsTabs extends StatefulWidget {
     this.showStockQuantity = false,
     this.offerTasksTab = false,
     this.onCreateTaskFromLineItem,
+    this.allowOptionalLines = false,
   });
 
   /// For `addFlushHook` + `stripEmptyLineItems`. Type-erased to keep
@@ -95,6 +96,9 @@ class BillingDocItemsTabs extends StatefulWidget {
   /// still schedulable, and the "already a task" gate lives at the row, so one
   /// rule holds for the tabbed and untabbed cases alike.
   final ValueChanged<LineItem>? onCreateTaskFromLineItem;
+
+  /// Offer each line's Optional toggle — `BillingDocType.offersOptionalLines`.
+  final bool allowOptionalLines;
 
   @override
   State<BillingDocItemsTabs> createState() => _BillingDocItemsTabsState();
@@ -530,6 +534,7 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       // holding its text, and committed again at every pause — a duplicate
       // product line each time, all of them saved. Typed lines go on Products.
       allowNewRows: kind != _LineKind.expenses,
+      allowOptionalLines: widget.allowOptionalLines,
     );
   }
 

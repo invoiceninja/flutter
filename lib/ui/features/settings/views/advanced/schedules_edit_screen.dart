@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/models/domain/design.dart';
@@ -1502,7 +1503,15 @@ class _ReportStatusField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final options = reportStatusOptions(reportName);
+    final services = context.read<Services>();
+    final options = reportStatusOptions(
+      reportName,
+      quoteCancelledFilters: ServerFeatures.supports(
+        services.serverVersion.value,
+        ServerFeatures.quoteReportCancelledStatus,
+        isHosted: services.auth.session.value?.isHosted ?? false,
+      ),
+    );
     if (options == null) {
       return SettingsTextField(
         initialValue: value,

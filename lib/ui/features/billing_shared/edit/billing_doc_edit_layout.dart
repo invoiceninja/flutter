@@ -272,6 +272,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
       index: index,
       config: config.forCompany(company),
       onChanged: vm.replaceLineItems,
+      allowOptional: _type.offersOptionalLines,
     );
   }
 
@@ -990,6 +991,7 @@ class _ItemsEditor<T extends BillingDocFields> extends StatelessWidget {
       showStockQuantity: type.showsProductStock,
       offerTasksTab: type.offersTasksTable,
       onCreateTaskFromLineItem: onCreateTask,
+      allowOptionalLines: type.offersOptionalLines,
     );
   }
 }

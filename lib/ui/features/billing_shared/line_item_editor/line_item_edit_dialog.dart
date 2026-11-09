@@ -59,6 +59,7 @@ Future<LineItem?> showLineItemEditDialog(
   String actionKey = 'save',
   bool autofocusProduct = false,
   Stream<List<TaxRate>>? taxRates,
+  bool allowOptional = false,
 }) {
   return showDialog<LineItem>(
     context: context,
@@ -71,6 +72,9 @@ Future<LineItem?> showLineItemEditDialog(
       actionKey: actionKey,
       autofocusProduct: autofocusProduct,
       taxRates: taxRates,
+      // A line already optional keeps the switch, so the flag can be cleared
+      // on a document that doesn't otherwise offer it.
+      allowOptional: allowOptional || initial.isOptional,
     ),
   );
 }
@@ -85,6 +89,7 @@ class _LineItemEditDialog extends StatefulWidget {
     required this.actionKey,
     required this.autofocusProduct,
     required this.taxRates,
+    required this.allowOptional,
   });
 
   final LineItem initial;
@@ -95,6 +100,10 @@ class _LineItemEditDialog extends StatefulWidget {
   final String actionKey;
   final bool autofocusProduct;
   final Stream<List<TaxRate>>? taxRates;
+
+  /// Show the Optional switch ([LineItem.isOptional]) — quotes, or a line
+  /// that already has it set.
+  final bool allowOptional;
 
   @override
   State<_LineItemEditDialog> createState() => _LineItemEditDialogState();
@@ -341,6 +350,17 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                     );
                   },
                 ),
+              if (widget.allowOptional) ...[
+                SizedBox(height: InSpacing.sm),
+                // Last: it decides whether the line counts, not what it is.
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(context.tr('optional')),
+                  value: _draft.isOptional,
+                  onChanged: (v) =>
+                      setState(() => _draft = _draft.copyWith(isOptional: v)),
+                ),
+              ],
             ],
           ),
         ),

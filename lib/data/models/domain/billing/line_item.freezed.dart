@@ -15,7 +15,13 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$LineItem {
 
- String get productKey; String get notes; Decimal get cost; Decimal get productCost; Decimal get quantity; String get taxName1; String get taxName2; String get taxName3; Decimal get taxRate1; Decimal get taxRate2; Decimal get taxRate3; LineItemType get typeId; String get customValue1; String get customValue2; String get customValue3; String get customValue4; Decimal get discount; String? get taskId; String? get expenseId; String get taxCategoryId; int? get createdAt;
+ String get productKey; String get notes; Decimal get cost; Decimal get productCost; Decimal get quantity; String get taxName1; String get taxName2; String get taxName3; Decimal get taxRate1; Decimal get taxRate2; Decimal get taxRate3; LineItemType get typeId; String get customValue1; String get customValue2; String get customValue3; String get customValue4; Decimal get discount; String? get taskId; String? get expenseId; String get taxCategoryId; int? get createdAt;/// A quote line the client may choose to include when approving it. Left
+/// out of the document's subtotal, taxes and total ([BillingDocTotals]),
+/// and offered as a toggle on quotes only. The server does not model it
+/// yet (2026-11), so until it does its own total still counts the line.
+ bool get isOptional;/// The line's fields this model doesn't name, written back as they came
+/// (`lineItemExtraFields`) — `unit_code`, `income_account_id`, `tags`…
+ Map<String, Object?> get extra;
 /// Create a copy of LineItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +33,20 @@ $LineItemCopyWith<LineItem> get copyWith => _$LineItemCopyWithImpl<LineItem>(thi
 @override
 bool operator ==(Object other) {
   final _this = this as LineItem;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LineItem&&(identical(other.productKey, _this.productKey) || other.productKey == _this.productKey)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.cost, _this.cost) || other.cost == _this.cost)&&(identical(other.productCost, _this.productCost) || other.productCost == _this.productCost)&&(identical(other.quantity, _this.quantity) || other.quantity == _this.quantity)&&(identical(other.taxName1, _this.taxName1) || other.taxName1 == _this.taxName1)&&(identical(other.taxName2, _this.taxName2) || other.taxName2 == _this.taxName2)&&(identical(other.taxName3, _this.taxName3) || other.taxName3 == _this.taxName3)&&(identical(other.taxRate1, _this.taxRate1) || other.taxRate1 == _this.taxRate1)&&(identical(other.taxRate2, _this.taxRate2) || other.taxRate2 == _this.taxRate2)&&(identical(other.taxRate3, _this.taxRate3) || other.taxRate3 == _this.taxRate3)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.discount, _this.discount) || other.discount == _this.discount)&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.expenseId, _this.expenseId) || other.expenseId == _this.expenseId)&&(identical(other.taxCategoryId, _this.taxCategoryId) || other.taxCategoryId == _this.taxCategoryId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LineItem&&(identical(other.productKey, _this.productKey) || other.productKey == _this.productKey)&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.cost, _this.cost) || other.cost == _this.cost)&&(identical(other.productCost, _this.productCost) || other.productCost == _this.productCost)&&(identical(other.quantity, _this.quantity) || other.quantity == _this.quantity)&&(identical(other.taxName1, _this.taxName1) || other.taxName1 == _this.taxName1)&&(identical(other.taxName2, _this.taxName2) || other.taxName2 == _this.taxName2)&&(identical(other.taxName3, _this.taxName3) || other.taxName3 == _this.taxName3)&&(identical(other.taxRate1, _this.taxRate1) || other.taxRate1 == _this.taxRate1)&&(identical(other.taxRate2, _this.taxRate2) || other.taxRate2 == _this.taxRate2)&&(identical(other.taxRate3, _this.taxRate3) || other.taxRate3 == _this.taxRate3)&&(identical(other.typeId, _this.typeId) || other.typeId == _this.typeId)&&(identical(other.customValue1, _this.customValue1) || other.customValue1 == _this.customValue1)&&(identical(other.customValue2, _this.customValue2) || other.customValue2 == _this.customValue2)&&(identical(other.customValue3, _this.customValue3) || other.customValue3 == _this.customValue3)&&(identical(other.customValue4, _this.customValue4) || other.customValue4 == _this.customValue4)&&(identical(other.discount, _this.discount) || other.discount == _this.discount)&&(identical(other.taskId, _this.taskId) || other.taskId == _this.taskId)&&(identical(other.expenseId, _this.expenseId) || other.expenseId == _this.expenseId)&&(identical(other.taxCategoryId, _this.taxCategoryId) || other.taxCategoryId == _this.taxCategoryId)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.isOptional, _this.isOptional) || other.isOptional == _this.isOptional)&&const DeepCollectionEquality().equals(other.extra, _this.extra));
 }
 
 
 @override
 int get hashCode {
   final _this = this as LineItem;
-  return Object.hashAll([runtimeType,_this.productKey,_this.notes,_this.cost,_this.productCost,_this.quantity,_this.taxName1,_this.taxName2,_this.taxName3,_this.taxRate1,_this.taxRate2,_this.taxRate3,_this.typeId,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.discount,_this.taskId,_this.expenseId,_this.taxCategoryId,_this.createdAt]);
+  return Object.hashAll([runtimeType,_this.productKey,_this.notes,_this.cost,_this.productCost,_this.quantity,_this.taxName1,_this.taxName2,_this.taxName3,_this.taxRate1,_this.taxRate2,_this.taxRate3,_this.typeId,_this.customValue1,_this.customValue2,_this.customValue3,_this.customValue4,_this.discount,_this.taskId,_this.expenseId,_this.taxCategoryId,_this.createdAt,_this.isOptional,const DeepCollectionEquality().hash(_this.extra)]);
 }
 
 @override
 String toString() {
   final _this = this as LineItem;
-  return 'LineItem(productKey: ${_this.productKey}, notes: ${_this.notes}, cost: ${_this.cost}, productCost: ${_this.productCost}, quantity: ${_this.quantity}, taxName1: ${_this.taxName1}, taxName2: ${_this.taxName2}, taxName3: ${_this.taxName3}, taxRate1: ${_this.taxRate1}, taxRate2: ${_this.taxRate2}, taxRate3: ${_this.taxRate3}, typeId: ${_this.typeId}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, discount: ${_this.discount}, taskId: ${_this.taskId}, expenseId: ${_this.expenseId}, taxCategoryId: ${_this.taxCategoryId}, createdAt: ${_this.createdAt})';
+  return 'LineItem(productKey: ${_this.productKey}, notes: ${_this.notes}, cost: ${_this.cost}, productCost: ${_this.productCost}, quantity: ${_this.quantity}, taxName1: ${_this.taxName1}, taxName2: ${_this.taxName2}, taxName3: ${_this.taxName3}, taxRate1: ${_this.taxRate1}, taxRate2: ${_this.taxRate2}, taxRate3: ${_this.taxRate3}, typeId: ${_this.typeId}, customValue1: ${_this.customValue1}, customValue2: ${_this.customValue2}, customValue3: ${_this.customValue3}, customValue4: ${_this.customValue4}, discount: ${_this.discount}, taskId: ${_this.taskId}, expenseId: ${_this.expenseId}, taxCategoryId: ${_this.taxCategoryId}, createdAt: ${_this.createdAt}, isOptional: ${_this.isOptional}, extra: ${_this.extra})';
 }
 
 
@@ -51,7 +57,7 @@ abstract mixin class $LineItemCopyWith<$Res>  {
   factory $LineItemCopyWith(LineItem value, $Res Function(LineItem) _then) = _$LineItemCopyWithImpl;
 @useResult
 $Res call({
- String productKey, String notes, Decimal cost, Decimal productCost, Decimal quantity, String taxName1, String taxName2, String taxName3, Decimal taxRate1, Decimal taxRate2, Decimal taxRate3, LineItemType typeId, String customValue1, String customValue2, String customValue3, String customValue4, Decimal discount, String? taskId, String? expenseId, String taxCategoryId, int? createdAt
+ String productKey, String notes, Decimal cost, Decimal productCost, Decimal quantity, String taxName1, String taxName2, String taxName3, Decimal taxRate1, Decimal taxRate2, Decimal taxRate3, LineItemType typeId, String customValue1, String customValue2, String customValue3, String customValue4, Decimal discount, String? taskId, String? expenseId, String taxCategoryId, int? createdAt, bool isOptional, Map<String, Object?> extra
 });
 
 
@@ -68,7 +74,7 @@ class _$LineItemCopyWithImpl<$Res>
 
 /// Create a copy of LineItem
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? productKey = null,Object? notes = null,Object? cost = null,Object? productCost = null,Object? quantity = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? typeId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? discount = null,Object? taskId = freezed,Object? expenseId = freezed,Object? taxCategoryId = null,Object? createdAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? productKey = null,Object? notes = null,Object? cost = null,Object? productCost = null,Object? quantity = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? typeId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? discount = null,Object? taskId = freezed,Object? expenseId = freezed,Object? taxCategoryId = null,Object? createdAt = freezed,Object? isOptional = null,Object? extra = null,}) {
   return _then(LineItem(
 productKey: null == productKey ? _self.productKey : productKey // ignore: cast_nullable_to_non_nullable
 as String,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
@@ -91,7 +97,9 @@ as Decimal,taskId: freezed == taskId ? _self.taskId : taskId // ignore: cast_nul
 as String?,expenseId: freezed == expenseId ? _self.expenseId : expenseId // ignore: cast_nullable_to_non_nullable
 as String?,taxCategoryId: null == taxCategoryId ? _self.taxCategoryId : taxCategoryId // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,isOptional: null == isOptional ? _self.isOptional : isOptional // ignore: cast_nullable_to_non_nullable
+as bool,extra: null == extra ? _self.extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, Object?>,
   ));
 }
 
@@ -176,10 +184,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt,  bool isOptional,  Map<String, Object?> extra)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LineItem() when $default != null:
-return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt);case _:
+return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt,_that.isOptional,_that.extra);case _:
   return orElse();
 
 }
@@ -197,10 +205,10 @@ return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt,  bool isOptional,  Map<String, Object?> extra)  $default,) {final _that = this;
 switch (_that) {
 case _LineItem():
-return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt);case _:
+return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt,_that.isOptional,_that.extra);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -217,10 +225,10 @@ return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String productKey,  String notes,  Decimal cost,  Decimal productCost,  Decimal quantity,  String taxName1,  String taxName2,  String taxName3,  Decimal taxRate1,  Decimal taxRate2,  Decimal taxRate3,  LineItemType typeId,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  Decimal discount,  String? taskId,  String? expenseId,  String taxCategoryId,  int? createdAt,  bool isOptional,  Map<String, Object?> extra)?  $default,) {final _that = this;
 switch (_that) {
 case _LineItem() when $default != null:
-return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt);case _:
+return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.quantity,_that.taxName1,_that.taxName2,_that.taxName3,_that.taxRate1,_that.taxRate2,_that.taxRate3,_that.typeId,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.discount,_that.taskId,_that.expenseId,_that.taxCategoryId,_that.createdAt,_that.isOptional,_that.extra);case _:
   return null;
 
 }
@@ -232,7 +240,7 @@ return $default(_that.productKey,_that.notes,_that.cost,_that.productCost,_that.
 
 
 class _LineItem implements LineItem {
-  const _LineItem({required this.productKey, required this.notes, required this.cost, required this.productCost, required this.quantity, required this.taxName1, required this.taxName2, required this.taxName3, required this.taxRate1, required this.taxRate2, required this.taxRate3, required this.typeId, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.discount, this.taskId, this.expenseId, required this.taxCategoryId, this.createdAt});
+  const _LineItem({required this.productKey, required this.notes, required this.cost, required this.productCost, required this.quantity, required this.taxName1, required this.taxName2, required this.taxName3, required this.taxRate1, required this.taxRate2, required this.taxRate3, required this.typeId, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.discount, this.taskId, this.expenseId, required this.taxCategoryId, this.createdAt, this.isOptional = false,  Map<String, Object?> extra = const <String, Object?>{}}): _extra = extra;
   
 
 @override final  String productKey;
@@ -256,6 +264,22 @@ class _LineItem implements LineItem {
 @override final  String? expenseId;
 @override final  String taxCategoryId;
 @override final  int? createdAt;
+/// A quote line the client may choose to include when approving it. Left
+/// out of the document's subtotal, taxes and total ([BillingDocTotals]),
+/// and offered as a toggle on quotes only. The server does not model it
+/// yet (2026-11), so until it does its own total still counts the line.
+@override@JsonKey() final  bool isOptional;
+/// The line's fields this model doesn't name, written back as they came
+/// (`lineItemExtraFields`) — `unit_code`, `income_account_id`, `tags`…
+ final  Map<String, Object?> _extra;
+/// The line's fields this model doesn't name, written back as they came
+/// (`lineItemExtraFields`) — `unit_code`, `income_account_id`, `tags`…
+@override@JsonKey() Map<String, Object?> get extra {
+  if (_extra is EqualUnmodifiableMapView) return _extra;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_extra);
+}
+
 
 /// Create a copy of LineItem
 /// with the given fields replaced by the non-null parameter values.
@@ -267,18 +291,18 @@ _$LineItemCopyWith<_LineItem> get copyWith => __$LineItemCopyWithImpl<_LineItem>
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LineItem&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.cost, cost) || other.cost == cost)&&(identical(other.productCost, productCost) || other.productCost == productCost)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.taxCategoryId, taxCategoryId) || other.taxCategoryId == taxCategoryId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LineItem&&(identical(other.productKey, productKey) || other.productKey == productKey)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.cost, cost) || other.cost == cost)&&(identical(other.productCost, productCost) || other.productCost == productCost)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.taxName1, taxName1) || other.taxName1 == taxName1)&&(identical(other.taxName2, taxName2) || other.taxName2 == taxName2)&&(identical(other.taxName3, taxName3) || other.taxName3 == taxName3)&&(identical(other.taxRate1, taxRate1) || other.taxRate1 == taxRate1)&&(identical(other.taxRate2, taxRate2) || other.taxRate2 == taxRate2)&&(identical(other.taxRate3, taxRate3) || other.taxRate3 == taxRate3)&&(identical(other.typeId, typeId) || other.typeId == typeId)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.discount, discount) || other.discount == discount)&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.expenseId, expenseId) || other.expenseId == expenseId)&&(identical(other.taxCategoryId, taxCategoryId) || other.taxCategoryId == taxCategoryId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.isOptional, isOptional) || other.isOptional == isOptional)&&const DeepCollectionEquality().equals(other.extra, _extra));
 }
 
 
 @override
 int get hashCode {
-    return Object.hashAll([runtimeType,productKey,notes,cost,productCost,quantity,taxName1,taxName2,taxName3,taxRate1,taxRate2,taxRate3,typeId,customValue1,customValue2,customValue3,customValue4,discount,taskId,expenseId,taxCategoryId,createdAt]);
+    return Object.hashAll([runtimeType,productKey,notes,cost,productCost,quantity,taxName1,taxName2,taxName3,taxRate1,taxRate2,taxRate3,typeId,customValue1,customValue2,customValue3,customValue4,discount,taskId,expenseId,taxCategoryId,createdAt,isOptional,const DeepCollectionEquality().hash(_extra)]);
 }
 
 @override
 String toString() {
-    return 'LineItem(productKey: $productKey, notes: $notes, cost: $cost, productCost: $productCost, quantity: $quantity, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, typeId: $typeId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, discount: $discount, taskId: $taskId, expenseId: $expenseId, taxCategoryId: $taxCategoryId, createdAt: $createdAt)';
+    return 'LineItem(productKey: $productKey, notes: $notes, cost: $cost, productCost: $productCost, quantity: $quantity, taxName1: $taxName1, taxName2: $taxName2, taxName3: $taxName3, taxRate1: $taxRate1, taxRate2: $taxRate2, taxRate3: $taxRate3, typeId: $typeId, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, discount: $discount, taskId: $taskId, expenseId: $expenseId, taxCategoryId: $taxCategoryId, createdAt: $createdAt, isOptional: $isOptional, extra: $extra)';
 }
 
 
@@ -289,7 +313,7 @@ abstract mixin class _$LineItemCopyWith<$Res> implements $LineItemCopyWith<$Res>
   factory _$LineItemCopyWith(_LineItem value, $Res Function(_LineItem) _then) = __$LineItemCopyWithImpl;
 @override @useResult
 $Res call({
- String productKey, String notes, Decimal cost, Decimal productCost, Decimal quantity, String taxName1, String taxName2, String taxName3, Decimal taxRate1, Decimal taxRate2, Decimal taxRate3, LineItemType typeId, String customValue1, String customValue2, String customValue3, String customValue4, Decimal discount, String? taskId, String? expenseId, String taxCategoryId, int? createdAt
+ String productKey, String notes, Decimal cost, Decimal productCost, Decimal quantity, String taxName1, String taxName2, String taxName3, Decimal taxRate1, Decimal taxRate2, Decimal taxRate3, LineItemType typeId, String customValue1, String customValue2, String customValue3, String customValue4, Decimal discount, String? taskId, String? expenseId, String taxCategoryId, int? createdAt, bool isOptional, Map<String, Object?> extra
 });
 
 
@@ -306,7 +330,7 @@ class __$LineItemCopyWithImpl<$Res>
 
 /// Create a copy of LineItem
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? productKey = null,Object? notes = null,Object? cost = null,Object? productCost = null,Object? quantity = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? typeId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? discount = null,Object? taskId = freezed,Object? expenseId = freezed,Object? taxCategoryId = null,Object? createdAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? productKey = null,Object? notes = null,Object? cost = null,Object? productCost = null,Object? quantity = null,Object? taxName1 = null,Object? taxName2 = null,Object? taxName3 = null,Object? taxRate1 = null,Object? taxRate2 = null,Object? taxRate3 = null,Object? typeId = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? discount = null,Object? taskId = freezed,Object? expenseId = freezed,Object? taxCategoryId = null,Object? createdAt = freezed,Object? isOptional = null,Object? extra = null,}) {
   return _then(_LineItem(
 productKey: null == productKey ? _self.productKey : productKey // ignore: cast_nullable_to_non_nullable
 as String,notes: null == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
@@ -329,7 +353,9 @@ as Decimal,taskId: freezed == taskId ? _self.taskId : taskId // ignore: cast_nul
 as String?,expenseId: freezed == expenseId ? _self.expenseId : expenseId // ignore: cast_nullable_to_non_nullable
 as String?,taxCategoryId: null == taxCategoryId ? _self.taxCategoryId : taxCategoryId // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,isOptional: null == isOptional ? _self.isOptional : isOptional // ignore: cast_nullable_to_non_nullable
+as bool,extra: null == extra ? _self._extra : extra // ignore: cast_nullable_to_non_nullable
+as Map<String, Object?>,
   ));
 }
 

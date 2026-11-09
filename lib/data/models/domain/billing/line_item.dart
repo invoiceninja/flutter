@@ -50,6 +50,16 @@ abstract class LineItem with _$LineItem {
     String? expenseId,
     required String taxCategoryId,
     int? createdAt,
+
+    /// A quote line the client may choose to include when approving it. Left
+    /// out of the document's subtotal, taxes and total ([BillingDocTotals]),
+    /// and offered as a toggle on quotes only. The server does not model it
+    /// yet (2026-11), so until it does its own total still counts the line.
+    @Default(false) bool isOptional,
+
+    /// The line's fields this model doesn't name, written back as they came
+    /// (`lineItemExtraFields`) — `unit_code`, `income_account_id`, `tags`…
+    @Default(<String, Object?>{}) Map<String, Object?> extra,
   }) = _LineItem;
 
   factory LineItem.fromApi(LineItemApi a) => LineItem(
@@ -74,6 +84,8 @@ abstract class LineItem with _$LineItem {
     expenseId: (a.expenseId ?? '').isEmpty ? null : a.expenseId,
     taxCategoryId: a.taxCategoryId,
     createdAt: a.createdAt,
+    isOptional: a.isOptional,
+    extra: a.extra,
   );
 }
 
@@ -307,15 +319,19 @@ extension LineItemClone on LineItem {
   /// error, and `save()` hard-returns. The message names no field the form can
   /// fix, so the only way out is deleting and retyping the line. admin-portal
   /// clears both ids for exactly this reason (`InvoiceItemEntity.clone`).
-  LineItem freshClone({bool keepTaskType = true}) => copyWith(
-    taskId: null,
-    expenseId: null,
-    typeId:
-        (typeId == LineItemType.task && !keepTaskType) ||
-            typeId == LineItemType.expense
-        ? LineItemType.standard
-        : typeId,
-  );
+  LineItem freshClone({bool keepTaskType = true, bool keepOptional = false}) =>
+      copyWith(
+        taskId: null,
+        expenseId: null,
+        // Optional lines are a quote's: copied onto any other document the line
+        // would be left out of the app's total and counted in the server's.
+        isOptional: keepOptional && isOptional,
+        typeId:
+            (typeId == LineItemType.task && !keepTaskType) ||
+                typeId == LineItemType.expense
+            ? LineItemType.standard
+            : typeId,
+      );
 }
 
 /// Line items for a *cloned* billing doc: every row sanitised by
@@ -328,17 +344,23 @@ extension LineItemClone on LineItem {
 /// renders no task table for a PO (`PdfBuilder::taskTable`) and its product
 /// table takes only types 1/4/5/6, so an hourly line would count in the
 /// totals and print nowhere.
+///
+/// Pass `keepOptional: true` only when the clone is a quote — see
+/// [LineItemClone.freshClone].
 List<LineItem> clonedLineItems(
   List<LineItem> items, {
   bool keepTaskType = true,
+  bool keepOptional = false,
 }) => [
   for (final item in items)
     if (item.typeId != LineItemType.unpaidFee)
-      item.freshClone(keepTaskType: keepTaskType),
+      item.freshClone(keepTaskType: keepTaskType, keepOptional: keepOptional),
 ];
 
 extension LineItemPayload on LineItem {
   Map<String, dynamic> toApiJson() => <String, dynamic>{
+    // First, so a field this app does model always wins over a stale copy.
+    ...extra,
     'product_key': productKey,
     'notes': notes,
     'cost': cost.toString(),
@@ -360,5 +382,8 @@ extension LineItemPayload on LineItem {
     if (expenseId != null) 'expense_id': expenseId,
     'tax_id': taxCategoryId,
     if (createdAt != null) 'created_at': createdAt,
+    // Only when set: `line_items` is replaced whole on save, so an absent key
+    // is already "not optional", and every other line keeps its JSON as is.
+    if (isOptional) 'is_optional': true,
   };
 }

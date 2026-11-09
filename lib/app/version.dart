@@ -99,6 +99,11 @@ class ServerFeatures {
   /// the same commit as [quoteCancel]; an older server sends lapsed quotes.
   static const String quoteValidUntil = '5.13.44';
 
+  /// The quote report's `status` filter knows `cancelled`
+  /// (`BaseExport::addQuoteStatusFilter`, `87528bcf0c`); before, the value
+  /// matched no arm and the filter dropped out, returning every quote.
+  static const String quoteReportCancelledStatus = '5.13.44';
+
   /// A client's Check VAT (`POST /clients/{id}/check_vat`, then
   /// `GET /clients/{id}/vat_status`) and Check PEPPOL delivery
   /// (`POST /clients/{id}/peppol_discovery`), React #3415.

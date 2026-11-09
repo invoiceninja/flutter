@@ -43,6 +43,7 @@ class LineItemCardListMobile extends StatelessWidget {
     this.onCreateTaskFromLineItem,
     this.rowErrors,
     this.allowNewRows = true,
+    this.allowOptionalLines = false,
   });
 
   /// Company scope used to look up the active [Formatter] so cost /
@@ -87,6 +88,10 @@ class LineItemCardListMobile extends StatelessWidget {
   /// stays: the picker adds real linked lines.
   final bool allowNewRows;
 
+  /// Offer the edit dialog's Optional switch — see
+  /// `LineItemEditor.allowOptionalLines`.
+  final bool allowOptionalLines;
+
   Future<void> _openEditor(BuildContext context, int index) => editLineItemAt(
     context,
     companyId: companyId,
@@ -94,6 +99,7 @@ class LineItemCardListMobile extends StatelessWidget {
     index: index,
     config: config,
     onChanged: onChanged,
+    allowOptional: allowOptionalLines,
   );
 
   String _descriptionLabel(BuildContext context) =>
@@ -130,6 +136,7 @@ class LineItemCardListMobile extends StatelessWidget {
       titleKey: 'add_line',
       actionKey: 'add',
       autofocusProduct: true,
+      allowOptional: allowOptionalLines,
     );
     if (result == null) return;
     if (!context.mounted) return;
@@ -481,7 +488,27 @@ class _ItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               if (!textOnly)
-                LtrText(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
+                item.isOptional
+                    // Counts toward no total until the client picks it: the
+                    // figure reads as an aside, named as the desktop row does.
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          LtrText(
+                            fmt(gross),
+                            style: moneyTextStyle(color: tokens.ink3),
+                          ),
+                          Text(
+                            context.tr('optional'),
+                            style: TextStyle(color: tokens.ink3, fontSize: 12),
+                          ),
+                        ],
+                      )
+                    : LtrText(
+                        fmt(gross),
+                        style: moneyTextStyle(color: tokens.ink),
+                      ),
               if (onCreateTask != null)
                 IconButton(
                   icon: const Icon(Icons.more_time, size: 20),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/version.dart';
 import 'package:admin/data/models/domain/report_definition.dart';
 import 'package:admin/data/models/domain/report_payload.dart';
 import 'package:admin/data/static/activity_types_catalog.dart';
@@ -165,7 +166,14 @@ Stream<List<ReportFilterChoice>> reportFilterChoices(
     case ReportFilterField.status:
       return Stream.value([
         for (final o
-            in reportStatusOptions(vm.reportIdentifier) ??
+            in reportStatusOptions(
+                  vm.reportIdentifier,
+                  quoteCancelledFilters: ServerFeatures.supports(
+                    services.serverVersion.value,
+                    ServerFeatures.quoteReportCancelledStatus,
+                    isHosted: services.auth.session.value?.isHosted ?? false,
+                  ),
+                ) ??
                 const <ReportFilterOption>[])
           (id: o.id, name: tr(o.labelKey)),
       ]);

@@ -71,8 +71,70 @@ abstract class LineItemApi with _$LineItemApi {
     @Default('')
     String taxCategoryId,
     @JsonKey(name: 'created_at') int? createdAt,
+    // A quote line the client may choose to include when approving it. Not
+    // on the server yet (2026-11): the flag is new, and until the server
+    // models it the field rides in the stored line JSON untouched.
+    @JsonKey(name: 'is_optional', fromJson: jsonScalarToBool)
+    @Default(false)
+    bool isOptional,
+    // Every field of the line this model doesn't name — see
+    // [lineItemExtraFields]. Read by the custom [LineItemApi.fromJson], never
+    // by the generated one.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default(<String, Object?>{})
+    Map<String, Object?> extra,
   }) = _LineItemApi;
 
   factory LineItemApi.fromJson(Map<String, dynamic> json) =>
-      _$LineItemApiFromJson(json);
+      _$LineItemApiFromJson(json).copyWith(extra: lineItemExtraFields(json));
 }
+
+/// The wire keys [LineItemApi] models — everything else on a line is [extra].
+const Set<String> kModeledLineItemKeys = {
+  'product_key',
+  'notes',
+  'cost',
+  'product_cost',
+  'quantity',
+  'tax_name1',
+  'tax_name2',
+  'tax_name3',
+  'tax_rate1',
+  'tax_rate2',
+  'tax_rate3',
+  'type_id',
+  'custom_value1',
+  'custom_value2',
+  'custom_value3',
+  'custom_value4',
+  'discount',
+  'task_id',
+  'expense_id',
+  'tax_id',
+  'created_at',
+  'is_optional',
+};
+
+/// Line fields the server writes on every save from the document's own
+/// state (`InvoiceItemSum`: the totals, and `is_amount_discount` copied from
+/// the document) — echoing a stale copy back would mean nothing.
+const Set<String> kServerComputedLineItemKeys = {
+  'line_total',
+  'gross_line_total',
+  'tax_amount',
+  'net_cost',
+  'is_amount_discount',
+};
+
+/// The fields of a line this app doesn't model, carried through an edit
+/// untouched. The server replaces `line_items` whole on every save, so a
+/// field dropped here is a field wiped: before this, any save from the app
+/// reset a line's e-invoice `unit_code` to `C62` and cleared its
+/// `income_account_id` (QuickBooks), `tags`, `date` and `sort_id` — and would
+/// clear whatever the server adds next. Keyed as the server sent them.
+Map<String, Object?> lineItemExtraFields(Map<String, dynamic> json) => {
+  for (final e in json.entries)
+    if (!kModeledLineItemKeys.contains(e.key) &&
+        !kServerComputedLineItemKeys.contains(e.key))
+      e.key: e.value,
+};

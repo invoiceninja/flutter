@@ -2771,9 +2771,10 @@ has no workaround and shows no such column at all.
 
 **UPDATE 2026-10-15.** Fixed upstream (`87528bcf0c` / `0809d57ea1`, 2026-09-23,
 tagged v5.13.44): the method now has both a `cancelled` and a `rejected` arm.
-**Client follow-up, not yet done:** the report status filter can stop leaving
-quote `cancelled` out (`lib/domain/reports/report_filter_options.dart`), behind
-a ≥ 5.13.44 gate for self-hosted servers.
+**Client follow-up done 2026-11-09:** the report status filter (and the
+scheduled-report editor) offers quote `cancelled` behind
+`ServerFeatures.quoteReportCancelledStatus` (≥ 5.13.44; hosted always)
+(`lib/domain/reports/report_filter_options.dart`).
 
 **Provenance** — 2026-09-22, alongside the quote-cancellation client work,
 verified against `v5-develop` HEAD.
@@ -3304,3 +3305,25 @@ The apps' passkeys (docs/passkeys.md) need three small server changes, each a co
 3. **excludeCredentials at registration**, so iCloud Keychain / Google Password Manager stop silently replacing an account's passkey and leaving a dead row.
 
 A self-hosted server still on `.env.example`'s `REACT_URL=http://localhost:3001` has RP ID `localhost`, which no app or browser elsewhere can use; the fix is to set `REACT_URL` to APP_URL. A server-side fallback was written and left out to keep the PR minimal (branch `backup/native-passkeys-v3`).
+
+## Optional quote lines (`is_optional`) — the server's totals still count them — **O**
+
+**Provenance** — 2026-11-09, spec from the team: a new line item prop `is_optional` (bool, default
+false) marks a quote line the client may choose to include when approving it in the portal. Nothing
+on `origin/v5-develop`, any server branch or React models it yet.
+
+**What the client does now.** The v2 app offers an Optional toggle on quote lines and leaves an
+optional line out of the quote's subtotal, taxes, discount base and total
+(`BillingDocTotals.totalsInput`). It sends `is_optional: true` only on a line that has it (the
+server keeps unknown line keys; `CleanLineItems` fills only the `InvoiceItem` defaults), and carries
+the line's other unmodelled fields through an edit untouched.
+
+**Needed server-side**, so the stored and printed totals agree with the app's:
+1. `InvoiceItem::$is_optional` (+ its cast), so the flag survives `cleanLineItem` explicitly.
+2. `InvoiceSum` / `InvoiceSumInclusive` skip an optional line in every total (subtotal, line and
+   document taxes, the discount base), and the PDF marks it.
+3. Approval and conversion: the portal's selection turns a chosen optional line into an ordinary
+   one and drops the rest, before the quote is approved or converted.
+
+Until (2) ships, a quote with an optional line shows one total in the app and another in its PDF
+and list row.

@@ -372,7 +372,7 @@ Quote cloneToQuote(BillingCloneData data) => emptyQuote().copyWith(
   customValue2: data.customValue2,
   customValue3: data.customValue3,
   customValue4: data.customValue4,
-  lineItems: clonedLineItems(data.lineItems),
+  lineItems: clonedLineItems(data.lineItems, keepOptional: true),
   invitations: data.invitations,
 );
 

@@ -1,13 +1,22 @@
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 
 /// The [computeTotals] input for any billing document. It was written out by
 /// hand eight times — in each edit view model and three detail screens — and
 /// a field added to one copy and not the others would have made a document's
 /// edit screen and its detail screen disagree about its total.
+///
+/// Optional lines ([LineItem.isOptional], quotes) are left out here — the one
+/// place every subtotal, tax and total is built from — so they count toward
+/// nothing until the client picks them. A line's own total
+/// (`computeLineTotal`) still shows on its row.
 extension BillingDocTotals on BillingDocFields {
   BillingTotalsInput get totalsInput => BillingTotalsInput(
-    lineItems: lineItems,
+    lineItems: [
+      for (final item in lineItems)
+        if (!item.isOptional) item,
+    ],
     discount: discount,
     isAmountDiscount: isAmountDiscount,
     usesInclusiveTaxes: usesInclusiveTaxes,

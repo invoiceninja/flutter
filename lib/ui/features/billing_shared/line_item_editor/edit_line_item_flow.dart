@@ -24,6 +24,7 @@ Future<void> editLineItemAt(
   required int index,
   required LineItemColumnConfig config,
   required ValueChanged<List<LineItem>> onChanged,
+  bool allowOptional = false,
 }) async {
   if (index < 0 || index >= items.length) return;
   var initial = items[index];
@@ -51,6 +52,7 @@ Future<void> editLineItemAt(
     config: config,
     useComma: useComma,
     formatter: fmt,
+    allowOptional: allowOptional,
   );
   if (result == null) return;
   // The dialog is a route, so the host can go away under it — a company

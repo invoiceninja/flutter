@@ -157,6 +157,7 @@ class LineItemTableDesktop extends StatefulWidget {
     this.showStockQuantity = false,
     this.onCreateTaskFromLineItem,
     this.allowNewRows = true,
+    this.allowOptionalLines = false,
   });
 
   final String companyId;
@@ -201,6 +202,10 @@ class LineItemTableDesktop extends StatefulWidget {
   /// because [_LineItemTableDesktopState._commitPending] pairs rows with items
   /// by position; it is just never rendered, committed or promoted.
   final bool allowNewRows;
+
+  /// Offer each row's Optional toggle — quotes only, see
+  /// `LineItemEditor.allowOptionalLines`.
+  final bool allowOptionalLines;
 
   @override
   State<LineItemTableDesktop> createState() => _LineItemTableDesktopState();
@@ -497,6 +502,15 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     _emit(next);
   }
 
+  /// Flip a row's optional flag (quotes). Reads the LIVE items like [_clone],
+  /// so text typed inside the debounce window survives the toggle.
+  void _toggleOptional(int index) {
+    final next = List<LineItem>.from(_flushAll());
+    if (index >= next.length) return;
+    next[index] = next[index].copyWith(isOptional: !next[index].isOptional);
+    _emit(next);
+  }
+
   void _insertBelow(int index) {
     final next = List<LineItem>.from(_flushAll());
     if (index >= next.length) return;
@@ -789,6 +803,12 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                               !isGhost &&
                               widget.onCreateTaskFromLineItem != null &&
                               (current.taskId ?? '').isEmpty,
+                          // A line already optional keeps the toggle on any
+                          // document, so a flag that arrived some other way
+                          // (a clone, the API) can still be cleared.
+                          canToggleOptional:
+                              !isGhost &&
+                              (widget.allowOptionalLines || current.isOptional),
                         );
                         final cached = row.built;
                         if (cached != null && cached.inputs == inputs) {
@@ -882,6 +902,8 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                                 _createTask(index);
                               case _RowAction.clone:
                                 _clone(index);
+                              case _RowAction.toggleOptional:
+                                _toggleOptional(index);
                               case _RowAction.insertBelow:
                                 _insertBelow(index);
                               case _RowAction.moveUp:
@@ -906,6 +928,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                           // keep the intent local rather than load-bearing at a
                           // distance.
                           canCreateTask: inputs.canCreateTask,
+                          canToggleOptional: inputs.canToggleOptional,
                           onTabFromLastCell: () {
                             if (isGhost) {
                               _addBlankRow();
@@ -1190,6 +1213,7 @@ class _RowInputs {
     required this.currentItem,
     required this.errors,
     required this.canCreateTask,
+    required this.canToggleOptional,
   });
 
   final int index;
@@ -1207,6 +1231,7 @@ class _RowInputs {
   final LineItem currentItem;
   final Map<String, String>? errors;
   final bool canCreateTask;
+  final bool canToggleOptional;
 
   @override
   bool operator ==(Object other) =>
@@ -1227,7 +1252,8 @@ class _RowInputs {
       other.currencyId == currencyId &&
       other.currentItem == currentItem &&
       mapEquals(other.errors, errors) &&
-      other.canCreateTask == canCreateTask;
+      other.canCreateTask == canCreateTask &&
+      other.canToggleOptional == canToggleOptional;
 
   @override
   int get hashCode => Object.hash(index, isGhost, currentItem);
@@ -1411,6 +1437,7 @@ class _RowState {
 enum _RowAction {
   createTask,
   clone,
+  toggleOptional,
   insertBelow,
   moveUp,
   moveDown,
@@ -1444,6 +1471,7 @@ class _Row extends StatefulWidget {
     required this.onMenuAction,
     required this.onTabFromLastCell,
     required this.canCreateTask,
+    required this.canToggleOptional,
   });
 
   final int index;
@@ -1475,6 +1503,9 @@ class _Row extends StatefulWidget {
   /// handler, and false for a row that already *is* a task.
   final bool canCreateTask;
 
+  /// Offer the row's Optional toggle — see `_RowInputs.canToggleOptional`.
+  final bool canToggleOptional;
+
   @override
   State<_Row> createState() => _RowStateW();
 }
@@ -1504,6 +1535,7 @@ class _RowStateW extends State<_Row> {
   ValueChanged<_RowAction> get onMenuAction => widget.onMenuAction;
   VoidCallback get onTabFromLastCell => widget.onTabFromLastCell;
   bool get canCreateTask => widget.canCreateTask;
+  bool get canToggleOptional => widget.canToggleOptional;
 
   @override
   Widget build(BuildContext context) {
@@ -1649,13 +1681,33 @@ class _RowStateW extends State<_Row> {
                   currencyId: currencyId,
                 ) ??
                 gross.toString());
+      final amount = LtrText(
+        display,
+        style: moneyTextStyle(
+          // An optional line counts toward no total, so its figure reads as
+          // an aside rather than an amount being billed.
+          color: currentItem.isOptional ? tokens.ink3 : tokens.ink,
+          fontSize: 13,
+        ),
+      );
       return Expanded(
         child: Align(
           alignment: AlignmentDirectional.centerEnd,
-          child: LtrText(
-            display,
-            style: moneyTextStyle(color: tokens.ink, fontSize: 13),
-          ),
+          child: currentItem.isOptional
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    amount,
+                    Text(
+                      context.tr('optional'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: tokens.ink3),
+                    ),
+                  ],
+                )
+              : amount,
         ),
       );
     }
@@ -1828,6 +1880,8 @@ class _RowStateW extends State<_Row> {
                             canMoveDown: index < lastRealIndex,
                             canCreateTask: canCreateTask,
                             allowNewRows: allowNewRows,
+                            canToggleOptional: canToggleOptional,
+                            isOptional: currentItem.isOptional,
                           ),
                         ),
                       ),
@@ -1880,6 +1934,8 @@ class _RowStateW extends State<_Row> {
             value: _RowAction.insertBelow,
             child: Text(ctx.tr('insert_below')),
           ),
+        if (canToggleOptional)
+          _optionalMenuItem(ctx, isOptional: currentItem.isOptional),
         if (index > 0 || index < lastRealIndex) const PopupMenuDivider(),
         if (index > 0)
           PopupMenuItem(
@@ -1899,6 +1955,17 @@ class _RowStateW extends State<_Row> {
   }
 }
 
+/// The row menu's Optional toggle, ticked while the line is optional — one
+/// item, so the overflow and right-click menus can't drift apart.
+PopupMenuItem<_RowAction> _optionalMenuItem(
+  BuildContext context, {
+  required bool isOptional,
+}) => CheckedPopupMenuItem<_RowAction>(
+  value: _RowAction.toggleOptional,
+  checked: isOptional,
+  child: Text(context.tr('optional')),
+);
+
 /// Per-row overflow menu. Hides move actions that would be no-ops at
 /// the row's current position so users don't see disabled-feeling
 /// items.
@@ -1909,6 +1976,8 @@ class _RowMenu extends StatelessWidget {
     required this.canMoveDown,
     required this.canCreateTask,
     required this.allowNewRows,
+    required this.canToggleOptional,
+    required this.isOptional,
   });
 
   final ValueChanged<_RowAction> onSelected;
@@ -1918,6 +1987,10 @@ class _RowMenu extends StatelessWidget {
 
   /// False drops "Insert Below" — see [LineItemTableDesktop.allowNewRows].
   final bool allowNewRows;
+
+  /// Offer the Optional toggle, ticked when [isOptional].
+  final bool canToggleOptional;
+  final bool isOptional;
 
   @override
   Widget build(BuildContext context) {
@@ -1943,6 +2016,8 @@ class _RowMenu extends StatelessWidget {
             value: _RowAction.insertBelow,
             child: Text(context.tr('insert_below')),
           ),
+        if (canToggleOptional)
+          _optionalMenuItem(context, isOptional: isOptional),
         if (canMoveUp || canMoveDown) const PopupMenuDivider(),
         if (canMoveUp)
           PopupMenuItem(

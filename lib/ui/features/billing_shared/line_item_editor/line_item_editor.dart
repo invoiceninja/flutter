@@ -61,6 +61,7 @@ class LineItemEditor extends StatefulWidget {
     this.showStockQuantity = false,
     this.onCreateTaskFromLineItem,
     this.allowNewRows = true,
+    this.allowOptionalLines = false,
   });
 
   /// Company scope for the desktop table's product autocomplete +
@@ -144,6 +145,13 @@ class LineItemEditor extends StatefulWidget {
   /// again at the next pause — a duplicate product line per pause, all of them
   /// saved. A typed line goes on Products. The picker is unaffected.
   final bool allowNewRows;
+
+  /// Whether a line can be marked optional — one the client may choose to
+  /// include when approving (`LineItem.isOptional`). Quotes only
+  /// (`BillingDocType.offersOptionalLines`). An optional line is left out of
+  /// the document's totals and marked on its row; a line that is already
+  /// optional keeps its toggle wherever it is, so the flag can be cleared.
+  final bool allowOptionalLines;
 
   @override
   State<LineItemEditor> createState() => _LineItemEditorState();
@@ -293,6 +301,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
             showStockQuantity: widget.showStockQuantity,
             onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
             allowNewRows: widget.allowNewRows,
+            allowOptionalLines: widget.allowOptionalLines,
           );
         }
         return LineItemCardListMobile(
@@ -306,6 +315,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
           onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
           rowErrors: widget.rowErrors,
           allowNewRows: widget.allowNewRows,
+          allowOptionalLines: widget.allowOptionalLines,
         );
       },
     );

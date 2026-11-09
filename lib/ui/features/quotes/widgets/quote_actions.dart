@@ -612,7 +612,7 @@ class QuoteActions {
           // expense (else re-pointing the clone at another client dead-ends in
           // a `line_items` error with no field to fix) and drop any
           // server-generated unpaid-fee row (else the clone re-bills it).
-          lineItems: clonedLineItems(quote.lineItems),
+          lineItems: clonedLineItems(quote.lineItems, keepOptional: true),
           archivedAt: null,
           isDeleted: false,
           isDirty: false,

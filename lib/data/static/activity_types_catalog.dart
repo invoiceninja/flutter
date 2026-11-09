@@ -127,4 +127,7 @@ const Map<int, String> kActivityTypeLabelKeys = {
   157: 'verifactu_cancellation_sent_failure',
   158: 'quote_rejected',
   167: 'einvoice_status_updated',
+  // CANCELLED_QUOTE — not in React's list yet. Labelled the way 59
+  // (cancelled invoice) is.
+  170: 'cancelled_quote',
 };

@@ -271,13 +271,43 @@ class _DocuNinjaBuilderScreenState extends State<DocuNinjaBuilderScreen> {
                     WebViewWidget(controller: web),
                     // Covered and inert until the builder is up: before the
                     // handshake the page would be the web app's sign-in.
+                    // The opaque listener keeps every tap off the page
+                    // under the cover; only the slow notice's own button
+                    // takes one.
                     if (vm.phase == DnBuilderPhase.loading)
                       Positioned.fill(
-                        child: AbsorbPointer(
-                          child: ColoredBox(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
+                        child: Listener(
+                          behavior: HitTestBehavior.opaque,
+                          child: AbsorbPointer(
+                            absorbing: !vm.isSlow,
+                            child: ColoredBox(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              child: vm.isSlow
+                                  // Still waiting, but a document the builder
+                                  // cannot open never comes up: say so.
+                                  ? EmptyState(
+                                      icon: Icons.hourglass_empty,
+                                      title: context.tr(_titleKey),
+                                      subtitle: context.tr(
+                                        'docuninja_builder_unavailable',
+                                      ),
+                                      action: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          minimumSize: const Size(64, 44),
+                                        ),
+                                        onPressed: _openInBrowser,
+                                        icon: const Icon(
+                                          Icons.open_in_new,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          context.tr('open_in_browser'),
+                                        ),
+                                      ),
+                                    )
+                                  : const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
                             ),
                           ),
                         ),

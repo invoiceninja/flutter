@@ -8,8 +8,9 @@ import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 class _LoginApi implements DocuNinjaLoginApi {
   Future<DnLogin> Function() answer = () async =>
@@ -65,6 +66,26 @@ AuthSession _auth({
   currentCompanyId: company,
   docuninjaNumUsers: seats,
 );
+
+/// Starts a load the way the DocuNinja screens do: from
+/// `didChangeDependencies`, during a build.
+class _LoadsOnMount extends StatefulWidget {
+  const _LoadsOnMount();
+
+  @override
+  State<_LoadsOnMount> createState() => _LoadsOnMountState();
+}
+
+class _LoadsOnMountState extends State<_LoadsOnMount> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    context.read<DocuNinjaSession?>()?.load();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
 
 void main() {
   late _LoginApi api;
@@ -136,6 +157,44 @@ void main() {
     expect(s.value.access, DocuNinjaAccess.failed);
   });
 
+  testWidgets('a load started during a build does not notify in it', (
+    tester,
+  ) async {
+    final answer = Completer<DnLogin>();
+    api.answer = () => answer.future;
+    final s = session();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<DocuNinjaSession?>.value(
+        value: s,
+        // Already listening to the provider, as the shell is by the time a
+        // DocuNinja screen mounts.
+        child: Builder(
+          builder: (context) {
+            context.watch<DocuNinjaSession?>();
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ChangeNotifierProvider<DocuNinjaSession?>.value(
+        value: s,
+        child: Builder(
+          builder: (context) {
+            context.watch<DocuNinjaSession?>();
+            return const _LoadsOnMount();
+          },
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pump();
+    expect(s.value.access, DocuNinjaAccess.loading);
+    answer.complete(_fixtureLogin());
+    await tester.pump();
+    expect(s.value.access, DocuNinjaAccess.ready);
+  });
+
   test('a failure after a reset does not land in the next session', () async {
     final read = Completer<String?>();
     final s = DocuNinjaSession(
@@ -144,6 +203,8 @@ void main() {
       companyKeyOf: (_) => read.future,
     );
     final pending = s.load();
+    // The handshake is under way (the load starts after the current build).
+    await Future<void>.delayed(Duration.zero);
     s.reset();
     read.completeError(StateError('database closed'));
     await pending;

@@ -135,6 +135,12 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                 // next page says so under the rows.
                 if (_showError(vm) && !vm.errorFromMore)
                   SliverToBoxAdapter(child: _errorNotice(vm)),
+                // A new search or filter is on its way: the rows below are
+                // the last one's.
+                if (vm.isRequerying)
+                  const SliverToBoxAdapter(
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
                 if (table)
                   SliverToBoxAdapter(
                     child: _TableHeader(
@@ -144,7 +150,12 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                           : actionButtonSize(),
                     ),
                   ),
-                if (vm.items.isEmpty)
+                if (vm.items.isEmpty && vm.isRequerying)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: SizedBox.shrink(),
+                  )
+                else if (vm.items.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: EmptyState(

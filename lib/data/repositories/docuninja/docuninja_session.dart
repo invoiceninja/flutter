@@ -110,6 +110,11 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
 
   Future<void> _load() async {
     final generation = _generation;
+    // Screens start a load from `didChangeDependencies`, inside a build:
+    // a change notice there (`loading`, `unavailable`) would mark the
+    // provider above them dirty mid-build. Let the build finish first.
+    await Future<void>.value();
+    if (generation != _generation) return;
     final auth = _auth.value;
     final companyId = auth?.currentCompany?.id;
     if (auth == null || companyId == null || !auth.isHosted) {

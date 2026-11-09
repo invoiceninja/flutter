@@ -135,7 +135,13 @@ class DocuNinjaClient {
 
   /// POST for a file response (the signed PDF, the audit log).
   Future<DnFileBytes> postForFile(String path, {Object? body}) async {
-    final response = await _send('POST', path, body: body ?? const {});
+    // A signed PDF can be large: the upload's allowance, not a JSON call's.
+    final response = await _send(
+      'POST',
+      path,
+      body: body ?? const {},
+      timeout: _uploadTimeout,
+    );
     return (
       bytes: response.bodyBytes,
       filename: _filenameFrom(response.headers['content-disposition']),
@@ -150,13 +156,14 @@ class DocuNinjaClient {
     String path, {
     Map<String, String>? query,
     Object? body,
+    Duration? timeout,
   }) => _sendWith((token) async {
     final request = http.Request(method, _uri(path, query))
       ..followRedirects = false
       ..headers.addAll(_headers(token, json: body != null));
     if (body != null) request.body = jsonEncode(body);
     return request;
-  });
+  }, timeout: timeout);
 
   Map<String, String> _headers(String token, {required bool json}) => {
     'Accept': 'application/json',
@@ -262,7 +269,14 @@ class DocuNinjaClient {
       caseSensitive: false,
     ).firstMatch(disposition);
     if (star != null) {
-      return Uri.decodeComponent(star.group(1)!.trim().replaceAll('"', ''));
+      final encoded = star.group(1)!.trim().replaceAll('"', '');
+      // A malformed escape (`50%.pdf`) must not fail a download that has
+      // already arrived: fall back to the plain name, or none.
+      try {
+        return Uri.decodeComponent(encoded);
+      } on ArgumentError {
+        // Fall through.
+      }
     }
     final plain = RegExp(
       r'filename="?([^";]+)"?',

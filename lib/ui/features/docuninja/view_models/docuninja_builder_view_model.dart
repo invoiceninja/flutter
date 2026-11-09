@@ -36,6 +36,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
     required void Function(Uri uri) openExternal,
     required Future<void> Function(Uri uri) openInPlace,
     Duration readyTimeout = const Duration(seconds: 20),
+    Duration slowTimeout = const Duration(seconds: 60),
   }) : _runJavaScript = runJavaScript,
        _currentUrl = currentUrl,
        _token = token,
@@ -43,7 +44,8 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
        _onClose = onClose,
        _openExternal = openExternal,
        _openInPlace = openInPlace,
-       _readyTimeout = readyTimeout;
+       _readyTimeout = readyTimeout,
+       _slowTimeout = slowTimeout;
 
   final Future<void> Function(String script) _runJavaScript;
   final Future<String?> Function() _currentUrl;
@@ -53,6 +55,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   final void Function(Uri uri) _openExternal;
   final Future<void> Function(Uri uri) _openInPlace;
   final Duration _readyTimeout;
+  final Duration _slowTimeout;
 
   DnBuilderPhase _phase = DnBuilderPhase.loading;
   DnBuilderPhase get phase => _phase;
@@ -63,7 +66,17 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   bool get isDirty => _dirty;
 
   Timer? _readyTimer;
+  Timer? _slowTimer;
   bool _disposed = false;
+
+  bool _slow = false;
+
+  /// The page asked for its token but the builder has not come up after
+  /// [_slowTimeout]: a document it cannot open (deleted, no access) never
+  /// does, and its own message sits under the loading cover. The screen
+  /// keeps waiting (a large upload's previews can take minutes) but offers
+  /// the browser.
+  bool get isSlow => _slow;
 
   /// A secret for this screen: the page echoes it on every message after
   /// `init`, so a message from any other frame on the page is ignored.
@@ -118,6 +131,14 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
       _log.warning('DocuNinja builder: message without the page nonce');
       return;
     }
+    // A `ready` carries no nonce, so any frame on the page can post one:
+    // only a page that really started may turn the screen off with it.
+    if (message.type == 'ready' &&
+        message.version != kDnEmbedProtocolVersion &&
+        !_pageStarted) {
+      _log.warning('DocuNinja builder: ignored a ready from another frame');
+      return;
+    }
     if (message.version != kDnEmbedProtocolVersion) {
       _log.warning(
         'DocuNinja builder: protocol ${message.version}, '
@@ -135,7 +156,14 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
         }
         _pageStarted = false;
         await _handOver();
-        if (_phase == DnBuilderPhase.loading) _readyTimer?.cancel();
+        if (_phase == DnBuilderPhase.loading) {
+          _readyTimer?.cancel();
+          _slowTimer ??= Timer(_slowTimeout, () {
+            if (_phase != DnBuilderPhase.loading) return;
+            _slow = true;
+            _notify();
+          });
+        }
       case 'loaded':
         _readyTimer?.cancel();
         _set(DnBuilderPhase.ready);
@@ -156,8 +184,9 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
         _onDocumentChanged();
         _onClose();
       case 'error':
-        // The page could not sign in (a 401 or 429 it would otherwise
-        // reload on forever): the browser is the way on.
+        // The page could not sign in (a 401 it would otherwise reload on
+        // forever; a 429 shows its own toast and stays): the browser is the
+        // way on.
         _set(DnBuilderPhase.unavailable);
       case 'openExternal':
         final uri = Uri.tryParse('${message.payload['url'] ?? ''}');
@@ -199,7 +228,11 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   void _set(DnBuilderPhase phase) {
     if (_phase == phase) return;
     _phase = phase;
-    if (phase != DnBuilderPhase.loading) _readyTimer?.cancel();
+    if (phase != DnBuilderPhase.loading) {
+      _readyTimer?.cancel();
+      _slowTimer?.cancel();
+      _slow = false;
+    }
     _notify();
   }
 
@@ -211,6 +244,7 @@ class DocuNinjaBuilderViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _readyTimer?.cancel();
+    _slowTimer?.cancel();
     super.dispose();
   }
 }

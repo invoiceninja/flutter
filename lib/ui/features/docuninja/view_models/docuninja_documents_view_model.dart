@@ -185,6 +185,14 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
       '${_search.trim()}|${(_states.toList()..sort()).join(',')}|'
       '${(_statuses.toList()..sort()).join(',')}';
 
+  /// A new search or filter is loading: the rows on screen (if any) answer
+  /// the previous one. A refresh of the same query is not this; its rows
+  /// stay current while it runs.
+  bool get isRequerying =>
+      _loaded &&
+      (_loading || (_searchTimer?.isActive ?? false)) &&
+      _itemsQuery != _query;
+
   int _generation = 0;
   Timer? _searchTimer;
   bool _disposed = false;

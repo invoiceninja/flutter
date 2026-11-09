@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/entity_registry.dart' show FixedBranchKind;
 import 'package:admin/domain/leader_shortcuts.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
@@ -39,6 +41,7 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
     // so the dialog matches the live `Shortcuts` map + the hint bar. Cleared
     // shortcuts and unbound create actions are omitted.
     final controller = context.read<Services>().keyboardShortcuts;
+    final session = _sessionOf(context);
     List<_RowSpec> rowsFor(ShortcutGroup group) => [
       for (final def in kShortcutCatalog)
         if (def.group == group)
@@ -59,7 +62,12 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
           ...rowsFor(ShortcutGroup.create),
           _LeaderRow(
             leader: 'G',
-            targets: kLeaderTargets,
+            // Only the jumps `G` will take (`_goBranch`): DocuNinja is
+            // hosted-only, and Reports needs `view_reports`.
+            targets: [
+              for (final t in kLeaderTargets)
+                if (_leaderTargetOffered(t, session)) t,
+            ],
             description: context.tr('jump_to_section'),
           ),
         ],
@@ -493,5 +501,28 @@ class _RowView extends StatelessWidget {
               ],
             ),
     );
+  }
+}
+
+/// Whether the shell honours `G` + [target] for this [session]: the checks
+/// `ScaffoldWithNav._goBranch` makes, so the dialog lists no jump that does
+/// nothing.
+bool _leaderTargetOffered(LeaderTarget target, AuthSession? session) =>
+    switch (target.fixed) {
+      FixedBranchKind.docuninja => session?.isHosted ?? false,
+      FixedBranchKind.reports =>
+        session?.currentCompany?.can('view_reports') ?? false,
+      _ => true,
+    };
+
+/// The signed-in session, or null under a widget test whose `Services`
+/// fake throws on a member it doesn't implement (the hosted-only and
+/// permission-gated jumps are then left out), as `intakeOf` reads its
+/// folder.
+AuthSession? _sessionOf(BuildContext context) {
+  try {
+    return context.read<Services>().auth.session.value;
+  } catch (_) {
+    return null;
   }
 }

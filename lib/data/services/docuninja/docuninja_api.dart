@@ -180,7 +180,9 @@ class DocuNinjaApi {
     Map<String, dynamic> settings,
   ) => _client.putJson(
     '/api/companies/${_seg(company.id)}',
-    body: {...company.raw, 'settings': settings},
+    // The company as DocuNinja sent it, less the login's bearer token,
+    // which is not a company field.
+    body: {...company.raw, 'settings': settings}..remove('token'),
   );
 
   /// The company's email templates.
@@ -312,8 +314,15 @@ class DocuNinjaApi {
       _client.postForFile('/api/documents/${_seg(id)}/audit_log');
 
   /// One path segment: an id from a route (a web URL, decoded) can carry
-  /// `/`, `?` or `..`, which must never reach another endpoint.
-  static String _seg(String id) => Uri.encodeComponent(id);
+  /// `/`, `?` or `..`, which must never reach another endpoint. Encoding
+  /// covers `/` and `?`; `.`, `..` and an empty id survive it (and a URI
+  /// resolves the dots away), so they are refused outright.
+  static String _seg(String id) {
+    if (id.isEmpty || id == '.' || id == '..') {
+      throw ArgumentError.value(id, 'id', 'not a record id');
+    }
+    return Uri.encodeComponent(id);
+  }
 
   static Map<String, dynamic> _asMap(Object? json) =>
       json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{};

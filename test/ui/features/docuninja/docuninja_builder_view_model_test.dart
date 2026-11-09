@@ -27,6 +27,7 @@ void main() {
   DocuNinjaBuilderViewModel vm({
     String? token = 'company-token',
     Duration timeout = const Duration(seconds: 20),
+    Duration slow = const Duration(seconds: 60),
   }) => DocuNinjaBuilderViewModel(
     runJavaScript: (s) async => scripts.add(s),
     currentUrl: () async => url,
@@ -36,6 +37,7 @@ void main() {
     openExternal: opened.add,
     openInPlace: (u) async => inPlace.add(u),
     readyTimeout: timeout,
+    slowTimeout: slow,
   );
 
   setUp(() {
@@ -68,6 +70,32 @@ void main() {
     await b.handle(_msg('ready'));
     expect(scripts, isEmpty);
     expect(b.phase, DnBuilderPhase.unavailable);
+    b.dispose();
+  });
+
+  test('a ready from another frame cannot turn the screen off', () async {
+    final b = vm();
+    await b.handle(_msg('ready'));
+    // No page started since: this is some frame, not a reload.
+    await b.handle(
+      jsonEncode({'v': 99, 'type': 'ready', 'payload': <String, dynamic>{}}),
+    );
+    expect(b.phase, DnBuilderPhase.loading);
+    await b.handle(_msg('loaded', const {}, b.nonce));
+    expect(b.phase, DnBuilderPhase.ready);
+    b.dispose();
+  });
+
+  test('a builder that never comes up offers the browser, and waits', () async {
+    final b = vm(slow: const Duration(milliseconds: 10));
+    await b.handle(_msg('ready'));
+    expect(b.isSlow, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(b.isSlow, isTrue);
+    expect(b.phase, DnBuilderPhase.loading, reason: 'a big upload may land');
+    await b.handle(_msg('loaded', const {}, b.nonce));
+    expect(b.phase, DnBuilderPhase.ready);
+    expect(b.isSlow, isFalse);
     b.dispose();
   });
 

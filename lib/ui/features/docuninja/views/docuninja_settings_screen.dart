@@ -348,10 +348,18 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       // The company as DocuNinja holds it now, not as this session first
       // read it: another admin may have changed it since, and the save puts
       // the whole company back (React refetches its login on focus).
+      final epoch = widget.session.epoch;
       await widget.session.load(force: true);
-      final company = widget.session.value.company?.id == widget.company.id
-          ? widget.session.value.company!
-          : widget.company;
+      // A company switch (or sign-out) while the handshake was out: the
+      // token now is another company's, so nothing of this one is sent.
+      if (!mounted || widget.session.epoch != epoch) return;
+      final company = widget.session.value.company;
+      if (company == null || company.id != widget.company.id) {
+        // DocuNinja no longer pairs this company: the screen is about to
+        // say so; the edits are not sent anywhere.
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+        return;
+      }
       final next = {...company.settings, ..._edits};
       await widget.api.updateCompanySettings(company, next);
       // Saved: the session holds the company as saved, so the other tabs

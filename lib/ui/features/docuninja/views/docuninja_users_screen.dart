@@ -652,6 +652,9 @@ class _UserEditorState extends State<_UserEditor> {
       Notify.success(context, context.tr(toast));
       if (action == 'delete') {
         // Back to the list, which shows the user deleted (with Restore).
+        // Unsaved edits to a deleted user are moot: no "discard?" on the
+        // way out, and no editable deleted user if it were cancelled.
+        _discard();
         context.pop();
         return;
       }
@@ -1196,13 +1199,16 @@ class _GrantAccessState extends State<_GrantAccess> {
       return;
     }
     Notify.error(context, context.tr('an_error_occurred_try_again'));
-    setState(() {
-      _saving = false;
-      _selected
+    setState(
+      () => _selected
         ..clear()
-        ..addAll(failed);
-    });
+        ..addAll(failed),
+    );
+    // Add stays off until the re-read lands: a request that timed out may
+    // have granted access all the same, and the re-read drops that user
+    // from the selection before a retry could grant them twice.
     await _load();
+    if (mounted) setState(() => _saving = false);
   }
 
   @override

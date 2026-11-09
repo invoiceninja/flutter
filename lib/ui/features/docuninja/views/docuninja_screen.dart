@@ -489,7 +489,9 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             );
             final data = json is Map ? json['data'] : null;
             final id = data is Map ? '${data['id'] ?? ''}' : '';
-            if (!mounted) return;
+            // Not if a company switch replaced the list meanwhile: the new
+            // id would open under the other company.
+            if (!mounted || !identical(vm, _vm)) return;
             Notify.success(context, context.tr('cloned_document'));
             if (id.isNotEmpty) context.go('/docuninja/$id');
           }),
@@ -509,7 +511,9 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                 .value
                 ?.currentCompanyId;
             final id = await context.read<DocuNinjaApi>().makeBlueprint(doc.id);
-            if (!mounted) return;
+            // Not if a company switch replaced the list meanwhile: the new
+            // id would open under the other company.
+            if (!mounted || !identical(vm, _vm)) return;
             if (id.isEmpty || companyId == null) {
               throw StateError('make_blueprint returned no id');
             }
@@ -530,7 +534,9 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           'void',
           () => _rowRun(vm, () async {
             await context.read<DocuNinjaApi>().action(doc.id, 'void');
-            if (!mounted) return;
+            // Not if a company switch replaced the list meanwhile: the new
+            // id would open under the other company.
+            if (!mounted || !identical(vm, _vm)) return;
             Notify.success(context, context.tr('voided_document'));
             // React goes to the voided document.
             context.go('/docuninja/${doc.id}');

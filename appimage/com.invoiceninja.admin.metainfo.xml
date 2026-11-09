@@ -11,8 +11,8 @@
     tools/metainfo_release.py) from each release's store digest, newest first.
     Don't hand-edit an entry; check_release_ready.sh requires one per release.
   - Screenshot URLs must point at a commit SHA, never a branch (Flathub's
-    metainfo guidelines); they are added from the Flatpak build before the
-    Flathub submission (docs/flatpak.md).
+    metainfo guidelines): the images live in appimage/screenshots/, and a new
+    set is committed first, then named here at that commit (docs/flatpak.md).
 -->
 <component type="desktop-application">
   <id>com.invoiceninja.admin</id>
@@ -38,6 +38,24 @@
       a hosted or self-hosted server.
     </p>
   </description>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/1.png</image>
+      <caption>See what needs your attention, with this month&apos;s totals</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/2.png</image>
+      <caption>Invoices at a glance, filtered by status</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/3.png</image>
+      <caption>An invoice beside its PDF</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/4.png</image>
+      <caption>Clients, with balances and contacts</caption>
+    </screenshot>
+  </screenshots>
   <launchable type="desktop-id">com.invoiceninja.admin.desktop</launchable>
   <developer id="com.invoiceninja">
     <name>Invoice Ninja</name>
@@ -45,7 +63,7 @@
   <url type="homepage">https://invoiceninja.com</url>
   <url type="bugtracker">https://github.com/invoiceninja/flutter/issues</url>
   <url type="vcs-browser">https://github.com/invoiceninja/flutter</url>
-  <url type="help">https://invoiceninja.github.io/docs</url>
+  <url type="help">https://invoiceninja.github.io/</url>
   <url type="translate">https://explore.transifex.com/invoice-ninja/invoice-ninja/</url>
   <provides>
     <id>com.invoiceninja.InvoiceNinja</id>

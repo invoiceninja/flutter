@@ -922,6 +922,11 @@ class _SelectInvoicesButton extends StatelessWidget {
       selected: current.keys.toSet(),
       existingAmounts: current,
       paymentAmount: paymentAmount,
+      otherAllocated: paymentables
+          .where(
+            (p) => p.invoiceId.isNotEmpty && !offered.contains(p.invoiceId),
+          )
+          .fold<Decimal>(Decimal.zero, (sum, p) => sum + p.amount),
       formatter: formatter,
       currencyId: currencyId,
     );

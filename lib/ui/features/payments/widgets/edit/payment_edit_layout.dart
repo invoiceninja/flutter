@@ -576,11 +576,15 @@ class _PaymentCurrencyConversionSectionState
 
   PaymentEditViewModel get vm => widget.vm;
 
-  bool get _draftConverts {
+  /// Whether the payment converted when the section opened. Read once, not
+  /// live: on a payment with a rate but no exchange currency, typing the rate
+  /// through `1` (on the way to `1.08`) would otherwise make it read as "not
+  /// converting" and unmount the field being typed in.
+  late final bool _openedConverting = () {
     final rate = vm.draft.exchangeRate;
     return vm.draft.exchangeCurrencyId.isNotEmpty ||
         (rate != Decimal.one && rate != Decimal.zero);
-  }
+  }();
 
   @override
   Widget build(BuildContext context) {
@@ -590,7 +594,7 @@ class _PaymentCurrencyConversionSectionState
         context,
         enabled:
             _toggled ??
-            (_draftConverts ||
+            (_openedConverting ||
                 (vm.isCreate && (snap.data?.convertPaymentCurrency ?? false))),
       ),
     );

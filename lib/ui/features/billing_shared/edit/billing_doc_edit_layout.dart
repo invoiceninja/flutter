@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -46,6 +47,8 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 import 'package:admin/utils/notes_html.dart';
 import 'package:admin/ui/features/billing_shared/detail/signed_document_pill.dart';
+
+final _log = Logger('BillingDocEditLayout');
 
 /// Enter in a single-line field saves the document (§ Forms — Enter to
 /// save), through the `FormSaveScope` the edit scaffold wraps the form in.
@@ -289,10 +292,18 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   /// (`QuoteRepository.serverModelsOptionalLines`). Until it does, an optional
   /// line would count in the server's total and the PDF, and not in the app's.
   Future<void> _resolveOptionalLinesGate() async {
-    final supported = await context
-        .read<Services>()
-        .quotes
-        .serverModelsOptionalLines(companyId: _vm.companyId);
+    final bool supported;
+    try {
+      supported = await context
+          .read<Services>()
+          .quotes
+          .serverModelsOptionalLines(companyId: _vm.companyId);
+    } catch (e, st) {
+      // A probe, not a save: a failed read (the database closing under a
+      // company switch) leaves the toggle off rather than crashing the zone.
+      _log.fine('optional-lines probe failed', e, st);
+      return;
+    }
     if (!mounted || supported == _serverOptionalLines) return;
     setState(() => _serverOptionalLines = supported);
   }

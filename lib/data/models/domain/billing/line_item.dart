@@ -253,6 +253,14 @@ LineItem lineItemFromProduct(
     customValue2: product.customValue2,
     customValue3: product.customValue3,
     customValue4: product.customValue4,
+    // The fields this app doesn't model describe the line's PRODUCT as much
+    // as the line — React fills `income_account_id` from the picked product —
+    // so a different product starts them fresh rather than carrying the old
+    // one's QuickBooks account or unit code onto it. Re-picking the same
+    // product keeps them.
+    extra: base != null && base.productKey == product.productKey
+        ? base.extra
+        : const {},
   );
 }
 

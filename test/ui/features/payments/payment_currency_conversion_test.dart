@@ -183,4 +183,26 @@ void main() {
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
     expect(field('Converted Amount'), findsNothing);
   });
+
+  // Review finding: on a payment with a rate but no exchange currency, typing
+  // the rate through `1` (on the way to `1.08`) read as "not converting" and
+  // unmounted the field being typed in.
+  testWidgets('typing the rate through 1 keeps the section open', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      existing: emptyPayment().copyWith(
+        id: 'p1',
+        amount: Decimal.parse('100'),
+        exchangeRate: Decimal.parse('1.5'),
+      ),
+    );
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+    await tester.enterText(field('Exchange Rate'), '1');
+    await tester.pump();
+    expect(field('Exchange Rate'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+  });
 }

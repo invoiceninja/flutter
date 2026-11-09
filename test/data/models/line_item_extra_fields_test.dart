@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/api/line_item_api_model.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/product.dart';
 
 Map<String, dynamic> _wire(Map<String, dynamic> extra) => {
   'product_key': 'SVC',
@@ -98,6 +99,29 @@ void main() {
         clonedLineItems([item], keepOptional: true).single.isOptional,
         isTrue,
       );
+    });
+  });
+
+  // Review finding: the carried fields describe the line's product as much as
+  // the line (React fills `income_account_id` from the picked product), so a
+  // different product must not inherit the old one's QuickBooks account.
+  group('picking a product onto a line', () {
+    final line = _parse(
+      _wire({'unit_code': 'HUR', 'income_account_id': 'qb-41'}),
+    );
+
+    test('a different product starts the carried fields fresh', () {
+      final next = lineItemFromProduct(
+        emptyProductWithKey('OTHER'),
+        base: line,
+      );
+      expect(next.extra, isEmpty);
+      expect(next.toApiJson().containsKey('income_account_id'), isFalse);
+    });
+
+    test('the same product keeps them', () {
+      final next = lineItemFromProduct(emptyProductWithKey('SVC'), base: line);
+      expect(next.extra['income_account_id'], 'qb-41');
     });
   });
 }

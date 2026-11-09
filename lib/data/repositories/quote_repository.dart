@@ -402,15 +402,25 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
   /// invoice holding one is the proof. So a server that gained it starts
   /// offering the toggle at the first document anyone saves after the
   /// upgrade, once it reaches this device.
-  Future<bool> serverModelsOptionalLines({required String companyId}) async =>
-      await db.quoteDao.anyPayloadContains(
-        companyId: companyId,
-        fragment: kServerOptionalLineMarker,
-      ) ||
-      await db.invoiceDao.anyPayloadContains(
-        companyId: companyId,
-        fragment: kServerOptionalLineMarker,
-      );
+  ///
+  /// Once proven for a company the answer is kept — a server does not lose a
+  /// field — so the probe runs on each quote edit only until the first hit.
+  Future<bool> serverModelsOptionalLines({required String companyId}) async {
+    if (_optionalLinesProven.contains(companyId)) return true;
+    final proven =
+        await db.quoteDao.anyPayloadContains(
+          companyId: companyId,
+          fragment: kServerOptionalLineMarker,
+        ) ||
+        await db.invoiceDao.anyPayloadContains(
+          companyId: companyId,
+          fragment: kServerOptionalLineMarker,
+        );
+    if (proven) _optionalLinesProven.add(companyId);
+    return proven;
+  }
+
+  final Set<String> _optionalLinesProven = {};
 
   Future<void> cancel({required String companyId, required String id}) =>
       enqueueMutation(

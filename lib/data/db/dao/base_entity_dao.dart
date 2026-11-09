@@ -215,22 +215,34 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     ).equals(userId);
   }
 
-  /// Whether any of [companyId]'s stored records holds [fragment] verbatim in
-  /// its `payload` JSON — a capability probe over what the server has sent
-  /// (`QuoteRepository.serverModelsOptionalLines`), not a search: [fragment]
-  /// is matched as the exact text `jsonEncode` writes. Stops at the first hit.
+  /// Whether any of [companyId]'s [recent] most recently updated records
+  /// holds [fragment] verbatim in its `payload` JSON — a capability probe over
+  /// what the server has sent (`QuoteRepository.serverModelsOptionalLines`),
+  /// not a search: [fragment] is matched as the exact text `jsonEncode`
+  /// writes.
+  ///
+  /// Bounded to the newest rows on purpose. `payload LIKE '%…%'` can use no
+  /// index, and on a server without the capability there is never a hit, so
+  /// an unbounded probe read every payload of the table on every call. The
+  /// proof such a probe looks for is a record the server wrote after gaining
+  /// the capability — by definition among the newest.
   Future<bool> anyPayloadContains({
     required String companyId,
     required String fragment,
+    int recent = 200,
   }) async {
-    final q = selectOnly(table)
-      ..addColumns([idColumn])
-      ..where(
-        companyIdColumn.equals(companyId) &
-            const CustomExpression<String>('payload').like('%$fragment%'),
-      )
-      ..limit(1);
-    return (await q.get()).isNotEmpty;
+    final rows = await customSelect(
+      'SELECT 1 FROM (SELECT payload FROM ${table.actualTableName} '
+      'WHERE company_id = ? ORDER BY updated_at DESC LIMIT ?) '
+      'WHERE payload LIKE ? LIMIT 1',
+      variables: [
+        Variable.withString(companyId),
+        Variable.withInt(recent),
+        Variable.withString('%$fragment%'),
+      ],
+      readsFrom: {table},
+    ).get();
+    return rows.isNotEmpty;
   }
 
   /// One-shot batch read by id — one query (per [chunkIdsForSqlIn] slice)

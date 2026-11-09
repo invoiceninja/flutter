@@ -38,6 +38,7 @@ Future<Set<String>?> showInvoiceChecklistDialog(
   required Set<String> selected,
   required Map<String, Decimal> existingAmounts,
   required Decimal paymentAmount,
+  Decimal? otherAllocated,
   Formatter? formatter,
   String? currencyId,
 }) {
@@ -48,6 +49,7 @@ Future<Set<String>?> showInvoiceChecklistDialog(
       selected: selected,
       existingAmounts: existingAmounts,
       paymentAmount: paymentAmount,
+      otherAllocated: otherAllocated ?? Decimal.zero,
       formatter: formatter,
       currencyId: currencyId,
     ),
@@ -115,6 +117,7 @@ class InvoiceChecklistDialog extends StatefulWidget {
     required this.selected,
     required this.existingAmounts,
     required this.paymentAmount,
+    required this.otherAllocated,
     this.formatter,
     this.currencyId,
   });
@@ -123,6 +126,13 @@ class InvoiceChecklistDialog extends StatefulWidget {
   final Set<String> selected;
   final Map<String, Decimal> existingAmounts;
   final Decimal paymentAmount;
+
+  /// What the payment already allocates to invoices this list doesn't offer
+  /// (one paid off since, on an existing payment). Not the list's to change,
+  /// but it uses up the amount received all the same — [applyInvoiceSelection]
+  /// counts it — so the room left and Unapplied have to count it too, or the
+  /// dialog would allow a tick that Apply then drops at zero.
+  final Decimal otherAllocated;
   final Formatter? formatter;
   final String? currencyId;
 
@@ -209,7 +219,8 @@ class _InvoiceChecklistDialogState extends State<InvoiceChecklistDialog> {
   /// else only while some of it is still unapplied. A row ticked past that
   /// would be allocated nothing, which the server refuses.
   bool get _roomLeft =>
-      widget.paymentAmount <= Decimal.zero || widget.paymentAmount > _total;
+      widget.paymentAmount <= Decimal.zero ||
+      widget.paymentAmount > _total + widget.otherAllocated;
 
   /// Select All: tick the visible rows — with a fixed amount, in list order
   /// and only while it lasts, so it fills the deposit rather than overshoot
@@ -218,7 +229,7 @@ class _InvoiceChecklistDialogState extends State<InvoiceChecklistDialog> {
     final toAdd = <String>[];
     if (!allTicked) {
       final fixed = widget.paymentAmount;
-      var total = _total;
+      var total = _total + widget.otherAllocated;
       for (final t in visible) {
         if (_selected.contains(t.id)) continue;
         if (fixed > Decimal.zero && total >= fixed) break;
@@ -251,7 +262,8 @@ class _InvoiceChecklistDialogState extends State<InvoiceChecklistDialog> {
     final fixed = widget.paymentAmount;
     // Never below zero: Apply caps the last invoice at what is left, so the
     // payment is never over-applied — that invoice is part-paid instead.
-    final unapplied = fixed > total ? fixed - total : Decimal.zero;
+    final used = total + widget.otherAllocated;
+    final unapplied = fixed > used ? fixed - used : Decimal.zero;
     final showFilter = widget.targets.length > kInvoiceChecklistFilterThreshold;
     final muted = theme.textTheme.bodySmall?.copyWith(color: tokens.ink3);
     final screenWidth = MediaQuery.sizeOf(context).width;

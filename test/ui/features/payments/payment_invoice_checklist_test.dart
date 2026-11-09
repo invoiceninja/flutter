@@ -181,6 +181,7 @@ void main() {
       Set<String> selected = const {},
       Map<String, Decimal> existing = const {},
       num paymentAmount = 0,
+      num otherAllocated = 0,
     }) async {
       final result = _Result();
       await tester.pumpWidget(
@@ -194,6 +195,7 @@ void main() {
                   selected: selected,
                   existingAmounts: existing,
                   paymentAmount: Decimal.parse('$paymentAmount'),
+                  otherAllocated: Decimal.parse('$otherAllocated'),
                 );
                 result.closed = true;
               },
@@ -293,6 +295,28 @@ void main() {
       await tester.tap(find.text('#I2'));
       await tester.pumpAndSettle();
       expect(row('i3').enabled, isTrue);
+    });
+
+    // Review finding: an allocation the list doesn't offer (an invoice paid
+    // off since, on an existing payment) still uses up the amount received —
+    // Apply counts it — so the room left and Unapplied must count it too.
+    testWidgets('allocations the list doesn\'t show use up the amount too', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        targets: [_target('i1', 100), _target('i2', 250)],
+        paymentAmount: 300,
+        otherAllocated: 250,
+      );
+      expect(find.text('50'), findsOneWidget); // unapplied: 300 - 250
+
+      await tester.tap(find.text('#I1'));
+      await tester.pumpAndSettle();
+      final i2 = tester.widget<CheckboxListTile>(
+        find.byKey(const ValueKey('invoice_checklist_i2')),
+      );
+      expect(i2.enabled, isFalse);
     });
 
     testWidgets('with an amount fixed, Select All fills it, then clears', (

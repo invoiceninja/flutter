@@ -126,4 +126,21 @@ void main() {
       expect(json.containsKey('is_optional'), isFalse);
     });
   });
+
+  // Review finding: `payload LIKE '%…%'` can use no index, and a server
+  // without the field never matches, so the probe reads only the newest rows —
+  // where a record written after the server upgrade always is.
+  test('the probe reads only the most recently updated rows', () async {
+    await loaded([
+      _quote('old', {'is_optional': false}).copyWith(updatedAt: 1),
+      _quote('new', {}).copyWith(updatedAt: 2),
+    ]);
+    Future<bool> probe(int recent) => db.quoteDao.anyPayloadContains(
+      companyId: 'co',
+      fragment: kServerOptionalLineMarker,
+      recent: recent,
+    );
+    expect(await probe(1), isFalse);
+    expect(await probe(2), isTrue);
+  });
 }

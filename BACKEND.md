@@ -3323,7 +3323,10 @@ the line's other unmodelled fields through an edit untouched.
 `is_optional: false` onto every line it saves, and a stored quote or invoice carrying that `false`
 is the proof — the app itself never sends `false`, and today's server echoes only what it is sent.
 So the toggle appears at the first document saved after the upgrade. **Keep the default `false`
-in `InvoiceItem`** (not `null`, and not omitted when false): that is the signal.
+in `InvoiceItem`** (not `null`, and not omitted when false): that is the signal. **And ship (1)
+and (2) together:** the signal proves only the field, so a server with (1) and not (2) would get
+the toggle while still counting optional lines in its own totals — the mismatch the gate exists to
+prevent. Nothing the client can read proves (2) before an optional line exists.
 
 **Needed server-side**, so the stored and printed totals agree with the app's:
 1. `InvoiceItem::$is_optional` (+ its cast), so the flag survives `cleanLineItem` explicitly.

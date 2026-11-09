@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:admin/data/services/system_bus_probe.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
@@ -27,6 +28,14 @@ import 'package:flutter/foundation.dart';
 /// degrades a failed or stalled probe to "assume online" rather than letting
 /// it break a save. See docs/setup.md § Linux desktop / Snap.
 ///
+/// **No system bus at all (Linux / Flatpak).** A Flatpak without
+/// `--system-talk-name` has no system bus socket, and there the plugin's
+/// connect fails *inside* the plugin as an uncaught zone error — before the
+/// probe's `try` sees anything — and the probe then waits out its timeout. So
+/// [ConnectivityWatcher.live] skips the plugin when [systemBusMissing] says
+/// the socket is absent: the probe answers "unknown" at once, which is
+/// "assume online" (docs/flatpak.md § finish-args).
+///
 /// Use [ConnectivityWatcher.live] in production, [ConnectivityWatcher.fixed]
 /// in tests where you want a deterministic state without the
 /// `connectivity_plus` platform channel.
@@ -34,6 +43,7 @@ abstract class ConnectivityWatcher {
   ConnectivityWatcher();
 
   factory ConnectivityWatcher.live() {
+    if (systemBusMissing()) return ConnectivityWatcher.unavailable();
     final connectivity = Connectivity();
     return _LiveConnectivityWatcher.raw(
       check: connectivity.checkConnectivity,
@@ -51,6 +61,16 @@ abstract class ConnectivityWatcher {
     required Future<List<ConnectivityResult>> Function() check,
     required Stream<List<ConnectivityResult>> Function() changes,
   }) = _LiveConnectivityWatcher.raw;
+
+  /// A watcher that cannot tell: no probe is ever made. It reports online,
+  /// never fires [onOnline], and its [isOnlineStream] is a single `true` — the
+  /// same "assume online" a failed probe degrades to, without the failure.
+  factory ConnectivityWatcher.unavailable() => _LiveConnectivityWatcher.raw(
+    check: () => Future.error(
+      UnsupportedError('No D-Bus system bus: connectivity is unknown'),
+    ),
+    changes: () => const Stream<List<ConnectivityResult>>.empty(),
+  );
 
   /// Test-only — always reports [online], emits one fake transition if the
   /// listener subscribes while [online] is true (so wiring-up code can be

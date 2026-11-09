@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/app/services.dart';
@@ -217,15 +218,40 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     if (doc != null) _opened(doc, companyId);
   }
 
+  /// The list a row action started from is still the one showing, for the
+  /// same company. The view model alone is not enough: it is kept while the
+  /// next company's handshake loads, so a switch can land before it changes.
+  bool _stillOn(DocuNinjaDocumentsViewModel vm, String? companyId) =>
+      mounted &&
+      identical(vm, _vm) &&
+      companyId != null &&
+      _currentCompanyId == companyId;
+
   String? get _currentCompanyId =>
       context.read<Services>().auth.session.value?.currentCompanyId;
 
   /// A new document of [companyId]: the list re-reads, the app lands on it
   /// and (as React does) its builder opens — unless the user switched
   /// company while it uploaded, when it is not this company's to open.
-  void _opened(DnDocument doc, String companyId) {
+  void _opened(DnDocument doc, String? companyId) {
     _session?.markDocumentsChanged();
-    if (!mounted || _currentCompanyId != companyId) return;
+    if (!mounted || companyId == null || _currentCompanyId != companyId) {
+      return;
+    }
+    // An upload that finished after the user went elsewhere (they get five
+    // minutes) does not pull them back or open a browser: it says so, with
+    // the way to it.
+    if (!_onStage) {
+      final host = Navigator.of(context, rootNavigator: true).context;
+      Notify.success(
+        context,
+        context.tr('document_created'),
+        action: NotifyAction(context.tr('open'), () {
+          if (host.mounted) host.go('/docuninja/${doc.id}');
+        }),
+      );
+      return;
+    }
     context.go('/docuninja/${doc.id}');
     notifyAndOpenDocuNinjaBuilder(
       context,
@@ -240,21 +266,22 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   /// and its builder opens, as after the `+` dialog.
   Widget? _dropZone(DocuNinjaState state) {
     final api = context.read<DocuNinjaApi?>();
-    final companyId = _currentCompanyId;
-    if (api == null ||
-        companyId == null ||
-        !state.can('documents', DnAction.create)) {
-      return null;
-    }
+    if (api == null || !state.can('documents', DnAction.create)) return null;
     return DocuNinjaDropZone(
       api: api,
+      // The company the files were dropped for, read at the drop.
+      companyOf: () => _currentCompanyId,
       onMaybeCreated: () => _session?.markDocumentsChanged(),
-      onCreated: (doc) => _opened(doc, companyId),
+      onCreated: _opened,
     );
   }
 
+  /// The screen's resting focus owner, so `N` has a node to reach it from.
+  final FocusNode _bodyFocus = FocusNode(debugLabel: 'docuninja-documents');
+
   @override
   void dispose() {
+    _bodyFocus.dispose();
     _lifecycle.dispose();
     _session?.removeListener(_onSession);
     _session?.documentsChanged.removeListener(_onDocumentsChanged);
@@ -298,10 +325,13 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   }) {
     final canCreate = vm != null && state.can('documents', DnAction.create);
     // `N` starts a new document, as on the app's lists (React binds
-    // `create_document` too); it falls through to a focused text field.
+    // `create_document` too); it falls through to a focused text field, and
+    // is not bound at all for a role that cannot create.
     return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.keyN): _NewDocumentIntent(),
+      shortcuts: <ShortcutActivator, Intent>{
+        if (canCreate)
+          const SingleActivator(LogicalKeyboardKey.keyN):
+              const _NewDocumentIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -312,12 +342,22 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             },
           ),
         },
-        child: _scaffoldBody(
-          context,
-          state,
-          vm,
-          globalNav: globalNav,
-          wide: wide,
+        // A key reaches the map above only from a node below it: the
+        // screen's own resting focus owner, as the entity lists keep one
+        // (docs/keyboard.md). Not while off stage or covered by a page.
+        child: FocusOwnerKeeper(
+          node: _bodyFocus,
+          enabled: TickerMode.valuesOf(context).enabled,
+          child: Focus(
+            focusNode: _bodyFocus,
+            child: _scaffoldBody(
+              context,
+              state,
+              vm,
+              globalNav: globalNav,
+              wide: wide,
+            ),
+          ),
         ),
       ),
     );
@@ -751,15 +791,16 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           Icons.copy_outlined,
           'clone',
           () => _rowRun(vm, () async {
+            final companyId = _currentCompanyId;
             final json = await context.read<DocuNinjaApi>().action(
               doc.id,
               'clone',
             );
             final data = json is Map ? json['data'] : null;
             final id = data is Map ? '${data['id'] ?? ''}' : '';
-            // Not if a company switch replaced the list meanwhile: the new
-            // id would open under the other company.
-            if (!mounted || !identical(vm, _vm)) return;
+            // Not after a company switch: the id would open under the
+            // other company.
+            if (!mounted || !_stillOn(vm, companyId)) return;
             Notify.success(context, context.tr('cloned_document'));
             if (id.isNotEmpty) context.go('/docuninja/$id');
           }),
@@ -772,16 +813,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           Icons.copy_all_outlined,
           'clone_to_template',
           () => _rowRun(vm, () async {
-            final companyId = context
-                .read<Services>()
-                .auth
-                .session
-                .value
-                ?.currentCompanyId;
+            final companyId = _currentCompanyId;
             final id = await context.read<DocuNinjaApi>().makeBlueprint(doc.id);
-            // Not if a company switch replaced the list meanwhile: the new
-            // id would open under the other company.
-            if (!mounted || !identical(vm, _vm)) return;
+            // Not after a company switch: the id would open under the
+            // other company.
+            if (!mounted || !_stillOn(vm, companyId)) return;
             if (id.isEmpty || companyId == null) {
               throw StateError('make_blueprint returned no id');
             }
@@ -801,10 +837,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           Icons.block_outlined,
           'void',
           () => _rowRun(vm, () async {
+            final companyId = _currentCompanyId;
             await context.read<DocuNinjaApi>().action(doc.id, 'void');
-            // Not if a company switch replaced the list meanwhile: the new
-            // id would open under the other company.
-            if (!mounted || !identical(vm, _vm)) return;
+            // Not after a company switch: the id would open under the
+            // other company.
+            if (!mounted || !_stillOn(vm, companyId)) return;
             Notify.success(context, context.tr('voided_document'));
             // React goes to the voided document.
             context.go('/docuninja/${doc.id}');

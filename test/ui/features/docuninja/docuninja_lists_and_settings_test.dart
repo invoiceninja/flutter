@@ -217,7 +217,8 @@ void main() {
       for (final label in ['STATUS', 'NAME', 'TYPE']) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
-      expect(find.byType(DecoratedSliver), findsOneWidget);
+      // Two: the fill under the rows, the border over them.
+      expect(find.byType(DecoratedSliver), findsNWidgets(2));
       expect(find.text('NDA'), findsOneWidget);
       expect(find.text('Archived'), findsOneWidget);
 

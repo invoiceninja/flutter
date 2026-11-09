@@ -205,7 +205,7 @@ class DocuNinjaClient {
     if (token == null || token.isEmpty) {
       throw const DocuNinjaException(401, 'No DocuNinja token');
     }
-    final request = await build(token);
+    final request = _ProbedRequest(await build(token));
     try {
       final streamed = await _http.send(request).timeout(timeout);
       return await http.Response.fromStream(streamed).timeout(timeout);
@@ -218,12 +218,25 @@ class DocuNinjaClient {
       }
       throw const DocuNinjaException(408, 'DocuNinja request timed out');
     } on http.ClientException catch (e) {
-      throw NetworkException(e.message);
+      throw _transportFailure(request, e.message);
     } on TlsException catch (e) {
       // A captive portal or a broken connection's TLS: not a client
       // exception under `IOClient`, and offline all the same.
-      throw NetworkException(e.message);
+      throw _transportFailure(request, e.message);
     }
+  }
+
+  /// A dropped connection. Offline for a read, and for a write whose body
+  /// never left (the connection failed first, see [_ProbedRequest]). A
+  /// write that was sent may have landed — a document uploaded, a clone
+  /// made — so it is the ambiguous 408 the screens answer by re-reading,
+  /// never "offline", which would invite a second one (`ApiClient` does the
+  /// same).
+  Exception _transportFailure(_ProbedRequest request, String message) {
+    if (request.method == 'GET' || !request.bodyRead) {
+      return NetworkException(message);
+    }
+    return DocuNinjaException(408, message);
   }
 
   DocuNinjaException _error(http.Response response) {
@@ -283,5 +296,40 @@ class DocuNinjaClient {
       caseSensitive: false,
     ).firstMatch(disposition);
     return plain?.group(1)?.trim();
+  }
+}
+
+/// Sends [_inner] and records whether the transport started reading its
+/// body. `IOClient` opens the connection (DNS, TCP, TLS) before it reads the
+/// body, so a failure while [bodyRead] is false proves nothing reached the
+/// server. `BrowserClient` reads the body before `fetch`, so on the web it
+/// is always true and a failed write stays "may have landed" — the
+/// conservative answer. `ApiClient`'s `_BodyProbe` is the model.
+class _ProbedRequest extends http.BaseRequest {
+  _ProbedRequest(this._inner) : super(_inner.method, _inner.url) {
+    followRedirects = _inner.followRedirects;
+    maxRedirects = _inner.maxRedirects;
+    persistentConnection = _inner.persistentConnection;
+  }
+
+  final http.BaseRequest _inner;
+  bool _bodyRead = false;
+
+  bool get bodyRead => _bodyRead;
+
+  @override
+  http.ByteStream finalize() {
+    // The inner request writes its own headers (a multipart boundary) and
+    // length as it finalizes, so copy them after.
+    final body = _inner.finalize();
+    headers.addAll(_inner.headers);
+    contentLength = _inner.contentLength;
+    super.finalize();
+    return http.ByteStream(
+      Stream<List<int>>.multi((controller) {
+        _bodyRead = true;
+        controller.addStream(body).whenComplete(controller.close);
+      }),
+    );
   }
 }

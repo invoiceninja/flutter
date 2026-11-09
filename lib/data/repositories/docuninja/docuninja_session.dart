@@ -181,10 +181,19 @@ class DocuNinjaSession extends ValueNotifier<DocuNinjaState>
   /// without a second handshake that another tab's save could race and a
   /// failure could turn into a lost screen. Ignored unless it is the paired
   /// company.
+  ///
+  /// Only the settings are taken: the company the caller read before its
+  /// save may carry a token a refresh has since replaced, and putting that
+  /// back would send the next request on a dead one.
   void replaceCompany(DnCompany company) {
     final state = value;
-    if (state.company?.id != company.id) return;
-    value = DocuNinjaState(state.access, login: state.login, company: company);
+    final live = state.company;
+    if (live == null || live.id != company.id) return;
+    value = DocuNinjaState(
+      state.access,
+      login: state.login,
+      company: live.withSettings(company.settings),
+    );
   }
 
   @override

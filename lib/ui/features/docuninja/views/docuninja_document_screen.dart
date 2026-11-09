@@ -882,9 +882,18 @@ class _SignerCard extends StatelessWidget {
                     const SizedBox(height: 10),
                     // React's "Client contact:" / "User:": who on whose side
                     // is asked to sign.
+                    // The label gives way too: a long translation at a
+                    // large text size overflowed the row.
                     Row(
                       children: [
-                        Text('$label:', style: line),
+                        Flexible(
+                          child: Text(
+                            '$label:',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: line,
+                          ),
+                        ),
                         if (i.signerEmail.isNotEmpty) ...[
                           const SizedBox(width: 4),
                           Flexible(
@@ -1263,6 +1272,12 @@ class _OptionsDialogState extends State<_OptionsDialog> {
 
   Future<void> _save() async {
     if (_saving) return;
+    // A date typed into the expiry field is taken on blur, and on a phone
+    // tapping Save does not blur it: commit it first, or Save drops it
+    // (`EntityEditScaffold._runSave` does the same).
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted || _saving) return;
     final expiryChanged =
         dnCanSetExpiry(widget.document) && _expires != _stored;
     setState(() {

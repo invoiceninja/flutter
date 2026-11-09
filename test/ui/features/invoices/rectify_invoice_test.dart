@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -214,6 +215,35 @@ void main() {
     test("drops the source's sent date", () {
       final source = _invoice().copyWith(lastSentDate: Date(2026, 10, 1));
       expect(rectifiedDraft(source, 'r').lastSentDate, isNull);
+    });
+
+    // The server matches a sent invitation `key` across every invoice: the
+    // source's keys gave the draft no invitations of its own, and on a
+    // DocuNinja company rewrote the source's `can_sign`. Its `sync` would
+    // show the source's "Signed Document" pill.
+    test('gets fresh invitations and no sync', () {
+      final source = _invoice().copyWith(
+        invitations: const [
+          Invitation(
+            id: 'inv1',
+            key: 'source-key',
+            clientContactId: 'c1',
+            sentDate: '2026-10-01',
+            canSign: true,
+          ),
+        ],
+        sync: const {'dn_completed': true},
+      );
+      final draft = rectifiedDraft(source, 'r');
+      expect(draft.sync, isNull);
+      final invitation = draft.invitations.single;
+      expect(invitation.key, isEmpty);
+      expect(invitation.id, isEmpty);
+      expect(invitation.clientContactId, 'c1');
+      expect(invitation.sentDate, isEmpty);
+      expect(invitation.canSign, isTrue);
+      final json = draft.toApiJson();
+      expect('${json['invitations']}', isNot(contains('source-key')));
     });
   });
 }

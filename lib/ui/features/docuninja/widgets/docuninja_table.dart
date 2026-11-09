@@ -30,21 +30,29 @@ Widget dnTableCard(
   return DecoratedSliver(
     decoration: BoxDecoration(
       color: tokens.surface,
-      border: Border.all(color: tokens.border),
       borderRadius: BorderRadius.circular(InRadii.r3),
       boxShadow: tokens.shadow1,
     ),
-    sliver: SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: DnTableHeader(
-            columns: columns,
-            leadingWidth: leadingWidth,
-            trailingWidth: trailingWidth,
+    sliver: DecoratedSliver(
+      // The border over the rows: the header strip and a selected
+      // row fill to the edge and would otherwise cover it.
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        border: Border.all(color: tokens.border),
+        borderRadius: BorderRadius.circular(InRadii.r3),
+      ),
+      sliver: SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(
+            child: DnTableHeader(
+              columns: columns,
+              leadingWidth: leadingWidth,
+              trailingWidth: trailingWidth,
+            ),
           ),
-        ),
-        ...rows,
-      ],
+          ...rows,
+        ],
+      ),
     ),
   );
 }

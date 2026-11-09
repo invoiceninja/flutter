@@ -48,7 +48,7 @@ class LeaderTarget {
 /// Credits and the recurring pair are deliberately unbound: every letter in
 /// "credits" is already taken, and inventing one for a destination whose name
 /// does not contain it makes a shortcut that can only be looked up, never
-/// remembered. Free letters, if you want to bind more: F H K L M N U W X Z.
+/// remembered. Free letters, if you want to bind more: F H K L M U W X Z.
 ///
 /// Adding one is a single entry here; the shell, the sidebar hints and the
 /// dialog all follow. A target whose module is off for the active company, or

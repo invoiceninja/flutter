@@ -62,7 +62,14 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
       );
     }
     if (doc.status != DnDocumentStatus.completed) {
-      if (mounted) context.go('/docuninja/${widget.id}');
+      // Not from a page or branch the user has since left (a branch keeps
+      // its route current offstage; its tickers stop): it would pull them
+      // back.
+      if (mounted &&
+          TickerMode.valuesOf(context).enabled &&
+          (ModalRoute.of(context)?.isCurrent ?? false)) {
+        context.go('/docuninja/${widget.id}');
+      }
       throw StateError('Not completed');
     }
     final DnFileBytes file;

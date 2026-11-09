@@ -2230,7 +2230,11 @@ class Services implements SidebarBadgeContext {
     // DocuNinja's own socket (docs/docuninja.md § Live updates), on the same
     // opt-in: it follows the DocuNinja session and lives as long as the app.
     if (realtimeUpdates) {
-      DocuNinjaRealtime(session: docuNinjaSession, client: docuNinjaClient);
+      final docuNinjaRealtime = DocuNinjaRealtime(
+        session: docuNinjaSession,
+        client: docuNinjaClient,
+      );
+      connectivity.onOnline.listen((_) => docuNinjaRealtime.onOnline());
     }
     final priorOnBeforeLogout = auth.onBeforeLogout;
     auth.onBeforeLogout = () async {

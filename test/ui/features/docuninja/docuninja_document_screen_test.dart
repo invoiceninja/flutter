@@ -17,6 +17,7 @@ import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
@@ -36,6 +37,20 @@ class _Api implements DocuNinjaApi {
 
   @override
   Future<List<DnTimelineEntry>> timeline(String id) async => const [];
+
+  /// The Options dialog's last save: whether it set the expiry, and to what.
+  ({bool setExpiry, String? expiresAt})? saved;
+
+  @override
+  Future<DnDocument> updateDocument(
+    String id, {
+    required String description,
+    bool setExpiry = false,
+    String? expiresAt,
+  }) async {
+    saved = (setExpiry: setExpiry, expiresAt: expiresAt);
+    return doc;
+  }
 
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -198,6 +213,7 @@ void main() {
 
   group('actions', () {
     late ShellFixture fixture;
+    late _Api api;
 
     Future<void> pump(
       WidgetTester tester,
@@ -213,7 +229,7 @@ void main() {
         wrapWithShell(
           fixture.services,
           Provider<DocuNinjaApi>.value(
-            value: _Api(doc),
+            value: api = _Api(doc),
             child: session == null
                 ? screen
                 : ChangeNotifierProvider<DocuNinjaSession?>.value(
@@ -268,6 +284,32 @@ void main() {
       }
       await dispose(tester);
     });
+
+    // On a phone, tapping Save does not blur the expiry field, and the field
+    // takes typed text on blur: Save sent the old expiry and said "updated".
+    testWidgets('Options saves an expiry typed but not yet committed', (
+      tester,
+    ) async {
+      await pump(tester, _doc(status: 1));
+      await openMenu(tester);
+      await tester.tap(find.text('Options'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(InDateField),
+          matching: find.byType(TextField),
+        ),
+        '2026-12-31',
+      );
+      await tester.tap(find.widgetWithText(PrimaryDialogAction, 'Save'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(api.saved?.setExpiry, isTrue);
+      expect(api.saved?.expiresAt, startsWith('2026-12-31'));
+      await dispose(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
     testWidgets('Edit (the builder) is beside the menu until completed', (
       tester,

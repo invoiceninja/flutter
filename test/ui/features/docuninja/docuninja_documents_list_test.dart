@@ -80,7 +80,10 @@ void main() {
       wrapWithShell(
         fixture.services,
         Scaffold(
-          body: DocuNinjaDropZone(api: api, onCreated: (d) => opened.add(d.id)),
+          body: DocuNinjaDropZone(
+            api: api,
+            onCreated: (d, _) => opened.add(d.id),
+          ),
         ),
       ),
     );
@@ -108,7 +111,7 @@ void main() {
       wrapWithShell(
         fixture.services,
         Scaffold(
-          body: DocuNinjaDropZone(api: api, onCreated: (_) {}),
+          body: DocuNinjaDropZone(api: api, onCreated: (_, _) {}),
         ),
       ),
     );
@@ -238,5 +241,26 @@ void main() {
     expect(vm.isSelecting, isFalse);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  // DocuNinja writes invitation dates as `2026-02-22 21:17:30`, UTC with no
+  // offset; read as local time they put a Tokyo user's "Sent" a day early.
+  test('a DocuNinja timestamp without an offset is UTC', () {
+    expect(
+      dnParseUtc('2026-02-22 21:17:30'),
+      DateTime.utc(2026, 2, 22, 21, 17, 30),
+    );
+    expect(
+      dnParseUtc('2026-02-22T21:14:25.000000Z'),
+      DateTime.utc(2026, 2, 22, 21, 14, 25),
+    );
+    expect(
+      dnParseUtc('2026-02-22T21:14:25+02:00'),
+      DateTime.utc(2026, 2, 22, 19, 14, 25),
+    );
+    // A bare date stays that date.
+    expect(dnParseUtc('2026-02-22'), DateTime(2026, 2, 22));
+    expect(dnParseUtc(''), isNull);
+    expect(dnParseUtc(null), isNull);
   });
 }

@@ -118,6 +118,12 @@ class DocuNinjaRealtime {
     if (_channel != null) _connection.connect();
   }
 
+  /// The device is back online: reconnect now rather than at the end of
+  /// the backoff, as the Invoice Ninja socket does (`RealtimeService`).
+  void onOnline() {
+    if (!_paused && _channel != null) _connection.connect();
+  }
+
   void dispose() {
     _lifecycle.dispose();
     _session.removeListener(_reconcile);

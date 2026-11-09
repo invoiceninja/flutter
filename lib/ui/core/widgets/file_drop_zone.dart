@@ -5,6 +5,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show HitTestEntry, HitTestResult;
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
@@ -195,8 +196,35 @@ class _FileDropZoneState extends State<FileDropZone> {
     return uploadSourcesFromPicked(files);
   }
 
+  /// The box's own render object, for [_reaches].
+  final _boxKey = GlobalKey();
+
+  /// Whether a drag at [global] lands on this box and nothing covers it.
+  ///
+  /// `desktop_drop` hands a drop to every `DropTarget` whose bounds contain
+  /// the point — it does no hit test, so a box on a branch kept mounted
+  /// offstage, under a dialog's barrier or under a pushed page would take a
+  /// file dropped on another screen (and DocuNinja's creates a document from
+  /// it at once). A real hit test answers what the user is pointing at.
+  bool _reaches(Offset global) {
+    final box = _boxKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !mounted) return false;
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      global,
+      View.of(context).viewId,
+    );
+    return result.path.any((HitTestEntry entry) => entry.target == box);
+  }
+
+  void _setDragOver(bool over) {
+    if (over != _dragOver) setState(() => _dragOver = over);
+  }
+
   Future<void> _onDrop(DropDoneDetails details) async {
-    setState(() => _dragOver = false);
+    _setDragOver(false);
+    if (!_reaches(details.globalPosition)) return;
     final sources = await uploadSourcesFromDrop(details);
     if (sources.isEmpty) return;
     await widget.onFiles(sources);
@@ -309,6 +337,7 @@ class _FileDropZoneState extends State<FileDropZone> {
     );
 
     final tappable = Opacity(
+      key: _boxKey,
       opacity: widget.enabled ? 1 : 0.5,
       child: Material(
         color: Colors.transparent,
@@ -324,8 +353,12 @@ class _FileDropZoneState extends State<FileDropZone> {
 
     if (!fileDropSupported || !widget.enabled) return tappable;
     return DropTarget(
-      onDragEntered: (_) => setState(() => _dragOver = true),
-      onDragExited: (_) => setState(() => _dragOver = false),
+      // Not on a branch or page the user has left (offstage, under an
+      // opaque route): its bounds still contain the pointer.
+      enable: TickerMode.valuesOf(context).enabled,
+      onDragEntered: (d) => _setDragOver(_reaches(d.globalPosition)),
+      onDragUpdated: (d) => _setDragOver(_reaches(d.globalPosition)),
+      onDragExited: (_) => _setDragOver(false),
       onDragDone: _onDrop,
       child: tappable,
     );

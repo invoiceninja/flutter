@@ -124,6 +124,11 @@ class _Seats {
   bool get full => used >= max;
 
   int get left => max <= used ? 0 : max - used;
+
+  /// The account states a seat count. React's `NumberOfUsersAlert` shows
+  /// nothing without one (only New User stays off), so neither the banner
+  /// nor an "N / 0" count is shown then.
+  bool get known => max > 0;
 }
 
 Future<_Seats> _seats(DocuNinjaApi api, DocuNinjaState state) async {
@@ -384,7 +389,7 @@ class _UsersListState extends State<_UsersList> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // React's NumberOfUsersAlert: every seat is taken.
-        if (seats != null && seats.full)
+        if (seats != null && seats.known && seats.full)
           Padding(
             padding: EdgeInsetsDirectional.fromSTEB(inset, 8, inset, 0),
             child: _SeatLimitAlert(
@@ -429,7 +434,7 @@ class _UsersListState extends State<_UsersList> {
                     ),
                   ),
                 ),
-                if (seats != null) ...[
+                if (seats != null && seats.known) ...[
                   const SizedBox(width: InSpacing.sm),
                   LtrText(
                     '${seats.used} / ${seats.max}',

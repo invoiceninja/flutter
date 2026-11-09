@@ -269,21 +269,31 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
     return DecoratedSliver(
       decoration: BoxDecoration(
         color: tokens.surface,
-        border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r3),
         boxShadow: tokens.shadow1,
       ),
-      sliver: SliverMainAxisGroup(
-        slivers: [
-          SliverToBoxAdapter(
-            child: _TableHeader(
-              leading: widget.selectable ? _selectAll(vm) : null,
-              // Room for the rows' `⋮`, so the columns line up.
-              trailingWidth: widget.actionsFor == null ? 0 : actionButtonSize(),
+      sliver: DecoratedSliver(
+        // The border over the rows: the header strip and a selected
+        // row fill to the edge and would otherwise cover it.
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: Border.all(color: tokens.border),
+          borderRadius: BorderRadius.circular(InRadii.r3),
+        ),
+        sliver: SliverMainAxisGroup(
+          slivers: [
+            SliverToBoxAdapter(
+              child: _TableHeader(
+                leading: widget.selectable ? _selectAll(vm) : null,
+                // Room for the rows' `⋮`, so the columns line up.
+                trailingWidth: widget.actionsFor == null
+                    ? 0
+                    : actionButtonSize(),
+              ),
             ),
-          ),
-          ..._rowSlivers(context, vm, table: true),
-        ],
+            ..._rowSlivers(context, vm, table: true),
+          ],
+        ),
       ),
     );
   }
@@ -426,9 +436,21 @@ extension on _DocuNinjaDocumentsListState {
 /// A DocuNinja timestamp (`2026-02-22T21:14:25.000000Z`, UTC) as the company
 /// writes dates, on the user's own calendar day.
 String dnLocalDate(Formatter? f, String? iso) {
-  final at = DateTime.tryParse(iso ?? '')?.toLocal();
+  final at = dnParseUtc(iso)?.toLocal();
   if (f == null || at == null) return '';
   return f.date(Date(at.year, at.month, at.day).toIso());
+}
+
+/// A DocuNinja timestamp as the instant it names. DocuNinja writes UTC in
+/// two shapes: `2026-02-22T21:14:25.000000Z` and, on invitations,
+/// `2026-02-22 21:17:30` with no offset — which `DateTime.parse` would take
+/// as local time, putting a Tokyo user's "Sent" on the day before. A bare
+/// date stays a date.
+DateTime? dnParseUtc(String? value) {
+  final v = (value ?? '').trim();
+  if (v.length <= 10) return DateTime.tryParse(v);
+  final hasOffset = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(v);
+  return DateTime.tryParse(hasOffset ? v : '${v.replaceFirst(' ', 'T')}Z');
 }
 
 /// React dates a document by its first file (`created_at` column).

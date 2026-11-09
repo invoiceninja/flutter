@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
@@ -78,6 +79,15 @@ Invoice rectifiedDraft(Invoice invoice, String reason) {
     backup: null,
     // Never sent: the draft listed under the source's Last Sent Date.
     lastSentDate: null,
+    // The source's QuickBooks link and DocuNinja signing record (`sync`):
+    // the draft would wear the source's "Signed Document" pill.
+    sync: null,
+    // Fresh invitations for the same contacts, as every clone makes
+    // (`InvitationClone.freshClone`). The source's carried a `key`, and the
+    // server matches a sent key across all invoices: the draft got none of
+    // its own (the server fell back to the default contacts), and on a
+    // DocuNinja company the save rewrote the source's `can_sign`.
+    invitations: invoice.invitations.map((i) => i.freshClone()).toList(),
     archivedAt: null,
     isDeleted: false,
     isDirty: false,

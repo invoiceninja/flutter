@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -286,6 +288,20 @@ enum _CompanyTab { email, notifications, widgets }
 /// them).
 final _companySaveLock = ValueNotifier<bool>(false);
 
+/// Completes once no company tab is saving.
+Future<void> _companySaveReleased() {
+  if (!_companySaveLock.value) return Future<void>.value();
+  final done = Completer<void>();
+  void check() {
+    if (_companySaveLock.value) return;
+    _companySaveLock.removeListener(check);
+    done.complete();
+  }
+
+  _companySaveLock.addListener(check);
+  return done.future;
+}
+
 /// Two settings values the same to the user: a flag DocuNinja holds as 1
 /// is the `true` a switch writes, and a missing one is off.
 bool _sameSetting(Object? a, Object? b) {
@@ -373,6 +389,9 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   @override
   void initState() {
     super.initState();
+    // Read the seeds now, before the user can type.
+    _fromNameSeed;
+    _replyToSeed;
     _publishSave();
   }
 
@@ -383,16 +402,16 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       return true;
     }
     if (widget.kind != _CompanyTab.email) return false;
-    return _fromName.text.trim() != _savedText('email_from_name') ||
-        _replyTo.text.trim() != _savedText('reply_to_email');
+    return _fromName.text.trim() != _fromNameSeed ||
+        _replyTo.text.trim() != _replyToSeed;
   }
 
   /// Back to the company as saved (the user chose Discard).
   void _discard() => setState(() {
     _edits.clear();
     _fieldErrors = const {};
-    _fromName.text = _savedText('email_from_name');
-    _replyTo.text = _savedText('reply_to_email');
+    _fromName.text = _fromNameSeed = _savedText('email_from_name');
+    _replyTo.text = _replyToSeed = _savedText('reply_to_email');
   });
 
   void _set(String key, Object? value) => setState(() => _edits[key] = value);
@@ -402,6 +421,12 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   late final _replyTo = TextEditingController(
     text: '${_settings['reply_to_email'] ?? ''}',
   );
+
+  /// What the two text fields started with (or last saved): a field differs
+  /// from it only when the user typed. Comparing with the company as saved
+  /// instead would read another tab's or admin's change as this user's.
+  late String _fromNameSeed = _fromName.text.trim();
+  late String _replyToSeed = _replyTo.text.trim();
   bool _saving = false;
 
   @override
@@ -429,18 +454,24 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
+    // One company save at a time across the tabs: each lays its edits over
+    // the company as the last save left it. The app bar's Save is off while
+    // another tab saves; Enter in a field waits for it instead of doing
+    // nothing.
+    await _companySaveReleased();
+    if (!mounted) return;
     if (widget.kind == _CompanyTab.email) {
-      // React sends an empty value as null.
+      // Only what the user changed: a field left alone keeps what another
+      // admin (or another tab's save) has put there since. React sends an
+      // empty value as null.
       final name = _fromName.text.trim();
       final reply = _replyTo.text.trim();
-      _edits['email_from_name'] = name.isEmpty ? null : name;
-      _edits['reply_to_email'] = reply.isEmpty ? null : reply;
-    }
-    // One company save at a time across the tabs: each lays its edits over
-    // the company as the last save left it.
-    if (_companySaveLock.value) {
-      setState(() => _saving = false);
-      return;
+      if (name != _fromNameSeed) {
+        _edits['email_from_name'] = name.isEmpty ? null : name;
+      }
+      if (reply != _replyToSeed) {
+        _edits['reply_to_email'] = reply.isEmpty ? null : reply;
+      }
     }
     _companySaveLock.value = true;
     _fieldErrors = const {};
@@ -466,6 +497,8 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
       // build their next save on it.
       widget.session.replaceCompany(company.withSettings(next));
       _edits.clear();
+      _fromNameSeed = _fromName.text.trim();
+      _replyToSeed = _replyTo.text.trim();
       if (!mounted) return;
       Notify.success(context, context.tr('updated_company'));
     } on DocuNinjaException catch (e) {

@@ -313,11 +313,19 @@ class DocuNinjaDropZone extends StatefulWidget {
     super.key,
     required this.api,
     required this.onCreated,
+    this.companyOf,
     this.onMaybeCreated,
   });
 
   final DocuNinjaApi api;
-  final ValueChanged<DnDocument> onCreated;
+
+  /// The new document, and the company it was dropped for ([companyOf] at
+  /// the drop): the host must not open it under a company switched to
+  /// while it uploaded.
+  final void Function(DnDocument doc, String? companyId) onCreated;
+
+  /// The active company, read when the files arrive.
+  final String? Function()? companyOf;
 
   /// The upload timed out and may have landed.
   final VoidCallback? onMaybeCreated;
@@ -331,8 +339,9 @@ class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
 
   Future<void> _onFiles(List<UploadSource> sources) async {
     if (_busy) return;
-    // Read now: the upload may outlive the zone.
+    // Read now: the upload may outlive the zone, and the company may change.
     final intake = intakeOf(context);
+    final companyId = widget.companyOf?.call();
     final accepted = sources.where(dnAcceptsUpload).toList();
     if (accepted.length < sources.length) {
       Notify.error(context, context.tr('invalid_file'));
@@ -342,6 +351,16 @@ class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
       return;
     }
     final fallback = context.tr('untitled_document');
+    final tryAgain = context.tr('an_error_occurred_try_again');
+    final mayHaveLanded = context.tr('an_error_occurred');
+    // The zone can go while the upload runs (the list goes offline, the
+    // company changes): its failure is still said, from the root.
+    final host = Navigator.of(context, rootNavigator: true).context;
+    void fail(String message) {
+      final at = mounted ? context : host;
+      if (at.mounted) Notify.error(at, message);
+    }
+
     setState(() => _busy = true);
     try {
       final parts = await dnUploadParts(context, accepted);
@@ -357,28 +376,20 @@ class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
         ),
         files: parts,
       );
-      widget.onCreated(doc);
+      widget.onCreated(doc, companyId);
     } on DocuNinjaException catch (e) {
       if (e.statusCode == 408) {
         // May have landed: the list re-reads rather than invite a retry.
         widget.onMaybeCreated?.call();
       }
-      if (!mounted) return;
       final fieldError = e.fieldErrors.values
           .map((v) => v.firstOrNull)
           .nonNulls
           .firstOrNull;
-      Notify.error(
-        context,
-        e.statusCode == 408
-            ? context.tr('an_error_occurred')
-            : fieldError ?? context.tr('an_error_occurred_try_again'),
-      );
+      fail(e.statusCode == 408 ? mayHaveLanded : fieldError ?? tryAgain);
     } on Object catch (e, st) {
       _log.warning('Creating a DocuNinja document failed', e, st);
-      if (mounted) {
-        Notify.error(context, context.tr('an_error_occurred_try_again'));
-      }
+      fail(tryAgain);
     } finally {
       // The upload has read them: a photo taken here goes back now.
       unawaited(releaseCapturedPhotos(intake, sources));

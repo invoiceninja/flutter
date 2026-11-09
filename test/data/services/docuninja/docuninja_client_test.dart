@@ -26,6 +26,14 @@ class _Tokens implements DocuNinjaTokenSource {
   int epoch = 0;
 }
 
+/// Fails the connection before reading the request's body, as `IOClient`
+/// does when DNS, TCP or TLS fails: provably nothing was sent.
+class _RefusingClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      Future.error(http.ClientException('Connection refused', request.url));
+}
+
 /// DocuNinja has its own host and token. A 401 re-runs the handshake once,
 /// then surfaces; it never touches the Invoice Ninja session
 /// (docs/docuninja.md).
@@ -225,5 +233,48 @@ void main() {
       client.getJson('/api/documents'),
       throwsA(isA<NetworkException>()),
     );
+  });
+
+  group('a dropped connection', () {
+    // `MockClient` reads the body before it answers, so this is a write
+    // whose connection failed after it was sent: it may have landed.
+    test('after a write was sent is "may have landed", not offline', () {
+      final client = DocuNinjaClient(
+        tokens: _Tokens('tok'),
+        httpClient: MockClient(
+          (r) async => throw http.ClientException('Connection closed', r.url),
+        ),
+      );
+      expect(
+        client.postJson('/api/documents/d1/clone'),
+        throwsA(
+          isA<DocuNinjaException>().having((e) => e.statusCode, 'status', 408),
+        ),
+      );
+    });
+
+    test('before a write was sent is offline', () {
+      final client = DocuNinjaClient(
+        tokens: _Tokens('tok'),
+        httpClient: _RefusingClient(),
+      );
+      expect(
+        client.postJson('/api/documents/d1/clone'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+
+    test('on a read is offline', () {
+      final client = DocuNinjaClient(
+        tokens: _Tokens('tok'),
+        httpClient: MockClient(
+          (r) async => throw http.ClientException('Connection closed', r.url),
+        ),
+      );
+      expect(
+        client.getJson('/api/documents'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
   });
 }

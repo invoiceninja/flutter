@@ -215,6 +215,12 @@ flutter:
 # `protocol_activation` registers the invoiceninja:// scheme for the calendar
 # OAuth callback (paired with the app_links second-instance forward in
 # windows/runner/main.cpp).
+# `build_windows: false` makes msix package the build that is already there.
+# Left at its default (true) it runs its own `flutter build windows`, without
+# the dart-defines, over the one just built — so the hand-built packages
+# shipped with Sentry off, and Windows never reported an error.
+# Build first (`flutter build windows --release --dart-define=IN_SENTRY_DSN=…`),
+# then `dart run msix:create`.
 msix_config:
   display_name: Invoice Ninja - Beta
   publisher_display_name: Invoice Ninja
@@ -225,3 +231,4 @@ msix_config:
   logo_path: windows/runner/resources/store_logo.png
   trim_logo: false
   protocol_activation: invoiceninja
+  build_windows: false

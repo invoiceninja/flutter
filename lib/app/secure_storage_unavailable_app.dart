@@ -9,10 +9,19 @@ import 'package:flutter/material.dart';
 /// The fix depends on the package the app runs from ([detectLinuxPackage]):
 /// - a Snap whose `password-manager-service` plug isn't connected gets the
 ///   `snap connect` command;
-/// - a Flatpak reaches the keyring through the Secret portal, or through the
-///   host's Secret Service where there is no portal (often KDE), and the user
-///   may have dismissed its unlock prompt (docs/flatpak.md);
+/// - a Flatpak reaches the keyring only through the Secret portal: Flathub
+///   refused the host Secret Service permission, so on a desktop with no
+///   portal backend the user grants it with the `flatpak override` command
+///   (docs/flatpak.md § finish-args). The user may also have dismissed the
+///   portal's unlock prompt;
 /// - anything else is asked to unlock its keychain or keyring.
+/// Grants the Flatpak the host Secret Service, which its manifest doesn't
+/// (Flathub's permission review refused it). The ID is the Flathub one,
+/// `linux/CMakeLists.txt`'s `APPLICATION_ID`.
+const kFlatpakKeyringOverride =
+    'flatpak override --user --talk-name=org.freedesktop.secrets '
+    'com.invoiceninja.InvoiceNinja';
+
 class SecureStorageUnavailableApp extends StatelessWidget {
   const SecureStorageUnavailableApp({super.key, required this.package});
 
@@ -27,9 +36,10 @@ class SecureStorageUnavailableApp extends StatelessWidget {
       ),
       LinuxPackage.flatpak => (
         'If you were asked to unlock your keyring, relaunch and accept. '
-            'Otherwise make sure a keyring service (GNOME Keyring or KWallet) '
-            'is installed and running, then relaunch.',
-        null,
+            'Otherwise make sure GNOME Keyring or KWallet is running. If it '
+            'is, your desktop may not offer keyring access to Flatpak apps: '
+            'allow it with this command, then relaunch:',
+        kFlatpakKeyringOverride,
       ),
       LinuxPackage.none => (
         'Unlock your keychain or keyring (on Linux, make sure GNOME Keyring '

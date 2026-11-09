@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:admin/app/linux_package.dart';
 import 'package:admin/app/linux_package_io.dart' as io;
 import 'package:admin/app/secure_storage_unavailable_app.dart';
@@ -50,13 +52,28 @@ void main() {
       );
     });
 
-    testWidgets('a Flatpak gets the keyring hint and no snap command — the '
-        'command means nothing in a Flatpak sandbox', (tester) async {
+    testWidgets('a Flatpak gets the keyring hint and the flatpak override '
+        'command, never the snap one', (tester) async {
       await tester.pumpWidget(
         const SecureStorageUnavailableApp(package: LinuxPackage.flatpak),
       );
       expect(find.textContaining('unlock your keyring'), findsOneWidget);
+      expect(
+        find.text(
+          'flatpak override --user --talk-name=org.freedesktop.secrets '
+          'com.invoiceninja.InvoiceNinja',
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('snap connect'), findsNothing);
+    });
+
+    test('the override names the Linux app ID', () {
+      final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+      final id = RegExp(
+        r'set\(APPLICATION_ID "([^"]+)"\)',
+      ).firstMatch(cmake)!.group(1)!;
+      expect(kFlatpakKeyringOverride, endsWith(' $id'));
     });
 
     testWidgets('anything else is asked to unlock its keychain', (

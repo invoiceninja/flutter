@@ -162,6 +162,8 @@ class _UsersListState extends State<_UsersList> {
     isActive: (u) => u.isActive,
     isDeleted: (u) => u.isDeleted,
     locked: (u) => _lifecycleLocked(u, widget.state),
+    // A row's Restore asks first here, so the bulk one does too.
+    confirmRestore: true,
   );
 
   @override
@@ -454,7 +456,7 @@ class _UsersListState extends State<_UsersList> {
                   onTap: selecting
                       ? toggle
                       : u.isDeleted
-                      ? () {}
+                      ? null
                       : () async {
                           await context.push('/docuninja/users/${u.id}');
                           if (mounted) await _refresh();

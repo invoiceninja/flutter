@@ -79,7 +79,9 @@ class SelectableListRow extends StatelessWidget {
   /// `isLast || thisRowSelected || nextRowSelected`.
   final bool hideBottomDivider;
 
-  final VoidCallback onTap;
+  /// Null for a row that opens nothing (it may still be long-pressed): no
+  /// ripple, and not announced as a button that does nothing.
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
   /// The tile's own already-padded row content. Its interior padding is left

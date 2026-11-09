@@ -53,6 +53,7 @@ List<DnBulkAction<T>> dnLifecycleBulkActions<T>({
   required bool Function(T item) isActive,
   required bool Function(T item) isDeleted,
   bool Function(T item)? locked,
+  bool confirmRestore = false,
 }) {
   bool free(T item) => !(locked?.call(item) ?? false);
   return [
@@ -68,6 +69,7 @@ List<DnBulkAction<T>> dnLifecycleBulkActions<T>({
       icon: Icons.restore_outlined,
       eligible: (i) => free(i) && !isActive(i),
       noun: noun,
+      confirm: confirmRestore,
     ),
     DnBulkAction<T>(
       action: 'delete',
@@ -135,7 +137,8 @@ Future<void> runDnBulkAction<T>(
     if (!ok || !context.mounted) return;
   }
   try {
-    await vm.applyBulk(action.action, ids);
+    // Another bulk already running: nothing was sent, so nothing to say.
+    if (!await vm.applyBulk(action.action, ids)) return;
   } on Object catch (e, st) {
     _log.warning('DocuNinja bulk ${action.action} failed', e, st);
     onDone?.call();

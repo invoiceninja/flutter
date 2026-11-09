@@ -36,7 +36,7 @@ const _kImageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 /// uploaded (a click or a drop on the box) or generated from typed text in
 /// a handwriting font; and cleared. [value] is the stored data URL, empty
 /// for none. docs/docuninja.md § Users.
-class DnSignatureField extends StatelessWidget {
+class DnSignatureField extends StatefulWidget {
   const DnSignatureField({
     super.key,
     required this.label,
@@ -52,42 +52,63 @@ class DnSignatureField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
 
-  Future<void> _upload(BuildContext context, List<UploadSource> files) async {
+  @override
+  State<DnSignatureField> createState() => _DnSignatureFieldState();
+}
+
+class _DnSignatureFieldState extends State<DnSignatureField> {
+  /// The preview's bytes, decoded once per value: `MemoryImage` compares by
+  /// identity, so fresh bytes on every rebuild of the editor (ticking a
+  /// permission) would re-decode and blink the preview.
+  String? _bytesFor;
+  Uint8List? _bytes;
+
+  Uint8List? get _preview {
+    if (_bytesFor != widget.value) {
+      _bytesFor = widget.value;
+      _bytes = dnSignatureBytes(widget.value);
+    }
+    return _bytes;
+  }
+
+  /// Hands [url] up, unless the editor has gone meanwhile.
+  void _changed(String? url) {
+    if (url != null && mounted) widget.onChanged(url);
+  }
+
+  Future<void> _upload(List<UploadSource> files) async {
     if (files.isEmpty) return;
     try {
       final source = files.first;
       final bytes = await source.readRange(0, await source.length());
-      final rgba = await _decode(bytes);
-      if (rgba == null) throw const FormatException('not an image');
-      onChanged(dnSignatureDataUrl(rgba, kind));
+      final image = await _decode(bytes, widget.kind);
+      _changed(dnSignatureDataUrl(image, widget.kind));
     } on Object catch (e, st) {
       _log.info('Reading the uploaded signature failed', e, st);
-      if (context.mounted) {
-        Notify.error(context, context.tr('invalid_file'));
-      }
+      if (mounted) Notify.error(context, context.tr('invalid_file'));
     }
   }
 
-  Future<void> _draw(BuildContext context) async {
-    final url = await showDialog<String>(
+  Future<void> _draw() async => _changed(
+    await showDialog<String>(
       context: context,
-      builder: (_) => _DrawDialog(title: label, kind: kind),
-    );
-    if (url != null) onChanged(url);
-  }
+      builder: (_) => _DrawDialog(title: widget.label, kind: widget.kind),
+    ),
+  );
 
-  Future<void> _generate(BuildContext context) async {
-    final url = await showDialog<String>(
+  Future<void> _generate() async => _changed(
+    await showDialog<String>(
       context: context,
-      builder: (_) => _GenerateDialog(kind: kind),
-    );
-    if (url != null) onChanged(url);
-  }
+      builder: (_) => _GenerateDialog(kind: widget.kind),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final bytes = dnSignatureBytes(value);
+    final label = widget.label;
+    final enabled = widget.enabled;
+    final bytes = _preview;
     final has = bytes != null && bytes.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -96,7 +117,7 @@ class DnSignatureField extends StatelessWidget {
         const SizedBox(height: 4),
         FileDropZone(
           allowedExtensions: _kImageExtensions,
-          onFiles: (files) => _upload(context, files),
+          onFiles: _upload,
           enabled: enabled,
           preview: has
               ? Container(
@@ -107,6 +128,7 @@ class DnSignatureField extends StatelessWidget {
                   child: Image.memory(
                     bytes,
                     fit: BoxFit.contain,
+                    gaplessPlayback: true,
                     semanticLabel: label,
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
@@ -120,20 +142,20 @@ class DnSignatureField extends StatelessWidget {
           children: [
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: enabled ? () => _draw(context) : null,
+              onPressed: enabled ? _draw : null,
               icon: const Icon(Icons.draw_outlined, size: 18),
               label: Text(context.tr('draw')),
             ),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: enabled ? () => _generate(context) : null,
+              onPressed: enabled ? _generate : null,
               icon: const Icon(Icons.text_fields, size: 18),
               label: Text(context.tr('generate')),
             ),
             if (has)
               TextButton(
                 style: TextButton.styleFrom(minimumSize: const Size(64, 40)),
-                onPressed: enabled ? () => onChanged('') : null,
+                onPressed: enabled ? () => widget.onChanged('') : null,
                 child: Text(context.tr('clear')),
               ),
           ],
@@ -143,9 +165,26 @@ class DnSignatureField extends StatelessWidget {
   }
 }
 
-/// [bytes] (an image file) decoded by the platform, or null.
-Future<img.Image?> _decode(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
+/// [bytes] (an image file) decoded by the platform, at no more than twice
+/// what [kind] stores: a 48 MP photo decoded whole would be ~200 MB of
+/// pixels, copied twice more, on the UI isolate. Throws when it is not an
+/// image.
+Future<img.Image> _decode(Uint8List bytes, DnSignatureKind kind) async {
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+  final codec = await ui.instantiateImageCodecWithSize(
+    buffer,
+    getTargetSize: (w, h) {
+      final scale = [
+        1.0,
+        kind.maxWidth * 2 / w,
+        kind.maxHeight * 2 / h,
+      ].reduce(math.min);
+      return ui.TargetImageSize(
+        width: math.max(1, (w * scale).round()),
+        height: math.max(1, (h * scale).round()),
+      );
+    },
+  );
   try {
     final frame = await codec.getNextFrame();
     return await _toImage(frame.image);
@@ -154,11 +193,14 @@ Future<img.Image?> _decode(Uint8List bytes) async {
   }
 }
 
-/// A rendered [image] as pixels the signature helpers take.
-Future<img.Image?> _toImage(ui.Image image) async {
+/// A rendered [image] as pixels the signature helpers take (straight alpha:
+/// the helpers lay it on white themselves). Disposes [image].
+Future<img.Image> _toImage(ui.Image image) async {
   try {
-    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (data == null) return null;
+    final data = await image.toByteData(
+      format: ui.ImageByteFormat.rawStraightRgba,
+    );
+    if (data == null) throw StateError('the image could not be read');
     return dnImageFromRgba(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
       image.width,
@@ -166,6 +208,22 @@ Future<img.Image?> _toImage(ui.Image image) async {
     );
   } finally {
     image.dispose();
+  }
+}
+
+/// [paint] recorded onto a [width] × [height] image.
+Future<img.Image> _render(
+  int width,
+  int height,
+  void Function(Canvas canvas) paint,
+) async {
+  final recorder = ui.PictureRecorder();
+  paint(Canvas(recorder));
+  final picture = recorder.endRecording();
+  try {
+    return await _toImage(await picture.toImage(width, height));
+  } finally {
+    picture.dispose();
   }
 }
 
@@ -199,18 +257,15 @@ class _DrawDialogState extends State<_DrawDialog> {
       // Drawn large, then trimmed and scaled down to what React stores.
       const width = 1200.0;
       final height = width / _aspect(widget.kind);
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      _SignaturePainter(
-        _strokes,
-        strokeWidth: 6,
-      ).paint(canvas, Size(width, height));
-      final image = await recorder.endRecording().toImage(
+      final pixels = await _render(
         width.round(),
         height.round(),
+        (canvas) => _SignaturePainter(
+          _strokes,
+          strokeWidth: 6,
+        ).paint(canvas, Size(width, height)),
       );
-      final pixels = await _toImage(image);
-      if (!mounted || pixels == null) return;
+      if (!mounted) return;
       Navigator.of(
         context,
       ).pop(dnSignatureDataUrl(dnTrimToInk(pixels), widget.kind));
@@ -226,67 +281,74 @@ class _DrawDialogState extends State<_DrawDialog> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final width = math.min(520.0, MediaQuery.sizeOf(context).width - 96);
-    return PopScope(
-      canPop: !_saving,
-      child: AlertDialog(
-        title: Text(widget.title),
-        content: SizedBox(
-          width: width,
-          child: AspectRatio(
-            aspectRatio: _aspect(widget.kind),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final size = c.biggest;
-                return Semantics(
-                  label: widget.title,
-                  child: GestureDetector(
-                    key: const ValueKey('dn-signature-pad'),
-                    onPanStart: (d) => setState(
-                      () => _strokes.add([_norm(d.localPosition, size)]),
+    final screen = MediaQuery.sizeOf(context);
+    // Sized from the height too: on a landscape phone a pad as wide as the
+    // dialog would be squeezed out of its shape, and the strokes (stored
+    // per axis) would stretch when drawn at the stored shape.
+    final width = [
+      520.0,
+      screen.width - 96,
+      (screen.height - 240) * _aspect(widget.kind),
+    ].reduce(math.min).clamp(120.0, 520.0);
+    // Cancel and Back stay live while it renders: a render that finishes
+    // after the dialog has gone hands nothing back.
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: width,
+        child: AspectRatio(
+          aspectRatio: _aspect(widget.kind),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final size = c.biggest;
+              return Semantics(
+                label: widget.title,
+                child: GestureDetector(
+                  key: const ValueKey('dn-signature-pad'),
+                  onPanStart: (d) => setState(
+                    () => _strokes.add([_norm(d.localPosition, size)]),
+                  ),
+                  onPanUpdate: (d) => setState(
+                    () => _strokes.last.add(_norm(d.localPosition, size)),
+                  ),
+                  child: DecoratedBox(
+                    // Paper is white in either theme: the ink is black.
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: tokens.border),
+                      borderRadius: BorderRadius.circular(InRadii.r1),
                     ),
-                    onPanUpdate: (d) => setState(
-                      () => _strokes.last.add(_norm(d.localPosition, size)),
-                    ),
-                    child: DecoratedBox(
-                      // Paper is white in either theme: the ink is black.
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: tokens.border),
-                        borderRadius: BorderRadius.circular(InRadii.r1),
-                      ),
-                      child: CustomPaint(
-                        painter: _SignaturePainter(_strokes, strokeWidth: 2.5),
-                        size: Size.infinite,
-                      ),
+                    child: CustomPaint(
+                      painter: _SignaturePainter(_strokes, strokeWidth: 2.5),
+                      size: Size.infinite,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _strokes.isEmpty || _saving
-                ? null
-                : () => setState(_strokes.clear),
-            child: Text(context.tr('clear')),
-          ),
-          TextButton(
-            onPressed: _saving ? null : () => Navigator.of(context).pop(),
-            child: Text(context.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: context.tr('done'),
-            enabled: _strokes.isNotEmpty,
-            busy: _saving,
-            // Starts disabled: Enter can't reach it until there is ink.
-            showEnterHint: false,
-            onPressed: _use,
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: _strokes.isEmpty || _saving
+              ? null
+              : () => setState(_strokes.clear),
+          child: Text(context.tr('clear')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr('done'),
+          enabled: _strokes.isNotEmpty,
+          busy: _saving,
+          // Starts disabled: Enter can't reach it until there is ink.
+          showEnterHint: false,
+          onPressed: _use,
+        ),
+      ],
     );
   }
 }
@@ -351,6 +413,30 @@ class _GenerateDialogState extends State<_GenerateDialog> {
     super.dispose();
   }
 
+  /// Whether [text] in [style] draws in its own font rather than the
+  /// fallback a font that never arrived leaves (a handwriting font is never
+  /// as wide as the default face).
+  static bool _drawsInFont(TextStyle style, String text) {
+    double width(TextStyle s) {
+      final p = TextPainter(
+        text: TextSpan(text: text, style: s),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      final w = p.width;
+      p.dispose();
+      return w;
+    }
+
+    return width(style) != width(TextStyle(fontSize: style.fontSize));
+  }
+
+  /// The previews' styles, asked for once: asking again on every keystroke
+  /// would, offline, start all five downloads again each time.
+  late final Map<String, TextStyle> _previews = {
+    for (final f in kDnSignatureFonts) f: _style(f, 30),
+  };
+
   TextStyle _style(String font, double size) => GoogleFonts.getFont(
     font,
     textStyle: TextStyle(fontSize: size, color: Colors.black, height: 1.2),
@@ -361,9 +447,23 @@ class _GenerateDialogState extends State<_GenerateDialog> {
     if (text.isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
+      // Asking for the style starts the chosen font's fetch again if it
+      // failed (offline) when the previews asked.
       final style = _style(_font, 200);
-      // The font must be in before it can be drawn.
-      await GoogleFonts.pendingFonts([style]);
+      // google_fonts can only wait on every font in flight (the previews'
+      // too), and without a timeout of its own. Wait a while, ignore the
+      // others' failures, then check the chosen one actually draws.
+      try {
+        await GoogleFonts.pendingFonts([
+          style,
+        ]).timeout(const Duration(seconds: 20));
+      } on Object catch (e) {
+        _log.fine('Waiting for the signature fonts: $e');
+      }
+      if (!mounted) return;
+      if (!_drawsInFont(style, text)) {
+        throw StateError('$_font is not loaded');
+      }
       final painter = TextPainter(
         text: TextSpan(text: text, style: style),
         textDirection: TextDirection.ltr,
@@ -372,20 +472,15 @@ class _GenerateDialogState extends State<_GenerateDialog> {
       const pad = kDnSignaturePadding * 2.0;
       final width = painter.width + pad * 2;
       final height = painter.height + pad * 2;
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder)
-        ..drawRect(
+      final pixels = await _render(width.ceil(), height.ceil(), (canvas) {
+        canvas.drawRect(
           Rect.fromLTWH(0, 0, width, height),
           Paint()..color = Colors.white,
         );
-      painter.paint(canvas, const Offset(pad, pad));
+        painter.paint(canvas, const Offset(pad, pad));
+      });
       painter.dispose();
-      final image = await recorder.endRecording().toImage(
-        width.ceil(),
-        height.ceil(),
-      );
-      final pixels = await _toImage(image);
-      if (!mounted || pixels == null) return;
+      if (!mounted) return;
       Navigator.of(
         context,
       ).pop(dnSignatureDataUrl(dnTrimToInk(pixels), widget.kind));
@@ -403,90 +498,87 @@ class _GenerateDialogState extends State<_GenerateDialog> {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final initials = widget.kind == DnSignatureKind.initials;
-    return PopScope(
-      canPop: !_saving,
-      child: AlertDialog(
-        title: Text(
-          context.tr(initials ? 'enter_initials' : 'create_signature'),
-        ),
-        content: SizedBox(
-          width: 480,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _text,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.words,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    hintText: context.tr(
-                      initials ? 'enter_initials' : 'type_signature',
-                    ),
+    // Cancel and Back stay live while it renders (a font fetch can stall):
+    // a render that finishes after the dialog has gone hands nothing back.
+    return AlertDialog(
+      title: Text(context.tr(initials ? 'enter_initials' : 'create_signature')),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _text,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  hintText: context.tr(
+                    initials ? 'enter_initials' : 'type_signature',
                   ),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _use(),
                 ),
-                SizedBox(height: InSpacing.md(context)),
-                RadioGroup<String>(
-                  groupValue: _font,
-                  onChanged: (f) {
-                    if (f != null && !_saving) setState(() => _font = f);
-                  },
-                  child: Column(
-                    children: [
-                      for (final font in kDnSignatureFonts)
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          value: font,
-                          // The name is the preview until there is text.
-                          title: Container(
-                            height: 56,
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _use(),
+              ),
+              SizedBox(height: InSpacing.md(context)),
+              RadioGroup<String>(
+                groupValue: _font,
+                onChanged: (f) {
+                  if (f != null && !_saving) setState(() => _font = f);
+                },
+                child: Column(
+                  children: [
+                    for (final font in kDnSignatureFonts)
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: font,
+                        // The name is the preview until there is text.
+                        title: Container(
+                          height: 56,
+                          alignment: AlignmentDirectional.centerStart,
+                          color: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: InSpacing.sm,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
                             alignment: AlignmentDirectional.centerStart,
-                            color: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: InSpacing.sm,
-                            ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                _text.text.trim().isEmpty
-                                    ? font
-                                    : _text.text.trim(),
-                                maxLines: 1,
-                                style: _style(font, 30),
-                                semanticsLabel: font,
-                              ),
+                            child: Text(
+                              _text.text.trim().isEmpty
+                                  ? font
+                                  : _text.text.trim(),
+                              maxLines: 1,
+                              style: _previews[font],
+                              semanticsLabel: font,
                             ),
                           ),
-                          tileColor: tokens.surface,
                         ),
-                    ],
-                  ),
+                        tileColor: tokens.surface,
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : () => Navigator.of(context).pop(),
-            child: Text(context.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: context.tr(initials ? 'done' : 'use_signature'),
-            enabled: _text.text.trim().isNotEmpty,
-            busy: _saving,
-            showEnterHint: false,
-            onPressed: _use,
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          label: context.tr(initials ? 'done' : 'use_signature'),
+          enabled: _text.text.trim().isNotEmpty,
+          busy: _saving,
+          showEnterHint: false,
+          onPressed: _use,
+        ),
+      ],
     );
   }
 }

@@ -412,18 +412,23 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   /// A bulk action is running: the bulk buttons are off meanwhile.
   bool get bulkInFlight => _bulkInFlight;
 
-  /// Runs [action] on [ids] in one request, then leaves selection mode and
-  /// re-reads the rows on screen (as React refetches after a bulk action).
-  /// The re-read runs whether or not the request failed: a request that
-  /// timed out may have landed. Rethrows the failure for the screen's toast.
-  Future<void> applyBulk(String action, List<String> ids) async {
-    if (_bulkInFlight || ids.isEmpty) return;
+  /// Runs [action] on [ids] in one request, then unticks what was ticked
+  /// when it went out, skipped rows included (as React clears its
+  /// selection), keeping only rows ticked while it ran, and re-reads the rows
+  /// on screen (as React refetches after a bulk action). The re-read runs
+  /// whether or not the request failed: a request that timed out may have
+  /// landed. Returns false, sending nothing, while another bulk runs;
+  /// rethrows a failure for the screen's toast.
+  Future<bool> applyBulk(String action, List<String> ids) async {
+    if (_bulkInFlight || ids.isEmpty) return false;
     _bulkInFlight = true;
+    final ticked = {..._selected};
     _notify();
     try {
       await sendBulk(action, ids);
-      _selected.clear();
-      _selecting = false;
+      _selected.removeAll(ticked);
+      _selecting = _selected.isNotEmpty;
+      return true;
     } finally {
       _bulkInFlight = false;
       _notify();

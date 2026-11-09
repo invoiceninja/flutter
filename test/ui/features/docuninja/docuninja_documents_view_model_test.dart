@@ -294,7 +294,10 @@ void main() {
       final ids = vm.selectedIdsWhere((d) => d.id.endsWith('0'));
       expect(ids, ['d1-0']);
       api.calls.clear();
-      await vm.applyBulk('archive', ids);
+      final run = vm.applyBulk('archive', ids);
+      // A second one while it runs sends nothing.
+      expect(await vm.applyBulk('delete', ids), isFalse);
+      expect(await run, isTrue);
       expect(api.bulkCalls.single.action, 'archive');
       expect(api.bulkCalls.single.ids, ['d1-0']);
       expect(vm.isSelecting, isFalse);

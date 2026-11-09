@@ -582,8 +582,7 @@ class _TemplateRow extends StatelessWidget {
       urlSelected: false,
       // The list's separators draw the lines.
       hideBottomDivider: true,
-      // A row that opens nothing (no create right) still ticks.
-      onTap: onTap ?? () {},
+      onTap: onTap,
       onLongPress: onLongPress,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),

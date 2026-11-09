@@ -7,10 +7,12 @@ import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
 import 'package:admin/utils/bidi.dart';
@@ -28,10 +30,16 @@ class DocuNinjaDocumentsList extends StatefulWidget {
     required this.vm,
     required this.onOpen,
     this.actionsFor,
+    this.selectable = false,
   });
 
   final DocuNinjaDocumentsViewModel vm;
   final ValueChanged<DnDocument> onOpen;
+
+  /// Rows can be ticked for the bulk actions (React's table checkboxes):
+  /// a checkbox slot on the wide table (shown on hover), a long press
+  /// anywhere, and a tap ticks once selecting.
+  final bool selectable;
 
   /// A row's `⋮` menu (React's row actions), or none.
   final Widget Function(DnDocument doc)? actionsFor;
@@ -144,6 +152,7 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                 if (table)
                   SliverToBoxAdapter(
                     child: _TableHeader(
+                      leadingWidth: widget.selectable ? kDnSelectSlotWidth : 0,
                       // Room for the rows' `⋮`, so the columns line up.
                       trailingWidth: widget.actionsFor == null
                           ? 0
@@ -169,18 +178,17 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final doc = vm.items[i];
+                      final row = _rowParts(vm, doc, table: table);
                       return table
                           ? _TableRow(
                               doc: doc,
                               created: _date(_createdAt(doc)),
-                              onTap: () => widget.onOpen(doc),
-                              actions: widget.actionsFor?.call(doc),
+                              parts: row,
                             )
                           : _NarrowRow(
                               doc: doc,
                               created: _date(_createdAt(doc)),
-                              onTap: () => widget.onOpen(doc),
-                              actions: widget.actionsFor?.call(doc),
+                              parts: row,
                             );
                     },
                   ),
@@ -200,6 +208,57 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
       );
     },
   );
+}
+
+/// What a row needs from the list: its taps, its selection state and the
+/// slots either side of its content.
+typedef _RowParts = ({
+  VoidCallback onTap,
+  VoidCallback? onLongPress,
+  bool selected,
+  Widget? leading,
+  Widget? actions,
+});
+
+extension on _DocuNinjaDocumentsListState {
+  _RowParts _rowParts(
+    DocuNinjaDocumentsViewModel vm,
+    DnDocument doc, {
+    required bool table,
+  }) {
+    final open = widget.onOpen;
+    final actions = widget.actionsFor?.call(doc);
+    if (!widget.selectable) {
+      return (
+        onTap: () => open(doc),
+        onLongPress: null,
+        selected: false,
+        leading: null,
+        actions: actions,
+      );
+    }
+    final selecting = vm.isSelecting;
+    void toggle() => vm.toggleSelected(doc);
+    return (
+      // Selecting, a tap ticks the row instead of opening it.
+      onTap: selecting ? toggle : () => open(doc),
+      onLongPress: toggle,
+      selected: vm.isSelected(doc),
+      // The table keeps the slot (its checkbox shows on hover); a narrow row
+      // shows it only while selecting, where it is the checkbox.
+      leading: dnSelectLeading(
+        wide: table,
+        selecting: selecting,
+        selected: vm.isSelected(doc),
+        onToggle: toggle,
+      ),
+      // No row menu while selecting: the bulk actions are the menu. The
+      // table keeps the room, so its columns stay put.
+      actions: selecting && actions != null
+          ? (table ? SizedBox(width: actionButtonSize()) : null)
+          : actions,
+    );
+  }
 }
 
 /// A DocuNinja timestamp (`2026-02-22T21:14:25.000000Z`, UTC) as the company
@@ -250,9 +309,10 @@ String _files(BuildContext context, DnDocument doc) {
 const _flex = [3, 3, 4, 2, 2, 2];
 
 class _TableHeader extends StatelessWidget {
-  const _TableHeader({this.trailingWidth = 0});
+  const _TableHeader({this.trailingWidth = 0, this.leadingWidth = 0});
 
   final double trailingWidth;
+  final double leadingWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +332,7 @@ class _TableHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
+          if (leadingWidth > 0) SizedBox(width: leadingWidth),
           for (var i = 0; i < labels.length; i++)
             Expanded(
               flex: _flex[i],
@@ -288,14 +349,12 @@ class _TableRow extends StatelessWidget {
   const _TableRow({
     required this.doc,
     required this.created,
-    required this.onTap,
-    this.actions,
+    required this.parts,
   });
 
   final DnDocument doc;
   final String created;
-  final VoidCallback onTap;
-  final Widget? actions;
+  final _RowParts parts;
 
   @override
   Widget build(BuildContext context) {
@@ -322,14 +381,20 @@ class _TableRow extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: color ?? tokens.ink),
     );
-    return InkWell(
-      onTap: onTap,
+    return SelectableListRow(
+      selected: parts.selected,
+      urlSelected: false,
+      // The list's separators draw the lines.
+      hideBottomDivider: true,
+      onTap: parts.onTap,
+      onLongPress: parts.onLongPress,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
+              ?parts.leading,
               // A name, or an email when there is none: left-to-right
               // unless it is Arabic or Hebrew script.
               cell(0, name(_contactName(doc))),
@@ -356,7 +421,7 @@ class _TableRow extends StatelessWidget {
                 ),
               ),
               cell(5, value(created, color: tokens.ink2)),
-              ?actions,
+              ?parts.actions,
             ],
           ),
         ),
@@ -369,14 +434,12 @@ class _NarrowRow extends StatelessWidget {
   const _NarrowRow({
     required this.doc,
     required this.created,
-    required this.onTap,
-    this.actions,
+    required this.parts,
   });
 
   final DnDocument doc;
   final String created;
-  final VoidCallback onTap;
-  final Widget? actions;
+  final _RowParts parts;
 
   @override
   Widget build(BuildContext context) {
@@ -388,14 +451,19 @@ class _NarrowRow extends StatelessWidget {
       who,
       if (created.isNotEmpty) ltrIsolate(created),
     ].where((s) => s.isNotEmpty).join(' · ');
-    return InkWell(
-      onTap: onTap,
+    return SelectableListRow(
+      selected: parts.selected,
+      urlSelected: false,
+      hideBottomDivider: true,
+      onTap: parts.onTap,
+      onLongPress: parts.onLongPress,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
+              ?parts.leading,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +497,7 @@ class _NarrowRow extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 160),
                 child: DocuNinjaStatusPill(document: doc),
               ),
-              ?actions,
+              ?parts.actions,
             ],
           ),
         ),

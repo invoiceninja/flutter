@@ -17,6 +17,7 @@ import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
+import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -25,6 +26,7 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
@@ -46,6 +48,16 @@ class DocuNinjaTemplatesScreen extends StatefulWidget {
 }
 
 enum _Action { use, options, archive, restore, delete }
+
+/// React's bulk actions on the templates table.
+final _kBulkActions = dnLifecycleBulkActions<DnBlueprint>(
+  noun: 'template',
+  isActive: (t) => !t.isDeleted && !t.isArchived,
+  isDeleted: (t) => t.isDeleted,
+);
+
+/// Wide enough for the checkbox slot to sit on every row (hover-revealed).
+const double _kWide = 720;
 
 class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   DocuNinjaSession? _session;
@@ -156,6 +168,19 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
                   tooltip: context.tr('new_template'),
                   onPressed: _busy ? null : () => _create(vm),
                 ),
+              // React's table checkboxes, for its bulk actions; on touch a
+              // long press on a row starts it too.
+              if (vm != null)
+                ListenableBuilder(
+                  listenable: vm,
+                  builder: (context, _) => vm.items.isEmpty || vm.isSelecting
+                      ? const SizedBox.shrink()
+                      : IconButton(
+                          icon: const Icon(Icons.checklist),
+                          tooltip: context.tr('select'),
+                          onPressed: vm.enterSelectionMode,
+                        ),
+                ),
               if (vm != null)
                 ListenableBuilder(
                   listenable: vm,
@@ -204,37 +229,57 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         title: context.tr('unauthorized_action'),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: TextField(
-                controller: _search,
-                autocorrect: false,
-                enableSuggestions: false,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  hintText: context.tr('search'),
-                ),
-                onChanged: vm.setSearch,
-              ),
+    final search = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: TextField(
+            controller: _search,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: context.tr('search'),
             ),
+            onChanged: vm.setSearch,
           ),
         ),
-        Expanded(
-          child: ListenableBuilder(
-            listenable: vm,
-            builder: (context, _) => _list(context, vm, canCreate),
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, c) => ListenableBuilder(
+        listenable: vm,
+        // Back leaves selection before it leaves the screen.
+        builder: (context, _) => PopScope(
+          canPop: !vm.isSelecting,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) vm.clearSelection();
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // The selection header takes the search row's place while
+              // selecting; the search keeps its text (the controller is the
+              // screen's).
+              if (vm.isSelecting)
+                DnSelectionBar<DnBlueprint>(
+                  vm: vm,
+                  actions: _kBulkActions,
+                  wide: c.maxWidth >= _kWide,
+                )
+              else
+                search,
+              Expanded(
+                child: _list(context, vm, canCreate, c.maxWidth >= _kWide),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -242,6 +287,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     BuildContext context,
     DocuNinjaTemplatesViewModel vm,
     bool canCreate,
+    bool wide,
   ) {
     if (!vm.hasLoaded && vm.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -288,12 +334,31 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
             SliverList.separated(
               itemCount: vm.items.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) => _TemplateRow(
-                template: vm.items[i],
-                // React opens every template's builder, a deleted one too.
-                onTap: canCreate ? () => _edit(vm.items[i]) : null,
-                actions: _items(context, vm, vm.items[i]),
-              ),
+              itemBuilder: (context, i) {
+                final t = vm.items[i];
+                final selecting = vm.isSelecting;
+                void toggle() => vm.toggleSelected(t);
+                return _TemplateRow(
+                  template: t,
+                  // Selecting, a tap ticks the row. Otherwise React opens
+                  // every template's builder, a deleted one too.
+                  onTap: selecting
+                      ? toggle
+                      : canCreate
+                      ? () => _edit(t)
+                      : null,
+                  onLongPress: toggle,
+                  selected: vm.isSelected(t),
+                  leading: dnSelectLeading(
+                    wide: wide,
+                    selecting: selecting,
+                    selected: vm.isSelected(t),
+                    onToggle: toggle,
+                  ),
+                  // No row menu while selecting: the bulk actions are it.
+                  actions: selecting ? const [] : _items(context, vm, t),
+                );
+              },
             ),
           if (showError && vm.errorFromMore)
             SliverToBoxAdapter(child: notice()),
@@ -484,11 +549,17 @@ class _TemplateRow extends StatelessWidget {
     required this.template,
     required this.onTap,
     required this.actions,
+    this.onLongPress,
+    this.selected = false,
+    this.leading,
   });
 
   final DnBlueprint template;
   final VoidCallback? onTap;
   final List<EntityActionItem<_Action>> actions;
+  final VoidCallback? onLongPress;
+  final bool selected;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -506,14 +577,21 @@ class _TemplateRow extends StatelessWidget {
         : t.isArchived
         ? ('archived', tokens.partial, tokens.partialSoft)
         : ('active', tokens.paid, tokens.paidSoft);
-    return InkWell(
-      onTap: onTap,
+    return SelectableListRow(
+      selected: selected,
+      urlSelected: false,
+      // The list's separators draw the lines.
+      hideBottomDivider: true,
+      // A row that opens nothing (no create right) still ticks.
+      onTap: onTap ?? () {},
+      onLongPress: onLongPress,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
           child: Row(
             children: [
+              ?leading,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,7 +624,14 @@ class _TemplateRow extends StatelessWidget {
                 bgColor: bg,
                 textStyle: TextStyle(fontSize: 13, color: tokens.ink),
               ),
-              EntityActionsPopupButton<_Action>(items: actions),
+              // Kept while selecting (empty), so the pills stay put.
+              Visibility(
+                visible: actions.isNotEmpty,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: EntityActionsPopupButton<_Action>(items: actions),
+              ),
             ],
           ),
         ),

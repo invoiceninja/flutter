@@ -23,6 +23,15 @@ class _Api implements DocuNinjaApi {
     return answer(page, search);
   }
 
+  final bulkCalls = <({String action, List<String> ids})>[];
+  Object? bulkError;
+
+  @override
+  Future<void> bulk(String action, List<String> ids) async {
+    bulkCalls.add((action: action, ids: ids));
+    if (bulkError != null) throw bulkError!;
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
@@ -240,5 +249,75 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 80));
     expect(api.calls.last.search, 'acme');
     expect(api.calls.last.page, 1);
+  });
+
+  group('selection', () {
+    test('ticks rows, selects all visible, and clears', () async {
+      final vm = DocuNinjaDocumentsViewModel(api: _Api());
+      await vm.refresh();
+      expect(vm.isSelecting, isFalse);
+      vm.enterSelectionMode();
+      expect(vm.isSelecting, isTrue);
+      expect(vm.countSelected, 0);
+      vm.toggleSelected(vm.items.first);
+      expect(vm.isSelected(vm.items.first), isTrue);
+      vm.toggleSelected(vm.items.first);
+      expect(vm.countSelected, 0);
+      expect(vm.isSelecting, isTrue, reason: 'unticking keeps the mode');
+      vm.selectAllVisible();
+      expect(vm.countSelected, 2);
+      vm.clearSelection();
+      expect(vm.isSelecting, isFalse);
+      expect(vm.countSelected, 0);
+      vm.dispose();
+    });
+
+    test('a row that leaves the list leaves the selection', () async {
+      final api = _Api();
+      final vm = DocuNinjaDocumentsViewModel(
+        api: api,
+        searchDelay: Duration.zero,
+      );
+      await vm.refresh();
+      vm.selectAllVisible();
+      api.answer = (page, _) async => _page(page, 1, 'x');
+      await vm.refresh();
+      expect(vm.countSelected, 0, reason: 'a bulk must not reach a row gone');
+      vm.dispose();
+    });
+
+    test('a bulk action is one request, then a re-read', () async {
+      final api = _Api();
+      final vm = DocuNinjaDocumentsViewModel(api: api);
+      await vm.refresh();
+      vm.selectAllVisible();
+      final ids = vm.selectedIdsWhere((d) => d.id.endsWith('0'));
+      expect(ids, ['d1-0']);
+      api.calls.clear();
+      await vm.applyBulk('archive', ids);
+      expect(api.bulkCalls.single.action, 'archive');
+      expect(api.bulkCalls.single.ids, ['d1-0']);
+      expect(vm.isSelecting, isFalse);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, isNotEmpty, reason: 'the rows are read again');
+      vm.dispose();
+    });
+
+    test('a failed bulk keeps the selection and still re-reads', () async {
+      final api = _Api()..bulkError = StateError('boom');
+      final vm = DocuNinjaDocumentsViewModel(api: api);
+      await vm.refresh();
+      vm.selectAllVisible();
+      api.calls.clear();
+      await expectLater(
+        vm.applyBulk('delete', vm.selectedIdsWhere((_) => true)),
+        throwsStateError,
+      );
+      expect(vm.countSelected, 2, reason: 'a retry can go again');
+      expect(vm.bulkInFlight, isFalse);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, isNotEmpty, reason: 'it may have landed');
+      vm.dispose();
+    });
   });
 }

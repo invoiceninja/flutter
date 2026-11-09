@@ -28,6 +28,10 @@ class DocuNinjaDocumentsViewModel extends DnListViewModel<DnDocument> {
   String idOf(DnDocument item) => item.id;
 
   @override
+  Future<void> sendBulk(String action, List<String> ids) =>
+      _api.bulk(action, ids);
+
+  @override
   Future<DnPage<DnDocument>> fetchPage({
     required int page,
     required int perPage,
@@ -54,6 +58,10 @@ class DocuNinjaTemplatesViewModel extends DnListViewModel<DnBlueprint> {
 
   @override
   String idOf(DnBlueprint item) => item.id;
+
+  @override
+  Future<void> sendBulk(String action, List<String> ids) =>
+      _api.blueprintBulk(action, ids);
 
   @override
   Future<DnPage<DnBlueprint>> fetchPage({
@@ -84,6 +92,10 @@ class DocuNinjaUsersViewModel extends DnListViewModel<DnUser> {
 
   @override
   String idOf(DnUser item) => item.id;
+
+  @override
+  Future<void> sendBulk(String action, List<String> ids) =>
+      _api.userBulk(action, ids);
 
   @override
   Future<DnPage<DnUser>> fetchPage({
@@ -127,6 +139,11 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   /// The row's id, so a page that overlaps the last one adds no duplicate.
   @protected
   String idOf(T item);
+
+  /// `archive`, `restore` or `delete` on [ids], in one request (React's
+  /// `POST <resource>/bulk {action, ids}`).
+  @protected
+  Future<void> sendBulk(String action, List<String> ids);
 
   final List<T> _items = [];
   List<T> get items => List.unmodifiable(_items);
@@ -307,6 +324,7 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
       }
       _itemsQuery = query;
       _loaded = true;
+      _pruneSelection();
     } on Object catch (e, st) {
       if (generation != _generation) return;
       _fail(e, st);
@@ -319,6 +337,7 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
         _lastPage = 1;
         _total = 0;
         _itemsQuery = null;
+        _pruneSelection();
       }
     } finally {
       if (generation == _generation) {
@@ -338,6 +357,88 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
     search: _search.trim(),
     status: [..._states, ..._statuses].join(','),
   );
+
+  // ── Selection (React's table checkboxes, for its bulk actions) ──────────
+
+  final Set<String> _selected = {};
+  bool _selecting = false;
+
+  /// In selection mode: the rows show checkboxes, a tap ticks one, and the
+  /// header offers the bulk actions. Entered with nothing ticked yet (the
+  /// Select button) or by ticking a row.
+  bool get isSelecting => _selecting || _selected.isNotEmpty;
+  int get countSelected => _selected.length;
+  bool isSelected(T item) => _selected.contains(idOf(item));
+
+  /// The ticked rows still in the list, in list order.
+  List<T> get selectedItems =>
+      _items.where((i) => _selected.contains(idOf(i))).toList();
+
+  /// The ids of the ticked rows that pass [test], in list order.
+  List<String> selectedIdsWhere(bool Function(T item) test) => [
+    for (final i in _items)
+      if (_selected.contains(idOf(i)) && test(i)) idOf(i),
+  ];
+
+  void enterSelectionMode() {
+    if (_selecting) return;
+    _selecting = true;
+    _notify();
+  }
+
+  void toggleSelected(T item) {
+    final id = idOf(item);
+    if (!_selected.remove(id)) _selected.add(id);
+    _selecting = true;
+    _notify();
+  }
+
+  /// Ticks every loaded row (React's header checkbox ticks the page).
+  void selectAllVisible() {
+    _selecting = true;
+    _selected.addAll(_items.map(idOf));
+    _notify();
+  }
+
+  void clearSelection() {
+    if (!isSelecting) return;
+    _selected.clear();
+    _selecting = false;
+    _notify();
+  }
+
+  bool _bulkInFlight = false;
+
+  /// A bulk action is running: the bulk buttons are off meanwhile.
+  bool get bulkInFlight => _bulkInFlight;
+
+  /// Runs [action] on [ids] in one request, then leaves selection mode and
+  /// re-reads the rows on screen (as React refetches after a bulk action).
+  /// The re-read runs whether or not the request failed: a request that
+  /// timed out may have landed. Rethrows the failure for the screen's toast.
+  Future<void> applyBulk(String action, List<String> ids) async {
+    if (_bulkInFlight || ids.isEmpty) return;
+    _bulkInFlight = true;
+    _notify();
+    try {
+      await sendBulk(action, ids);
+      _selected.clear();
+      _selecting = false;
+    } finally {
+      _bulkInFlight = false;
+      _notify();
+      if (!_disposed) unawaited(refresh());
+    }
+  }
+
+  /// A row that left the list (a new search, a filter, a refresh after it
+  /// was deleted elsewhere) leaves the selection too: a bulk action must
+  /// never reach a record the user can no longer see.
+  void _pruneSelection() {
+    if (_selected.isEmpty) return;
+    final shown = {for (final i in _items) idOf(i)};
+    _selected.removeWhere((id) => !shown.contains(id));
+  }
 
   void _apply(DnPage<T> page, {required bool append}) {
     final seen = {for (final d in _items) idOf(d)};

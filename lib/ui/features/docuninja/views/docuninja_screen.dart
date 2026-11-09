@@ -23,6 +23,7 @@ import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_create_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
@@ -265,46 +266,60 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
               // refresh, in one `⋮`: six icons would push the title off a
               // phone's app bar.
               if (vm != null)
-                EntityActionsPopupButton<_MenuAction>(
-                  items: [
-                    if (state.can('blueprints', DnAction.view))
-                      EntityActionItem(
-                        kind: _MenuAction.templates,
-                        icon: Icons.copy_all_outlined,
-                        label: context.tr('templates'),
-                        enabled: true,
-                        isNavigationOnly: true,
-                        onTap: () => context.go('/docuninja/templates'),
+                ListenableBuilder(
+                  listenable: vm,
+                  builder: (context, _) =>
+                      EntityActionsPopupButton<_MenuAction>(
+                        items: [
+                          // React's table checkboxes, for its bulk actions; on
+                          // touch a long press on a row starts it too.
+                          if (vm.items.isNotEmpty && !vm.isSelecting)
+                            EntityActionItem(
+                              kind: _MenuAction.select,
+                              icon: Icons.checklist,
+                              label: context.tr('select'),
+                              enabled: true,
+                              onTap: vm.enterSelectionMode,
+                            ),
+                          if (state.can('blueprints', DnAction.view))
+                            EntityActionItem(
+                              kind: _MenuAction.templates,
+                              icon: Icons.copy_all_outlined,
+                              label: context.tr('templates'),
+                              enabled: true,
+                              isNavigationOnly: true,
+                              onTap: () => context.go('/docuninja/templates'),
+                            ),
+                          if (state.login?.companyUser.isOwner ?? false)
+                            EntityActionItem(
+                              kind: _MenuAction.users,
+                              icon: Icons.group_outlined,
+                              label: context.tr('users'),
+                              enabled: true,
+                              isNavigationOnly: true,
+                              onTap: () => context.go('/docuninja/users'),
+                            ),
+                          if (state.login != null &&
+                              dnIsAdmin(state.login!.companyUser))
+                            EntityActionItem(
+                              kind: _MenuAction.settings,
+                              icon: Icons.settings_outlined,
+                              label: context.tr('settings'),
+                              enabled: true,
+                              isNavigationOnly: true,
+                              onTap: () => context.go('/docuninja/settings'),
+                            ),
+                          EntityActionItem(
+                            kind: _MenuAction.refresh,
+                            icon: Icons.refresh,
+                            label: context.tr('refresh'),
+                            // Always on: a refresh already in flight is shared.
+                            enabled: true,
+                            startsGroup: true,
+                            onTap: vm.refresh,
+                          ),
+                        ],
                       ),
-                    if (state.login?.companyUser.isOwner ?? false)
-                      EntityActionItem(
-                        kind: _MenuAction.users,
-                        icon: Icons.group_outlined,
-                        label: context.tr('users'),
-                        enabled: true,
-                        isNavigationOnly: true,
-                        onTap: () => context.go('/docuninja/users'),
-                      ),
-                    if (state.login != null &&
-                        dnIsAdmin(state.login!.companyUser))
-                      EntityActionItem(
-                        kind: _MenuAction.settings,
-                        icon: Icons.settings_outlined,
-                        label: context.tr('settings'),
-                        enabled: true,
-                        isNavigationOnly: true,
-                        onTap: () => context.go('/docuninja/settings'),
-                      ),
-                    EntityActionItem(
-                      kind: _MenuAction.refresh,
-                      icon: Icons.refresh,
-                      label: context.tr('refresh'),
-                      // Always on: a refresh already in flight is shared.
-                      enabled: true,
-                      startsGroup: true,
-                      onTap: vm.refresh,
-                    ),
-                  ],
                 ),
             ],
           ),
@@ -312,12 +327,34 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           // `bottom`, so it grows with the text size instead of clipping.
           body: vm == null
               ? _body(context, state, vm)
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _searchBar(context, vm),
-                    Expanded(child: _body(context, state, vm)),
-                  ],
+              : ListenableBuilder(
+                  listenable: vm,
+                  // Back leaves selection before it leaves the screen.
+                  builder: (context, _) => PopScope(
+                    canPop: !vm.isSelecting,
+                    onPopInvokedWithResult: (didPop, _) {
+                      if (!didPop) vm.clearSelection();
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // The selection header takes the search row's place
+                        // while selecting; the search keeps its text (the
+                        // controller is the screen's).
+                        if (vm.isSelecting)
+                          LayoutBuilder(
+                            builder: (context, c) => DnSelectionBar<DnDocument>(
+                              vm: vm,
+                              actions: _kBulkActions,
+                              wide: c.maxWidth >= kDocuNinjaTableMinWidth,
+                            ),
+                          )
+                        else
+                          _searchBar(context, vm),
+                        Expanded(child: _body(context, state, vm)),
+                      ],
+                    ),
+                  ),
                 ),
         );
       },
@@ -409,6 +446,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           // once, at mount) and the top of the scroll.
           key: ObjectKey(vm),
           vm: vm,
+          selectable: true,
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
           actionsFor: (doc) => EntityActionsPopupButton<_RowAction>(
             items: _rowItems(state, vm, doc),
@@ -652,4 +690,11 @@ enum _RowAction {
   delete,
 }
 
-enum _MenuAction { templates, users, settings, refresh }
+enum _MenuAction { select, templates, users, settings, refresh }
+
+/// React's bulk actions on the documents table.
+final _kBulkActions = dnLifecycleBulkActions<DnDocument>(
+  noun: 'document',
+  isActive: (d) => !d.isDeleted && !d.isArchived,
+  isDeleted: (d) => d.isDeleted,
+);

@@ -327,4 +327,52 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('a long press starts selecting; a tap then ticks, not opens', (
+    tester,
+  ) async {
+    final fixture = await buildFixture(
+      companies: [FakeCompany(id: 'co1', name: 'Acme')],
+    );
+    addTearDown(fixture.dispose);
+    final vm = DocuNinjaDocumentsViewModel(api: _ListApi());
+    addTearDown(vm.dispose);
+    final opened = <String>[];
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        DocuNinjaDocumentsList(
+          vm: vm,
+          selectable: true,
+          onOpen: (d) => opened.add(d.id),
+          actionsFor: (_) => const Icon(Icons.more_vert, key: Key('row-menu')),
+        ),
+      ),
+    );
+    await vm.refresh();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byKey(const Key('row-menu')), findsWidgets);
+
+    final first = find.text('Untitled document').first;
+    await tester.longPress(first);
+    await tester.pump();
+    expect(vm.isSelecting, isTrue);
+    expect(vm.countSelected, 1);
+    expect(opened, isEmpty);
+    // Selecting: no row menus; the bulk actions are the menu.
+    expect(find.byKey(const Key('row-menu')), findsNothing);
+
+    await tester.tap(find.text('Untitled document').at(1));
+    await tester.pump();
+    expect(vm.countSelected, 2);
+    expect(opened, isEmpty, reason: 'a tap ticks while selecting');
+
+    vm.clearSelection();
+    await tester.pump();
+    await tester.tap(find.text('Untitled document').first);
+    await tester.pump();
+    expect(opened, isNotEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }

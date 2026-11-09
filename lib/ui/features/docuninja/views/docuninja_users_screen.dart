@@ -17,6 +17,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
+import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
@@ -24,6 +25,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
@@ -147,8 +149,18 @@ class _UsersListState extends State<_UsersList> {
     ninjaCompanyKey: widget.state.company!.ninjaCompanyKey,
   )..refresh();
   final _scroll = ScrollController();
+  final _search = TextEditingController();
   _Seats? _seatCount;
   bool _busy = false;
+
+  /// React's bulk actions on the users table. The owner and the signed-in
+  /// user take none of them, as on their own rows.
+  late final _bulkActions = dnLifecycleBulkActions<DnUser>(
+    noun: 'user',
+    isActive: (u) => u.isActive,
+    isDeleted: (u) => u.isDeleted,
+    locked: (u) => _lifecycleLocked(u, widget.state),
+  );
 
   @override
   void initState() {
@@ -161,6 +173,7 @@ class _UsersListState extends State<_UsersList> {
   void dispose() {
     _vm.dispose();
     _scroll.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -254,7 +267,21 @@ class _UsersListState extends State<_UsersList> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) => ListenableBuilder(
+      listenable: _vm,
+      // Back leaves selection before it leaves the screen.
+      builder: (context, _) => PopScope(
+        canPop: !_vm.isSelecting,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _vm.clearSelection();
+        },
+        child: _body(context, wide: c.maxWidth >= 720),
+      ),
+    ),
+  );
+
+  Widget _body(BuildContext context, {required bool wide}) {
     final seats = _seatCount;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -308,41 +335,58 @@ class _UsersListState extends State<_UsersList> {
                   onPressed: () => context.go('/settings/account_management'),
                   child: Text(context.tr('user_limit_reached')),
                 ),
+              // React's table checkboxes, for its bulk actions; on touch a
+              // long press on a row starts it too.
+              if (_vm.items.isNotEmpty && !_vm.isSelecting)
+                IconButton(
+                  icon: const Icon(Icons.checklist),
+                  tooltip: context.tr('select'),
+                  onPressed: _vm.enterSelectionMode,
+                ),
             ],
           ),
         ),
-        // React's table search.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: TextField(
-                autocorrect: false,
-                enableSuggestions: false,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  hintText: context.tr('search'),
+        // The selection header takes the search row's place while
+        // selecting; the search keeps its text.
+        if (_vm.isSelecting)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: DnSelectionBar<DnUser>(
+              vm: _vm,
+              actions: _bulkActions,
+              wide: wide,
+              onDone: _countSeats,
+            ),
+          )
+        else
+          // React's table search.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: TextField(
+                  controller: _search,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    hintText: context.tr('search'),
+                  ),
+                  onChanged: _vm.setSearch,
                 ),
-                onChanged: _vm.setSearch,
               ),
             ),
           ),
-        ),
-        Expanded(
-          child: ListenableBuilder(
-            listenable: _vm,
-            builder: (context, _) => _list(context),
-          ),
-        ),
+        Expanded(child: _list(context, wide: wide)),
       ],
     );
   }
 
-  Widget _list(BuildContext context) {
+  Widget _list(BuildContext context, {required bool wide}) {
     final vm = _vm;
     if (!vm.hasLoaded && vm.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -396,13 +440,24 @@ class _UsersListState extends State<_UsersList> {
                     : u.isArchived
                     ? ('archived', tokens.partial, tokens.partialSoft)
                     : ('active', tokens.paid, tokens.paidSoft);
-                return InkWell(
-                  onTap: u.isDeleted
-                      ? null
+                final selecting = vm.isSelecting;
+                void toggle() => vm.toggleSelected(u);
+                return SelectableListRow(
+                  selected: vm.isSelected(u),
+                  urlSelected: false,
+                  // The list's separators draw the lines.
+                  hideBottomDivider: true,
+                  // Selecting, a tap ticks the row; a deleted user opens
+                  // nothing (restore it first).
+                  onTap: selecting
+                      ? toggle
+                      : u.isDeleted
+                      ? () {}
                       : () async {
                           await context.push('/docuninja/users/${u.id}');
                           if (mounted) await _refresh();
                         },
+                  onLongPress: toggle,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(minHeight: 56),
                     child: Padding(
@@ -414,6 +469,12 @@ class _UsersListState extends State<_UsersList> {
                       ),
                       child: Row(
                         children: [
+                          ?dnSelectLeading(
+                            wide: wide,
+                            selecting: selecting,
+                            selected: vm.isSelected(u),
+                            onToggle: toggle,
+                          ),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,8 +512,12 @@ class _UsersListState extends State<_UsersList> {
                           ),
                           // The owner's and the user's own row keep the slot
                           // (the column stays aligned) with nothing in it.
+                          // No row menu while selecting either: the bulk
+                          // actions are it.
                           Visibility(
-                            visible: !_lifecycleLocked(u, widget.state),
+                            visible:
+                                !selecting &&
+                                !_lifecycleLocked(u, widget.state),
                             maintainSize: true,
                             maintainAnimation: true,
                             maintainState: true,

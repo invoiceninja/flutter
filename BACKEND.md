@@ -3312,11 +3312,18 @@ A self-hosted server still on `.env.example`'s `REACT_URL=http://localhost:3001`
 false) marks a quote line the client may choose to include when approving it in the portal. Nothing
 on `origin/v5-develop`, any server branch or React models it yet.
 
-**What the client does now.** The v2 app offers an Optional toggle on quote lines and leaves an
+**What the client does now.** The v2 app has an Optional toggle on quote lines and leaves an
 optional line out of the quote's subtotal, taxes, discount base and total
 (`BillingDocTotals.totalsInput`). It sends `is_optional: true` only on a line that has it (the
 server keeps unknown line keys; `CleanLineItems` fills only the `InvoiceItem` defaults), and carries
 the line's other unmodelled fields through an edit untouched.
+
+**It offers the toggle only once the server models the field**, detected rather than versioned
+(`QuoteRepository.serverModelsOptionalLines`): when (1) below ships, `cleanLineItem` writes
+`is_optional: false` onto every line it saves, and a stored quote or invoice carrying that `false`
+is the proof — the app itself never sends `false`, and today's server echoes only what it is sent.
+So the toggle appears at the first document saved after the upgrade. **Keep the default `false`
+in `InvoiceItem`** (not `null`, and not omitted when false): that is the signal.
 
 **Needed server-side**, so the stored and printed totals agree with the app's:
 1. `InvoiceItem::$is_optional` (+ its cast), so the flag survives `cleanLineItem` explicitly.

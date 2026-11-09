@@ -71,23 +71,58 @@ abstract class LineItemApi with _$LineItemApi {
     @Default('')
     String taxCategoryId,
     @JsonKey(name: 'created_at') int? createdAt,
-    // A quote line the client may choose to include when approving it. Not
-    // on the server yet (2026-11): the flag is new, and until the server
-    // models it the field rides in the stored line JSON untouched.
-    @JsonKey(name: 'is_optional', fromJson: jsonScalarToBool)
-    @Default(false)
-    bool isOptional,
+    // A quote line the client may choose to include when approving it.
+    //
+    // Tri-state on purpose: null is "the line carries no such key", false is
+    // a value the SERVER wrote — this app only ever sends `true` — and the
+    // stored payload keeps it (null is omitted). A `false` is therefore the
+    // proof that the server models the field (`kServerOptionalLineMarker`).
+    @JsonKey(
+      name: 'is_optional',
+      fromJson: jsonScalarToBoolOrNull,
+      includeIfNull: false,
+    )
+    bool? isOptional,
     // Every field of the line this model doesn't name — see
-    // [lineItemExtraFields]. Read by the custom [LineItemApi.fromJson], never
-    // by the generated one.
-    @JsonKey(includeFromJson: false, includeToJson: false)
-    @Default(<String, Object?>{})
-    Map<String, Object?> extra,
+    // [lineItemExtraFields]. Collected by the custom [LineItemApi.fromJson];
+    // written by `toJson` under one reserved key, because `toJson` is what the
+    // repositories store as a server row's Drift payload, and a field it
+    // dropped there was gone by the next edit. The wire never carries it: the
+    // server is sent `LineItemPayload.toApiJson`, which spreads it back out.
+    @JsonKey(
+      name: kLineItemExtraKey,
+      includeFromJson: false,
+      // Explicit: with `includeFromJson: false` json_serializable leaves the
+      // field out of `toJson` too unless told otherwise.
+      includeToJson: true,
+      includeIfNull: false,
+    )
+    Map<String, Object?>? extra,
   }) = _LineItemApi;
 
+  // Expression-bodied on purpose: freezed generates JSON support only when it
+  // recognises this factory, and a block body is not recognised — it dropped
+  // `toJson`, and with it every document model's.
   factory LineItemApi.fromJson(Map<String, dynamic> json) =>
-      _$LineItemApiFromJson(json).copyWith(extra: lineItemExtraFields(json));
+      _$LineItemApiFromJson(json).copyWith(extra: _extraOrNull(json));
 }
+
+Map<String, Object?>? _extraOrNull(Map<String, dynamic> json) {
+  final extra = lineItemExtraFields(json);
+  return extra.isEmpty ? null : extra;
+}
+
+/// Where a stored line keeps its [LineItemApi.extra] fields. Local only:
+/// never a server field, never sent.
+const String kLineItemExtraKey = '_unmodelled';
+
+/// A stored line that proves its server models optional lines: the server's
+/// line cleaner (`CleanLineItems`, from `InvoiceItem`'s defaults) writes
+/// `is_optional: false` onto every line it saves once the field exists, and
+/// nothing else ever writes a `false` — this app sends only `true`, and an
+/// older server keeps that as it came. Matched against the stored payload as
+/// `jsonEncode` writes it (`QuoteRepository.serverModelsOptionalLines`).
+const String kServerOptionalLineMarker = '"is_optional":false';
 
 /// The wire keys [LineItemApi] models — everything else on a line is [extra].
 const Set<String> kModeledLineItemKeys = {
@@ -132,9 +167,18 @@ const Set<String> kServerComputedLineItemKeys = {
 /// reset a line's e-invoice `unit_code` to `C62` and cleared its
 /// `income_account_id` (QuickBooks), `tags`, `date` and `sort_id` — and would
 /// clear whatever the server adds next. Keyed as the server sent them.
-Map<String, Object?> lineItemExtraFields(Map<String, dynamic> json) => {
-  for (final e in json.entries)
-    if (!kModeledLineItemKeys.contains(e.key) &&
-        !kServerComputedLineItemKeys.contains(e.key))
-      e.key: e.value,
-};
+///
+/// Read from both places a line can hold them: a server line's own unknown
+/// keys, and a stored line's [kLineItemExtraKey] map.
+Map<String, Object?> lineItemExtraFields(Map<String, dynamic> json) {
+  final stored = json[kLineItemExtraKey];
+  return {
+    if (stored is Map)
+      for (final e in stored.entries) '${e.key}': e.value,
+    for (final e in json.entries)
+      if (e.key != kLineItemExtraKey &&
+          !kModeledLineItemKeys.contains(e.key) &&
+          !kServerComputedLineItemKeys.contains(e.key))
+        e.key: e.value,
+  };
+}

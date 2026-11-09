@@ -9,6 +9,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/quote_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/line_item_api_model.dart';
 import 'package:admin/data/models/api/quote_api_model.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/quote.dart';
@@ -389,6 +390,27 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     kind: cloneKindFor(targetType),
     payload: {'id': id, 'target': targetType},
   );
+
+  /// Whether this company's server models optional quote lines
+  /// (`is_optional`) — the gate on offering them (`allowOptionalLines`).
+  ///
+  /// Read from what the server has sent rather than a version number: the
+  /// field had no release when the client learned it (2026-11), and a hosted
+  /// server's reported version lags (`ServerFeatures`). Once the server's
+  /// `InvoiceItem` has the field, every line it saves comes back carrying
+  /// `is_optional: false` ([kServerOptionalLineMarker]); a stored quote or
+  /// invoice holding one is the proof. So a server that gained it starts
+  /// offering the toggle at the first document anyone saves after the
+  /// upgrade, once it reaches this device.
+  Future<bool> serverModelsOptionalLines({required String companyId}) async =>
+      await db.quoteDao.anyPayloadContains(
+        companyId: companyId,
+        fragment: kServerOptionalLineMarker,
+      ) ||
+      await db.invoiceDao.anyPayloadContains(
+        companyId: companyId,
+        fragment: kServerOptionalLineMarker,
+      );
 
   Future<void> cancel({required String companyId, required String id}) =>
       enqueueMutation(

@@ -48,9 +48,7 @@ _LineItemApi _$LineItemApiFromJson(Map<String, dynamic> json) => _LineItemApi(
       ? ''
       : jsonScalarToStringOrEmpty(json['tax_id']),
   createdAt: (json['created_at'] as num?)?.toInt(),
-  isOptional: json['is_optional'] == null
-      ? false
-      : jsonScalarToBool(json['is_optional']),
+  isOptional: jsonScalarToBoolOrNull(json['is_optional']),
 );
 
 Map<String, dynamic> _$LineItemApiToJson(_LineItemApi instance) =>
@@ -76,5 +74,6 @@ Map<String, dynamic> _$LineItemApiToJson(_LineItemApi instance) =>
       'expense_id': instance.expenseId,
       'tax_id': instance.taxCategoryId,
       'created_at': instance.createdAt,
-      'is_optional': instance.isOptional,
+      'is_optional': ?instance.isOptional,
+      '_unmodelled': ?instance.extra,
     };

@@ -84,8 +84,8 @@ abstract class LineItem with _$LineItem {
     expenseId: (a.expenseId ?? '').isEmpty ? null : a.expenseId,
     taxCategoryId: a.taxCategoryId,
     createdAt: a.createdAt,
-    isOptional: a.isOptional,
-    extra: a.extra,
+    isOptional: a.isOptional ?? false,
+    extra: a.extra ?? const {},
   );
 }
 

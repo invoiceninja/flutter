@@ -64,7 +64,9 @@ enum BillingDocType {
   bool get showsProductStock => this == BillingDocType.invoice;
 
   /// A line can be marked optional — one the client may choose to include
-  /// when approving — only on a quote (`LineItem.isOptional`).
+  /// when approving — only on a quote (`LineItem.isOptional`), and only once
+  /// the company's server models the field
+  /// (`QuoteRepository.serverModelsOptionalLines`, checked by the edit layout).
   bool get offersOptionalLines => this == BillingDocType.quote;
 
   /// Whether the company's "Show Tasks Table" setting (`show_tasks_table`)

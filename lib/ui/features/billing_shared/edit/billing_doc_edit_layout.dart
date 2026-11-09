@@ -173,6 +173,14 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   /// [resolveEInvoiceTabVisible].
   bool _showEInvoice = false;
 
+  /// Whether this company's server models optional quote lines — resolved
+  /// once on open ([_resolveOptionalLinesGate]); false until then, and on
+  /// every document type but a quote.
+  bool _serverOptionalLines = false;
+
+  bool get _offersOptionalLines =>
+      _type.offersOptionalLines && _serverOptionalLines;
+
   /// Open the narrow strip on Items — for [BillingDocEditLayout.openLineItem],
   /// and only on the strip's first mount: cleared once the line's editor is
   /// up, so a strip mounted later (a desktop window narrowed past 1024)
@@ -212,6 +220,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
   void initState() {
     super.initState();
     if (widget.slots.eInvoiceTab != null) unawaited(_resolveEInvoiceGate());
+    if (_type.offersOptionalLines) unawaited(_resolveOptionalLinesGate());
     final openLineItem = widget.openLineItem;
     if (openLineItem != null) {
       final items = _vm.draft.lineItems;
@@ -272,8 +281,20 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
       index: index,
       config: config.forCompany(company),
       onChanged: vm.replaceLineItems,
-      allowOptional: _type.offersOptionalLines,
+      allowOptional: _offersOptionalLines,
     );
+  }
+
+  /// Offer optional lines once the server is known to model them
+  /// (`QuoteRepository.serverModelsOptionalLines`). Until it does, an optional
+  /// line would count in the server's total and the PDF, and not in the app's.
+  Future<void> _resolveOptionalLinesGate() async {
+    final supported = await context
+        .read<Services>()
+        .quotes
+        .serverModelsOptionalLines(companyId: _vm.companyId);
+    if (!mounted || supported == _serverOptionalLines) return;
+    setState(() => _serverOptionalLines = supported);
   }
 
   /// Reveal the E-Invoice tab if this company files them. The strip resizes
@@ -374,6 +395,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
             vm: _vm,
             onPickItems: () => _openPicker(context),
             onCreateTask: _createTaskHandler(context),
+            allowOptionalLines: _offersOptionalLines,
           ),
         ),
         _Tab.notes => (
@@ -442,6 +464,7 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
         vm: _vm,
         onPickItems: () => _openPicker(context),
         onCreateTask: _createTaskHandler(context),
+        allowOptionalLines: _offersOptionalLines,
       ),
       notesTabsCard: _NotesTabsCardDesktop<T>(
         type: _type,
@@ -969,11 +992,16 @@ class _ItemsEditor<T extends BillingDocFields> extends StatelessWidget {
     required this.vm,
     required this.onPickItems,
     required this.onCreateTask,
+    required this.allowOptionalLines,
   });
   final BillingDocType type;
   final BillingDocEditViewModel<T> vm;
   final VoidCallback onPickItems;
   final ValueChanged<LineItem>? onCreateTask;
+
+  /// A quote on a server that models optional lines — see
+  /// `_BillingDocEditLayoutState._offersOptionalLines`.
+  final bool allowOptionalLines;
 
   @override
   Widget build(BuildContext context) {
@@ -991,7 +1019,7 @@ class _ItemsEditor<T extends BillingDocFields> extends StatelessWidget {
       showStockQuantity: type.showsProductStock,
       offerTasksTab: type.offersTasksTable,
       onCreateTaskFromLineItem: onCreateTask,
-      allowOptionalLines: type.offersOptionalLines,
+      allowOptionalLines: allowOptionalLines,
     );
   }
 }
@@ -1604,11 +1632,13 @@ class _ItemsTab<T extends BillingDocFields> extends StatelessWidget {
     required this.vm,
     required this.onPickItems,
     required this.onCreateTask,
+    required this.allowOptionalLines,
   });
   final BillingDocType type;
   final BillingDocEditViewModel<T> vm;
   final VoidCallback onPickItems;
   final ValueChanged<LineItem>? onCreateTask;
+  final bool allowOptionalLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1620,6 +1650,7 @@ class _ItemsTab<T extends BillingDocFields> extends StatelessWidget {
         vm: vm,
         onPickItems: onPickItems,
         onCreateTask: onCreateTask,
+        allowOptionalLines: allowOptionalLines,
       ),
     );
   }

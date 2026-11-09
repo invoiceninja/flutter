@@ -215,6 +215,24 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     ).equals(userId);
   }
 
+  /// Whether any of [companyId]'s stored records holds [fragment] verbatim in
+  /// its `payload` JSON — a capability probe over what the server has sent
+  /// (`QuoteRepository.serverModelsOptionalLines`), not a search: [fragment]
+  /// is matched as the exact text `jsonEncode` writes. Stops at the first hit.
+  Future<bool> anyPayloadContains({
+    required String companyId,
+    required String fragment,
+  }) async {
+    final q = selectOnly(table)
+      ..addColumns([idColumn])
+      ..where(
+        companyIdColumn.equals(companyId) &
+            const CustomExpression<String>('payload').like('%$fragment%'),
+      )
+      ..limit(1);
+    return (await q.get()).isNotEmpty;
+  }
+
   /// One-shot batch read by id — one query (per [chunkIdsForSqlIn] slice)
   /// instead of N `watchById(...).first` subscriptions. Ids the cache does
   /// not hold are simply absent from the result.

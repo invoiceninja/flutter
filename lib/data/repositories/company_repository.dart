@@ -894,8 +894,36 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi>
     );
   }
 
+  /// The company each id was last decoded to, with the row it came from.
+  ///
+  /// About a hundred widgets watch the active company, and Drift hands every
+  /// one of them each emission, so [_decodeCompanyRow] — the settings, tax
+  /// data, QuickBooks and e-invoice blobs, all `jsonDecode`d on the UI
+  /// isolate — ran once per watcher on every change to the companies table.
+  /// On macOS, where Dart runs on the main thread, that is the largest share of
+  /// the 2-second "App Hanging" reports (Sentry FLUTTER-ADMIN-3). An unchanged
+  /// row now hands back the same `Company`. Safe because the decode reads its
+  /// row and nothing else, and nothing mutates a decoded company's maps.
+  /// One entry per company; dropped with the base cache on logout and under
+  /// memory pressure ([clearDecodedRows]).
+  final Map<String, ({CompanyRow row, Company company})> _decodedCompanies = {};
+
+  @override
+  void clearDecodedRows() {
+    super.clearDecodedRows();
+    _decodedCompanies.clear();
+  }
+
   Company? _fromRow(CompanyRow? row) {
     if (row == null) return null;
+    final cached = _decodedCompanies[row.id];
+    if (cached != null && cached.row == row) return cached.company;
+    final company = _decodeCompanyRow(row);
+    _decodedCompanies[row.id] = (row: row, company: company);
+    return company;
+  }
+
+  Company _decodeCompanyRow(CompanyRow row) {
     final raw = _decodeSettingsMap(row.settings);
     // The generated `_$$CompanySettingsApiImplFromJson` uses ~200 bare type
     // casts (`as bool?`, `as int?`, ...). Invoice Ninja sometimes ships a

@@ -110,6 +110,47 @@ void main() {
     });
   });
 
+  group('an unchanged company row is decoded once', () {
+    // ~100 widgets watch the active company; each used to `jsonDecode` the
+    // settings / tax / QuickBooks blobs on every emission, on the UI thread
+    // (Sentry FLUTTER-ADMIN-3, macOS app hangs).
+
+    test('every watcher gets the same Company for the same row', () async {
+      await seedCompany('co1');
+      final repo = makeRepo();
+
+      final a = await repo.watchCompany('co1').first;
+      final b = await repo.watchCompany('co1').first;
+      final c = await repo.get('co1');
+
+      expect(a, isNotNull);
+      expect(identical(a, b), isTrue);
+      expect(identical(a, c), isTrue);
+    });
+
+    test('a changed row is decoded fresh', () async {
+      await seedCompany('co1', settings: const {'name': 'Acme'});
+      final repo = makeRepo();
+      final before = await repo.get('co1');
+
+      await seedCompany('co1', settings: const {'name': 'Acme 2'});
+      final after = await repo.get('co1');
+
+      expect(identical(before, after), isFalse);
+      expect(after!.rawSettings['name'], 'Acme 2');
+    });
+
+    test('logout drops the decoded company', () async {
+      await seedCompany('co1');
+      final repo = makeRepo();
+      final before = await repo.get('co1');
+
+      repo.clearPeekCache();
+
+      expect(identical(before, await repo.get('co1')), isFalse);
+    });
+  });
+
   group('updateCompany', () {
     test(
       'writes the new settings JSON and enqueues an update outbox row',

@@ -4,7 +4,7 @@ name: Deploy to Flathub
 # and publishes from its own repo, and this follows that to the end.
 #
 # Deploy to all's `flathub` leg. Flathub builds and publishes the app itself,
-# from flathub/com.invoiceninja.admin: that repo's own update workflow sees the
+# from flathub/com.invoiceninja.InvoiceNinja: that repo's own update workflow sees the
 # new release tag within the hour, regenerates the offline sources from it, and
 # opens branch update-v<version> with auto-merge on; Flathub's bot test-builds
 # it for x86_64 and aarch64, and the merge publishes. The release notes are

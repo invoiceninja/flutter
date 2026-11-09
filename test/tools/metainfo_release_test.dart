@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// from the tag, so the committed file is what Flathub and GNOME Software show
 /// as the changelog (docs/flatpak.md).
 void main() {
-  const metainfoPath = 'appimage/com.invoiceninja.admin.metainfo.xml';
+  const metainfoPath = 'appimage/com.invoiceninja.InvoiceNinja.metainfo.xml';
   final release = RegExp(
     r'<release\b[^>]*\bversion="([^"]+)"[^>]*\bdate="([^"]+)"[^>]*>(.*?)</release>',
     dotAll: true,
@@ -56,17 +56,54 @@ void main() {
       }
     });
 
-    test('names v1 in <provides> and <replaces>, which Flathub requires for '
-        'the end-of-life rebase', () {
-      for (final tag in ['provides', 'replaces']) {
-        expect(
-          RegExp(
-            '<$tag>\\s*<id>com.invoiceninja.InvoiceNinja</id>\\s*</$tag>',
-          ).hasMatch(metainfo),
-          isTrue,
-          reason: tag,
-        );
-      }
+    test('is v1\'s Flathub ID, agreed on by every Linux identity file '
+        '(docs/flatpak.md § The Linux app ID is v1\'s Flathub ID)', () {
+      const id = 'com.invoiceninja.InvoiceNinja';
+      expect(metainfo, contains('<id>$id</id>'));
+      expect(
+        metainfo,
+        contains('<launchable type="desktop-id">$id.desktop</launchable>'),
+      );
+      expect(metainfoPath, 'appimage/$id.metainfo.xml');
+      // It is v1's ID, so it no longer provides or replaces it.
+      expect(metainfo, isNot(contains('<provides>')));
+      expect(metainfo, isNot(contains('<replaces>')));
+
+      final desktop = File('appimage/$id.desktop').readAsStringSync();
+      expect(desktop, contains('\nIcon=$id\n'));
+      expect(desktop, contains('\nStartupWMClass=$id\n'));
+
+      final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+      expect(cmake, contains('set(APPLICATION_ID "$id")'));
+      expect(
+        File('tools/build_appimage.sh').readAsStringSync(),
+        contains('--icon-filename $id '),
+      );
+    });
+
+    test('the plugins still see the pre-rename ID, which keys the keyring '
+        'entry holding the database key', () {
+      final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+      expect(
+        cmake,
+        contains('set(KEYRING_APPLICATION_ID "com.invoiceninja.admin")'),
+      );
+      expect(
+        cmake,
+        contains(
+          'set(APPLICATION_ID "\${KEYRING_APPLICATION_ID}")\n'
+          'include(flutter/generated_plugins.cmake)\n'
+          'set(APPLICATION_ID "\${APPLICATION_ID_FOR_APP}")\n',
+        ),
+      );
+      expect(
+        File('linux/runner/CMakeLists.txt').readAsStringSync(),
+        contains('-DLEGACY_APPLICATION_ID="\${KEYRING_APPLICATION_ID}"'),
+      );
+      expect(
+        File('linux/runner/my_application.cc').readAsStringSync(),
+        contains('  migrate_legacy_data_dir();\n'),
+      );
     });
   });
 

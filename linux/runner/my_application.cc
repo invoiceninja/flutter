@@ -1,6 +1,9 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <glib/gstdio.h>
+
+#include <cerrno>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -425,7 +428,33 @@ static void my_application_class_init(MyApplicationClass* klass) {
 
 static void my_application_init(MyApplication* self) {}
 
+// The Linux app ID was com.invoiceninja.admin until it took over v1's Flathub
+// ID (docs/flatpak.md § The Linux app ID is v1's Flathub ID). path_provider
+// names the app's data directory after the GApplication ID, so an AppImage or
+// Snap install from before the rename keeps its database, unsynced outbox and
+// preferences only if that directory moves with it. A rename, once, before
+// Flutter starts: never over an existing directory, and a failure leaves both
+// where they are (the app then starts clean, as on a fresh install). Inside a
+// Flatpak the data home is per app ID, so there is never a legacy directory.
+static void migrate_legacy_data_dir() {
+  const gchar* data_home = g_get_user_data_dir();
+  g_autofree gchar* legacy =
+      g_build_filename(data_home, LEGACY_APPLICATION_ID, nullptr);
+  g_autofree gchar* current =
+      g_build_filename(data_home, APPLICATION_ID, nullptr);
+  if (!g_file_test(legacy, G_FILE_TEST_IS_DIR) ||
+      g_file_test(current, G_FILE_TEST_EXISTS)) {
+    return;
+  }
+  if (g_rename(legacy, current) != 0) {
+    g_warning("Could not move %s to %s: %s", legacy, current,
+              g_strerror(errno));
+  }
+}
+
 MyApplication* my_application_new() {
+  migrate_legacy_data_dir();
+
   // Set the program name to the application ID, which helps various systems
   // like GTK and desktop environments map this running application to its
   // corresponding .desktop file. This ensures better integration by allowing

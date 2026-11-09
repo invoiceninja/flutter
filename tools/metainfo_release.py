@@ -34,7 +34,7 @@ import sys
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-METAINFO = ROOT / "appimage/com.invoiceninja.admin.metainfo.xml"
+METAINFO = ROOT / "appimage/com.invoiceninja.InvoiceNinja.metainfo.xml"
 CHANGELOGS = ROOT / "fastlane/metadata/android/en-US/changelogs"
 
 # A digest line naming another platform or store, or a phone-only surface:

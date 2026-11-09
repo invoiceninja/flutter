@@ -17,7 +17,7 @@ set -euo pipefail
 # same MAJOR.MINOR.PATCH — it was a documented manual step that demonstrably
 # never happened (drifted 4 releases behind).
 #
-# And the Linux metainfo (appimage/com.invoiceninja.admin.metainfo.xml): a
+# And the Linux metainfo (appimage/com.invoiceninja.InvoiceNinja.metainfo.xml): a
 # <release> entry for the new version, dated today, holding the release's
 # store digest (tools/metainfo_release.py) — Flathub and GNOME Software show it
 # as the changelog, and Flathub builds from the tag, so it must be committed

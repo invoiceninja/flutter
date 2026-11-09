@@ -1,22 +1,23 @@
 # The Flatpak (Flathub)
 
 Companion to CLAUDE.md § Strict rules. This doc covers how the Linux app reaches Flathub as
-`com.invoiceninja.admin`: who builds it, which files belong to whom, how a release gets there, and
-what to touch when a pinned dependency moves. The Flathub-side files themselves live in
-`flathub/com.invoiceninja.admin`, not here.
+`com.invoiceninja.InvoiceNinja`, v1's ID: who builds it, which files belong to whom, how a release
+gets there, and what to touch when a pinned dependency moves. The Flathub-side files themselves
+live in `flathub/com.invoiceninja.InvoiceNinja`, not here.
 
 Status: **Flathub is the first platform this app goes to production on** (decided 2026-11-08), ahead
 of the other stores' GA. Flathub's stable repo takes only stable software, and a new app can't
 start on its beta repo, so it goes straight to stable. `kAppIsBeta` stays `true` there. It only
 holds back the review prompt (docs/review-prompt.md), and nothing in the app is labelled beta.
-v1's Flathub listing retires the day this one publishes (§ Retiring v1's listing).
+It ships as an update to v1's Flathub listing, so there is no second listing to retire
+(§ Retiring v1's listing).
 
 ## The Flatpak is built by Flathub from the release tag
 
 Flathub builds every app on its own builders, offline, from sources the manifest declares. Its
-policy is *"All source available submissions must be built entirely from source code"*. The v1
-app's listing (`com.invoiceninja.InvoiceNinja`) repackages a CI-built tarball, which is
-grandfathered, and a new ID can't do that. So this app takes the better route:
+policy is *"All source available submissions must be built entirely from source code"*. v1's
+manifest repackages a CI-built tarball, which is grandfathered, and this app replaces that
+manifest rather than inheriting the exception. So this app takes the better route:
 [flatpak-flutter](https://github.com/TheAppgineer/flatpak-flutter) turns a normal manifest into
 an offline one. It pins the Flutter SDK as a module, every `pubspec.lock` entry as a pub-cache
 source, and the binaries that plugins download at build time, using its "foreign deps" registry.
@@ -32,9 +33,9 @@ filled.
 
 What lives where:
 
-| Here (`invoiceninja/flutter`) | There (`flathub/com.invoiceninja.admin`, hand-written) |
+| Here (`invoiceninja/flutter`) | There (`flathub/com.invoiceninja.InvoiceNinja`, hand-written) |
 |---|---|
-| `appimage/com.invoiceninja.admin.metainfo.xml` and `.desktop`, `snap/gui/invoiceninja.png` (512 px) | the flatpak-flutter input manifest, `foreign.json`, `flathub.json` |
+| `appimage/com.invoiceninja.InvoiceNinja.metainfo.xml` and `.desktop`, `snap/gui/invoiceninja.png` (512 px) | the flatpak-flutter input manifest, `foreign.json`, `flathub.json` |
 | `tools/prepare_foss.sh --offline`, the pins it holds | the generated offline manifest and sources |
 | `tools/follow_flathub_release.sh`, `.github/workflows/flathub.yml` (reads only) | the update workflow that opens each release's PR |
 
@@ -45,10 +46,11 @@ Facts the build rests on (checked 2026-11-08 against the sources, not assumed):
   `org.freedesktop.Sdk.Extension.llvm22`: `flutter build linux` runs CMake with `CC=clang`
   (`flutter_tools/lib/src/linux/build_linux.dart`), and the SDK ships no clang. llvm22 is the
   only LLVM extension with a 26.08 branch, but flatpak-flutter's template still says llvm20.
-- **App ID.** `linux/CMakeLists.txt` `APPLICATION_ID com.invoiceninja.admin`, `BINARY_NAME admin`,
-  and `g_set_prgname(APPLICATION_ID)` in `my_application.cc`, so the Wayland `app_id` matches the
-  desktop file and the dock icon resolves. The app module must be named `admin` (the ID's last
-  part) or flatpak-flutter needs `--app-module`.
+- **App ID.** `linux/CMakeLists.txt` `APPLICATION_ID com.invoiceninja.InvoiceNinja`,
+  `BINARY_NAME admin`, and `g_set_prgname(APPLICATION_ID)` in `my_application.cc`, so the Wayland
+  `app_id` matches the desktop file and the dock icon resolves (§ The Linux app ID is v1's Flathub
+  ID). flatpak-flutter takes the app module to be the one named after the ID's last part
+  (`InvoiceNinja`); a module named anything else needs `--app-module`.
 - **No Sentry needs no CMake change.** The `crashpad_handler` install in `linux/CMakeLists.txt` is
   a string compare that is simply false when sentry_flutter is absent.
 
@@ -64,8 +66,7 @@ without review, and repeat breaches can get a permanent ban.
 
 So, in this repo and every session working on it:
 
-- **Hillel writes, by hand,** everything in `flathub/com.invoiceninja.admin` and in v1's
-  `flathub/com.invoiceninja.InvoiceNinja`: manifests, `foreign.json`, `flathub.json`, workflows,
+- **Hillel writes, by hand,** everything in `flathub/com.invoiceninja.InvoiceNinja`: manifests, `foreign.json`, `flathub.json`, workflows,
   and patches. He also writes every Flathub PR's text, commit messages and review replies.
 - **An agent may** research and explain the requirements, read a failing build log, and change
   this repo's upstream files (metainfo, `prepare_foss.sh`, app code). Those changes count as
@@ -208,7 +209,7 @@ collaborators. So each side does its half:
    - Fails, with the PR link, on a failed test build.
    - Waits for the merge. If the checks pass and nobody merges it, it ends green with a warning
      naming the PR to merge.
-   - Watches `flathub.org/api/v2/appstream/com.invoiceninja.admin` for the version for 45
+   - Watches `flathub.org/api/v2/appstream/com.invoiceninja.InvoiceNinja` for the version for 45
      minutes. A merge that isn't listed yet is still a success, because publishing takes hours.
 
    It is skipped until the repo variable `FLATHUB_ENABLED` is `'true'`. It needs no secret, and
@@ -242,53 +243,79 @@ or a check, and a successful bot build on the next update PR is the proof.
 - **flatpak-flutter itself.** Bump the pinned image on purpose, because its registry ships
   inside the image.
 
+## The Linux app ID is v1's Flathub ID
+
+The app went to Flathub first as a new app, `com.invoiceninja.admin` (`flathub/flathub#11087`,
+2026-11-09). Its reviewer asked for an ID named after the app, Invoice Ninja, not "admin". The
+ID named after the app is v1's, so the app takes v1's listing over instead, as the Snap already
+does (both apps are the `invoiceninja` snap). That means:
+
+- **The Linux ID differs from every other platform's.** Android, iOS, macOS and Windows stay
+  `com.invoiceninja.admin`. On Linux, `APPLICATION_ID` in `linux/CMakeLists.txt`, the
+  `appimage/com.invoiceninja.InvoiceNinja.*` file names, the desktop file's `Icon=` and
+  `StartupWMClass=`, and the metainfo's `<id>` and `<launchable>` must all agree on
+  `com.invoiceninja.InvoiceNinja`. The metainfo no longer `<provides>` or `<replaces>` v1's ID,
+  because it *is* that ID.
+- **The keyring namespace did not move.** `flutter_secure_storage_linux` keys its entries by the
+  `APPLICATION_ID` its own `CMakeLists.txt` sees at configure time, and the database key is one of
+  them. So `linux/CMakeLists.txt` sets `APPLICATION_ID` to `KEYRING_APPLICATION_ID`
+  (`com.invoiceninja.admin`) around `include(flutter/generated_plugins.cmake)` and restores it
+  after. Without that, every AppImage and Snap install from before the rename loses its key, and
+  with it the encrypted database and any unsynced outbox rows. Never change that value.
+- **The data directory moves once.** `path_provider_linux` names the support directory after the
+  runtime GApplication ID, so `my_application.cc` (`migrate_legacy_data_dir`) renames
+  `$XDG_DATA_HOME/com.invoiceninja.admin` to the new ID before Flutter starts. It never renames
+  over an existing directory, and a failure is logged and leaves the old one in place. The cache
+  directory is not moved: it is only a cache. Inside a Flatpak the data home is per app ID, so
+  nothing is ever there to move.
+- **v1's Flatpak users get this app as an ordinary update.** There is no end-of-life rebase and
+  no new verification token, because v1's verification already covers the ID. v1's files sit
+  under their own names inside `~/.var/app/com.invoiceninja.InvoiceNinja`
+  (`data/com.invoiceninja.app`), and v1 kept nothing in a keyring, so nothing collides. Users
+  start clean and sign in again, as Snap users do when v2 reaches the snap's stable channel.
+
 ## Submitting
 
-This is one-time, done and written by Hillel, and it is the Flathub launch. `docs/going-live.md` § Flathub has the
-checklist. Before it:
+The new-app submission (`flathub/flathub#11087`) is superseded by § The Linux app ID is v1's
+Flathub ID. The launch is now a PR on `flathub/com.invoiceninja.InvoiceNinja` that replaces v1's
+manifest, done and written by Hillel. `docs/going-live.md` § Flathub has the checklist. Before it:
 
-- the app's upstream files must be in a released tag, since the submission builds from one;
-- the first offline build must be proven on a fork, with `flatpak-builder-lint` clean on both
+- the app's upstream files must be in a released tag, since Flathub builds from one;
+- the offline build must be proven on a fork, with `flatpak-builder-lint` clean on both
   the manifest and the repo (`--mirror-screenshots-url=https://dl.flathub.org/media`, or the
   screenshot check fails);
 - screenshots of the Flatpak must be committed and named in the metainfo by URLs pinned to a
   commit SHA, never a branch.
 
-The PR's checklist asks for:
+What the PR has to cover:
 
-- a video of the Flatpak running;
-- a development-history statement: the successor of v1, which has 15.6k Flathub installs, plus a
-  link to this repo;
+- `flathub.json` drops `only-arches`, since this build has aarch64, and adds
+  `"disable-external-data-checker": true`;
+- the `finish-args` differ from v1's (§ finish-args), and a permission change needs a Flathub
+  admin's approval on the PR, so each one is justified there;
 - the AI disclosure, listing the upstream files agents wrote: the metainfo,
-  `prepare_foss.sh --offline`, the release-notes tooling, the follow workflow and much of the
-  app;
-- the author statement.
+  `prepare_foss.sh --offline`, the release-notes tooling, the follow workflow, the Linux app-ID
+  move and much of the app;
+- a demo login for whoever reviews it, because the app does nothing without a server.
 
-Reviewers need a demo login, because the app does nothing without a server.
+The first submission built **`v5.1.23-flathub`**, a tag outside `main`: v5.1.23 plus the four
+Flathub commits (packaging, the no-system-bus network check, the screenshots, the workflow
+rename). `main` held 48 unreleased commits at the time, and Flathub's first production build
+should ship exactly what every other store already had. It was tagged by hand in a detached
+worktree. Its name doesn't match the plain `vX.Y.Z` pattern that F-Droid's update check and
+`check_release_ready.sh` look for, so both ignore it. The PR on v1's repo needs a new hand tag in
+the same shape that also carries the app-ID commit. Every later release reaches Flathub through
+the update workflow (§ Deploy to all follows the release).
 
-When it merges, Flathub creates `flathub/com.invoiceninja.admin`. Then:
+When it merges:
 
-- **Append** the new verification token as a new line in
-  `https://invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt`. That file already holds
-  v1's token, and replacing it would drop v1's checkmark.
-- Ask Flathub, through an issue on `flathub/flathub`, to enable auto-merge with the bot's build
-  as the required check.
+- Ask Flathub, through an issue on `flathub/flathub`, to enable auto-merge on
+  `flathub/com.invoiceninja.InvoiceNinja` with the bot's build as the required check.
+- `https://invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` stays as it is: it holds
+  v1's token, which is this ID's.
 
 ## Retiring v1's listing
 
-v1 and this app can't both be listed: Flathub rejects duplicate submissions. On the day the new
-ID publishes, open a PR on `flathub/com.invoiceninja.InvoiceNinja` that **adds**
-`"end-of-life"` and `"end-of-life-rebase": "com.invoiceninja.admin"` to its existing
-`flathub.json`. Keep `only-arches`: without it the bot builds an empty aarch64 app and the test
-build fails.
-
-- Flatpak then offers every v1 user the switch.
-- On the first launch after the switch, Flatpak renames `~/.var/app/com.invoiceninja.InvoiceNinja`
-  to the new ID, but only if the new directory doesn't exist yet.
-- v1's files sit under their own names (`data/com.invoiceninja.app`), not ours
-  (`data/com.invoiceninja.admin`), and v1 kept nothing in a keyring. So users start clean and
-  sign in again, and the EOL message says so.
-- The metainfo's `<provides>` and `<replaces>` name v1's ID, which a rename requires.
-
-Until the new listing publishes, v1's listing gets ordinary hand-made version bumps: url, sha256 and tag in its
-manifest. Its runtime is already 25.08.
+Nothing retires now: this app is v1's listing's next version (§ The Linux app ID is v1's Flathub
+ID). Until the PR that switches the manifest merges, v1's listing gets ordinary hand-made version
+bumps: url, sha256 and tag in its manifest. Its runtime is already 25.08.

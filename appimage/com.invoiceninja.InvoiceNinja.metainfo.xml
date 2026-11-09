@@ -5,8 +5,9 @@
   - metadata_license licenses THIS file and must be permissive (CC0-1.0).
   - project_license is the app's license: AAL (Attribution Assurance License,
     per LICENSE.txt).
-  - <provides>/<replaces> name v1's Flathub ID: this app succeeds it, and
-    Flathub's end-of-life rebase moves v1's users here (docs/flatpak.md).
+  - <id> is v1's Flathub ID: this app ships as an update to v1's listing, and
+    the file name, the .desktop file and linux/CMakeLists.txt's APPLICATION_ID
+    all match it (docs/flatpak.md).
   - <releases> is written by tools/bump_client_version.sh (through
     tools/metainfo_release.py) from each release's store digest, newest first.
     Don't hand-edit an entry; check_release_ready.sh requires one per release.
@@ -15,7 +16,7 @@
     set is committed first, then named here at that commit (docs/flatpak.md).
 -->
 <component type="desktop-application">
-  <id>com.invoiceninja.admin</id>
+  <id>com.invoiceninja.InvoiceNinja</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AAL</project_license>
   <name>Invoice Ninja</name>
@@ -56,7 +57,7 @@
       <caption>Clients, with balances and contacts</caption>
     </screenshot>
   </screenshots>
-  <launchable type="desktop-id">com.invoiceninja.admin.desktop</launchable>
+  <launchable type="desktop-id">com.invoiceninja.InvoiceNinja.desktop</launchable>
   <developer id="com.invoiceninja">
     <name>Invoice Ninja</name>
   </developer>
@@ -65,12 +66,6 @@
   <url type="vcs-browser">https://github.com/invoiceninja/flutter</url>
   <url type="help">https://invoiceninja.github.io/</url>
   <url type="translate">https://explore.transifex.com/invoice-ninja/invoice-ninja/</url>
-  <provides>
-    <id>com.invoiceninja.InvoiceNinja</id>
-  </provides>
-  <replaces>
-    <id>com.invoiceninja.InvoiceNinja</id>
-  </replaces>
   <categories>
     <category>Office</category>
     <category>Finance</category>

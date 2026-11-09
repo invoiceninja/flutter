@@ -225,10 +225,16 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       formatter: _formatter,
       busy: vm.isBusy,
       onResend: (i) => _resend(context, vm, i),
+      // The builder, so it needs what Edit needs.
       onAddSignatories:
           doc.isDeleted ||
               dnIsCompleted(doc) ||
-              doc.status == DnDocumentStatus.voided
+              doc.status == DnDocumentStatus.voided ||
+              !(context.read<DocuNinjaSession?>()?.value.can(
+                    'documents',
+                    DnAction.edit,
+                  ) ??
+                  true)
           ? null
           : () => _onAction(context, vm, doc, _Action.edit),
     );

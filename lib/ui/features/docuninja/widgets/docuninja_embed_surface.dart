@@ -6,8 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_windows/webview_flutter_windows.dart';
@@ -73,12 +71,13 @@ Future<void> clearDocuNinjaWebStorage() async {
   if (!kDnEmbeddedBuilder) return;
   try {
     if (isWindowsWebView) {
-      // No web view is alive at sign-out, so WebView2 has let its data
-      // folder go: remove it whole. Best effort: a browser process that
-      // lingers can hold a file for a moment, and the next builder clears
-      // the web app's storage before it boots anyway.
-      final dir = await getApplicationSupportDirectory();
-      final data = Directory(p.join(dir.path, 'WebView2'));
+      // With no web view open, WebView2 has let its data folder go: remove
+      // it whole. One still open (a 401 sign-out over the builder or a
+      // preview) holds it, so leave it: the builder clears the web app's
+      // storage as it closes and before its next boot anyway. Best effort:
+      // a browser process that lingers can hold a file for a moment.
+      if (windowsWebViewsAlive) return;
+      final data = Directory(await windowsWebViewDataPath());
       if (await data.exists()) await data.delete(recursive: true);
       return;
     }
@@ -212,6 +211,10 @@ class _WindowsSurface implements DnEmbedSurface {
   _WindowsSurface(this.events);
 
   final DnEmbedEvents events;
+
+  /// WebView2's controller from the moment it exists, so a dispose during
+  /// its start-up lets it go.
+  WebviewController? _started;
   final _controller = ValueNotifier<WebviewController?>(null);
   final _subscriptions = <StreamSubscription<Object?>>[];
   String? _url;
@@ -237,15 +240,13 @@ class _WindowsSurface implements DnEmbedSurface {
   @override
   Future<void> open(Uri uri) async {
     final controller = await startWindowsWebView();
-    if (_disposed) {
-      unawaited(controller?.dispose());
-      return;
-    }
     if (controller == null) {
       // No WebView2 runtime: the screen offers the browser.
-      events.onLoadFailed();
+      if (!_disposed) events.onLoadFailed();
       return;
     }
+    _started = controller;
+    if (_disposed) return _release();
     _subscriptions
       ..add(
         controller.webMessage.listen(
@@ -259,8 +260,12 @@ class _WindowsSurface implements DnEmbedSurface {
       )
       ..add(
         controller.onLoadError.listen((status) {
-          // Going back from a refused address cancels a load; that is not
-          // the page failing.
+          // Going back from a refused address cancels a load, and an
+          // off-site page the guard is leaving (one that failed to load:
+          // no network, a bad certificate) fails on its own; neither is the
+          // builder failing.
+          final at = Uri.tryParse(_url ?? '');
+          if (at != null && at.hasScheme && !dnEmbedAllowed(at)) return;
           if (status != WebErrorStatus.operationCanceled) {
             events.onLoadFailed();
           }
@@ -268,6 +273,7 @@ class _WindowsSurface implements DnEmbedSurface {
       )
       ..add(controller.url.listen((url) => _onUrl(controller, url)));
     await controller.addScriptToExecuteOnDocumentCreated(_bridge);
+    if (_disposed) return _release();
     _controller.value = controller;
     await controller.loadUrl(uri.toString());
   }
@@ -301,15 +307,28 @@ class _WindowsSurface implements DnEmbedSurface {
             controller == null ? const SizedBox.expand() : Webview(controller),
       );
 
-  @override
-  void dispose() {
-    _disposed = true;
+  /// Lets WebView2 go, before it showed anything.
+  void _release() {
     for (final s in _subscriptions) {
       unawaited(s.cancel());
     }
+    _subscriptions.clear();
+    final controller = _started;
+    _started = null;
+    if (controller != null) unawaited(disposeWindowsWebView(controller));
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
     final controller = _controller.value;
     _controller.dispose();
+    // Still starting: [open] lets it go when it resumes.
     if (controller == null) return;
+    for (final s in _subscriptions) {
+      unawaited(s.cancel());
+    }
+    _started = null;
     unawaited(() async {
       try {
         if (_url != null && dnEmbedAllowed(Uri.parse(_url!))) {
@@ -321,7 +340,7 @@ class _WindowsSurface implements DnEmbedSurface {
       } on Object catch (e) {
         _log.fine('Clearing the builder storage: $e');
       } finally {
-        await controller.dispose();
+        await disposeWindowsWebView(controller);
       }
     }());
   }

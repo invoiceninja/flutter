@@ -28,4 +28,20 @@ void main() {
     final out = htmlWithoutScripts('<header>Top</header><p>x</p>');
     expect(out, startsWith('<meta'));
   });
+
+  test('a <head> inside a comment is not the head', () {
+    final out = htmlWithoutScripts(
+      '<!-- <head> --><html><head><script>x()</script></head></html>',
+    );
+    expect(out, startsWith('<!-- <head> --><html><head><meta'));
+  });
+
+  test('a meta refresh is dropped', () {
+    final out = htmlWithoutScripts(
+      '<html><head><META HTTP-EQUIV="Refresh" content="0; url=https://x.y">'
+      '</head></html>',
+    );
+    expect(out.toLowerCase(), isNot(contains('refresh')));
+    expect(out, contains("script-src 'none'"));
+  });
 }

@@ -6,20 +6,37 @@
 ///
 /// The policy goes first in `<head>` (or first in the document when there
 /// is none): a policy is enforced only from where it is parsed, so a script
-/// above it would still run.
+/// above it would still run. A `<head>` inside a comment is not the head.
+/// A `<meta http-equiv="refresh">` is dropped too: no policy stops it, and
+/// it would send the preview off to its address.
 String htmlWithoutScripts(String html) {
   const policy =
       '<meta http-equiv="Content-Security-Policy" '
       "content=\"script-src 'none'; object-src 'none'; base-uri 'none'\">";
-  final head = RegExp(r'<head(\s[^>]*)?>', caseSensitive: false);
-  final match = head.firstMatch(html);
-  if (match != null) {
-    return html.replaceRange(match.end, match.end, policy);
+  final doc = html.replaceAll(
+    RegExp(
+      r'''<meta\b[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*>''',
+      caseSensitive: false,
+    ),
+    '',
+  );
+  final comments = [
+    for (final m in RegExp(r'<!--[\s\S]*?(-->|$)').allMatches(doc))
+      (m.start, m.end),
+  ];
+  bool commented(int at) => comments.any((c) => at >= c.$1 && at < c.$2);
+  RegExpMatch? first(RegExp tag) {
+    for (final m in tag.allMatches(doc)) {
+      if (!commented(m.start)) return m;
+    }
+    return null;
   }
-  final root = RegExp(r'<html(\s[^>]*)?>', caseSensitive: false);
-  final open = root.firstMatch(html);
-  if (open != null) {
-    return html.replaceRange(open.end, open.end, '<head>$policy</head>');
+
+  final head = first(RegExp(r'<head(\s[^>]*)?>', caseSensitive: false));
+  if (head != null) return doc.replaceRange(head.end, head.end, policy);
+  final root = first(RegExp(r'<html(\s[^>]*)?>', caseSensitive: false));
+  if (root != null) {
+    return doc.replaceRange(root.end, root.end, '<head>$policy</head>');
   }
-  return '$policy$html';
+  return '$policy$doc';
 }

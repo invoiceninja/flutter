@@ -44,9 +44,55 @@ class TemplatePreviewPanel extends StatelessWidget {
         border: Border.all(color: t.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: ValueListenableBuilder<TemplatePreviewState>(
-        valueListenable: controller,
+      child: _PreviewStates(controller: controller),
+    );
+  }
+}
+
+/// The preview's states. While the next preview loads (a debounced edit),
+/// the last one stays up under a thin progress bar rather than giving way
+/// to a spinner: unmounting it would tear down its web view (and on
+/// Windows its WebView2 process) on every keystroke, and start another.
+class _PreviewStates extends StatefulWidget {
+  const _PreviewStates({required this.controller});
+
+  final PreviewController controller;
+
+  @override
+  State<_PreviewStates> createState() => _PreviewStatesState();
+}
+
+class _PreviewStatesState extends State<_PreviewStates> {
+  TemplatePreview? _last;
+
+  @override
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<TemplatePreviewState>(
+        valueListenable: widget.controller,
         builder: (context, state, _) {
+          switch (state) {
+            case TemplatePreviewLoaded(:final preview):
+              _last = preview;
+            case TemplatePreviewIdle() || TemplatePreviewError():
+              _last = null;
+            case TemplatePreviewLoading():
+              break;
+          }
+          final last = _last;
+          if (last != null) {
+            return Stack(
+              children: [
+                _PreviewBody(preview: last),
+                if (state is TemplatePreviewLoading)
+                  const PositionedDirectional(
+                    top: 0,
+                    start: 0,
+                    end: 0,
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+              ],
+            );
+          }
           return switch (state) {
             TemplatePreviewIdle() => const _PreviewPlaceholder(),
             TemplatePreviewLoading() => const _PreviewLoading(),
@@ -55,13 +101,11 @@ class TemplatePreviewPanel extends StatelessWidget {
             ),
             TemplatePreviewError(:final kind) => _PreviewError(
               kind: kind,
-              onRetry: controller.refresh,
+              onRetry: widget.controller.refresh,
             ),
           };
         },
-      ),
-    );
-  }
+      );
 }
 
 /// Fills the panel's bounded height when one is given (side-by-side right

@@ -1818,5 +1818,6 @@
   "setup_region_done": "Ferdig",
   "welcome_lets_go": "Sett i gang",
   "checklist_retry": "Prøv igjen",
-  "switch_company": "Bytt firma"
+  "switch_company": "Bytt firma",
+  "setup_choose_file_instead": "Velg en fil i stedet"
 }

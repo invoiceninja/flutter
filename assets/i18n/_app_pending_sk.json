@@ -1737,5 +1737,6 @@
   "setup_region_done": "Hotovo",
   "welcome_lets_go": "Poďme na to",
   "checklist_retry": "Skúsiť znova",
-  "switch_company": "Prepnúť spoločnosť"
+  "switch_company": "Prepnúť spoločnosť",
+  "setup_choose_file_instead": "Alebo vyberte súbor"
 }

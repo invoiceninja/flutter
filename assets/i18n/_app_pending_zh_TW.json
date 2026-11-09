@@ -1737,5 +1737,6 @@
   "setup_region_done": "完成",
   "welcome_lets_go": "開始吧",
   "checklist_retry": "重試",
-  "switch_company": "切換公司"
+  "switch_company": "切換公司",
+  "setup_choose_file_instead": "改為選擇檔案"
 }

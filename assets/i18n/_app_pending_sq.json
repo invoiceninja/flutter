@@ -1818,5 +1818,6 @@
   "setup_region_done": "U krye",
   "welcome_lets_go": "Le të fillojmë",
   "checklist_retry": "Riprovo",
-  "switch_company": "Ndërro kompaninë"
+  "switch_company": "Ndërro kompaninë",
+  "setup_choose_file_instead": "Zgjidhni një skedar në vend të saj"
 }

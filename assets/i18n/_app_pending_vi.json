@@ -1703,5 +1703,6 @@
   "setup_region_done": "Xong",
   "welcome_lets_go": "Bắt đầu thôi",
   "checklist_retry": "Thử lại",
-  "switch_company": "Chuyển công ty"
+  "switch_company": "Chuyển công ty",
+  "setup_choose_file_instead": "Chọn tệp thay thế"
 }

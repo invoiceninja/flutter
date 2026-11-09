@@ -1738,5 +1738,6 @@
   "setup_region_done": "Valmis",
   "welcome_lets_go": "Aloitetaan",
   "checklist_retry": "Yritä uudelleen",
-  "switch_company": "Vaihda yritystä"
+  "switch_company": "Vaihda yritystä",
+  "setup_choose_file_instead": "Valitse sen sijaan tiedosto"
 }

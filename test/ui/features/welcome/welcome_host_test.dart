@@ -308,6 +308,39 @@ void main() {
     expect(c.currentPending, isTrue);
   });
 
+  testWidgets('a landscape phone gets the sheet, not a cramped dialog', (
+    tester,
+  ) async {
+    await pump(tester, signIn: existing, size: const Size(852, 393));
+    await arrive(tester);
+    expect(find.byType(BottomSheet), findsOneWidget);
+  });
+
+  testWidgets('"Can\'t find something?" scrolls itself into view', (
+    tester,
+  ) async {
+    await pump(tester, signIn: fromOldApp, size: const Size(393, 852));
+    await arrive(tester);
+    // As a user would: it may sit behind the footer until scrolled to.
+    await tester.ensureVisible(find.byKey(const ValueKey('welcome_cant_find')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('welcome_cant_find')));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final position = tester
+        .widget<SingleChildScrollView>(
+          find.descendant(
+            of: find.byType(WelcomeCard),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        )
+        .controller!
+        .position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    expect(position.pixels, position.maxScrollExtent);
+  });
+
   group('the card', () {
     Future<void> pumpCard(
       WidgetTester tester, {

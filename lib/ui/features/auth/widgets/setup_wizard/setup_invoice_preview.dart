@@ -76,14 +76,31 @@ class SetupInvoicePreview extends StatelessWidget {
                 width: 96 * scale,
                 height: 40 * scale,
                 child: Center(
-                  child: Text(
-                    context.tr('setup_preview_logo'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11 * scale,
-                      color: paperInk.ink3,
-                    ),
+                  // Where the slot is the way to add one (a phone), it says
+                  // so with a glyph — a dashed box alone reads as decoration.
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onTapLogo != null) ...[
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 14 * scale,
+                          color: paperInk.ink3,
+                        ),
+                        SizedBox(width: 4 * scale),
+                      ],
+                      Flexible(
+                        child: Text(
+                          context.tr('setup_preview_logo'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11 * scale,
+                            color: paperInk.ink3,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

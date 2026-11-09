@@ -1818,5 +1818,6 @@
   "setup_region_done": "Готово",
   "welcome_lets_go": "Да започнеме",
   "checklist_retry": "Обиди се повторно",
-  "switch_company": "Смени компанија"
+  "switch_company": "Смени компанија",
+  "setup_choose_file_instead": "Наместо тоа изберете датотека"
 }

@@ -1737,5 +1737,6 @@
   "setup_region_done": "Valmis",
   "welcome_lets_go": "Alustame",
   "checklist_retry": "Proovi uuesti",
-  "switch_company": "Vaheta ettevõtet"
+  "switch_company": "Vaheta ettevõtet",
+  "setup_choose_file_instead": "Valige hoopis fail"
 }

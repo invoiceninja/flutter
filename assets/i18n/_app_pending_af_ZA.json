@@ -1737,5 +1737,6 @@
   "setup_region_done": "Klaar",
   "welcome_lets_go": "Kom ons begin",
   "checklist_retry": "Probeer Weer",
-  "switch_company": "Wissel Maatskappy"
+  "switch_company": "Wissel Maatskappy",
+  "setup_choose_file_instead": "Kies eerder 'n lêer"
 }

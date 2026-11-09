@@ -1818,5 +1818,6 @@
   "setup_region_done": "Bitti",
   "welcome_lets_go": "Başlayalım",
   "checklist_retry": "Yeniden Dene",
-  "switch_company": "Şirket Değiştir"
+  "switch_company": "Şirket Değiştir",
+  "setup_choose_file_instead": "Bunun yerine dosya seçin"
 }

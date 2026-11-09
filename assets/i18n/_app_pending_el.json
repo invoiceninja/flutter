@@ -1737,5 +1737,6 @@
   "setup_region_done": "Τέλος",
   "welcome_lets_go": "Ας ξεκινήσουμε",
   "checklist_retry": "Επανάληψη",
-  "switch_company": "Αλλαγή εταιρείας"
+  "switch_company": "Αλλαγή εταιρείας",
+  "setup_choose_file_instead": "Επιλέξτε αρχείο αντί γι' αυτό"
 }

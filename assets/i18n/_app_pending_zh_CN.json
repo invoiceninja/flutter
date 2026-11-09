@@ -1818,5 +1818,6 @@
   "setup_region_done": "完成",
   "welcome_lets_go": "开始吧",
   "checklist_retry": "重试",
-  "switch_company": "切换公司"
+  "switch_company": "切换公司",
+  "setup_choose_file_instead": "改为选择文件"
 }

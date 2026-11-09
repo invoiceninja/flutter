@@ -1775,5 +1775,6 @@
   "setup_region_done": "Kész",
   "welcome_lets_go": "Kezdjük",
   "checklist_retry": "Újra",
-  "switch_company": "Cégváltás"
+  "switch_company": "Cégváltás",
+  "setup_choose_file_instead": "Inkább fájl kiválasztása"
 }

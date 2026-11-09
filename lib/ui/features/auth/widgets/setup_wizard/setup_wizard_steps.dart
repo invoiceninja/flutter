@@ -38,6 +38,8 @@ class SetupStepHeading extends StatelessWidget {
       children: [
         Focus(
           focusNode: focusNode,
+          // A display heading scales less than body text (as iOS large titles
+          // do): at 2x a 24 px title would be a three-line block.
           child: Semantics(
             header: true,
             headingLevel: 1,
@@ -49,6 +51,9 @@ class SetupStepHeading extends StatelessWidget {
             excludeSemantics: true,
             child: Text(
               title,
+              textScaler: MediaQuery.textScalerOf(
+                context,
+              ).clamp(maxScaleFactor: 1.5),
               style: TextStyle(
                 fontSize: narrow ? 24 : 28,
                 height: narrow ? 30 / 24 : 34 / 28,
@@ -84,7 +89,11 @@ class SetupStepBusiness extends StatelessWidget {
     required this.onToggleRegion,
     required this.currencies,
     required this.languages,
+    this.regionPickersKey,
   });
+
+  /// On the pickers, so opening them can scroll them into view.
+  final Key? regionPickersKey;
 
   final SetupWizardViewModel vm;
   final TextEditingController nameController;
@@ -193,6 +202,7 @@ class SetupStepBusiness extends StatelessWidget {
           alignment: AlignmentDirectional.topStart,
           child: regionExpanded
               ? Padding(
+                  key: regionPickersKey,
                   padding: EdgeInsets.only(top: InSpacing.md(context)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -251,65 +261,78 @@ class _RegionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return Container(
-      padding: EdgeInsetsDirectional.only(
-        start: InSpacing.lg(context),
-        end: 4,
-        top: 10,
-        bottom: 10,
-      ),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        border: Border.all(color: tokens.border),
+    // The whole card is the target, not just Change: on a phone the card is
+    // what a thumb lands on. A local Material, never `Ink`
+    // (docs/sidebar-and-shell.md).
+    return Material(
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r2),
       ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: InSpacing.sm,
-        runSpacing: 4,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 180),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontSize: 12, color: tokens.ink3)),
-                const SizedBox(height: 2),
-                if (value != null)
-                  Text(
-                    value!,
-                    key: const ValueKey('setup_region_value'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: tokens.ink,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onToggle,
+        excludeFromSemantics: true,
+        child: Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: InSpacing.lg(context),
+            end: 4,
+            top: 10,
+            bottom: 10,
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: InSpacing.sm,
+            runSpacing: 4,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 180),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 12, color: tokens.ink3),
                     ),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Container(
-                      width: 120,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: tokens.surfaceAlt,
-                        borderRadius: BorderRadius.circular(InRadii.r1),
+                    const SizedBox(height: 2),
+                    if (value != null)
+                      Text(
+                        value!,
+                        key: const ValueKey('setup_region_value'),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: tokens.ink,
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Container(
+                          width: 120,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: tokens.surfaceAlt,
+                            borderRadius: BorderRadius.circular(InRadii.r1),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+              TextButton(
+                key: const ValueKey('setup_region_change'),
+                onPressed: onToggle,
+                child: Text(
+                  context.tr(expanded ? 'setup_region_done' : 'setup_change'),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            key: const ValueKey('setup_region_change'),
-            onPressed: onToggle,
-            child: Text(
-              context.tr(expanded ? 'setup_region_done' : 'setup_change'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -419,32 +442,54 @@ class SetupStepLogo extends StatelessWidget {
           const SizedBox(height: InSpacing.xl),
         ],
         if (touchLayout) ...[
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  key: const ValueKey('setup_choose_photo'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final photo = FilledButton.icon(
+                key: const ValueKey('setup_choose_photo'),
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+                onPressed: busy ? null : onPickPhoto,
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: Text(context.tr('setup_choose_photo')),
+              );
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              // A phone: one full-width Photos button (where a logo usually
+              // is) and Files as a quiet link under it — side by side they
+              // wrapped on a 360 px phone and broke words at a large text
+              // size. A tablet has room for the pair.
+              if (constraints.maxWidth / scale < 400) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    photo,
+                    const SizedBox(height: InSpacing.xs),
+                    Center(
+                      child: TextButton(
+                        key: const ValueKey('setup_choose_file'),
+                        onPressed: busy ? null : onPickFile,
+                        child: Text(context.tr('setup_choose_file_instead')),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: photo),
+                  SizedBox(width: InSpacing.md(context)),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('setup_choose_file'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(64, 44),
+                      ),
+                      onPressed: busy ? null : onPickFile,
+                      icon: const Icon(Icons.folder_outlined, size: 18),
+                      label: Text(context.tr('setup_choose_file')),
+                    ),
                   ),
-                  onPressed: busy ? null : onPickPhoto,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: Text(context.tr('setup_choose_photo')),
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const ValueKey('setup_choose_file'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
-                  onPressed: busy ? null : onPickFile,
-                  icon: const Icon(Icons.folder_outlined, size: 18),
-                  label: Text(context.tr('setup_choose_file')),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ] else
           FileDropZone(

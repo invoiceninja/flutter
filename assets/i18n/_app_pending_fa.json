@@ -1818,5 +1818,6 @@
   "welcome_lets_go": "شروع کنیم",
   "checklist_retry": "تلاش مجدد",
   "switch_company": "تغییر شرکت",
-  "logout": "خروج از حساب"
+  "logout": "خروج از حساب",
+  "setup_choose_file_instead": "به‌جای آن یک فایل انتخاب کنید"
 }

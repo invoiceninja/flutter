@@ -1818,5 +1818,6 @@
   "setup_region_done": "Fatto",
   "welcome_lets_go": "Iniziamo",
   "checklist_retry": "Riprova",
-  "switch_company": "Cambia azienda"
+  "switch_company": "Cambia azienda",
+  "setup_choose_file_instead": "Scegli invece un file"
 }

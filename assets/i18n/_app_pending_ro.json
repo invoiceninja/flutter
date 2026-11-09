@@ -1808,5 +1808,6 @@
   "setup_region_done": "Gata",
   "welcome_lets_go": "Să începem",
   "checklist_retry": "Reîncercați",
-  "switch_company": "Schimbați compania"
+  "switch_company": "Schimbați compania",
+  "setup_choose_file_instead": "Alegeți un fișier în schimb"
 }

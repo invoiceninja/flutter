@@ -171,6 +171,34 @@ class _SetupWizardScreenState extends State<_SetupWizard>
   }
 
   Timer? _focusTimer;
+
+  final _regionPickersKey = GlobalKey();
+
+  /// Opens or closes the currency and language pickers. Opening drops the
+  /// keyboard and brings them into view once they have grown — on a phone
+  /// they would otherwise open behind the keyboard and the footer.
+  void _toggleRegion() {
+    final opening = !_regionExpanded;
+    setState(() => _regionExpanded = opening);
+    if (!opening) return;
+    if (Env.isTouchPrimary) FocusScope.of(context).unfocus();
+    final motion = InMotion.of(context);
+    Future<void>.delayed(
+      motion(InMotion.base) + const Duration(milliseconds: 40),
+      () {
+        final target = _regionPickersKey.currentContext;
+        if (!mounted || target == null || !target.mounted) return;
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.9,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+          duration: motion(InMotion.base),
+          curve: InMotion.move,
+        );
+      },
+    );
+  }
+
   Timer? _unstick;
 
   @override
@@ -294,13 +322,15 @@ class _SetupWizardScreenState extends State<_SetupWizard>
       if (!ok) _vm.skipUserName = true;
     }
     setState(() => _finishing = true);
-    unawaited(InHaptics.success());
+    unawaited(InHaptics.light());
     await Future<void>.delayed(
       InMotion.of(context)(const Duration(milliseconds: 450)),
     );
     if (!mounted) return;
     try {
       await _vm.commit();
+      // Success is felt only once the save is written, never before an error.
+      unawaited(InHaptics.success());
       // The router redirect lands the user on the dashboard and tears this
       // screen down. Should it still be up a moment later, the gate did not
       // open: hand the controls back rather than sit frozen on a check.
@@ -440,7 +470,14 @@ class _SetupWizardScreenState extends State<_SetupWizard>
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final split = constraints.maxWidth >= _kSplitWidth;
+                // Width *and* height: a landscape phone is wide enough but
+                // far too short for a side pane — with the keyboard up the
+                // form would get a single field's height
+                // (docs/touch-targets.md "A landscape phone is not a small
+                // desktop").
+                final split =
+                    constraints.maxWidth >= _kSplitWidth &&
+                    constraints.maxHeight >= 560;
                 return FormSaveScope(
                   onSubmit: _onPrimary,
                   enabled: !_busy,
@@ -546,7 +583,9 @@ class _SetupWizardScreenState extends State<_SetupWizard>
             ),
           ),
         ),
-        _footer(context, phone: true),
+        // Capped with the form column: a landscape phone's full width made a
+        // Continue the width of the screen.
+        _footer(context, phone: true, maxWidth: 560),
       ],
     );
   }
@@ -584,8 +623,8 @@ class _SetupWizardScreenState extends State<_SetupWizard>
         firstFocus: _firstFocus,
         headingFocus: _headingFocus,
         regionExpanded: _regionExpanded,
-        onToggleRegion: () =>
-            setState(() => _regionExpanded = !_regionExpanded),
+        onToggleRegion: _toggleRegion,
+        regionPickersKey: _regionPickersKey,
         currencies: currencies,
         languages: languages,
       ),
@@ -660,7 +699,11 @@ class _SetupWizardScreenState extends State<_SetupWizard>
     );
   }
 
-  Widget _footer(BuildContext context, {required bool phone}) {
+  Widget _footer(
+    BuildContext context, {
+    required bool phone,
+    double? maxWidth,
+  }) {
     final tokens = context.inTheme;
     final motion = InMotion.of(context);
     final onLogo = _vm.step == SetupWizardStep.logo;
@@ -711,28 +754,32 @@ class _SetupWizardScreenState extends State<_SetupWizard>
             )
           : null,
       // Step 1 on a phone has no Back, so Continue takes the whole width —
-      // where the thumb is.
-      child: phone && _vm.isFirstStep
-          ? SizedBox(width: double.infinity, child: primary)
-          : Row(
-              children: [
-                if (!_vm.isFirstStep)
-                  TextButton(
-                    key: const ValueKey('setup_back'),
-                    onPressed: _busy ? null : _back,
-                    child: Text(context.tr('setup_back')),
+      // where the thumb is — up to the form column's.
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+        child: phone && _vm.isFirstStep
+            ? SizedBox(width: double.infinity, child: primary)
+            : Row(
+                children: [
+                  if (!_vm.isFirstStep)
+                    TextButton(
+                      key: const ValueKey('setup_back'),
+                      onPressed: _busy ? null : _back,
+                      child: Text(context.tr('setup_back')),
+                    ),
+                  // The primary takes what Back leaves and sits at the end; its
+                  // label wraps before the row can overflow — a long locale or
+                  // a large text size on a narrow phone.
+                  Expanded(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: primary,
+                    ),
                   ),
-                // The primary takes what Back leaves and sits at the end; its
-                // label wraps before the row can overflow — a long locale or
-                // a large text size on a narrow phone.
-                Expanded(
-                  child: Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: primary,
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 }

@@ -1819,5 +1819,6 @@
   "welcome_lets_go": "Sākam",
   "checklist_retry": "Mēģināt vēlreiz",
   "switch_company": "Mainīt uzņēmumu",
-  "logout": "Izrakstīties"
+  "logout": "Izrakstīties",
+  "setup_choose_file_instead": "Tā vietā izvēlēties failu"
 }

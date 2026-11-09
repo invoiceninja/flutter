@@ -1736,5 +1736,6 @@
   "setup_region_done": "סיום",
   "welcome_lets_go": "יוצאים לדרך",
   "checklist_retry": "ניסיון חוזר",
-  "switch_company": "החלפת חברה"
+  "switch_company": "החלפת חברה",
+  "setup_choose_file_instead": "בחירת קובץ במקום זאת"
 }

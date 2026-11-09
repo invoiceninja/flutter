@@ -1807,5 +1807,6 @@
   "setup_region_done": "Klar",
   "welcome_lets_go": "Sätt igång",
   "checklist_retry": "Försök igen",
-  "switch_company": "Byt företag"
+  "switch_company": "Byt företag",
+  "setup_choose_file_instead": "Välj en fil i stället"
 }

@@ -1818,5 +1818,6 @@
   "setup_region_done": "ແລ້ວໆ",
   "welcome_lets_go": "ເລີ່ມກັນເລີຍ",
   "checklist_retry": "ລອງໃໝ່",
-  "switch_company": "ສະຫຼັບບໍລິສັດ"
+  "switch_company": "ສະຫຼັບບໍລິສັດ",
+  "setup_choose_file_instead": "ເລືອກໄຟລ໌ແທນ"
 }

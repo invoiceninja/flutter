@@ -131,3 +131,16 @@ The first child of both dashboard bodies, above the needs-attention band — and
 ## Motion and haptics
 
 The wizard, the checklist and the Welcome are the first surfaces built on `InMotion` and `InHaptics`; the rule, the tokens and their motion table are in docs/motion-and-haptics.md.
+
+## On a phone
+
+A mobile review of the real widgets (iOS / Android metrics, notch and home-indicator insets, keyboard up, 2x text, landscape, dark, RTL) set these; each is invisible on a desktop.
+
+- **The wizard splits only when the window is wide *and* tall** (≥ 720 × 560). A landscape phone is wide enough but, with the keyboard up, would leave the form one field's height; it gets the single column with the pinned footer, capped to the form's width.
+- **Photos is one full-width button, Files a link under it** below about 400 logical px (text scale included); side by side they wrapped on a 360 px phone and broke words at 2x. The preview's logo slot shows an add-photo glyph where it is the way to add one.
+- **The currency / language card is one target**, and opening it drops the keyboard and scrolls the pickers into view.
+- **Display headings clamp at 1.5x text** (the wizard's step title, the Welcome's title), as iOS large titles scale less than body text; past 1.3x the Welcome gives its icon's width back to the title.
+- **The success haptic fires after the commit**, a light one on the tap: never success, then an error.
+- **The Welcome is a sheet on any phone** — decided on `shortestSide`, not width, so a landscape phone is not handed a dialog a row and a half tall. On touch a tap on the scrim closes it, counted as read like a swipe. "Can't find something?" scrolls itself into view once both size animations have run.
+- **The checklist is short on a phone**: finished steps fold into the progress line (an upload under way stays, to say so), steps after the next show their title alone, and the next step's words lead where its button does.
+

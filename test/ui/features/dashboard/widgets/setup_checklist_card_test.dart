@@ -163,6 +163,31 @@ void main() {
     expect(button.top, greaterThan(title.bottom));
   });
 
+  testWidgets('a phone folds finished steps away and shows titles only', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final f = await fixture();
+    addTearDown(f.dispose);
+    await welcome.noteSetupCompleted(userKey: null, companyId: 'c1');
+    final opened = await pumpSlot(tester, f);
+    expect(find.text('1 of 5 complete'), findsOneWidget);
+    // "Set up your business" is done: folded into the progress line.
+    expect(find.text('Set up your business'), findsNothing);
+    // The next step keeps its line; the ones after it show a title alone.
+    expect(find.text('It appears on every invoice and quote.'), findsOneWidget);
+    expect(find.text('Send your first invoice'), findsOneWidget);
+    expect(
+      find.text('Your client gets a link to view and pay it.'),
+      findsNothing,
+    );
+    // The next step's words lead where its button does.
+    await tester.tap(find.byKey(const ValueKey('setup_checklist_text_logo')));
+    expect(opened, [kChecklistLogoRoute]);
+  });
+
   testWidgets('only a fresh company lets the zero figures step back', (
     tester,
   ) async {

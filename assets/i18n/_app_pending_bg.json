@@ -1737,5 +1737,6 @@
   "setup_region_done": "Готово",
   "welcome_lets_go": "Да започваме",
   "checklist_retry": "Опитай отново",
-  "switch_company": "Смяна на фирма"
+  "switch_company": "Смяна на фирма",
+  "setup_choose_file_instead": "Изберете файл вместо това"
 }

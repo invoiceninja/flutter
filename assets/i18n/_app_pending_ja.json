@@ -1818,5 +1818,6 @@
   "setup_region_done": "完了",
   "welcome_lets_go": "始めましょう",
   "checklist_retry": "再試行",
-  "switch_company": "会社を切り替え"
+  "switch_company": "会社を切り替え",
+  "setup_choose_file_instead": "代わりにファイルを選択"
 }

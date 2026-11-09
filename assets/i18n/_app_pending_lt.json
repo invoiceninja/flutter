@@ -1775,5 +1775,6 @@
   "welcome_lets_go": "Pradėkime",
   "checklist_retry": "Bandyti dar kartą",
   "switch_company": "Perjungti įmonę",
-  "logout": "Atsijungti"
+  "logout": "Atsijungti",
+  "setup_choose_file_instead": "Verčiau pasirinkti failą"
 }

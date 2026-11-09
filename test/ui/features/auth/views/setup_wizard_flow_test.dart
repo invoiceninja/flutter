@@ -244,6 +244,20 @@ void main() {
       expect(find.text('Step 1 of 2'), findsOneWidget);
     });
 
+    testWidgets('a landscape phone gets one column, not the split', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(852, 393);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final f = await fixture();
+      addTearDown(f.dispose);
+      await pump(tester, f);
+      // The split draws the preview pane from step 1; one column doesn't.
+      expect(find.text('Your business name'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('fits a phone at a large text size', (tester) async {
       tester.view.physicalSize = const Size(360, 720);
       tester.view.devicePixelRatio = 1;

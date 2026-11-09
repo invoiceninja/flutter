@@ -1738,5 +1738,6 @@
   "setup_region_done": "Selesai",
   "welcome_lets_go": "Ayo mulai",
   "checklist_retry": "Coba Lagi",
-  "switch_company": "Ganti Perusahaan"
+  "switch_company": "Ganti Perusahaan",
+  "setup_choose_file_instead": "Pilih file saja"
 }

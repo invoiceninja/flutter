@@ -1818,5 +1818,6 @@
   "setup_region_done": "Готово",
   "welcome_lets_go": "Начнем",
   "checklist_retry": "Повторить",
-  "switch_company": "Сменить компанию"
+  "switch_company": "Сменить компанию",
+  "setup_choose_file_instead": "Или выберите файл"
 }

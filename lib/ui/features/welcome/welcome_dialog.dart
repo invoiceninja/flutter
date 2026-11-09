@@ -83,14 +83,17 @@ Future<WelcomeResult?> showWelcomeDialog(
     asSheet: sheet,
     onSwipeClosed: onSwipeClosed,
   );
-  if (MediaQuery.sizeOf(context).width < kWelcomeSheetBelow) {
+  // The device, not the window's width: a landscape phone is still a phone,
+  // and a dialog there showed a row and a half.
+  if (MediaQuery.sizeOf(context).shortestSide < kWelcomeSheetBelow) {
     return showModalBottomSheet<WelcomeResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      // A stray tap on the scrim is not an answer; a swipe down is
-      // (WelcomeCard counts it), as are ✕ and Let's go.
-      isDismissible: false,
+      // On touch a tap above the sheet closes it, as every sheet does, and
+      // counts as read like a swipe (WelcomeCard counts both). A pointer's
+      // stray click beside it is not an answer.
+      isDismissible: Env.isTouchPrimary,
       enableDrag: true,
       showDragHandle: true,
       backgroundColor: context.inTheme.surface,
@@ -267,11 +270,34 @@ class _WelcomeCardState extends State<WelcomeCard> {
 
   bool get _touch => Env.isTouchPrimary;
 
+  /// Opens "Can't find something?" and, once it has grown, scrolls it into
+  /// view — it opens below the fold on a phone, behind the footer.
+  void _toggleCantFind() {
+    final opening = !_cantFindOpen;
+    setState(() => _cantFindOpen = opening);
+    if (!opening) return;
+    final motion = InMotion.of(context);
+    // Two size animations run in turn — the panel's, then the list's around
+    // it — so wait out both before measuring how far there is to go.
+    Future<void>.delayed(
+      motion(const Duration(milliseconds: 420)) +
+          const Duration(milliseconds: 40),
+      () {
+        if (!mounted || !_scroll.hasClients) return;
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: motion(InMotion.base),
+          curve: InMotion.move,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final motion = InMotion.of(context);
-    final narrow = MediaQuery.sizeOf(context).width < kWelcomeSheetBelow;
+    final narrow = MediaQuery.sizeOf(context).shortestSide < kWelcomeSheetBelow;
     final hPad = narrow ? InSpacing.lg(context) + 4 : InSpacing.xl;
 
     final items = visibleWelcomeItems(
@@ -441,19 +467,33 @@ class _WelcomeCardState extends State<WelcomeCard> {
     final title = first.isEmpty
         ? context.tr('welcome_new_app_title_plain')
         : context.tr('welcome_new_app_title', {'name': first});
+    // At a large text size the icon gives its width back to the title,
+    // which would otherwise run four lines between it and the ✕.
+    final showIcon = MediaQuery.textScalerOf(context).scale(1) <= 1.3;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(InRadii.r2),
-          child: Image.asset(
-            'assets/images/icon.png',
-            width: 40,
-            height: 40,
-            excludeFromSemantics: true,
+        if (showIcon) ...[
+          Container(
+            // The black app icon all but vanishes on a dark sheet; a ring
+            // gives it an edge.
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: dark ? Border.all(color: tokens.borderStrong) : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(InRadii.r2),
+              child: Image.asset(
+                'assets/images/icon.png',
+                width: 40,
+                height: 40,
+                excludeFromSemantics: true,
+              ),
+            ),
           ),
-        ),
-        SizedBox(width: InSpacing.md(context)),
+          SizedBox(width: InSpacing.md(context)),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,6 +504,10 @@ class _WelcomeCardState extends State<WelcomeCard> {
                 namesRoute: true,
                 child: Text(
                   title,
+                  // A display heading scales less than body text.
+                  textScaler: MediaQuery.textScalerOf(
+                    context,
+                  ).clamp(maxScaleFactor: 1.5),
                   style: TextStyle(
                     fontSize: 22,
                     height: 1.25,
@@ -553,7 +597,7 @@ class _WelcomeCardState extends State<WelcomeCard> {
             expanded: _cantFindOpen,
             child: TextButton.icon(
               key: const ValueKey('welcome_cant_find'),
-              onPressed: () => setState(() => _cantFindOpen = !_cantFindOpen),
+              onPressed: _toggleCantFind,
               iconAlignment: IconAlignment.end,
               icon: Icon(_cantFindOpen ? Icons.expand_less : Icons.expand_more),
               label: Text(context.tr('welcome_cant_find')),

@@ -1818,5 +1818,6 @@
   "setup_region_done": "Hotovo",
   "welcome_lets_go": "Jdeme na to",
   "checklist_retry": "Zkusit znovu",
-  "switch_company": "Přepnout firmu"
+  "switch_company": "Přepnout firmu",
+  "setup_choose_file_instead": "Nebo zvolte soubor"
 }

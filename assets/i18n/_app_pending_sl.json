@@ -1818,5 +1818,6 @@
   "setup_region_done": "Končano",
   "welcome_lets_go": "Začnimo",
   "checklist_retry": "Poskusi znova",
-  "switch_company": "Zamenjaj podjetje"
+  "switch_company": "Zamenjaj podjetje",
+  "setup_choose_file_instead": "Namesto tega izberite datoteko"
 }

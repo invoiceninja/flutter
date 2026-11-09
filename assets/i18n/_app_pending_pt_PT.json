@@ -1737,5 +1737,6 @@
   "setup_region_done": "Concluído",
   "welcome_lets_go": "Vamos começar",
   "checklist_retry": "Tentar novamente",
-  "switch_company": "Mudar de empresa"
+  "switch_company": "Mudar de empresa",
+  "setup_choose_file_instead": "Escolher antes um ficheiro"
 }

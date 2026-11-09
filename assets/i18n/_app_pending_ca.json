@@ -1737,5 +1737,6 @@
   "setup_region_done": "Fet",
   "welcome_lets_go": "Som-hi",
   "checklist_retry": "Torna-ho a provar",
-  "switch_company": "Canvia d'empresa"
+  "switch_company": "Canvia d'empresa",
+  "setup_choose_file_instead": "O trieu un fitxer"
 }

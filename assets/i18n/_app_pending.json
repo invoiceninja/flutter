@@ -1824,5 +1824,6 @@
   "setup_change": "Change",
   "setup_region_done": "Done",
   "welcome_lets_go": "Let's go",
-  "checklist_retry": "Retry"
+  "checklist_retry": "Retry",
+  "setup_choose_file_instead": "Choose a file instead"
 }

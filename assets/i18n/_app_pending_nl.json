@@ -1818,5 +1818,6 @@
   "setup_region_done": "Gereed",
   "welcome_lets_go": "Aan de slag",
   "checklist_retry": "Opnieuw proberen",
-  "switch_company": "Bedrijf wisselen"
+  "switch_company": "Bedrijf wisselen",
+  "setup_choose_file_instead": "Kies in plaats daarvan een bestand"
 }

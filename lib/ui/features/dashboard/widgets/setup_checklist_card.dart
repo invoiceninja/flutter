@@ -352,6 +352,7 @@ class _SetupChecklistCardState extends State<SetupChecklistCard> {
     final total = rows.length;
     final allDone = done == total;
     final next = nextChecklistItem(rows);
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final barColor = allDone ? tokens.paid : tokens.accent;
     final pad = InSpacing.lg(context);
 
@@ -449,15 +450,26 @@ class _SetupChecklistCardState extends State<SetupChecklistCard> {
             ),
           ),
           SizedBox(height: InSpacing.md(context)),
+          // A phone keeps the card short: finished steps fold into the
+          // progress line above (an upload still under way stays, to say
+          // so), and the steps after the next show their title alone.
           for (final row in rows)
-            _ChecklistRow(
-              row: row,
-              isNext: row.item == next,
-              animateTick: _animate.contains(row.id),
-              allDone: allDone,
-              onNavigate: widget.onNavigate,
-              onRetry: () => unawaited(widget.vm.retryLogo()),
-            ),
+            if (!compact ||
+                allDone ||
+                !row.isComplete ||
+                row.state == ChecklistRowState.uploading)
+              _ChecklistRow(
+                row: row,
+                isNext: row.item == next,
+                showBody:
+                    !compact ||
+                    row.item == next ||
+                    row.state != ChecklistRowState.todo,
+                animateTick: _animate.contains(row.id),
+                allDone: allDone,
+                onNavigate: widget.onNavigate,
+                onRetry: () => unawaited(widget.vm.retryLogo()),
+              ),
         ],
       ),
     );
@@ -472,8 +484,12 @@ class _ChecklistRow extends StatelessWidget {
     required this.allDone,
     required this.onNavigate,
     required this.onRetry,
+    this.showBody = true,
   });
 
+  /// The line under the title; a phone shows it only on the next step and
+  /// on a step with something to report.
+  final bool showBody;
   final SetupChecklistRow row;
   final bool isNext;
   final bool animateTick;
@@ -578,17 +594,19 @@ class _ChecklistRow extends StatelessWidget {
                       color: complete ? tokens.ink3 : tokens.ink,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    body,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      color: failed
-                          ? Theme.of(context).colorScheme.error
-                          : (complete ? tokens.ink4 : tokens.ink3),
+                  if (showBody) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      body,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: failed
+                            ? Theme.of(context).colorScheme.error
+                            : (complete ? tokens.ink4 : tokens.ink3),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -600,6 +618,21 @@ class _ChecklistRow extends StatelessWidget {
     // Beside the text where there is room; under it, aligned with the text,
     // where there isn't — a phone, a long locale, a large text size — so the
     // buttons never squeeze the words to a letter a line.
+    // The next step's text leads where its button does: on a phone people
+    // tap the words, not only the button beside them.
+    final nextAction = isNext && !failed ? action : null;
+    final target = nextAction == null
+        ? label
+        : Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              key: ValueKey('setup_checklist_text_${row.id}'),
+              borderRadius: BorderRadius.circular(InRadii.r2),
+              onTap: () => onNavigate(nextAction.$2),
+              child: label,
+            ),
+          );
+
     final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
       child: LayoutBuilder(
@@ -609,7 +642,7 @@ class _ChecklistRow extends StatelessWidget {
           if (buttons == null || beside) {
             return Row(
               children: [
-                Expanded(child: label),
+                Expanded(child: target),
                 if (buttons != null || chevron != null) ...[
                   const SizedBox(width: InSpacing.sm),
                   ?buttons,
@@ -621,7 +654,7 @@ class _ChecklistRow extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              label,
+              target,
               Padding(
                 padding: EdgeInsetsDirectional.only(
                   start: 24 + InSpacing.md(context),

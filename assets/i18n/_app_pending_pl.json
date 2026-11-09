@@ -1738,5 +1738,6 @@
   "setup_region_done": "Gotowe",
   "welcome_lets_go": "Zaczynajmy",
   "checklist_retry": "Ponów",
-  "switch_company": "Przełącz firmę"
+  "switch_company": "Przełącz firmę",
+  "setup_choose_file_instead": "Wybierz plik zamiast tego"
 }

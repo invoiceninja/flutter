@@ -236,7 +236,20 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
   - `test/ui/core/widgets/laid_out_traversal_policy_test.dart` — the stock-policy group pins the bug. When it starts failing, upstream has fixed it.
 - Revert: delete the policy file and its test, and drop the `FocusTraversalGroup` wrapper and `_traversalPolicy` from `main.dart`.
 - Recheck trigger: any Flutter bump. The stock-policy tests in the test file fail once traversal stops measuring unlaid nodes.
-- Not covered: FLUTTER-ADMIN-P (iPad), where Scribble's `_ScribbleFocusableState.bounds` measures every registered `EditableText`, including one on a covered page. That path goes through no traversal policy.
+- Not covered: FLUTTER-ADMIN-P (iPad), where Scribble's `_ScribbleFocusableState.bounds` measures every registered `EditableText`, including one on a covered page. That path goes through no traversal policy. Its own fix is flutter/flutter#196220.
+
+## 18. super_editor: pasting over a selection that ends at a node's end with upstream affinity leaves the selection on a deleted node
+
+- Issue / waiting on: super_editor upstream fix not yet filed. • Found: 2026-11-09 (Sentry FLUTTER-ADMIN-V and FLUTTER-ADMIN-W, one macOS user, 5.1.20) • super_editor: FBH `stable` @ 8705fe9d
+- Symptom: ⌘V over a selection running from the start of one block to the end of another throws `Null check operator used on a null value` in `InspectDocumentSelection.getNodesInContentOrder` (from the IME serializer), then `Exception: Can't handle pasting text within node of type: null` from `PasteEditorCommand`.
+- Root cause: `DeleteContentCommand` compares the range's ends with the node's `beginningPosition` / `endPosition` using `==`, which includes affinity, while `CommonEditorOperations.getDocumentPositionAfterExpandedDeletion` uses `isEquivalentTo`. An end at offset `length` with upstream affinity (⌘A, a drag or Shift+End to the end of a line) makes the deletion empty the bottom node and delete the top one, while the paste position is computed in the top node. The duplicate `_getDocumentPositionAfterExpandedDeletion` in `text.dart` (used by `InsertCharacterAtCaretRequest`) also keeps the *base* node for a whole-node selection, so a reversed selection dangles there too. That path is reached only with the keyboard input source and the mobile toolbar's space, not by IME typing, which this app uses.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/core/widgets/selection_edge_affinity.dart` — **MUST-REVERT**: `withDownstreamEdgeAffinity`, which gives an expanded selection's endpoints at a text node's start or end downstream affinity. At a node's edge both affinities draw the same caret and highlight.
+  - `lib/ui/core/widgets/markdown_text_field.dart` — **MUST-REVERT**: `_normalizeSelectionEdges`, a second `selectionNotifier` listener on each composer.
+  - `test/ui/core/widgets/selection_edge_affinity_test.dart` — the "unpatched super_editor" test pins the bug; the rest run 648 selections through delete and paste.
+- Revert: delete the helper and its test, and drop `_normalizeSelectionEdges` and its listener from `markdown_text_field.dart`.
+- Recheck trigger: any super_editor SHA bump. The pinning test fails once `DeleteContentCommand` compares edges with `isEquivalentTo`.
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 

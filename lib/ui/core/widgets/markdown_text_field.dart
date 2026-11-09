@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/selection_edge_affinity.dart';
 import 'package:admin/ui/core/widgets/template_variables/markdown_template_variables.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_default_badge.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
@@ -688,6 +689,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
     _composer = MutableDocumentComposer();
     // Disposed with the composer on the next reseed, listener and all.
     _composer.selectionNotifier.addListener(_scheduleCaretReveal);
+    _composer.selectionNotifier.addListener(_normalizeSelectionEdges);
     _editor = createDefaultDocumentEditor(
       document: _document,
       composer: _composer,
@@ -1125,6 +1127,16 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
   /// takes focus ([_onFocusChanged]) so a field focused under a keyboard that
   /// is already open does not take its next resize for the keyboard opening.
   double _lastBottomInset = 0;
+
+  /// Gives an expanded selection's node-edge endpoints downstream affinity,
+  /// before anything can delete or paste over it — see
+  /// [withDownstreamEdgeAffinity] for the super_editor mismatch this avoids.
+  void _normalizeSelectionEdges() {
+    final current = _composer.selection;
+    final normalized = withDownstreamEdgeAffinity(_document, current);
+    if (identical(normalized, current)) return;
+    _composer.setSelectionWithReason(normalized, SelectionReason.contentChange);
+  }
 
   /// Scroll the *enclosing* form so the caret clears the soft keyboard.
   ///

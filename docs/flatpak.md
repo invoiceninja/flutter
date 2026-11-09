@@ -266,6 +266,14 @@ The PR's checklist asks for:
 
 Reviewers need a demo login, because the app does nothing without a server.
 
+The first submission builds **`v5.1.23-flathub`**, a tag outside `main`: v5.1.23 plus the four
+Flathub commits (packaging, the no-system-bus network check, the screenshots, the workflow
+rename). `main` held 48 unreleased commits at the time, and Flathub's first production build
+should ship exactly what every other store already had. It was tagged by hand in a detached
+worktree. Its name doesn't match the plain `vX.Y.Z` pattern that F-Droid's update check and
+`check_release_ready.sh` look for, so both ignore it. Every later release reaches Flathub through
+the update workflow below.
+
 When it merges, Flathub creates `flathub/com.invoiceninja.admin`. Then:
 
 - **Append** the new verification token as a new line in

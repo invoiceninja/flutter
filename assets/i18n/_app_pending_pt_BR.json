@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value modelos excluídos com sucesso",
   "restored_templates": ":value modelos restaurados com sucesso",
   "draw": "Desenhar",
-  "enter_initials": "Digite as iniciais"
+  "enter_initials": "Digite as iniciais",
+  "not_ready_for_download": "Arquivo não está pronto para download"
 }

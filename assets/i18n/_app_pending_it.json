@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value modelli eliminati correttamente",
   "restored_templates": ":value modelli ripristinati correttamente",
   "draw": "Disegna",
-  "enter_initials": "Inserisci le iniziali"
+  "enter_initials": "Inserisci le iniziali",
+  "not_ready_for_download": "File non pronto per il download"
 }

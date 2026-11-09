@@ -27,6 +27,7 @@ import 'package:admin/ui/features/docuninja/views/docuninja_settings_screen.dart
 import 'package:admin/ui/features/docuninja/views/docuninja_users_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
+import 'package:admin/domain/docuninja/docuninja_settings_tabs.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_pdf_screen.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_screen.dart';
@@ -119,6 +120,9 @@ String companySafeLocation(
   // A list root itself is always safe — without this, a nested root's own
   // list would match its parent root's `<root>/` prefix and get stripped.
   if (roots.contains(uri.path)) return currentLocation;
+  // A DocuNinja settings tab is a page, not a record under
+  // `/docuninja/settings`: a restart or a switch keeps it.
+  if (docuNinjaSettingsTabOf(uri.path) != null) return currentLocation;
   for (final root in roots) {
     final prefix = '$root/';
     if (!uri.path.startsWith(prefix)) continue;
@@ -241,6 +245,28 @@ bool _isUnderDisabledRoot(String location, Set<String> disabledRoots) {
 /// are sibling routes that would each fire `onExit` on every tab switch.
 Future<bool> _confirmExitIfDirty(BuildContext context, GoRouterState state) {
   return context.read<Services>().unsavedChangesGuard.confirmIfDirty(context);
+}
+
+/// `GoRoute.onExit` for DocuNinja's settings tabs: [_confirmExitIfDirty],
+/// except on a switch to another of its tabs, which is not leaving the page
+/// (each tab keeps its own edits). go_router calls `onExit` for one, since
+/// the `:tab` match changes; by then the route information provider holds
+/// the destination. A pop leaves it on this page's own location, so that
+/// still asks.
+Future<bool> _confirmExitDocuNinjaSettings(
+  BuildContext context,
+  GoRouterState state,
+) async {
+  final next = GoRouter.maybeOf(
+    context,
+  )?.routeInformationProvider.value.uri.path;
+  if (next != null &&
+      next != state.uri.path &&
+      docuNinjaSettingsTabOf(next) != null) {
+    return true;
+  }
+  if (!context.mounted) return true;
+  return _confirmExitIfDirty(context, state);
 }
 
 /// Build the standard entity route block:
@@ -958,11 +984,28 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                   ),
                 ],
               ),
-              // DocuNinja's own settings (a DocuNinja admin's). Before `:id`.
+              // DocuNinja's own settings (a DocuNinja admin's), a sub-route
+              // per tab as React's are; the bare page opens React's default
+              // tab. Before `:id`.
               GoRoute(
                 path: 'settings',
-                onExit: _confirmExitIfDirty,
-                builder: (context, state) => const DocuNinjaSettingsScreen(),
+                redirect: (context, state) =>
+                    docuNinjaSettingsTabPath(kDocuNinjaSettingsDefaultTab),
+              ),
+              // One page for every tab (go_router keys it by the pattern),
+              // so a tab switch keeps the other tabs' edits.
+              GoRoute(
+                path: 'settings/:tab(${kDocuNinjaSettingsTabs.join('|')})',
+                onExit: _confirmExitDocuNinjaSettings,
+                builder: (context, state) =>
+                    DocuNinjaSettingsScreen(tab: state.pathParameters['tab']!),
+              ),
+              // A tab this build does not have (a restored or typed address):
+              // the default one, not the route-error page.
+              GoRoute(
+                path: 'settings/:unknown',
+                redirect: (context, state) =>
+                    docuNinjaSettingsTabPath(kDocuNinjaSettingsDefaultTab),
               ),
               // The templates (React's blueprints). Before `:id`, which would
               // otherwise take `templates` for a document id.

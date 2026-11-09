@@ -1735,5 +1735,6 @@
   "deleted_templates": "U fshinë me sukses :value shabllone",
   "restored_templates": "U rikthyen me sukses :value shabllone",
   "draw": "Vizato",
-  "enter_initials": "Shkruani inicialet"
+  "enter_initials": "Shkruani inicialet",
+  "not_ready_for_download": "Skedari nuk është gati për shkarkim"
 }

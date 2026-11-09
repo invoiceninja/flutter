@@ -1735,5 +1735,6 @@
   "deleted_templates": "Шаблонов успешно удалено: :value",
   "restored_templates": "Шаблонов успешно восстановлено: :value",
   "draw": "Нарисовать",
-  "enter_initials": "Введите инициалы"
+  "enter_initials": "Введите инициалы",
+  "not_ready_for_download": "Файл не готов к скачиванию"
 }

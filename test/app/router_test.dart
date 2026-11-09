@@ -1,6 +1,7 @@
 import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
 import 'package:admin/app/router.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/domain/docuninja/docuninja_settings_tabs.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:flutter/material.dart' show Icons;
@@ -276,6 +277,18 @@ void main() {
       expect(
         companySafeLocation('/docuninja/users/u1', roots),
         '/docuninja/users',
+      );
+      // A settings tab is a page of its own (a sub-route, as React's are),
+      // not a record under `/docuninja/settings`.
+      for (final tab in kDocuNinjaSettingsTabs) {
+        expect(
+          companySafeLocation('/docuninja/settings/$tab', roots),
+          '/docuninja/settings/$tab',
+        );
+      }
+      expect(
+        companySafeLocation('/docuninja/settings/nope', roots),
+        '/docuninja/settings',
       );
     });
   });

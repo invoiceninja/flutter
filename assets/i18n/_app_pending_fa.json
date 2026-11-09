@@ -1734,5 +1734,6 @@
   "deleted_templates": ":value الگو با موفقیت حذف شد",
   "restored_templates": ":value الگو با موفقیت بازیابی شد",
   "draw": "رسم",
-  "enter_initials": "حروف اول نام را وارد کنید"
+  "enter_initials": "حروف اول نام را وارد کنید",
+  "not_ready_for_download": "فایل برای دانلود آماده نیست"
 }

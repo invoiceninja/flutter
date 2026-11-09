@@ -18,6 +18,8 @@ import 'package:admin/domain/docuninja/docuninja_signature.dart';
 import 'package:admin/domain/docuninja/docuninja_users.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
@@ -29,6 +31,9 @@ import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart'
+    show kDocuNinjaTableMinWidth;
+import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_signature_field.dart';
@@ -37,9 +42,11 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 final _log = Logger('DocuNinjaUsersScreen');
 
-/// Shows [child] once DocuNinja is ready and the user is the DocuNinja
-/// owner (React's `docuNinjaOwner()` guard on the users pages); otherwise
-/// the loading, "go to DocuNinja" or "not allowed" state.
+/// Shows the page [builder] makes once DocuNinja is ready and the user is
+/// the DocuNinja owner (React's `docuNinjaOwner()` guard on the users
+/// pages); otherwise the loading, "go to DocuNinja" or "not allowed" state,
+/// under [title]. The page brings its own Scaffold, so its AppBar can carry
+/// its actions (New User, Save).
 class _OwnerGate extends StatefulWidget {
   const _OwnerGate({required this.title, required this.builder});
 
@@ -82,19 +89,27 @@ class _OwnerGateState extends State<_OwnerGate> {
             title: context.tr('unauthorized_action'),
           );
         } else {
-          body = KeyedSubtree(
+          return KeyedSubtree(
             key: ValueKey(state.company!.id),
             child: widget.builder(context, state),
           );
         }
-        return Scaffold(
-          appBar: AppBar(title: Text(widget.title)),
-          body: body,
-        );
+        return _page(title: widget.title, body: body);
       },
     );
   }
 }
+
+/// A users page: its title and actions in the AppBar, as React's page
+/// header has them.
+Widget _page({
+  required String title,
+  required Widget body,
+  List<Widget> actions = const [],
+}) => Scaffold(
+  appBar: AppBar(title: Text(title), actions: actions),
+  body: body,
+);
 
 /// The seat limit: DocuNinja's `account.num_users` against the company's
 /// DocuNinja users (one count, where React uses three).
@@ -144,7 +159,7 @@ class _UsersList extends StatefulWidget {
   State<_UsersList> createState() => _UsersListState();
 }
 
-enum _UserAction { archive, restore, delete }
+enum _UserAction { edit, archive, restore, delete }
 
 class _UsersListState extends State<_UsersList> {
   late final DocuNinjaApi _api = context.read<DocuNinjaApi>();
@@ -230,8 +245,13 @@ class _UsersListState extends State<_UsersList> {
     }
   }
 
+  /// React's user editor (`users/:id/edit`), which a deleted user opens too.
+  Future<void> _open(DnUser u) async {
+    await context.push('/docuninja/users/${u.id}');
+    if (mounted) await _refresh();
+  }
+
   List<EntityActionItem<_UserAction>> _items(DnUser u) {
-    if (_lifecycleLocked(u, widget.state)) return const [];
     final subject = u.name.isEmpty ? u.email : u.name;
     EntityActionItem<_UserAction> item(
       _UserAction kind,
@@ -250,22 +270,33 @@ class _UsersListState extends State<_UsersList> {
       confirmSubject: subject,
       onTap: onTap,
     );
+    // The owner and the signed-in user take no lifecycle action.
+    final locked = _lifecycleLocked(u, widget.state);
     return [
-      if (u.isActive)
+      // The editor, as a row tap opens it.
+      EntityActionItem<_UserAction>(
+        kind: _UserAction.edit,
+        icon: Icons.edit_outlined,
+        label: context.tr('edit'),
+        enabled: true,
+        isNavigationOnly: true,
+        onTap: () => _open(u),
+      ),
+      if (!locked && u.isActive)
         item(
           _UserAction.archive,
           Icons.archive_outlined,
           'archive',
           () => _bulk(u, 'archive', 'archived_user'),
         ),
-      if (!u.isActive)
+      if (!locked && !u.isActive)
         item(
           _UserAction.restore,
           Icons.restore_outlined,
           'restore',
           () => _bulk(u, 'restore', 'restored_user'),
         ),
-      if (!u.isDeleted)
+      if (!locked && !u.isDeleted)
         item(
           _UserAction.delete,
           Icons.delete_outline,
@@ -276,89 +307,90 @@ class _UsersListState extends State<_UsersList> {
     ];
   }
 
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, c) => ListenableBuilder(
-      listenable: _vm,
-      // Back leaves selection before it leaves the screen.
-      builder: (context, _) => PopScope(
-        canPop: !_vm.isSelecting,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _vm.clearSelection();
-        },
-        child: _body(context, wide: c.maxWidth >= 720),
-      ),
-    ),
-  );
+  Future<void> _pickStates() async {
+    final picked =
+        await showDialog<({Set<String> states, Set<String> statuses})>(
+          context: context,
+          builder: (_) => DnFilterDialog(states: _vm.states),
+        );
+    if (picked != null) {
+      _vm.setFilters(statuses: const {}, states: picked.states);
+    }
+  }
 
-  Widget _body(BuildContext context, {required bool wide}) {
+  @override
+  Widget build(BuildContext context) {
     final seats = _seatCount;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // React's NumberOfUsersAlert, and its New User button: no seat left
-        // means no new user.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Wrap(
-            spacing: InSpacing.sm,
-            runSpacing: InSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-                onPressed: (seats != null && seats.full) || _busy
-                    ? null
-                    : () async {
-                        await context.push('/docuninja/users/access');
-                        if (mounted) await _refresh();
-                      },
-                icon: const Icon(Icons.person_add_alt_outlined, size: 18),
-                label: Text(context.tr('new_user')),
-              ),
-              // The lifecycle filter, so an archived user can be restored.
-              ListenableBuilder(
-                listenable: _vm,
-                builder: (context, _) => FilterIconButton(
-                  activeCount: _vm.activeFilterCount,
-                  onPressed: () async {
-                    final picked =
-                        await showDialog<
-                          ({Set<String> states, Set<String> statuses})
-                        >(
-                          context: context,
-                          builder: (_) => DnFilterDialog(states: _vm.states),
-                        );
-                    if (picked != null) {
-                      _vm.setFilters(statuses: const {}, states: picked.states);
-                    }
-                  },
-                ),
-              ),
-              if (seats != null)
-                LtrText(
-                  '${seats.used} / ${seats.max}',
-                  style: TextStyle(color: context.inTheme.ink2),
-                ),
-              if (seats != null && seats.full)
-                TextButton(
-                  onPressed: () => context.go('/settings/account_management'),
-                  child: Text(context.tr('user_limit_reached')),
-                ),
+    return _page(
+      title: context.tr('users'),
+      actions: [
+        // React's New User: no seat left means no new user. The Templates
+        // and Documents screens' `+`.
+        IconButton(
+          icon: const Icon(Icons.add),
+          tooltip: context.tr('new_user'),
+          onPressed: (seats != null && seats.full) || _busy
+              ? null
+              : () async {
+                  await context.push('/docuninja/users/access');
+                  if (mounted) await _refresh();
+                },
+        ),
+        ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) =>
               // React's table checkboxes, for its bulk actions; on touch a
-              // long press on a row starts it too.
-              // Not when every listed user is the owner or the signed-in
-              // user, who take no bulk action.
-              if (!_vm.isSelecting &&
-                  _vm.items.any((u) => !_lifecycleLocked(u, widget.state)))
-                IconButton(
+              // long press on a row starts it too. Not when every listed
+              // user is the owner or the signed-in user, who take no bulk
+              // action.
+              _vm.isSelecting ||
+                  !_vm.items.any((u) => !_lifecycleLocked(u, widget.state))
+              ? const SizedBox.shrink()
+              : IconButton(
                   icon: const Icon(Icons.checklist),
                   tooltip: context.tr('select'),
                   onPressed: _vm.enterSelectionMode,
                 ),
-            ],
+        ),
+        // The lifecycle filter, so an archived user can be restored.
+        ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => FilterIconButton(
+            activeCount: _vm.activeFilterCount,
+            onPressed: _pickStates,
           ),
         ),
+      ],
+      body: LayoutBuilder(
+        builder: (context, c) => ListenableBuilder(
+          listenable: _vm,
+          // Back leaves selection before it leaves the screen.
+          builder: (context, _) => PopScope(
+            canPop: !_vm.isSelecting,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) _vm.clearSelection();
+            },
+            child: _body(context, wide: c.maxWidth >= kDocuNinjaTableMinWidth),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context, {required bool wide}) {
+    final seats = _seatCount;
+    final inset = wide ? kDnTableInset : 16.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // React's NumberOfUsersAlert: every seat is taken.
+        if (seats != null && seats.full)
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(inset, 8, inset, 0),
+            child: _SeatLimitAlert(
+              onUpgrade: () => context.go('/settings/account_management'),
+            ),
+          ),
         // The selection header takes the search row's place while
         // selecting; the search keeps its text.
         if (_vm.isSelecting)
@@ -372,26 +404,39 @@ class _UsersListState extends State<_UsersList> {
             ),
           )
         else
-          // React's table search.
+          // React's table search, and the seats taken.
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: TextField(
-                  controller: _search,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    hintText: context.tr('search'),
+            padding: EdgeInsetsDirectional.fromSTEB(inset, 8, inset, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: TextField(
+                        controller: _search,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                          hintText: context.tr('search'),
+                        ),
+                        onChanged: _vm.setSearch,
+                      ),
+                    ),
                   ),
-                  onChanged: _vm.setSearch,
                 ),
-              ),
+                if (seats != null) ...[
+                  const SizedBox(width: InSpacing.sm),
+                  LtrText(
+                    '${seats.used} / ${seats.max}',
+                    style: TextStyle(color: context.inTheme.ink2),
+                  ),
+                ],
+              ],
             ),
           ),
         Expanded(child: _list(context, wide: wide)),
@@ -417,7 +462,50 @@ class _UsersListState extends State<_UsersList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _onScroll();
     });
-    final tokens = context.inTheme;
+    final List<Widget> rows = [
+      if (vm.items.isEmpty)
+        wide
+            ? const SliverToBoxAdapter(child: DnNoRecordsLine())
+            : SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyState(
+                  icon: Icons.group_outlined,
+                  title: context.tr('no_records_found'),
+                ),
+              )
+      else
+        SliverList.separated(
+          itemCount: vm.items.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final u = vm.items[i];
+            final selecting = vm.isSelecting;
+            void toggle() => vm.toggleSelected(u);
+            // Each row hosts its own ink: the table card's fill paints over
+            // the Scaffold's, so a hover drawn there would be hidden.
+            return Material(
+              type: MaterialType.transparency,
+              child: _UserRow(
+                user: u,
+                table: wide,
+                selected: vm.isSelected(u),
+                // Selecting, a tap ticks the row; otherwise it opens the
+                // editor, a deleted user's too, as React's does.
+                onTap: selecting ? toggle : () => _open(u),
+                onLongPress: toggle,
+                leading: dnSelectLeading(
+                  wide: wide,
+                  selecting: selecting,
+                  selected: vm.isSelected(u),
+                  onToggle: toggle,
+                ),
+                // No row menu while selecting: the bulk actions are it.
+                actions: selecting ? const [] : _items(u),
+              ),
+            );
+          },
+        ),
+    ];
     return RefreshIndicator(
       onRefresh: _refresh,
       child: CustomScrollView(
@@ -434,117 +522,24 @@ class _UsersListState extends State<_UsersList> {
                 ),
               ),
             ),
-          if (vm.items.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: EmptyState(
-                icon: Icons.group_outlined,
-                title: context.tr('no_records_found'),
+          if (wide)
+            SliverPadding(
+              padding: const EdgeInsetsDirectional.only(
+                start: kDnTableInset,
+                end: kDnTableInset,
+                bottom: InSpacing.xl,
+              ),
+              // React's columns (`useUserColumns.tsx`): name, email, status.
+              sliver: dnTableCard(
+                context,
+                columns: _kUserColumns,
+                leadingWidth: kDnSelectSlotWidth,
+                trailingWidth: actionButtonSize(),
+                rows: rows,
               ),
             )
           else
-            SliverList.separated(
-              itemCount: vm.items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final u = vm.items[i];
-                final (String key, Color fg, Color bg) = u.isDeleted
-                    ? ('deleted', tokens.overdue, tokens.overdueSoft)
-                    : u.isArchived
-                    ? ('archived', tokens.partial, tokens.partialSoft)
-                    : ('active', tokens.paid, tokens.paidSoft);
-                final selecting = vm.isSelecting;
-                void toggle() => vm.toggleSelected(u);
-                return SelectableListRow(
-                  selected: vm.isSelected(u),
-                  urlSelected: false,
-                  // The list's separators draw the lines.
-                  hideBottomDivider: true,
-                  // Selecting, a tap ticks the row; a deleted user opens
-                  // nothing (restore it first).
-                  onTap: selecting
-                      ? toggle
-                      : u.isDeleted
-                      ? null
-                      : () async {
-                          await context.push('/docuninja/users/${u.id}');
-                          if (mounted) await _refresh();
-                        },
-                  onLongPress: toggle,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 56),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        16,
-                        8,
-                        4,
-                        8,
-                      ),
-                      child: Row(
-                        children: [
-                          ?dnSelectLeading(
-                            wide: wide,
-                            selecting: selecting,
-                            selected: vm.isSelected(u),
-                            onToggle: toggle,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LtrText(
-                                  u.name.isEmpty ? u.email : u.name,
-                                  keepRtlScript: true,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                if (u.name.isNotEmpty)
-                                  LtrText(
-                                    u.email,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: tokens.ink3,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          StatusPill(
-                            label: context.tr(key),
-                            fgColor: fg,
-                            bgColor: bg,
-                            textStyle: TextStyle(
-                              fontSize: 13,
-                              color: tokens.ink,
-                            ),
-                          ),
-                          // The owner's and the user's own row keep the slot
-                          // (the column stays aligned) with nothing in it.
-                          // No row menu while selecting either: the bulk
-                          // actions are it.
-                          Visibility(
-                            visible:
-                                !selecting &&
-                                !_lifecycleLocked(u, widget.state),
-                            maintainSize: true,
-                            maintainAnimation: true,
-                            maintainState: true,
-                            child: EntityActionsPopupButton<_UserAction>(
-                              items: _items(u),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+            ...rows,
           if (vm.isLoadingMore)
             const SliverToBoxAdapter(
               child: Padding(
@@ -553,6 +548,192 @@ class _UsersListState extends State<_UsersList> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// React's user columns (`useUserColumns.tsx`).
+const List<DnTableColumn> _kUserColumns = [
+  (labelKey: 'name', flex: 4),
+  (labelKey: 'email', flex: 5),
+  (labelKey: 'status', flex: 2),
+];
+
+/// A user on the list: React's table row on a wide pane (name, email,
+/// status), the name over the email on a narrow one.
+class _UserRow extends StatelessWidget {
+  const _UserRow({
+    required this.user,
+    required this.table,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.leading,
+    required this.actions,
+  });
+
+  final DnUser user;
+  final bool table;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final Widget? leading;
+  final List<EntityActionItem<_UserAction>> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final u = user;
+    final (String key, Color fg, Color bg) = u.isDeleted
+        ? ('deleted', tokens.overdue, tokens.overdueSoft)
+        : u.isArchived
+        ? ('archived', tokens.partial, tokens.partialSoft)
+        : ('active', tokens.paid, tokens.paidSoft);
+    final pill = StatusPill(
+      label: context.tr(key),
+      fgColor: fg,
+      bgColor: bg,
+      textStyle: TextStyle(fontSize: 13, color: tokens.ink),
+    );
+    // Kept while selecting (empty), so the columns stay put.
+    final menu = Visibility(
+      visible: actions.isNotEmpty,
+      maintainSize: true,
+      maintainAnimation: true,
+      maintainState: true,
+      child: EntityActionsPopupButton<_UserAction>(items: actions),
+    );
+    final Widget content;
+    if (table) {
+      Widget cell(int i, Widget child) =>
+          Expanded(flex: _kUserColumns[i].flex, child: child);
+      content = ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              ?leading,
+              // A labelled slot: an empty name is an em dash.
+              cell(
+                0,
+                LtrText(
+                  u.name.isEmpty ? '—' : u.name,
+                  keepRtlScript: true,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: tokens.ink),
+                ),
+              ),
+              // React links the email to the editor.
+              cell(
+                1,
+                LtrText(
+                  u.email.isEmpty ? '—' : u.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: tokens.accent,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              cell(
+                2,
+                Align(alignment: AlignmentDirectional.centerStart, child: pill),
+              ),
+              menu,
+            ],
+          ),
+        ),
+      );
+    } else {
+      content = ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
+          child: Row(
+            children: [
+              ?leading,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    LtrText(
+                      u.name.isEmpty ? u.email : u.name,
+                      keepRtlScript: true,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    if (u.name.isNotEmpty)
+                      LtrText(
+                        u.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: tokens.ink3, fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+              pill,
+              menu,
+            ],
+          ),
+        ),
+      );
+    }
+    return SelectableListRow(
+      selected: selected,
+      urlSelected: false,
+      // The list's separators draw the lines.
+      hideBottomDivider: true,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: content,
+    );
+  }
+}
+
+/// React's `NumberOfUsersAlert`: every seat is taken, and the way to more.
+class _SeatLimitAlert extends StatelessWidget {
+  const _SeatLimitAlert({required this.onUpgrade});
+
+  final VoidCallback onUpgrade;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.warningSoft,
+        border: Border.all(color: tokens.warning.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(InRadii.r2),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 6, 6),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 18, color: tokens.warning),
+            const SizedBox(width: InSpacing.sm),
+            Expanded(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  context.tr('user_limit_reached'),
+                  style: TextStyle(color: tokens.ink2),
+                ),
+              ),
+            ),
+            const SizedBox(width: InSpacing.sm),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: tokens.warning),
+              onPressed: onUpgrade,
+              child: Text(context.tr('upgrade')),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -789,23 +970,49 @@ class _UserEditorState extends State<_UserEditor> {
   @override
   Widget build(BuildContext context) {
     final u = _user;
+    final title = context.tr('edit_user');
     if (_failed) {
-      return ErrorView(
-        message: context.tr('an_error_occurred_try_again'),
-        onRetry: _load,
+      return _page(
+        title: title,
+        body: ErrorView(
+          message: context.tr('an_error_occurred_try_again'),
+          onRetry: _load,
+        ),
       );
     }
-    if (u == null) return const Center(child: CircularProgressIndicator());
-    final tokens = context.inTheme;
+    if (u == null) {
+      return _page(
+        title: title,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return UnsavedChangesScope(
       isDirty: () => _isDirty,
       source: _revision,
       onDiscard: _discard,
-      child: _body(context, u, tokens),
+      child: _page(
+        title: title,
+        // React's page header: Save, and the edit page's actions (archive,
+        // restore, delete), where the app's settings pages put Save.
+        actions: [
+          DnAppBarSaveButton(saving: _saving, onPressed: _save),
+          if (!_lifecycleLocked(u, widget.state))
+            EntityActionsPopupButton<_UserAction>(items: _lifecycleItems(u)),
+          const SizedBox(width: InSpacing.sm),
+        ],
+        // Enter saves, as on every edit page.
+        body: FormSaveScope(
+          onSubmit: _save,
+          enabled: !_saving,
+          child: _body(context, u),
+        ),
+      ),
     );
   }
 
-  Widget _body(BuildContext context, DnUser u, InTheme tokens) {
+  Widget _body(BuildContext context, DnUser u) {
+    // React's order (`users/edit/Edit.tsx` tabs): details, notifications,
+    // permissions.
     return ListView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
@@ -849,25 +1056,10 @@ class _UserEditorState extends State<_UserEditor> {
                       label: context.tr('initials'),
                       value: _eInitials,
                       kind: DnSignatureKind.initials,
+                      // React's Generate makes them from the user's name.
+                      suggestedText: dnInitialsOf(u.firstName, u.lastName),
                       enabled: !_saving,
                       onChanged: (v) => setState(() => _eInitials = v),
-                    ),
-                  ],
-                ),
-                SizedBox(height: InSpacing.lg(context)),
-                FormSection(
-                  title: context.tr('permissions'),
-                  children: [
-                    DnPermissionsGrid(
-                      isAdmin: _isAdmin,
-                      permissions: _permissions,
-                      enabled: !_saving,
-                      onAdminChanged: (v) => setState(() {
-                        _isAdmin = v;
-                        // React clears the grants when the role changes.
-                        _permissions = const [];
-                      }),
-                      onChanged: (p) => setState(() => _permissions = p),
                     ),
                   ],
                 ),
@@ -900,35 +1092,22 @@ class _UserEditorState extends State<_UserEditor> {
                       ),
                   ],
                 ),
-                Padding(
-                  padding: EdgeInsets.only(top: InSpacing.lg(context)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // React's edit page actions: archive, restore, delete.
-                      if (!_lifecycleLocked(u, widget.state)) ...[
-                        EntityActionsPopupButton<_UserAction>(
-                          items: _lifecycleItems(u),
-                        ),
-                        SizedBox(width: InSpacing.md(context)),
-                      ],
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(64, 44),
-                        ),
-                        onPressed: _saving ? null : _save,
-                        child: _saving
-                            ? SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: tokens.ink3,
-                                ),
-                              )
-                            : Text(context.tr('save')),
-                      ),
-                    ],
-                  ),
+                SizedBox(height: InSpacing.lg(context)),
+                FormSection(
+                  title: context.tr('permissions'),
+                  children: [
+                    DnPermissionsGrid(
+                      isAdmin: _isAdmin,
+                      permissions: _permissions,
+                      enabled: !_saving,
+                      onAdminChanged: (v) => setState(() {
+                        _isAdmin = v;
+                        // React clears the grants when the role changes.
+                        _permissions = const [];
+                      }),
+                      onChanged: (p) => setState(() => _permissions = p),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1139,7 +1318,10 @@ class DocuNinjaGrantAccessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _OwnerGate(
     title: context.tr('add_user'),
-    builder: (context, state) => _GrantAccess(state: state),
+    builder: (context, state) => _page(
+      title: context.tr('add_user'),
+      body: _GrantAccess(state: state),
+    ),
   );
 }
 
@@ -1333,12 +1515,17 @@ class _GrantAccessState extends State<_GrantAccess> {
           pickable.isNotEmpty && pickable.every(_selected.contains);
       users = Column(
         children: [
-          // React's select-all row (within the seats left).
+          // React's select-all row (within the seats left), with how many
+          // there are to pick from.
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             value: allPicked,
             title: Text(context.tr('all')),
+            subtitle: Text(
+              context.tr('count_users', {'count': '${available.length}'}),
+              style: TextStyle(color: tokens.ink3),
+            ),
             onChanged: _saving
                 ? null
                 : (v) => setState(() {
@@ -1364,6 +1551,18 @@ class _GrantAccessState extends State<_GrantAccess> {
                           : _selected.remove(u.id),
                     ),
             ),
+          const Divider(height: 1),
+          // React's selected-users summary.
+          Padding(
+            padding: const EdgeInsets.only(top: InSpacing.sm),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                context.tr('count_selected', {'count': '${_selected.length}'}),
+                style: TextStyle(color: tokens.ink2),
+              ),
+            ),
+          ),
         ],
       );
     }

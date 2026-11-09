@@ -28,6 +28,17 @@ const kDnSignatureFonts = [
   'Alex Brush',
 ];
 
+/// React's generated initials (`Details.tsx`): the first letter of the
+/// first name and of the last name, either of which may be blank.
+String dnInitialsOf(String firstName, String lastName) {
+  String first(String s) {
+    final t = s.trim();
+    return t.isEmpty ? '' : t.characters.first;
+  }
+
+  return '${first(firstName)}${first(lastName)}';
+}
+
 /// The image types an uploaded signature may be (`accept="image/*"` in
 /// React), the ones `dart:ui` decodes everywhere.
 const _kImageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
@@ -45,6 +56,7 @@ class DnSignatureField extends StatefulWidget {
     required this.kind,
     required this.onChanged,
     this.enabled = true,
+    this.suggestedText = '',
   });
 
   final String label;
@@ -52,6 +64,10 @@ class DnSignatureField extends StatefulWidget {
   final DnSignatureKind kind;
   final ValueChanged<String> onChanged;
   final bool enabled;
+
+  /// What Generate starts with (the user's initials, as React generates
+  /// them), so one tap on Done makes them; empty for a blank field.
+  final String suggestedText;
 
   @override
   State<DnSignatureField> createState() => _DnSignatureFieldState();
@@ -100,7 +116,8 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
   Future<void> _generate() async => _changed(
     await showDialog<String>(
       context: context,
-      builder: (_) => _GenerateDialog(kind: widget.kind),
+      builder: (_) =>
+          _GenerateDialog(kind: widget.kind, initialText: widget.suggestedText),
     ),
   );
 
@@ -424,17 +441,33 @@ class _SignaturePainter extends CustomPainter {
 /// React's Generate (`SignatureFontSelector.tsx`): typed text in one of five
 /// handwriting fonts, drawn black on white.
 class _GenerateDialog extends StatefulWidget {
-  const _GenerateDialog({required this.kind});
+  const _GenerateDialog({required this.kind, this.initialText = ''});
 
   final DnSignatureKind kind;
+
+  /// The text it opens with, in the first font (React's Dancing Script).
+  final String initialText;
 
   @override
   State<_GenerateDialog> createState() => _GenerateDialogState();
 }
 
 class _GenerateDialogState extends State<_GenerateDialog> {
-  final _text = TextEditingController();
-  String _font = kDnSignatureFonts.first;
+  /// Seeded selected, so typing replaces it.
+  late final _text = () {
+    final seed = widget.initialText.trim();
+    return TextEditingController.fromValue(
+      TextEditingValue(
+        text: seed,
+        selection: TextSelection(baseOffset: 0, extentOffset: seed.length),
+      ),
+    );
+  }();
+
+  /// React generates initials in Dancing Script.
+  String _font = kDnSignatureFonts.contains('Dancing Script')
+      ? 'Dancing Script'
+      : kDnSignatureFonts.first;
   bool _saving = false;
 
   @override

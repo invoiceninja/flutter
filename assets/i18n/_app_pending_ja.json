@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value 件のテンプレートを削除しました",
   "restored_templates": ":value 件のテンプレートを復元しました",
   "draw": "描く",
-  "enter_initials": "イニシャルを入力"
+  "enter_initials": "イニシャルを入力",
+  "not_ready_for_download": "ファイルのダウンロード準備ができていません"
 }

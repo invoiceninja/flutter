@@ -1725,5 +1725,6 @@
   "deleted_templates": ":value șabloane șterse cu succes",
   "restored_templates": ":value șabloane restaurate cu succes",
   "draw": "Desenează",
-  "enter_initials": "Introduceți inițialele"
+  "enter_initials": "Introduceți inițialele",
+  "not_ready_for_download": "Fișierul nu este gata pentru descărcare"
 }

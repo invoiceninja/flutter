@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value sjablonen verwijderd",
   "restored_templates": ":value sjablonen hersteld",
   "draw": "Tekenen",
-  "enter_initials": "Voer initialen in"
+  "enter_initials": "Voer initialen in",
+  "not_ready_for_download": "Het bestand is nog niet klaar om te downloaden."
 }

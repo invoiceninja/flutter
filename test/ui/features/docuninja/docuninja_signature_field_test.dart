@@ -175,4 +175,14 @@ void main() {
     // One stroke, from the first finger only.
     expect((painter as dynamic).strokes.length, 1);
   });
+
+  test("Generate's initials are the first letters of the user's names", () {
+    // React's `Details.tsx`: first name's first letter, then last name's.
+    expect(dnInitialsOf('Jane', 'Doe'), 'JD');
+    expect(dnInitialsOf(' Jane ', ''), 'J');
+    expect(dnInitialsOf('', 'Doe'), 'D');
+    expect(dnInitialsOf('', ''), '');
+    // A letter is a grapheme, not a UTF-16 unit.
+    expect(dnInitialsOf('Émile', 'Zola'), 'ÉZ');
+  });
 }

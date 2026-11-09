@@ -28,7 +28,7 @@ class DocuNinjaStatusPill extends StatelessWidget {
     final (String key, Color fg, Color bg) = document.isDeleted && !statusOnly
         ? ('deleted', tokens.overdue, tokens.overdueSoft)
         : document.isArchived && !statusOnly
-        ? ('archived', tokens.ink3, tokens.draftSoft)
+        ? ('archived', tokens.warning, tokens.warningSoft)
         : switch (document.status) {
             DnDocumentStatus.pendingApproval => (
               'pending_approval',
@@ -45,7 +45,12 @@ class DocuNinjaStatusPill extends StatelessWidget {
               tokens.overdue,
               tokens.overdueSoft,
             ),
-            DnDocumentStatus.sent => ('sent', tokens.sent, tokens.sentSoft),
+            // React's blue (`STATUS_VARIANTS`), not the invoices' amber Sent.
+            DnDocumentStatus.sent => (
+              'sent',
+              tokens.partial,
+              tokens.partialSoft,
+            ),
             DnDocumentStatus.completed => (
               'completed',
               tokens.accent,
@@ -86,7 +91,7 @@ class DocuNinjaLifecyclePill extends StatelessWidget {
     final (String, Color, Color)? style = document.isDeleted
         ? ('deleted', tokens.overdue, tokens.overdueSoft)
         : document.isArchived
-        ? ('archived', tokens.ink3, tokens.draftSoft)
+        ? ('archived', tokens.warning, tokens.warningSoft)
         : null;
     if (style == null) return const SizedBox.shrink();
     final (key, fg, bg) = style;

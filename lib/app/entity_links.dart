@@ -1,3 +1,4 @@
+import 'package:admin/domain/docuninja/docuninja_settings_tabs.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 
@@ -337,10 +338,14 @@ DeepLinkTarget? parseAppDeepLink(Uri uri, EntityRegistry registry) {
     return (path: route, companyId: _companyIdFrom(uri), listFilter: null);
   }
 
-  // DocuNinja's list or one of its documents ([buildDocuNinjaDeepLink]). On
-  // a self-hosted server the route's own redirect sends it home.
+  // DocuNinja's list or one of its documents ([buildDocuNinjaDeepLink]), or
+  // one of its settings tabs (`/docuninja/settings/<tab>`). On a self-hosted
+  // server the route's own redirect sends it home.
   if (route == kDocuNinjaRoute || route.startsWith('$kDocuNinjaRoute/')) {
     final rest = route.substring(kDocuNinjaRoute.length);
+    if (docuNinjaSettingsTabOf(route) != null) {
+      return (path: route, companyId: _companyIdFrom(uri), listFilter: null);
+    }
     if (rest.isNotEmpty) {
       final segments = rest.split('/')..removeAt(0);
       if (segments.length != 1 || !_isPlausibleRecordId(segments.single)) {

@@ -16,6 +16,7 @@ import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -27,6 +28,9 @@ import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart'
+    show kDocuNinjaTableMinWidth;
+import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
@@ -47,7 +51,7 @@ class DocuNinjaTemplatesScreen extends StatefulWidget {
       _DocuNinjaTemplatesScreenState();
 }
 
-enum _Action { use, options, archive, restore, delete }
+enum _Action { edit, use, options, archive, restore, delete }
 
 /// React's bulk actions on the templates table.
 final _kBulkActions = dnLifecycleBulkActions<DnBlueprint>(
@@ -55,9 +59,6 @@ final _kBulkActions = dnLifecycleBulkActions<DnBlueprint>(
   isActive: (t) => !t.isDeleted && !t.isArchived,
   isDeleted: (t) => t.isDeleted,
 );
-
-/// Wide enough for the checkbox slot to sit on every row (hover-revealed).
-const double _kWide = 720;
 
 class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   DocuNinjaSession? _session;
@@ -230,8 +231,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         title: context.tr('unauthorized_action'),
       );
     }
-    final search = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+    Widget search(double inset) => Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(inset, 8, inset, 8),
       child: Align(
         alignment: AlignmentDirectional.centerStart,
         child: ConstrainedBox(
@@ -252,35 +253,37 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       ),
     );
     return LayoutBuilder(
-      builder: (context, c) => ListenableBuilder(
-        listenable: vm,
-        // Back leaves selection before it leaves the screen.
-        builder: (context, _) => PopScope(
-          canPop: !vm.isSelecting,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) vm.clearSelection();
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // The selection header takes the search row's place while
-              // selecting; the search keeps its text (the controller is the
-              // screen's).
-              if (vm.isSelecting)
-                DnSelectionBar<DnBlueprint>(
-                  vm: vm,
-                  actions: _bulkActions,
-                  wide: c.maxWidth >= _kWide,
-                )
-              else
-                search,
-              Expanded(
-                child: _list(context, vm, canCreate, c.maxWidth >= _kWide),
-              ),
-            ],
+      builder: (context, c) {
+        // React's table on a wide pane, a row per template on a narrow one.
+        final wide = c.maxWidth >= kDocuNinjaTableMinWidth;
+        return ListenableBuilder(
+          listenable: vm,
+          // Back leaves selection before it leaves the screen.
+          builder: (context, _) => PopScope(
+            canPop: !vm.isSelecting,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) vm.clearSelection();
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The selection header takes the search row's place while
+                // selecting; the search keeps its text (the controller is the
+                // screen's).
+                if (vm.isSelecting)
+                  DnSelectionBar<DnBlueprint>(
+                    vm: vm,
+                    actions: _bulkActions,
+                    wide: wide,
+                  )
+                else
+                  search(wide ? kDnTableInset : 16),
+                Expanded(child: _list(context, vm, canCreate, wide)),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -315,6 +318,56 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         onRetry: vm.retry,
       ),
     );
+    final bulk = _bulkActions.isNotEmpty;
+    final List<Widget> rows = [
+      if (vm.items.isEmpty)
+        wide
+            ? const SliverToBoxAdapter(child: DnNoRecordsLine())
+            : SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyState(
+                  icon: Icons.copy_all_outlined,
+                  title: context.tr('no_records_found'),
+                ),
+              )
+      else
+        SliverList.separated(
+          itemCount: vm.items.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final t = vm.items[i];
+            final selecting = vm.isSelecting;
+            void toggle() => vm.toggleSelected(t);
+            // Each row hosts its own ink: the table card's fill paints over
+            // the Scaffold's, so a hover drawn there would be hidden.
+            return Material(
+              type: MaterialType.transparency,
+              child: _TemplateRow(
+                template: t,
+                table: wide,
+                // Selecting, a tap ticks the row. Otherwise React opens
+                // every template's builder, a deleted one too.
+                onTap: selecting
+                    ? toggle
+                    : canCreate
+                    ? () => _edit(t)
+                    : null,
+                // No selection where no bulk action is allowed.
+                onLongPress: bulk ? toggle : null,
+                selected: vm.isSelected(t),
+                leading: dnSelectLeading(
+                  wide: wide && bulk,
+                  selecting: selecting,
+                  selected: vm.isSelected(t),
+                  onToggle: toggle,
+                ),
+                // No row menu while selecting: the bulk actions are it.
+                actions: selecting ? const [] : _items(context, vm, t),
+              ),
+            );
+          },
+        ),
+    ];
     return RefreshIndicator(
       onRefresh: vm.refresh,
       child: CustomScrollView(
@@ -323,45 +376,24 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         slivers: [
           if (showError && !vm.errorFromMore)
             SliverToBoxAdapter(child: notice()),
-          if (vm.items.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: EmptyState(
-                icon: Icons.copy_all_outlined,
-                title: context.tr('no_records_found'),
+          if (wide)
+            SliverPadding(
+              padding: const EdgeInsetsDirectional.only(
+                start: kDnTableInset,
+                end: kDnTableInset,
+                bottom: InSpacing.xl,
+              ),
+              // React's columns (`useTableColumns.tsx`): status, name, type.
+              sliver: dnTableCard(
+                context,
+                columns: _kTemplateColumns,
+                leadingWidth: bulk ? kDnSelectSlotWidth : 0,
+                trailingWidth: actionButtonSize(),
+                rows: rows,
               ),
             )
           else
-            SliverList.separated(
-              itemCount: vm.items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final t = vm.items[i];
-                final selecting = vm.isSelecting;
-                void toggle() => vm.toggleSelected(t);
-                return _TemplateRow(
-                  template: t,
-                  // Selecting, a tap ticks the row. Otherwise React opens
-                  // every template's builder, a deleted one too.
-                  onTap: selecting
-                      ? toggle
-                      : canCreate
-                      ? () => _edit(t)
-                      : null,
-                  // No selection where no bulk action is allowed.
-                  onLongPress: _bulkActions.isEmpty ? null : toggle,
-                  selected: vm.isSelected(t),
-                  leading: dnSelectLeading(
-                    wide: wide && _bulkActions.isNotEmpty,
-                    selecting: selecting,
-                    selected: vm.isSelected(t),
-                    onToggle: toggle,
-                  ),
-                  // No row menu while selecting: the bulk actions are it.
-                  actions: selecting ? const [] : _items(context, vm, t),
-                );
-              },
-            ),
+            ...rows,
           if (showError && vm.errorFromMore)
             SliverToBoxAdapter(child: notice()),
           if (vm.isLoadingMore)
@@ -416,6 +448,10 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     );
     final canEdit = _can('blueprints', DnAction.edit);
     return [
+      // The template's builder, as a row tap opens it (its route checks
+      // create, not edit).
+      if (_can('blueprints', DnAction.create))
+        item(_Action.edit, Icons.edit_outlined, 'edit'),
       if (!t.isDeleted && _can('documents', DnAction.create))
         item(_Action.use, Icons.note_add_outlined, 'use_template'),
       if (canEdit) item(_Action.options, Icons.tune_outlined, 'options'),
@@ -452,6 +488,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     _Action action,
   ) async {
     switch (action) {
+      case _Action.edit:
+        _edit(t);
       case _Action.use:
         await _use(t);
       case _Action.options:
@@ -569,11 +607,19 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   }
 }
 
+/// React's template columns (`useTableColumns.tsx`).
+const List<DnTableColumn> _kTemplateColumns = [
+  (labelKey: 'status', flex: 2),
+  (labelKey: 'name', flex: 5),
+  (labelKey: 'type', flex: 3),
+];
+
 class _TemplateRow extends StatelessWidget {
   const _TemplateRow({
     required this.template,
     required this.onTap,
     required this.actions,
+    this.table = false,
     this.onLongPress,
     this.selected = false,
     this.leading,
@@ -582,6 +628,9 @@ class _TemplateRow extends StatelessWidget {
   final DnBlueprint template;
   final VoidCallback? onTap;
   final List<EntityActionItem<_Action>> actions;
+
+  /// A cell per column of React's table, not the narrow two-line row.
+  final bool table;
   final VoidCallback? onLongPress;
   final bool selected;
   final Widget? leading;
@@ -590,6 +639,7 @@ class _TemplateRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final t = template;
+    final name = t.name.isEmpty ? context.tr('untitled_template') : t.name;
     // React's type column: "<Entity> Design" for one made from an Invoice
     // Ninja design, else Custom.
     final type = !t.isInvoiceNinjaDesign
@@ -602,14 +652,64 @@ class _TemplateRow extends StatelessWidget {
         : t.isArchived
         ? ('archived', tokens.partial, tokens.partialSoft)
         : ('active', tokens.paid, tokens.paidSoft);
-    return SelectableListRow(
-      selected: selected,
-      urlSelected: false,
-      // The list's separators draw the lines.
-      hideBottomDivider: true,
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: ConstrainedBox(
+    final pill = StatusPill(
+      label: context.tr(key),
+      fgColor: fg,
+      bgColor: bg,
+      textStyle: TextStyle(fontSize: 13, color: tokens.ink),
+    );
+    // Kept while selecting (empty), so the columns stay put.
+    final menu = Visibility(
+      visible: actions.isNotEmpty,
+      maintainSize: true,
+      maintainAnimation: true,
+      maintainState: true,
+      child: EntityActionsPopupButton<_Action>(items: actions),
+    );
+    final Widget content;
+    if (table) {
+      Widget cell(int i, Widget child) =>
+          Expanded(flex: _kTemplateColumns[i].flex, child: child);
+      content = ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              ?leading,
+              cell(
+                0,
+                Align(alignment: AlignmentDirectional.centerStart, child: pill),
+              ),
+              // React links the name to the builder.
+              cell(
+                1,
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: tokens.accent,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              cell(
+                2,
+                Text(
+                  type,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: tokens.ink2),
+                ),
+              ),
+              menu,
+            ],
+          ),
+        ),
+      );
+    } else {
+      content = ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
@@ -621,7 +721,7 @@ class _TemplateRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t.name.isEmpty ? context.tr('untitled_template') : t.name,
+                      name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -642,24 +742,21 @@ class _TemplateRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: InSpacing.sm),
-              StatusPill(
-                label: context.tr(key),
-                fgColor: fg,
-                bgColor: bg,
-                textStyle: TextStyle(fontSize: 13, color: tokens.ink),
-              ),
-              // Kept while selecting (empty), so the pills stay put.
-              Visibility(
-                visible: actions.isNotEmpty,
-                maintainSize: true,
-                maintainAnimation: true,
-                maintainState: true,
-                child: EntityActionsPopupButton<_Action>(items: actions),
-              ),
+              pill,
+              menu,
             ],
           ),
         ),
-      ),
+      );
+    }
+    return SelectableListRow(
+      selected: selected,
+      urlSelected: false,
+      // The list's separators draw the lines.
+      hideBottomDivider: true,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: content,
     );
   }
 }
@@ -912,6 +1009,32 @@ class _TemplateWizardState extends State<_TemplateWizard> {
             onTap: go,
           ),
         );
+    // React's step heading and its line under it (`InvoiceNinjaDesignStep`,
+    // `CustomBlueprintStep`).
+    Widget heading(String titleKey, String descriptionKey) => Padding(
+      padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            headingLevel: 2,
+            child: Text(
+              context.tr(titleKey),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: tokens.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            context.tr(descriptionKey),
+            style: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink2),
+          ),
+        ],
+      ),
+    );
     final Widget content;
     final List<Widget> actions;
     switch (_step) {
@@ -951,7 +1074,7 @@ class _TemplateWizardState extends State<_TemplateWizard> {
         ];
       case _WizardStep.invoiceNinja:
         final available = _available;
-        content = _loadFailed
+        final Widget body = _loadFailed
             ? DocuNinjaInlineError(
                 offline: _loadOffline,
                 onRetry: _loadAvailable,
@@ -963,34 +1086,29 @@ class _TemplateWizardState extends State<_TemplateWizard> {
               )
             : available.isEmpty
             ? Text(context.tr('all_entity_types_created'))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    context.tr('document_type_description'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: tokens.ink2,
-                    ),
-                  ),
-                  const SizedBox(height: InSpacing.sm),
-                  RadioGroup<String>(
-                    groupValue: _entity,
-                    onChanged: (v) {
-                      if (!_saving) setState(() => _entity = v);
-                    },
-                    child: Column(
-                      children: [
-                        for (final e in available)
-                          RadioListTile<String>(
-                            value: e,
-                            title: Text(context.tr(e)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+            : RadioGroup<String>(
+                groupValue: _entity,
+                onChanged: (v) {
+                  if (!_saving) setState(() => _entity = v);
+                },
+                child: Column(
+                  children: [
+                    for (final e in available)
+                      RadioListTile<String>(
+                        value: e,
+                        title: Text(context.tr(e)),
+                      ),
+                  ],
+                ),
               );
+        content = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            heading('document_type', 'document_type_description'),
+            body,
+          ],
+        );
         actions = [
           TextButton(
             onPressed: _saving
@@ -1013,7 +1131,9 @@ class _TemplateWizardState extends State<_TemplateWizard> {
           enabled: !_saving,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              heading('create_your_own', 'create_your_own_description'),
               TextField(
                 controller: _name,
                 autofocus: true,

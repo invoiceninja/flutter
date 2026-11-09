@@ -1735,5 +1735,6 @@
   "deleted_templates": "Успешно избришани :value шаблони",
   "restored_templates": "Успешно вратени :value шаблони",
   "draw": "Цртај",
-  "enter_initials": "Внесете иницијали"
+  "enter_initials": "Внесете иницијали",
+  "not_ready_for_download": "Датотеката не е подготвена за преземање"
 }

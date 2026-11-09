@@ -1,13 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
+import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_client.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
@@ -25,6 +30,7 @@ import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_create_dialog.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_download.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
@@ -208,14 +214,42 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       // A timed-out upload may have landed: re-read the list.
       onMaybeCreated: () => _session?.markDocumentsChanged(),
     );
-    if (doc == null || !mounted) return;
+    if (doc != null) _opened(doc, companyId);
+  }
+
+  String? get _currentCompanyId =>
+      context.read<Services>().auth.session.value?.currentCompanyId;
+
+  /// A new document of [companyId]: the list re-reads, the app lands on it
+  /// and (as React does) its builder opens — unless the user switched
+  /// company while it uploaded, when it is not this company's to open.
+  void _opened(DnDocument doc, String companyId) {
     _session?.markDocumentsChanged();
+    if (!mounted || _currentCompanyId != companyId) return;
     context.go('/docuninja/${doc.id}');
     notifyAndOpenDocuNinjaBuilder(
       context,
       message: context.tr('document_created'),
       documentId: doc.id,
       companyId: companyId,
+    );
+  }
+
+  /// React's drop zone above the table, for a DocuNinja role that may
+  /// create: the files become a document at once, named after the first,
+  /// and its builder opens, as after the `+` dialog.
+  Widget? _dropZone(DocuNinjaState state) {
+    final api = context.read<DocuNinjaApi?>();
+    final companyId = _currentCompanyId;
+    if (api == null ||
+        companyId == null ||
+        !state.can('documents', DnAction.create)) {
+      return null;
+    }
+    return DocuNinjaDropZone(
+      api: api,
+      onMaybeCreated: () => _session?.markDocumentsChanged(),
+      onCreated: (doc) => _opened(doc, companyId),
     );
   }
 
@@ -239,165 +273,312 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       valueListenable: session,
       builder: (context, state, _) {
         final vm = state.isReady ? _documents(state) : null;
-        return Scaffold(
-          drawer: globalNav ? null : const AppDrawer(),
-          appBar: AppBar(
-            title: Text(context.tr('docuninja')),
-            leading: globalNav ? null : const DrawerHamburger(),
-            automaticallyImplyLeading: !globalNav,
-            actions: [
-              // React's drop zone and New Document page, for a DocuNinja
-              // role that may create.
-              if (vm != null && state.can('documents', DnAction.create))
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: context.tr('new_document'),
-                  onPressed: () => _create(state),
-                ),
-              if (vm != null)
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) => FilterIconButton(
-                    activeCount: vm.activeFilterCount,
-                    onPressed: () => _pickFilters(context, vm),
-                  ),
-                ),
-              // React's DocuNinja menu (templates, users, settings) and a
-              // refresh, in one `⋮`: six icons would push the title off a
-              // phone's app bar.
-              if (vm != null)
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) =>
-                      EntityActionsPopupButton<_MenuAction>(
-                        items: [
-                          // React's table checkboxes, for its bulk actions; on
-                          // touch a long press on a row starts it too.
-                          if (vm.items.isNotEmpty &&
-                              !vm.isSelecting &&
-                              _bulkActions(state).isNotEmpty)
-                            EntityActionItem(
-                              kind: _MenuAction.select,
-                              icon: Icons.checklist,
-                              label: context.tr('select'),
-                              enabled: true,
-                              onTap: vm.enterSelectionMode,
-                            ),
-                          if (state.can('blueprints', DnAction.view))
-                            EntityActionItem(
-                              kind: _MenuAction.templates,
-                              icon: Icons.copy_all_outlined,
-                              label: context.tr('templates'),
-                              enabled: true,
-                              isNavigationOnly: true,
-                              onTap: () => context.go('/docuninja/templates'),
-                            ),
-                          if (state.login?.companyUser.isOwner ?? false)
-                            EntityActionItem(
-                              kind: _MenuAction.users,
-                              icon: Icons.group_outlined,
-                              label: context.tr('users'),
-                              enabled: true,
-                              isNavigationOnly: true,
-                              onTap: () => context.go('/docuninja/users'),
-                            ),
-                          if (state.login != null &&
-                              dnIsAdmin(state.login!.companyUser))
-                            EntityActionItem(
-                              kind: _MenuAction.settings,
-                              icon: Icons.settings_outlined,
-                              label: context.tr('settings'),
-                              enabled: true,
-                              isNavigationOnly: true,
-                              onTap: () => context.go('/docuninja/settings'),
-                            ),
-                          EntityActionItem(
-                            kind: _MenuAction.refresh,
-                            icon: Icons.refresh,
-                            label: context.tr('refresh'),
-                            // Always on: a refresh already in flight is shared.
-                            enabled: true,
-                            startsGroup: true,
-                            onTap: vm.refresh,
-                          ),
-                        ],
-                      ),
-                ),
-            ],
+        return LayoutBuilder(
+          builder: (context, pane) => _scaffold(
+            context,
+            state,
+            vm,
+            globalNav: globalNav,
+            wide: pane.maxWidth >= kDocuNinjaTableMinWidth,
           ),
-          // The search field sits in the body, not the app bar's fixed-height
-          // `bottom`, so it grows with the text size instead of clipping.
-          body: vm == null
-              ? _body(context, state, vm)
-              : ListenableBuilder(
-                  listenable: vm,
-                  // Back leaves selection before it leaves the screen.
-                  builder: (context, _) => PopScope(
-                    canPop: !vm.isSelecting,
-                    onPopInvokedWithResult: (didPop, _) {
-                      if (!didPop) vm.clearSelection();
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // The selection header takes the search row's place
-                        // while selecting; the search keeps its text (the
-                        // controller is the screen's).
-                        if (vm.isSelecting)
-                          LayoutBuilder(
-                            builder: (context, c) => DnSelectionBar<DnDocument>(
-                              vm: vm,
-                              actions: _bulkActions(state),
-                              wide: c.maxWidth >= kDocuNinjaTableMinWidth,
-                            ),
-                          )
-                        else
-                          _searchBar(context, vm),
-                        Expanded(child: _body(context, state, vm)),
-                      ],
-                    ),
-                  ),
-                ),
         );
       },
     );
   }
 
-  Widget _searchBar(BuildContext context, DocuNinjaDocumentsViewModel vm) =>
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: TextField(
-              controller: _search,
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                isDense: true,
-                prefixIcon: const Icon(Icons.search, size: 18),
-                hintText: context.tr('search'),
-                suffixIcon: ListenableBuilder(
-                  listenable: _search,
-                  builder: (context, _) => _search.text.isEmpty
-                      ? const SizedBox.shrink()
-                      : IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          tooltip: context.tr('clear'),
-                          onPressed: () {
-                            _search.clear();
-                            vm.setSearch('');
-                          },
+  /// On a wide pane the filters and React's Templates / Users / Settings
+  /// sit in the toolbar above the list, as React's table toolbar has them;
+  /// on a narrow one they fold into the app bar's filter icon and `⋮`.
+  Widget _scaffold(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel? vm, {
+    required bool globalNav,
+    required bool wide,
+  }) {
+    final canCreate = vm != null && state.can('documents', DnAction.create);
+    // `N` starts a new document, as on the app's lists (React binds
+    // `create_document` too); it falls through to a focused text field.
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.keyN): _NewDocumentIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _NewDocumentIntent: GuardedShortcutAction<_NewDocumentIntent>(
+            onInvoke: (_) {
+              if (canCreate) _create(state);
+              return null;
+            },
+          ),
+        },
+        child: _scaffoldBody(
+          context,
+          state,
+          vm,
+          globalNav: globalNav,
+          wide: wide,
+        ),
+      ),
+    );
+  }
+
+  Widget _scaffoldBody(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel? vm, {
+    required bool globalNav,
+    required bool wide,
+  }) {
+    return Scaffold(
+      drawer: globalNav ? null : const AppDrawer(),
+      appBar: AppBar(
+        title: Text(context.tr('docuninja')),
+        leading: globalNav ? null : const DrawerHamburger(),
+        automaticallyImplyLeading: !globalNav,
+        actions: [
+          // React's drop zone and New Document page, for a DocuNinja
+          // role that may create.
+          if (vm != null && state.can('documents', DnAction.create))
+            ShortcutTooltip(
+              label: context.tr('new_document'),
+              keys: const ['N'],
+              child: IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _create(state),
+              ),
+            ),
+          if (vm != null && !wide)
+            ListenableBuilder(
+              listenable: vm,
+              builder: (context, _) => FilterIconButton(
+                activeCount: vm.activeFilterCount,
+                onPressed: () => _pickFilters(context, vm),
+              ),
+            ),
+          // React's DocuNinja menu (templates, users, settings) and a
+          // refresh, in one `⋮`: six icons would push the title off a
+          // phone's app bar.
+          if (vm != null)
+            ListenableBuilder(
+              listenable: vm,
+              builder: (context, _) => EntityActionsPopupButton<_MenuAction>(
+                items: [
+                  // React's table checkboxes, for its bulk actions; on
+                  // touch a long press on a row starts it too.
+                  if (vm.items.isNotEmpty &&
+                      !vm.isSelecting &&
+                      _bulkActions(state).isNotEmpty)
+                    EntityActionItem(
+                      kind: _MenuAction.select,
+                      icon: Icons.checklist,
+                      label: context.tr('select'),
+                      enabled: true,
+                      onTap: vm.enterSelectionMode,
+                    ),
+                  if (!wide && state.can('blueprints', DnAction.view))
+                    EntityActionItem(
+                      kind: _MenuAction.templates,
+                      icon: Icons.copy_all_outlined,
+                      label: context.tr('templates'),
+                      enabled: true,
+                      isNavigationOnly: true,
+                      onTap: () => context.go('/docuninja/templates'),
+                    ),
+                  if (!wide && (state.login?.companyUser.isOwner ?? false))
+                    EntityActionItem(
+                      kind: _MenuAction.users,
+                      icon: Icons.group_outlined,
+                      label: context.tr('users'),
+                      enabled: true,
+                      isNavigationOnly: true,
+                      onTap: () => context.go('/docuninja/users'),
+                    ),
+                  if (!wide &&
+                      state.login != null &&
+                      dnIsAdmin(state.login!.companyUser))
+                    EntityActionItem(
+                      kind: _MenuAction.settings,
+                      icon: Icons.settings_outlined,
+                      label: context.tr('settings'),
+                      enabled: true,
+                      isNavigationOnly: true,
+                      onTap: () => context.go('/docuninja/settings'),
+                    ),
+                  EntityActionItem(
+                    kind: _MenuAction.refresh,
+                    icon: Icons.refresh,
+                    label: context.tr('refresh'),
+                    // Always on: a refresh already in flight is shared.
+                    enabled: true,
+                    startsGroup: true,
+                    onTap: vm.refresh,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      // The search field sits in the body, not the app bar's fixed-height
+      // `bottom`, so it grows with the text size instead of clipping.
+      body: vm == null
+          ? _body(context, state, vm)
+          : ListenableBuilder(
+              listenable: vm,
+              // Back leaves selection before it leaves the screen.
+              builder: (context, _) => PopScope(
+                canPop: !vm.isSelecting,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (!didPop) vm.clearSelection();
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // The selection header takes the search row's place
+                    // while selecting; the search keeps its text (the
+                    // controller is the screen's).
+                    if (vm.isSelecting)
+                      LayoutBuilder(
+                        builder: (context, c) => DnSelectionBar<DnDocument>(
+                          vm: vm,
+                          actions: _bulkActions(state),
+                          wide: c.maxWidth >= kDocuNinjaTableMinWidth,
                         ),
+                      )
+                    else
+                      _searchBar(context, state, vm, wide: wide),
+                    Expanded(child: _body(context, state, vm)),
+                  ],
                 ),
               ),
-              onChanged: vm.setSearch,
+            ),
+    );
+  }
+
+  Widget _searchBar(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel vm, {
+    required bool wide,
+  }) {
+    final field = TextField(
+      controller: _search,
+      autocorrect: false,
+      enableSuggestions: false,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        isDense: true,
+        prefixIcon: const Icon(Icons.search, size: 18),
+        hintText: context.tr('search'),
+        suffixIcon: ListenableBuilder(
+          listenable: _search,
+          builder: (context, _) => _search.text.isEmpty
+              ? const SizedBox.shrink()
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: context.tr('clear'),
+                  onPressed: () {
+                    _search.clear();
+                    vm.setSearch('');
+                  },
+                ),
+        ),
+      ),
+      onChanged: vm.setSearch,
+    );
+    // The list's own inset, so the toolbar lines up with the drop zone and
+    // the table under it.
+    final inset = dnListInset(table: wide);
+    return Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        inset,
+        InSpacing.lg(context),
+        inset,
+        InSpacing.lg(context),
+      ),
+      child: wide
+          ? _wideToolbar(context, state, vm, field)
+          : Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: field,
+              ),
+            ),
+    );
+  }
+
+  /// React's table toolbar (`datatables/Actions.tsx`): the search, the
+  /// Lifecycle and Status filters showing what they hold, and the way to
+  /// Templates, Users and Settings for the roles that may see them. It wraps
+  /// rather than overflow a narrow-ish pane.
+  Widget _wideToolbar(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel vm,
+    Widget field,
+  ) {
+    String names(Iterable<String> keys, List<String> order) {
+      final sorted = [
+        for (final k in order)
+          if (keys.contains(k)) context.tr(k),
+      ];
+      return sorted.isEmpty ? context.tr('all') : sorted.join(', ');
+    }
+
+    Widget filter(String labelKey, String value) => OutlinedButton(
+      style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+      onPressed: () => _pickFilters(context, vm),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              '${context.tr(labelKey)}: $value',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
-      );
+          const SizedBox(width: 4),
+          const Icon(Icons.arrow_drop_down, size: 20),
+        ],
+      ),
+    );
+
+    Widget link(IconData icon, String labelKey, String route) =>
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          icon: Icon(icon, size: 18),
+          label: Text(context.tr(labelKey)),
+          onPressed: () => context.go(route),
+        );
+
+    final login = state.login;
+    return Wrap(
+      spacing: InSpacing.sm,
+      runSpacing: InSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(width: 320, child: field),
+        filter('lifecycle', names(vm.states, kDocuNinjaStateFilters)),
+        filter('status', names(vm.statuses, kDocuNinjaStatusFilters)),
+        if (state.can('blueprints', DnAction.view))
+          link(Icons.copy_all_outlined, 'templates', '/docuninja/templates'),
+        if (login?.companyUser.isOwner ?? false)
+          link(Icons.group_outlined, 'users', '/docuninja/users'),
+        if (login != null && dnIsAdmin(login.companyUser))
+          link(Icons.settings_outlined, 'settings', '/docuninja/settings'),
+      ],
+    );
+  }
+
+  /// Back to everything: no search, React's default Active and no status.
+  void _clearFilters(DocuNinjaDocumentsViewModel vm) {
+    _search.clear();
+    vm.setSearch('');
+    vm.setFilters(statuses: const {}, states: const {'active'});
+  }
 
   Widget _body(
     BuildContext context,
@@ -449,6 +630,8 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           key: ObjectKey(vm),
           vm: vm,
           selectable: _bulkActions(state).isNotEmpty,
+          header: _dropZone(state),
+          onClearFilters: () => _clearFilters(vm),
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
           actionsFor: (doc) {
             final items = _rowItems(state, vm, doc);
@@ -539,6 +722,28 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           Icons.picture_as_pdf_outlined,
           'view_pdf',
           () async => context.go('/docuninja/${doc.id}/pdf'),
+        ),
+      // React's row Audit Log and Download, on a completed document, the
+      // rows a user downloads from; DocuNinja's own file names.
+      if (completed)
+        item(
+          _RowAction.auditLog,
+          Icons.fact_check_outlined,
+          'audit_log',
+          () => _rowDownload(
+            () => context.read<DocuNinjaApi>().auditLog(doc.id),
+            '${title}_audit_log',
+          ),
+        ),
+      if (completed)
+        item(
+          _RowAction.download,
+          Icons.download_outlined,
+          'download',
+          () => _rowDownload(
+            () => context.read<DocuNinjaApi>().download(doc.id),
+            title,
+          ),
         ),
       if (!doc.isDeleted && canCreate)
         item(
@@ -664,6 +869,23 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   });
 
   /// One row action at a time; the list re-reads after it either way.
+  /// One download at a time, as the document page has it; the row menu
+  /// stays usable for the rest meanwhile.
+  bool _rowDownloading = false;
+
+  Future<void> _rowDownload(
+    Future<DnFileBytes> Function() fetch,
+    String fallbackName,
+  ) async {
+    if (_rowDownloading) return;
+    _rowDownloading = true;
+    try {
+      await dnSaveFile(context, fetch: fetch, fallbackName: fallbackName);
+    } finally {
+      _rowDownloading = false;
+    }
+  }
+
   Future<void> _rowRun(
     DocuNinjaDocumentsViewModel vm,
     Future<void> Function() run,
@@ -707,6 +929,8 @@ enum _RowAction {
   edit,
   open,
   viewPdf,
+  auditLog,
+  download,
   clone,
   makeTemplate,
   voidIt,
@@ -716,6 +940,10 @@ enum _RowAction {
 }
 
 enum _MenuAction { select, templates, users, settings, refresh }
+
+class _NewDocumentIntent extends Intent {
+  const _NewDocumentIntent();
+}
 
 /// React's bulk actions on the documents table.
 final _kBulkActions = dnLifecycleBulkActions<DnDocument>(

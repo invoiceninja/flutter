@@ -109,7 +109,7 @@ void main() {
         expect(find.text('Camera'), findsOneWidget);
         expect(find.text('Photos'), findsOneWidget);
         expect(find.text('Files'), findsOneWidget);
-        expect(find.byIcon(Icons.upload_file_outlined), findsNothing);
+        expect(find.byIcon(Icons.cloud_upload_outlined), findsNothing);
       },
       variant: const TargetPlatformVariant({
         TargetPlatform.iOS,
@@ -121,7 +121,7 @@ void main() {
       'a desktop keeps the drop-or-click box',
       (tester) async {
         await _pump(tester, onFiles: (_) async {});
-        expect(find.byIcon(Icons.upload_file_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
         expect(find.text('Camera'), findsNothing);
       },
       variant: const TargetPlatformVariant({
@@ -135,7 +135,7 @@ void main() {
       'a surface that does not ask for photos keeps the box on a phone',
       (tester) async {
         await _pump(tester, allowPhotos: false, onFiles: (_) async {});
-        expect(find.byIcon(Icons.upload_file_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
         expect(find.text('Camera'), findsNothing);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),

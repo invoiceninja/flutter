@@ -1742,5 +1742,6 @@
   "before_event": "before event",
   "created_reminder_schedule": "Reminder schedule created",
   "updated_reminder_schedule": "Reminder schedule updated",
-  "deleted_reminder_schedule": "Reminder schedule deleted"
+  "deleted_reminder_schedule": "Reminder schedule deleted",
+  "not_ready_for_download": "File not ready for download"
 }

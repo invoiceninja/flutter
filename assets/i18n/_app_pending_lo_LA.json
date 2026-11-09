@@ -1735,5 +1735,6 @@
   "deleted_templates": "ລຶບແມ່ແບບ :value ລາຍການສຳເລັດແລ້ວ",
   "restored_templates": "ກູ້ຄືນແມ່ແບບ :value ລາຍການສຳເລັດແລ້ວ",
   "draw": "ແຕ້ມ",
-  "enter_initials": "ປ້ອນຕົວອັກສອນຫຍໍ້"
+  "enter_initials": "ປ້ອນຕົວອັກສອນຫຍໍ້",
+  "not_ready_for_download": "ໄຟລ໌ຍັງບໍ່ພ້ອມສຳລັບການດາວໂຫລດ"
 }

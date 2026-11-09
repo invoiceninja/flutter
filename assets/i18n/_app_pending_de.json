@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value Vorlagen erfolgreich gelöscht",
   "restored_templates": ":value Vorlagen erfolgreich wiederhergestellt",
   "draw": "Zeichnen",
-  "enter_initials": "Initialen eingeben"
+  "enter_initials": "Initialen eingeben",
+  "not_ready_for_download": "Datei nicht zum Download bereit"
 }

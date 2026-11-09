@@ -1724,5 +1724,6 @@
   "deleted_templates": ":value mallar har tagits bort",
   "restored_templates": ":value mallar har återställts",
   "draw": "Rita",
-  "enter_initials": "Ange initialer"
+  "enter_initials": "Ange initialer",
+  "not_ready_for_download": "Filen är inte redo för nedladdning"
 }

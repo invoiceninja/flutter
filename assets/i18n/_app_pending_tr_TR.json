@@ -1735,5 +1735,6 @@
   "deleted_templates": ":value şablon başarıyla silindi",
   "restored_templates": ":value şablon başarıyla geri yüklendi",
   "draw": "Çiz",
-  "enter_initials": "Baş harfleri girin"
+  "enter_initials": "Baş harfleri girin",
+  "not_ready_for_download": "Dosya indirmeye hazır değil"
 }

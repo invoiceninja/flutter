@@ -1735,5 +1735,6 @@
   "deleted_templates": "Úspěšně smazáno :value šablon",
   "restored_templates": "Úspěšně obnoveno :value šablon",
   "draw": "Kreslit",
-  "enter_initials": "Zadejte iniciály"
+  "enter_initials": "Zadejte iniciály",
+  "not_ready_for_download": "Soubor není připraven ke stažení"
 }

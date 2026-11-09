@@ -6,6 +6,7 @@ import 'package:admin/ui/core/list/invoice_kpi_intents.dart';
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/router.dart' show buildRouter;
+import 'package:admin/domain/docuninja/docuninja_settings_tabs.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 
@@ -847,6 +848,29 @@ void main() {
       expect(parseAppDeepLink(app('/docuninja/D1/pdf'), _registry()), isNull);
       expect(parseAppDeepLink(app('/docuninja/../x'), _registry()), isNull);
       expect(parseAppDeepLink(app('/docuninjax/D1'), _registry()), isNull);
+    });
+
+    test('a settings tab opens; an unknown one is refused', () {
+      Uri app(String route) => Uri.parse('invoiceninja://app$route');
+      for (final tab in kDocuNinjaSettingsTabs) {
+        final target = parseAppDeepLink(
+          app('/docuninja/settings/$tab?company=C'),
+          _registry(),
+        )!;
+        expect(target.path, '/docuninja/settings/$tab');
+        expect(target.companyId, 'C');
+      }
+      expect(
+        parseAppDeepLink(app('/docuninja/settings/nope'), _registry()),
+        isNull,
+      );
+      expect(
+        parseAppDeepLink(
+          app('/docuninja/settings/email_templates/x'),
+          _registry(),
+        ),
+        isNull,
+      );
     });
 
     test('no link without an id or a company', () {

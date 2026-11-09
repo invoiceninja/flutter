@@ -1735,5 +1735,6 @@
   "deleted_templates": "ลบเทมเพลต :value รายการเรียบร้อยแล้ว",
   "restored_templates": "กู้คืนเทมเพลต :value รายการเรียบร้อยแล้ว",
   "draw": "วาด",
-  "enter_initials": "ป้อนอักษรย่อ"
+  "enter_initials": "ป้อนอักษรย่อ",
+  "not_ready_for_download": "ไฟล์ยังไม่พร้อมให้ดาวน์โหลด"
 }

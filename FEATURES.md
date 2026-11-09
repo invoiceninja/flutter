@@ -702,7 +702,7 @@ The company-wide list of every uploaded file, whatever record it is attached to 
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | DocuNinja — document list | ✅ | ❌ | ✅ |  | Sidebar "DocuNinja" (hosted only): Join, company setup, plan wall, then the list with search, status filter and paging, each row's actions, and bulk archive / restore / delete (templates and users too) |
-| DocuNinja — create document | ✅ | ❌ | 🟡 |  | Upload (name, files, password-protected PDFs) is native; the fields are placed in the builder, which opens in the browser for now |
+| DocuNinja — create document | ✅ | ❌ | 🟡 |  | Upload is native: the drop zone above the list (files become a document at once) or the `+` dialog (name, files), with password-protected PDFs; the fields are placed in the builder, which opens in the browser for now |
 | DocuNinja — create blueprint / template | ✅ | ❌ | 🟡 |  | Templates list, Invoice Ninja design or your own, Options, Use Template, Clone to Template; fields are placed in the builder (browser for now) |
 | DocuNinja — drag-and-drop document builder | ✅ | ❌ | 🟡 |  | Opens React's builder in the browser, on the document's company; the in-app builder is built but off until React's embed mode is live |
 | DocuNinja — signature field mapping | ✅ | ❌ | 🟡 |  | Use Template opens the builder, which maps the template's signers itself |

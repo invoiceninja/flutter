@@ -84,7 +84,7 @@ class _CreateDialogState extends State<_CreateDialog> {
   Future<void> _add(List<UploadSource> sources) async {
     final accepted = [
       for (final s in sources)
-        if (kDnUploadExtensions.contains(_extension(s.fileName))) s,
+        if (dnAcceptsUpload(s)) s,
     ];
     unawaited(
       releaseCapturedPhotos(
@@ -108,69 +108,17 @@ class _CreateDialogState extends State<_CreateDialog> {
     });
   }
 
-  static String _extension(String name) {
-    final dot = name.lastIndexOf('.');
-    return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
-  }
-
-  /// React asks for a password-protected PDF's password and uploads it as
-  /// `name.pdf|password`. Null when the user cancels.
-  ///
-  /// The check here only sees that the file is encrypted. A PDF with just an
-  /// owner password (permissions, no password to open it) is encrypted too,
-  /// and React would not ask; so the prompt takes an empty answer as "it
-  /// opens without one" and uploads the file as it is.
-  Future<List<DnUploadPart>?> _parts() async {
-    final parts = <DnUploadPart>[];
-    for (final f in _files) {
-      String? filename;
-      if (_extension(f.fileName) == 'pdf' && await _isProtected(f)) {
-        if (!mounted) return null;
-        final password = await _askPassword(f.fileName);
-        if (password == null) return null;
-        if (password.isNotEmpty) {
-          filename = dnProtectedFileName(f.fileName, password);
-        }
-      }
-      parts.add((field: 'files[]', source: f, filename: filename));
-    }
-    return parts;
-  }
-
-  static const _probe = 1024 * 1024;
-
-  Future<bool> _isProtected(UploadSource f) async {
-    try {
-      final length = await f.length();
-      final head = await f.readRange(0, math.min(length, _probe));
-      final tail = await f.readRange(math.max(0, length - _probe), length);
-      return dnLooksPasswordProtected(head, tail);
-    } on Object catch (e, st) {
-      _log.warning(
-        'Could not read ${f.fileName} to check for a password',
-        e,
-        st,
-      );
-      return false;
-    }
-  }
-
-  Future<String?> _askPassword(String fileName) => showDialog<String>(
-    context: context,
-    builder: (context) => _PasswordDialog(fileName: fileName),
-  );
-
   Future<void> _save() async {
     if (_saving) return;
     if (_files.isEmpty) {
-      setState(() => _filesError = context.tr('dropzone_default_message'));
+      setState(() => _filesError = context.tr('select_file'));
       return;
     }
     setState(() {
       _saving = true;
       _nameError = null;
     });
-    final parts = await _parts();
+    final parts = await dnUploadParts(context, _files);
     if (!mounted) return;
     if (parts == null) {
       setState(() => _saving = false);
@@ -241,6 +189,9 @@ class _CreateDialogState extends State<_CreateDialog> {
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
                     labelText: context.tr('name'),
+                    // React starts the name as this; it is what an empty
+                    // field saves as.
+                    hintText: context.tr('untitled_document'),
                     errorText: _nameError,
                   ),
                   onChanged: (_) => _nameTyped = true,
@@ -297,6 +248,161 @@ class _CreateDialogState extends State<_CreateDialog> {
       ),
     );
   }
+}
+
+/// The file is one DocuNinja takes ([kDnUploadExtensions]).
+bool dnAcceptsUpload(UploadSource s) {
+  final name = s.fileName;
+  final dot = name.lastIndexOf('.');
+  final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+  return kDnUploadExtensions.contains(ext);
+}
+
+/// The multipart parts for [files]. React asks for a password-protected
+/// PDF's password and uploads it as `name.pdf|password`. Null when the user
+/// cancels a password prompt.
+///
+/// The check here only sees that the file is encrypted. A PDF with just an
+/// owner password (permissions, no password to open it) is encrypted too,
+/// and React would not ask; so the prompt takes an empty answer as "it
+/// opens without one" and uploads the file as it is.
+Future<List<DnUploadPart>?> dnUploadParts(
+  BuildContext context,
+  List<UploadSource> files,
+) async {
+  final parts = <DnUploadPart>[];
+  for (final f in files) {
+    String? filename;
+    if (f.fileName.toLowerCase().endsWith('.pdf') && await _isProtected(f)) {
+      if (!context.mounted) return null;
+      final password = await showDialog<String>(
+        context: context,
+        builder: (context) => _PasswordDialog(fileName: f.fileName),
+      );
+      if (password == null) return null;
+      if (password.isNotEmpty) {
+        filename = dnProtectedFileName(f.fileName, password);
+      }
+    }
+    parts.add((field: 'files[]', source: f, filename: filename));
+  }
+  return parts;
+}
+
+const _probe = 1024 * 1024;
+
+Future<bool> _isProtected(UploadSource f) async {
+  try {
+    final length = await f.length();
+    final head = await f.readRange(0, math.min(length, _probe));
+    final tail = await f.readRange(math.max(0, length - _probe), length);
+    return dnLooksPasswordProtected(head, tail);
+  } on Object catch (e, st) {
+    _log.warning('Could not read ${f.fileName} to check for a password', e, st);
+    return false;
+  }
+}
+
+/// React's drop zone above its documents table
+/// (`DocumentCreationDropZone.tsx`): drop or pick files and the document is
+/// created at once, named after the first file, with no dialog. On a phone
+/// or tablet it is Camera / Photos / Files. [onCreated] runs even when the
+/// zone has gone meanwhile, so the host can still land on the new document.
+class DocuNinjaDropZone extends StatefulWidget {
+  const DocuNinjaDropZone({
+    super.key,
+    required this.api,
+    required this.onCreated,
+    this.onMaybeCreated,
+  });
+
+  final DocuNinjaApi api;
+  final ValueChanged<DnDocument> onCreated;
+
+  /// The upload timed out and may have landed.
+  final VoidCallback? onMaybeCreated;
+
+  @override
+  State<DocuNinjaDropZone> createState() => _DocuNinjaDropZoneState();
+}
+
+class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
+  bool _busy = false;
+
+  Future<void> _onFiles(List<UploadSource> sources) async {
+    if (_busy) return;
+    // Read now: the upload may outlive the zone.
+    final intake = intakeOf(context);
+    final accepted = sources.where(dnAcceptsUpload).toList();
+    if (accepted.length < sources.length) {
+      Notify.error(context, context.tr('invalid_file'));
+    }
+    if (accepted.isEmpty) {
+      unawaited(releaseCapturedPhotos(intake, sources));
+      return;
+    }
+    final fallback = context.tr('untitled_document');
+    setState(() => _busy = true);
+    try {
+      final parts = await dnUploadParts(context, accepted);
+      if (!mounted) return;
+      if (parts == null) {
+        Notify.error(context, context.tr('pdf_password_required'));
+        return;
+      }
+      final doc = await widget.api.createDocument(
+        description: dnDocumentNameFromFile(
+          accepted.first.fileName,
+          fallback: fallback,
+        ),
+        files: parts,
+      );
+      widget.onCreated(doc);
+    } on DocuNinjaException catch (e) {
+      if (e.statusCode == 408) {
+        // May have landed: the list re-reads rather than invite a retry.
+        widget.onMaybeCreated?.call();
+      }
+      if (!mounted) return;
+      final fieldError = e.fieldErrors.values
+          .map((v) => v.firstOrNull)
+          .nonNulls
+          .firstOrNull;
+      Notify.error(
+        context,
+        e.statusCode == 408
+            ? context.tr('an_error_occurred')
+            : fieldError ?? context.tr('an_error_occurred_try_again'),
+      );
+    } on Object catch (e, st) {
+      _log.warning('Creating a DocuNinja document failed', e, st);
+      if (mounted) {
+        Notify.error(context, context.tr('an_error_occurred_try_again'));
+      }
+    } finally {
+      // The upload has read them: a photo taken here goes back now.
+      unawaited(releaseCapturedPhotos(intake, sources));
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FileDropZone(
+    allowedExtensions: kDnUploadExtensions,
+    allowMultiple: true,
+    allowPhotos: true,
+    enabled: !_busy,
+    preview: _busy
+        ? const SizedBox.square(
+            dimension: 32,
+            child: Padding(
+              padding: EdgeInsets.all(4),
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          )
+        : null,
+    onFiles: _onFiles,
+  );
 }
 
 /// React's "PDF password required" prompt for one file.

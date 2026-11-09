@@ -18,11 +18,10 @@ import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
-import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
-import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/dashed_border.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -34,12 +33,12 @@ import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_document_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_download.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_return_refresh.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
 import 'package:admin/utils/bidi.dart';
-import 'package:admin/utils/file_names.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// One DocuNinja document (`/docuninja/:id`), as React's `show/Document.tsx`
@@ -500,7 +499,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       case _Action.viewPdf:
         context.go('/docuninja/${doc.id}/pdf');
       case _Action.send:
-        if (!await _confirmSend(context, doc)) return;
+        if (!await _confirmSend(context, doc.invitations)) return;
         final ok = await vm.send();
         if (!context.mounted) return;
         _report(context, ok, 'document_queued_for_sending');
@@ -588,7 +587,8 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     }
   }
 
-  /// The signed PDF or the audit log, under the name DocuNinja gives it.
+  /// The signed PDF or the audit log, under the name DocuNinja gives it
+  /// (`dnSaveFile`); one at a time.
   Future<void> _save(
     BuildContext context,
     Future<DnFileBytes> Function() fetch,
@@ -597,27 +597,20 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     if (_downloading) return;
     setState(() => _downloading = true);
     try {
-      final file = await fetch();
-      if (!context.mounted) return;
-      final base = (file.filename ?? fallbackName).replaceAll(
-        RegExp(r'\.pdf$', caseSensitive: false),
-        '',
-      );
-      await downloadPdf(context, fileName: '${sanitizeFileName(base)}.pdf')(
-        file.bytes,
-      );
-    } on Object {
-      if (context.mounted) {
-        Notify.error(context, context.tr('an_error_occurred_try_again'));
-      }
+      await dnSaveFile(context, fetch: fetch, fallbackName: fallbackName);
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
   }
 
-  /// React's send dialog (`SendInvitationsModal.tsx`): who will be emailed,
-  /// in signing order. Outward-facing, so the primary is not autofocused.
-  Future<bool> _confirmSend(BuildContext context, DnDocument doc) async {
+  /// React's send dialogs (`SendInvitationsModal.tsx` for the document,
+  /// `Invitations.tsx` for one signer): who will be emailed, one line each in
+  /// React's `- Name (email)` form, in the order DocuNinja lists them.
+  /// Outward-facing, so the primary is not autofocused.
+  Future<bool> _confirmSend(
+    BuildContext context,
+    List<DnInvitation> invitations,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -630,15 +623,12 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           children: [
             Text(context.tr('send_emails_to_following')),
             const SizedBox(height: InSpacing.sm),
-            for (final i in doc.invitationsInOrder)
+            for (final i in invitations)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text(
-                  [
-                    i.signerName,
-                    if (i.signerEmail.isNotEmpty) ltrIsolate(i.signerEmail),
-                  ].where((s) => s.isNotEmpty).join(' · '),
-                ),
+                // A dialog is outside the page's selection area, so the
+                // email can be an isolate inside the line.
+                child: Text('- ${_recipient(i)}'),
               ),
           ],
         ),
@@ -664,15 +654,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     DocuNinjaDocumentViewModel vm,
     DnInvitation invitation,
   ) async {
-    // React's per-signer Send Email confirms naming that one recipient.
-    final confirmed = await showConfirmActionDialog(
-      context,
-      title: context.tr('send_confirmation'),
-      subject: invitation.signerName.isNotEmpty
-          ? invitation.signerName
-          : invitation.signerEmail,
-    );
-    if (!confirmed || !context.mounted) return;
+    // React's per-signer Send Email: the same question, naming that one
+    // recipient.
+    if (!await _confirmSend(context, [invitation])) return;
+    if (!context.mounted) return;
     final ok = await vm.send(only: invitation);
     if (!context.mounted) return;
     _report(context, ok, 'document_queued_for_sending');
@@ -700,8 +685,19 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
 String _title(BuildContext context, DnDocument doc) =>
     doc.description.isEmpty ? context.tr('untitled_document') : doc.description;
 
-/// React's `Invitations.tsx`: each signer, in the order DocuNinja lists
-/// them, with a status, where they are, React's Copy Link and Send Email.
+/// One recipient as React's send dialogs write it (`getRecipient`):
+/// `Name (email)`, or the email alone when there is no name. The email is
+/// isolated left-to-right; only for text outside the selectable page.
+String _recipient(DnInvitation i) {
+  final name = i.signerName;
+  final email = i.signerEmail.isEmpty ? '' : ltrIsolate(i.signerEmail);
+  if (name.isEmpty) return email;
+  return email.isEmpty ? name : '$name ($email)';
+}
+
+/// React's `Invitations.tsx`: a card per signer, in the order DocuNinja
+/// lists them, with a status, where they are, React's Copy Link and Send
+/// Email; with none, React's dashed box into the builder.
 class _Invitations extends StatelessWidget {
   const _Invitations({
     required this.document,
@@ -723,9 +719,7 @@ class _Invitations extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = context.inTheme;
     final rows = document.invitations;
-    final showResend = dnShowsResend(document);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -738,106 +732,233 @@ class _Invitations extends StatelessWidget {
           ),
         ),
         const SizedBox(height: InSpacing.sm),
-        if (rows.isEmpty && onAddSignatories != null)
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: onAddSignatories,
-              icon: const Icon(Icons.person_add_alt_outlined, size: 18),
-              label: Text(context.tr('add_signatories')),
-            ),
-          )
-        else if (rows.isEmpty)
-          Text(
-            context.tr('add_signatories'),
-            style: TextStyle(color: tokens.ink3),
-          )
+        if (rows.isEmpty)
+          _AddSignatoriesBox(onTap: onAddSignatories)
         else
-          for (final i in rows)
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 56),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // React's "Client contact:" / "User:" over each
-                        // signer: who on whose side is asked to sign.
-                        Wrap(
-                          spacing: InSpacing.sm,
-                          runSpacing: 2,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              '${context.tr(i.clientContactId.isNotEmpty ? 'client_contact' : 'user')}:',
-                              style: TextStyle(
-                                color: tokens.ink3,
-                                fontSize: 12,
-                              ),
-                            ),
-                            // React's per-signer badge.
-                            _SignerPill(invitation: i),
-                          ],
-                        ),
-                        LtrText(
-                          i.signerName.isNotEmpty
-                              ? i.signerName
-                              : i.signerEmail,
-                          // A name may be Arabic or Hebrew; an email is not.
-                          keepRtlScript: true,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        if (i.signerName.isNotEmpty && i.signerEmail.isNotEmpty)
-                          LtrText(
-                            i.signerEmail,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: tokens.ink3, fontSize: 12),
-                          ),
-                        _StateLine(invitation: i, formatter: formatter),
-                      ],
-                    ),
-                  ),
-                  // React's per-signer Copy Link: the web app's sign page for
-                  // this signer (behind its sign-in), for a signer linked to
-                  // a contact or user, until the document is finished. It
-                  // copies on every platform: the link is for the team, and
-                  // a share sheet beside a client's name invites sending it
-                  // to a client who would meet a sign-in wall.
-                  if (showResend &&
-                      (i.clientContactId.isNotEmpty || i.userId.isNotEmpty))
-                    IconButton(
-                      icon: const Icon(Icons.link),
-                      tooltip: context.tr('copy_link'),
-                      onPressed: () => copyToClipboard(
-                        context,
-                        dnWebAppSignLink(
-                          documentId: document.id,
-                          invitationId: i.id,
-                        ).toString(),
-                        label: context.tr('link'),
-                      ),
-                    ),
-                  if (showResend)
-                    IconButton(
-                      icon: const Icon(Icons.forward_to_inbox_outlined),
-                      tooltip: context.tr('send_email'),
-                      onPressed: !busy && dnCanResend(document, i)
-                          ? () => onResend(i)
-                          : null,
-                    ),
-                ],
-              ),
+          for (var n = 0; n < rows.length; n++) ...[
+            if (n > 0) const SizedBox(height: 16),
+            _SignerCard(
+              document: document,
+              invitation: rows[n],
+              formatter: formatter,
+              busy: busy,
+              onResend: onResend,
             ),
+          ],
       ],
     );
   }
 }
 
-/// React's badge for one signer: signed, viewed, sent or pending.
+/// React's empty signers box: a dashed box with a plus, the whole of it a
+/// way into the builder. Dimmed, and not a button, where the builder cannot
+/// open.
+class _AddSignatoriesBox extends StatelessWidget {
+  const _AddSignatoriesBox({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final enabled = onTap != null;
+    final ink = enabled ? tokens.ink2 : tokens.ink4;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(InRadii.r1),
+    );
+    return DashedBorder(
+      color: tokens.borderStrong,
+      radius: InRadii.r1,
+      child: Material(
+        color: tokens.surface,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: shape,
+          child: Semantics(
+            button: enabled,
+            enabled: enabled,
+            child: SizedBox(
+              height: 160,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 32, color: ink),
+                    const SizedBox(height: 16),
+                    Text(
+                      context.tr('add_signatories'),
+                      style: TextStyle(color: ink),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One signer as React's card shows them: the name and status, who they are
+/// on whose side, where they are, then Copy Link and Send Email until the
+/// document is finished.
+class _SignerCard extends StatelessWidget {
+  const _SignerCard({
+    required this.document,
+    required this.invitation,
+    required this.formatter,
+    required this.busy,
+    required this.onResend,
+  });
+
+  final DnDocument document;
+  final DnInvitation invitation;
+  final Formatter? formatter;
+  final bool busy;
+  final ValueChanged<DnInvitation> onResend;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final i = invitation;
+    final showResend = dnShowsResend(document);
+    final label = context.tr(
+      i.clientContactId.isNotEmpty ? 'client_contact' : 'user',
+    );
+    final line = TextStyle(color: tokens.ink2, fontSize: 13);
+    // React's per-signer Copy Link: the web app's sign page for this signer
+    // (behind its sign-in), for a signer linked to a contact or user, until
+    // the document is finished. It copies on every platform: the link is
+    // for the team, and a share sheet beside a client's name invites
+    // sending it to a client who would meet a sign-in wall.
+    final copyLink =
+        showResend && (i.clientContactId.isNotEmpty || i.userId.isNotEmpty);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: SizedBox(
+          width: double.infinity,
+          child: DashedBorder(
+            color: tokens.borderStrong,
+            radius: InRadii.r1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: tokens.surface,
+                borderRadius: BorderRadius.circular(InRadii.r1),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: LtrText(
+                            i.signerName.isNotEmpty
+                                ? i.signerName
+                                : i.signerEmail.isNotEmpty
+                                ? i.signerEmail
+                                : label,
+                            // A name may be Arabic or Hebrew; an email is not.
+                            keepRtlScript: true,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: tokens.ink,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: InSpacing.sm),
+                        // React's per-signer badge.
+                        _SignerPill(invitation: i),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // React's "Client contact:" / "User:": who on whose side
+                    // is asked to sign.
+                    Row(
+                      children: [
+                        Text('$label:', style: line),
+                        if (i.signerEmail.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: LtrText(
+                              i.signerEmail,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: line,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: tokens.ink3,
+                        ),
+                        const SizedBox(width: InSpacing.sm),
+                        Expanded(
+                          child: _StateLine(
+                            invitation: i,
+                            formatter: formatter,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (showResend) ...[
+                      const SizedBox(height: 12),
+                      // A Wrap, so a large text scale puts Send Email on
+                      // its own line instead of overflowing the card.
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        runSpacing: 4,
+                        children: [
+                          if (copyLink)
+                            TextButton(
+                              onPressed: () => copyToClipboard(
+                                context,
+                                dnWebAppSignLink(
+                                  documentId: document.id,
+                                  invitationId: i.id,
+                                ).toString(),
+                                label: context.tr('link'),
+                              ),
+                              child: Text(context.tr('copy_link')),
+                            ),
+                          TextButton.icon(
+                            onPressed: !busy && dnCanResend(document, i)
+                                ? () => onResend(i)
+                                : null,
+                            icon: const Icon(Icons.send, size: 17),
+                            label: Text(context.tr('send_email')),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// React's badge for one signer: signed green, viewed yellow, sent blue,
+/// pending neutral.
 class _SignerPill extends StatelessWidget {
   const _SignerPill({required this.invitation});
 
@@ -850,10 +971,10 @@ class _SignerPill extends StatelessWidget {
       DnInvitationState.signed => ('signed', tokens.paid, tokens.paidSoft),
       DnInvitationState.viewed => (
         'viewed',
-        tokens.partial,
-        tokens.partialSoft,
+        tokens.warning,
+        tokens.warningSoft,
       ),
-      DnInvitationState.sent => ('sent', tokens.sent, tokens.sentSoft),
+      DnInvitationState.sent => ('sent', tokens.partial, tokens.partialSoft),
       DnInvitationState.pending => ('pending', tokens.ink3, tokens.draftSoft),
     };
     return StatusPill(
@@ -885,7 +1006,7 @@ class _StateLine extends StatelessWidget {
       DnInvitationState.pending => ('created', '${i.raw['created_at'] ?? ''}'),
     };
     final on = dnLocalDate(formatter, at);
-    final style = TextStyle(color: context.inTheme.ink2, fontSize: 12);
+    final style = TextStyle(color: context.inTheme.ink2, fontSize: 13);
     if (on.isEmpty) return Text(context.tr(key), style: style);
     return Wrap(
       spacing: 4,
@@ -897,7 +1018,10 @@ class _StateLine extends StatelessWidget {
   }
 }
 
-/// React's `TimelineLayout.tsx`: each step, done or still to come.
+/// React's `TimelineLayout.tsx` / `Timeline.tsx`: a stepper, each step a dot
+/// on a rail joined to the next (solid once the next step is done, dashed
+/// until then), its title with a done / waiting badge, then what happened
+/// and when.
 class _Timeline extends StatelessWidget {
   const _Timeline({required this.entries, required this.formatter});
 
@@ -907,8 +1031,6 @@ class _Timeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = context.inTheme;
-    final f = formatter;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -921,53 +1043,181 @@ class _Timeline extends StatelessWidget {
           ),
         ),
         const SizedBox(height: InSpacing.sm),
-        for (final e in entries)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  e.completed
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  // The step's state, which the icon alone shows.
-                  semanticLabel: context.tr(
-                    e.completed ? 'completed' : 'pending',
-                  ),
-                  size: 18,
-                  color: e.completed ? tokens.paid : tokens.ink3,
-                ),
-                const SizedBox(width: InSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        e.title,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      if (e.description.isNotEmpty)
-                        Text(
-                          e.description,
-                          style: TextStyle(color: tokens.ink2, fontSize: 12),
-                        ),
-                      // `YYYY-MM-DD HH:MM:SS` in UTC; the formatter shows it
-                      // in local time, in the company's date format.
-                      if (e.time.isNotEmpty && f != null)
-                        LtrText(
-                          f.date(e.time, showTime: true, showSeconds: false),
-                          style: TextStyle(color: tokens.ink3, fontSize: 12),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+        for (var n = 0; n < entries.length; n++)
+          _TimelineStep(
+            entry: entries[n],
+            formatter: formatter,
+            // React's `nextItemCompleted`; no connector after the last step.
+            next: n + 1 < entries.length
+                ? (entries[n + 1].completed ? _Rail.solid : _Rail.dashed)
+                : _Rail.none,
           ),
       ],
     );
   }
+}
+
+enum _Rail { none, solid, dashed }
+
+class _TimelineStep extends StatelessWidget {
+  const _TimelineStep({
+    required this.entry,
+    required this.formatter,
+    required this.next,
+  });
+
+  final DnTimelineEntry entry;
+  final Formatter? formatter;
+  final _Rail next;
+
+  /// The rail column's width, and the dot's centre from the step's top (the
+  /// middle of the title's first line).
+  static const double _railWidth = 24;
+  static const double _dotY = 11;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final e = entry;
+    final f = formatter;
+    final done = e.completed;
+    return CustomPaint(
+      painter: _TimelineRailPainter(
+        dot: done ? tokens.accent : tokens.ink3,
+        halo: tokens.surface,
+        line: tokens.borderStrong,
+        rail: next,
+        railWidth: _railWidth,
+        dotY: _dotY,
+        textDirection: Directionality.of(context),
+      ),
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: _railWidth + InSpacing.sm,
+          bottom: next == _Rail.none ? 0 : 20,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: e.title,
+                    style: TextStyle(
+                      color: tokens.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const WidgetSpan(child: SizedBox(width: InSpacing.sm)),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: tokens.border, width: 2),
+                      ),
+                      child: Icon(
+                        done ? Icons.check : Icons.access_time,
+                        // The step's state, which the badge alone shows.
+                        semanticLabel: context.tr(
+                          done ? 'completed' : 'pending',
+                        ),
+                        size: 12,
+                        color: done ? tokens.paid : tokens.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (e.description.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                e.description,
+                style: TextStyle(color: tokens.ink2, fontSize: 13),
+              ),
+            ],
+            // `YYYY-MM-DD HH:MM:SS` in UTC; the formatter shows it in local
+            // time, in the company's date format.
+            if (e.time.isNotEmpty && f != null)
+              LtrText(
+                f.date(e.time, showTime: true, showSeconds: false),
+                style: TextStyle(color: tokens.ink3, fontSize: 12),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A timeline step's rail: the connector down to the next step's dot, then
+/// the dot over it, ringed in the card's colour. The connector runs past the
+/// step's own bottom into the next step, whose dot paints over its end.
+class _TimelineRailPainter extends CustomPainter {
+  const _TimelineRailPainter({
+    required this.dot,
+    required this.halo,
+    required this.line,
+    required this.rail,
+    required this.railWidth,
+    required this.dotY,
+    required this.textDirection,
+  });
+
+  final Color dot;
+  final Color halo;
+  final Color line;
+  final _Rail rail;
+  final double railWidth;
+  final double dotY;
+  final TextDirection textDirection;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The rail column sits at the start edge.
+    final x = textDirection == TextDirection.rtl
+        ? size.width - railWidth / 2
+        : railWidth / 2;
+    final from = Offset(x, dotY);
+    final to = Offset(x, size.height + dotY);
+    final stroke = Paint()
+      ..color = line
+      ..strokeWidth = 2;
+    switch (rail) {
+      case _Rail.none:
+        break;
+      case _Rail.solid:
+        canvas.drawLine(from, to, stroke);
+      case _Rail.dashed:
+        const dash = 4.0;
+        const gap = 3.0;
+        for (var y = from.dy; y < to.dy; y += dash + gap) {
+          canvas.drawLine(
+            Offset(x, y),
+            Offset(x, (y + dash).clamp(y, to.dy)),
+            stroke,
+          );
+        }
+    }
+    canvas
+      ..drawCircle(from, 8, Paint()..color = halo)
+      ..drawCircle(from, 5, Paint()..color = dot);
+  }
+
+  @override
+  bool shouldRepaint(_TimelineRailPainter old) =>
+      old.dot != dot ||
+      old.halo != halo ||
+      old.line != line ||
+      old.rail != rail ||
+      old.railWidth != railWidth ||
+      old.dotY != dotY ||
+      old.textDirection != textDirection;
 }
 
 class _OptionsDialog extends StatefulWidget {

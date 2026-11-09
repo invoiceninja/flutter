@@ -1735,5 +1735,6 @@
   "deleted_templates": "Uspešno izbrisanih predlog: :value",
   "restored_templates": "Uspešno obnovljenih predlog: :value",
   "draw": "Riši",
-  "enter_initials": "Vnesite začetnice"
+  "enter_initials": "Vnesite začetnice",
+  "not_ready_for_download": "Datoteka ni pripravljena za prenos"
 }

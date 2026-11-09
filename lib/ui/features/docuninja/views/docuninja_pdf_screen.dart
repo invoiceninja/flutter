@@ -5,13 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_client.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
 import 'package:admin/ui/core/utils/save_download.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_download.dart';
 import 'package:admin/utils/file_names.dart';
 
 /// A completed DocuNinja document's signed PDF (`/docuninja/:id/pdf`), React's
@@ -25,8 +28,19 @@ class DocuNinjaPdfScreen extends StatefulWidget {
   State<DocuNinjaPdfScreen> createState() => _DocuNinjaPdfScreenState();
 }
 
+/// The signed file's fetch failed (not the document's), so a 400 means
+/// DocuNinja is still making it ([dnFileErrorKey]).
+class _FileFailed implements Exception {
+  const _FileFailed(this.cause);
+
+  final Object cause;
+}
+
 class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
   Future<({Uint8List bytes, String name})>? _pdf;
+
+  /// The document's name, once its page has been read (React's breadcrumb).
+  String? _title;
 
   @override
   void didChangeDependencies() {
@@ -40,11 +54,23 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
     // Only a completed document has a signed PDF: React sends any other
     // back to its page (a restored or linked route).
     final doc = await api.document(widget.id);
+    if (mounted) {
+      setState(
+        () => _title = doc.description.isEmpty
+            ? context.tr('untitled_document')
+            : doc.description,
+      );
+    }
     if (doc.status != DnDocumentStatus.completed) {
       if (mounted) context.go('/docuninja/${widget.id}');
       throw StateError('Not completed');
     }
-    final file = await api.download(widget.id);
+    final DnFileBytes file;
+    try {
+      file = await api.download(widget.id);
+    } on Object catch (e) {
+      throw _FileFailed(e);
+    }
     final name = sanitizeFileName(
       (file.filename ?? 'document').replaceAll(
         RegExp(r'\.pdf$', caseSensitive: false),
@@ -56,14 +82,20 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(context.tr('view_pdf'))),
+    appBar: AppBar(title: _appBarTitle(context)),
     body: FutureBuilder(
       future: _pdf,
       builder: (context, snapshot) {
         final pdf = snapshot.data;
         if (snapshot.hasError) {
+          final error = snapshot.error;
           return ErrorView(
-            message: context.tr('an_error_occurred_try_again'),
+            // React's "File not ready for download" on a 400.
+            message: context.tr(
+              error is _FileFailed
+                  ? dnFileErrorKey(error.cause)
+                  : 'an_error_occurred_try_again',
+            ),
             onRetry: () => setState(() => _pdf = _load()),
           );
         }
@@ -93,4 +125,26 @@ class _DocuNinjaPdfScreenState extends State<DocuNinjaPdfScreen> {
       },
     ),
   );
+
+  /// React's title, with the document's name under it as its breadcrumb
+  /// names it.
+  Widget _appBarTitle(BuildContext context) {
+    final title = _title;
+    if (title == null) return Text(context.tr('view_pdf'));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(context.tr('view_pdf')),
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink3),
+        ),
+      ],
+    );
+  }
 }

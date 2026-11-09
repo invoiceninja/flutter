@@ -10,6 +10,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/dashed_border.dart';
 import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/icon_label_tile.dart';
 
@@ -128,6 +129,9 @@ class FileDropZone extends StatefulWidget {
 
 class _FileDropZoneState extends State<FileDropZone> {
   bool _dragOver = false;
+
+  /// The pointer is over the box: React darkens the dashed border.
+  bool _hover = false;
 
   /// A picker is open. A second tap would stack another one over it.
   bool _picking = false;
@@ -259,33 +263,48 @@ class _FileDropZoneState extends State<FileDropZone> {
       widget.allowMultiple ? 'drop_files_here' : 'drop_file_here',
     );
 
-    final box = AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.lg(context),
-        vertical: InSpacing.xl,
-      ),
-      decoration: BoxDecoration(
-        color: over ? tokens.accentSoft : Colors.transparent,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-        border: Border.all(
-          color: over ? tokens.accent : tokens.border,
-          width: over ? 2 : 1,
+    // React's drop zone (`border-2 border-dashed rounded-lg p-12`, a cloud
+    // icon over the hint): every upload site in React draws this one box.
+    final borderColor = over
+        ? tokens.accent
+        : (_hover && widget.enabled ? tokens.ink3 : tokens.borderStrong);
+    final box = DashedBorder(
+      color: borderColor,
+      radius: InRadii.r2,
+      width: 2,
+      dash: 6,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          horizontal: InSpacing.lg(context),
+          vertical: InSpacing.xxl,
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          widget.preview ??
-              Icon(Icons.upload_file_outlined, size: 32, color: tokens.ink3),
-          const SizedBox(height: InSpacing.sm),
-          Text(
-            over ? activeLabel : idleLabel,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: tokens.ink2, fontSize: 13),
-          ),
-        ],
+        decoration: BoxDecoration(
+          color: over ? tokens.accentSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(InRadii.r2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            widget.preview ??
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 36,
+                  color: over ? tokens.accent : tokens.ink2,
+                ),
+            const SizedBox(height: InSpacing.sm),
+            Text(
+              over ? activeLabel : idleLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: tokens.ink,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
@@ -296,6 +315,7 @@ class _FileDropZoneState extends State<FileDropZone> {
         borderRadius: BorderRadius.circular(InRadii.r2),
         child: InkWell(
           onTap: widget.enabled ? _pick : null,
+          onHover: (h) => setState(() => _hover = h),
           borderRadius: BorderRadius.circular(InRadii.r2),
           child: box,
         ),

@@ -1735,5 +1735,6 @@
   "deleted_templates": "Se eliminaron :value plantillas correctamente",
   "restored_templates": "Se restauraron :value plantillas correctamente",
   "draw": "Dibujar",
-  "enter_initials": "Ingrese las iniciales"
+  "enter_initials": "Ingrese las iniciales",
+  "not_ready_for_download": "El archivo no está listo para descargar."
 }

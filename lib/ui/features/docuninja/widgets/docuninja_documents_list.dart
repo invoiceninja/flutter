@@ -9,7 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
-import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
@@ -31,6 +31,8 @@ class DocuNinjaDocumentsList extends StatefulWidget {
     required this.onOpen,
     this.actionsFor,
     this.selectable = false,
+    this.header,
+    this.onClearFilters,
   });
 
   final DocuNinjaDocumentsViewModel vm;
@@ -43,6 +45,13 @@ class DocuNinjaDocumentsList extends StatefulWidget {
 
   /// A row's `⋮` menu (React's row actions), or none.
   final Widget Function(DnDocument doc)? actionsFor;
+
+  /// Scrolls above the rows (React's drop zone), on an empty list too.
+  final Widget? header;
+
+  /// Clears the search and the filters, offered when they leave the list
+  /// empty — never a dead end (the app's lists' Clear filters).
+  final VoidCallback? onClearFilters;
 
   @override
   State<DocuNinjaDocumentsList> createState() => _DocuNinjaDocumentsListState();
@@ -98,12 +107,9 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
   bool _showError(DocuNinjaDocumentsViewModel vm) =>
       vm.error != null && vm.items.isNotEmpty && !vm.isLoading;
 
-  Widget _errorNotice(DocuNinjaDocumentsViewModel vm) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: DocuNinjaInlineError(
-      offline: vm.error == DnListError.offline,
-      onRetry: vm.retry,
-    ),
+  Widget _errorNotice(DocuNinjaDocumentsViewModel vm) => DocuNinjaInlineError(
+    offline: vm.error == DnListError.offline,
+    onRetry: vm.retry,
   );
 
   @override
@@ -111,94 +117,72 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
     listenable: widget.vm,
     builder: (context, _) {
       final vm = widget.vm;
-      if (!vm.hasLoaded && vm.isLoading) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (vm.items.isEmpty && vm.error != null) {
-        return vm.error == DnListError.offline
-            ? EmptyState(
-                icon: Icons.cloud_off_outlined,
-                title: context.tr('offline'),
-                action: TextButton(
-                  onPressed: vm.refresh,
-                  child: Text(context.tr('retry')),
-                ),
-              )
-            : ErrorView(
-                message: context.tr('an_error_occurred_try_again'),
-                onRetry: vm.refresh,
-              );
+      // Offline is the page's answer; anything else is answered where the
+      // rows go, as React's table does, under the drop zone and header.
+      if (vm.items.isEmpty && vm.error == DnListError.offline) {
+        return EmptyState(
+          icon: Icons.cloud_off_outlined,
+          title: context.tr('offline'),
+          action: TextButton(
+            onPressed: vm.refresh,
+            child: Text(context.tr('retry')),
+          ),
+        );
       }
       _checkAfterLayout();
       return LayoutBuilder(
         builder: (context, c) {
           final table = c.maxWidth >= kDocuNinjaTableMinWidth;
+          final inset = dnListInset(table: table);
+          Widget padded(Widget child) => SliverPadding(
+            padding: EdgeInsetsDirectional.only(
+              start: inset,
+              end: inset,
+              bottom: InSpacing.lg(context),
+            ),
+            sliver: SliverToBoxAdapter(child: child),
+          );
           return RefreshIndicator(
             onRefresh: vm.refresh,
             child: CustomScrollView(
               controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                // React's page scrolls as one: the drop zone, then the
+                // table under it.
+                if (widget.header != null) padded(widget.header!),
                 // A failed refresh says so where the pull happened; a failed
                 // next page says so under the rows.
                 if (_showError(vm) && !vm.errorFromMore)
-                  SliverToBoxAdapter(child: _errorNotice(vm)),
-                // A new search or filter is on its way: the rows below are
-                // the last one's.
-                if (vm.isRequerying)
-                  const SliverToBoxAdapter(
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
+                  padded(_errorNotice(vm)),
                 if (table)
-                  SliverToBoxAdapter(
-                    child: _TableHeader(
-                      leadingWidth: widget.selectable ? kDnSelectSlotWidth : 0,
-                      // Room for the rows' `⋮`, so the columns line up.
-                      trailingWidth: widget.actionsFor == null
-                          ? 0
-                          : actionButtonSize(),
+                  SliverPadding(
+                    padding: EdgeInsetsDirectional.only(
+                      start: inset,
+                      end: inset,
+                      bottom: InSpacing.lg(context),
                     ),
-                  ),
-                if (vm.items.isEmpty && vm.isRequerying)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: SizedBox.shrink(),
-                  )
-                else if (vm.items.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.draw_outlined,
-                      title: context.tr('no_records_found'),
-                    ),
+                    sliver: _tableCard(context, vm),
                   )
                 else
-                  SliverList.separated(
-                    itemCount: vm.items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final doc = vm.items[i];
-                      final row = _rowParts(vm, doc, table: table);
-                      return table
-                          ? _TableRow(
-                              doc: doc,
-                              created: _date(_createdAt(doc)),
-                              parts: row,
-                            )
-                          : _NarrowRow(
-                              doc: doc,
-                              created: _date(_createdAt(doc)),
-                              parts: row,
-                            );
-                    },
-                  ),
-                if (_showError(vm) && vm.errorFromMore)
-                  SliverToBoxAdapter(child: _errorNotice(vm)),
-                if (vm.isLoadingMore)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(InSpacing.xl),
-                      child: Center(child: CircularProgressIndicator()),
+                  ..._narrowSlivers(context, vm),
+                // React's "Total results" under the table.
+                if (vm.items.isNotEmpty)
+                  SliverPadding(
+                    padding: EdgeInsetsDirectional.only(
+                      start: inset,
+                      end: inset,
+                      top: table ? 0 : InSpacing.lg(context),
+                      bottom: InSpacing.xl,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: Text(
+                        '${context.tr('total_results')}: ${vm.total}',
+                        style: TextStyle(
+                          color: context.inTheme.ink3,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -207,6 +191,184 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
         },
       );
     },
+  );
+
+  /// The rows, or React's empty-table line, the next-page error and spinner.
+  List<Widget> _rowSlivers(
+    BuildContext context,
+    DocuNinjaDocumentsViewModel vm, {
+    required bool table,
+  }) => [
+    // A new search or filter is on its way: the rows below are the last
+    // one's.
+    if (vm.isRequerying)
+      const SliverToBoxAdapter(child: LinearProgressIndicator(minHeight: 2)),
+    if (!vm.hasLoaded && vm.isLoading)
+      const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      )
+    else if (vm.items.isEmpty && vm.error != null)
+      SliverToBoxAdapter(
+        child: _NoRecords(
+          boxed: table,
+          messageKey: 'an_error_occurred_try_again',
+          actionKey: 'retry',
+          onAction: vm.refresh,
+        ),
+      )
+    else if (vm.items.isEmpty && !vm.isRequerying)
+      SliverToBoxAdapter(
+        child: _NoRecords(
+          boxed: table,
+          actionKey: 'clear_filters',
+          onAction: _filtered(vm) ? widget.onClearFilters : null,
+        ),
+      )
+    else
+      SliverList.separated(
+        itemCount: vm.items.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, i) {
+          final doc = vm.items[i];
+          final row = _rowParts(vm, doc, table: table);
+          final created = _date(_createdAt(doc));
+          // Each row hosts its own ink: the card's fill paints over the
+          // Scaffold's, so a hover drawn there would be hidden.
+          return Material(
+            type: MaterialType.transparency,
+            child: table
+                ? _TableRow(doc: doc, created: created, parts: row)
+                : _NarrowRow(doc: doc, created: created, parts: row),
+          );
+        },
+      ),
+    if (_showError(vm) && vm.errorFromMore)
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: InSpacing.sm,
+        ),
+        sliver: SliverToBoxAdapter(child: _errorNotice(vm)),
+      ),
+    if (vm.isLoadingMore)
+      const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(InSpacing.xl),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+  ];
+
+  /// React's table on a wide pane: the column header and the rows in one
+  /// bordered card, sized to its rows, as the app's own wide lists draw it.
+  Widget _tableCard(BuildContext context, DocuNinjaDocumentsViewModel vm) {
+    final tokens = context.inTheme;
+    return DecoratedSliver(
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        border: Border.all(color: tokens.border),
+        borderRadius: BorderRadius.circular(InRadii.r3),
+        boxShadow: tokens.shadow1,
+      ),
+      sliver: SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(
+            child: _TableHeader(
+              leading: widget.selectable ? _selectAll(vm) : null,
+              // Room for the rows' `⋮`, so the columns line up.
+              trailingWidth: widget.actionsFor == null ? 0 : actionButtonSize(),
+            ),
+          ),
+          ..._rowSlivers(context, vm, table: true),
+        ],
+      ),
+    );
+  }
+
+  /// The search or a filter is narrowing the list.
+  bool _filtered(DocuNinjaDocumentsViewModel vm) =>
+      vm.search.trim().isNotEmpty || vm.activeFilterCount > 0;
+
+  /// React's header checkbox: ticks every loaded row, or clears them all.
+  /// Shown on hover, and always while selecting, as the app's lists do.
+  Widget _selectAll(DocuNinjaDocumentsViewModel vm) {
+    final all = vm.items.isNotEmpty && vm.countSelected == vm.items.length;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: InSpacing.sm),
+      child: LeadingSelectSlot(
+        selecting: vm.isSelecting,
+        selected: all,
+        onSelectTap: vm.items.isEmpty
+            ? null
+            : () => all ? vm.clearSelection() : vm.selectAllVisible(),
+        defaultChild: const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  /// A row per document, edge to edge, as the app's narrow lists are.
+  List<Widget> _narrowSlivers(
+    BuildContext context,
+    DocuNinjaDocumentsViewModel vm,
+  ) => [
+    const SliverToBoxAdapter(child: Divider(height: 1)),
+    ..._rowSlivers(context, vm, table: false),
+  ];
+}
+
+/// The side inset of everything on the documents page — the search row, the
+/// drop zone and the table — so their edges line up: the app's wide lists'
+/// 24 on a table, 16 for narrow rows.
+double dnListInset({required bool table}) => table ? 24 : 16;
+
+/// React's empty table: one muted line where the rows would be
+/// (`DataTable.tsx`, `no_records_found`), not a page-high empty state.
+class _NoRecords extends StatelessWidget {
+  const _NoRecords({
+    required this.boxed,
+    this.messageKey = 'no_records_found',
+    this.actionKey,
+    this.onAction,
+  });
+
+  /// Inside the table card; a narrow list draws its divider under it.
+  final bool boxed;
+  final String messageKey;
+  final String? actionKey;
+
+  /// Offered under the line when set (Retry, Clear filters).
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              context.tr(messageKey),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.inTheme.ink3, fontSize: 14),
+            ),
+            if (onAction != null && actionKey != null) ...[
+              const SizedBox(height: InSpacing.sm),
+              TextButton(
+                onPressed: onAction,
+                child: Text(context.tr(actionKey!)),
+              ),
+            ],
+          ],
+        ),
+      ),
+      if (!boxed) const Divider(height: 1),
+    ],
   );
 }
 
@@ -300,25 +462,66 @@ String _userName(DnDocument doc) {
   return '';
 }
 
-String _files(BuildContext context, DnDocument doc) {
-  final pages = doc.files.fold<int>(0, (n, f) => n + f.pageCount);
-  if (doc.files.isEmpty) return '';
-  return '${doc.files.length} · $pages ${context.tr(pages == 1 ? 'page' : 'pages')}';
+/// React's files column: the page count across the document's files, in a
+/// green chip (`useTableColumns.tsx`); nothing when there are no files.
+int _pageCount(DnDocument doc) =>
+    doc.files.fold<int>(0, (n, f) => n + f.pageCount);
+
+class _PagesChip extends StatelessWidget {
+  const _PagesChip({required this.doc});
+
+  final DnDocument doc;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    if (doc.files.isEmpty) {
+      return Text('—', style: TextStyle(color: tokens.ink2));
+    }
+    final pages = _pageCount(doc);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: tokens.paidSoft,
+          borderRadius: BorderRadius.circular(InRadii.r1),
+        ),
+        // Holds a translated word, so it keeps the reading direction.
+        child: Text(
+          '$pages ${context.tr(pages == 1 ? 'page' : 'pages')}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: tokens.paid,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 const _flex = [3, 3, 4, 2, 2, 2];
 
 class _TableHeader extends StatelessWidget {
-  const _TableHeader({this.trailingWidth = 0, this.leadingWidth = 0});
+  const _TableHeader({this.trailingWidth = 0, this.leading});
 
   final double trailingWidth;
-  final double leadingWidth;
+
+  /// The select-all checkbox, in the rows' checkbox slot.
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
-      color: context.inTheme.ink2,
+    final tokens = context.inTheme;
+    // The app's wide-list header strip (`EntityListColumnHeaders`).
+    final style = TextStyle(
+      fontSize: 11,
       fontWeight: FontWeight.w600,
+      letterSpacing: 0.6,
+      color: tokens.ink3,
     );
     final labels = [
       'contact',
@@ -328,19 +531,37 @@ class _TableHeader extends StatelessWidget {
       'status',
       'created_at',
     ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    // A fill and a divider, not a bottom border: a radius needs a uniform
+    // border. Inside the card's border, so a hair under its radius.
+    final strip = Container(
+      decoration: BoxDecoration(
+        color: tokens.surfaceAlt,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(InRadii.r3 - 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          if (leadingWidth > 0) SizedBox(width: leadingWidth),
+          ?leading,
           for (var i = 0; i < labels.length; i++)
             Expanded(
               flex: _flex[i],
-              child: Text(context.tr(labels[i]), style: style),
+              child: Text(
+                context.tr(labels[i]).toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
             ),
           if (trailingWidth > 0) SizedBox(width: trailingWidth),
         ],
       ),
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [strip, const Divider(height: 1)],
     );
   }
 }
@@ -361,12 +582,6 @@ class _TableRow extends StatelessWidget {
     final tokens = context.inTheme;
     Widget cell(int i, Widget child) => Expanded(flex: _flex[i], child: child);
     // A labelled slot: an empty value is an em dash, as React's table shows.
-    Text text(String s, {Color? color}) => Text(
-      s.isEmpty ? '—' : s,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: color ?? tokens.ink),
-    );
     Widget name(String s) => LtrText(
       s.isEmpty ? '—' : s,
       keepRtlScript: true,
@@ -412,7 +627,7 @@ class _TableRow extends StatelessWidget {
                 ),
               ),
               // Holds a translated word, so it keeps the reading direction.
-              cell(3, text(_files(context, doc), color: tokens.ink2)),
+              cell(3, _PagesChip(doc: doc)),
               cell(
                 4,
                 Align(

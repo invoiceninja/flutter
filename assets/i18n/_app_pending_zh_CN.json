@@ -1735,5 +1735,6 @@
   "deleted_templates": "已成功删除 :value 个模板",
   "restored_templates": "已成功恢复 :value 个模板",
   "draw": "绘制",
-  "enter_initials": "输入姓名首字母"
+  "enter_initials": "输入姓名首字母",
+  "not_ready_for_download": "文件尚未准备好下载"
 }

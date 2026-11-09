@@ -10,15 +10,19 @@ import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/router.dart' show buildRouter;
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/data/services/docuninja/docuninja_client.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/views/docuninja_document_screen.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_download.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_status_pill.dart';
+import 'package:admin/utils/bidi.dart';
 
 import '../shell/_shell_test_helpers.dart';
 
@@ -331,6 +335,172 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Clone to a new document'), findsOneWidget);
       await dispose(tester);
+    });
+  });
+
+  group('signers', () {
+    late ShellFixture fixture;
+
+    Future<void> pump(WidgetTester tester, DnDocument doc) async {
+      fixture = await buildFixture(
+        companies: [FakeCompany(id: 'co1', name: 'Acme')],
+      );
+      addTearDown(fixture.dispose);
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          Provider<DocuNinjaApi>.value(
+            value: _Api(doc),
+            child: const DocuNinjaDocumentScreen(id: 'doc1'),
+          ),
+        ),
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    Future<void> dispose(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    Future<void> tapSendEmail(WidgetTester tester) async {
+      final button = find.text('Send Email');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets('a signer\'s Send Email names that recipient, React\'s way', (
+      tester,
+    ) async {
+      await pump(tester, _doc());
+      // React's card: who on whose side, with Copy Link while it is sent.
+      expect(find.text('Client Contact:'), findsOneWidget);
+      expect(find.text('Copy Link'), findsOneWidget);
+      await tapSendEmail(tester);
+      expect(find.text('Send Confirmation'), findsOneWidget);
+      expect(
+        find.text("We're going to send emails to the following:"),
+        findsOneWidget,
+      );
+      // No name: the email alone, kept left-to-right.
+      expect(
+        find.text('- ${ltrIsolate('signer@example.com')}'),
+        findsOneWidget,
+      );
+      expect(find.text('Are you sure?'), findsNothing);
+      final send = tester.widget<PrimaryDialogAction>(
+        find.byType(PrimaryDialogAction),
+      );
+      expect(send.label, 'Send');
+      expect(send.autofocus, isFalse, reason: 'it emails a customer');
+      await tester.tap(find.text('Cancel'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await dispose(tester);
+
+      final json = _fixture()..['status_id'] = 5;
+      final invitations = [
+        for (final i in json['invitations'] as List)
+          Map<String, dynamic>.from(i as Map),
+      ];
+      invitations.first['contact'] = {
+        ...Map<String, dynamic>.from(invitations.first['contact'] as Map),
+        'first_name': 'Ann',
+        'last_name': 'Lee',
+      };
+      json['invitations'] = invitations;
+      await pump(tester, DnDocument.fromJson(json));
+      await tapSendEmail(tester);
+      expect(
+        find.text('- Ann Lee (${ltrIsolate('signer@example.com')})'),
+        findsOneWidget,
+      );
+      await dispose(tester);
+    });
+
+    testWidgets('a finished document\'s signer offers no Send Email', (
+      tester,
+    ) async {
+      await pump(tester, _doc(status: 6));
+      expect(find.text('Client Contact:'), findsOneWidget);
+      expect(find.text('Send Email'), findsNothing);
+      expect(find.text('Copy Link'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('no signers: React\'s box into the builder', (tester) async {
+      final json = _fixture()
+        ..['status_id'] = 1
+        ..['invitations'] = <Object>[];
+      await pump(tester, DnDocument.fromJson(json));
+      expect(find.text('Add Signatories'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.text('Add Signatories'),
+          matching: find.byType(InkWell),
+        ),
+        findsOneWidget,
+      );
+      await dispose(tester);
+
+      // A completed document cannot open the builder: the box is inert.
+      final done = _fixture()
+        ..['status_id'] = 6
+        ..['invitations'] = <Object>[];
+      await pump(tester, DnDocument.fromJson(done));
+      final ink = tester.widget<InkWell>(
+        find.ancestor(
+          of: find.text('Add Signatories'),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(ink.onTap, isNull);
+      await dispose(tester);
+    });
+  });
+
+  group('downloads', () {
+    test('a 400 is React\'s "not ready"; anything else the generic retry', () {
+      expect(
+        dnFileErrorKey(const DocuNinjaException(400, 'not yet')),
+        'not_ready_for_download',
+      );
+      expect(
+        dnFileErrorKey(const DocuNinjaException(500, 'boom')),
+        'an_error_occurred_try_again',
+      );
+      expect(dnFileErrorKey(StateError('x')), 'an_error_occurred_try_again');
+    });
+
+    testWidgets('dnSaveFile says so in a toast', (tester) async {
+      final fixture = await buildFixture(
+        companies: [FakeCompany(id: 'co1', name: 'Acme')],
+      );
+      addTearDown(fixture.dispose);
+      late BuildContext context;
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          Builder(
+            builder: (c) {
+              context = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await dnSaveFile(
+        context,
+        fetch: () async => throw const DocuNinjaException(400, 'not yet'),
+        fallbackName: 'doc',
+      );
+      await tester.pump();
+      expect(find.text('File not ready for download'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 10));
     });
   });
 

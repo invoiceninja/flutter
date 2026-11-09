@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +11,7 @@ import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
+import 'package:admin/domain/docuninja/docuninja_settings_tabs.dart';
 import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
@@ -19,34 +22,108 @@ import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
+import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 final _log = Logger('DocuNinjaSettingsScreen');
 
-/// DocuNinja's own settings (`/docuninja/settings`, React's
+/// DocuNinja's own settings (`/docuninja/settings/<tab>`, React's
 /// `CompanyDetails.tsx`), for a DocuNinja admin: email settings, email
-/// templates, notifications, widget defaults and reminder schedules.
+/// templates, notifications, widget defaults and reminder schedules, a
+/// sub-route each, with Save in the AppBar acting on the tab showing.
 /// docs/docuninja.md § Settings.
 class DocuNinjaSettingsScreen extends StatefulWidget {
-  const DocuNinjaSettingsScreen({super.key});
+  const DocuNinjaSettingsScreen({
+    super.key,
+    this.tab = kDocuNinjaSettingsDefaultTab,
+  });
+
+  /// The tab the route names (a [kDocuNinjaSettingsTabs] slug).
+  final String tab;
 
   @override
   State<DocuNinjaSettingsScreen> createState() =>
       _DocuNinjaSettingsScreenState();
 }
 
-/// React's tab order (`useSettingsTabs`).
-const _kTabs = [
-  'email_settings',
-  'email_templates',
-  'notifications',
-  'widget_defaults',
-  'reminder_schedules',
-];
+int _tabIndex(String tab) {
+  final i = kDocuNinjaSettingsTabs.indexOf(tab);
+  return i >= 0
+      ? i
+      : kDocuNinjaSettingsTabs.indexOf(kDocuNinjaSettingsDefaultTab);
+}
 
-class _DocuNinjaSettingsScreenState extends State<DocuNinjaSettingsScreen> {
+/// What a tab offers the AppBar's Save: nothing until it publishes (the
+/// reminder schedules never do: they save as they change), then its save
+/// and whether one is running. A tab publishes from `setState`, so the
+/// AppBar follows it.
+class _TabSave extends ChangeNotifier {
+  bool visible = false;
+  bool saving = false;
+  VoidCallback? onSave;
+
+  /// A company tab's Save: off while another company tab saves (one save
+  /// at a time lays its edits over the company the last one left).
+  bool companyLock = false;
+  bool _disposed = false;
+
+  void publish({
+    required VoidCallback? onSave,
+    required bool saving,
+    bool companyLock = false,
+  }) {
+    if (visible &&
+        this.onSave == onSave &&
+        this.saving == saving &&
+        this.companyLock == companyLock) {
+      return;
+    }
+    visible = true;
+    this.onSave = onSave;
+    this.saving = saving;
+    this.companyLock = companyLock;
+    // A tab first publishes while it builds: tell the AppBar after the
+    // frame, never during it.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) notifyListeners();
+      });
+    } else {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
+class _DocuNinjaSettingsScreenState extends State<DocuNinjaSettingsScreen>
+    with SingleTickerProviderStateMixin {
   DocuNinjaSession? _session;
+  late final TabController _tabs = TabController(
+    length: kDocuNinjaSettingsTabs.length,
+    vsync: this,
+    initialIndex: _tabIndex(widget.tab),
+  );
+  final _saves = [for (final _ in kDocuNinjaSettingsTabs) _TabSave()];
+  late final Listenable _saveState = Listenable.merge([
+    _tabs,
+    _companySaveLock,
+    ..._saves,
+  ]);
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs.addListener(_onTabChanged);
+  }
 
   @override
   void didChangeDependencies() {
@@ -55,6 +132,34 @@ class _DocuNinjaSettingsScreenState extends State<DocuNinjaSettingsScreen> {
     if (identical(session, _session)) return;
     _session = session;
     session?.load();
+  }
+
+  @override
+  void didUpdateWidget(DocuNinjaSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The route changed under the screen (Back, a deep link, a restore).
+    final index = _tabIndex(widget.tab);
+    if (index != _tabs.index && !_tabs.indexIsChanging) {
+      _tabs.animateTo(index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabs.removeListener(_onTabChanged);
+    _tabs.dispose();
+    for (final s in _saves) {
+      s.dispose();
+    }
+    super.dispose();
+  }
+
+  /// A tab picked (or swiped to) is its sub-route, as React's are.
+  void _onTabChanged() {
+    if (_tabs.indexIsChanging) return;
+    final tab = kDocuNinjaSettingsTabs[_tabs.index];
+    if (tab == widget.tab) return;
+    GoRouter.maybeOf(context)?.go(docuNinjaSettingsTabPath(tab));
   }
 
   @override
@@ -80,58 +185,79 @@ class _DocuNinjaSettingsScreenState extends State<DocuNinjaSettingsScreen> {
           );
         } else {
           final api = context.read<DocuNinjaApi>();
+          _TabSave save(String tab) =>
+              _saves[kDocuNinjaSettingsTabs.indexOf(tab)];
           // Keyed by company: a company switch starts every tab afresh.
           body = KeyedSubtree(
             key: ValueKey(company.id),
             child: TabBarView(
+              controller: _tabs,
               children: [
-                _CompanySettingsTab(
-                  kind: _CompanyTab.email,
-                  company: company,
-                  api: api,
-                  session: session,
-                ),
-                _EmailTemplatesTab(api: api),
-                _CompanySettingsTab(
-                  kind: _CompanyTab.notifications,
-                  company: company,
-                  api: api,
-                  session: session,
-                ),
-                _CompanySettingsTab(
-                  kind: _CompanyTab.widgets,
-                  company: company,
-                  api: api,
-                  session: session,
-                ),
-                _ReminderSchedulesTab(api: api),
+                for (final tab in kDocuNinjaSettingsTabs)
+                  switch (tab) {
+                    'email_templates' => _EmailTemplatesTab(
+                      api: api,
+                      save: save(tab),
+                    ),
+                    'reminder_schedules' => _ReminderSchedulesTab(api: api),
+                    _ => _CompanySettingsTab(
+                      kind: switch (tab) {
+                        'notifications' => _CompanyTab.notifications,
+                        'widget_defaults' => _CompanyTab.widgets,
+                        _ => _CompanyTab.email,
+                      },
+                      company: company,
+                      api: api,
+                      session: session,
+                      save: save(tab),
+                    ),
+                  },
               ],
             ),
           );
         }
         final tabbed = state.isReady && company != null && admin;
-        return DefaultTabController(
-          length: _kTabs.length,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(context.tr('settings')),
-              bottom: tabbed
-                  ? TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      tabs: [for (final t in _kTabs) Tab(text: context.tr(t))],
-                    )
-                  : null,
-            ),
-            body: body,
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(context.tr('settings')),
+            // React's Save is in the page header, as the app's settings
+            // pages put theirs in the AppBar; it saves the tab showing.
+            actions: [
+              if (tabbed)
+                ListenableBuilder(
+                  listenable: _saveState,
+                  builder: (context, _) {
+                    final save = _saves[_tabs.index];
+                    if (!save.visible) return const SizedBox.shrink();
+                    final locked = save.companyLock && _companySaveLock.value;
+                    return DnAppBarSaveButton(
+                      saving: save.saving,
+                      onPressed: locked ? null : save.onSave,
+                    );
+                  },
+                ),
+              const SizedBox(width: InSpacing.sm),
+            ],
+            bottom: tabbed
+                ? TabBar(
+                    controller: _tabs,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    tabs: [
+                      for (final t in kDocuNinjaSettingsTabs)
+                        Tab(text: context.tr(t)),
+                    ],
+                  )
+                : null,
           ),
+          body: body,
         );
       },
     );
   }
 }
 
-/// A settings tab's centred, capped column with its Save at the end.
+/// A settings tab's centred, capped column.
 class _TabBody extends StatelessWidget {
   const _TabBody({required this.children});
 
@@ -154,51 +280,11 @@ class _TabBody extends StatelessWidget {
   );
 }
 
-class _SaveRow extends StatelessWidget {
-  const _SaveRow({
-    required this.saving,
-    required this.onSave,
-    this.companyLock = false,
-  });
-
-  final bool saving;
-  final VoidCallback? onSave;
-
-  /// A company tab's Save: off while another company tab saves (one save
-  /// at a time lays its edits over the company the last one left).
-  final bool companyLock;
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: companyLock ? _companySaveLock : _kNeverLocked,
-    builder: (context, locked, _) => _button(context, saving || locked),
-  );
-
-  Widget _button(BuildContext context, bool disabled) => Padding(
-    padding: EdgeInsets.only(top: InSpacing.lg(context)),
-    child: Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: FilledButton(
-        style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-        onPressed: disabled ? null : onSave,
-        child: saving
-            ? const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(context.tr('save')),
-      ),
-    ),
-  );
-}
-
 enum _CompanyTab { email, notifications, widgets }
 
 /// Held while one of the company tabs saves (one screen at a time shows
 /// them).
 final _companySaveLock = ValueNotifier<bool>(false);
-
-final _kNeverLocked = ValueNotifier<bool>(false);
 
 /// Two settings values the same to the user: a flag DocuNinja holds as 1
 /// is the `true` a switch writes, and a missing one is off.
@@ -225,12 +311,16 @@ class _CompanySettingsTab extends StatefulWidget {
     required this.company,
     required this.api,
     required this.session,
+    required this.save,
   });
 
   final _CompanyTab kind;
   final DnCompany company;
   final DocuNinjaApi api;
   final DocuNinjaSession session;
+
+  /// The AppBar's Save, while this tab shows.
+  final _TabSave save;
 
   @override
   State<_CompanySettingsTab> createState() => _CompanySettingsTabState();
@@ -274,6 +364,16 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
   void setState(VoidCallback fn) {
     super.setState(fn);
     _revision.value++;
+    _publishSave();
+  }
+
+  void _publishSave() =>
+      widget.save.publish(onSave: _save, saving: _saving, companyLock: true);
+
+  @override
+  void initState() {
+    super.initState();
+    _publishSave();
   }
 
   /// Something on this tab differs from the company as saved.
@@ -440,7 +540,6 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                   ),
                 ],
               ),
-              _SaveRow(saving: _saving, onSave: _save, companyLock: true),
             ],
           ),
         );
@@ -482,7 +581,6 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                 ),
               ],
             ),
-            _SaveRow(saving: _saving, onSave: _save, companyLock: true),
           ],
         );
       case _CompanyTab.widgets:
@@ -534,7 +632,6 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
                 ),
               ],
             ),
-            _SaveRow(saving: _saving, onSave: _save, companyLock: true),
           ],
         );
     }
@@ -544,9 +641,12 @@ class _CompanySettingsTabState extends State<_CompanySettingsTab>
 /// React's email templates page: one tab per template, a subject and a
 /// plain-text body each, saved all at once.
 class _EmailTemplatesTab extends StatefulWidget {
-  const _EmailTemplatesTab({required this.api});
+  const _EmailTemplatesTab({required this.api, required this.save});
 
   final DocuNinjaApi api;
+
+  /// The AppBar's Save, while this tab shows.
+  final _TabSave save;
 
   @override
   State<_EmailTemplatesTab> createState() => _EmailTemplatesTabState();
@@ -570,7 +670,14 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   void setState(VoidCallback fn) {
     super.setState(fn);
     _revision.value++;
+    _publishSave();
   }
+
+  /// Save once the templates are read.
+  void _publishSave() => widget.save.publish(
+    onSave: (_templates?.isEmpty ?? true) || _failed ? null : _save,
+    saving: _saving,
+  );
 
   /// A subject or body differs from the templates as last read or saved.
   bool get _isDirty =>
@@ -594,6 +701,7 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   @override
   void initState() {
     super.initState();
+    _publishSave();
     _load();
   }
 
@@ -735,24 +843,66 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: InSpacing.sm,
-                    runSpacing: 4,
+                    runSpacing: InSpacing.sm,
                     children: [
-                      for (final t in tokens)
-                        SelectableText(
-                          '{{ $t }}',
-                          style: TextStyle(
-                            color: context.inTheme.ink2,
-                            fontSize: 12,
-                          ),
-                        ),
+                      for (final t in tokens) _VariableChip(token: '{{ $t }}'),
                     ],
                   ),
                 ],
               ),
           ],
         ),
-        _SaveRow(saving: _saving, onSave: _save),
       ],
+    );
+  }
+}
+
+/// React's variable (`Variable.tsx`): a chip that copies its token on a
+/// tap, and says so.
+class _VariableChip extends StatelessWidget {
+  const _VariableChip({required this.token});
+
+  final String token;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final radius = BorderRadius.circular(InRadii.r1);
+    return Tooltip(
+      message: context.tr('copy'),
+      waitDuration: const Duration(milliseconds: 400),
+      child: Material(
+        color: tokens.surfaceAlt,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: tokens.border),
+        ),
+        child: InkWell(
+          borderRadius: radius,
+          onTap: () => copyToClipboard(context, token),
+          child: Semantics(
+            button: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LtrText(
+                    token,
+                    style: TextStyle(
+                      color: tokens.ink2,
+                      fontSize: 12,
+                      fontFamily: kMonoFontFamily,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.content_copy, size: 12, color: tokens.ink3),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

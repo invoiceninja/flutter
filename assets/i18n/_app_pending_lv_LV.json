@@ -1735,5 +1735,6 @@
   "deleted_templates": "Veiksmīgi dzēstas veidnes: :value",
   "restored_templates": "Veiksmīgi atjaunotas veidnes: :value",
   "draw": "Zīmēt",
-  "enter_initials": "Ievadiet iniciāļus"
+  "enter_initials": "Ievadiet iniciāļus",
+  "not_ready_for_download": "Fails nav gatavs lejupielādei"
 }

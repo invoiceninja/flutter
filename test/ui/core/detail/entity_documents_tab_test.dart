@@ -131,7 +131,7 @@ void main() {
         await _pump(tester, entityId: 'real_123', documents: const []);
         // The drop-or-click upload affordance is the shared FileDropZone.
         expect(find.byType(FileDropZone), findsOneWidget);
-        expect(find.byIcon(Icons.upload_file_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
         // Terse empty-state copy from `no_records_found`.
         expect(find.text('No records found'), findsOneWidget);
       },
@@ -147,7 +147,7 @@ void main() {
         expect(find.text('Camera'), findsOneWidget);
         expect(find.text('Photos'), findsOneWidget);
         expect(find.text('Files'), findsOneWidget);
-        expect(find.byIcon(Icons.upload_file_outlined), findsNothing);
+        expect(find.byIcon(Icons.cloud_upload_outlined), findsNothing);
       },
       variant: const TargetPlatformVariant({
         TargetPlatform.iOS,
@@ -190,7 +190,7 @@ void main() {
       );
       // No upload affordance anywhere.
       expect(find.byType(FileDropZone), findsNothing);
-      expect(find.byIcon(Icons.upload_file_outlined), findsNothing);
+      expect(find.byIcon(Icons.cloud_upload_outlined), findsNothing);
       // The row itself still renders so users can see what's attached.
       expect(find.text('invoice.pdf'), findsOneWidget);
 

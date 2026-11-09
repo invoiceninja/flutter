@@ -224,6 +224,20 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: delete the `FLTEnableImpeller` key. Do it only on a Flutter release that contains the fix for #191538, and only after the app has been run on an Intel Mac with an AMD GPU. Flutter has said the Skia fallback will be removed, so this cannot stay for good.
 - Recheck trigger: any Flutter bump. Check the release notes for #191538 or Intel Impeller fixes, then launch the build on an Intel Mac with the key removed.
 
+## 17. Flutter focus traversal measures focus nodes that were never laid out
+
+- Issue / waiting on: no upstream issue filed yet (none found 2026-11-09). • Found: 2026-11-09 (Sentry FLUTTER-ADMIN-H, J, S, Z: 116 events, 13 users, macOS and Linux, 5.1.20–5.1.22) • Flutter: 3.47.7
+- Symptom: Tab, Shift+Tab (including macOS `insertTab:` from a text field) or an arrow key throws `Bad state: RenderBox was not laid out: RenderSemanticsAnnotations#…` from `FocusNode.rect`, and keeps throwing on every later press.
+- Root cause: the `Overlay` never lays out a page covered by an opaque page (every page below the top of a restored or deep-linked stack, and stacked pages in a `StatefulShellRoute` branch), and a widget mounted on a page after it was covered is never laid out either. `ModalRoute` marks only its own scope `skipTraversal`, so `DirectionalFocusTraversalPolicyMixin` (which reads `nearestScope.traversalDescendants`, expanding scopes) and a reading-order sort inside a covered page's own scope both call `FocusNode.rect` on those nodes. In release `RenderBox.size` throws `StateError`; in debug, an assertion.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/core/widgets/laid_out_traversal_policy.dart` — **MUST-REVERT**: `LaidOutReadingOrderTraversalPolicy`. `sortDescendants` drops never-laid-out nodes (an unmeasurable current node goes first, so Tab steps off it). `inDirection` sets them `skipTraversal` for the length of the synchronous call and is a no-op from an unmeasurable node.
+  - `lib/main.dart` — **MUST-REVERT**: one `FocusTraversalGroup(policy: _traversalPolicy)` over the router builder's tree; each Navigator copies the enclosing policy.
+  - `test/ui/core/widgets/laid_out_traversal_policy_test.dart` — the stock-policy group pins the bug. When it starts failing, upstream has fixed it.
+- Revert: delete the policy file and its test, and drop the `FocusTraversalGroup` wrapper and `_traversalPolicy` from `main.dart`.
+- Recheck trigger: any Flutter bump. The stock-policy tests in the test file fail once traversal stops measuring unlaid nodes.
+- Not covered: FLUTTER-ADMIN-P (iPad), where Scribble's `_ScribbleFocusableState.bounds` measures every registered `EditableText`, including one on a covered page. That path goes through no traversal policy.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

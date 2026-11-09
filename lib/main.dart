@@ -65,6 +65,7 @@ import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/ui/features/shell/widgets/window_frame.dart';
 import 'package:admin/ui/core/list/list_density_scope.dart';
 import 'package:admin/ui/core/widgets/call_log_prompter.dart';
+import 'package:admin/ui/core/widgets/laid_out_traversal_policy.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -572,6 +573,9 @@ class InvoiceNinjaApp extends StatefulWidget {
 }
 
 class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
+  /// The app-wide focus traversal policy, installed in the router builder.
+  final _traversalPolicy = LaidOutReadingOrderTraversalPolicy();
+
   /// What to tell the user about this launch's reset, taken once. Held here,
   /// above the notice, so a remount of it can't tell them twice.
   late final LocalDataNoticeSlot _localDataNotice = LocalDataNoticeSlot(
@@ -1121,11 +1125,24 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                   ),
                 ),
               );
+              // The traversal policy is the stock reading order minus every
+              // focus node that was never laid out (a page covered from the
+              // start, a field mounted after its page was covered) — Tab or an
+              // arrow key would otherwise throw measuring one. One group over
+              // the whole app, so the order is otherwise unchanged; every
+              // Navigator copies it. See `LaidOutReadingOrderTraversalPolicy`.
+              final traversable = FocusTraversalGroup(
+                policy: _traversalPolicy,
+                child: app,
+              );
               // Debug Panel → Force right-to-left: overrides the direction
               // `Localizations` derived from the locale, for every route.
               return widget.services.forceRtl.value
-                  ? Directionality(textDirection: TextDirection.rtl, child: app)
-                  : app;
+                  ? Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: traversable,
+                    )
+                  : traversable;
             },
           ),
         ),
